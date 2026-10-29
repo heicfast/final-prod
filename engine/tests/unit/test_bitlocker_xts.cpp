@@ -105,7 +105,12 @@ void put32v(std::vector<u8>& v, size_t at, u32 x) {
 }
 
 std::vector<u8> build_small_fat16() {
-    /* layout: reserved 2 | FAT 2x2 | root 32 sectors -> data at sec 38 */
+    /* layout: reserved 2 | FAT 2x12 | root 32 sectors -> data at sec 58.
+     * S-064 re-shape: spf 2 made this a string/bracket-DISAGREEING volume
+     * (FAT16 string, 474 clusters) that slid through as FAT12 pre-fix;
+     * the og's string-first flavor + the child-table Fat16 window
+     * [12,256] (FUN_180036e90, the M-011 decode) decline spf=2 outright.
+     * spf 12 is the window floor - a clean og-faithful small FAT16. */
     std::vector<u8> img(u64(kFat16TotalSecs) * 512, 0);
     u8* b = img.data();
     std::memcpy(b + 3, "MSWIN4.1", 8);
@@ -115,8 +120,8 @@ std::vector<u8> build_small_fat16() {
     b[0x10] = 2;            /* FAT count */
     put16v(img, 0x11, 512); /* root entries */
     put16v(img, 0x13, kFat16TotalSecs);
-    b[0x15] = 0xF8;       /* media */
-    put16v(img, 0x16, 2); /* sectors/FAT */
+    b[0x15] = 0xF8;        /* media */
+    put16v(img, 0x16, 12); /* sectors/FAT - the Fat16 window floor */
     put16v(img, 0x18, 63);
     put16v(img, 0x1A, 255);
     b[0x26] = 0x29;
@@ -126,9 +131,9 @@ std::vector<u8> build_small_fat16() {
     b[510] = 0x55;
     b[511] = 0xAA;
 
-    const size_t FAT1 = 2 * 512, FAT2 = 4 * 512;
-    const size_t ROOT = 6 * 512; /* 32 sectors */
-    const size_t DATA = 38 * 512;
+    const size_t FAT1 = 2 * 512, FAT2 = 14 * 512;
+    const size_t ROOT = 26 * 512; /* 32 sectors */
+    const size_t DATA = 58 * 512;
 
     /* canonical media words (M-015) */
     put16v(img, FAT1 + 0, 0xFFF8);

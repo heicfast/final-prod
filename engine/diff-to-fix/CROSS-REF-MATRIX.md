@@ -46,6 +46,7 @@ convergently. Full record: `evidence/s54-liveness-reconciliation.md`.
 | writer+report · the failed-files report's tree-classification axis (P13/P11/P46/P68) | **MATCH** | **N-159 FIXED** (session-46 MINOR-first lane) — the og's recovery-log truth decoded and landed: the per-item `tree_class` axis (the six-valued root-role classification, DRWUI :642755-642822 re-verified first-hand with the three field getters pinned) + the `failed_bytes` totals split (the +0x268 accumulator, the enqueue-refusal exclusion documented as schema truth rule 5) + the three register repairs (R-58's "text log"→HTML report; API-DELTA row 21's "NOT IN CORPUS" refuted; D13's addendum) + additive-within-v1 per the schema doc's own contract; 4 tests RED-first; suite 1243 green |
 | ntfs · the runlist malformed-input tolerance (recovery edge/27/35) | **MATCH** | **N-163 FIXED** (session-46 MINOR-first lane) — the og's truncate-and-keep lands: a torn fragment decodes its valid prefix with `torn` (every decoder branch re-read first-hand, FUN_1800347d0 :41853-41970) + the PartialRisk grading downgrade + the clean-buffer-end/tear distinction + PARITY-DELTAS D-135 (the sparse-first superset registered — the og's pre-validator FUN_18001d5f0 :23184 rejects what the core deliberately accepts); the zero-valid-runs class still rejects (the validator's own gate); TornAfterValidRunsKeepsPrefix + the end-to-end TornRunlistKeepsPrefixAndGradesPartialRisk RED pre-fix; suite 1280 green |
 | fat · the out-of-volume run-end stance (27/23 + false-positive shaping) | **MATCH (registered deliberate superset, D-136)** | **N-165 FIXED** (session-46 MINOR-first lane) — both og factory gates re-read first-hand (FATSearchDLL :10865-10903/:28040-28075: the run-end check + "File overflows partition!" + the runlist destruction); the core's deferred-failure stance REGISTERED as PARITY-DELTAS D-136 + pinned by FatEngine.TruncatedVolumeOverflowChainStance (the overflow-tail file stays listed with full chain extents; the readable prefix recovers; the tail discloses as Salvaged at recovery); the scan-time grade stays the chain's own; no behavior change — the registration + pin the finding's own plan prescribed |
+| orchestration · the live file-count telemetry (38 + contract truth) | **MATCH** | **N-166 FIXED** (session-46 MINOR-first lane) — the tree-atomic live counters + the emit-time refresh (monotonic; boundary stamps authoritative; deleted_found boundary-only, the post-attach deleted-state truth); the header contract re-truthed; TelemetryCountersMoveDuringCarveStage RED pre-fix (the frozen mid-stage counts); the same push repaired the hot-window red main (the N-177 duplicate-TEST, the N-171 validated double-count, the crossed grading assertions, the user-sign test-hygiene leak); suite 1312 green |
 
 **Session-52 S52 fix lane (2026-10-29 — the parity-fix lane over the standing board; opened at core `fa654673`, corpus `be0cfe9`, the green baseline proven 1273/1273 BEFORE the first change; rebranded S47-draft -> S52 at the hot-window arbitration — the remote's S45..S51 lanes pushed first):**
 
@@ -337,9 +338,12 @@ grammar byte-confirmed — no erratum needed).
   (`LostDir<record>` per-parent folders + the "File Path Lost" branch name;
   B5/B10/D12/A26 cells; the C2 "roles map 1:1" claim falsified for the lost
   branch).
-- **mom-capabilities/product-frame row, new cell**: **S-050** (the file-repair
-  line — 9 binaries, 8 artifacts, unimplemented AND untruthfully registered;
-  A42/Q68/I-010 cells).
+- **mom-capabilities/product-frame row, new cell**: **S-050 — FIXED (session-51 lane → the formal §3 exclusion registered:
+  CAPABILITY-MATRIX's standing-exclusions section now carries the repair
+  line with the Fixo-provenance rationale + the UI-layer handoff; D-137
+  preserves the future implementer's decoded entry points; the doc-truth
+  gate test lands; findings/FIXED/S-050)** (the file-repair
+  line — 9 binaries, 8 artifacts; A42/Q68/I-010 cells).
 - Executed MATCH recorded: the raw_signs.json regen sync (139/199/62
   byte-identical; the carve row's C19-C21 cells).
 - **The FIXED purge (L-A)**: findings/FIXED/ retired to history; all matrix

@@ -229,9 +229,10 @@ inline BOOL DeleteFileW(const wchar_t*) {
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
 }
-/* S-060's restore surface: the setters join their getters (the stub
- * mirrors the exact SDK shapes the win layer consumes - declarations
- * only, never linked). */
+/* S-060 (the recovered-file timestamp/attribute restoration): the
+ * destination finalize path sets both. SDK-faithful shapes
+ * (SetFileAttributesW takes the attributes DWORD; SetFileTime takes the
+ * three FILETIME* slots, NULL = leave unchanged). */
 inline BOOL SetFileAttributesW(const wchar_t*, DWORD) {
     return 1;
 }

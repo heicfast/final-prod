@@ -94,9 +94,10 @@ public:
      * 0x02 = NTFS dir mirror. N-177: 0x0200 = size-exceeds-blocks
      * damage (the og's ext4 FLAGS bit 0x200 at +0x39, FUN_180007510's
      * i_blocks < size>>9 compare - regular files only; persisted with
-     * the session, a grading/diagnostics input). */
+     * the session, a grading/diagnostics input). The constant itself is
+     * NODE_FLAG_SIZE_EXCEEDS_BLOCKS above (the N-177 convergence repair
+     * folded the duplicate PFLAG spelling into the winner's name). */
     u16 flags = 0;
-    static constexpr u16 PFLAG_SIZE_EXCEEDS_BLOCKS = 0x0200;
     std::u16string name; /* full display name (LFN) */
     /* N-011a (diff-to-fix): the og's props carry a separate 8.3 short
      * name (GetShortNameLen/SetShortName/GetShortNamePtr vtable surface;
@@ -432,16 +433,24 @@ public:
     size_t node_count() const { return nodes_.size(); }
     size_t file_count() const;
     u64 total_logical() const;
-    /* N-166: the live attach counter - every add_file ticks it under the
-     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and
-     * a deserialized tree self-seeds through its own add_file calls).
-     * The telemetry layer samples it at progress-event time so mid-stage
-     * counters MOVE (the og's results grid tracks the live tree at ~2 s
-     * cadence; the core's stage-boundary stamps stay the authoritative
-     * close-of-stage sample). Lock-free read: an atomic load. Hard links
-     * count per tree entry (per-parent attach), matching the structured
-     * engines' own per-link counting. */
+    /* N-166 (diff-to-fix) — ONE canonical landing (the two lanes' identical
+     * live_files blocks were stacked by the hot-window merge; the comments
+     * folded): the LIVE node counters — total files attached and the
+     * raw/carved subset (fs_kind == FsKindCode::Raw at attach time — carve
+     * stamps it before add_file). Every add_file ticks them under the
+     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and a
+     * deserialized tree self-seeds through its own add_file calls). The
+     * telemetry layer samples at progress-event time so mid-stage counters
+     * MOVE (the og's results grid tracks the live tree at ~2 s cadence —
+     * the "Files Found" live-tracking parity; the core's stage-boundary
+     * stamps stay the authoritative close-of-stage sample). Lock-free read:
+     * relaxed atomic load, readable from ANY thread without the tree mutex.
+     * Hard links count per tree entry (per-parent attach), matching the
+     * structured engines' own per-link counting. Monotonic by design: a
+     * detached rejected-candidate subtree does NOT decrement (the boundary
+     * stamp re-truths at the stage close). */
     u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
+    u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
 
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
@@ -501,8 +510,9 @@ public:
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
-    /* N-166: see live_files() */
+    /* N-166: the live counters (see the accessors above) */
     mutable std::atomic<u64> live_files_{0};
+    mutable std::atomic<u64> live_raw_{0};
     void rebase_props_locked(FileNode* n, u64 base, std::unordered_set<FileProperties*>& visited);
     static u64 extent_len_class_(const FileProperties* p);
 

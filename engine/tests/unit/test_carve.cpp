@@ -7895,6 +7895,17 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         << "no user-sign record at a built-in magic (S-055)";
     EXPECT_EQ(1u, count_tagged(root, 0xFFFF0000u + flac_id))
         << "the bounded built-in flac candidate owns the position";
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
@@ -7955,6 +7966,17 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
                 << ext << ": a built-in candidate owns the position";
         }
     }
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
@@ -7989,6 +8011,17 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     teardown.valid = true;
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
     ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
@@ -8031,6 +8064,17 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
     teardown.valid = true;
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
     ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
@@ -8063,6 +8107,9 @@ TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_tagged(root, 0xFFFE0000u)) << "the unclaimed magic still fires";
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledFormatsGatesUserSignLayer) {
@@ -8114,6 +8161,17 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         EXPECT_EQ(0u, count_tagged(root, 0xFFFF0000u + cpl_id))
             << "disabled '" << dis << "': no built-in cpl record either";
     }
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
@@ -8147,6 +8205,9 @@ TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_ext_records(root, "xyzzy")) << "the disabled user ext is suppressed";
     EXPECT_EQ(1u, count_ext_records(root, "quux")) << "the other user ext still fires";
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
@@ -8172,6 +8233,9 @@ TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 namespace {
@@ -8245,6 +8309,9 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "wpl: no user-sign record at the far-anchored collision";
         EXPECT_EQ(1u, count_builtin_tagged(root)) << "wpl: the built-in candidate owns the stride";
     }
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(CarveStats, UserSignFilesCountInCarvedFound) {

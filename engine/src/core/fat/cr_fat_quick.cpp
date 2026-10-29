@@ -419,6 +419,14 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
         i = j + 1;
     }
 
+    /* N-165/S46 convergence: count the D-136 class (any extent past the
+     * device end) - additive observability only; grades are the chain's
+     * own per the winning stance. */
+    for (const auto& ex : props->extents)
+        if (ex.offset + ex.length > ctx.dev->size()) {
+            ++ctx.stats->overflow_chains;
+            break;
+        }
     tree::FullNode* default_root =
         deleted ? (deleted_root ? deleted_root : ctx.root_deleted) : ctx.root_active;
     tree::FileNode* n = ctx.tree->add_file(parent_host ? parent_host : default_root, props);

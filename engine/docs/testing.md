@@ -1,8 +1,9 @@
 # Testing
 
 ## Layer 1 - unit (every push, both platforms)
-1,014 `TEST`/`TEST_F` macros across `tests/unit/` (61 files, counted at the
-PARITY-FIX-3 session; the number moves with every landing wave — the latest
+1,404 `TEST`/`TEST_F` macros across `tests/unit/` (65 files, recounted
+2026-10-29 by the S56 lane — the number moves with every landing wave, so
+every session entry pins its own counts; the latest
 executed green counts: **1,003/1,003 release+ASan at the thumbnail landing
 (`05e6786`, 20 thumbnail tests included)** and 970/970 at the A-011/N-089
 landing; the macro-vs-executed delta is the Windows-only suites + platform

@@ -2878,3 +2878,104 @@ TEST(Orchestrator, LostRootNamedFilePathLost) {
     EXPECT_NE(std::string::npos, src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
         << "the resume path must recognize BOTH names";
 }
+
+TEST(Orchestrator, TelemetryCountersMoveDuringCarveStage) {
+    /* N-166: the og's "Files Found" tracks the live tree (~2 s cadence,
+     * DRWUI.log's matched/total lines; the dynamic-ground-truth capture
+     * shows the Reconstructed branch growing 1->16 live) - the core's
+     * progress events must carry MOVING counters mid-stage, not the
+     * frozen stage-begin snapshot. Pre-fix every ScanProgress event of
+     * the carve stage carried carved_found == 0 (the boundary-only
+     * stamp): RED. */
+    struct CountRecorder {
+        struct Row {
+            event::Type type;
+            u32 stage;
+            u64 files, carved;
+        };
+        std::vector<Row> rows;
+        mutable std::mutex m;
+        static void on_evt(const event::Event& e, void* user) {
+            auto* r = static_cast<CountRecorder*>(user);
+            std::lock_guard<std::mutex> lock(r->m);
+            r->rows.push_back({e.type, e.stage, e.files_found, e.carved_found});
+        }
+    } rec;
+    auto img = build_fat16();
+    /* ten JPEGs spread across the data area so the carve crosses several
+     * scan windows (each window boundary ticks the progress bridge) */
+    const auto plant_jpeg_at = [&](u64 byte_off) {
+        u8* at = img.data() + byte_off;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    };
+    for (int i = 0; i < 10; ++i)
+        plant_jpeg_at(u64(150) * 512 + u64(i) * 200 * 512);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.event_fn = &CountRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    ASSERT_GE(stats.carved_found, 10u) << "the fixture's JPEGs must carve";
+
+    std::lock_guard<std::mutex> lock(rec.m);
+    ASSERT_FALSE(rec.rows.empty()) << "the event stream must carry events";
+    /* (a) monotonic counters across the WHOLE stream (a regression guard
+     * for the live refresh: counts never regress) */
+    u64 prev_carved = 0;
+    for (const auto& r : rec.rows)
+        EXPECT_GE(r.carved, prev_carved) << "carved_found must never regress";
+    /* (b) THE PIN: at least one mid-stage ScanProgress event of the carve
+     * stage carries a NON-ZERO carved count - the live refresh moved the
+     * counter BEFORE the stage-end boundary stamp (pre-fix: frozen 0) */
+    bool moved = false;
+    for (const auto& r : rec.rows)
+        if (r.type == event::Type::ScanProgress && r.stage == 2 && r.carved > 0)
+            moved = true;
+    EXPECT_TRUE(moved) << "a mid-carve progress event must carry live counts";
+    /* (c) the live stream ends where the authoritative boundary stamp
+     * lands: the last event's counters equal the scan's final stats */
+    EXPECT_EQ(rec.rows.back().carved, stats.carved_found);
+}

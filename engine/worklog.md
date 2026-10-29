@@ -1,3 +1,41 @@
+**Session-51 severe-first lane — S-050 landed (2026-10-29).**
+
+**S-050 FIXED (the repair-line registration, option (b) of the finding's own
+decision framework).** The file-repair line formally registered OUT OF SCOPE
+in CAPABILITY-MATRIX §3 as a separate product line (Fixo provenance, 9
+binaries, remote-config flags, the UI-layer handoff note). D-137 preserves
+the future implementer's decoded entry points — the video engine's
+datarun-selection seam (tree::FileNode::extents, the only repair engine that
+consumes the core's own scan results), the sample-file consent model, the
+output-location contract, the per-chunk feed decision. All three addenda
+folded in. The SURFACE-INVENTORY row re-truthed to cite the registration.
+The finding's own test idea executed: CrUi.OutOfScopeRowsCarryTruthfulRegistrations
+gates the OOS-citation drift class. The adjacent eligibility surface
+(CHKRepairFileSign/EUUserData) verified as the truthful D-104 channel.
+**S56 lane — N-150 landed (2026-10-29).**
+
+**N-150 FIXED (MINOR — the API doc-truth batch).** The count sites re-derived
+in BOTH directions and now CI-guarded (the doc_truth_gate's check_abi_count_
+claims — derivation from the tree itself: 86 exports / 45+OK error codes
+[case-normalized — six uppercase-hex spellings; the check caught this lane's
+own lowercase-only grep miss mid-landing] / 12 event types / errmod 13 / 12
+verbs): API.md 83->86 + the two thumbnail rows; CORE-API-CURRENT 78/34/10 ->
+86/45/12 (+ the :38 banner); API-SURFACE-AUDIT 81->86 + A-ABI-3 RETIRED-
+EXECUTED (the class is automated now). R-84 flipped PRESENT (the 6-facet
+status surface re-verified on disk), R-37 reshaped PARTIAL (M-116's pointer),
+the status line recounted by real awk census (45/10/27 — the first-draft
+guess redone against the count, recorded as the anti-example). The phantom
+macro CR_UI_ERR_FVE_LOCKED -> ERR_FVE_LOCKED x4; the dead duplicate --label
+handler removed (dead from birth, the divergent ASCII semantics annotated,
+the live N-016b rule pinned at the ABI seam by N-090's test; no CLI harness
+exists — registered honestly); §7i FIXED-ALREADY (200 MB on disk); testing.md
+1,404 macros; bench/README's runtime-artifact truth; the API-DELTA stale
+rows annotated (M-072/M-074/M-017/S-038/OQ-SA-1). RED->GREEN: the gate's
+first run = 5 named count violations -> green. Suites: cr_tests 1,289/0
+failed + cr_ui_tests 77/77 (linux-release, the sibling window's red-main
+repair tree — convergent with this lane's own superseded repair). Trail:
+findings/FIXED/N-150 + ledger row + this entry.
+
 **Session-51 severe-first lane — S-059 landed + two hot-window franken-tests repaired (2026-10-29).**
 
 **S-059 FIXED (the sparse-hole export).** Corpus re-verified first-hand
@@ -247,6 +285,48 @@ its world. Suite green.
   `CarveStats.StockRawSignFilesCountInCarvedFound`. Suite 1236/1236 (linux-release).
   Audit trail: both finding Resolutions + moves to findings/FIXED/, the N-188 row
   added to CROSS-REF-MATRIX, carve module doc rows, SUMMARY entry-2 block, this entry.
+**Session-46 lane — N-166 lands + the hot-window red main repaired (2026-10-29).**
+
+- **RED-MAIN REPAIRS FIRST (the leave-main-green contract):** the 994e0bb0/cb2abd42
+  convergence merges left main RED in three places — (a) the N-177 duplicate-TEST
+  redefinition in test_ext4_volume.cpp (build-breaking; the S53 lane's
+  byte-equivalent test kept under the distinct name SizeExceedsBlocksDamaged
+  DirectoryStaysUnflagged preserving its unique damaged-directory pin; the
+  duplicate PFLAG_SIZE_EXCEEDS_BLOCKS constant folded into the winner's
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS, the 3 test_session.cpp users re-pointed); (b)
+  the N-171 validated double-count (the merge kept BOTH lanes' user-sign
+  emission increments — every user-sign file counted twice;
+  UserSignFilesCountInCarvedFound red, one increment restored); (c) the
+  4d450da2 re-base's crossed grading assertions (ExtensionTableGatesDeep
+  Validation asserted the .zzqx pair as in-table — corrected to the test's own
+  documented polarity); and (d) the S-055/S-056 battery's user-sign test-hygiene
+  leak (install_default_usersigns' 190-sign set — incl. the og's weak 3-byte
+  "lha" "-lh" prefix sign — never torn down; the leaked lha sign carved
+  LzhWrongDashByteRejects' wrong-dash form; bisected first-hand, per-test
+  teardowns restore the empty registry). Suite 1312/1312 (1270/42/0);
+  cr_ui_tests 73/73.
+
+- **N-166 FIXED (MINOR, orchestration)** — the live file-count telemetry:
+  the og's "Files Found" tracks the tree live (~2 s cadence; the ground-truth
+  capture + DRWUI.log cites re-read); the core's counters froze at stage
+  boundaries. Landed: ResultTree's two relaxed atomic attach counters
+  (live_files_/live_raw_ — bumped in add_file under its own lock; the raw
+  subset keyed on fs_kind==Raw which carve stamps before the attach) +
+  refresh_live_counts_ called at every emit_event_/emit_progress_event_
+  (monotonic advance only; the stage-boundary stamps stay the authoritative
+  close-of-stage sample via tel_counts_; deleted_found deliberately stays
+  boundary-only — the engines assign the deleted-state AFTER the attach, so
+  the finding's "the counters already are atomics" premise was corrected in
+  the Resolution: the tree-level atomics are the race-free carrier). The
+  header contract re-truthed (cr_scan.h's "STAGE-BOUNDARY samples" line →
+  the live-refresh truth with the exact split). Test:
+  Orchestrator.TelemetryCountersMoveDuringCarveStage — (a) monotonic
+  counters across the whole stream, (b) THE PIN: a mid-carve ScanProgress
+  event carries a non-zero live carved count (RED pre-fix with the refresh
+  stashed: every mid-stage event frozen), (c) the final event equals the
+  authoritative stats. Suite 1312/1312; cr_ui_tests 73/73; clang-format
+  clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
+  row; matrix row → MATCH; orchestration module addendum.
 **Session-46 lane — the N-165 registration lands (2026-10-29).**
 
 - **N-165 FIXED (MINOR, fat)** — the out-of-volume run-end stance registered:
@@ -8462,6 +8542,18 @@ this lane flagged in its battery (the FIXED/M-133 reuse, the N-142/N-186 renumbe
 now this) — a board-wide "one ID, one finding, forever" invariant is worth a
 ci-local gate (the N-160 doc-truth gate family is the natural home).
 
+## Session-46 minors lane — the N-165 convergence commit (2026-10-29)
+
+The S57/S60 windows' merges absorbed this lane's repairs (their own repair
+commits credit them); this commit lands the two S46 pieces the merges did not
+carry: (1) the `FatScanStats.overflow_chains` counter — additive observability
+for the D-136 deferred-failure class (any extent past the device end), no
+behavioral surface, neither pin grades on it; (2) the S46 convergence addendum
+in findings/FIXED/N-165 (this lane's independent gate re-reads + RED→GREEN
+proof; the scan-time cap declined to the winning chain-own-grade stance per
+SA-9). Suite green on the result: 1331 ran / 1289 pass / 42 env-skips / 0 fail
+(linux-release), clang-format clean.
+
 
 ## Session-57 fix lane — the lane opens + the A-014 convergence recorded (2026-10-29)
 
@@ -8549,4 +8641,5 @@ pins kept; (3) the S-060 restore surface grew the win layer's SDK consumption
 (SetFileTime/SetFileAttributesW in cr_destio.cpp) without growing the win-stub - the
 two setter declarations added beside their getters (the M-055 gate working as
 designed). Suite 1403/1403.
+
 
