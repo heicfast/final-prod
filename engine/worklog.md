@@ -9284,7 +9284,6 @@ comments in cr_analysers.cpp, the test comments, the SUMMARY block). The gate no
 green locally: 53 active, 132 retired, 386 ledger-resolved, zero collisions, 135
 unique D-rows.
 
-
 ## Session-60 lane open + N-192 landed (2026-10-29)
 
 **Lane open.** The MINOR-first diff-to-fix execution lane (the user's
@@ -9553,6 +9552,48 @@ No production code change (the core is the registered deliberate non-adoption).
 Trail: findings/FIXED/I-045 (Resolution + moved) + FIXED-LEDGER row +
 modules/ext4.md ACKNOWLEDGED + SUMMARY S58 block + this entry.
 
+## Session-60-B lane — N-202 landed (2026-10-29)
+
+**N-202 FIXED (MINOR — ext4 SB band deltas consolidated).** All four og sites
+re-read first-hand: the :3237 inode-size gate, the 0x400<<log_bs int-sign
+form (:3232-3239), the HAS_JOURNAL-gated journal_inum copy (:3365-3367), the
+unconditional [32,64] desc_size clamp (:3397-3405). Per the fix plan:
+PARITY-DELTAS D-145 (four sub-items with rationales; the og's log_bs band
+recorded as its own defect class per the I-045 family) +
+Ext4Engine.SbBandsPinned (four edges; the log_bs edge isolated from the fdb
+kernel rule so the cap is the firing gate; both desc_size combos). No
+behavior change. Ext4Engine 44/44. Board truth re-counted at this push: 35
+active (1 S / 20 M / 14 N), the MAJOR count absorbing the parallel window's
+M-141/M-145/M-147. Trail: findings/FIXED/N-202 + Resolution, ledger row,
+matrix MATCH, SUMMARY, this entry.
+
+---
+
+## Session-60 lane — M-147 landed (the NTFS cpr/cib zero defaults) (2026-10-29)
+
+**M-147 FIXED (MAJOR — the zeroed +0x40/+0x44 BPB byte refused the whole
+volume where every og scan-path layer DEFAULTS).** Classification:
+CONFIRMED-DIVERGENCE — all four og default sites re-read first-hand
+(analyser FUN_180004830 :3427-3440 `if (bVar1 == 0) return 0x400;` +
+FUN_180004870 `return 0x1000;`, NTFSSearchDLL FUN_18003f630 :51055+,
+PartitionRecoveryD FUN_180011a10 :10231 / FUN_180011a90 :10254 — verbatim
+matches of the finding's quotes). The landing: `record_size_from_dbr`
+takes the 1024-byte zero default (the four-site scan-path contract), the
+new `index_block_size_from_dbr` twin decodes the +0x44 getter semantics
+(shift / 4096 zero default / product) into the new
+`VolumeParams::index_block_size` (the M-146 dispatch shape gates' data
+source), and `validate_boot_sector` drops both zero-byte refusals while
+keeping the registered hardening (P1-4 exponent cap, sub-sector-record
+rejection). The retired D-52 pin `BootRecordSizeZeroRejected` is re-pinned
+as `BootRecordSizeZeroDefaultsTo1024` / `BootIndexBlockZeroDefaultsTo4096` /
+`BootRecordShiftFormStillDecodesAlongsideZeroDefault` — RED proven by the
+revert-mutation rebuild (both default tests FAILED with the defaults
+reverted, GREEN with them landed); NTFS family 158/158; doc_truth_gate green
+(51 active, 134 retired). D-52's WHAT-OG-DOES premise corrected in
+PARITY-DELTAS (the NTFSLib :19322/:19331 "rejection" was a store-guard
+misread — both paths share the fall-through exit). Trail:
+findings/FIXED/M-147 + ledger row + D-52 correction + this entry.
+
 ## Session-60 lane — N-205 landed (2026-10-29)
 
 **N-205 FIXED (MINOR — the rawCount population + the phantom member).**
@@ -9590,3 +9631,16 @@ comment, the RawCountSemanticsRegistered pin, matrix/SUMMARY/finding/
 M-134-addendum cites). Both sides' rows kept in PARITY-DELTAS, the
 ledger, and this file. Gate green at 140 unique D-rows; Grading family
 40/40 re-verified post-sweep.
+
+
+## Session-60 lane — the third hot-window renumber ride (2026-10-29)
+
+The window's N-202 (D-145) + M-147 corroboration landed while the second
+renumber merge was in flight — the third born-collided D-seat resolved
+per SA-9: this lane's N-205 registration now rides D-146 (the
+D-143→D-144→D-145→D-146 ride recorded at every citation: the cr_grading.h
+mapping comment, the RawCountSemanticsRegistered pin, the matrix/SUMMARY/
+finding/M-134-addendum cites). Gate green; the registration pin re-verified
+post-sweep. The racing lanes (their MINOR-first S60-B + a MAJOR-first
+lane) are converging on the same board — this lane's remaining queue is
+re-synced against their landings before each fix.

@@ -443,6 +443,84 @@ TEST(Ext4Engine, SuperblockValidation) {
     EXPECT_FALSE(validate_superblock(raw, sb));
 }
 
+TEST(Ext4Engine, SbBandsPinned) {
+    /* N-202 (PARITY-DELTAS D-145): four superblock acceptance-band
+     * differences on garbage SBs, each a registered deliberate choice
+     * (near-zero real-volume impact - consolidated so none stays
+     * accidental):
+     *   (1) inode_size == 0 with rev >= 1: the og REJECTS (:3237's
+     *       (rev==0) || inode_size != 0 gate); the core falls back to
+     *       128 and accepts.
+     *   (2) log_bs 7..20: the og ACCEPTS (its 0x400 << log_bs int-sign
+     *       form only fails past 20 - 1 GiB blocks are an og defect
+     *       class, the I-045 family); the core rejects above 6.
+     *   (3) journal_inum: the og copies the field only when
+     *       feature_compat HAS_JOURNAL bit 2 is set (:3365-3367); the
+     *       core reads it unconditionally and defaults 0 -> 8.
+     *   (4) desc_size: the og clamps to [32,64] unconditionally
+     *       (:3397-3405); the core picks 64-iff-64BIT (32 otherwise) -
+     *       differs only on invalid combos.
+     * This pin asserts the four edges as DELIBERATE; if a band is ever
+     * changed, this test forces the register to be re-truthed first. */
+    u8 raw[1024];
+    SuperBlock sb;
+
+    /* (1) inode_size = 0 + rev 1: accepted with the 128 fallback */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0x58, 0); /* s_inode_size = 0 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb))
+            << "core accepts the og-rejected inode_size=0 (128 fallback)";
+        EXPECT_EQ(128u, sb.inode_size);
+    }
+    /* (2) log_bs = 7 (128 KiB blocks): refused - the og's int-sign form
+     * would accept up to 20 (1 GiB), an og defect class */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x14, 0); /* fdb = 0: isolate the log_bs cap
+                                         * (fdb=1 would trip the kernel
+                                         * fdb x log_bs rule first) */
+        put32(img.block(1) + 0x18, 7); /* s_log_block_size = 7 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_FALSE(validate_superblock(raw, sb))
+            << "log_bs > 6 refuses (the og accepts 7..20 - nonsense blocks)";
+    }
+    /* (3) journal_inum = 0 on a non-journal volume: read unconditionally,
+     * defaulted to 8 (the og leaves the field untouched without
+     * HAS_JOURNAL) */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0xE0, 0); /* s_journal_inum = 0, no HAS_JOURNAL */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(8u, sb.journal_inum)
+            << "the unconditional-read stance: 0 -> the default inode 8";
+    }
+    /* (4a) 64BIT + desc_size = 32: the core forces 64 (the og's clamp
+     * would keep 32); (4b) non-64BIT + desc_size = 64: the core keeps 32 */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0002 | 0x80); /* FILETYPE | 64BIT */
+        put16(img.block(1) + 0xFE, 32);             /* s_desc_size = 32 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(64u, sb.desc_size) << "64BIT forces the 64-byte descriptor";
+    }
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0xFE, 64); /* s_desc_size = 64, NO 64BIT flag */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(32u, sb.desc_size) << "non-64BIT keeps the 32-byte descriptor";
+    }
+}
+
 TEST(Ext4Engine, EndToEndWalk) {
     auto img = build_volume();
     MemDevice dev(img.raw());

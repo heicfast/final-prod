@@ -50,3 +50,10 @@ Corpus-decompile evidence (the four og forms with sites; two re-read directly, t
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (registered + pinned — the finding's prescribed no-behavior-change disposition)
+**Fixed in commit:** (this push; S60-B lane)
+**Verified by:** `Ext4Engine.SbBandsPinned` — the four edges asserted as deliberate: inode_size=0+rev1 → 128-fallback accept; log_bs=7 → refused (isolated from the fdb×log_bs kernel rule so the cap is the firing gate); journal_inum=0 → 8 on a non-journal volume (the unconditional-read stance); 64BIT+ds=32 → 64 and non-64BIT+ds=64 → 32 (the 64BIT-form stance). Ext4Engine family 44/44.
+**Resolution notes:** Corpus re-verified first-hand: the :3237 inode-size gate, the `0x400 << (log_bs & 0x1f)` int-sign form (:3232-3239), the HAS_JOURNAL-gated journal_inum copy (:3365-3367), and the unconditional [32,64] desc_size clamp (:3397-3405) — all four exactly as filed. Core re-verified at cr_ext4_engine.cpp:148-199. Per the fix plan: PARITY-DELTAS **D-145** registers the four consolidated bands (each with its one-line rationale — the log_bs wide band recorded as the og's own defect class per the I-045 family); the pin test asserts all four edges with the log_bs edge isolated from the adjacent kernel fdb rule so the asserted gate is the registered one. No behavior change.

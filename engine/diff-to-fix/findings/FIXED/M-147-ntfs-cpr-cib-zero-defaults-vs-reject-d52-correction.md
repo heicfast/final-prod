@@ -104,3 +104,26 @@ hardening). D-52's WHAT-OG-DOES premise is corrected in the same push:
 the four-site default map is recorded (analyser getters,
 NTFSSearchDLL FUN_18003f630, PartitionRecoveryD FUN_180011a10/a90) and
 the NTFSLib store-guard misread (the shared-exit structure) is documented.
+
+---
+
+## Convergence corroboration addendum (session-60 MAJOR-first lane, 2026-10-29)
+
+This lane landed the identical fix independently and concurrently (the SA-9
+collision): `record_size_from_dbr`'s 0x400 zero default (byte-identical intent,
+re-verified against all four og sites first-hand — analyser FUN_180004830
+:3427-3440 / FUN_180004870 :3443-3456, NTFSSearchDLL FUN_18003f630 :51055+,
+PartitionRecoveryD FUN_180011a10 :10231 / FUN_180011a90 :10254), the cib==0
+refusal drop, the P1-4/sub-sector hardening kept, and the D-52 premise
+correction. The remote window's landing (M-141+M-145+M-147, one coherent
+family push) is the FIX OF RECORD per SA-9; its architecture decision — the
++0x44 decode feeds no VolumeParams field because INDX extents ride
+$INDEX_ALLOCATION runs — superseded this lane's forward-looking
+`VolumeParams::index_block_size` supplement (dropped at the reconciliation;
+the M-146 dispatch-time shape gates decode +0x44 inline at probe time
+instead, matching the og analyser's own layering). Unique surviving
+contribution: the positive shift-form control
+`NtfsVolume.BootRecordShiftFormDecodesAt1024` (cpr = -10 -> 1024 bytes — the
+shift path's acceptance pinned beside the zero default; the remote suite
+pins only the -30/-1 rejections) and the RED-mutation proof method (both
+default tests FAILED with the defaults reverted, GREEN with them landed).
