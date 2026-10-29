@@ -11306,7 +11306,12 @@ TEST(Carve, SitClassicSpaceFormKeepsTheRegisteredStandIn) {
         u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
-    EXPECT_EQ(all.size(), 0u) << "the old form without a next header must drop";
+    /* N-233's arbitration note: the both-kept merge had spliced the racing
+     * drop-test's tail onto this keep-test's head - the assertion now
+     * matches its own comment and the code: the classic ' ' form CARVES
+     * at the available-extent bound (the registered stand-in). */
+    ASSERT_EQ(all.size(), 1u);
+    EXPECT_EQ(all[0]->props()->logical_size, size_t((1ull << 20) - 512));
 }
 
 /* ---- M-107: the SWF-RECT member — the validation-only walk (the finding's
@@ -11409,7 +11414,13 @@ TEST(Carve, SwfCwsVersionGateIsSix) {
         collect_children(root, all);
         EXPECT_EQ(all.size(), 0u) << "CWS v" << int(v) << " must decline";
     }
-    /* v6 passes (the plant's own version) */
+    /* v6 passes (the plant's own version) - and the extent is the
+     * FileLength (the og's caller stamps it unconditionally on the deep
+     * gate's acceptance: FUN_1800268a0's *(uint*)(param_2 + 2); the
+     * landed CWS inflate gate never changes the extent - M-107's open
+     * question 3, both arms). N-233's arbitration note: the stale
+     * (1<<20)-512 expectation was the shallow-gate era's device-reach
+     * pin on a since-shrunk fixture - the plant declares 0x400. */
     std::vector<u8> img(64 * 1024, 0);
     plant_swf(img, 512, true);
     MemDevice dev(std::move(img));
@@ -11423,7 +11434,7 @@ TEST(Carve, SwfCwsVersionGateIsSix) {
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     ASSERT_EQ(all.size(), 1u);
-    EXPECT_EQ(all[0]->props()->logical_size, size_t((1ull << 20) - 512));
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(0x400));
 }
 
 /* ---- N-111: the JP2 family (the og's JP2Analyser id 0x80, the brand
