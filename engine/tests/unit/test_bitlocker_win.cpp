@@ -456,7 +456,11 @@ TEST(Bitlocker, TurnOffCommandConstruction) {
     const std::wstring ps = detail::build_turn_off_command(L'X', false);
     EXPECT_NE(std::wstring::npos, ps.find(L"powershell -NoProfile -NonInteractive"));
     EXPECT_NE(std::wstring::npos, ps.find(L"Disable-BitLocker -MountPoint \"X:\""));
-    const std::wstring mbde = detail::build_turn_off_command(L'x', true);
+    /* the echo contract per the unlock precedent (build_unlock_command
+     * passes L'X' and emits X:): the letter rides the command AS GIVEN -
+     * the release-27 battery called it lowercase while expecting the
+     * uppercase form (never-green on Windows: the runs were cancelled) */
+    const std::wstring mbde = detail::build_turn_off_command(L'X', true);
     EXPECT_NE(std::wstring::npos, mbde.find(L"manage-bde -off X:"))
         << "the legacy fallback schedules the decrypt on the mounted volume";
     /* the unlock grammar is unchanged (the regression pin) */

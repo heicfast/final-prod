@@ -348,9 +348,14 @@ std::wstring build_turn_off_command(wchar_t letter, bool legacy_manage_bde) {
     std::wstring mount;
     mount.push_back(letter);
     mount += L":";
+    /* the unlock form's own shape (build_unlock_command below): the
+     * literal ends at the argument boundary and quote() supplies BOTH
+     * quotes - a manual quote before it doubled them into a PowerShell
+     * arg breakage (-MountPoint ""X:"") the release-27 validation's
+     * TurnOffCommandConstruction pin caught (the test battery had never
+     * completed a Windows run - every prior lane's push cancelled it) */
     if (!legacy_manage_bde)
-        return L"powershell -NoProfile -NonInteractive -Command \"Disable-BitLocker "
-               L"-MountPoint \"" +
+        return L"powershell -NoProfile -NonInteractive -Command \"Disable-BitLocker -MountPoint " +
                quote(mount) + L"\"";
     return L"manage-bde -off " + mount;
 }
