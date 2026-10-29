@@ -1740,6 +1740,58 @@ TEST(NtfsVolume, HardLinkFanOutOptIn) {
     EXPECT_EQ(stats.hardlinks, 3u) << "record 26 adds 2 (3 links); record 21 adds 1 (2 links)";
 }
 
+TEST(NtfsVolume, HardLinkFanOutClonesKeepShortName) {
+    /* The fan-out's cloned links keep the record's 8.3 short name: the
+     * og's clone copies the whole props block (ifileproperties-part1's
+     * slot +0x08 SetShortName rides every cloned link), and the field
+     * is a session-persisted axis (nflags bit 2) — a cloned link whose
+     * short name was dropped at clone time also loses it from the
+     * session record. */
+    Image img;
+    build_image(img);
+    add_three_link_record(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    wf.single_link_per_record = false; /* the fan-out that clones */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    const auto posix = nodes_named(tree, "tri.posix");
+    ASSERT_EQ(posix.size(), 1u);
+    ASSERT_NE(posix[0]->props(), nullptr);
+    EXPECT_EQ(posix[0]->props()->short_name, u"TRI.TXT")
+        << "the cloned POSIX link must keep the record's DOS short name";
+    const auto win32 = nodes_named(tree, "tri.txt");
+    ASSERT_EQ(win32.size(), 1u);
+    ASSERT_NE(win32[0]->props(), nullptr);
+    EXPECT_EQ(win32[0]->props()->short_name, u"TRI.TXT")
+        << "the cloned Win32 link must keep the record's DOS short name";
+
+    /* session roundtrip: the cloned links' records keep it too */
+    std::vector<u8> blob;
+    ASSERT_EQ(cr::session::serialize_tree(tree, blob), OK);
+    tree::ResultTree tree2;
+    ASSERT_EQ(cr::session::deserialize_tree(blob.data(), blob.size(), tree2), OK);
+    const auto posix2 = nodes_named(tree2, "tri.posix");
+    ASSERT_EQ(posix2.size(), 1u);
+    ASSERT_NE(posix2[0]->props(), nullptr);
+    EXPECT_EQ(posix2[0]->props()->short_name, u"TRI.TXT")
+        << "short_name must survive the session roundtrip on a cloned link";
+}
+
 TEST(NtfsVolume, RecycleBinMapping) {
     Image img;
     build_image(img);

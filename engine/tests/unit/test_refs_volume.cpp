@@ -678,6 +678,27 @@ TEST(Refs, OrchestratorProbeAndScan) {
     EXPECT_EQ(3u, stats.files_found); /* 2 files + 1 dir */
 }
 
+TEST(Refs, RecognitionRequiresFsrsMarker) {
+    /* The og's lost/recognition classifier gates on BOTH boot signatures
+     * (Partition FUN_180003900 :1747-1759: "ReFS" @+3 AND "FSRS" @+0x10,
+     * both compares verbatim in the decompile) — a forged OEM string
+     * alone must not dispatch the ReFS family. Fail-before: the probe
+     * matched the OEM memcmp only. */
+    auto img = build_volume();
+    {
+        u8* b = img.data();
+        std::memset(b + 0x10, 0, 4); /* strip FSRS, keep the OEM + VBR shape */
+    }
+    RamDevice dev(img);
+    EXPECT_EQ(orchestrator::FsFamily::Unknown, orchestrator::ScanController::probe_family(&dev))
+        << "a forged ReFS OEM without the FSRS marker must not dispatch";
+
+    /* control: the intact bootstrap (OEM + FSRS) still dispatches */
+    auto img2 = build_volume();
+    RamDevice dev2(img2);
+    EXPECT_EQ(orchestrator::FsFamily::Refs, orchestrator::ScanController::probe_family(&dev2));
+}
+
 TEST(Refs, NextChainFindsNewerTable) {
     /* REFS-1 (AUDIT-LINUX-FS, HIGH): the checkpoint's reference entries
      * chain via next@ref+0x28 (page-relative offset of the NEWER reference,

@@ -59,6 +59,12 @@ FileProperties* FileProperties::clone() const {
     p->flags = flags;
     p->name = name;
     p->name_raw = name_raw; /* N-016b: hard links keep the raw bytes too */
+    /* The 8.3 short name rides the clone too: the og's clone copies the
+     * whole props block (ifileproperties-part1's slot +0x08 SetShortName
+     * travels with every cloned hard link), and the field is a persisted
+     * axis (nflags bit 2) — dropping it here loses it from the cloned
+     * link's session record as well. */
+    p->short_name = short_name;
     p->resident_data = resident_data;
     p->extents = extents;
     p->carve_format = carve_format;

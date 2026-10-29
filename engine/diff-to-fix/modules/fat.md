@@ -22,24 +22,16 @@ the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vec
 cycle guard vs the og's range tree — stall-class); **M-130 — FIXED (session-52: the two-tier port
   [walk-BREAK gates + emission-SKIP shape gates], 3 decode corrections, suite 1322/1322)**; **N-162** (the og's 32-bit cluster-math wrap registered
 — core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
-<<<<<<< HEAD
-deferred failure); **N-175** (NTRes case folding); **N-176** (the LFN illegal-char fallback).
-
-Fixed since the S12 filing: **N-172** (deleted-first-char `'#'` aligned + the
+deferred failure); **N-172** (deleted-first-char `'#'` aligned + the
 LFN-checksum recovery registered as the deliberate superset D-120); **N-173** (the
 2106/2107 u32 clamp dropped). A-014's convergence addendum #2 (the S52 lane): the
 supplementary access-slot pin `FatEngine.InvalidTimeWordAccessSlotStaysReal` rides the
 merged tree (the og passes time word 0 for the access slot — it keeps its real date
 while the failing slots zero; neither earlier test family asserted it).
-=======
-deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
-LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
-<<<<<<< HEAD
-~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); **N-176** (the LFN illegal-char fallback).
->>>>>>> b1b5eba0590fec0a8aca858737462cb41db29e03
-=======
-~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); ~~**N-176**~~ **FIXED (S46)** (the LFN illegal-char fallback landed — the 9-char gate in lfn_assemble, LfnIllegalCharFallsBackTo83 + LfnValidNameUnchanged).
->>>>>>> 003730e00a02c5edd486ca33ac22322796192f15
+~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold,
+NtResCaseFoldFourWay + the BitLocker re-pin); ~~**N-176**~~ **FIXED (S46)** (the LFN
+illegal-char fallback landed — the 9-char gate in lfn_assemble,
+LfnIllegalCharFallsBackTo83 + LfnValidNameUnchanged).
 Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
 geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
 condition bytes.
