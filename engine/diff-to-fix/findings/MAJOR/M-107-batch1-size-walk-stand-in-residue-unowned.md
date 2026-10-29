@@ -422,3 +422,44 @@ the footer-end extent 0x3E0). The full suite **1722/1722** (the N-229
 red-main repair rides the same push — the WPD convergence's duplicate
 test body deduped). Remaining members: **SWF-RECT only** + the DWG gen-3
 R2007 recorded remainder.
+
+---
+
+## Session-86 addendum 2 — the gen-3 R2007 remainder: the decode PROGRESS (the rotation transform identified first-hand; the next lane's head start) (2026-10-30)
+
+The DWG gen-3 chain's remaining pieces, decoded this session to the depth
+a landing window allowed (all against the corpus decompile; the raw-asm
+arbitration stays the next lane's first step):
+
+1. **CONFIRMED (the accumulate state machine)** — the factory target
+   [+0x120] = 0x3d8 (FUN_18002ff20); the first chunk contributes from
+   buffer+0x80 (0x18002f52b-0x18002f540), later chunks whole; when the
+   remainder goes non-positive the parser FUN_18002fc50 runs
+   (0x18002f573).
+2. **CONFIRMED (the de-interleave)** — FUN_18002fc50 copies the 0x3d8
+   accumulation, then the 3x0xef strided pass at 0x18002fc24-0x18002fce2:
+   out[s*239 + i] = in[i*3 + s], s in 0..2, i in 0..238 - 717 bytes
+   (0x2cd).
+3. **IDENTIFIED THIS SESSION (the per-record rotation)** — FUN_18002eb10
+   (@ 0x18002eb10) is NOT a record parser: it is the one-byte ROTATION
+   transform, size-parameterized (param_3 bytes rotated right by one,
+   with a 32-byte-per-iteration fast path for sizes > 0x1f - the
+   `param_3 >> 5` unrolling at the head). Every R2007 secmap record's
+   bytes are stored rotated by one; the size-class byte's position
+   within the record is the rotation's offset. This is the missing
+   puzzle piece between the size-class grammar head (the FUN_18002ef50
+   decode in this lane's evidence sheet) and the record fields.
+4. **The remaining unknowns (the next probes, named):** (a) the
+   caller's post-de-interleave flow - the `dword@0x18 < 1` gate and the
+   16-byte-stride records copy into the local_508 object
+   (FUN_18002fc50's mid section, decompile :36680-36732) - needs the
+   raw-asm pass (the decompile's puVar7 aliasing is not resolvable
+   from the C output alone); (b) the final size write
+   `*(u64*)(obj+0x10) = uStack_500` - which local_508 field accumulates
+   the max (the +0x08 field per the stack layout) and what feeds it;
+   (c) whether the 0x17 special record / the 0xFF skip runs
+   (FUN_18002ef50's grammar) contribute to the extent directly.
+
+The bounded extent REMAINS for gen-3, pinned by the seat's tests. The
+evidence sheet carries the full head decode:
+evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md.

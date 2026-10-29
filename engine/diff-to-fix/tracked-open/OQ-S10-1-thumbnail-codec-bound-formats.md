@@ -91,3 +91,17 @@ This session's first-hand verification:
    under third_party/ with the import-surface inventory filed as an
    audit artifact, THEN the fixture extension. No fixture-generator
    change until a library is chosen (the recorded ordering stands).
+
+## Session-86 disposition note (2026-10-30 — pushed forward, current-tree verified)
+
+Still OPEN on the owner-level vendoring decision (each half is a per-library
+Win7-inclusive import-gate audit - libheif first, per the recorded step).
+Verified current at the S86 tree: the by-name refusals stand honest -
+`thumbnail_format_supported` (src/core/preview/cr_thumbnail.cpp:85) admits
+exactly jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr/txt; HEIC/WebP/PDF/video are
+refused BY NAME (no silent degrade - the OQ's own honesty requirement).
+The S48 decode evidence (the ThreadImg shared-memory agent seam, the
+embedded-thumbnail-first hint byte for 0x7c/0x7d, the AVIF post-processor)
+remains the vendoring lane's wire-form ground. Nothing new to resolve
+without the owner decision; the next concrete step stands verbatim
+(libheif first; the layer decision for video before implementing).
