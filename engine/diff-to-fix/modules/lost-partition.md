@@ -479,3 +479,27 @@ RED first-hand at the pre-fix tree via the stash dance) +
 `LostDiscovery.ExtJournalIndicatorsConsistentAccepted` (the both-set
 ext3/4 control); the existing ext probe family green; suite 1497 ran /
 1455 passed / 42 Win-only skipped / 0 FAILED.
+
+## S80 addendum — M-149 FIXED: the ghost-score two-pass form (2026-10-29)
+
+**The M-017 convergence debt closed.** The og's FUN_14050fda0 runs TWO
+loops: the max loop (:842210-842240) accumulates the weighted+bonus
+count with NO +500 walk; the per-entry loop (:842246-842274) adds the
++500 table-match bonus to the NUMERATOR only and stamps the raw double
+score at +0x70 — with the null-payload branch's 0.0 floor (the og's own
+CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000' row). The
+9c36efba convergence merge had dropped the corrected 48a6c099
+implementation (FIRST-LANDING-WINS, "the two decode divergences
+recorded for the next pass" — the pass that never ran).
+
+Landing: pass-1 max over weighted+fs_bonus (bonus-free); pass-2
+content_count = count + (table_match ? 500 : 0); score_ratio's edge
+restored to `count > 1 ? ln : (double)count` — count==0 → 0.0. A
+table-matched leader legitimately exceeds 1000 permille (the og's raw
+double >1.0; PARITY-DELTAS D-151 registers the representation — the
+int-permille field, unclamped). Seven stale empty-candidate pins
+re-truthed to the zero floor (exFAT 244→0; HFS+/Btrfs/ZFS/ReFS/
+BitLocker ≥N→0 with the structural evidence re-pinned on
+structural_points). Tests: ScoringTableMatchBonusIsNumeratorOnly (the
+1029-permille leader + the undeflated 537 runner-up — RED first-hand),
+ScoringZeroCountScoresZero, MatchesLogRows re-pinned. Suite 1624/1624.

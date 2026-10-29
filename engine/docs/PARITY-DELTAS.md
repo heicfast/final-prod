@@ -4494,3 +4494,26 @@ does not mistake the missing cap for an omission.
   accounting` (the og's FUN_1400b3c60()+0x10 probe at :874072-874076 —
   when set, error-9 items count as recovered and skip failed_bytes; the
   library default is the truthful accounting).
+## D-151 — the ghost-score >1.0 representation: permille int, not the raw double
+
+**Surface:** lost-partition candidate scoring (M-149's representation
+decision). The og stores the score as a raw double at +0x70 and prints
+it with `%f` — a table-matched leader legitimately exceeds 1.0 (the
++500 numerator bonus over a bonus-less denominator). The core's
+`Candidate::score` is an int in permille; a matched leader lands at
+1001..~1300 permille for realistic maxima (ln(max+500)/ln(max)).
+
+**Rationale:** the int-permille field is the wire format the session
+records, the CLI listing, and the 16-MiB promotion already consume; the
+ordering semantics (the stable sort) are identical under either
+representation, and the numeric value preserves the og's ratio exactly
+to permille precision. The dropped 48a6c099 implementation's 4000
+permille clamp is NOT adopted — no realistic maximum approaches it
+(ln(max+500)/ln(max) < 1.35 for max > 3), and an unclamped field is the
+honest representation of the og's unclamped double.
+
+**Evidence:** FUN_14050fda0 :842246-842274 (the per-entry loop, the
++500 at :842258-842266); CalcPartition.log round-1's leader row (1.0
+exact — unmatched); the M-149 test
+`LostDiscovery.ScoringTableMatchBonusIsNumeratorOnly` pins the 1029
+permille leader (ln(2520)/ln(2020)) and the undeflated 537 runner-up.

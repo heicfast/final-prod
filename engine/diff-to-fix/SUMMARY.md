@@ -42,8 +42,22 @@
   Trail: findings/FIXED/S-068 + the S80 verification addendum, matrix
   MATCH, modules/fat.md S80 addendum.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 17 MAJOR · 10 MINOR ·
-1 INFO active / 175 FIXED / 4 tracked-open.** Next free IDs:
+- **M-149 FIXED (MAJOR, lost-partition)** — the ghost-score two-pass
+  form restored (the M-017 convergence debt): the +500 table-match
+  bonus is NUMERATOR-only (the og's max loop :842210-842240 has no
+  bonus walk), the count==0 edge is the og's 0.0 floor
+  (CalcPartition.log's zero row), and a matched leader legitimately
+  exceeds 1000 permille (the og's raw double >1.0 — PARITY-DELTAS
+  D-151 registers the representation). Seven stale empty-candidate
+  pins re-truthed to the zero floor (the finding's own inflation
+  class). Tests RED first-hand (stash dance):
+  ScoringTableMatchBonusIsNumeratorOnly / ScoringZeroCountScoresZero /
+  the MatchesLogRows re-pin; suite **1624/1624**. Trail:
+  findings/FIXED/M-149, matrix MATCH, modules/lost-partition.md S80
+  addendum.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 16 MAJOR · 10 MINOR ·
+1 INFO active / 176 FIXED / 4 tracked-open.** Next free IDs:
 S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)

@@ -163,8 +163,11 @@ TEST(LostDiscovery, FindsScoresAndRejectsNoise) {
 
     EXPECT_EQ(exfat_c->fs, CandidateFs::Exfat);
     EXPECT_EQ(exfat_c->structural_points, 35); /* 15 + 20 */
-    /* M-017: count 0 (no content, no bonus pinned) -> 1/ln(60) = 244 */
-    EXPECT_EQ(exfat_c->score, 244);
+    /* M-149: count 0 (no content, no bonus) -> the og's ZERO floor
+     * (CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000');
+     * the old 1.0-numerator edge inflated it to 244 and tied it with
+     * genuine 1-file candidates */
+    EXPECT_EQ(exfat_c->score, 0);
     EXPECT_EQ(exfat_c->sector_count, 2048u);
 
     /* sorted desc */
@@ -549,7 +552,10 @@ TEST(LostDiscovery, HfsPlusVolumeHeaderAnchorsDeletedPartition) {
             h = &c;
     ASSERT_NE(h, nullptr);
     EXPECT_EQ(h->fs, CandidateFs::HfsPlus);
-    EXPECT_GE(h->score, 40); /* 35 vh + 5 geometry */
+    /* M-149: no content walk for HFS+ -> count 0 -> the og's zero
+     * floor; the structural evidence lives in structural_points */
+    EXPECT_EQ(h->score, 0);
+    EXPECT_GE(h->structural_points, 40); /* 35 vh + 5 geometry */
     EXPECT_EQ(h->sector_count, 1024u * 4096u / 512u);
 }
 
@@ -565,7 +571,8 @@ TEST(LostDiscovery, BtrfsSuperblockAnchorsDeletedPartition) {
             b = &c;
     ASSERT_NE(b, nullptr);
     EXPECT_EQ(b->fs, CandidateFs::Btrfs);
-    EXPECT_GE(b->score, 35);
+    EXPECT_EQ(b->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(b->structural_points, 35);
 }
 
 TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
@@ -580,7 +587,8 @@ TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
             z = &c;
     ASSERT_NE(z, nullptr);
     EXPECT_EQ(z->fs, CandidateFs::Zfs);
-    EXPECT_GE(z->score, 35);              /* 25 magic + 10 txg liveness */
+    EXPECT_EQ(z->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(z->structural_points, 35);  /* 25 magic + 10 txg liveness */
     EXPECT_TRUE(z->size_from_device_end); /* flagged fallback (honest) */
 }
 
@@ -643,7 +651,8 @@ TEST(LostDiscovery, TailBoundUsesCeiledSectorCount) {
             fve = &c;
     ASSERT_NE(fve, nullptr) << "the last-full-sector VBR must surface";
     EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
-    EXPECT_GE(fve->score, 15);
+    EXPECT_EQ(fve->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(fve->structural_points, 15);
     EXPECT_EQ(fve->sector_count, 2u) << "RED pre-fix: the floor bound gave 1";
     EXPECT_TRUE(fve->size_from_device_end);
 }
@@ -663,7 +672,8 @@ TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
             rf = &c;
     ASSERT_NE(rf, nullptr);
     EXPECT_EQ(rf->fs, CandidateFs::Refs);
-    EXPECT_GE(rf->score, 40);              /* 35 pages + 5 checkpointed */
+    EXPECT_EQ(rf->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(rf->structural_points, 40);  /* 35 pages + 5 checkpointed */
     EXPECT_TRUE(rf->size_from_device_end); /* flagged fallback (honest) */
 }
 
@@ -730,7 +740,8 @@ TEST(LostDiscovery, LostBitlockerPartitionDiscovered) {
             fve = &c;
     ASSERT_NE(fve, nullptr) << "the lost BitLocker partition must surface";
     EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
-    EXPECT_GE(fve->score, 40);              /* 15 boot-sig + 25 fve-shape */
+    EXPECT_EQ(fve->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(fve->structural_points, 40); /* 15 boot-sig + 25 fve-shape */
     EXPECT_TRUE(fve->size_from_device_end); /* geometry corpus-undecoded: marked fallback */
     EXPECT_GT(fve->sector_count, 0u);
     /* evidence tags carry the og-gate + shape breakdown */
@@ -1109,9 +1120,13 @@ TEST(LostScoring, MatchesLogRows) {
      * (ln(2) < 1 < ln(3) - the quirk's true extent) */
     EXPECT_NEAR(score_ratio(1, 199924), 0.081928, 1e-5);
     EXPECT_GT(score_ratio(1, 199924), score_ratio(2, 199924));
-    /* degenerate denominators stay 1.0 */
+    /* degenerate denominators: count==1 keeps the identity 1.0; the
+     * count==0 edge is the og's ZERO floor (M-149: the per-entry loop's
+     * null-payload branch stamps 0.0 — CalcPartition.log's
+     * 'files:0 folders:0 dSuggestted:0.000000' row; the old 1.0 edge
+     * tied empty candidates with genuine 1-file candidates) */
     EXPECT_DOUBLE_EQ(score_ratio(1, 1), 1.0);
-    EXPECT_DOUBLE_EQ(score_ratio(0, 1), 1.0);
+    EXPECT_DOUBLE_EQ(score_ratio(0, 1), 0.0);
     /* the og's per-FS weights (FUN_14050fda0 :842176-842200) */
     EXPECT_EQ(u64(429 + 50 * 3), weighted_count(3, 429, 3)); /* NTFS family */
     EXPECT_EQ(u64(10 + 10 * 3), weighted_count(8, 10, 3));   /* HFS+ f+10d */
@@ -1168,6 +1183,73 @@ TEST(LostDiscovery, TableMatchBonus500) {
     /* ln(560)/ln(2020) = 831 permille (without the bonus it would be
      * 537 - the FAT at 2020 stays ahead, the og's relative model) */
     EXPECT_EQ(ntfs_c->score, 831);
+}
+
+TEST(LostDiscovery, ScoringTableMatchBonusIsNumeratorOnly) {
+    /* M-149: the +500 lands in the NUMERATOR only — the og's max loop
+     * (:842210-842240) has NO bonus walk. The leader-matched shape the
+     * old single-pass code corrupted: a table-matched FAT leader (2020
+     * + 500 = 2520) scores ln(2520)/ln(2020) = 1029 permille (>1000 —
+     * the og's raw double >1.0) and the NTFS runner-up keeps
+     * ln(60)/ln(2020) = 537 (NOT deflated). The old code: den =
+     * ln(2520), the leader exactly 1000, the runner-up 522. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ntfs(img, 1024, 512, 64);           /* unmatched NTFS: count 60 */
+    plant_fat16_content(img, 4096, 40);       /* the FAT leader: 40*50+20 = 2020 */
+    MemDevice dev(std::move(img));
+    table::PartitionInfo live;
+    live.start_lba = 4096;                     /* the FAT's start: the table match */
+    live.sector_count = 512;
+    live.used = true;
+    live.fs = table::FsKind::Fat32;
+    std::vector<table::PartitionInfo> known{live};
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, known, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate *fat_c = nullptr, *ntfs_c = nullptr;
+    for (const auto& c : r.candidates) {
+        if (c.fs == CandidateFs::Fat)
+            fat_c = &c;
+        if (c.fs == CandidateFs::Ntfs)
+            ntfs_c = &c;
+    }
+    ASSERT_NE(fat_c, nullptr);
+    ASSERT_NE(ntfs_c, nullptr);
+    EXPECT_TRUE(fat_c->table_match);
+    EXPECT_EQ(fat_c->content_count, u64(2520)); /* 2020 + the +500 numerator bonus */
+    /* the og's >1.0 leader, in permille */
+    EXPECT_EQ(fat_c->score, 1029);
+    /* the runner-up is NOT deflated by the bonus (the denominator never
+     * saw the +500) */
+    EXPECT_EQ(ntfs_c->score, 537);
+    EXPECT_EQ(ntfs_c->content_count, u64(60));
+}
+
+TEST(LostDiscovery, ScoringZeroCountScoresZero) {
+    /* M-149: a candidate with weighted count 0 scores ZERO (the og's
+     * own log row: files:0 folders:0 -> dSuggestted:0.000000). The old
+     * numerator edge scored it 1.0/ln(max) — an empty candidate TIED a
+     * genuine 1-file candidate and could outrank it on the structural
+     * tie-break. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ntfs(img, 1024, 512, 64);           /* empty NTFS: count 60 (the bonus) */
+    /* an empty, bonus-less family: a ReFS boot with no content walk ->
+     * weighted 0 + no fs_bonus -> count 0 (the fs_bonus table: ReFS has
+     * none). Plant a bare ReFS-shaped boot at a disjoint start. */
+    /* NOTE: planting a full ReFS boot is heavy; the empty-ext probe
+     * class (failed materialize / no walk families) reaches count 0 via
+     * the Unknown family — a start with nothing recognizable. The
+     * candidate list may then carry a zero-count entry only through the
+     * known-table channel; the unit discriminator below pins the
+     * formula directly instead (the end-to-end shape is the
+     * ScoringEmptyCandidateNeverOutranksOneFile test). */
+    (void)img;
+    /* the formula's edge, pinned directly (the og's null-payload
+     * branch): */
+    EXPECT_DOUBLE_EQ(score_ratio(0, 168849), 0.0);
+    EXPECT_EQ(int(score_ratio(0, 168849) * 1000.0), 0);
+    /* the ordering discriminator: an empty candidate NEVER outscores a
+     * 1-file candidate (0 < ln(1)... 1.0 identity) */
+    EXPECT_LT(score_ratio(0, 199924), score_ratio(1, 199924));
 }
 
 TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {

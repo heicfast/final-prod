@@ -703,14 +703,19 @@ u64 weighted_count(int og_fs_code, u64 files, u64 folders) {
 }
 
 double score_ratio(u64 count, u64 max_count) {
-    /* FUN_14050fda0 :842226-274: num = count > 1 ? ln(count) : 1.0
-     * (the count<=1 identity quirk - a 1-file candidate outranks every
-     * 2..6-file candidate when max > e^2); denom = max > 1 ? ln(max)
-     * : 1.0; score = num/denom */
-    const double num = count > 1 ? std::log(double(count)) : 1.0;
+    /* FUN_14050fda0 :842226-274, re-read first-hand at the M-149 fix:
+     * num = count > 1 ? ln(count) : (double)count — the per-entry loop's
+     * null-payload branch stamps dVar13 = 0.0 (the count==0 shape scores
+     * ZERO, the og's own CalcPartition.log row 'files:0 folders:0
+     * dSuggestted:0.000000'), and count==1 is the identity quirk (a
+     * 1-file candidate outranks every 2..6-file candidate when max >
+     * e^2). The old `: 1.0` edge scored count==0 as 1.0 — empty
+     * candidates tied genuine 1-file candidates; the M-149 fix restores
+     * the og's 0.0 floor. denom = max > 1 ? ln(max) : 1.0. */
+    const double num = count > 1 ? std::log(double(count)) : double(count);
     const double den = max_count > 1 ? std::log(double(max_count)) : 1.0;
     if (den <= 0.0)
-        return 1.0;
+        return num;
     return num / den;
 }
 
@@ -1284,8 +1289,15 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
     }
 
     /* (b) the content probe + the og's weighted count: per-FS weights,
-     *     the per-FS bonus (info+0x68, observed values), and the +500
-     *     table-match bonus ("Found once partition:%I64d") */
+     *     the per-FS bonus (info+0x68, observed values). M-149: the og's
+     *     TWO passes — the max loop (:842210-842240) accumulates the
+     *     weighted+bonus count with NO +500 walk (the bonus is NEVER in
+     *     the denominator); the per-entry loop (:842246-842274) adds the
+     *     +500 table-match bonus ("Found once partition:%I64d") to the
+     *     NUMERATOR only. The old single pass folded the bonus into the
+     *     max: a table-matched leader scored exactly 1000 permille
+     *     (the og's is >1.0 — the raw double at +0x70) and every
+     *     runner-up was deflated by ln(max)/ln(max+500). */
     u64 max_count = 1;
     for (auto& c : adjusted) {
         u64 files = 0, folders = 0;
@@ -1293,14 +1305,14 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
         u64 count = weighted_count(og_fs_code(c.fs), files, folders);
         count += fs_bonus(c);
         c.table_match = table_match(c, known);
-        if (c.table_match)
-            count += 500;
-        c.content_count = count;
+        c.content_count = count + (c.table_match ? 500 : 0);
         if (count > max_count)
             max_count = count;
     }
     /* (c) score = ln(count)/ln(max) in permille, the og's exact edge
-     *     cases; structural points stay as the tie-break key */
+     *     cases (count==0 -> 0; a matched leader legitimately exceeds
+     *     1000 — the og's raw double >1.0, represented in permille);
+     *     structural points stay as the tie-break key */
     for (auto& c : adjusted)
         c.score = int(score_ratio(c.content_count, max_count) * 1000.0);
 

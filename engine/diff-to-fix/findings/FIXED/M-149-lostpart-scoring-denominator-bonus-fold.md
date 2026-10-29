@@ -132,3 +132,12 @@ Three legs, all first-hand this session: (1) decompile — the two og loops quot
 ## Open questions
 
 The >1.0 representation choice (raw double vs the 4000-permille clamp the dropped implementation used) is the only engineering decision; the og-side math itself is fully decoded and log-verified.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** the M-149 S80-lane commit (this session; SHA in the commit footer)
+**Verified by:** LostDiscovery.ScoringTableMatchBonusIsNumeratorOnly + LostScoring.MatchesLogRows — RED first-hand via the stash dance (2/2 FAILED at the pre-fix tree: the matched leader exactly 1000, the runner-up deflated, the zero edge 1.0), GREEN post-fix; LostDiscovery.ScoringZeroCountScoresZero (the og's 0.0 floor + the ordering discriminator); the full LostDiscovery/LostScoring suite 27/27; full suite 1624/1624.
+**Resolution notes:** The two-pass og-exact form restored: pass 1 computes count = weighted + fs_bonus for every candidate and takes max_count with NO +500 walk (FUN_14050fda0 :842210-842240); pass 2 stores content_count = count + (table_match ? 500 : 0) — the bonus lands in the NUMERATOR only (:842258-842266). score_ratio's numerator edge restored to `count > 1 ? ln(count) : (double)count` — count==0 scores 0.0 (the og's own CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000' row), count==1 keeps the identity quirk. The >1.0 representation: the int-permille field carries values above 1000 legitimately (the og's raw double >1.0 at +0x70); registered in PARITY-DELTAS D-151 (the dropped 48a6c099 clamp NOT adopted — no realistic maximum approaches it and the unclamped field is the honest representation). Seven stale pins re-truthed to the og's zero floor (the empty-candidate inflation class the finding itself describes: exFAT 244→0, HFS+/Btrfs/ZFS/ReFS/BitLocker ≥N→0 with the structural evidence re-pinned on structural_points — the fields the evidence actually lives in). Files: src/core/lost/cr_candidates.cpp (score_ratio + the two-pass loop), tests/unit/test_lostpart.cpp.

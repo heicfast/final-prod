@@ -11619,3 +11619,21 @@ lane contributed that their landing already carried better: the INDX
 0x28 discovery (their IndxFloorIsTwoBytesLower test + the family-keyed
 floor constant; this lane's version of the same discovery is preserved
 in this entry for the history).
+
+## Session-80 S80 fix-lane — entry 5: M-149 (2026-10-29)
+
+**M-149 FIXED (MAJOR, lost-partition):** the ghost-score two-pass form
+restored — the M-017 convergence debt the 9c36efba merge created. Pass-1
+max over weighted+fs_bonus (NO +500, the og's max loop :842210-842240);
+pass-2 content_count = count + (table_match ? 500 : 0) — the bonus is
+numerator-only (:842258-842266); score_ratio's edge restored to
+`count > 1 ? ln : (double)count` (count==0 → 0.0, the og's
+CalcPartition.log zero row). The matched leader exceeds 1000 permille
+legitimately (the og's raw double >1.0; PARITY-DELTAS D-151 registers
+the int-permille representation, the 48a6c099 clamp NOT adopted).
+Seven stale empty-candidate pins re-truthed to the zero floor. Tests
+RED first-hand (stash dance): ScoringTableMatchBonusIsNumeratorOnly
+(1029-permille leader + undeflated 537 runner-up) /
+ScoringZeroCountScoresZero / MatchesLogRows re-pin. Suite 1624/1624.
+Trail: findings/FIXED/M-149 + Resolution, matrix MATCH,
+modules/lost-partition.md S80 addendum, PARITY-DELTAS D-151.
