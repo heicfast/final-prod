@@ -13190,3 +13190,101 @@ against MY M-075 landing (the win-stub gap) was CORRECT, its repair
 verified first-hand, and the lesson absorbed (the full ctest —
 win_syntax_check included — is now a pre-push gate for this lane).
 Board: 5 MAJOR · 2 MINOR active / 199 FIXED / 4 tracked-open.
+
+---
+
+## Session-84 — the coherence session's final handoff (T20, 2026-10-30)
+
+**The mandate was post-remediation coherence; this is what it found and
+did, chronologically.** Baseline `cac42582` → final tree. The session
+ran concurrently with at least five other lanes (S84-fix, S85, S86,
+S87, S88 + the parity lanes) — the racing pattern is itself this
+repo's biggest coherence hazard and is reflected honestly below.
+
+**Phase 0 (the picture, T1-T2):** the five context sheets
+(`worklog/{build,api,cli,doc}-surface.md` + `recent-commits.md`, 2700
+lines, parallel agents A-E, all key claims spot-verified first-hand).
+Opening sweep: 5 files with committed conflict markers (the N-210
+class), later swept by the racing N-219 repairs.
+
+**Phase 2 (the cross-checks, T3-T5):**
+`worklog/api-cli-mismatches.md` + `worklog/api-findings.md`. The
+headline wiring bugs: `image --create` documented everywhere but never
+parsed by cmd_image (not even in the S-040 landing itself); the exit-5
+disconnect hint naming the nonexistent `rrecov resume` verb; the
+`$profile` ValidateSet collision and the array-`-match` carve-parity
+bug in Run-Benchmark.ps1 (both proven by the captured run-6 log); the
+doc_truth_gate's error-census counting comment literals (45 vs the
+enum's 43); the phantom `cr_ui_session_resume_last` export (91 declared
+vs 90 shipped at baseline — closed by the racing a47419c7 landing,
+verified post-hoc).
+
+**Phase 3 (the fixes, T6-T16) — every commit one root cause:**
+- `9b921ef8` format: the checks-281 lint red (3 files, 10 violations).
+- `8daf75dc` bench scripts: the two Run-Benchmark.ps1 bugs (the carve
+  -join fix rode the same commit through a staging misfire — recorded
+  honestly in worklog.md at the time).
+- `32441353` CLI: the `--create` wiring + the
+  CrUi.CliImageCreateFlagParses pin.
+- `d796f9df` CLI: the disconnect-hint verb fix + pin.
+- `7a6f6bb3` gate: the error-census truth repair (43+OK).
+- `65e0e2bd` ABI docs: ABI-CONTRACT typo + autosave_rc + the header's
+  nonexistent ERR_NOT_FOUND.
+- `25cdae33` status docs: BUILD-SUPPRESSIONS / F13 / architecture.
+- `c6fb5299` CI docs: CI-CURRENT phantoms + CONTRIBUTING's CI-shape.
+- `cb03b543` CLI docs: PARAMETERS/API verb table/-h flags/GAP-P1-1 +
+  the CrUi.CliHelpListsEveryScanFlag pin (the N-094 invariant extended
+  to flags).
+- `8b2971f5` the stale M-081 stand-in comment.
+- `4e522b11` + later format sweeps: the racing lanes' format
+  recurrences (the class landed FOUR times this window).
+- the win-stub Wow64/ULONGLONG extension (rebased away as redundant —
+  the racing 9f5f0415/45fe3a9f held the seats; the triple-stacked
+  duplicate copies were converged by the S87 merge).
+- the N-223 finding-ID collision repair (checks-310's red; the racing
+  window converged the same repair — conceded per SA-9).
+
+**Phase 4 (no behavior change):** the full suite re-run repeatedly —
+1661 → 1683 → 1691 → 1694 tests as the racing windows landed; 100%
+green at every one of this lane's pushes (evidence:
+`worklog/builds/linux-{release,ubsan}-*`; the UBSan lane exceeds the
+10-minute tool ceiling here — recorded honestly, the release lane +
+CI matrix are the evidence). Three pins added
+(ImageCreateFlag/DisconnectHint/HelpListsEveryScanFlag) — zero tests
+skipped, weakened, or renamed.
+
+**Phase 5 (docs, T17-T18):** `worklog/doc-audit.md` (this lane's full
+sheet merged as the addendum onto the racing lane's base — twin
+landings noted). The trail (diff-to-fix/) verified actively maintained
+by the fix lanes; only the N-223 status collision needed repair
+(conceded to the racing resolution). The corpus was never touched
+(be0cfe9 read-only throughout).
+
+**Final local evidence at this lane's last push:**
+ci-local.sh **GREEN — all 13 components**; clang-format 18.1.8
+tree-wide 0 violations; doc_truth_gate green (finding-ID uniqueness,
+ABI counts, D-numbering); full ctest 100%.
+
+**Deferred (the next session's starting points):**
+1. `worklog/api-findings.md` F3 — the N-145 every-startup journal
+   probe (the highest-value behavior finding: 3 doc/trail sites claim
+   a surface the code does not have).
+2. F2 — enumerate_volumes' dropped rc (the file's own FB-K01
+   principle violated 4 lines above).
+3. F7 — the doc_truth_gate's D-row regex is blind to ##-level rows
+   (the D-152 triple passed it); widen together with the next D-seat
+   repair.
+4. The local-gate gap: ci-local.sh does not run doc_truth_gate (the
+   CI lint job does) — the racing reds passed the local subset that
+   way; close the mirror gap.
+5. F4 — the fuzz campaign drift; the unpinned action refs; the ASan
+   preset run by no gate (all in build-surface.md).
+
+**The meta-lesson recorded for the maintainers:** every single red
+this session repaired was pushed by a lane that did not run the gate
+before pushing (format violations x4, the stub gap x3, the finding-ID
+collision, the committed markers x5 windows). The gates are good; the
+discipline is the gap. The never-push-a-red-commit rule in
+CONTRIBUTING.md is enforced only by the runner — the pre-push hook
+(`git config core.hooksPath .githooks`) exists for exactly this and
+was not installed in the racing lanes.
