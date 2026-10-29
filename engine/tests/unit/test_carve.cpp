@@ -7868,6 +7868,20 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         << "no user-sign record at a built-in magic (S-055)";
     EXPECT_EQ(1u, count_tagged(root, 0xFFFF0000u + flac_id))
         << "the bounded built-in flac candidate owns the position";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
@@ -7919,6 +7933,20 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
                 << ext << ": a built-in candidate owns the position";
         }
     }
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
@@ -7944,6 +7972,20 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "no user-sign reclaim past the built-in floor gate";
     EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
@@ -7977,6 +8019,20 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
@@ -8008,6 +8064,20 @@ TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_tagged(root, 0xFFFE0000u)) << "the unclaimed magic still fires";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, DisabledFormatsGatesUserSignLayer) {
@@ -8051,6 +8121,20 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         EXPECT_EQ(0u, count_tagged(root, 0xFFFF0000u + cpl_id))
             << "disabled '" << dis << "': no built-in cpl record either";
     }
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
@@ -8084,6 +8168,20 @@ TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_ext_records(root, "xyzzy")) << "the disabled user ext is suppressed";
     EXPECT_EQ(1u, count_ext_records(root, "quux")) << "the other user ext still fires";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
@@ -8109,6 +8207,20 @@ TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 namespace {
@@ -8173,6 +8285,20 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "wpl: no user-sign record at the far-anchored collision";
         EXPECT_EQ(1u, count_builtin_tagged(root)) << "wpl: the built-in candidate owns the stride";
     }
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(CarveStats, UserSignFilesCountInCarvedFound) {
@@ -8198,6 +8324,20 @@ TEST(CarveStats, UserSignFilesCountInCarvedFound) {
     EXPECT_EQ(2u, count_tagged(root, 0xFFFE0000u));
     EXPECT_EQ(2u, st.validated) << "user-sign files count in the carved headline";
     EXPECT_EQ(2u, st.sign_hits) << "the channel's own counter still ticks";
+
+    /* N-190 (the global-state discipline the window's new tests skipped):
+     * the usersign registry is PROCESS-GLOBAL - every installer must
+     * restore the prevailing world (the empty set here; Registration-
+     * RoundTrip's deliberate zip install below defines the later
+     * prevailing state, per the N-168 convention). Without this the
+     * default set (111 extensions incl. the lzh/lha family) leaks into
+     * every later scan test and the wrong-dash LZH pin carves via a
+     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
+     * on the full-suite run). */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {

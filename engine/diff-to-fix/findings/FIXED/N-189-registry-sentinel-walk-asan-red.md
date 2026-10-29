@@ -1,10 +1,10 @@
-# MINOR N-186 — (discovered in fix session S45) two registry walks in test_carve.cpp use a null-terminator idiom on a count-based table — ASan global-buffer-overflow red on main
+# MINOR N-189 — (discovered in fix session S59) two registry walks in test_carve.cpp use a null-terminator idiom on a count-based table — ASan global-buffer-overflow red on main
 
 **Severity:** MINOR (test-side only; production code is unaffected)
 **Module:** carve (test suite) / registry contract
 **Parameters affected:** none (no engine behavior) — CI green gate (Linux ASan lane)
 **Corpus references:** none — a core-internal contract defect (the table contract is `registry()` + `registry_size()`, cr_signatures.h:512-513: "The compile-time table (one entry per FormatId, order = FormatId)"; `kTable` in `src/core/carve/cr_registry.cpp:117` carries exactly `FMT_COUNT` rows and no sentinel row)
-**Core references:** `tests/unit/test_carve.cpp:8134` (S-054's `TsM2TsCapIsTheOg200MB` pin) and `:8168` (`TsStreamClampedAt200MB` disable-list builder) — both `for (const Signature* s = reg; s->ext; ++s)`; `src/core/carve/cr_registry.cpp:117` (`kTable`, ASan-reported size 13024 bytes) + `:1562-1567` (`registry()`/`registry_size()`); discovered at core `98079347`
+**Core references:** `tests/unit/test_carve.cpp:8134` (S-054's `TsM2TsCapIsTheOg200MB` pin) and `:8168` (`TsStreamClampedAt200MB` disable-list builder) — both `for (const Signature* s = reg; s->ext; ++s)`; `src/core/carve/cr_registry.cpp:117` (`kTable`, ASan-reported size 13024 bytes) + `:1562-1567` (`registry()`/`registry_size()`); discovered at core `98079347` (this lane) — the parallel window repaired it at f8f01513
 **Status:** FIXED
 
 ## Summary
@@ -88,12 +88,30 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (recorded at push — the S45 session's first landing)
+**Fixed in commit:** f8f01513 (the parallel lane's convergent landing — the fix of record per SA-9; this lane's byte-equivalent b938c8e5 dropped at the merge)
 **Verified by:** the full Linux ASan suite runs to completion at the fixed tree
 (`cr_tests` no longer aborts; `Carve.TsM2TsCapIsTheOg200MB` and
 `Carve.TsStreamClampedAt200MB` both green — the S-054 pins still hold).
 **Resolution notes:** Both walks converted to `registry_size()`-bounded
-index loops (test_carve.cpp:8134 and :8168 sites). No production code
-changed — the engine's count-based table contract was already correct at
+index loops (the pre-merge test_carve.cpp:8134 and :8168 sites). No production
+code changed — the engine's count-based table contract was already correct at
 every production walk (cr_registry.cpp:1577/:1621). The S-054 regression
 pins (200 MB cap on both TS rows) assert identically after the fix.
+
+### Convergence addendum (session-59 lane, 2026-10-29)
+
+This lane discovered and fixed the defect independently at core `98079347`
+(b938c8e5, first local commit — RED proven by the ASan abort at the lane-open
+baseline; GREEN proven by the full-suite completion: 1161 passed / 0 failed /
+85 env-skipped). At the hot-window merge the parallel lane's landing
+**f8f01513** ("repair(tests): the S-054 TS-pin red main closed") was already
+on main — the same two walks, the same count-based form, the same class
+reading (their cite: the M-133/N-157 class). Per SA-9 earlier-push-wins,
+**f8f01513 is the fix of record**; this lane's local repair was dropped as
+the byte-equivalent duplicate (the superset rule) and this finding file —
+renumbered N-186→N-189 at the same merge (the remote's N-160 window took N-186
+for the renumbered N-142-rsf; N-187/N-188 likewise taken) — remains the
+dedicated audit record for a defect the winning lane repaired without a
+standalone finding file. The draft's session ID (S45) also collided with the
+parallel window's session numbering; this lane rebranded Session-59 at the
+merge.

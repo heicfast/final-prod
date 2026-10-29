@@ -974,7 +974,7 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
   both layers' interplay recorded in the Resolution.
 
-**N-186 FIXED** (session-45, discovered during this lane's baseline run): the
+**N-189 FIXED** (session-59, discovered during this lane's baseline run; the parallel lane's f8f01513 convergent repair is the fix of record per SA-9): the
 S-054 registry pin test and its companion fixture-builder walked `kTable` with
 a null-ext sentinel loop (`for (s = reg; s->ext; ++s)`) — the table contract is
 COUNT-based (`registry_size()`, cr_signatures.h:512-513) and carries no

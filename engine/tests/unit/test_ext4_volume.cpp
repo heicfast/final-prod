@@ -680,7 +680,7 @@ TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
     EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
 }
 
-TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
+TEST(Ext4Engine, SizeExceedsBlocksDamagedAndDeletedPath) {
     /* N-177 (diff-to-fix): the og's truncation-damage marker (node FLAGS
      * 0x200, EXT4SearchDLL :6300-6303 - FUN_180007510's
      * i_blocks < size>>9 verdict) lands as NODE_FLAG_SIZE_EXCEEDS_BLOCKS

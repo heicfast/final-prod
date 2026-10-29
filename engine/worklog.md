@@ -7435,19 +7435,58 @@ Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (dec
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
 
-## Session-45 parity-fix lane — N-186 landed (2026-10-29)
+## Session-59 parity-fix lane — the hot-window convergence recorded (2026-10-29)
 
-**N-186 FIXED (MINOR, discovered — the ASan-lane red on main repaired).** At lane
-open the full-suite baseline run aborted with a global-buffer-overflow at
-`Carve.TsM2TsCapIsTheOg200MB`: the S-054 pin test (and the companion
-`TsStreamClampedAt200MB` disable-list builder) walked the compile-time signature
-table with a null-ext sentinel idiom, but the table contract is count-based
-(`registry_size()`; `kTable` carries no terminator row) — the walker read 8 bytes
-past the global. Filed as a new finding (N-186, test-side only — every production
-walk is count-based) and fixed: both walks converted to count-bounded loops. The
-S-054 pins assert identically after the fix. Baseline after the repair: the suite
-runs to completion under ASan (1161 passed / 0 failed / 85 env-skipped TiffVariants,
-exit 0). Trail: findings/FIXED/N-186 + ledger row + carve.md row + this entry.
+This lane (rebranded Session-59 at the merge — the draft rode as the local S45
+until the parallel window revealed S45..S57 seats all taken) opened at core
+`98079347` with the four-staged queue A-014 → S-058 → S-061 → the S-055/S-056
+pair, and executed the verify→RED→fix→GREEN loop on all four before the pull:
+
+**N-189 (discovered, renumbered from the N-186 draft) FIXED-CONVERGENT.** At lane
+open the full-suite baseline aborted with an ASan global-buffer-overflow at
+`Carve.TsM2TsCapIsTheOg200MB`: two registry walks in test_carve.cpp used a
+null-ext sentinel idiom on the count-based `kTable`. This lane discovered it,
+filed it, fixed it locally (b938c8e5; RED = the abort, GREEN = 1161/0/85), and at
+the merge found the parallel lane's byte-equivalent **f8f01513** already on main
+— theirs wins per SA-9 and is the fix of record; this lane's dedicated finding
+file (findings/FIXED/N-189, renumbered at the merge: N-186/187/188 taken by the
+remote's renumber window) carries the record with the convergence addendum.
+
+**A-014 CONVERGENT (862d79ef wins).** This lane independently re-verified the
+corpus decode (FATSearchDLL :32135-32154 zero-on-fail trio first-hand; the exFAT
+twin :45174-45194; the boundary set cross-checked against the M-014 dentry-gate
+decode), built the time-word gate, and RED-proved the 3-test battery
+(hour24/hour31/minute60/minute63/2s30/2s31 → 0; the exact one-step-past edges;
+the end-to-end zero-slot persistence). The remote's 862d79ef landing (already
+merged) carries a superset battery (the per-slot-zeroing end-to-end + the exact
+unix-value accept edges) — this lane's redundant delta dropped per the superset
+rule.
+
+**S-058 CONVERGENT (ea405392 wins).** The comparator chain (FUN_1401bebe0 =
+inequality over FUN_1401bec20; the :585885-905 control case) re-read first-hand
+in ghidra-drwui, the gate inverted with the explicit empty-string skip arm (the
+"" runtime-set quirk — the naive flip would have diverged on dot-less names;
+this lane's Dotless pin caught it RED before GREEN), the M-133 twin fixtures
+re-based onto out-of-table extensions. The remote's ea405392 wins; three prior
+convergence addenda already ride the finding file — this lane's record rides
+here only.
+
+**S-061 CONVERGENT (ea405392 wins).** The insert-time hook decode (:605481-497)
+re-read, the ReFS/Btrfs unconditional-High rule placed after the Active rule
+(gauge-derived matched inherits the population — the 5830/5828 analog), the
+3-test battery RED pre-fix. The remote's landing (RefsAndBtrfsDeletedFilesGradeHigh
++ controls) is the superset; redundant delta dropped.
+
+**S-055/S-056/N-171: NOT attempted by this lane** — the staged queue never
+reached them before the window revealed a5fe33a5/e10ec381-era landings already
+on main (verified: the usersign block now probe-order-correct, format-gated,
+and N-171's validated tick landed).
+
+The hot-window merge (be992fdc + this commit): all conflicts resolved taking the
+remote's code side (their landings win their seats); this lane's worklog/ledger/
+module rows kept with convergence re-pointing. The merged tree's full suite
+re-verification runs before the next fix lands (the step-4 discipline: re-run
+the full gate after EVERY rebase/merge, not just before the push).
 
 ---
 
@@ -7931,3 +7970,27 @@ the two new control-flow constraints). Tests (8): the 4 RED behavior tests
 + the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
 1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
 cell + orchestration.md row + the OQ-S42-3 update + this entry.
+
+## Session-59 parity-fix lane — N-190 landed (2026-10-29)
+
+**N-190 FIXED (MINOR, discovered — the hot-window's red main repaired, five
+reds one class).** The post-merge gate caught what the window's own pushes
+claimed green: (1) the build was broken — both lanes' N-177 test bodies folded
+under one name (g++ redefinition); (2) the merged S-058 pin kept dead e1/e2
+fixtures (-Werror); (3) BOTH lanes' N-171 `validated` ticks folded into the
+user-sign emission arm — every user-sign record double-counted in
+`carved_found` (the CarveEngine/CarveStats UserSignFilesCount reds); (4) the
+merged S-058 pin's assertions were cross-wired against its own fixtures (the
+ENGINE was already correct — zzqx/doc expectations swapped); (5) ten
+window-added usersign tests leaked the PROCESS-GLOBAL registry (the default
+set's lzh/lha family signs made `Carve.LzhWrongDashByteRejects` carve the
+wrong-dash form in full-run order). Repairs: rename + fixture drop + ONE tick
+with merged provenance + re-wired assertions + prevailing-world teardowns on
+all ten installers (the N-168 convention; RegistrationRoundTrip's deliberate
+zip install defines the later prevailing state). Verification: the 13-test
+repaired battery + FULL suite at the repaired tree — 1317 ran / 1275 OK / 42
+env-skipped / 0 failed (was: build broken + 4 deterministic + 1 order-dep
+suite reds). Trail: findings/FIXED/N-190 + ledger row + this entry. Root
+cause recorded for the process: the N-135 step-4 discipline (re-run the full
+gate after EVERY rebase) extends to MERGES — each hot-window fold shipped a
+red tree while both parent lanes were individually green.
