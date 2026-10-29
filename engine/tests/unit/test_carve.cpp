@@ -11218,6 +11218,75 @@ TEST(Carve, OneChunkChainWalksPastTheStandInCap) {
         << "the chain's true end (68 MiB) - not the 64 MiB stand-in cap";
 }
 
+TEST(Carve, OneFirstChunkZeroSizePublishesTwoDeviceFlat) {
+    /* S-062: the og's comma-operator decode (FUN_180044e30 :52335,
+     * re-read first-hand; the retdec cross-check agrees): uVar5 is set
+     * to 2x-DEVICE the moment the primary size field is read - so a
+     * first chunk whose BOTH size fields are 0 publishes the flat
+     * 2x-device extent, never the 0 the pre-fix core published (the
+     * corrupt-chunk-0 population: recovered by the og, dropped by the
+     * core). The probe limit clamps to the device end. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_one_chain(img, at, 0, 1); /* chunk size 0 planted below anyway */
+    put32v(img, at + 0xC4, 0); /* primary size 0 */
+    put32v(img, at + 0xC8, 0);
+    put32v(img, at + 0x64, 0); /* fallback size 0 too - the both-zero exit */
+    put32v(img, at + 0x68, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the corrupt-chunk-0 ONE still carves (the og's flat extent)";
+    /* 2x-device = 128 KiB, clamped to the device end by the probe limit */
+    EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+        << "the flat 2x-device extent (device-clamped), not 0";
+}
+
+TEST(Carve, OneMidChainOversizeChunkPublishesTwoDeviceFlat) {
+    /* S-062's mid-chain leg: a chunk declaring a size > 2x the device
+     * breaks the chain publishing 2x-device - the og's (G)-gate exit -
+     * where the pre-fix core published the accumulated valid prefix. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_one_chain(img, at, 0x1000, 2); /* two valid 4 KiB chunks */
+    /* the 3rd chunk: an oversize declaration (2x-device + 1) */
+    const size_t p = at + size_t(2 * 0x1000);
+    std::memcpy(img.data() + p, "\xE4\x52\x5C\x7B", 4);
+    put32v(img, p + 4, 0x4DA7D88C);
+    put32v(img, p + 8, 0x7853B1AE);
+    put32v(img, p + 0xC, 0xD32969D0);
+    put32v(img, p + 0xC4, u32(2 * 64 * 1024 + 1));
+    put32v(img, p + 0xC8, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr);
+    EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+        << "the oversize-chunk break publishes the flat 2x-device extent";
+}
+
 TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
     /* M-106: the walk-break semantics - a broken GUID mid-chain
      * salvages at the last valid chunk; a chunk size of 0 or > 2x the
@@ -11281,9 +11350,12 @@ TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
             << "the fallback size field (+0x64) serves when +0xC4 is 0";
     }
     {
-        /* a chunk size > 2x the device: the chain breaks at the gate -
-         * the size keeps the last valid end (the first chunk's 0) and
-         * the row's min rejects the degenerate candidate */
+        /* a chunk size > 2x the device: the (G)-gate break. S-062
+         * RE-PIN: the og's comma decode (FUN_180044e30 :52335) sets the
+         * published size to 2x-DEVICE the moment the size field is
+         * read - the break publishes the flat 2x-device extent (device-
+         * clamped), NOT the nothing the pre-fix core emitted (the
+         * M-106 landing's own regression, pinned here in error). */
         std::vector<u8> img(64 * 1024, 0);
         const size_t at = 512;
         plant_one_chain(img, at, 1, 1);
@@ -11299,9 +11371,14 @@ TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
                   u32(OK));
         std::vector<tree::FileNode*> all;
         collect_children(root, all);
+        tree::FileNode* nd = nullptr;
         for (tree::FileNode* c : all)
-            EXPECT_NE(c->props()->carve_format, u64(FMT_ONE))
-                << "the over-2x-device chunk size breaks the chain at chunk 0 (size 0 rejects)";
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                nd = c;
+        ASSERT_NE(nd, nullptr) << "the og recovers the corrupt-chunk-0 ONE (the flat extent)";
+        EXPECT_EQ(nd->props()->carve_format, u64(FMT_ONE));
+        EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+            << "the flat 2x-device extent (device-clamped)";
     }
 }
 

@@ -136,3 +136,10 @@ finding is about the REPLACEMENT's exit values, not the stand-in).
 
 None — the comma-operator decode is unambiguous and cross-checked by two
 decompilers.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S58 lane)
+**Verified by:** `Carve.OneFirstChunkZeroSizePublishesTwoDeviceFlat` (RED pre-fix: no ONE record at all - the 0-size extent; GREEN: the flat 2x-device extent, device-clamped by the probe limit), `Carve.OneMidChainOversizeChunkPublishesTwoDeviceFlat` (the mid-chain (G)-gate leg: 2 valid chunks then an oversize declaration -> the flat extent, not the 8 KiB valid prefix), the re-pinned over-2x sub-case of `Carve.OneChunkChainHostileVariantsSalvageAndRefuse` (the M-106 landing had pinned the divergent nothing-carves outcome in error - now pins the og's flat extent); the cursor-carried exits (broken-GUID salvage, fallback-field, exhaustion) stay green via the existing M-106 family; full suite 1353/1311/0-fail.
+**Resolution notes:** One exit-value correction inside validate_one: the two size-gate breaks (both-fields-zero, size>2x-device) now set `size = dev2` before falling out, per the og's comma-operator decode (FUN_180044e30 :52335's `uVar5 = uVar1` sits between the primary-size load and the != 0 tests - re-read first-hand this session; the retdec cross-check independently shows `v5 = v2` before both breaks). The cursor-carried exits (window miss, GUID mismatch, exhaustion) keep the last-valid-chunk end exactly as before. The block comment re-truthed to the four-row exit table (the M-106 "cursor at the chain's break point" claim dropped - it was true only for the cursor-carried family). The 500M FileInfo clamp and the probe-limit device clamp unchanged.
