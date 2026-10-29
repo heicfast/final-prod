@@ -8499,3 +8499,15 @@ dual-ID precedent. This is the third manifestation of the ID-collision hazard
 this lane flagged in its battery (the FIXED/M-133 reuse, the N-142/N-186 renumber,
 now this) — a board-wide "one ID, one finding, forever" invariant is worth a
 ci-local gate (the N-160 doc-truth gate family is the natural home).
+
+## Session-46 minors lane — the N-165 convergence commit (2026-10-29)
+
+The S57/S60 windows' merges absorbed this lane's repairs (their own repair
+commits credit them); this commit lands the two S46 pieces the merges did not
+carry: (1) the `FatScanStats.overflow_chains` counter — additive observability
+for the D-136 deferred-failure class (any extent past the device end), no
+behavioral surface, neither pin grades on it; (2) the S46 convergence addendum
+in findings/FIXED/N-165 (this lane's independent gate re-reads + RED→GREEN
+proof; the scan-time cap declined to the winning chain-own-grade stance per
+SA-9). Suite green on the result: 1331 ran / 1289 pass / 42 env-skips / 0 fail
+(linux-release), clang-format clean.
