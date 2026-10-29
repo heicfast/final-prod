@@ -327,8 +327,7 @@ TEST(Snapshot, CarriesTheDistinguishedBranchAxes) {
             saw = true;
             EXPECT_EQ(s.version_group, u64(32))
                 << "RED pre-fix: the capture dropped the Versions axis";
-            EXPECT_TRUE(s.tags_extracted)
-                << "the runtime tag flag rides the value capture";
+            EXPECT_TRUE(s.tags_extracted) << "the runtime tag flag rides the value capture";
         }
     }
     EXPECT_TRUE(saw);

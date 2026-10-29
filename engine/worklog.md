@@ -1,4 +1,31 @@
 
+## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
+
+- **The SIT concession:** the racing S89 window's landing (2214af90 —
+  the FUN_180044ae0 per-ENTRY marker walk: the stride table
+  {0x19->4, 0x3B->5, else 6}, the corrupt-entry terminal, the
+  new-header gate at the 512-byte boundaries) is the fuller decode
+  over this lane's processor-level translation; their earlier push
+  holds the seat per SA-9. The convergence record (M-107's S87
+  addendum 3) carries this lane's deltas for the future arbitration
+  lane: the max*10 = 2 GB walk cap (the heuristic gate's asm
+  lea/add at 0x180015e77-7b) vs the seat's singleton-halved bound,
+  and the classic-' '-form next-header walk vs the seat's honest
+  stand-in. This lane's five processor-level SIT tests withdrawn with
+  the seat.
+- **N-229 FIXED (MINOR, NEW):** the racing SIT push committed a red
+  tree — the plant_sit marker writes lost their [m] subscripts (eight
+  `img] = 0x02;`-form lines, a merge-resolution corruption) AND the
+  WPD merge kept both sides' WpdZeroSizeFieldDeclines batteries (a
+  gtest redefinition) — cr_tests could not build at 98bd30d6, over a
+  commit message claiming "the full suite 1711/1711". The repair: the
+  img[m] writes restored, the duplicate deduped (the racing
+  pending-child form kept), the withdrawn battery swept. The N-210
+  push-without-gate class's recurrence #8, recorded so the next audit
+  weighs message-claimed suite counts against the tree's actual
+  buildability. Post-repair: the full rebuild clean, Sit*/Wpd* 15/15,
+  the full suite 1715/1716 (the known perf flake passes serially).
+
 ## Session-87 S87 fix lane (continuation) — entry 2: M-107 member 9 (SIT) lands (2026-10-30)
 
 - **M-107 member 9 (SIT) FIXED** — the SIT5 end-magic walk, decoded
@@ -28,6 +55,41 @@
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
 
+## Session-90 S90 lane, entry 2 — the SIT landing CONCEDED to the racing window (2214af90); the ×10-gate corroboration + the marker-scope correction carried (2026-10-30)
+
+This lane decoded the SIT member from the primary's pending-feed
+processor (FUN_180015d70: the ×10 stay-pending gate at 0x180015e69-
+0x180015ea6, the (pos−base+1)×sector_size epilogue at 0x180015f42-55,
+FUN_180015b60's inert marker gate) and landed it locally (1702/1702,
+RED proofs first-hand). The pull found the racing window had landed
+the SIT seat FIRST (2214af90) with the CORRECT authority: the
+FileSITAnalyser secondary's entry-marker walk FUN_180044a10 (the
+M-090/M-155 authority precedent) — the same 8-byte marker constants
+(02 D7 0A XX 98 F6 42 88) this lane had decoded in the dead gate,
+found alive in the secondary's walk with the stride table
+{0x19→4, 0x3b→5, else 6}, the corrupt-entry terminal, and the
+new-header gate. CONCEDED per SA-9 (their earlier push holds the seat).
+
+This lane's honest error, recorded: the "markers provably inert" claim
+was true only of FUN_180015b60's single short-circuited call site —
+the marker CONSTANTS are alive in FUN_180044a10. The unique carries:
+(1) the ×10 gate decode (the primary's pending cap = row_max × 10 =
+2 GB — complements the racing torn cap; the primary bounds the pending
+feeding, the secondary bounds the extent); (2) the independent
+byte[7] ' '/'!' split corroboration (the racing landing's acceptance
+window went further). This lane's SIT tests + the 2 GB row + the
+batch-caps re-pin dropped as superseded; the racing battery owns the
+coverage. The racing window's same-push landings absorbed: OQ-S79-1
+RESOLVED (the $LogFile machinery dead in the scan path; I-049 filed),
+M-105 FIXED (the DRWService lifecycle), N-228, the three OQ
+dispositions, the /W4 /WX warning fixes, the v0.6.0 release notes.
+
+## Session-86 S86 lane (the racing window's record, preserved) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
+
+[The racing S86 lane's full entry body: see its own record below and
+M-107's Session-86/89 addenda — the DWG concession, the two riders, and
+the M-105 option-(a) landing trail; preserved in the racing window's
+commits 053534c9-lineage.]
 ## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
@@ -13919,3 +13981,24 @@ floor); the full suite **1729/1729**. The rider: the racing window's
 duplicate WpdZeroSizeFieldDeclines (the N-210 class, NINTH occurrence —
 cr_tests unbuildable at the merged tree, first-hand) merged into the
 original with both rationales kept.
+
+**The S90 window merge repair (fix #6 — the merge-mangled plant block).**
+The window's N-229 repair (8bab26e5) and this lane's reconciliation crossed
+again in the merge: the auto-merge dropped the plant_sit function HEAD
+entirely (the orphaned body), the plant_wpg/plant_mrm/plant_lowdoc/
+plant_wpd/plant_psp definitions, and the forward-declaration block — cr_tests
+unbuildable at the merged tree (first-hand: 'plant_wpg was not declared',
+'plant_sit used but never defined'). Restored byte-exact from the pre-merge
+HEAD: all five plant definitions + the declarations (the plant_wpd default
+arg restored — the batch test's 2-arg calls). The [m display artifact (the
+terminal eating "img[m" as a false ANSI SGR reset — the corpus's own S25
+lesson, OQ-S4-3's verification-discipline note) was chased once during the
+repair and REFUTED at byte level (od/grep -c): the marker writes were never
+corrupted in this tree — only the function head was missing. The N-229
+finding's own record (their lane's img] find at 98bd30d6) stands as history.
+Post-repair: Sit*/Wpd*/Psp* 13/13; the full suite **1720/1720**. The S90
+concession trail (a98392d1) absorbed with the arbitration note: their
+concession to "the File*Analyser authority" predates this lane's +0x40 stub
+proof; their own five-test battery encodes the primary's semantics and
+passes 11/11 against the reconciled implementation — the architecture
+decides, both records stand.
