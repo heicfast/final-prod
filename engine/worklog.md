@@ -9513,3 +9513,23 @@ the > 2 TiB reachability analysis; S-066's re-base ladder verified inert under
 dual-boot patching). No behavior change. ExfatEngine 41/41. Trail:
 findings/FIXED/N-198 + Resolution, ledger row, matrix MATCH, SUMMARY, this
 entry.
+## Session-58 lane — the diff-to-fix execution lane opened (2026-10-29)
+
+**T1 record.** Lane opened at core `98a5b139` (main), corpus `be0cfe9`. The
+mandate: execute the diff-to-fix roadmap — every finding independently
+re-verified against the corpus and the running code before any change, every
+fix proven with a RED-before/GREEN-after test, one finding one push, the
+audit trail (Resolution sections, CROSS-REF-MATRIX MATCH cells, modules/*.md
+verdict tables, SUMMARY counts, FIXED-LEDGER rows, this worklog) updated per
+fix, fixed findings moved to findings/FIXED/. The user's ordering override
+for this lane: INFORMATIONAL first. Prompt saved (token redacted) at
+`worklog/session-58-diff-fix-prompt.md`.
+
+**T2/T3 record.** diff-to-fix/ read in full (README, SUMMARY, SEVERITY-SCALE,
+PARAMETERS, CROSS-REF-MATRIX, every active finding in all five severity
+folders, the tracked-open quartet, module docs as touched); core repo read at
+HEAD (src/win, src/app, src/ui, src/core layout, tests/unit census, CI
+scripts); local baseline built and run: **1380 tests, 1338 passed, 0 failed,
+85 skipped (environment-conditional)** — the never-push-a-red-commit
+baseline. Board at lane start: 48 active (1 SEVERE · 23 MAJOR · 22 MINOR ·
+2 INFO) / 136 FIXED / 4 tracked-open.
