@@ -149,9 +149,14 @@ foreach ($d in $DiskState.disks) {
     $matrixDisk = $matrix.disks | Where-Object { $_.id -eq $d.id }
     foreach ($v in $d.volumes) {
         $mv = $matrixDisk.volumes | Where-Object { $_.label -eq $v.label }
-        $profile = [string]$mv.seed_profile
-        if ($profile -eq 'follow-run-profile') { $profile = $Profile }
-        Invoke-Seed $v $profile
+        # $seedProfile (NOT $profile): the case-insensitive name would collide
+        # with the [ValidateSet('smoke','full')] $Profile param — assigning the
+        # matrix's 'follow-run-profile' sentinel to a validated variable throws
+        # MetadataError and leaves the run profile stuck at the previous
+        # volume's value (run 6: the CRBIG seed). Distinct name, no collision.
+        $seedProfile = [string]$mv.seed_profile
+        if ($seedProfile -eq 'follow-run-profile') { $seedProfile = $Profile }
+        Invoke-Seed $v $seedProfile
     }
 }
 
@@ -240,7 +245,12 @@ if (Test-Path $userSignsJson) {
 }
 
 # CLI-vs-API carve-registry parity (the same registry must project identically)
-$cliCarve = & $RrecovExe list-carve-formats 2>&1
+# -join first: rrecov list-carve-formats emits the count line PLUS one line per
+# format (239 formats = 240 lines), so the raw capture is an ARRAY — and an
+# array -match filters instead of populating $Matches, leaving $cliCount null
+# (run 6's "CLI= API=239" parity failure). Joined to a scalar, the regex
+# populates $Matches exactly as the probe always intended.
+$cliCarve = (& $RrecovExe list-carve-formats 2>&1) -join "`n"
 $cliCount = $null
 if ($cliCarve -match '(\d+) carve format') { $cliCount = [int]$Matches[1] }
 $apiCarve = & $ApiHarness --carve-count 2>&1
@@ -399,9 +409,13 @@ function Invoke-Reseed {
     # clear the bin for this volume (state hygiene between bin-touching scenarios)
     try { Clear-RecycleBin -DriveLetter $letter -Force -ErrorAction SilentlyContinue } catch { }
     try { Write-VolumeCache -DriveLetter $letter -ErrorAction SilentlyContinue | Out-Null } catch { }
-    $profile = [string]$MatrixVol.seed_profile
-    if ($profile -eq 'follow-run-profile') { $profile = $Profile }
-    Invoke-Seed $VolEntry $profile
+    # Same $seedProfile naming as the phase-0 seed loop: never assign to a
+    # name that collides with the validated $Profile param (this site sits
+    # in function scope today, so it only works by accident — same shape,
+    # same fix, before it copies the run-6 bug class into the reseed path).
+    $seedProfile = [string]$MatrixVol.seed_profile
+    if ($seedProfile -eq 'follow-run-profile') { $seedProfile = $Profile }
+    Invoke-Seed $VolEntry $seedProfile
 }
 
 # evaluate one lane's inventory against the expected deleted set
