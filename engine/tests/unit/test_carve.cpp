@@ -5331,7 +5331,7 @@ TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
         if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
             cws = c;
     EXPECT_EQ(cws, nullptr) << "a corrupt CWS stream (the raw-written broken RECT) must "
-                              "decline - the deep gate landed";
+                               "decline - the deep gate landed";
 }
 
 TEST(Carve, WmfPlaceableOgGrammarCarves) {

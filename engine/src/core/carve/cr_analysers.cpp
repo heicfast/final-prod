@@ -6947,8 +6947,7 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
         if ((h[8] & 0xF) != 8)
             return r; /* the zlib CM nibble must be 8 (deflate) */
         u8 src[512];
-        const u64 avail =
-            std::min<u64>(sizeof(src), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
+        const u64 avail = std::min<u64>(sizeof(src), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
         if (avail < 2 || !rd(s, hit + 8, src, u32(avail)))
             return r;
         u8 dst[512];
