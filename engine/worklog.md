@@ -1,3 +1,42 @@
+## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
+
+Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
+
+**Main was RED at the open**: the M-151 landing `27bda40e` committed live
+conflict markers against a garbage-collected lane SHA `9647e8b0` —
+`tests/unit/test_ntfs_volume.cpp` (two regions: the A-016
+FolderFilterRootDotIsTransparent test vs the M-151 four-test growth
+battery) and `diff-to-fix/CROSS-REF-MATRIX.md` (one region). gcc -Werror
+refuses the markers; cr_tests could not build. **Filed as N-219** (the
+M-120/N-210/N-217 class, FOURTH recurrence — and the second red window
+in the racing window's own history).
+
+- The repair executed in this lane: both sides' content recovered from
+  the hunks (the A-016 test byte-identical to `e2ea4d50:5764-5829`; the
+  M-151 four-test battery + helper namespace restored; the matrix
+  per-parameter later-state). RED first-hand (build exit 2, 0 tests
+  runnable) → GREEN: full suite **1648/1648** (114 s), format sweep
+  included.
+- **The seat conceded to the racing S81 lane** (`1d7d31a6`, landed on
+  origin mid-lane): the racing repair took the test-file seat per SA-9
+  (their M-151 test reconstructed to its semantic intent; mine restored
+  from the hunks — convergent repairs, one seat). THIS lane's repair
+  extended where the racing repair STOPPED: at the rebase the remote
+  still carried live markers in `CROSS-REF-MATRIX.md` (the M-154 row
+  region), `FIXED-LEDGER.md` (the tail region — the M-151/M-154 rows
+  swallowed entirely), `worklog.md` (the S80-entry-10 vs S82-entry-6
+  region), the `I-048` finding file, and `docs/PARITY-DELTAS.md` —
+  all resolved here (matrix: the M-154 FIXED row + the M-151/N-182
+  dedup + the I-048 ACKNOWLEDGED verdict + the stale M-151 run-growth
+  row flipped to MATCH; ledger: the union + the missing M-151/M-154
+  rows + the N-219 row; worklog: the union; I-048/PARITY-DELTAS: the
+  union pending this push).
+- The lane's queue (per the user's major/informational-first directive,
+  re-planned on the post-rebase board): M-101 → M-075 → M-078 → M-105 →
+  M-107's nine remaining members → the tracked-open resolvables.
+  Driver-repo-resident items (M-086/M-087/M-089/N-107/N-127) stay
+  behind the OQ-S10-3 two-repo boundary.
+
 
 ## Session-79 S79 lane — the S-068 seat conceded (the FOURTH independent implementation; 2026-10-29)
 
@@ -12066,7 +12105,6 @@ matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.
 
 ---
 
-<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 10 (2026-10-29): I-048 acknowledged
 
 **I-048 ACKNOWLEDGED (INFO):** the three registers verified against the
@@ -12132,7 +12170,8 @@ Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree — the
 stand-in carved 64 MiB and the entry walk did not exist). The 174-test
 carve suite green. Trail: M-107's S83 addendum 2, the matrix row, the
 carve module addendum, SUMMARY, this entry.
-=======
+---
+
 ---
 
 # Session 82 — entry 6: M-151 conceded; I-048 + M-111 + M-114 + M-154 FIXED
@@ -12165,7 +12204,6 @@ module's win-lane tests as the Linux-runnable core trio.
 **Trail:** findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions;
 PARITY-DELTAS D-155..D-159; CORPUS-ERRATA E-9; the matrix rows; the
 ledger rows; modules/{session}.md addendum; this entry.
->>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-161 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-162 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)
 
 ---
 
