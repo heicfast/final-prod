@@ -4215,6 +4215,27 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   documentation must stop describing the og's .dat pair as a persistent
   knowledge base (it is one process-generation old at most).
 
+### D-152 — the in-flight journal's location: the host state surface, not the og's CWD-relative ini (N-145 registration, REGISTERED DELIBERATE DIVERGENCE — the declined og defect)
+
+- **WHAT OG DOES:** writes the pendingMarkedDisk marker into
+  `../res/rwConfig.ini` (a CWD-RELATIVE path — PR:48164's
+  `QString(local_150, "../res/rwConfig.ini")`), so the marker's
+  findability depends on the process's working directory at the next
+  start (a different launch dir never sees the interruption).
+- **WHAT WE DO:** the CRIFJ01 journal persists through the HOST's state
+  surface (the CLI: `rrecov-apply.ifj` beside the undo log, probed at
+  every startup regardless of CWD; cr_ui hosts: their state dir through
+  the same sink). The pure core emits the record; the location is a host
+  concern, always absolute-by-construction.
+- **WHY DELIBERATE:** the og's CWD-relative choice is a defect, not a
+  parity surface — a crash-interruption marker that a working-directory
+  change hides fails its own purpose. The core keeps the og's SEMANTIC
+  (the cross-run in-flight marker + the next-start surfacing) and
+  declines only the location.
+- **EVIDENCE:** PR:48164-48315 (the marker utility, first-hand at the
+  finding's verification); `Apply.InFlightJournal*` (the four-test
+  lifecycle battery).
+
 ### D-150 — the MaxFileSize cap's explicit OFF: set_max_file_size(0) disables the size predicate (N-216 registration, REGISTERED DELIBERATE DIVERGENCE — the off-switch the og lacks)
 
 - **WHAT OG DOES:** reads `MaxFileSize ` from config/version.ini `[ver]`

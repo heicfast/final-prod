@@ -12076,3 +12076,13 @@ plan. The dead-data omission, the OOS remote layer, and the
 engine-faithful 64-bit superset all preserved as deliberate. Trail:
 findings/FIXED/I-048 + Resolution (ACKNOWLEDGED), ledger row, D-155,
 this entry. The INFO tier is now EMPTY.
+**N-145 FIXED (MINOR, apply) — fix #5 of the S81 ladder:** the cross-run
+in-flight journal landed — the CRIFJ01 container (the og's
+pendingMarkedDisk semantics, PR:48164-48315/event 0x102d), Begin after
+lock+revalidation before the first write, End on every clean settle
+(UNDO_FAILED keeps it armed), the pure journal_probe, the CLI's
+rrecov-apply.ifj + every-startup interruption warning naming the
+undo-apply recovery path. The CWD-relative ini location declined
+(PARITY-DELTAS D-152). RED (compile-form) x4 → suite 1634/1634. Trail:
+findings/FIXED/N-145 + Resolution, matrix row, modules/apply.md
+addendum, PARITY-DELTAS D-152, ledger row.

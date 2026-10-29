@@ -90,3 +90,26 @@ The cr_ui ABI hosts adopt the same helpers when they carry a state dir
 the lifecycle (incl. the crash shape), the multi-disk idempotence, and
 the probe's missing/truncation contracts; win_syntax_check green over
 the CLI wiring; suite 1540 ran / 0 FAILED.
+## Session-81 addendum — N-145: the cross-run in-flight journal (2026-10-29)
+
+**The interruption record landed.** The og marks the target disk in
+rwConfig.ini [QuickPartition] pendingMarkedDisk for the repartition op's
+lifetime (event 0x102d); the core's CRUNDO01 transaction was stronger
+per-op but left no trace across a process death. The landing: the
+CRIFJ01 journal record ({disk size, pre-apply sector-0 CRC, candidate
+LBA/kind, disk ordinal, begin timestamp}, CRC32-checked container,
+the CRUNDO01 house style), emitted through an optional
+`ApplyJournalFn` sink — Begin after the lock + both revalidations,
+before the first write; End on every clean settle (success or
+fully-verified rollback; ERR_REPAIR_UNDO_FAILED keeps it ARMED — the
+disk is still half-modified). The pure `journal_probe()` re-identifies
+the disk at the next start (size identity; the CRC the secondary hint).
+Host wiring: the CLI writes `rrecov-apply.ifj` beside its undo log and
+probes it at every startup — the interruption warning names the disk
+ordinal and the undo-apply recovery path. The og's CWD-relative ini
+location declined (PARITY-DELTAS D-152 — a marker whose findability
+depends on the working directory is a defect, not a parity surface).
+Tests: Apply.InFlightJournalLifecycleSuccess / RefusalEmitsNothing /
+CleanRollbackEnds / SurvivesAsRecordForNextStart (the crash shape: the
+round-trip, the probe's three answers, the torn-container refusal).
+Suite 1634/1634. The A34/A35 rows: MATCH.

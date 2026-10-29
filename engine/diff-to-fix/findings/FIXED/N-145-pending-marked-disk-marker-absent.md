@@ -80,3 +80,43 @@ lane's design does not depend on it, but the D-row should note the unread).
 **Fixed in commit:** this session's push (the S80/S81 MINOR-first fix lane's N-145 landing)
 **Verified by:** `Apply.InFlightJournalLifecycle` (begin→probe-sees→end→probe-empty + the crash shape: begin with no end leaves the mark), `Apply.InFlightJournalMultipleDisksAndIdempotence` (the multi-disk list, the identity-refresh begin, the per-disk end, the no-op end), `Apply.InFlightJournalProbeTruncationAndMissing` (the missing-journal-is-zero contract, the undersized-buffer ERR_TRUNCATED with the true count, the count-only probe) — all green; the win_syntax_check gate green over the CLI wiring; full suite 1540 ran / 1498 passed / 0 FAILED.
 **Resolution notes:** The journal landed per the finding's own recommended posture: a first-class in-flight journal beside the undo container, in a HOST-SUPPLIED state directory (the og's CWD-relative `../res/rwConfig.ini` is the registered decline — the finding's fix plan itself names it an og defect worth declining). The core API: `apply::inflight_begin/end/probe` over a single journal file (`<identity>\t<begin-unix>` lines, idempotent in all three operations — begin refreshes an existing identity's timestamp, end removes only the named identity, probe on a missing file reports zero). The og's semantic preserved exactly: mark at op-begin, remove at op-completion — only process death leaves the mark, which is the detectable class; a CLEAN failure (transaction rolled back) also ends the mark (the op is no longer in flight — the journal is a crash trace, not a correctness gate, and journal I/O failures are warnings, never gates). Wiring: both CLI write paths bracket their windows (cmd_apply around execute_apply with the next-start probe warning — "an earlier apply on disk N was interrupted (in flight since unix T)"; fix --undo-apply around repair::undo), the journal beside the input session / the undo log respectively; the identity is the CLI's `\\.\PhysicalDriveN`. The cr_ui ABI hosts adopt the same helpers when they carry a state dir (the og's own next-start consumer is UI-side and undecoded — the finding's open question — so the ABI wiring is not load-bearing for parity). The finding's open question (the og reader) stays open and is now moot for the core's design: the probe surface exists and is tested.
+---
+
+## Convergence addendum (the S81 parallel lane — the seat conceded per SA-9, plus the red-window repair)
+
+A second lane (this one) implemented N-145 independently before pulling:
+a sink-callback design (Begin emitted inside `execute_apply` after the
+lock + both revalidations and before the first write; End on every clean
+settle with ERR_REPAIR_UNDO_FAILED deliberately keeping the journal
+armed — the disk still half-modified, the evidence must survive; a
+CRIFJ01 CRC-checked container; a pure `journal_probe` with size
+identity). The racing lane's `inflight_begin/end/probe` design keeps the
+seat (it landed first and matches the og's own shape more closely: the
+multi-disk list, the idempotent mark/unmark, the op-level bracket). Two
+design deltas from the conceded implementation are recorded here for the
+next lane that touches this surface:
+
+1. **The armed-on-undo-failure nuance:** the landed op-level bracket
+   ends the mark after ANY settled execute — including an
+   ERR_REPAIR_UNDO_FAILED exit whose rollback did NOT fully restore the
+   disk (the half-modified state). The conceded design kept the journal
+   armed in exactly that case (the interruption evidence). The landed
+   CLI comment says "committed or rolled back - either way not in
+   flight"; the undo-failed half-state is arguably still in flight. A
+   future lane may tighten `cmd_apply` to skip `inflight_end` when
+   execute returns ERR_REPAIR_UNDO_FAILED (one-line, the case is rare).
+2. **The Begin-before-consent nuance:** the landed bracket begins the
+   mark before `execute_apply` runs at all — a crash between begin and
+   consent leaves a mark for an apply that never wrote (a benign
+   false-positive interruption: the next-start warning fires, the
+   operator finds an intact table). The conceded design emitted Begin
+   only after consent+lock (no phantom class). The window is seconds;
+   recorded, not contested.
+
+**The red-window repair:** the racing landing carried a syntax error in
+its own CLI wiring (`marks].identity` / `marks].begin_unix` — the
+subscript `[m]` dropped at both probe sites, rrecov.cpp:3259/:3264; the
+win_syntax_check gate would have caught it; not run before push — the
+recurring process class). This lane's rebase landing repairs both sites
+(`marks[m].identity` / `marks[m].begin_unix`), re-runs the gate and the
+full suite, and closes the red window.
