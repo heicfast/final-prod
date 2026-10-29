@@ -29,7 +29,12 @@ std::mutex g_mu;
  * original leak-by-design intended), but the storage is OWNED and
  * destroyed at exit - LeakSanitizer-clean (the N-062 landing's bare
  * `new` left the final Site leaked on every process, red on the ASan
- * lane; filed as N-079). deque push_back never moves existing
+ * lane; the deque/pool repair rode the N-062 landing commit 14229f2f).
+ * [N-154: this comment earlier named N-079 as the filing seat for the
+ * Site-leak repair - false; N-079 is the NTFS recycle-bin finding, a
+ * different lane's filing. The Site-leak fix has no separate finding
+ * number, it rode N-062's landing (14229f2f).]
+ * deque push_back never moves existing
  * elements, so published &site pointers stay valid. */
 std::atomic<Site*> g_site{nullptr};
 

@@ -264,7 +264,8 @@ static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
  * the unit = 2^cunit clusters, each covered by per-cluster blocks
  * [u16 header][payload] (ntfs-3g ntfs_decompress shape; MS-XCA 3.3):
  *   header == 0    -> hole: the remaining blocks of the unit are sparse
- *                     (no extent; the writer zero-fills)
+ *                     (S-059: emitted as a HOLE extent - the writer
+ *                     zero-fills at the unit's logical position)
  *   bit 15 set     -> raw block: payload = one full cluster, codec 0
  *   else           -> LZNT1 chunk: payload = (hdr & 0xFFF) + 1 bytes,
  *                     decoding to min(cluster, logical-remaining) bytes
@@ -273,7 +274,7 @@ static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
  * VCN range, so buffer position maps back to disk run-by-run. On any
  * envelope inconsistency (unit read failure, header truncation, hostile
  * cunit/cluster geometry) the file gets NO extents: all-zero content is
- * the honest fallback - surfacing the raw compressed bytes would be the
+ * the honest fallback (unchanged by S-059) - surfacing the raw compressed bytes would be the
  * silent corruption this fix exists to remove. */
 static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit, u64 real_size,
                                    std::vector<tree::FileProperties::Extent>& out, u64& blocks_out,
@@ -338,8 +339,31 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
         }
         buf.resize(filled);
 
-        /* parse the unit's blocks */
+        /* parse the unit's blocks. S-059: a hole (a zero header, or a
+         * stored stream that ends mid-unit) now EMITS a hole extent
+         * covering the rest of the unit - the og writes the full unit
+         * as a zeroed type-2 chunk (:875062-75) and the file keeps its
+         * logical size; the pre-fix code emitted nothing, so every
+         * extent AFTER the hole left-shifted over it (or the whole file
+         * failed ERR_TRUNCATED when the hole was the tail). */
         size_t pos = 0;
+        const auto emit_hole = [&](u64 from_block) {
+            u64 hole_len = 0;
+            for (u64 hb = from_block; hb < unit_blocks; ++hb) {
+                const u64 hl = unit_start + hb * cluster;
+                if (hl >= real_size)
+                    break;
+                hole_len += (real_size - hl) < cluster ? (real_size - hl) : cluster;
+            }
+            if (hole_len != 0) {
+                tree::FileProperties::Extent he{};
+                he.offset = 0;
+                he.length = hole_len;
+                he.logical = unit_start + from_block * cluster;
+                he.hole = true;
+                out.push_back(he);
+            }
+        };
         for (u64 b = 0; b < unit_blocks; ++b) {
             const u64 logical = unit_start + b * cluster;
             if (logical >= real_size)
@@ -347,20 +371,26 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
             const u64 block_len = (real_size - logical) < cluster ? (real_size - logical) : cluster;
             if (pos + 2 > buf.size()) {
                 /* no stored header for this block: sparse tail of the unit
-                 * (stored stream ends mid-unit) - remaining blocks are
-                 * holes, which emit no extents */
+                 * (stored stream ends mid-unit) - the rest is a HOLE that
+                 * keeps its logical position (S-059) */
+                emit_hole(b);
                 break;
             }
             const u16 hdr = u16(buf[pos]) | (u16(buf[pos + 1]) << 8);
             if (hdr == 0) {
-                break; /* hole: the rest of the unit is sparse */
+                emit_hole(b); /* hole: the rest of the unit is sparse */
+                break;
             }
             if (hdr & 0x8000) {
                 if (pos + 2 + size_t(cluster) > buf.size()) {
                     failed_out = true;
                     return;
                 }
-                out.push_back({disk_at(pos + 2), block_len, 0, 0});
+                tree::FileProperties::Extent pe{};
+                pe.offset = disk_at(pos + 2);
+                pe.length = block_len;
+                pe.logical = logical;
+                out.push_back(pe);
                 pos += 2 + size_t(cluster);
             } else {
                 const size_t plen = size_t(hdr & 0xFFF) + 1;
@@ -368,7 +398,13 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
                     failed_out = true;
                     return;
                 }
-                out.push_back({disk_at(pos + 2), block_len, compress::kLznt1, plen});
+                tree::FileProperties::Extent pe{};
+                pe.offset = disk_at(pos + 2);
+                pe.length = block_len;
+                pe.logical = logical;
+                pe.codec = compress::kLznt1;
+                pe.psize = plen;
+                out.push_back(pe);
                 pos += 2 + plen;
             }
             ++blocks_out;
@@ -950,8 +986,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 std::vector<RunList::Extent> ex;
                 data_runs.extents(ex);
                 for (const auto& e : ex) {
-                    props->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                              e.clusters * vol->params().cluster_bytes});
+                    tree::FileProperties::Extent pe{};
+                    pe.offset = e.lcn * vol->params().cluster_bytes;
+                    pe.length = e.clusters * vol->params().cluster_bytes;
+                    pe.logical = e.vcn * vol->params().cluster_bytes;
+                    pe.hole = e.sparse; /* S-059: holes keep their logical
+                                         * position (the og's type-2 zero chunk) */
+                    props->extents.push_back(pe);
                 }
             }
         } else if (has_data && !unnamed_resident.empty() && !is_dir) {
@@ -1070,9 +1111,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         sp->logical_size = a.actual;
                         std::vector<RunList::Extent> ex;
                         rl.extents(ex);
-                        for (const auto& e : ex)
-                            sp->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                                   e.clusters * vol->params().cluster_bytes});
+                        for (const auto& e : ex) {
+                            tree::FileProperties::Extent pe{};
+                            pe.offset = e.lcn * vol->params().cluster_bytes;
+                            pe.length = e.clusters * vol->params().cluster_bytes;
+                            pe.logical = e.vcn * vol->params().cluster_bytes;
+                            pe.hole = e.sparse; /* S-059 */
+                            sp->extents.push_back(pe);
+                        }
                     }
                 }
                 sp->times = props->times;
@@ -1569,9 +1615,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             }
                             std::vector<RunList::Extent> ex;
                             data_runs2.extents(ex);
-                            for (const auto& e : ex)
-                                dp->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                                       e.clusters * vol->params().cluster_bytes});
+                            for (const auto& e : ex) {
+                                tree::FileProperties::Extent pe{};
+                                pe.offset = e.lcn * vol->params().cluster_bytes;
+                                pe.length = e.clusters * vol->params().cluster_bytes;
+                                pe.logical = e.vcn * vol->params().cluster_bytes;
+                                pe.hole = e.sparse; /* S-059 */
+                                dp->extents.push_back(pe);
+                            }
                         } else if (!resident2.empty() && !is_dir2) {
                             dp->resident_data = std::move(resident2);
                         }
@@ -1711,9 +1762,14 @@ static bool remnant_extract_data(const std::vector<AttrView>& attrs, const Remna
             if (parse_data_runs(da, ctx.total_clusters, rl) == OK && rl.total_clusters() > 0) {
                 std::vector<RunList::Extent> ex;
                 rl.extents(ex);
-                for (const auto& e : ex)
-                    props->extents.push_back(
-                        {e.lcn * ctx.cluster_bytes, e.clusters * ctx.cluster_bytes});
+                for (const auto& e : ex) {
+                    tree::FileProperties::Extent pe{};
+                    pe.offset = e.lcn * ctx.cluster_bytes;
+                    pe.length = e.clusters * ctx.cluster_bytes;
+                    pe.logical = e.vcn * ctx.cluster_bytes;
+                    pe.hole = e.sparse; /* S-059 */
+                    props->extents.push_back(pe);
+                }
                 have_content = !props->extents.empty();
             }
             break;

@@ -54,6 +54,7 @@
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
+#include <fcntl.h> /* S-060: AT_FDCWD for utimensat */
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
@@ -764,6 +765,60 @@ private:
     bool exists(const std::u16string& path) override {
         struct stat st;
         return ::stat(to_path(path).c_str(), &st) == 0;
+    }
+    /* S-060: the og's per-item restoration tail, POSIX translation
+     * (the deliberate cross-platform mapping registered in
+     * PARITY-DELTAS): SetFileTime(created/access/write) ->
+     * utimensat (atime + mtime; a birth time is not portable - the
+     * created slot maps to nothing on hosts without a birth-time API
+     * and is skipped, never guessed); SetFileAttributesW(word & ~0x2)
+     * -> chmod with the READONLY bit (0x1) translated to the owner
+     * write bit (the one DOS attribute POSIX can carry truthfully).
+     * Non-fatal by the writer's contract. */
+    u32 set_metadata(u64 item_id, const std::u16string& final_path, const FileMeta& meta) override {
+        (void)item_id;
+        const std::string path = to_path(final_path);
+        u32 rc = OK;
+        if (meta.set_attributes) {
+            struct stat st;
+            if (::stat(path.c_str(), &st) == 0) {
+                mode_t mode = st.st_mode & 07777;
+                if (meta.attributes & 0x1) /* FILE_ATTRIBUTE_READONLY */
+                    mode &= ~mode_t(0200); /* owner write off */
+                else
+                    mode |= 0200;
+                if (::chmod(path.c_str(), mode) != 0)
+                    rc = ERR_WRITE_FAILED;
+            } else {
+                rc = ERR_WRITE_FAILED;
+            }
+        }
+        if (meta.set_accessed || meta.set_modified) {
+            struct timespec ts[2];
+            /* slot 0 = atime, slot 1 = mtime; 100ns-since-1601 ->
+             * unix seconds + nanoseconds */
+            const auto to_ts = [](u64 ft, bool set) {
+                struct timespec out;
+                if (!set) {
+                    out.tv_sec = 0;
+                    out.tv_nsec = UTIME_OMIT;
+                    return out;
+                }
+                const i64 unix100 = i64(ft) - 116444736000000000LL;
+                out.tv_sec = time_t(unix100 / 10000000LL);
+                out.tv_nsec = long((unix100 % 10000000LL) * 100);
+                if (out.tv_nsec < 0) { /* negative-div guard */
+                    out.tv_sec -= 1;
+                    out.tv_nsec += 1000000000L;
+                }
+                return out;
+            };
+            ts[0] = to_ts(meta.accessed, meta.set_accessed);
+            ts[1] = to_ts(meta.modified, meta.set_modified);
+            if (::utimensat(AT_FDCWD, path.c_str(), ts, 0) != 0)
+                rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+        }
+        return rc;
     }
 };
 #endif
@@ -2119,8 +2174,6 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     return ret_ok();
 }
 
-
-
 /* W1c (R-52): defined below (after the N-060 adapter block); the
  * completion auto-save in scan_run_impl calls it. */
 u32 write_session_atomic(CrScan* s, const std::string& final_path,
@@ -2239,9 +2292,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2274,20 +2327,15 @@ u32 scan_run_impl(cr_ui_scan* scan) {
      * auto-saves, and since S-057 so does a user-STOPPED run with
      * results (the og's stop-organize feeds the same completion
      * handler - see the cancel branch above; the decoded og truth, not
-     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome event
-     * (never silent failure), the stats flag. The name is the N-061
-     * corpus convention: auto_<label>_<M>_<D>_<H>_<m>_<s> with the
-     * name-forbidden-char sanitizer.
-     * S-044: the og's THREE trigger-site gates, decoded at
-     * FUN_1402857c0's call sites (:612583/:615166/:616764, evidence
-     * s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed
-     * session never re-auto-saves), results-found
-     * (FUN_1403964b0 != 0 - an empty scan never auto-saves; no session
-     * file for a nothing-found run), and not-already-saved (+0x388==0,
-     * 2 of 3 sites - an explicit save suppresses the auto save). An
-     * empty scan writes no file, fires no event, and stats.autosaved
-     * stays 0 - the og's W1a session list never sees nothing-found
-     * runs. */
+     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome
+     * event (never silent failure), the stats flag. The name is the N-061 corpus convention:
+     * auto_<label>_<M>_<D>_<H>_<m>_<s> with the name-forbidden-char sanitizer. S-044: the og's
+     * THREE trigger-site gates, decoded at FUN_1402857c0's call sites (:612583/:615166/:616764,
+     * evidence s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed session never
+     * re-auto-saves), results-found (FUN_1403964b0 != 0 - an empty scan never auto-saves; no
+     * session file for a nothing-found run), and not-already-saved (+0x388==0, 2 of 3 sites - an
+     * explicit save suppresses the auto save). An empty scan writes no file, fires no event, and
+     * stats.autosaved stays 0 - the og's W1a session list never sees nothing-found runs. */
     autosave_if_due_(s);
     return ret_ok();
 }
@@ -2852,8 +2900,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3087,6 +3135,7 @@ u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* c
         row.elapsed_ms = s.volume.elapsed_ms;
         row.save_unix = s.volume.save_unix;
         copy_cstr(row.label, sizeof(row.label), s.volume.label);
+        copy_cstr(row.label_full, sizeof(row.label_full), s.volume.label_full);
     }
     /* the og's LastScanRecordView order: the record-2 SYSTEMTIME
      * comparator (FUN_140273550: SystemTimeToFileTime over row+0x20,
@@ -3122,6 +3171,7 @@ u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
     out->elapsed_ms = i.elapsed_ms;
     out->boot_hash = i.boot_hash;
     copy_cstr(out->label, sizeof(out->label), i.label);
+    copy_cstr(out->label_full, sizeof(out->label_full), i.label_full); /* N-090 */
     copy_cstr(out->model, sizeof(out->model), i.model);
     copy_cstr(out->serial, sizeof(out->serial), i.serial);
     return ret_ok();
@@ -4290,6 +4340,10 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
         r->analysis.matched = a.matched;
         r->analysis.total = a.total;
         r->analysis.small_result = a.small_result;
+        r->analysis.gauge_matched = a.gauge_matched;         /* N-183 */
+        r->analysis.gauge_total = a.gauge_total;             /* N-183 */
+        r->analysis.score = a.score;                          /* N-183 */
+        r->analysis.ntfs_device_index_high = a.ntfs_device_index_high; /* N-183 */
         r->have_analysis = true;
     }
     /* (merge-storm residue removed here: a byte-identical duplicate of the

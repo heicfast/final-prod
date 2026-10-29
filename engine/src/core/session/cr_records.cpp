@@ -143,7 +143,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          *   bit7: OQ-SA-1 FAT-family origin cluster follows (u32 - the
          *         og's CFAT +0x3e / CExFat +0x50 first-cluster anchor,
          *         stamped from the dentry independent of chain
-         *         resolution; passive datum) */
+         *         resolution; passive datum)
+         *   bit11 (2048): S-059 extents carry {u64 logical, u8 hole}
+         *         each (sparse/compressed holes keep their logical
+         *         position; old files read back logical==0/hole==false
+         *         and take the legacy cumulative walk) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -173,6 +177,12 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
             if (pr && pr->ntfs_total_clusters != 0)
                 nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
+            if (pr)
+                for (const auto& e : pr->extents)
+                    if (e.hole || e.logical != 0) {
+                        nflags |= 2048; /* S-059: positioned/hole extents */
+                        break;
+                    }
         }
         /* S-052: the ROOT's extent-basis id (roots only, nonzero only) -
          * the LDM dynamic-volume basis that survives the file boundary */
@@ -222,6 +232,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             if (nflags & 1) {
                 put32(out, e.codec);
                 put64(out, e.psize);
+            }
+            if (nflags & 2048) { /* S-059: the logical position + hole mark */
+                put64(out, e.logical);
+                out.push_back(e.hole ? 1 : 0);
             }
         }
         if (nflags & 2) {
@@ -424,6 +438,10 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             if (nflags & 1) {
                 props->extents[k].codec = c.g32();
                 props->extents[k].psize = c.g64();
+            }
+            if (nflags & 2048) { /* S-059: logical position + hole mark */
+                props->extents[k].logical = c.g64();
+                props->extents[k].hole = c.g8() != 0;
             }
         }
         if (nflags & 2) {
@@ -814,6 +832,10 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
      * rsf-format section 5.2 +0x6C); old readers stop before it and old
      * files simply lack it (the deserializer len-gates the read). */
     put64(out, vi.save_unix);
+    /* N-090 v6 tail: the complete label at the og's volumeName[100]
+     * width - label[32] above keeps the legacy prefix view; old readers
+     * stop before this tail (the same len-gate pattern as v2..v5). */
+    out.insert(out.end(), vi.label_full, vi.label_full + 100);
     return OK;
 }
 
@@ -865,6 +887,15 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
              * is the caller's fallback display, never a silent guess). */
             if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8)
                 vi.save_unix = c.g64();
+            /* N-090 v6 tail: the complete label (the og's
+             * volumeName[100]); absent on v1..v5 records - zeros mean
+             * "the legacy 31-char card is the whole truth" (the
+             * surface joins to label[] alone, exactly pre-v6). */
+            if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8 + 100) {
+                if (!c.bytes(reinterpret_cast<u8*>(vi.label_full), 100))
+                    return 0x50040001;
+                vi.label_full[99] = 0; /* never trust a torn NUL */
+            }
         }
     }
     return c.fail ? u32(0x50040001) : u32(OK);
@@ -881,6 +912,9 @@ u32 serialize_session_state(const SessionState& st, std::vector<u8>& out) {
      * lack them (deserializer len-gates the reads) */
     put64(out, st.deleted_found);
     put64(out, st.carved_found);
+    /* v3 (N-167): the found-size aggregate - the og's "Files Found: N
+     * (X GB)" headline truth, restored on load */
+    put64(out, st.bytes_found);
     return OK;
 }
 
@@ -896,6 +930,11 @@ u32 deserialize_session_state(const u8* data, size_t len, SessionState& st) {
         st.deleted_found = c.g64();
     if (!c.fail && len >= 40)
         st.carved_found = c.g64();
+    /* v3 (N-167): the found-size aggregate - present only in 48-byte
+     * records; v1/v2 sessions leave it zeroed (the tree re-stamps it on
+     * the first count refresh after resume) */
+    if (!c.fail && len >= 48)
+        st.bytes_found = c.g64();
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 

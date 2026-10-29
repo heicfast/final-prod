@@ -1,4 +1,4 @@
-# MINOR N-155 — the RRWR pair's direction naming inverted in DRIVER-CONTRACT §4.4 (0x800C2B3E named WRITE / 0x800C2B42 named READ; the og wire decodes the opposite) + I-029's "four unverifiable codes" premise refuted by first-hand decode
+# MINOR N-156 — the RRWR pair's direction naming inverted in DRIVER-CONTRACT §4.4 (0x800C2B3E named WRITE / 0x800C2B42 named READ; the og wire decodes the opposite) + I-029's "four unverifiable codes" premise refuted by first-hand decode
 
 **Severity:** MINOR within core scope (doc-truth on a contract table no core code issues — the RdaClient was deleted by N-041; the doc feeds the driver lane) — **but the finding carries a SEVERE-class verification step for the driver repo**: if `rda_filter.c`'s implementation followed this table, the 0x800C2B3E/0x800C2B42 wire directions are inverted vs the og (an og-shaped client issuing 0x800C2B3E to read would trigger a WRITE).
 **Module / Surface:** transport / driver contract (docs/DRIVER-CONTRACT.md §4.4)
@@ -41,3 +41,11 @@ None on the og side (the decode is instruction-decisive); the driver-repo implem
 **Fixed in commit:** this session's N-155 landing (session-42; cite-by-title: "fix(docs): N-155 + I-029 - the RRWR direction decode lands, the four-code provenance verified first-hand, I-029's premise refuted")
 **Verified by:** decompiled evidence read first-hand (the citation chain in the finding body: FilterDispatch :1290-1360, FUN_00013310 :1616-1665, FUN_000141f8 :2346-2381 major-4 READ, FUN_00014300 :2386-2420 major-3 WRITE); the DRIVER-CONTRACT §4.4 rows now carry the og-direction names with per-row cites; the corpus-erratum entry added for the artifact's 15-code census gap.
 **Resolution notes:** The og wire decode is instruction-decisive: 0x800C2B3E is the READ direction (IoBuildSynchronousFsdRequest major 4) and 0x800C2B42 is the WRITE direction (major 3). DRIVER-CONTRACT §4.4's two rows re-named accordingly with the corpus cites inline; the 19-code provenance note added under the heading (superseding I-029's four-unverifiable claim — the decompile's negative-delta encoding is what defeated I-029's grep). The driver-repo half (rda_filter.c's actual direction mapping) is OUTSIDE this session's two-repo scope — recorded as the finding's precise next step with the round-trip test recipe; the driver lane must close it. No core code change (no core code issues these codes — the N-041 mirror posture preserved).
+
+## Title-drift repair (2026-10-29, the S56 lane's gate hardening)
+
+The file's H1 still read "MINOR N-155" after the SA-9 renumber to N-156 (the
+filename and ledger row were already N-156; the title line was missed in the
+rename sweep). Caught by the doc_truth_gate's findings/FIXED/-directory
+uniqueness check (the N-191-class hardening); the title now matches the
+filename and the ledger row.

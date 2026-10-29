@@ -132,6 +132,10 @@ struct AssistantStats {
     u64 quick_scan_delete_file_count = 0;
     u64 deep_scan_file_count = 0;
     u64 quick_scan_delete_extend = 0;
+    /* N-183 (diff-to-fix): the og's DAT_141be5818 tick is the gauge-matched
+     * global, NOT QSDE - the NTFS fixer-index rule's true counter (the
+     * finding's sub-gap (c)). */
+    u64 ntfs_device_index_high = 0;
     /* category counts, index = query::Category - 1 (Image..Bookmarks);
      * the og's 6 counted IDs map onto our 8, Bookmarks/None land in the
      * Other bucket (og 0xB) exactly like the fallback category. */
@@ -141,6 +145,14 @@ struct AssistantStats {
     u64 matched = 0;
     u64 total = 0;
     bool small_result = false;
+    /* N-183 (diff-to-fix): the og's gauge population is the 20-format
+     * member set (the .rdata ctor map at DRWUI:605502-513) plus the
+     * auto-High classes (email + ReFS/Btrfs non-existing, S-061) - not
+     * every file; and the verdict copy renders a 0-10 score via
+     * int((matched/total + 0.05) * 10) (FUN_14021b030 :374451-481). */
+    u64 gauge_matched = 0; /* grade-High within the member-set population */
+    u64 gauge_total = 0;   /* the member set + the auto-High classes */
+    u32 score = 0;        /* int((matched/total + 0.05) * 10), total==0 -> 0 */
     u64 graded_count = 0; /* nodes the pass visited (telemetry) */
 };
 
@@ -166,7 +178,10 @@ bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
 
 /* The 169-entry deep-validation extension table (dumped from the corpus
  * DRWUI.exe .data 0x141bb0500; first key "Raw", every flag byte 0).
- * Membership gates the generic path's twin detection. */
+ * NON-membership enters the generic path's twin detection (S-058: the
+ * og's gate runs the deep block on the lookup MISS); the empty key is
+ * skipped by the call site (the og's runtime set carries the
+ * ctor-inserted "" key, so dot-less names skip too). */
 bool extension_in_grading_table(const std::string& ext_utf8_lower);
 size_t grading_table_entry_count();
 

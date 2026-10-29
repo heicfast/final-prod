@@ -93,7 +93,7 @@ index+1); the tree's LDM roots carry the matching ids (node-flags bit10).
 Recovery/preview re-arm the virtual volume devices from this record
 after a load (the members re-anchor through their own PRIVHEADs).
 
-## VOLUME_INFO payload (v1..v5 — the record LENGTH carries the version)
+## VOLUME_INFO payload (v1..v6 — the record LENGTH carries the version)
 
 ```
 v1 (80 B):  u32 fs_kind, u64 slice_offset, u64 slice_bytes,
@@ -112,6 +112,11 @@ v5 (+8):    u64 save_unix (W1a/R-56: the embedded save time, unix
             seconds UTC — our mirror of the og record-2's SYSTEMTIME
             scanTime, rsf-format--scan-session.md section 5.2 +0x6C;
             the session list shows the recorded time; 0 = pre-v5 file)
+v6 (+100):  char label_full[100] (N-090: the COMPLETE volume label at
+            the og record-2 volumeName[100] width — strncpy(...,99),
+            rsf-format--scan-session.md section 5.2 +0x04; label[32]
+            above stays the legacy 31-char prefix view; zeros on
+            v1..v5 files = the legacy card is the whole truth)
 ```
 
 A reader stops at the length it knows; every absent tail deserializes

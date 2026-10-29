@@ -325,7 +325,7 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
  * by cr_ui_device_transport). A failure with a Ready driver is a target
  * error (ERR_OPEN_FAILED et al). open_volume mirrors the CLI: BitLocker
  * state is probed first - a locked volume is refused with
- * CR_UI_ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the
+ * ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the
  * returned device is the volume's slice on its parent disk (kept alive
  * internally). */
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
@@ -404,7 +404,7 @@ CR_UI_API uint32_t cr_ui_driver_status(cr_ui_driver_status_t* out);
  * the GetFullVolumeEncryptionKey output shape). ERR_BAD_PARAMETER on
  * malformed/weak key material; ERR_UNSUPPORTED off-Windows; the
  * no-key refusal contract of cr_ui_open_volume is unchanged (locked
- * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
+ * without a key stays ERR_FVE_LOCKED - legitimate unlock only). */
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                               cr_ui_device** out);
 
@@ -415,10 +415,10 @@ CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_
  * user-typed password. THE EXPLICIT CONSENT ACTION: the host calls it only
  * from its user-initiated unlock surface (the og's BitlockerUnlockDialog
  * analog); cr_ui_open_volume NEVER tries passwords by itself - a locked
- * volume stays CR_UI_ERR_FVE_LOCKED until the user acts.
+ * volume stays ERR_FVE_LOCKED until the user acts.
  * utf8_user_passwords: optional extra candidates tried AFTER the shipped
  * set (may be NULL with count 0). Returns OK when a candidate unlocked the
- * volume, CR_UI_ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
+ * volume, ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
  * off-Windows. Attempt lines carry the candidate index only (never the
  * password) through the engine log seam. */
 CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(char letter,
@@ -569,7 +569,10 @@ typedef struct cr_ui_scan_config {
     uint32_t carve_weight;
     uint32_t threads;              /* 0 = auto */
     const char* volume_label_utf8; /* optional; NULL/"" = none; truncated
-                                    * to 31 chars (session card field) */
+                                    * to 99 chars - the og's record-2
+                                    * volumeName[100] width (N-090; the
+                                    * legacy session card keeps the
+                                    * 31-char prefix view) */
     const char* volume_model_utf8; /* optional identity-card overrides; when
                                     * absent the shim fills them from the
                                     * disk enumeration (Windows, CLI parity) */
@@ -895,7 +898,10 @@ typedef struct cr_ui_session_info {
     uint32_t configured_mask; /* stages the original run configured */
     uint64_t slice_offset, slice_bytes;
     uint32_t logical_sector, physical_sector;
-    char label[32]; /* UTF-8 */
+    char label[32]; /* UTF-8 (the legacy 31-char prefix view) */
+    /* N-090 (ABI append): the complete label at the og's
+     * volumeName[100] width; == label on v1..v5 sessions. */
+    char label_full[100]; /* UTF-8, NUL padded */
     uint64_t scanned_bytes, elapsed_ms;
     char model[48]; /* UTF-8 identity card; empty on v1 sessions */
     char serial[32];
@@ -960,6 +966,12 @@ typedef struct cr_ui_session_row {
     uint64_t save_unix;                /* embedded save time; 0 = pre-v5 session */
     char label[32];                    /* UTF-8 volume label; empty on legacy files */
     char path[CR_UI_SESSION_ROW_PATH]; /* UTF-8 full path, NUL padded */
+    /* N-090 (ABI append - the tail-append pattern, no version bump):
+     * the COMPLETE volume label at the og's record-2 volumeName[100]
+     * width (strncpy(...,99)); label[32] above stays the legacy
+     * 31-char prefix view so old callers see exactly what they always
+     * saw. == label on v1..v5 sessions (the uniform degrade). */
+    char label_full[100]; /* UTF-8, NUL padded */
 } cr_ui_session_row;
 
 CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
@@ -1356,7 +1368,16 @@ typedef struct cr_ui_thumbnail_info {
  * 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
  * (info->source_format carries the family), other codes as the error
  * table. caps == NULL = the defaults above. The device is the scan's
- * device (the same pairing rule as cr_ui_preview_open_session). */
+ * device (the same pairing rule as cr_ui_preview_open_session).
+ *
+ * M-115 (grading side effects, decoded at DRWUI :422507-514 + :421400-402):
+ * (1) nodes of size <= 20 (0x14) are refused 0x50030008 - the og's
+ * dispatcher never creates work items that small, so no attempt and NO
+ * grade promotion happen; (2) a decode REFUSAL (0x50030004) whose reads
+ * were clean still promotes the node's grade to 2 - the og promotes on
+ * READ evidence (readVerdict==0 with payload, decode-independent, the
+ * decode's failure never retracts) - while span-damaged, budget-exhausted
+ * and unsupported attempts never promote. */
 CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
                                             uint64_t node_id, const cr_ui_thumbnail_caps* caps,
                                             uint8_t* rgba, uint32_t rgba_cap,

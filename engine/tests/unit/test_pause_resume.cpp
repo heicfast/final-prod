@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "test_tmpdir.hpp"
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
@@ -357,6 +358,122 @@ TEST(PauseResume, SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick) {
         /* quick pass did not re-run: resumed files count comes only from
          * what the session carried + carve */
         EXPECT_EQ(ref_stats.carved_found, stats.carved_found);
+    }
+    std::remove(path.c_str());
+}
+
+TEST(CarveStats, UserSignCarvedFoundSessionRoundTrip) {
+    /* N-171 session leg: the runtime carved_found (now counting the
+     * user-sign channel) must persist into the session record and
+     * re-read identically on resume - the undercount used to persist
+     * too (resume/preview re-read the wrong headline). */
+    const std::string path = tmp_session_path();
+    ScanConfig cfg; /* defaults: quick+deep+carve, whole-disk off */
+    {
+        std::vector<u8> img(2ull << 20, 0);
+        img[0x2000] = 0xDE;
+        img[0x2001] = 0xAD;
+        img[0x2002] = 0xBE;
+        img[0x2003] = 0xEF;
+        const char* json =
+            "{\"uvw\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-uvw\"}}";
+        carve::usersigns::UserSignSet set;
+        ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+        ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        const u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+        ASSERT_EQ(rc, OK) << err_text(rc);
+        EXPECT_EQ(0u, stats.files_found) << "nothing structured lives on the unformatted device";
+        EXPECT_EQ(1u, stats.carved_found)
+            << "the user-sign record counts in the headline carved count";
+        tree.refresh_stats();
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(0x52434F56));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, cfg, stats, info, ctrl));
+        fclose(f);
+        EXPECT_EQ(1u, stats.carved_found)
+            << "the persisted carved_found re-reads the user-sign record";
+    }
+    std::remove(path.c_str());
+}
+
+TEST(ScanStats, BytesFoundAggregates) {
+    /* N-167: the found-size truth - the og's completion headline renders
+     * "Files Found: N (X GB)" from the stats aggregate; the core had
+     * counts only (bytes_scanned is I/O truth, not found-size truth).
+     * The fixture's two files carry known logical sizes (DOC.TXT 1000,
+     * DELFILE.TXT 500 deleted) - the aggregate must include BOTH the
+     * active and the deleted population (the og counts what it found,
+     * deletion state is a separate column), and must equal the tree's
+     * own total_logical() (the stats-tree consistency: one observation
+     * pair, never two truths). */
+    MemDevice dev(build_fat16());
+    tree::ResultTree tree;
+    ScanController ctrl(tree, ScanConfig{});
+    ScanStats stats;
+    const u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(2u, stats.files_found) << "the fixture's two dentries both surface";
+    EXPECT_GE(stats.bytes_found, 1500u)
+        << "both known logical sizes (1000 + 500) count in the aggregate";
+    EXPECT_EQ(stats.bytes_found, tree.total_logical())
+        << "the stats aggregate IS the tree truth (one consistent pair)";
+}
+
+TEST(ScanStats, BytesFoundSessionRoundTrip) {
+    /* N-167 session leg: the found-size aggregate persists into the v3
+     * REC_SESSION_STATE record and re-reads identically on resume (v1/v2
+     * sessions load it zeroed - the tree re-stamps it at the first count
+     * refresh). */
+    const std::string path = tmp_session_path();
+    u64 runtime_bytes_found = 0;
+    {
+        MemDevice dev(build_fat16());
+        tree::ResultTree tree;
+        ScanController ctrl(tree, ScanConfig{});
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+        runtime_bytes_found = stats.bytes_found;
+        ASSERT_GE(runtime_bytes_found, 1500u);
+        tree.refresh_stats();
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(0x52434F56));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        EXPECT_EQ(runtime_bytes_found, stats.bytes_found)
+            << "the persisted bytes_found re-reads the found-size truth";
     }
     std::remove(path.c_str());
 }

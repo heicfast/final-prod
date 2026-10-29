@@ -525,3 +525,51 @@ remote rows stand. **One distinct row the remote set does not carry:**
    settings+0x60/+0x6c "gates" cited alongside are hardwired init constants
    (1/0 at DRWUI:947721-947722, no runtime writer in the shipped binary —
    they never gate anything).
+
+## Session-54 rows (2026-10-29 — the S54 continuation audit lane's deep-dive legs; each first-hand re-read against the decompiles at corpus `be0cfe9`)
+
+1. **HFS+ `hfsplus-engine--deep-dive.md` §1 + `AUDIT-LINUX-FS.md` §2.1 — the VH
+   validator's gate fields are misread.** Both docs claim the og gates
+   `allocFileBlockCount ≤ totalBlocks && extentsFileBlockCount ≤ totalBlocks`
+   (the fork clamps). First-hand frame-offset derivation of the validator
+   (HFSPlusSearchDLL FUN_18000c6e0 :9900-10020, the S54 M-142 evidence): the
+   copy loop lands journalInfoBlock@copy+0x0C, blockSize@+0x28, totalBlocks@+0x2C,
+   freeBlocks@+0x30 as the ONLY swapped u32s, and the gate conjunction compares
+   exactly `freeBlocks ≤ totalBlocks && journalInfoBlock ≤ totalBlocks`. The fork
+   fields (+0x70/+0xC0) are never swapped — big-endian garbage could never satisfy
+   a ≤ test, proving the fork reading wrong. Filed as **M-142** (the core ported
+   the misread); both corpus docs owe the correction.
+
+2. **Btrfs `btrfs-engine--deep-dive.md` — the second superblock mirror offset is
+   a typo.** The doc lists the mirror set with a `0x40000` second entry; the
+   binary's .rdata table (`DAT_180018d60` at BtrfsSearchDLL FUN_18000d540
+   :10296) is `{0x10000, 0x4000000, 0x4000000000, 0x4000000000000, 0}` — 64 MiB
+   (0x4000000), not 256 KiB. The core carries the correct table (verified
+   `cr_btrfs*.cpp:494-495`); the doc alone is wrong.
+
+3. **ZFS `zfs-engine--deep-dive.md` — vdev_phys offset/size swapped.** The doc's
+   uberblock-ring layout swaps the vdev_phys offset and size fields relative to
+   the decode (the S54 evidence sheet's Axis-1 ZFS table carries the corrected
+   pair); the core's decode matches the decompile, not the doc.
+
+4. **ZFS uberblock ring stride — the doc's "0x80-byte" claim.** The ring's
+   per-slot stride is the uberblock size (512 bytes at ashift 9), not a flat
+   0x80; the doc's figure is the slot COUNT field's size class, not the stride.
+   (The S54 evidence sheet's ZFS section carries the derivation; core parity
+   verified on the stride itself.)
+## Session-56 row (2026-10-29 — the S56 ACUTE-first lane; S-058's evidence-erratum leg)
+
+1. **The s5 grading-table dump's §5 item 4 polarity line is inverted** — the
+   core's own evidence tree (`evidence/decompiled-quotes/
+   s5-grading-extension-table-dump.md`), not the corpus repo, carries the
+   defect: item 4 read "**In-table (find != end)** → deep-validation
+   branch". First-hand comparator re-read (S-058 verification): the gate
+   test `FUN_1401bebe0` (DRWUI:324923-324930) is the INEQUALITY over
+   `FUN_1401bec20`'s node-pointer equality, so `if (cVar1 == '\0')` at
+   :605743 enters when **find == end** — the deep-validation branch runs
+   for **not-in-table** keys; in-table keys take the string-cleanup else
+   at :605804-605807 (nothing; grade stays 1). Calibrated by the control
+   case at :585885-585905 (the direct-equality whitelist idiom). §6.2's
+   `""` consequence corrected in the same edit (dot-less files SKIP, not
+   enter). The erratum note is now in the s5 file itself; the code fix
+   landed as S-058.

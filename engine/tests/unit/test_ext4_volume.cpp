@@ -533,12 +533,16 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * defect. */
 /* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
 
-TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
-    /* the og marks a regular file whose i_size exceeds its block
-     * coverage with FLAGS bit 0x200 (FUN_180007510 :5455-5467's
-     * i_blocks < size>>9 + the :6300-6303 set, files only). The clean
-     * file carries no bit; the truncated file carries it; a directory
-     * whose size exceeds blocks stays unflagged (the files-only gate). */
+TEST(Ext4Engine, SizeExceedsBlocksDamagedDirectoryStaysUnflagged) {
+    /* N-177 CONVERGENCE REPAIR (the S53 lane's byte-equivalent landing
+     * kept under a distinct name per the superset rule - the cb2abd42
+     * convergence merge left BOTH lanes' tests under the same TEST name,
+     * a build-breaking redefinition): this one carries the pin the
+     * winning 7be438c9 battery lacks - a DIRECTORY whose size exceeds
+     * its block coverage stays unflagged (the og's param_6==0
+     * files-only gate, EXT4SearchDLL :6300-6303), and the clean-file
+     * control the other side. The clean file carries no bit; the
+     * truncated regular file carries it; the damaged dir never does. */
     auto img = build_volume();
     /* INO_HELLO: size 14, one 1 KiB extent = 2 sectors of coverage */
     u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
@@ -582,11 +586,11 @@ TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
     ASSERT_NE(nullptr, hello_n);
     ASSERT_NE(nullptr, sub_n);
     ASSERT_NE(nullptr, dir_n);
-    EXPECT_EQ(0, int(hello_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_EQ(0, int(hello_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the covered file carries no damaged bit";
-    EXPECT_NE(0, int(sub_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_NE(0, int(sub_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the 100-KiB-declared/1-KiB-covered file carries the 0x200 bit";
-    EXPECT_EQ(0, int(dir_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_EQ(0, int(dir_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "directories never take the files-only damage bit";
 }
 
@@ -680,8 +684,11 @@ TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
     EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
 }
 
-TEST(Ext4Engine, SizeExceedsBlocksDamagedAndDeletedPath) {
-    /* N-177 (diff-to-fix): the og's truncation-damage marker (node FLAGS
+TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {
+    /* N-177 (diff-to-fix): the S53 lane's CONVERGENT landing (the
+     * cb2abd42 convergence kept both lanes' bodies; the shared name
+     * broke the gtest registration - renamed, the 12c2f09e repair
+     * class). The og's truncation-damage marker (node FLAGS
      * 0x200, EXT4SearchDLL :6300-6303 - FUN_180007510's
      * i_blocks < size>>9 verdict) lands as NODE_FLAG_SIZE_EXCEEDS_BLOCKS
      * (the same numeric bit 9), FILES only, clean 64-bit compute (the

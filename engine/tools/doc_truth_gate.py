@@ -62,6 +62,9 @@ MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+# N-154: the in-source "filed as <ID>" citation guard.
+FILED_AS_CITE = re.compile(r"filed\s+as\s+(?:\*\*)?((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)")
+
 # N-160: the phantom-citation and collision guards.
 SCRIPT_CITE = re.compile(r"(?<![\w/.-])(scripts/[\w][\w.-]*\.(?:py|sh|ps1))\b")
 PHANTOM_MARKERS = re.compile(
@@ -80,7 +83,9 @@ FINDING_TITLE_ID = re.compile(
     r"^#\s+(?:ACUTE|SEVERE|MAJOR|MINOR|INFORMATIONAL)\s+((?:A|S|M|N|I)-\d+)\b"
 )
 OQ_TITLE_ID = re.compile(r"^#\s+(OQ-[A-Z0-9]+-\d+)\b", re.MULTILINE)
-LEDGER_ROW_ID = re.compile(r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|")
+LEDGER_ROW_ID = re.compile(
+    r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|", re.MULTILINE
+)
 LEDGER_SLUG = re.compile(r"findings/(?:FIXED)/[\w.-]+\.md")
 
 
@@ -207,6 +212,7 @@ def check_finding_id_uniqueness():
     """
     ok = True
     active: dict[str, Path] = {}
+    retired: dict[str, Path] = {}
     for sev in ("ACUTE", "SEVERE", "MAJOR", "MINOR", "INFORMATIONAL"):
         for f in sorted((DIFF_TO_FIX / "findings" / sev).glob("*.md")):
             head = f.read_text(encoding="utf-8", errors="replace")[:400]
@@ -223,6 +229,30 @@ def check_finding_id_uniqueness():
                 ok = False
             else:
                 active[fid] = f
+    # N-191 (the second N-188): title IDs must also be unique across the
+    # RETIRED files - two different findings under one ID in findings/FIXED/
+    # is the same M-117 class even when only one carries a ledger row.
+    for f in sorted((DIFF_TO_FIX / "findings" / "FIXED").glob("*.md")):
+        head = f.read_text(encoding="utf-8", errors="replace")[:400]
+        m = FINDING_TITLE_ID.search(head)
+        if not m:
+            continue
+        fid = m.group(1)
+        if fid in active:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by both an active "
+                f"file ({active[fid].name}) and a retired file ({f.name})"
+            )
+            ok = False
+        elif fid in retired:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by two retired "
+                f"files: {retired[fid].name} and {f.name} (the M-117 "
+                f"collision class)"
+            )
+            ok = False
+        else:
+            retired[fid] = f
     for f in sorted((DIFF_TO_FIX / "tracked-open").glob("*.md")):
         head = f.read_text(encoding="utf-8", errors="replace")[:400]
         m = OQ_TITLE_ID.search(head) or FINDING_TITLE_ID.search(head)
@@ -268,7 +298,111 @@ def check_finding_id_uniqueness():
         n_rows = len(ledger_slug)
         print(
             f"doc_truth_gate: finding-ID uniqueness holds "
-            f"({len(active)} active, {n_rows} ledger-resolved, zero collisions)"
+            f"({len(active)} active, {len(retired)} retired, "
+            f"{n_rows} ledger-resolved, zero collisions)"
+        )
+    return ok
+
+
+def derive_abi_counts():
+    """The tree's own truth: exports, error codes, event types."""
+    hdr = (ROOT / "include" / "cr" / "cr_ui.h").read_text(encoding="utf-8", errors="replace")
+    exports = sum(1 for l in hdr.splitlines() if "CR_UI_API" in l and "#define" not in l)
+    events = len(set(re.findall(r"\bCR_EVT_[A-Z_]+\b", hdr)))
+    err = (ROOT / "include" / "cr" / "cr_error.h").read_text(encoding="utf-8", errors="replace")
+    codes = len(set(re.findall(r"0x5[0-9a-fA-F]{7}", err)))
+    return exports, codes, events
+
+
+def check_abi_count_claims():
+    """N-150: the ABI count sites must state the tree's derived numbers.
+
+    The export count is derived from cr_ui.h (CR_UI_API lines minus
+    #defines), the error-code count from cr_error.h's distinct 0x5-codes,
+    the event count from the CR_EVT_* census. Every count claim in the
+    three API gate docs must match - the "81 exports as of <landing>"
+    snapshot phrasing is how stale counts hid (the A-ABI-3 lesson);
+    historical mentions (audit-time / counted at / was N) are exempt.
+    """
+    exports, codes, events = derive_abi_counts()
+    ok = True
+    claims = [
+        (re.compile(r"(\d+) exported functions"),
+         "export count", exports),
+        (re.compile(r"(\d+) exports\b"),
+         "export count", exports),
+        (re.compile(r'(\d+)\s*`?extern "C" CR_UI_API`? definitions'),
+         "export count", exports),
+        (re.compile(r"error codes?\s*\*\*(\d+) \+ OK\*\*"),
+         "error-code count", codes),
+        (re.compile(r"(\d+)\+OK error codes"),
+         "error-code count", codes),
+        (re.compile(r"ABI event types?\s*\*\*(\d+)\*\*"),
+         "event-type count", events),
+    ]
+    hist = re.compile(
+        r"audit-time|counted at|was \d+|historical|drift|the PARITY-FIX|"
+        r"claims? \d+|docs say", re.IGNORECASE)
+    docs = [DOCS / "API.md", DOCS / "CORE-API-CURRENT.md", DOCS / "API-SURFACE-AUDIT.md"]
+    for doc in docs:
+        if not doc.is_file():
+            continue
+        lines = doc.read_text(encoding="utf-8", errors="replace").splitlines()
+        for i, line in enumerate(lines):
+            if hist.search(line):
+                continue
+            for pat, label, truth in claims:
+                m = pat.search(line)
+                if not m:
+                    continue
+                if int(m.group(1)) != truth:
+                    print(
+                        f"doc_truth_gate: FAIL: {doc.name}:{i + 1} claims "
+                        f"{m.group(1)} ({label}) but the tree derives {truth} "
+                        f"- refresh the count (the A-ABI-3 class)"
+                    )
+                    ok = False
+    if ok:
+        print(
+            f"doc_truth_gate: ABI count sites match the tree "
+            f"(exports={exports}, error codes={codes}, event types={events})"
+        )
+    return ok
+
+
+def check_filed_as_citations():
+    """Every in-source "filed as <ID>" cite resolves to a ledger row.
+
+    An in-source audit cite that names a nonexistent finding number sends
+    the next auditor chasing a phantom (the cr_log.cpp N-079 lesson,
+    N-154 item 1 - the wrong-subject half of that class stays human-
+    verified: the early ledger rows carry blank module cells, so a
+    module-matching heuristic would be guesswork).
+    """
+    ok = True
+    n_cites = 0
+    ledger = set(LEDGER_ROW_ID.findall(
+        (DIFF_TO_FIX / "FIXED-LEDGER.md").read_text(encoding="utf-8", errors="replace")
+    ))
+    for pat in ("src/**/*.cpp", "src/**/*.h", "include/**/*.h", "include/**/*.cpp"):
+        for src in sorted(ROOT.glob(pat)):
+            lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            for i, line in enumerate(lines):
+                m = FILED_AS_CITE.search(line)
+                if not m:
+                    continue
+                n_cites += 1
+                if m.group(1) not in ledger:
+                    print(
+                        f"doc_truth_gate: FAIL: {src.relative_to(ROOT)}:{i + 1} "
+                        f'cites "filed as {m.group(1)}" but the ledger has no '
+                        f"such row (the phantom-finding class)"
+                    )
+                    ok = False
+    if ok:
+        print(
+            f"doc_truth_gate: in-source filed-as citations clean "
+            f"({n_cites} cite(s), all resolve to ledger rows)"
         )
     return ok
 
@@ -278,6 +412,8 @@ def main():
     ok = check_deleted_citations() and ok
     ok = check_cited_scripts_exist() and ok
     ok = check_finding_id_uniqueness() and ok
+    ok = check_filed_as_citations() and ok
+    ok = check_abi_count_claims() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

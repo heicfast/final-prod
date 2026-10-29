@@ -18,6 +18,8 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <sys/stat.h>
+#include <fcntl.h> /* S-060: utimensat/AT_FDCWD in the FsIo metadata apply */
 #include <string>
 #include <vector>
 
@@ -123,8 +125,85 @@ public:
         std::error_code ec;
         return fs::exists(root_ / norm(p), ec);
     }
+    /* S-060: record the writer's post-commit metadata calls (the
+     * restoration assertions read the recorded FileMeta set); the
+     * inject flag forces a refusal for the non-fatal path pin. The
+     * POSIX translation also APPLIES times/attributes via
+     * utimensat/chmod, so the on-disk state is verifiable too. */
+    u32 set_metadata(u64, const std::u16string& final_path, const FileMeta& meta) override {
+        if (metadata_fail)
+            return ERR_WRITE_FAILED;
+        if (metadata_unsupported)
+            return ERR_UNSUPPORTED;
+        RecordedMeta rec;
+        std::string p8;
+        for (u16 c : final_path)
+            p8.push_back(char(c & 0xFF));
+        rec.path = p8;
+        rec.meta = meta;
+        recorded.push_back(rec);
+        return FileDestIoLikeApply_(final_path, meta);
+    }
+
+    struct RecordedMeta {
+        std::string path;
+        FileMeta meta;
+    };
+    std::vector<RecordedMeta> recorded;
+    bool metadata_fail = false;
+    bool metadata_unsupported = false;
 
 private:
+    /* the portable apply (utimensat + the readonly-bit chmod), best
+     * effort - the recording above is the assertion surface */
+    u32 FileDestIoLikeApply_(const std::u16string& final_path, const FileMeta& meta) {
+        std::string path;
+        for (u16 c : final_path)
+            path.push_back(char(c & 0xFF));
+        for (char& c : path)
+            if (c == '\\')
+                c = '/';
+        const std::string full = (root_ / fs::path(path)).string();
+        u32 rc = OK;
+        if (meta.set_attributes) {
+            struct stat st;
+            if (::stat(full.c_str(), &st) == 0) {
+                mode_t mode = st.st_mode & 07777;
+                if (meta.attributes & 0x1)
+                    mode &= ~mode_t(0200);
+                else
+                    mode |= 0200;
+                if (::chmod(full.c_str(), mode) != 0)
+                    rc = ERR_WRITE_FAILED;
+            } else
+                rc = ERR_WRITE_FAILED;
+        }
+        if (meta.set_accessed || meta.set_modified) {
+            struct timespec ts[2];
+            const auto to_ts = [](u64 ft, bool set) {
+                struct timespec out;
+                if (!set) {
+                    out.tv_sec = 0;
+                    out.tv_nsec = UTIME_OMIT;
+                    return out;
+                }
+                const long long unix100 = (long long)ft - 116444736000000000LL;
+                out.tv_sec = (time_t)(unix100 / 10000000LL);
+                out.tv_nsec = (long)((unix100 % 10000000LL) * 100);
+                if (out.tv_nsec < 0) {
+                    out.tv_sec -= 1;
+                    out.tv_nsec += 1000000000L;
+                }
+                return out;
+            };
+            ts[0] = to_ts(meta.accessed, meta.set_accessed);
+            ts[1] = to_ts(meta.modified, meta.set_modified);
+            if (::utimensat(AT_FDCWD, full.c_str(), ts, 0) != 0)
+                rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+        }
+        return rc;
+    }
+
     struct Open {
         fs::path temp, final;
     };
@@ -199,6 +278,281 @@ void build_fixture_tree(tree::ResultTree& tree, std::vector<u8>& img) {
 }
 
 } // namespace
+
+/* ---- S-060: the post-commit metadata restoration (the og's per-item
+ * SetFileAttributesW + mask-gated SetFileTime tail, DRWUI :874686-718) ---- */
+
+TEST(WriterDirs, RestoresTimestampsAndAttributes) {
+    /* a committed file's DOS attributes (word & ~0x2) and the emitted
+     * timestamp trio reach the destination: the og restores both after
+     * every item; the core's writer now calls set_metadata post-commit
+     * with the per-field enables mirroring what the engine emitted. */
+    std::vector<u8> img(1024, 0);
+    std::memcpy(img.data(), "F0", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("file0.txt", 0, 2);
+    pr->times.created = 130000000000000000ULL; /* 2013-03-09 class */
+    pr->times.accessed = 131000000000000000ULL;
+    pr->times.modified = 132000000000000000ULL;
+    pr->times.changed = 133000000000000000ULL; /* NOT in the og's trio */
+    pr->attributes = 0x23u;                    /* R|H|dirty: 0x2 cleared */
+    tree::FileNode* n = tree.add_file(found, pr);
+    (void)n;
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    ASSERT_EQ(u64(1), stats.done);
+
+    ASSERT_EQ(size_t(1), io.recorded.size()) << "exactly one metadata call (the file)";
+    const auto& rec = io.recorded[0];
+    EXPECT_EQ(std::string("out\\file0.txt"), rec.path);
+    EXPECT_EQ(130000000000000000ULL, rec.meta.created);
+    EXPECT_EQ(131000000000000000ULL, rec.meta.accessed);
+    EXPECT_EQ(132000000000000000ULL, rec.meta.modified);
+    EXPECT_EQ(0x21u, rec.meta.attributes) << "the og clears bit 0x2 from the word";
+    EXPECT_TRUE(rec.meta.set_created);
+    EXPECT_TRUE(rec.meta.set_accessed);
+    EXPECT_TRUE(rec.meta.set_modified);
+    EXPECT_TRUE(rec.meta.set_attributes);
+}
+
+TEST(WriterDirs, ZeroTimeSlotsPassAsUnset) {
+    /* a zero slot is the og's honest no-date (the N-021/A-014 zero
+     * FileTime): the og passes NULL for the un-set fields, and the
+     * core's per-field enables mirror exactly which slots the engine
+     * emitted - a zero slot is never written as a fake date. */
+    std::vector<u8> img(1024, 0);
+    std::memcpy(img.data(), "F0", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("onlymod.txt", 0, 2);
+    pr->times.modified = 132000000000000000ULL; /* the only emitted slot */
+    pr->attributes = 0x20u;                     /* archive bit */
+    tree::FileNode* n = tree.add_file(found, pr);
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    ASSERT_EQ(size_t(1), io.recorded.size());
+    const auto& rec = io.recorded[0];
+    EXPECT_FALSE(rec.meta.set_created) << "a zero created slot passes as NULL";
+    EXPECT_FALSE(rec.meta.set_accessed) << "a zero accessed slot passes as NULL";
+    EXPECT_TRUE(rec.meta.set_modified);
+    EXPECT_TRUE(rec.meta.set_attributes);
+}
+
+TEST(WriterDirs, MetadataFailureIsNonFatal) {
+    /* the og traces both restoration failures and CONTINUES - the item
+     * is done, the file exists; the core reports the code per row (the
+     * report surface tells the truth when the destination refuses). */
+    std::vector<u8> img(1024, 0);
+    std::memcpy(img.data(), "F0", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("file0.txt", 0, 2);
+    pr->times.modified = 132000000000000000ULL;
+    pr->attributes = 0x20u;
+    tree::FileNode* n = tree.add_file(found, pr);
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    io.metadata_fail = true; /* the injected refusal */
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.done) << "a metadata refusal never fails the item";
+    EXPECT_EQ(u64(0), stats.errors);
+    std::error_code ec;
+    EXPECT_TRUE(fs::exists(tmp.p / "out" / "file0.txt", ec)) << "the file itself committed";
+    const auto rows = writer.report_items();
+    ASSERT_EQ(size_t(1), rows.size());
+    EXPECT_EQ(report::Outcome::Done, rows[0].outcome);
+    EXPECT_EQ(
+        std::string("failed:0x") +
+            [&] {
+                char b[16];
+                std::snprintf(b, sizeof(b), "%x", u32(ERR_WRITE_FAILED));
+                return std::string(b);
+            }(),
+        rows[0].metadata)
+        << "the report row carries the refusal code";
+}
+
+TEST(WriterDirs, MetadatalessBackendReportsUnsupported) {
+    /* the default DestIo has no metadata surface - the writer still
+     * commits (the pre-S-060 behavior) and the report row says
+     * "unsupported" truthfully (never "restored"). */
+    std::vector<u8> img(1024, 0);
+    std::memcpy(img.data(), "F0", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("file0.txt", 0, 2);
+    pr->times.modified = 132000000000000000ULL;
+    pr->attributes = 0x20u;
+    tree::FileNode* n = tree.add_file(found, pr);
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    /* the metadata-less backend posture: every op works but the
+     * metadata surface refuses (the DestIo default's ERR_UNSUPPORTED,
+     * standing in for a backend with no restoration surface) */
+    FsIo io(tmp.p);
+    io.metadata_unsupported = true;
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.done);
+    const auto rows = writer.report_items();
+    ASSERT_EQ(size_t(1), rows.size());
+    EXPECT_EQ(
+        std::string("failed:0x") +
+            [&] {
+                char b[16];
+                std::snprintf(b, sizeof(b), "%x", u32(ERR_UNSUPPORTED));
+                return std::string(b);
+            }(),
+        rows[0].metadata);
+}
+
+TEST(WriterDirs, InteriorHoleZeroFilledFullSize) {
+    /* S-059 end-to-end: a 3 MiB file with a 1 MiB interior sparse hole
+     * recovers at FULL logical size - the hole is zeros, the tail data
+     * lands at its true offset (not left-shifted), no ERR_TRUNCATED.
+     * (Pre-fix: the writer dropped the hole extent and either failed
+     * the whole file or shifted the tail 1 MiB early - the finding's
+     * falsifiable case.) */
+    const u64 CL = 4096; /* one extent = one cluster for simplicity */
+    std::vector<u8> img(4ull << 20, 0);
+    /* a NONZERO device head (0xEE): a hole extent must NEVER read from
+     * the device (offset 0 would emit 0xEE into the hole region) - the
+     * og's type-2 chunk writes zeros with no read at all */
+    std::memset(img.data(), 0xEE, 1 << 20);
+    /* data run 1: [0, 1 MiB) at device 0x100000, pattern 0xAA */
+    for (u64 i = 0; i < (1 << 20); i += CL)
+        std::memset(img.data() + 0x100000 + i, 0xAA, CL);
+    /* data run 2: [2 MiB, 3 MiB) at device 0x200000, pattern 0xBB */
+    for (u64 i = 0; i < (1 << 20); i += CL)
+        std::memset(img.data() + 0x200000 + i, 0xBB, CL);
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    /* file_props(name, off, len) pre-populates ONE plain extent - clear
+     * it: this fixture builds its own positioned extent list */
+    tree::FileProperties* pr = file_props("holed.dat", 0, 3 << 20);
+    pr->extents.clear();
+    tree::FileProperties::Extent e1{};
+    e1.offset = 0x100000;
+    e1.length = 1 << 20;
+    e1.logical = 0;
+    pr->extents.push_back(e1);
+    tree::FileProperties::Extent eh{};
+    eh.offset = 0;
+    eh.length = 1 << 20;
+    eh.logical = 1 << 20;
+    eh.hole = true;
+    pr->extents.push_back(eh);
+    tree::FileProperties::Extent e2{};
+    e2.offset = 0x200000;
+    e2.length = 1 << 20;
+    e2.logical = 2 << 20;
+    pr->extents.push_back(e2);
+    tree::FileNode* n = tree.add_file(found, pr);
+    (void)n;
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats))
+        << "the interior hole must not fail the file";
+    ASSERT_EQ(u64(1), stats.done);
+    /* the full 3 MiB materialized */
+    std::error_code ec;
+    const fs::path out = tmp.p / "out" / "holed.dat";
+    ASSERT_TRUE(fs::exists(out, ec));
+    EXPECT_EQ(u64(3) << 20, u64(fs::file_size(out, ec))) << "the FULL logical size";
+    /* content: head 0xAA, middle zeros, tail 0xBB at the TRUE offsets */
+    std::ifstream f(out, std::ios::binary);
+    ASSERT_TRUE(f);
+    auto check_span = [&](u64 at, u64 len, u8 want, const char* what) {
+        std::vector<u8> buf(static_cast<size_t>(len), 0);
+        f.seekg(std::streamoff(at));
+        f.read(reinterpret_cast<char*>(buf.data()), std::streamsize(len));
+        for (size_t i = 0; i < len; ++i)
+            if (buf[i] != want) {
+                EXPECT_TRUE(false) << what << ": byte " << i << " is " << std::hex
+                                   << unsigned(buf[i]) << " want " << unsigned(want) << std::dec;
+                return;
+            }
+    };
+    check_span(0, 1 << 20, 0xAA, "the head data run");
+    check_span(1 << 20, 1 << 20, 0x00, "the interior hole (zeros)");
+    check_span(2 << 20, 1 << 20, 0xBB, "the tail data run at its TRUE offset");
+}
+
+TEST(WriterDirs, LegacyCumulativeExtentsUnchanged) {
+    /* S-059 back-compat pin: extents with NO logical stamps and NO
+     * holes (old sessions, unstamped engines) take the cumulative walk
+     * - byte-identical to the pre-S-059 writer. */
+    std::vector<u8> img(4096, 0);
+    std::memcpy(img.data(), "AB", 2);
+    std::memcpy(img.data() + 512, "CD", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("legacy.dat", 0, 1024);
+    tree::FileProperties::Extent a{};
+    a.offset = 0;
+    a.length = 512;
+    pr->extents.push_back(a);
+    tree::FileProperties::Extent b{};
+    b.offset = 512;
+    b.length = 512;
+    pr->extents.push_back(b);
+    tree::FileNode* n = tree.add_file(found, pr);
+    (void)n;
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    std::ifstream f(tmp.p / "out" / "legacy.dat", std::ios::binary);
+    ASSERT_TRUE(f);
+    char head[3] = {};
+    f.read(head, 2);
+    EXPECT_EQ(std::string("AB"), std::string(head, 2)) << "extent 1 at logical 0";
+    f.seekg(512);
+    f.read(head, 2);
+    EXPECT_EQ(std::string("CD"), std::string(head, 2)) << "extent 2 at logical 512 (cumulative)";
+}
 
 TEST(WriterDirs, StructureReconstructionWithEmptyLeaves) {
     std::vector<u8> img(1024, 0);

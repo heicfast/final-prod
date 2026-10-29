@@ -5745,12 +5745,19 @@ CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
      * (u64@+4 == 0x7853B1AE4DA7D88C, u32@+0xC == 0xD39629D0); the
      * chunk size is the u64@+0xC4 (fallback the u64@+0x64 when the
      * primary is 0); a size of 0 or a size > 2x the device breaks the
-     * chain; the cursor advances by the size. The og's size is the
-     * cursor at the chain's break point (uVar5 - the end of the last
-     * FULLY-VALID chunk); the FileInfo bound is 500,000,000
-     * (FUN_180016080 :17203 - the row's own cap). Replaces the
-     * DWG-pattern 64 MiB stand-in (the M-090/M-091 truncation class
-     * on the school-1 formats). */
+     * chain; the cursor advances by the size.
+     * S-062 exit table (the comma-operator decode, re-read first-hand
+     * this session; the retdec cross-check agrees): the og's published
+     * size (uVar5) is set to the CURSOR at each iteration head, and to
+     * 2x-DEVICE at the moment the primary size field is read - so:
+     *   - both size fields 0, or size > 2x-device -> publish 2x-device
+     *     (the flat extent; the pre-fix core published the last-valid-
+     *     chunk end, 0 when the FIRST chunk declines);
+     *   - window miss / GUID mismatch / normal exhaustion -> the cursor
+     *     (the end of the last fully-valid chunk);
+     * the FileInfo bound is 500,000,000 (FUN_180016080 :17203 - the
+     * row's own cap). Replaces the DWG-pattern 64 MiB stand-in (the
+     * M-090/M-091 truncation class on the school-1 formats). */
     CarveResult r;
     u8 h[0x10];
     if (!rd(s, hit, h, sizeof(h)))
@@ -5763,7 +5770,8 @@ CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
     const u64 dev2 = s->size() * 2; /* the og's 2x-device chunk-size bound */
     const u64 limit = probe_limit(s, hit, cap);
     u64 pos = 0;  /* the relative cursor */
-    u64 size = 0; /* the end of the last fully-valid chunk */
+    u64 size = 0; /* the published size: the cursor, or 2x-device on the
+                   * size-gate breaks (the S-062 exit table) */
     u8 c[0xcc];   /* the chunk head: the fields live at +4/+0xC/+0x64/+0xC4 */
     while (pos <= dev2) {
         if (!rd(s, hit + pos, c, sizeof(c)))
@@ -5774,10 +5782,16 @@ CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
         u64 sz = u64_from_bytes_le(c + 0xc4);
         if (sz == 0)
             sz = u64_from_bytes_le(c + 0x64); /* the fallback field */
-        if (sz == 0 || sz > dev2)
+        if (sz == 0 || sz > dev2) {
+            /* S-062: the og's uVar5 was set to 2x-device the moment the
+             * primary size field was read (:52335's comma expression) -
+             * both size-gate exits publish the flat 2x-device extent,
+             * never the valid-prefix cursor */
+            size = dev2;
             break; /* the 0<size<=2x-device gate */
+        }
         pos += sz;
-        size = pos; /* the end of this valid chunk - the break keeps it */
+        size = pos; /* the end of this valid chunk - the cursor exits keep it */
     }
     if (size > 500000000ull)
         size = 500000000ull; /* the FileInfo ctor's own max */

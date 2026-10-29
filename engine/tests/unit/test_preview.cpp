@@ -406,6 +406,171 @@ TEST(PreviewMeta, WavDurationAndMp4Brand) {
     }
 }
 
+TEST(PreviewMeta, AviMetadataExtracted) {
+    /* N-184: RIFF/AVI with a LIST hdrl carrying avih (40ms frames, 100
+     * frames -> 4000 ms) + 2 strh streams; the movi payload follows. */
+    std::vector<u8> avi(256, 0);
+    std::memcpy(avi.data(), "RIFF", 4);
+    putle32(avi, 4, u32(avi.size() - 8));
+    std::memcpy(avi.data() + 8, "AVI ", 4);
+    std::memcpy(avi.data() + 12, "LIST", 4);
+    putle32(avi, 16, 4 + (8 + 64) + (8 + 56) * 2); /* hdrl size */
+    std::memcpy(avi.data() + 20, "hdrl", 4);
+    /* avih at 24: size 64 */
+    std::memcpy(avi.data() + 24, "avih", 4);
+    putle32(avi, 28, 64);
+    putle32(avi, 32, 40000); /* dwMicroSecPerFrame @ avih+8 = 40 ms */
+    putle32(avi, 44, 100);   /* dwLength @ avih+20 = 100 frames */
+    /* strh x2 */
+    u32 at = 24 + 8 + 64;
+    for (int i = 0; i < 2; ++i) {
+        std::memcpy(avi.data() + at, "strh", 4);
+        putle32(avi, at + 4, 56);
+        at += 8 + 56;
+    }
+    std::memcpy(avi.data() + at, "LIST", 4);
+    putle32(avi, at + 4, 4);
+    std::memcpy(avi.data() + at + 8, "movi", 4);
+    MemDevice dev(std::move(avi));
+    tree::FileProperties::Extent a{0, 256, 0, 0};
+    tree::FileProperties* pr = props_with("c.avi", 256, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("avi", m.format);
+    EXPECT_EQ(u64(40000) * 100 / 1000, m.duration_ms) << "40ms x 100 frames";
+    EXPECT_NE(std::string::npos, m.codec.find("2str")) << "the stream count rides the codec";
+}
+
+TEST(PreviewMeta, MkvMetadataExtracted) {
+    /* N-184: EBML header + Segment > Info (TimecodeScale 1ms, Duration
+     * 2500 units) + Tracks (2 TrackEntry). Every size is a proper vint:
+     *   EBML hdr: id 1A45DFA3, size 86 (6), body 42 86 81 01 00 00  -> 11 B
+     *   Segment:  id 18538067, size 40 24 (= 36)                    -> 6 B, data@17
+     *   Info:     id 1549A966, size 8E (= 14)                        -> 5 B, data@22
+     *     TimecodeScale: id 2AD7B1, size 83, 0F4240 (= 1e6 ns = 1ms) -> 7 B
+     *     Duration:      id 4489,   size 84, float 2500.0f           -> 7 B
+     *   Tracks:   id 1654AE6B, size 8A (= 10)                        -> 5 B, data@41
+     *     TrackEntry x2:  id AE, size 82, body E0 00                 -> 4 B each
+     */
+    std::vector<u8> mk(128, 0);
+    size_t at = 0;
+    auto put = [&](const u8* d, size_t n) {
+        std::memcpy(mk.data() + at, d, n);
+        at += n;
+    };
+    const u8 ebml[] = {0x1A, 0x45, 0xDF, 0xA3, 0x86, 0x42, 0x86, 0x81, 0x01, 0x00, 0x00};
+    put(ebml, sizeof(ebml));
+    const u8 seg[] = {0x18, 0x53, 0x80, 0x67, 0x40, 0x24};
+    put(seg, sizeof(seg));
+    const u8 info[] = {0x15, 0x49, 0xA9, 0x66, 0x8E};
+    put(info, sizeof(info));
+    const u8 tcs[] = {0x2A, 0xD7, 0xB1, 0x83, 0x0F, 0x42, 0x40};
+    put(tcs, sizeof(tcs));
+    const u8 dur[] = {0x44, 0x89, 0x84, 0x45, 0x1C, 0x40, 0x00};
+    put(dur, sizeof(dur));
+    const u8 trk[] = {0x16, 0x54, 0xAE, 0x6B, 0x8A};
+    put(trk, sizeof(trk));
+    const u8 te[] = {0xAE, 0x82, 0xE0, 0x00};
+    put(te, sizeof(te));
+    put(te, sizeof(te));
+    const u64 len = at;
+    MemDevice dev(std::move(mk));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("v.mkv", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("mkv", m.format);
+    /* TimecodeScale 1000000ns = 1ms; Duration 2500 units -> 2500 ms */
+    EXPECT_EQ(u64(2500), m.duration_ms);
+    EXPECT_NE(std::string::npos, m.codec.find("2trk")) << "the track count rides the codec";
+}
+
+TEST(PreviewMeta, FlacMetadataExtracted) {
+    /* N-184: fLaC + STREAMINFO (rate 44100, channels 2, 441000 samples
+     * -> 10000 ms). */
+    std::vector<u8> fl(4 + 4 + 34, 0);
+    std::memcpy(fl.data(), "fLaC", 4);
+    fl[4] = 0x00; /* last+type STREAMINFO */
+    fl[5] = 0;    /* block size 34 */
+    fl[6] = 0;
+    fl[7] = 34;
+    const u32 rate = 44100;
+    const u32 chans = 2;
+    const u64 samples = 441000;
+    /* packed field at si+10..si+17: 20 bits rate | 3 bits ch-1 | 5 bits
+     * bps-1 | 36 bits samples (si = fl+8) */
+    u64 bits = (u64(rate) << 44) | (u64(chans - 1) << 41) | (u64(16 - 1) << 36) | samples;
+    for (int i = 0; i < 8; ++i)
+        fl[8 + 10 + i] = u8(bits >> (8 * (7 - i)));
+    const u64 len = fl.size();
+    MemDevice dev(std::move(fl));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.flac", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("audio", m.kind);
+    EXPECT_EQ("flac", m.format);
+    EXPECT_EQ(u64(10000), m.duration_ms) << "441000 samples at 44100 Hz";
+    EXPECT_EQ(44100u, m.width);
+    EXPECT_EQ(2u, m.height);
+}
+
+TEST(PreviewMeta, Mp3DurationEstimated) {
+    /* N-184: an ID3v2.3 tag (10-byte header + 100-byte body) then an
+     * MPEG1 Layer III 128kbps frame sync; total payload 8210 bytes ->
+     * (8210*8)/128 = 513 ms. */
+    std::vector<u8> mp3(10 + 100 + 8100, 0);
+    std::memcpy(mp3.data(), "ID3", 3);
+    mp3[3] = 3; /* v2.3 */
+    mp3[4] = 0;
+    mp3[5] = 0; /* flags */
+    mp3[6] = 0;
+    mp3[7] = 0; /* syncsafe size = 100 */
+    mp3[8] = 0;
+    mp3[9] = 100;
+    const size_t frame = 10 + 100;
+    mp3[frame] = 0xFF;
+    mp3[frame + 1] = 0xFB; /* MPEG1 Layer III, no CRC */
+    mp3[frame + 2] = 0x90; /* bitrate index 9 = 128k, rate index 0 = 44100 */
+    const u64 len = mp3.size();
+    MemDevice dev(std::move(mp3));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.mp3", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("audio", m.kind);
+    EXPECT_EQ("mp3", m.format);
+    EXPECT_EQ(44100u, m.width);
+    EXPECT_EQ(u64(len - frame) * 8 / 128, m.duration_ms) << "the bitrate estimate";
+}
+
+TEST(PreviewMeta, M4aTypedAsMp4Family) {
+    /* N-184: the M4A brand rides the ftyp branch (it IS an ISO-BMFF
+     * container): kind=video, format=mp4, codec="M4A ". */
+    std::vector<u8> m4a(64, 0);
+    putbe32(m4a, 0, 16);
+    std::memcpy(m4a.data() + 4, "ftyp", 4);
+    std::memcpy(m4a.data() + 8, "M4A ", 4);
+    putbe32(m4a, 12, 0);
+    std::memcpy(m4a.data() + 16, "mp42", 4);
+    const u64 len = m4a.size();
+    MemDevice dev(std::move(m4a));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.m4a", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("mp4", m.format) << "M4A is MP4-family (the og's naming contract, S-049)";
+    EXPECT_EQ("M4A ", m.codec);
+}
+
 TEST(PreviewMeta, PdfTextAndPlainAndUnsupported) {
     /* PDF header + text */
     {

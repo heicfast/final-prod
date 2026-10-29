@@ -403,8 +403,23 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
     u64 done = emit;
     it.bytes_done = done;
     const u64 total = pr->logical_size;
+    /* S-059: positioned mode - extents that carry explicit logical
+     * positions and/or hole markers (sparse NTFS files, compressed
+     * files with zero units, any engine that stamps `logical`). The
+     * legacy shape (all logical == 0, no holes - old sessions, engines
+     * that never stamp) keeps the cumulative walk: identical results by
+     * construction. In positioned mode `ext_pos` is the CURRENT
+     * extent's logical start, logical gaps are zero-filled (the og's
+     * type-2 zero chunk, :875062-75), and hole extents write zeros for
+     * their full length with no read. */
+    bool positioned = false;
+    for (const auto& e : pr->extents)
+        if (e.hole || e.logical != 0) {
+            positioned = true;
+            break;
+        }
     size_t ext_i = 0;
-    u64 ext_pos = 0;
+    u64 ext_pos = 0; /* legacy: cumulative sum; positioned: e.logical */
     while (done < total) {
         if (cancel && cancel->checkpoint()) {
             io_.close(it.item_id);
@@ -417,8 +432,29 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             want = cfg_.read_chunk;
         /* locate (extent, offset) for `done` */
         while (ext_i < pr->extents.size() && ext_pos + pr->extents[ext_i].length <= done) {
-            ext_pos += pr->extents[ext_i].length;
             ++ext_i;
+            ext_pos = positioned ? (ext_i < pr->extents.size() ? pr->extents[ext_i].logical : 0)
+                                 : ext_pos + pr->extents[ext_i - 1].length;
+        }
+        if (positioned && ext_i < pr->extents.size() && pr->extents[ext_i].logical > done) {
+            /* a logical gap before the next extent: zero-fill it (the
+             * og's zero chunk with no read; the compressed expander's
+             * hole units and any unstamped tail-lead land here) */
+            u64 gap = pr->extents[ext_i].logical - done;
+            if (gap > want)
+                gap = want;
+            std::memset(chunk.data(), 0, size_t(gap));
+            if (u32 rc = io_.write(it.item_id, done, chunk.data(), u32(gap))) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = rc;
+                ++stats.errors;
+                return rc;
+            }
+            hash.update(chunk.data(), u32(gap));
+            done += gap;
+            it.bytes_done = done;
+            continue;
         }
         if (ext_i >= pr->extents.size()) {
             if (!pr->resident_data.empty()) {
@@ -442,6 +478,30 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             it.error = ERR_TRUNCATED;
             ++stats.errors;
             return ERR_TRUNCATED;
+        }
+        if (pr->extents[ext_i].hole) {
+            /* S-059: a hole extent - `length` logical bytes of zeros at
+             * the logical position, NO device read (the og's type-2
+             * chunk: a pre-zeroed buffer written in full, :875062-75) */
+            const u64 in_ext = done - ext_pos;
+            u64 avail_in_ext = pr->extents[ext_i].length - in_ext;
+            if (want > avail_in_ext)
+                want = avail_in_ext;
+            if (want > chunk.size())
+                want = chunk.size();
+            const u32 got = u32(want);
+            std::memset(chunk.data(), 0, size_t(got));
+            if (u32 rc = io_.write(it.item_id, done, chunk.data(), got)) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = rc;
+                ++stats.errors;
+                return rc;
+            }
+            hash.update(chunk.data(), got);
+            done += got;
+            it.bytes_done = done;
+            continue;
         }
         const u64 in_ext = done - ext_pos;
         u64 avail_in_ext = pr->extents[ext_i].length - in_ext;
@@ -553,6 +613,30 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
         return rc;
     }
     io_.close(it.item_id);
+    /* S-060: the og's per-item restoration tail - after the content
+     * copy succeeds, restore the DOS attributes (word & ~0x2) and the
+     * mask-gated timestamp trio (DRWUI :874686-718: SetFileAttributesW
+     * then CreateFileW + SetFileTime with NULL for the un-set fields,
+     * both failures ReleaseTrace'd and non-fatal). The per-field
+     * enables mirror which timestamps the engine actually emitted: a
+     * zero slot is the og's honest no-date (N-021/A-014 zero-FileTime)
+     * and passes as NULL, exactly the og's mask behavior. The
+     * destination path is the collision-resolved final (post-rename).
+     * Non-fatal by contract: a refusal never fails the item; the
+     * report row carries the code. */
+    if (!it.is_dir) {
+        DestIo::FileMeta meta;
+        meta.created = pr->times.created;
+        meta.accessed = pr->times.accessed;
+        meta.modified = pr->times.modified;
+        meta.attributes = pr->attributes & 0xfffdu; /* the og clears 0x2 */
+        meta.set_created = pr->times.created != 0;
+        meta.set_accessed = pr->times.accessed != 0;
+        meta.set_modified = pr->times.modified != 0;
+        meta.set_attributes = pr->attributes != 0;
+        const std::u16string final_path = it.dest_dir + it.final_name;
+        it.metadata_rc = io_.set_metadata(it.item_id, final_path, meta);
+    }
     it.state = ItemState::Done;
     ++stats.done;
     if (it.had_unreadable)
@@ -784,6 +868,18 @@ std::vector<report::Item> SafeWriter::report_items() const {
         r.sha256_hex = it.sha256_hex;
         r.hash_status = it.hash_status;
         r.tree_class = it.node != nullptr ? tree_class_of(it.node) : std::string();
+        /* S-060: the metadata restoration outcome per row (non-fatal
+         * truth; the default 0xFFFFFFFF marks "not attempted") */
+        if (it.metadata_rc == 0xFFFFFFFFu)
+            r.metadata = (it.is_dir || it.state != ItemState::Done) ? std::string()
+                                                                    : std::string("unsupported");
+        else if (it.metadata_rc == OK)
+            r.metadata = "restored";
+        else {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "failed:0x%x", it.metadata_rc);
+            r.metadata = buf;
+        }
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;

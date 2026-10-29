@@ -97,6 +97,57 @@ TEST(Crsf, RoundTrip) {
     EXPECT_TRUE(all_zero);
 }
 
+TEST(Crsf, ExtentLogicalRoundTrip) {
+    /* S-059: the logical position + hole mark persist through the
+     * session wire (nflags bit 2048) - a stopped scan's sparse file
+     * reloads with its holes at the right logical offsets, and the
+     * writer's positioned walk resumes from them. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    t.refresh_stats();
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"holed.dat";
+    p->logical_size = 3 << 20;
+    tree::FileProperties::Extent e1{};
+    e1.offset = 0x100000;
+    e1.length = 1 << 20;
+    e1.logical = 0;
+    p->extents.push_back(e1);
+    tree::FileProperties::Extent eh{};
+    eh.offset = 0;
+    eh.length = 1 << 20;
+    eh.logical = 1 << 20;
+    eh.hole = true;
+    p->extents.push_back(eh);
+    tree::FileProperties::Extent e2{};
+    e2.offset = 0x200000;
+    e2.length = 1 << 20;
+    e2.logical = 2 << 20;
+    p->extents.push_back(e2);
+    (void)t.add_file(root, p);
+    p->release();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    tree::FileNode* holed = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "holed.dat")
+                holed = c;
+    ASSERT_NE(holed, nullptr);
+    ASSERT_EQ(u64(3), holed->props()->extents.size());
+    EXPECT_EQ(0x100000u, holed->props()->extents[0].offset);
+    EXPECT_EQ(0u, holed->props()->extents[0].logical);
+    EXPECT_FALSE(holed->props()->extents[0].hole);
+    EXPECT_TRUE(holed->props()->extents[1].hole) << "the hole mark survives the wire";
+    EXPECT_EQ(u64(1) << 20, holed->props()->extents[1].logical)
+        << "the hole's logical position survives the wire";
+    EXPECT_EQ(u64(2) << 20, holed->props()->extents[2].logical)
+        << "the tail extent lands past the hole";
+}
+
 TEST(Crsf, CorruptionSkipsForward) {
     MemFile mf;
     {
@@ -291,14 +342,17 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     vi.slice_bytes = 4096;
     vi.flags = 0x7;
     std::snprintf(vi.label, sizeof(vi.label), "TESTVOL");
+    std::snprintf(vi.label_full, sizeof(vi.label_full),
+                  "012345678901234567890123456789012345678901234567890123456789"); /* N-090: 60 */
     std::snprintf(vi.model, sizeof(vi.model), "ST5000DM000-1FK178");
     std::snprintf(vi.serial, sizeof(vi.serial), "W1234567");
     vi.boot_hash = 0xDEADBEEFu;
     std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u + 8u)
-        << "v5 layout: v4 + the W1a save_unix tail (the record-2 scanTime)";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u + 8u + 100u)
+        << "v6 layout: v5 + the W1a save_unix tail (the record-2 scanTime) + "
+           "the N-090 complete-label tail (the og's volumeName[100])";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -307,6 +361,8 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_EQ(out.boot_hash, 0xDEADBEEFu);
     EXPECT_EQ(out.slice_offset, 512u * 63);
     EXPECT_STREQ(out.image, "/vm/disks/qemu.img") << "the image path round-trips";
+    EXPECT_STREQ(out.label_full, "012345678901234567890123456789012345678901234567890123456789")
+        << "N-090: the complete label round-trips (the v6 tail)";
 
     /* v2 record (pre-S-030): no image tail - empty path, not garbage */
     std::vector<u8> v2(blob.begin(), blob.begin() + 80 + 84);
@@ -1435,17 +1491,28 @@ TEST(Session, SaveUnixVTailRoundTrip) {
     vi.save_unix = 1730123456ULL;
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
-    ASSERT_EQ(blob.size(), size_t(80 + 84 + 256 + 32 + 32 + 32 + 512 + 8));
+    ASSERT_EQ(blob.size(), size_t(80 + 84 + 256 + 32 + 32 + 32 + 512 + 8 + 100));
     session::VolumeInfo vo;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
     EXPECT_EQ(vo.save_unix, 1730123456ULL);
+    EXPECT_EQ(0, vo.label_full[0]) << "N-090: no label set - the v6 tail stays zeros";
 
-    /* v4-era record (tail cut by one field): loads, save_unix = 0 */
-    const size_t v4_len = blob.size() - 8;
+    /* v5-era record (the v6 tail cut): loads, label_full = the honest
+     * zeros (the legacy 31-char card is the whole truth - N-090's
+     * degrade contract) */
+    const size_t v5_len = blob.size() - 100;
+    session::VolumeInfo v5;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v5_len, v5), u32(OK));
+    EXPECT_EQ(v5.save_unix, 1730123456ULL);
+    EXPECT_EQ(0, v5.label_full[0]);
+
+    /* v4-era record (the v5 tail cut by one field): loads, save_unix = 0 */
+    const size_t v4_len = blob.size() - 100 - 8;
     session::VolumeInfo v4;
     ASSERT_EQ(deserialize_volume_info(blob.data(), v4_len, v4), u32(OK));
     EXPECT_EQ(v4.save_unix, 0ULL);
     EXPECT_EQ(0, v4.interface_desc[0]);
+    EXPECT_EQ(0, v4.label_full[0]);
 
     /* v1-era record (the 80-byte prefix): same honest zero */
     session::VolumeInfo v1;
@@ -1772,7 +1839,7 @@ TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
     tree::FileProperties* p = new tree::FileProperties();
     p->name = u"truncated.dat";
     p->fs_kind = u32(FsKindCode::Ext4);
-    p->flags = tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
+    p->flags = tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
     p->extents.push_back({4096, 1024});
     t.add_file(root, p);
     p->release();
@@ -1790,10 +1857,10 @@ TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
     ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
     tree::FileNode* g2 = t2.roots()[0]->first_child();
     ASSERT_NE(g2, nullptr);
-    EXPECT_NE(0, int(g2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_NE(0, int(g2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the damaged bit survives the save/load";
     tree::FileNode* q2 = g2->next_sibling();
     ASSERT_NE(q2, nullptr);
-    EXPECT_EQ(0, int(q2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_EQ(0, int(q2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the clean node never gains the bit";
 }

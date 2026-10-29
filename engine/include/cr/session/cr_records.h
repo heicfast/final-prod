@@ -126,16 +126,25 @@ struct VolumeInfo {
      * section 5.2 +0x6C; the og's session list shows the EMBEDDED time,
      * which survives copies, unlike the mtime). */
     u64 save_unix = 0;
+    /* N-090 (v6 tail - v1..v5 sessions deserialize with zeros = the
+     * legacy 31-char card is the whole truth): the COMPLETE volume
+     * label at the og's record-2 volumeName[100] width (strncpy(...,99)
+     * - rsf-format section 5.2 +0x04). label[32] stays the legacy
+     * prefix view; old readers stop before this tail (the v2..v5
+     * len-gate pattern). */
+    char label_full[100] = {0};
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
 
 /* ---- session state (REC_SESSION_STATE payload) ----
- * Wire layout v2 (appended fields; the deserializer accepts both the
- * 24-byte v1 layout and the 40-byte v2 layout - old sessions load with
- * zeroed counters, new sessions restore the full found-set): v1 =
- * mask/files/bytes/ranges; v2 appends deleted_found, carved_found so a
- * reloaded session reports truthful totals without re-running stages. */
+ * Wire layout v3 (appended fields; the deserializer accepts the 24-byte
+ * v1, 40-byte v2 and 48-byte v3 layouts - old sessions load with zeroed
+ * counters, new sessions restore the full found-set): v1 =
+ * mask/files/bytes/ranges; v2 appends deleted_found, carved_found; v3
+ * appends bytes_found (N-167 - the og's "Files Found: N (X GB)"
+ * headline aggregate) so a reloaded session reports the found-size
+ * truth without re-walking the tree. */
 struct SessionState {
     u32 stage_done_mask = 0; /* bit0 quick, bit1 deep, bit2 carve */
     u64 files_found = 0;
@@ -143,6 +152,7 @@ struct SessionState {
     u32 error_map_ranges = 0;
     u64 deleted_found = 0; /* v2 (appended): restored on load */
     u64 carved_found = 0;  /* v2 (appended): restored on load */
+    u64 bytes_found = 0;   /* v3 (appended, N-167): restored on load */
 };
 u32 serialize_session_state(const SessionState& st, std::vector<u8>& out);
 u32 deserialize_session_state(const u8* data, size_t len, SessionState& st);
@@ -219,7 +229,10 @@ struct VolumeSessionInfo {
     u64 slice_bytes = 0;
     u32 logical_sector = 0;
     u32 physical_sector = 0;
-    char label[32] = {0}; /* utf8, NUL padded */
+    char label[32] = {0}; /* utf8, NUL padded (the legacy prefix view) */
+    /* N-090: the complete label (the v6 record tail; == label on
+     * v1..v5 sessions - the uniform degrade). */
+    char label_full[100] = {0};
     u64 scanned_bytes = 0;
     u64 elapsed_ms = 0;
     /* identity card (SESS-2 v2 tail; zeros on v1 sessions = unverifiable) */

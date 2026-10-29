@@ -64,15 +64,20 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
   attempting `create_temp` + `write` + `delete` for each. The og's
   `RecoveryModule.dll` calls `GetDiskFreeSpaceExA` before writing
   (`RecoveryModule_decompiled.c:47033`).
-- **N-009d refinement:** writer does NOT preserve timestamps or attributes.
-  Confirmed og ALSO resets attributes to `FILE_ATTRIBUTE_NORMAL`
-  (`RecoveryModule_decompiled.c:79677`) and does NOT call `SetFileTime`
-  (grep empty in `RecoveryModule_decompiled.c`). Both og and core drop
-  timestamps/attributes. The ACL drop IS the divergence (N-009d, already
-  filed). Narrowed to: N-009d is the complete divergence; no additional
-  timestamp/attribute gap. (The session-1 N-009d verdict was correct; this
-  re-verification confirms the og's behavior matches the core's on
-  timestamps/attributes, so the divergence is ACL-only.)
+- **N-009d refinement (REFUTED at the S-060 verification, 2026-10-29):** the
+  session-2 claim above — "og ALSO resets attributes to FILE_ATTRIBUTE_NORMAL
+  (`RecoveryModule_decompiled.c:79677`) and does NOT call SetFileTime" — was
+  grep-scoped to the WRONG BINARY (RecoveryModule, the progress dialog's
+  helper, not the export body). The export loop's own tail in DRWUI
+  (:874686-718, the binary's only SetFileTime/SetFileAttributesW pair) restores
+  the DOS attributes (word & ~0x2) and the mask-gated timestamp trio after
+  EVERY item, both failures non-fatal. S-060 (FIXED session-51) landed the
+  core's equivalent: `DestIo::set_metadata` + the writer's post-commit call
+  with per-field enables mirroring the engine emission (zero slots pass as
+  NULL); the Win32 backend implements the og's shape verbatim, the POSIX
+  translation (utimensat + the readonly-bit chmod) is registered in
+  PARITY-DELTAS. The ACL drop (N-009d proper) remains the only OTHER
+  divergence on this axis.
 
 ### Session 2 findings index (this module)
 
@@ -190,7 +195,7 @@ over the regression (1117/1117) because no test pins the wiring. Fix: re-land th
 Four new rows, all first-hand verified (worksheet:
 `../evidence/decompiled-quotes/s42-reconstruction-export-chain.md`):
 
-- **B2/F60 (recovery correctness under holes) — DIVERGENCE-SEVERE, S-059**: the og
+- **B2/F60 (recovery correctness under holes) — FIXED session-51 (S-059) → MATCH**: the og
   writes zero chunks for sparse runs and always produces the full logical size
   (DRWUI:875661-673 runlist path, :875062-75 chunked path); the core drops sparse
   runs (`cr_runlist.cpp:190`), has no per-extent logical offset
@@ -198,12 +203,12 @@ Four new rows, all first-hand verified (worksheet:
   ERR_TRUNCATED (`cr_safewriter.cpp:440-444`) — NTFS sparse files and
   compressed-with-hole-unit files are lost or shifted; the mftwalk comments
   claim a zero-fill the writer cannot perform.
-- **B9 (timestamp restoration) — DIVERGENCE-SEVERE, S-060**: the og restores DOS
-  attributes + the mask-gated SetFileTime creation/access/write trio after every
+- **B9 (timestamp restoration) — FIXED session-51 (S-060) → MATCH**: the og restores
+  DOS attributes + the mask-gated SetFileTime creation/access/write trio after every
   item (DRWUI:874686-718 — the binary's only SetFileTime; **the N-009d row above
-  ("og never calls SetFileTime") is REFUTED**); the core's DestIo has no metadata
-  surface and zero restoration calls tree-wide — every recovered file carries
-  "now" times and default attributes.
+  ("og never calls SetFileTime") is REFUTED**); the core's DestIo now carries the
+  set_metadata surface, the writer restores post-commit with per-field enables
+  mirroring the engine emission, non-fatal + reported per row (4 tests RED→GREEN).
 - **E35 (read-failure policy) — DIVERGENCE-MAJOR, M-135**: the og truncates at the
   failing run, logs the StartSector/LCN/SPC + ReadCount trio, records error 9,
   keeps the partial file, and surfaces six numbered causes; the core

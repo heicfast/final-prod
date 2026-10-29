@@ -257,8 +257,10 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
 
-    /* validated: jpg, png, zip, docx; noise rejected; no duplicates yet */
-    EXPECT_EQ(stats.validated, 4u);
+    /* validated: jpg, png, zip, docx + the jfif raw-sign emission at
+     * 12288 (N-188: the sign-table layer's records count too); grammar
+     * noise still rejected; no duplicates yet */
+    EXPECT_EQ(stats.validated, 5u);
     EXPECT_GE(stats.rejected, 1u);
     /* N-153: the two archives' inner central-directory positions
      * (PK\x01\x02 inside the emitted extents) now count as duplicates -
@@ -7632,11 +7634,12 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         const char* magic_hex; /* the og's own shipped sign bytes */
     };
     const Case cases[] = {
-        {"amr", "2321414D52"},                     /* #!AMR (conf 870) */
-        {"class", "CAFEBABE"},                     /* cafe babe (conf 800) */
-        {"flac", "664C614300000022"},              /* fLaC.... (conf 940) */
-        {"msf", "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
-        {"pdb", "4D6963726F736F66742043"},        /* "Microsoft C" (the built-in 12) */
+        {"amr", "2321414D52"},        /* #!AMR (conf 870) */
+        {"class", "CAFEBABE"},        /* cafe babe (conf 800) */
+        {"flac", "664C614300000022"}, /* fLaC.... (conf 940) */
+        {"msf",
+         "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
+        {"pdb", "4D6963726F736F66742043"},      /* "Microsoft C" (the built-in 12) */
     };
     for (const Case& c : cases) {
         std::vector<u8> img(2ull << 20, 0);
@@ -7649,8 +7652,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         (void)magic;
         /* a user sign under a DIFFERENT ext for the same magic: if the
          * user layer ran first, this record would win the position */
-        std::string json = std::string("{\"") + c.ext +
-                           "u\": {\"signs\": [\"0," + c.magic_hex + "\"], \"mime\": \"x/test\"}}";
+        std::string json = std::string("{\"") + c.ext + "u\": {\"signs\": [\"0," + c.magic_hex +
+                           "\"], \"mime\": \"x/test\"}}";
         carve::usersigns::UserSignSet set;
         ASSERT_EQ(OK, carve::usersigns::parse(json.c_str(), json.size(), set)) << c.ext;
         ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set))) << c.ext;
@@ -7661,8 +7664,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK,
-                  carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << c.ext;
         u32 builtin = 0, user = 0;
         tree::FileNode* built_n = nullptr;
@@ -7795,6 +7798,21 @@ TEST(CarveEngine, UserSignFilesCountInCarvedFound) {
 namespace {
 /* Install the shipped default set; returns false when the file/parse
  * fails (callers ASSERT on it). */
+/* S-058-window hygiene: every test that installs the default (or any)
+ * set must restore the EMPTY registry on exit - the per-process global
+ * leaks into every later carve test in the binary (the CplWpl leak left
+ * the default set's lha sign "2,2D6C68" live, and the LzhWrongDash
+ * fixture's "-lh0x" at +2 then carved a device-end .LHA - correct og
+ * parity for the default set, but a poisoned world for tests that
+ * assert built-in-layer-only behavior). */
+struct UsersignTeardown {
+    ~UsersignTeardown() {
+        carve::usersigns::UserSignSet empty;
+        empty.valid = true;
+        (void)carve::usersigns::install_set(std::move(empty));
+    }
+};
+
 bool install_default_usersigns() {
     std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     if (!in.good())
@@ -7837,6 +7855,7 @@ u32 count_ext_records(tree::FileNode* root, const char* ext8) {
 } // namespace
 
 TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
+    UsersignTeardown usersign_teardown;
     /* The finding's falsifiable case: a FLAC header at a stride on the
      * DEFAULT configuration. Pre-fix: one device-end user-sign record
      * (tag 0xFFFE0000, conf 600, len = total - start). Post-fix: the
@@ -7853,6 +7872,14 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
             flac_id = i;
             break;
+            /* teardown (the per-process registry contract the file documents at
+             * UserSignatureProbedAtStride): clear the default set so later carve
+             * tests do not run with 190 live user signs - the LzhWrongDashByte
+             * order-dependency the hot window exposed) */
+            carve::usersigns::UserSignSet teardown;
+            teardown.valid = true;
+            ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+            ASSERT_EQ(0u, carve::usersigns::active_count());
         }
     ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
 
@@ -7868,23 +7895,21 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         << "no user-sign record at a built-in magic (S-055)";
     EXPECT_EQ(1u, count_tagged(root, 0xFFFF0000u + flac_id))
         << "the bounded built-in flac candidate owns the position";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* Every one of the 8 default-set formats that ALSO live in the
      * built-in table: each format's own built-in header sign is planted
      * at a stride; the built-in candidate must own the position and no
@@ -7899,6 +7924,14 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
             if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
                 fid = i;
                 break;
+                /* teardown (the per-process registry contract the file documents at
+                 * UserSignatureProbedAtStride): clear the default set so later carve
+                 * tests do not run with 190 live user signs - the LzhWrongDashByte
+                 * order-dependency the hot window exposed) */
+                carve::usersigns::UserSignSet teardown;
+                teardown.valid = true;
+                ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+                ASSERT_EQ(0u, carve::usersigns::active_count());
             }
         ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
         for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
@@ -7933,23 +7966,21 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
                 << ext << ": a built-in candidate owns the position";
         }
     }
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
+    UsersignTeardown usersign_teardown;
     /* A built-in magic in a device smaller than the format's min_size
      * floor: the built-in arm matches but its floor gate declines, and
      * the user-sign arm does NOT reclaim the position (built-in-first
@@ -7972,23 +8003,29 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "no user-sign reclaim past the built-in floor gate";
     EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
     carve::usersigns::UserSignSet teardown;
     teardown.valid = true;
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
     ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
+    UsersignTeardown usersign_teardown;
     /* The S-055 fix-lane decision, pinned: a magic the GRAMMAR layer
      * matched but rejected (truncated JPG - the default set carries jpg
      * signs, the built-in raw-sign table has no jpg row) is not
@@ -8019,23 +8056,29 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "a grammar-rejected magic is not reclaimed by the user-sign layer";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
     carve::usersigns::UserSignSet teardown;
     teardown.valid = true;
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
     ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
+    UsersignTeardown usersign_teardown;
     /* The channel stays functional post-reorder: a magic NO layer
      * claims (not grammar, not built-in) still emits the user-sign
      * record. Same shape as UserSignatureProbedAtStride, re-pinned here
@@ -8064,20 +8107,9 @@ TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_tagged(root, 0xFFFE0000u)) << "the unclaimed magic still fires";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledFormatsGatesUserSignLayer) {
@@ -8092,6 +8124,14 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
             cpl_id = i;
             break;
+            /* teardown (the per-process registry contract the file documents at
+             * UserSignatureProbedAtStride): clear the default set so later carve
+             * tests do not run with 190 live user signs - the LzhWrongDashByte
+             * order-dependency the hot window exposed) */
+            carve::usersigns::UserSignSet teardown;
+            teardown.valid = true;
+            ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+            ASSERT_EQ(0u, carve::usersigns::active_count());
         }
     ASSERT_NE(cpl_id, 0xFFFFFFFFu);
     for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
@@ -8121,20 +8161,17 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         EXPECT_EQ(0u, count_tagged(root, 0xFFFF0000u + cpl_id))
             << "disabled '" << dis << "': no built-in cpl record either";
     }
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    /* hot-window hygiene (the LzhWrongDashByteRejects interference
+     * repair): the default set (190 signs, incl. the og's weak 3-byte
+     * "lha" "-lh" prefix sign) previously leaked into every LATER test -
+     * the wrong-dash LZH fixture matched the leaked lha sign at its
+     * "-lh0x" bytes and carved a user-sign record there. Each test now
+     * restores the empty registry so no later test sees another's
+     * signs (every test in this battery installs its own set upfront,
+     * so the teardown costs nothing). */
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
@@ -8168,20 +8205,9 @@ TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_ext_records(root, "xyzzy")) << "the disabled user ext is suppressed";
     EXPECT_EQ(1u, count_ext_records(root, "quux")) << "the other user ext still fires";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
@@ -8207,20 +8233,9 @@ TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 namespace {
@@ -8234,6 +8249,7 @@ void plant_hex_bytes(std::vector<u8>& img, size_t at, const char* hex) {
 } // namespace
 
 TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* The two overlap formats whose collisions the offset-0 sign walk
      * cannot reach, each pinned with BOTH layers matching at one stride:
      *   cpl - the user sign DCDC at +0 AND the built-in sign at +12 (the
@@ -8267,6 +8283,14 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "cpl: no user-sign record at the two-layer collision";
         EXPECT_EQ(1u, count_builtin_tagged(root))
             << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
+        /* teardown (the per-process registry contract the file documents at
+         * UserSignatureProbedAtStride): clear the default set so later carve
+         * tests do not run with 190 live user signs - the LzhWrongDashByte
+         * order-dependency the hot window exposed) */
+        carve::usersigns::UserSignSet teardown;
+        teardown.valid = true;
+        ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+        ASSERT_EQ(0u, carve::usersigns::active_count());
     }
     { /* wpl: the raw sign at +0 + the default user sign at +132 */
         std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
@@ -8285,20 +8309,9 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "wpl: no user-sign record at the far-anchored collision";
         EXPECT_EQ(1u, count_builtin_tagged(root)) << "wpl: the built-in candidate owns the stride";
     }
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
+    carve::usersigns::UserSignSet teardown_empty;
+    teardown_empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown_empty)));
 }
 
 TEST(CarveStats, UserSignFilesCountInCarvedFound) {
@@ -8324,20 +8337,6 @@ TEST(CarveStats, UserSignFilesCountInCarvedFound) {
     EXPECT_EQ(2u, count_tagged(root, 0xFFFE0000u));
     EXPECT_EQ(2u, st.validated) << "user-sign files count in the carved headline";
     EXPECT_EQ(2u, st.sign_hits) << "the channel's own counter still ticks";
-
-    /* N-190 (the global-state discipline the window's new tests skipped):
-     * the usersign registry is PROCESS-GLOBAL - every installer must
-     * restore the prevailing world (the empty set here; Registration-
-     * RoundTrip's deliberate zip install below defines the later
-     * prevailing state, per the N-168 convention). Without this the
-     * default set (111 extensions incl. the lzh/lha family) leaks into
-     * every later scan test and the wrong-dash LZH pin carves via a
-     * user sign (the order-dependent Carve.LzhWrongDashByteRejects red
-     * on the full-suite run). */
-    carve::usersigns::UserSignSet teardown;
-    teardown.valid = true;
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
-    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {
@@ -8690,8 +8689,9 @@ TEST(CarveEngine, SkipsFsAllocatedRegions) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 3u)
-        << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_EQ(stats.validated, 4u)
+        << "the in-extent JPEG must be suppressed (png/zip/docx + the jfif "
+           "raw-sign plant -> 4; N-188 counts the sign-table layer)";
     EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
@@ -8725,7 +8725,8 @@ TEST(CarveEngine, StructuredBoundaryPartialOverlap) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 4u) << "the straddling JPEG still carves";
+    EXPECT_EQ(stats.validated, 5u) << "the straddling JPEG still carves (jpg/png/zip/docx "
+                                      "+ the jfif raw-sign plant; N-188)";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -8756,8 +8757,10 @@ TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
     /* the JPEG@512, PNG@2048 and ZIP@4096 are inside [0, 8192); the
-     * DOCX@8192 sits exactly on the excluded boundary end and carves */
-    EXPECT_EQ(stats.validated, 1u);
+     * DOCX@8192 sits exactly on the excluded boundary end and carves;
+     * the jfif raw-sign plant@12288 is outside the interval and counts
+     * (N-188) */
+    EXPECT_EQ(stats.validated, 2u);
     EXPECT_GE(stats.occupancy_skipped, 2u);
     EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
 }
@@ -9441,7 +9444,19 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * 5th byte rejects (the 5-byte magic carries the gate, so plant the
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
-     * never matches any row). */
+     * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
+     * red, closed two ways by two lanes): the default user-sign set's
+     * "lha" entry (2,2D6C68 - the og's own shipped sign) matches ANY
+     * "-lh" anchor at +2, so with a set installed by an earlier test
+     * this fixture carves a device-end lha USER record (the D-104
+     * out-of-box superset, by design). The no-carve assertion pins the
+     * no-user-sign world: this test resets the registry explicitly (the
+     * suite's per-process registry makes absence a state to SET, not a
+     * default to assume) AND gates the user layer's lha channel by
+     * extension (S-056's disabled_formats - the surgical belt to the
+     * clear()'s suspenders; either alone suffices, both document the
+     * interaction). */
+    ASSERT_EQ(OK, carve::usersigns::clear());
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
@@ -9449,6 +9464,7 @@ TEST(Carve, LzhWrongDashByteRejects) {
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
+    flags.disabled_formats = "lha";
     CarveStats stats;
     ASSERT_EQ(
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
@@ -11202,6 +11218,75 @@ TEST(Carve, OneChunkChainWalksPastTheStandInCap) {
         << "the chain's true end (68 MiB) - not the 64 MiB stand-in cap";
 }
 
+TEST(Carve, OneFirstChunkZeroSizePublishesTwoDeviceFlat) {
+    /* S-062: the og's comma-operator decode (FUN_180044e30 :52335,
+     * re-read first-hand; the retdec cross-check agrees): uVar5 is set
+     * to 2x-DEVICE the moment the primary size field is read - so a
+     * first chunk whose BOTH size fields are 0 publishes the flat
+     * 2x-device extent, never the 0 the pre-fix core published (the
+     * corrupt-chunk-0 population: recovered by the og, dropped by the
+     * core). The probe limit clamps to the device end. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_one_chain(img, at, 0, 1); /* chunk size 0 planted below anyway */
+    put32v(img, at + 0xC4, 0); /* primary size 0 */
+    put32v(img, at + 0xC8, 0);
+    put32v(img, at + 0x64, 0); /* fallback size 0 too - the both-zero exit */
+    put32v(img, at + 0x68, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the corrupt-chunk-0 ONE still carves (the og's flat extent)";
+    /* 2x-device = 128 KiB, clamped to the device end by the probe limit */
+    EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+        << "the flat 2x-device extent (device-clamped), not 0";
+}
+
+TEST(Carve, OneMidChainOversizeChunkPublishesTwoDeviceFlat) {
+    /* S-062's mid-chain leg: a chunk declaring a size > 2x the device
+     * breaks the chain publishing 2x-device - the og's (G)-gate exit -
+     * where the pre-fix core published the accumulated valid prefix. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_one_chain(img, at, 0x1000, 2); /* two valid 4 KiB chunks */
+    /* the 3rd chunk: an oversize declaration (2x-device + 1) */
+    const size_t p = at + size_t(2 * 0x1000);
+    std::memcpy(img.data() + p, "\xE4\x52\x5C\x7B", 4);
+    put32v(img, p + 4, 0x4DA7D88C);
+    put32v(img, p + 8, 0x7853B1AE);
+    put32v(img, p + 0xC, 0xD32969D0);
+    put32v(img, p + 0xC4, u32(2 * 64 * 1024 + 1));
+    put32v(img, p + 0xC8, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr);
+    EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+        << "the oversize-chunk break publishes the flat 2x-device extent";
+}
+
 TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
     /* M-106: the walk-break semantics - a broken GUID mid-chain
      * salvages at the last valid chunk; a chunk size of 0 or > 2x the
@@ -11265,9 +11350,12 @@ TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
             << "the fallback size field (+0x64) serves when +0xC4 is 0";
     }
     {
-        /* a chunk size > 2x the device: the chain breaks at the gate -
-         * the size keeps the last valid end (the first chunk's 0) and
-         * the row's min rejects the degenerate candidate */
+        /* a chunk size > 2x the device: the (G)-gate break. S-062
+         * RE-PIN: the og's comma decode (FUN_180044e30 :52335) sets the
+         * published size to 2x-DEVICE the moment the size field is
+         * read - the break publishes the flat 2x-device extent (device-
+         * clamped), NOT the nothing the pre-fix core emitted (the
+         * M-106 landing's own regression, pinned here in error). */
         std::vector<u8> img(64 * 1024, 0);
         const size_t at = 512;
         plant_one_chain(img, at, 1, 1);
@@ -11283,9 +11371,14 @@ TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
                   u32(OK));
         std::vector<tree::FileNode*> all;
         collect_children(root, all);
+        tree::FileNode* nd = nullptr;
         for (tree::FileNode* c : all)
-            EXPECT_NE(c->props()->carve_format, u64(FMT_ONE))
-                << "the over-2x-device chunk size breaks the chain at chunk 0 (size 0 rejects)";
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                nd = c;
+        ASSERT_NE(nd, nullptr) << "the og recovers the corrupt-chunk-0 ONE (the flat extent)";
+        EXPECT_EQ(nd->props()->carve_format, u64(FMT_ONE));
+        EXPECT_EQ(nd->props()->logical_size, size_t(64 * 1024 - at))
+            << "the flat 2x-device extent (device-clamped)";
     }
 }
 
@@ -11502,4 +11595,108 @@ TEST(UserSigns, ShippedOgFileVerbatimLoads) {
         << "the og's own shipped file must load verbatim";
     EXPECT_TRUE(set.valid);
     EXPECT_EQ(191u, set.signs.size()) << "all 191 signs (the duplicate asf block included)";
+}
+
+TEST(CarveStats, StockRawSignFilesCountInCarvedFound) {
+    /* N-188 (discovered during N-171's verification): the stock raw-sign
+     * layer emits records without ticking `validated` - carved_found is
+     * assigned from that counter (cr_scan.cpp), so a sign-table-only
+     * format (no grammar analyser; "sample" = #!/bin/sh is one) was
+     * invisible in the headline carved count. RED pre-fix: the executed
+     * probe printed sign_hits=1 / validated=0 with the tree carrying
+     * the carved node. */
+    std::vector<u8> img(2ull << 20, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits) << "the stock sign-table candidate fired";
+    EXPECT_EQ(1u, st.validated) << "the stock raw-sign record must count in the carved_found feed";
+    /* the tree agrees: exactly one carved record (stats refresh first -
+     * the counters are cached until the walk refreshes them) */
+    tree.refresh_stats();
+    EXPECT_EQ(1u, root->stats().file_count + root->stats().dir_count);
+}
+
+TEST(UserSigns, DuplicateKeySemantics) {
+    /* N-169 (diff-to-fix): the raw og EUUserData carries a GENUINE
+     * duplicate "asf" block (112 members; offsets 4770/16766 - the same
+     * sign "0,3026B2758E66CF11A6D900AA0062CE6C" with mimes
+     * "application/vnd.ms-asf" then "asf"). The core's loader walks
+     * EVERY top-level member - both blocks parse, both sign sets
+     * install, each block's mime backfills its OWN signs (the MERGE,
+     * registered as the deliberate resolution in PARITY-DELTAS D-137;
+     * the og's parse-side member-append semantics stay the recorded
+     * OQ - the finding's decisive cite FUN_140077dca0 does not exist
+     * in the corpus, and the member-iteration evidence (the child-chain
+     * walks + the per-child "signs" lookup, RAWSearchDLL :24295-24333)
+     * supports but does not prove merge). This pin holds the core's
+     * resolution steady: a duplicate key NEVER rejects the file, both
+     * blocks contribute, the shared sign carries each block's own mime. */
+    const char* json =
+        "{"
+        "\"dup\": { \"signs\": [\"0,AAAAAAAA\"], \"mime\": \"first/mime\" },"
+        "\"dup\": { \"signs\": [\"0,AAAAAAAA\",\"5,BBBBBBBB\"], \"mime\": \"second/mime\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(3u, set.signs.size()) << "the duplicate key merges: 1 + 2 signs, no rejection";
+    /* the shared sign appears once per block, each carrying its OWN
+     * block's mime (the per-block backfill) */
+    int shared = 0;
+    for (const auto& s : set.signs)
+        if (s.len == 4 && std::memcmp(s.bytes, "\xAA\xAA\xAA\xAA", 4) == 0) {
+            ++shared;
+            EXPECT_STREQ("dup", s.ext);
+        }
+    EXPECT_EQ(2, shared) << "the shared sign rides both blocks";
+    bool saw_first = false, saw_second = false, saw_unique = false;
+    for (const auto& s : set.signs) {
+        if (s.len == 4 && std::memcmp(s.bytes, "\xAA\xAA\xAA\xAA", 4) == 0) {
+            if (std::strcmp(s.mime, "first/mime") == 0)
+                saw_first = true;
+            if (std::strcmp(s.mime, "second/mime") == 0)
+                saw_second = true;
+        }
+        if (s.len == 4 && s.offset == 5 && std::memcmp(s.bytes, "\xBB\xBB\xBB\xBB", 4) == 0)
+            saw_unique = true;
+    }
+    EXPECT_TRUE(saw_first) << "block 1's mime backfills its own shared-sign row";
+    EXPECT_TRUE(saw_second) << "block 2's mime backfills its own shared-sign row";
+    EXPECT_TRUE(saw_unique) << "block 2's unique sign installs";
+}
+
+TEST(UserSigns, ShippedCensusDedupTruth) {
+    /* N-169: the census truths, both sides pinned. The RAW og file:
+     * 112 members with the duplicate asf (same sign, the two mimes).
+     * The SHIPPED default (data/userdata-defaults.json - the release
+     * asset): the DEDUPED 111/190 view keeping exactly ONE asf block
+     * with the LAST block's mime ("asf" - the last-wins dedup
+     * convention, documented in PARITY-DELTAS D-137). The two censuses
+     * are BOTH true; future sessions must stop reading them as drift. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    EXPECT_EQ(190u, set.signs.size()) << "the deduped 190-sign shipped truth";
+    /* exactly ONE asf sign in the deduped view, mime "asf" */
+    u32 asf = 0;
+    const carve::usersigns::UserSign* asf_sign = nullptr;
+    for (const auto& s : set.signs)
+        if (std::strcmp(s.ext, "asf") == 0) {
+            ++asf;
+            asf_sign = &s;
+        }
+    ASSERT_EQ(1u, asf) << "the shipped dedup keeps one asf block";
+    ASSERT_NE(asf_sign, nullptr);
+    EXPECT_STREQ("asf", asf_sign->mime) << "the LAST block's mime survives the dedup";
+    EXPECT_EQ(16u, asf_sign->len);
+    EXPECT_EQ(0u, asf_sign->offset);
 }

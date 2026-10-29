@@ -184,37 +184,78 @@ std::string ext_of_name(const tree::FileProperties* pr) {
 
 namespace {
 
-/* ---- M-134: the og's deep-read grade validation -----------------------
- * FUN_14038c470 (DRWUI_decompiled.c:606291-619, decoded first-hand at
- * the finding and re-read this session before the fix): a bounded
- * ONE-SECTOR content read that flips the grade on actual disk bytes.
- *   addr == 0 (the first extent starts at sector 0): read 1 sector at
- *     offset 0 - first 32 bytes ALL ZERO -> grade 0 (overwritten
- *     content); first 4 bytes ALL 0xFF -> grade 0 (erased flash/
- *     sparse tail) (:606364-392).
- *   addr > 0: read 1 sector at addr-1 - last 16 bytes ALL ZERO ->
- *     grade 2 (the file follows zero padding - intact-alignment
- *     evidence) (:606393-411).
+/* ---- M-134/M-145: the og's deep-read grade validation -----------------
+ * FUN_14038c470 (DRWUI_decompiled.c:606291-619): a bounded ONE-SECTOR
+ * content read that flips the grade on actual disk bytes. The read
+ * address is the node's TWIN KEY - the M-146 correction, decisive at
+ * :322640-671 (the key helper's out-triple: *param_4 = the extent
+ * START, *param_5 = the LENGTH, *param_3 = START + LENGTH + index*unit)
+ * and :605774/:605798 (the completion pass computes the key and hands
+ * it straight to the deep read):
+ *   key == 0 (the extent END is zero - the extentless class - with a
+ *     zero index term): read the reader's sector 0 - the first 32
+ *     bytes ALL ZERO, or the first 4 bytes 0xFF, -> grade 0
+ *     (:606364-392).
+ *   key > 0 with a zero index term: read the sector at key - 1 = the
+ *     extent's LAST sector (end-exclusive minus one); its final 16
+ *     bytes ALL ZERO -> grade 2 - the intact-file padding signature
+ *     (:606393-411). The core's extents are absolute BYTES where the
+ *     og's key is sector-indexed: the containing sector of byte
+ *     (end - 1) is the byte-exact equivalent.
+ *   key with a NONZERO index term (the M-133 shifted kinds - FAT16 off
+ *     ordinal 2 - and every non-zero ordinal): the key lands outside
+ *     any reader; the og's read FAILS and the grade never changes. The
+ *     core skips the same population (the failed-read class, matched).
  *   The overlap flag skips the read entirely (FUN_1401c5da0 != 0 ->
  *     return, :606318); a failed read changes nothing; the node is
- *     marked graded after the pass (FUN_140389540). The undecoded
+ *   marked graded after the pass (FUN_140389540). The undecoded
  *   sub-gates (the FUN_1401bc5a0 pre-check trio, OQ-S42-3) are NOT
  *   adopted - the fix plan's acceptance is the two threshold rules,
  *   which are the decoded, binary-verifiable heart. */
+/* N-183 (diff-to-fix): the og's recoverability-gauge candidate population
+ * - the 20-format member set, byte-exact from the .rdata ctor map
+ * (DRWUI :605502-513, the s5 dump's re-read: doc pdf mov ppt xls cr2 arw
+ * dng cr3 mp4 orf raf docx pptx xlsx heic nef jpeg jpg mp3). The gauge
+ * counts THIS population plus the auto-High classes (email + the ReFS/
+ * Btrfs non-existing nodes, S-061), never every file. */
+constexpr const char* kGaugeCandidateExtensions[20] = {
+    "doc", "pdf", "mov", "ppt", "xls", "cr2", "arw", "dng", "cr3", "mp4",
+    "orf", "raf", "docx", "pptx", "xlsx", "heic", "nef", "jpeg", "jpg", "mp3"};
+
+bool gauge_candidate_ext(const std::string& e) {
+    for (const char* c : kGaugeCandidateExtensions)
+        if (e == c)
+            return true;
+    return false;
+}
+
 bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     if (n->overlap())
         return false; /* the og's skip: the overlap flag is set */
+    if (ctx.reader.dev == nullptr)
+        return false; /* no reader wired: the og's null-manager bail */
     const tree::FileProperties* pr = n->props();
-    if (pr == nullptr || pr->extents.empty() || ctx.reader.dev == nullptr)
+    if (pr == nullptr)
         return false;
     u32 ss = ctx.reader.sector_size;
     if (ss == 0)
         ss = ctx.reader.dev->geometry().logical_sector;
     if (ss == 0 || ss > 4096)
         return false; /* hostile geometry: no content read */
-    const u64 addr = pr->extents.front().offset / ss;
+    /* the twin key's index term: nonzero => the og's read address is
+     * outside any reader and the read FAILS (M-146 consequence 4) */
+    const u32 fs = ctx.fs_kind_of(n);
+    const bool shifted = fs == u32(FsKindCode::Fat16);
+    const i64 index = i64(ctx.disk_ordinal_of(n)) - (shifted ? 2 : 0);
+    if (index != 0)
+        return false; /* the failed-read class: no grade change */
+    /* the extent END (the twin key's base+len term); the extentless
+     * class reads the reader's sector 0 (M-146 consequence 3) */
+    u64 end = 0;
+    if (!pr->extents.empty())
+        end = pr->extents.front().offset + pr->extents.front().length;
     u8 sec[4096];
-    if (addr == 0) {
+    if (end == 0) {
         if (ctx.reader.dev->read_at(0, sec, ss) != OK)
             return false; /* the og: a failed read changes nothing */
         bool all_zero = true;
@@ -232,8 +273,13 @@ bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
             return true;
         }
     } else {
-        const u64 prev = (addr - 1) * ss;
-        if (ctx.reader.dev->read_at(prev, sec, ss) != OK)
+        /* the extent's LAST sector: the containing sector of byte
+         * (end - 1) - the og's sector-indexed key - 1. M-145: the
+         * pre-fix code read the sector BEFORE the file (the START
+         * address) - previous-region padding instead of the file's own
+         * final sector. */
+        const u64 last = ((end - 1) / ss) * ss;
+        if (ctx.reader.dev->read_at(last, sec, ss) != OK)
             return false;
         bool tail_zero = true;
         for (u32 i = ss > 16 ? ss - 16 : 0; i < ss; ++i)
@@ -248,7 +294,6 @@ bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     }
     return false;
 }
-
 /* the og decision tree minus the twin detection (which needs the global
  * key map). Returns the grade to apply for the solo rules. */
 bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stats) {
@@ -286,7 +331,10 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
         if (ordinal < 9) {
             n->set_grade(Grade::High);
             if (stats)
-                ++stats->quick_scan_delete_extend; /* DAT_141be5818 */
+                ++stats->ntfs_device_index_high; /* N-183: DAT_141be5818 is
+                the gauge-matched global - the fixer-index tick's own
+                counter, not QSDE (the +0x1b8 field counts the
+                non-existing population instead) */
         }
         return true; /* NTFS processed; twins are a FAT-family path */
     }
@@ -440,16 +488,49 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         stack.pop_back();
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
             stack.push_back(c);
-        if (!n->is_full() && n->props() && n->grade() == Grade::High)
+        if (n->is_full() || !n->props())
+            continue; /* role roots and propless nodes never count */
+        if (n->grade() == Grade::High)
             ++out.matched;
+        /* N-183: QSDE is the og's +0x1b8 assistant field - incremented
+         * per NON-EXISTING node (bit 7 of +0x72 clear, DRWUI :331164-170;
+         * the else case feeds the unlogged ninth counter +0x1bc). The
+         * core's DeletedState mapping: Active = existing, everything
+         * else = the non-existing population. */
+        if (n->deleted_state() != tree::DeletedState::Active)
+            ++out.quick_scan_delete_extend;
+        /* N-183: the gauge's candidate population - the 20-format member
+         * set + the auto-High classes (email category + non-existing
+         * ReFS/Btrfs per S-061). matched counts grade-High WITHIN it. */
+        std::string gext2 = ext_of_name(n->props());
+        for (char& ch : gext2)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 0x20); /* the og's lowercased set lookup */
+        const bool auto_high =
+            (query::category_for_extension(gext2) == query::Category::Email) ||
+            ((n->props()->fs_kind == u32(FsKindCode::Refs) ||
+              n->props()->fs_kind == u32(FsKindCode::Btrfs)) &&
+             n->deleted_state() != tree::DeletedState::Active);
+        if (gauge_candidate_ext(gext2) || auto_high) {
+            ++out.gauge_total;
+            if (n->grade() == Grade::High)
+                ++out.gauge_matched;
+        }
     }
     out.small_result = out.total < 100;
     if (out.small_result)
         out.matched = 0;
+    /* N-183: the verdict score - the og's FUN_14021b030
+     * (:374451-481): int((matched / total + 0.05) * 10), 0 when the
+     * population is empty. The gauge's own population (not every file):
+     * the small-result zeroing applies the same way (matched 0 -> the
+     * 0.05 floor rounds to 0). */
+    const u64 gm = out.small_result ? 0 : out.gauge_matched;
+    const u64 gt = out.gauge_total;
+    out.score = gt == 0 ? 0 : u32((double(gm) / double(gt) + 0.05) * 10.0);
 }
 
-bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
-                  const tree::ResultTree* tree) {
+bool regrade_node(tree::FileNode* n, const GradeContext& ctx, const tree::ResultTree* tree) {
     if (!n || n->is_full() || !n->props())
         return false;
     /* M-134: the og's one-shot re-grade gate - grade==1 AND the graded

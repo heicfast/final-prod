@@ -231,6 +231,12 @@ std::u16string short_name_to_u16(const u8 name[11], u8 nt_reserved = 0x00);
 /* progress-compatible callback type (same shape as ntfs WalkProgress) */
 using WalkProgressLike = bool (*)(u64 done, u64 total, void* user);
 struct FatScanStats {
+    u64 overflow_chains = 0; /* N-165/S46 convergence: chains with extents past
+                              * the device end - additive observability for the
+                              * D-136 deferred-failure class (the og destroys
+                              * these runlists at scan time; the core emits and
+                              * fails per-read). No behavioral surface: neither
+                              * pin grades on it. */
     u64 dirs = 0;
     u64 files = 0;
     u64 deleted_entries = 0;

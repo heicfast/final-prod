@@ -3923,6 +3923,33 @@ reference-quirk parity. Registered by N-163's Resolution alongside the
 decoder's truncate-and-keep tolerance landing (the og direction this
 finding fixed); the S-001 all-hole recovery behavior is unchanged and
 now decode-anchored.
+
+### D-136 — the metadata-restoration POSIX translation (S-060 landing, REGISTERED DELIBERATE TRANSLATION — engine behavior)
+
+**Class:** deliberate cross-platform translation · **Findings:** S-060 (landing
+2026-10-29) · **Date:** 2026-10-29
+
+**WHAT OG DOES:** after every committed item the og's export tail runs
+`SetFileAttributesW(path, word & 0xfffd)` then `CreateFileW` + the mask-gated
+`SetFileTime(created, access, write)` trio (DRWUI:874686-718), both failures
+ReleaseTrace'd and non-fatal.
+
+**WHAT CORE DOES:** the identical contract on Windows (WinDestIo implements
+the og's shape verbatim). On POSIX hosts (FileDestIo — the portable ABI-check
+recovery surface), the same contract translates as: the times via
+`utimensat` (atime + mtime; a BIRTH time is not portably settable through
+POSIX — the created slot maps to nothing on hosts without a birth-time API
+and is skipped, never guessed), and the attributes via `chmod` carrying the
+READONLY bit (0x1) as the owner-write bit (the one DOS attribute POSIX can
+hold truthfully; hidden/system/archive have no portable mapping and are
+dropped rather than approximated). The per-field enables mirror the engine's
+emission — a zero slot is the og's honest no-date (the N-021/A-014 zero
+FileTime) and passes as NULL exactly like the og's mask gates.
+
+**WHY:** the og is a Windows-only product; the core's portable surface must
+either fake Win32 semantics (wrong) or translate honestly (this). The
+translation is reported per row ("restored" / "failed:<code>" /
+"unsupported") — never a silent approximation.
 ### D-135 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
 
 The og's truncation-damage verdict (EXT4SearchDLL FUN_180007510 :5455-5467)
@@ -3964,3 +3991,91 @@ scan-time grade stays the chain's own (FAT-verified intact chains grade
 Excellent; the truncation is a recovery-time disclosure, never a silent
 drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
 "fix" toward the og's destruction without re-registering this row.
+### D-135 — the session-list surface's registered deltas (N-090: the scope superset, the save-time second resolution, the deviceType non-carriage; the label width CLOSED by the v6 tail)
+
+**WHAT:** three deliberate differences on the W1a session-list surface,
+each verified against the corpus first-hand this session: (a) the core
+lists EVERY `*.crsf` in the directory where the og's home list keeps
+only names containing BOTH `auto_` and `.rsf` (FUN_140273940 at
+DRWUI_decompiled.c:432326-432333 — the substring pair filter; rsf-format
+§5.5); (b) `save_unix` carries SECONDS where the og's record-2 carries a
+local SYSTEMTIME with milliseconds (rsf-format §5.2 +0x6C); (c) the og's
+record-2 `deviceType` u32 (2 → "Desktop", 3 → "Recycle Bin", else the
+disk-info name at +0x120) has no row counterpart.
+**WHY:** (a) the core is an engine ABI serving hosts that resume MANUAL
+saves too — a manual save is as resumable as an auto-save, and hiding it
+from the list serves no recovery purpose; a host wanting the og's exact
+home view filters client-side by name (one substring pair). (b) the
+newest-first comparator needs second resolution only — the og's own
+auto-save FILE NAMES are second-granular
+(`auto_<vol>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf`, rsf-format §5.5), and the
+core's equal-second ties break by path bytes deterministically (N-116);
+carrying ms would force a v6-format migration for a display nicety the
+banner never exercises. (c) no core consumer exists for a UI display
+classification of the disk; a host composing the og's view has its own
+enumeration to draw from.
+**RISK:** none for recovery behavior — all three are presentation-layer
+on a host-facing summary surface. The LABEL WIDTH delta (the og's
+`volumeName[100]` vs the core's 31-char card) is CLOSED by this same
+landing: the v6 record tail + the `label_full[100]` ABI append carry
+the complete label at the og's exact strncpy(…,99) width, with
+`label[32]` preserved as the legacy prefix view.
+**Registered by:** N-090's Resolution (the finding's fix-plan steps 1-4,
+the deliberate-superset option taken at every choice point).
+
+### D-137 — the file-repair product line: formal scope exclusion (S-050 disposition, REGISTERED SCOPE EXCLUSION — product boundary)
+
+**Class:** scope exclusion (product line, not an engine capability) ·
+**Findings:** S-050 (+ its three addenda: the video-engine build-order
+amendment, the UIUX/32 row-contract decode, the per-chunk feed wiring) ·
+**Date:** 2026-10-29
+
+**WHAT OG DOES:** bundles a complete file-repair product line (Fixo
+provenance; 9 binaries; photo/video/office/HWP/X3F/7z repair + enhancement),
+remote-config-flagged (enable_imgrepair/enable_docrepair), integrated into
+DRWUI's recovered-file flow via the CHK/CHKRepairFileSign eligibility chain
+and a dedicated UI spine (row controllers, the serialized repair queue, the
+TimeCritical thread fleet).
+
+**WHAT CORE DOES:** implements the recovery engine + the ADJACENT eligibility
+surface truthfully (the EUUserData user-signature channel, D-104, carries the
+same signature database the og's CHK chain reads; the M-021 post-processor is
+the per-candidate seam; the per-chunk feed is declined-and-registered in
+D-104's landing notes) and registers the repair line itself as OUT OF SCOPE
+in CAPABILITY-MATRIX §3 — a separate product line the og bundles, not a
+parity obligation of the recovery engine.
+
+**WHY:** the finding's own decision framework (fix-plan step 1: implement OR
+register truthfully). The corpus documents the line as a distinct product
+(the Fixo source tree, its own UI spine, its own output-location contract);
+faking an engine-side repair verb would be the silent-approximation class
+this register exists to prevent. A future implementation's decoded entry
+points are preserved here: cr/repair beside rawfixer; the video engine's
+datarun-selection seam (tree::FileNode::extents — the only repair engine
+that consumes the core's own scan results); the sample-file consent model
+(RawFixer's S1 pattern); the distinct repaired-output location; the
+per-format grammar artifacts in `artifacts/FileRepair/` (8 files, all
+first-cited by S-050).
+
+### D-137 — the EUUserData duplicate-key resolution: the core MERGES every block (N-169 registration, REGISTERED DELIBERATE POSTURE — the og's parse-side semantics remain an honest OQ)
+
+The og's own shipped EUUserData carries a GENUINE duplicate `asf` block (112
+members; offsets 4770/16766; the SAME sign `0,3026B2758E66CF11A6D900AA0062CE6C`
+with mimes `application/vnd.ms-asf` then `asf` — first-hand re-measured this
+session). Whether the og's JSON layer keeps first, last, or both members is
+NOT decodable from the corpus: the finding's decisive cite (FUN_140077dca0)
+does not exist in either decompile (citation erratum, recorded), and the
+member-iteration evidence (the child-chain walks + the per-child "signs"
+lookup, RAWSearchDLL :24295-24333) supports — but does not prove — the
+merge, since the parse-side member-append behavior was never attributed.
+
+The core's registered posture: the loader walks EVERY top-level member —
+duplicate keys never reject the file, every block's sign set installs, each
+block's mime backfills its own signs (the MERGE). The SHIPPED default set
+(data/userdata-defaults.json) is the DEDUPED 111/190 view keeping exactly
+one asf block with the LAST block's mime ("asf" — last-wins dedup at the
+asset level, matching the file's own trailing-block shape). Both censuses
+are true: raw = 112 members/asf×2; shipped = 111/190 — future sessions must
+stop reading them as census drift. Pinned by UserSigns.DuplicateKey
+Semantics + ShippedCensusDedupTruth; the og's parse-side semantics stay the
+recorded OQ (the follow-up needs the og's JSON member-append attribution).

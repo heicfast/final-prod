@@ -4,6 +4,7 @@
  */
 
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/fat/cr_visited_runs.h" /* M-127: the run-coalescing cycle guard */
 #include <cstring>
 
 namespace cr {
@@ -426,7 +427,11 @@ ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len, const Cancel
         r.broken = true;
         return r;
     }
-    std::vector<u64> visited; /* visited clusters (cycle guard, fix F7) */
+    /* M-127: the og's range-tree cycle guard (each contiguous run is one
+     * interval, a repeated cluster = the cycle verdict) - replaces the
+     * O(n^2) visited-vector scan (the 2.1e9-comparison stall class on
+     * maximal chains; corpus fat-exfat-engine-algorithms-v2.md:43-56) */
+    VisitedRuns visited;
     u32 c = start;
     u32 guard = 0;
     while (c >= 2 && c <= t.max_cluster()) {
@@ -439,12 +444,10 @@ ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len, const Cancel
             r.cycle = true;
             break;
         }
-        for (u64 v : visited)
-            if (v == c) {
-                r.cycle = true;
-                return r;
-            }
-        visited.push_back(c);
+        if (visited.visit(c)) {
+            r.cycle = true;
+            return r;
+        }
         r.clusters.push_back(c);
         u32 n = t.next(c);
         if (n == 0 || n == CHAIN_BAD) {
@@ -472,7 +475,8 @@ ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_c
         r.broken = true;
         return r;
     }
-    std::vector<u64> visited;
+    /* M-127: the run-coalescing guard (the og's range-tree shape) */
+    VisitedRuns visited;
     u32 c = start;
     u32 guard = 0;
     u32 limit = expect_clusters ? expect_clusters : 0x10000;
@@ -483,12 +487,10 @@ ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_c
             return r;
         }
         ++guard;
-        for (u64 v : visited)
-            if (v == c) {
-                r.cycle = true;
-                return r;
-            }
-        visited.push_back(c);
+        if (visited.visit(c)) {
+            r.cycle = true;
+            return r;
+        }
         r.clusters.push_back(c);
         if (r.clusters.size() >= limit)
             break;
@@ -607,7 +609,23 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     if (p.cluster_count >= 0xFFFFFF0u)
         return ERR_BAD_PARAMETER;
 
-    p.flavor = flavor_from_clusters(p.cluster_count);
+    /* S-064: the flavor is STRING-FIRST when an FS-name string matches -
+     * the og's engine-open validator (FUN_18002f970 :38044/:38061)
+     * assigns flavor 1/2 purely by "FAT16   " at +0x36 / "FAT32   " at
+     * +0x52 plus BPB shape gates; NO cluster-count term exists in that
+     * function (the bracket machinery FUN_180004610 is the lost/Calc
+     * side). Re-read first-hand. A "FAT16   "-string volume under 4085
+     * clusters is flavor 1 in the og (16-bit entries, full stop); the
+     * pre-fix core bracketed it to Fat12 and decoded 12-bit entries -
+     * different chains, different recovered bytes. String-less volumes
+     * keep the cluster bracket (the D-94/I-002 deliberate superset:
+     * structural FAT12 recovery the og declines; unchanged). */
+    if (fs_name_matches(sector512 + 0x36, "fat16   "))
+        p.flavor = Flavor::Fat16;
+    else if (fs_name_matches(sector512 + 0x52, "fat32   "))
+        p.flavor = Flavor::Fat32;
+    else
+        p.flavor = flavor_from_clusters(p.cluster_count);
     p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;
     p.total_bytes = u64(total) * p.bytes_per_sector;
     if (p.total_bytes > device_bytes) {

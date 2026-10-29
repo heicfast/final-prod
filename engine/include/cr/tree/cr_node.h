@@ -16,6 +16,7 @@
 
 #include "../cr_types.h"
 #include "cr/storage/cr_device.h"
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <unordered_set>
@@ -88,14 +89,15 @@ public:
     u64 logical_size = 0; /* real_size */
     u64 allocated_size = 0;
     FileTimes times;
-    u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
+    u32 attributes = 0; /* DOS attributes (dir/hidden/...) */
     /* internal flags: 4 = system-filter (corpus); 0x10 = in-use (NTFS);
      * 0x02 = NTFS dir mirror. N-177: 0x0200 = size-exceeds-blocks
      * damage (the og's ext4 FLAGS bit 0x200 at +0x39, FUN_180007510's
      * i_blocks < size>>9 compare - regular files only; persisted with
-     * the session, a grading/diagnostics input). */
+     * the session, a grading/diagnostics input). The constant itself is
+     * NODE_FLAG_SIZE_EXCEEDS_BLOCKS above (the N-177 convergence repair
+     * folded the duplicate PFLAG spelling into the winner's name). */
     u16 flags = 0;
-    static constexpr u16 PFLAG_SIZE_EXCEEDS_BLOCKS = 0x0200;
     std::u16string name; /* full display name (LFN) */
     /* N-011a (diff-to-fix): the og's props carry a separate 8.3 short
      * name (GetShortNameLen/SetShortName/GetShortNamePtr vtable surface;
@@ -129,6 +131,16 @@ public:
         u64 length;
         u32 codec = 0; /* cr::compress::Codec */
         u64 psize = 0; /* on-disk size (0 == length: raw) */
+        /* S-059: the extent's LOGICAL start within the file (the
+         * VCN/unit-derived position; 0 in the legacy shape - the
+         * writer's cumulative walk). A HOLE extent (offset == 0,
+         * hole == true) contributes `length` logical bytes of zeros -
+         * the og's type-2 zero chunk (DRWUI :875062-75: a full-sparse
+         * chunk writes a zeroed buffer with NO read). Old sessions read
+         * back with logical == 0 / hole == false and take the legacy
+         * cumulative walk - byte-identical to the pre-S-059 behavior. */
+        u64 logical = 0;
+        bool hole = false;
     };
     std::vector<Extent> extents;
     /* carving provenance (Origin::Carved nodes) */
@@ -421,6 +433,24 @@ public:
     size_t node_count() const { return nodes_.size(); }
     size_t file_count() const;
     u64 total_logical() const;
+    /* N-166: the live attach counter - every add_file ticks it under the
+     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and
+     * a deserialized tree self-seeds through its own add_file calls).
+     * The telemetry layer samples it at progress-event time so mid-stage
+     * counters MOVE (the og's results grid tracks the live tree at ~2 s
+     * cadence; the core's stage-boundary stamps stay the authoritative
+     * close-of-stage sample). Lock-free read: an atomic load. Hard links
+     * count per tree entry (per-parent attach), matching the structured
+     * engines' own per-link counting.
+     *
+     * The raw/carved subset (fs_kind == FsKindCode::Raw at attach time —
+     * carve stamps it before add_file) so carved_found refreshes live
+     * too. Relaxed atomics bumped inside add_file's existing lock;
+     * readable from ANY thread without the tree mutex. Monotonic by
+     * design: a detached rejected-candidate subtree does NOT decrement
+     * (the boundary stamp re-truths at the stage close). */
+    u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
+    u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
 
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
@@ -440,6 +470,10 @@ public:
      * recomputed by the next refresh_stats() call. Call on the scan thread
      * after the subtree's own emission finished (single-writer handoff). */
     void detach_subtree(FileNode* root);
+
+    /* N-166: the live counters (see the accessors above) */
+    mutable std::atomic<u64> live_files_{0};
+    std::atomic<u64> live_raw_{0};
 
     /* clear without destroying (engines may reuse) */
     void reset();

@@ -1074,22 +1074,28 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         n->set_origin(tree::Origin::Carved);
                         n->set_deleted_state(tree::DeletedState::Deleted);
                         n->set_confidence(tree::Confidence::PartialRisk);
-                        /* N-171 (ONE tick - the hot-window merge folded
-                         * both lanes' landing of this counter and the
-                         * record double-counted; the N-190 repair keeps
-                         * the single tick with both provenance notes):
-                         * the emission ticks `validated` - the counter
-                         * the orchestrator's carved_found headline reads
-                         * (cr_scan.cpp: stats.carved_found = cs.validated;
-                         * the entire default-on user-sign channel was
-                         * invisible in the carved count when only
-                         * sign_ticks ticked; re-landed on the merged
-                         * S-055/S-056 shape). The og's own counting
-                         * surface counts analyser detections the same
-                         * way (GetRawUserInfoMap, FUN_18000ed00
-                         * insert-or-increment). */
-                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
+                        /* N-171 (CONVERGENT across four lanes - session-44,
+                         * session-55, and two S-055-window re-landings; this
+                         * block is the single canonical form - the two
+                         * repair lanes converged: one
+                         * sign_hits + one validated tick - the repeated
+                         * hot-window re-duplications of the F-A3-6 class
+                         * [the 994e0bb0 merge kept both lanes' increments;
+                         * every user-sign file double-counted in
+                         * `validated`, CarveStats.UserSignFilesCountIn
+                         * CarvedFound red] closed at the THIRD merge): the
+                         * emission ticks BOTH counters - sign_hits (the
+                         * channel's own count) and validated (the counter
+                         * the orchestrator's carved_found headline reads,
+                         * cr_scan.cpp: stats.carved_found = cs.validated);
+                         * pre-N-171 the entire default-on user-sign
+                         * channel was invisible in the carved count. The
+                         * og's own counting surface counts analyser
+                         * detections the same way (GetRawUserInfoMap,
+                         * FUN_18000ed00 insert-or-increment). */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
+
                         emitted_at.insert(start_abs);
                         continue;
                     }
@@ -1292,6 +1298,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
                                           : tree::Confidence::MetadataOnly);
+            /* N-188: the emitted record counts in `validated` — the
+             * counter carved_found is assigned from (cr_scan.cpp),
+             * matching the grammar and user-sign layers' emission-time
+             * counting. Ticked HERE (post-dedup, on emission), not at the
+             * candidate site — sign_hits keeps its candidate semantics. */
+            ctx.validated.fetch_add(1, std::memory_order_relaxed);
             emitted_at.insert(start_abs);
         }
     }

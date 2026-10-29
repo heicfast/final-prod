@@ -284,6 +284,24 @@ PARITY-DELTAS).
   .rsf-format internals, not core divergences).
 
 
+## N-090 landed (the S56 lane, 2026-10-29) — the session-list scope + row shape
+
+- **The scope rule REGISTERED (D-135a):** the every-`*.crsf` listing is the deliberate
+  superset over the og's `auto_`+`.rsf` home-list filter (DRWUI:432326-432333 —
+  substring pair, re-read first-hand). A manual save is a resumable session; hosts
+  wanting the og's exact home view filter client-side. Pinned:
+  `SessionListScopeSupersetPinsAutoAndManual`.
+- **The label width CLOSED (not registered — fixed):** the og's record-2
+  `volumeName[100]`/strncpy(…,99) width end-to-end — `ScanConfig.volume_label[100]`
+  (the host channel), the v6 record tail `label_full[100]` (len-gated; zeros on
+  v1..v5 = the legacy card is the whole truth), the ABI tail appends on
+  `cr_ui_session_row` + `cr_ui_session_info` (no version bump; `label[32]` = the
+  legacy prefix view). Pinned: `SessionListVolumeLabelFullWidthRoundTrips` (RED as
+  the ABI-append compile failure, the house precedent).
+- **The save-time seconds contract (D-135b) + deviceType not-carried (D-135c):**
+  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-135 (the og's ms + its 2→Desktop/
+  3→Recycle-Bin table recorded for the host that eventually asks).
+
 ## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
 
 The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
@@ -330,3 +348,52 @@ string, and the complete 512-byte boot-sector snapshot**. The core's identity ca
 only — firmware/WWN/interface and the boot-sector content have no equivalent
 (D12 field-parity gap on a variant path not seen in the shipped samples). Evidence:
 `evidence/decompiled-quotes/s12-rsf-fifth-record.md`.
+
+## S50 addendum (2026-10-29 — the continuation audit lane; audited core `34d6cf10`)
+
+- **N-186 RETIRED (FIXED-ALREADY — the battery's one falsely-active finding):**
+  the field set this finding asked for (firmware/WWN/interface_desc/
+  boot_snapshot[512]) landed with N-066's `4d3f0409` three days BEFORE the
+  filing — present at the finding's own audited tree c7fa527c (the "grep-
+  verified zero hits" claim was false at its own pin). Retired to
+  findings/FIXED/N-186 with the false-grep note + the VolumeSessionInfo
+  exposure sliver (optional follow-up, not a gap). The N-066 row above
+  remains the owner of record.
+- **N-192 (MINOR — NEW, tree/session axis)** — `FileProperties::clone()`
+  drops `short_name` on the hard-link fan-out (cr_node.cpp:49-80 vs the
+  og's whole-block clone contract; the fan-out at cr_mftwalk.cpp:981-992)
+  — cloned links lose the 8.3 axis in the session records. The
+  part1-census sibling register I-047 (the +0x80 format/icon-ID constant
+  family, acknowledged-at-filing) landed in findings/FIXED/.
+- **The ifileproperties-part1 under-cited flag discharged:** the full
+  census (51 MATCH / 13 DIVERGENT (15 of 17 non-MATCH trail-owned) /
+  4 ABSENT / 7 N-A) at `evidence/s50-ifileproperties-part1-census.md` —
+  the four module rows' "under-cited (x1)" note is closed by disposition.
+
+---
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+Addenda filed on existing findings: **M-126 +S54** (the ETA budget seed decoded:
+`total_bytes/60 MiB + 60 s` at DRWUI:315150 — the fix plan gains the seed step),
+**N-178 +S54** (the og's engine-pause type gate: +0xD8 != 1 skips engine pause —
+the core's all-stage pause is a superset to register or align), **N-186 +S54**
+(the scope correction: the persistence half landed as the N-066 v4 tail BEFORE the
+finding's pin — the live remainder is the VolumeSessionInfo mirror gap; the
+parity-table row here owes the narrowed-scope correction). Verified-MATCH this
+session: the .rsf field families re-walked against the persistence layer (the
+state/persistence surface corroborated — no NEW divergence beyond the filed set:
+the I-041/42/43 registers, S-057, N-090, the D-122 family all stand), the
+checkpoint/save-trigger set, and the load path's v1..v5 tolerance ladder.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the persistence deep dive)
+
+New on this module: **N-203** (the resume round-trip drops the candidate
+data-area extent — the save/load pair never carries
+data_start_lba/data_sector_count; the fix plan proposes the PartitionContext
+v4 tail + the revalidate scratch-enrichment for pre-v4 sessions). The .dat
+lifecycle register **I-046** records the og's persistence-owner truth for the
+parity tables (per-process-generation cache, not a knowledge base). The
+battery re-confirmed the standing session-family findings (N-090, N-131, the
+I-041/42/43 registers) at the `1fccb0a4` pin — all convergent with the S54
+lane's own battery.

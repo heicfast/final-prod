@@ -115,8 +115,19 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *  - Stage transitions fire in scan order, exactly once each. Progress
  *    samples fire when the overall permille advances (coalesced, <= 1000
  *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
- *    samples (the engines do not publish per-file increments); the
+ *    samples (the engines do not publish per-file increments) - but the
+ *    ScanProgress samples carry LIVE-refreshed counters (N-166: the
+ *    attach-time tree counter's delta over the boundary total is
+ *    attributed to the active stage's counter, so mid-stage counts MOVE
+ *    like the og's ~2 s grid cadence; the boundary stamps stay the
+ *    authoritative close-of-stage sample); the
  *    error-map delta carries the newest appended range plus the
+ *    per scan plus stage flips). Files/carved counters on events are
+ *    LIVE-REFRESHED from the tree's atomic attach counters (N-166: they
+ *    move mid-stage, monotonically; the og's "Files Found" parity) —
+ *    deleted_found stays a STAGE-BOUNDARY sample (the engines assign
+ *    the deleted-state after the attach); the error-map delta carries
+ *    the newest appended range plus the
  *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
  *    events fire per discovered candidate (deep stage, whole-disk scans).
  *  - Unknown `type` values MUST be ignored by consumers (forward compat). */
@@ -252,7 +263,13 @@ struct ScanConfig {
      * on-disk label > image stem). An explicit --label or a live-volume
      * GetVolumeInformationW label is NOT derived (the OS label IS the
      * on-disk label for mounted volumes) and is never replaced. */
-    char volume_label[32] = {0};
+    /* N-090: the host label channel at the og's record-2
+     * volumeName[100] width (strncpy(...,99)) - a host-supplied label
+     * up to 99 UTF-8 bytes persists complete (the v6 record tail); the
+     * engine-decoded on-disk labels are inherently <= 32 bytes (the
+     * per-family decoders' own caps - FAT/exFAT 11, ext4 16, NTFS 32
+     * ASCII-substituted), so this width serves the host channel. */
+    char volume_label[100] = {0};
 
     /* S-048 (diff-to-fix): the scan target volume's drive letter
      * (UPPERCASE, 0 = absent) - the og's carve-tree volume grouping names
@@ -502,6 +519,14 @@ struct ScanStats {
      * volumes. Diagnostic only; the table's own field carries the same
      * count for the parse that fed this scan. */
     u32 gpt_invalid_entries = 0;
+    /* N-167: the found-size truth - the total logical size of every file
+     * the scan attached to the tree (stamped from ResultTree::total_logical
+     * at every stage-boundary count refresh and at completion; distinct
+     * from bytes_scanned, which is I/O truth - carve-true bytes read -
+     * never claimed coverage). The og's completion headline renders
+     * "Files Found: N (X GB)" from exactly this aggregate
+     * (dynamic-ground-truth--scan-phase-captured.md:125). */
+    u64 bytes_found = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -532,6 +557,14 @@ struct ScanTelemetrySnapshot {
     u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
+    /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
+     * from (overall_permille, elapsed_ms) through the whole-run leg
+     * with the EMA-smoothed rate carried between snapshots; -1 = no
+     * estimate yet (the parameter-error or eta<=0 class). Hosts render
+     * og-faithful labels with query::eta_format_m_s + the countdown
+     * pair, no state of their own. */
+    long long eta_seconds = -1;
+    u64 eta_smoothed_rate = 0;
     bool paused = false;
     bool running = false;
     bool cancelled = false;
@@ -707,6 +740,7 @@ private:
         std::chrono::steady_clock::time_point run_t0{};
         std::chrono::steady_clock::time_point stage_t0{};
         u64 stage_pause_base = 0; /* run-wide paused_ms() at stage start */
+        u64 eta_prev_rate = 0;    /* M-126: the EMA state between snapshots */
     };
     /* Engine->stage progress bridge context (raw fn-pointer trampoline). */
     struct StageBridge {
@@ -721,7 +755,11 @@ private:
     void tel_stage_begin_(u32 stage, const CancelToken* cancel);
     void tel_stage_end_(u32 stage, const CancelToken* cancel);
     void tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units, const CancelToken* cancel);
+    void tel_counts_(ScanStats& stats, const CancelToken* cancel);
     void tel_counts_(const ScanStats& stats, const CancelToken* cancel);
+    /* N-166: live-refresh the files/carved counters from the tree's
+     * attach atomics (monotonic; boundary stamps stay authoritative) */
+    void refresh_live_counts_() const;
     /* Post-stamp overall permille (monotonic truth) for the boundary
      * progress calls - NEVER a hardcoded weighted() guess, which could
      * regress below what the bridge already forwarded mid-stage. */

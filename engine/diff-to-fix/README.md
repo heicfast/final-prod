@@ -1,5 +1,88 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-55 S55 lane (2026-10-29 — the SIXTH continuation audit lane of the same
+user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining,
+the user's named focus areas: sector numbers / scanning / accurate detection /
+calculation / no stuck or freeze / local database / state management; the
+liveness battery pinned at core `1fccb0a4` with the filings verified at
+`9633d94f` (HEAD at filing), corpus `be0cfe9`):** the convergent liveness
+battery (69 active checked — 62 STILL / 3 PARTIAL / 2 FALSELY-ACTIVE
+[N-142-rsf=N-186-retired, convergent with S50; I-035 listing-stale] / zero
+phantom-fixed; OQ-S42-1/2 resolved-in-substance, convergent) + the
+local-database deep dive (**N-203** the resume round-trip drops the candidate
+data-area extent; **I-046** the lostpart.dat/partinfo.dat lifecycle register —
+a per-process-generation cache with the first-search delete latch and the
+scan-position-granular marker-restore resume, NOT a cross-session knowledge
+base) + the scan/sector-math deep dive (**N-204** the og's engine-layer carve
+buffer geometry decoded — 4 MiB blocks / 8 MiB double buffer / half-buffer
+look-back; **N-206** the device sector-count ceil-vs-floor; the
+no-stuck-or-freeze clean bill — every core walker carries explicit caps, the
+og's own Btrfs recursion has no visited set) + the grading deep dive (**N-205**
+the rawCount population semantics + the M-134 resolution's phantom
+`raw_tail_zero` claim; **OQ-S42-3 CLOSED** — the flag-setter origins and
+vt+0xb8/vt+0x100 semantics decoded, the 0xa8-producer no-writer-found residual
+registered). Evidence: `evidence/s55-lane-sheets/` (5 agent context sheets) +
+`evidence/s55-liveness.md`. Board at filing: 60 active — 5 SEVERE · 24 MAJOR ·
+30 MINOR · 1 INFO / 121 FIXED / 4 tracked-open. Next free IDs: S-067+, M-148+,
+N-207+, I-047+, A-015+. The audited commit for every S55 finding is
+`9633d94f`; the battery's pin is `1fccb0a4` (recorded per-finding in the
+evidence sheets).
+
+**Session-50 S50 lane (2026-10-29 — the FOURTH continuation audit lane of the same
+user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining;
+audited core pinned at `93461483` (code-identical to `0d7b1d9d`) with the new
+filings re-verified at `34d6cf10` (HEAD at filing), corpus `be0cfe9`):** the
+**74-finding liveness battery** (every then-active finding re-verified first-hand —
+63 LIVE / 6 PARTIAL / **1 falsely-active: N-186 retired** (the N-142 seat's SA-9
+renumber; a false-active duplicate of N-066's `4d3f0409` landing, the finding's own
+"grep-verified" claim false at its own pin) / 5 CANNOT-VERIFY (driver-repo) / 4
+REGISTER-STANDS — zero phantom-fixed; the post-pin fix-wave convergent, per the
+S42-C precedent); the **tracked-open probes executed** — OQ-S42-3 RESOLVED (the
+grading deep-read sub-gates G0-G6 fully decoded, feeding M-134's fix plan), and
+OQ-S42-1/OQ-S42-2 independently re-decoded CONVERGENT with the winning lanes
+(SI-preferred/FN-fallback; the nsec fold — the corroboration evidence +
+the two benign-hardening nuances registered); the **25-landing corpus-parity
+sweep** (the regression watch on the fix lanes' own newest code: 17 PARITY /
+**3 DIVERGENCE -> filed S-062 + M-139 + M-140** / 5 LIGHT-CHECK-OK); the
+**ifileproperties-part1 full census** (the four module rows' under-cited flag
+discharged; the clone() short_name drop filed N-192; the +0x80 constant family
+registered I-047); plus N-189 (the DXF canonical gate), N-190 (the EXIF 39-char
+cap), N-191 (the PARITY-DELTAS D-118 collision). Evidence:
+`evidence/s50-liveness-battery.md` + `evidence/executions/s50-landing-parity-sweep.md`
++ the three decompiled-quotes sheets. **Read-only guarantee: this lane's delta =
+diff-to-fix/ + worklog* only.**
+
+**Rebase reconciliation (mid-push):** the S52 lane's M-134 landing
+(`290e9c16`) rode the same FUN_14038c470 decode this lane's OQ-S42-3 probe
+produced — convergent (their fix + this lane's evidence sheet; the OQ's
+remaining scope narrowed to the +0x72/+0x74 flag-setter origins). Board at
+the pushed tree: **45 active (5 SEVERE · 19 MAJOR · 21 MINOR · 0 INFO) /
+107 FIXED / 5 tracked-open.**
+
+---
+
+**Session-54 S54 lane (2026-10-29 — the fifth continuation lane of the user's
+second-session mandate; opened `55e88af0`, renumbered from S52 per SA-9, findings
+lead-verified and filed at core `34d6cf10`, corpus `be0cfe9`):** the liveness
+battery (66 active → 55 LIVE / 5 PARTIAL / 6 UNCERTAIN / 1 falsely-active
+N-142→N-186 scope-corrected; the hot window's 26 retirements absorbed) + the focus
+deep dives on the user's named parameters (sector math / scanning / detection
+validators / calculations / hang safety / persistence / state) + 20 new filings
+(**S-063..S-066** SEVERE [the exFAT base−12 re-base renumbered S-062→S-066 at the
+push-rebase per SA-9 — the remote's S-062 pushed first]: the exFAT base−12 re-base,
+the NTFS $MFTMirr bootstrap fallback, the FAT string-vs-bracket flavor, the ext4
+unbounded ladder; **M-138, M-141..M-144 + M-145/M-146** [the 55AA and probe-family
+findings renumbered M-139/M-140→M-145/M-146 at the same rebase]
+MAJOR: the NTFS open-ladder acceptance-band family, the HFS+ wrong-field validator,
+the ext4 journal inode-image + volume caps; **N-187, N-188, N-193..N-195 + N-196..N-199** MINOR [the last four renumbered
+N-189..N-192→N-196..N-199 at the same rebase]; **I-045** INFO)
++ 3 addenda (M-126's ETA seed, N-178's pause type-gate, N-186's scope correction)
++ 4 corpus-errata rows. Every filing's evidence: `evidence/decompiled-quotes/s54-finding-quote-pack.md`
++ the six context sheets `evidence/s54-*.md`. **Board at the rebase-absorbed close: 65 active (0 ACUTE · 8 SEVERE · 26 MAJOR ·
+30 MINOR · 1 INFO) / 109 FIXED / 5 tracked-open. Next free: S-067+, M-147+,
+N-200+, I-046+, A-015+.** The audited commit for every S54 finding is
+`34d6cf10`; the session record and handoff are in `worklog.md` (S54 entries).
+
 **ID-allocation convention (N-160 item 5, enforced by `tools/doc_truth_gate.py` in CI):**
 a next-free-ID check must run against the FIXED-LEDGER's resolved rows AND the
 in-flight parallel lanes' claims, never the active board alone — the S41 lane's
