@@ -1,4 +1,4 @@
-# MINOR N-231 — the win_syntax_check gate's gtest-include discovery misses the flat build layout: the N-228 test-file section hard-fails on a direct `cmake build/` configure (`build/_deps/...`), while the gate only globs preset subdirectories (`build/*/_deps/...`)
+# MINOR N-232 (renumbered from N-231 at the collision repair per SA-9: b4bb09f6's earlier push holds N-231) — the win_syntax_check gate's gtest-include discovery misses the flat build layout: the N-228 test-file section hard-fails on a direct `cmake build/` configure (`build/_deps/...`), while the gate only globs preset subdirectories (`build/*/_deps/...`)
 
 **Severity:** MINOR (a gate false-red on a legitimate build layout — the gate that exists to catch pushed-red was itself red on a healthy tree; the inverse of N-116's missing-stub class)
 **Module / Surface:** CI / the M-055 win-layer parse gate (tools/win_syntax_check.sh, the N-228 test-file section)

@@ -217,8 +217,9 @@ TTFR dispatch attempt.
   to the S87-continuation form, no coverage lost. **M-107 now has ONE
   member remaining: SWF-RECT** (+ the DWG gen-3 recorded remainder).
 
-- **N-231 FIXED (MINOR, NEW — the gate false-red at the post-landing
-  verification):** the win_syntax_check gate's N-228 test-file section
+- **N-232 FIXED (MINOR, NEW — the gate false-red at the post-landing
+  verification; renumbered from the born-collided N-231 at the collision
+  repair — b4bb09f6's earlier push holds N-231):** the win_syntax_check gate's N-228 test-file section
   discovered the gtest include only under the preset layout
   (`build/*/_deps/...`); a direct `cmake -B build` configure (this
   lane's own layout) drops FetchContent at `build/_deps/...` — the
