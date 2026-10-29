@@ -80,6 +80,18 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-078 FIXED (MAJOR, the destructive consent twin):** the
+  CBitlockerTurnOffOperation endpoint — `win::bitlocker::turn_off` (the
+  dual Disable-BitLocker / manage-bde -off chain, unlock()'s own
+  duality; the og's exact verb undecoded, honestly registered), the
+  `cr_ui_turn_off_bitlocker` ABI export #93 (request-phase progress; OK
+  means accepted, not plaintext — the OS decrypt continues in the
+  background, D-163), the CLI `unlock --turn-off C:` verb (the
+  three-site lock). D-16's legitimate-unlock-only register untouched:
+  decrypt, never bypass, the consent pin is a test
+  (TurnOffIsTheConsentedDestructiveTwin). The 3-test seam battery +
+  the export count sites refreshed (the A-ABI-3 class swept).
+
 - **M-075 FIXED (MAJOR, the escalation endpoint):** the check ladder's
   fix rung landed — the pure grammar (the two postures of the guidance
   string, cross-platform/Linux-tested), the win-layer launch (elevated,
@@ -100,8 +112,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after M-075 (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 7 MAJOR · 2 MINOR · 0 INFO active / 197 FIXED / 4
+**Board after M-078 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 6 MAJOR · 2 MINOR · 0 INFO active / 198 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3

@@ -5058,3 +5058,37 @@ static u32 fsck_volume_impl(char letter, uint32_t flags, int32_t* exit_code) {
 extern "C" CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code) {
     return guarded(fsck_volume_impl, letter, flags, exit_code);
 }
+
+/* ---- M-078: the CBitlockerTurnOffOperation endpoint (the consented
+ * destructive twin of the unlock surface). The progress callback marks
+ * the REQUEST phases (start + the settled command) - the OS decrypt
+ * percentage is not observable through this surface (the honest
+ * contract; the og's pending-op queue is UI-layer chrome over the same
+ * verbs). Nothing in the scan/open path calls this - explicit host
+ * opt-in only. */
+static u32 turn_off_bitlocker_impl(char letter, cr_ui_progress_fn progress, void* user) {
+#ifdef _WIN32
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    if (progress)
+        progress(user, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0, 0, 0); /* request start */
+    const u32 rc = win::bitlocker::turn_off(wchar_t(lc));
+    if (progress)
+        progress(user, 0xFFFFFFFFu, rc == OK ? 1000u : 0u, 0xFFFFFFFFu, 0, 0, 0); /* settled */
+    if (rc != OK)
+        return ret_(rc, "turn-off refused: both command forms failed (the volume stays "
+                        "locked/encrypted - never a silent success)");
+    return OK;
+#else
+    (void)letter;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_turn_off_bitlocker requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_turn_off_bitlocker(char letter, cr_ui_progress_fn progress,
+                                                       void* user) {
+    return guarded(turn_off_bitlocker_impl, letter, progress, user);
+}

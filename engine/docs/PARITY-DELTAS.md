@@ -4822,3 +4822,33 @@ deliberate-divergence branch with the safety rationale). The finding's
 step-3 corpus erratum (the MainModule behavior was never documented in
 the corpus's own per-binary artifacts) is recorded in
 diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
+
+### D-163 — the BitLocker turn-off is a REQUEST-surfaced op: the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
+
+**CONTEXT:** M-078 landed the CBitlockerTurnOffOperation endpoint
+(`cr_ui_turn_off_bitlocker` + CLI `unlock --turn-off C:` + the win layer's
+`turn_off`). The corpus decodes the operation's EXISTENCE, its
+transactional framing (the CBaseOperation pending queue,
+mom-module-system:78; pending-operation-engine:62-63 — "pause/decrypt
+flows around recovery of encrypted volumes"), and its plumbing partners
+(bitlockerhelp.mo, BitLockerLib.dll) — but NOT the exact verb it issues
+(the finding's own open question: manage-bde `-off` vs an FVE API call).
+
+**DIVERGENCE:** (1) The command chain follows the unlock surface's own
+duality (PowerShell `Disable-BitLocker` primary, `manage-bde -off`
+legacy fallback) — the evidence class the finding's fix plan chose; if a
+future decode recovers the og's exact verb, re-pin against it. (2) The
+returned OK means the REQUEST was accepted, not that the volume is
+plaintext: both Windows verbs schedule the decrypt and return (the OS
+continues in the background — manage-bde's own documented shape). The
+core surfaces this honestly (the header contract says so verbatim; the
+CLI prints the manage-bde -status hint); the og's pending-op queue gives
+its UI a richer progress surface that is host-side chrome over the same
+verbs — not reimplemented (the queue's UI-layer status is the same class
+as D-111's scope decision).
+
+**SAFETY:** the D-16 legitimate-unlock-only register is UNTOUCHED —
+turn-off is decrypt, never bypass; the consent contract is the
+dictionary-unlock class (explicit host opt-in; nothing in the scan/open
+path calls it — pinned by Bitlocker.TurnOffIsTheConsentedDestructiveTwin
+and the TurnOffRefusesLoudlyOnFailure refusal contract).

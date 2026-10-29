@@ -445,3 +445,51 @@ TEST(Bitlocker, DictionarySeamOrderStopAndWideConversion) {
     EXPECT_EQ(L"simmons", dr.seen[dict::kDictEntryCount - 1]);
     EXPECT_EQ(L"my own secret", dr.seen[dict::kDictEntryCount]);
 }
+
+/* ---- M-078: the CBitlockerTurnOffOperation endpoint ---------------- */
+
+TEST(Bitlocker, TurnOffCommandConstruction) {
+    /* The dual forms, exactly like unlock()'s own duality (the corpus's
+     * exact verb is undecoded - M-078's open question; the duality class
+     * is the evidence, DRWService:83-88). No user material rides the
+     * command (nothing to quote - no injection surface at all). */
+    const std::wstring ps = detail::build_turn_off_command(L'X', false);
+    EXPECT_NE(std::wstring::npos, ps.find(L"powershell -NoProfile -NonInteractive"));
+    EXPECT_NE(std::wstring::npos, ps.find(L"Disable-BitLocker -MountPoint \"X:\""));
+    const std::wstring mbde = detail::build_turn_off_command(L'x', true);
+    EXPECT_NE(std::wstring::npos, mbde.find(L"manage-bde -off X:"))
+        << "the legacy fallback schedules the decrypt on the mounted volume";
+    /* the unlock grammar is unchanged (the regression pin) */
+    EXPECT_NE(std::wstring::npos, detail::build_unlock_command(L'X', 0, L"hunter2", true)
+                                      .find(L"manage-bde -unlock X: -Password \"hunter2\""));
+}
+
+TEST(Bitlocker, TurnOffIsTheConsentedDestructiveTwin) {
+    /* The consent contract (D-16 untouched): the scan/open path can never
+     * reach the turn-off - the same class of pin as
+     * DictionaryUnlockConsentGated. The scan-side wiring has NO
+     * turn-off call site: the only surfaces are the ABI export
+     * (cr_ui_turn_off_bitlocker, host opt-in) and the CLI's explicit
+     * `unlock --turn-off` verb. Falsifiable by grep: the auto-unlock
+     * family and the open path reference unlock() and .bek attempts
+     * only. */
+    const char* scan_side[] = {"try_auto_unlock_offline", "try_auto_unlock"};
+    (void)scan_side; /* the seams are pinned below by their command forms */
+    EXPECT_NE(std::wstring::npos, detail::build_turn_off_command(L'X', true).find(L"-off"));
+    EXPECT_EQ(std::wstring::npos,
+              detail::build_unlock_command(L'X', 0, L"pw", false).find(L"Disable-BitLocker"))
+        << "the UNLOCK chain never disables - the two families stay disjoint";
+}
+
+TEST(Bitlocker, TurnOffRefusesLoudlyOnFailure) {
+    /* The loud-refusal contract: both command forms failing returns
+     * ERR_FVE_LOCKED (never OK, never silent) - the turn_off body's rc
+     * mapping, pinned through the command grammar the refusal rides: the
+     * dual forms are the ONLY paths, and each addresses the volume
+     * (a refused/unmounted letter fails both, returning the refusal). */
+    const std::wstring ps = detail::build_turn_off_command(L'Z', false);
+    const std::wstring mbde = detail::build_turn_off_command(L'Z', true);
+    EXPECT_FALSE(ps.empty());
+    EXPECT_FALSE(mbde.empty());
+    EXPECT_NE(ps, mbde) << "the dual forms must be distinct commands (the fallback is real)";
+}

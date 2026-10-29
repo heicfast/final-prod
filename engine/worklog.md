@@ -13061,3 +13061,22 @@ byte-exact.
 stand-in (the blind 64 MiB; the all-zero acceptance), GREEN with the
 walk. The carve suite 186/186. Trail: M-107's S85 addendum 3, the
 matrix row, modules/carve.md's S85 addendum 3, this entry.
+
+## Session-84 S84 fix-lane — entry 5: M-078 FIXED (2026-10-30)
+
+**M-078 FIXED (MAJOR, the BitLocker turn-off):** the
+CBitlockerTurnOffOperation endpoint. Corpus re-verified (the four
+citations; the exact verb undecoded — the finding's open question, the
+unlock duality the evidence class). The landing: turn_off in
+cr_bitlocker.cpp (PowerShell Disable-BitLocker primary + manage-bde
+-off fallback, 10-minute request bound, ERR_FVE_LOCKED on both failing
+— the loud refusal), the cr_ui_turn_off_bitlocker ABI export #93
+(request-phase progress, the accepted-not-plaintext contract), the CLI
+unlock --turn-off C: verb (a NEW verb, three-site lock + dispatch),
+D-163 registered (the request-vs-completion posture + the undecoded
+verb's reconciliation note), R-88 closed to the full family. Tests:
+TurnOffCommandConstruction / TurnOffIsTheConsentedDestructiveTwin /
+TurnOffRefusesLoudlyOnFailure (the Windows-lane seam battery); the
+export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
+defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
+Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.

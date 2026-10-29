@@ -93,8 +93,8 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 92 exported functions in the current header (the
-count re-derived 2026-10-30, the M-075 lane: 95 `CR_UI_API`
+append-only-flat-C: 93 exported functions in the current header (the
+count re-derived 2026-10-30, the M-075 lane: 96 `CR_UI_API`
 lines minus 3 `#define` macros; CI-guarded by the doc_truth_gate count
 invariants), all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
