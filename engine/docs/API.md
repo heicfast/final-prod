@@ -64,6 +64,7 @@ present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
 | 2 | recover: partial — item errors or hash mismatch in the write set; apply/fix: open/plan/execute/undo failure; bench: open/read failure or zero hits |
 | 3 | scan cancelled (session saved when --out was given) / health: every source unavailable |
 | 4 | the DRIVER prerequisite is not met — scan/recover/fix/apply/bench refuse before any other output with the ERR_DRIVER_* class on stderr (docs/DRIVER-REQUIRED.md) |
+| 5 | scan only: the target device disconnected mid-scan (N-125) — distinct from failure (1) and cancel (3); with `--out` the session checkpoint resumes after reattach |
 
 Every command logs stage timings, per-stage counts and error maps
 (`--log`). `scan --json` emits the run summary machine-readably;

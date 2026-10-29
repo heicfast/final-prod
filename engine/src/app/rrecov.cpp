@@ -47,7 +47,10 @@
  *                                         keeps '<out>.partial' (S-040)
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
- * was given); list 1 on enumeration failure; list-carve-formats 1 on the
+ * was given) / 5 the target disconnected mid-scan (N-125: distinct from
+ * failure and cancel - the reattach-then-resume contract, the checkpoint
+ * from --out resumes after the device returns); list 1 on enumeration
+ * failure; list-carve-formats 1 on the
  * empty registry; sessions 1 on enumeration failure (unreadable files are
  * per-row data, never a failure); health 3 when every health source is
  * unavailable;
