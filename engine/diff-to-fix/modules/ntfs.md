@@ -714,3 +714,18 @@ become reachable. **B2/B6/A26: MATCH.** Tests:
 TruncatedRunlistGrowsToValidRecords / RunGrowthStopsAtFirstInvalidRecord /
 IntactRunlistUnchangedByGrowthPass (RED->GREEN); the three adjacent
 re-pins documented in the Resolution; NTFS family 95/95.
+
+
+## Session-86 update — OQ-S79-1 RESOLVED (the $LogFile dead-machinery register; 2026-10-30)
+
+The follow-the-data decode completed (this session, every probe
+first-hand): the og's $LogFile walk is DEAD in the scan path — the
+driver FUN_18001d460 discards its own out-params, frees the staged
+buffer, and its success flag is written (:756) and cloned (:40405) but
+never read; the per-record handler's chkdntfs recovery tables (the
+transaction table, the 0x16/0x15-pair table, the page table with the
+(sector_size²>>10)·*(int*)(rec+0x48) computation, the client-id maps)
+have no post-open querier. No emission site exists anywhere (candidates
+1/3 REFUTED; 2 CONFIRMED-stronger). The register filed as I-049
+(ACKNOWLEDGED — the core's zero counterpart is the correct deliberate
+non-adoption); the OQ retired to findings/FIXED/.

@@ -210,3 +210,19 @@ never persists key material, the safer posture, now stated).
   (evidence/s42c-diskhealth-walk.md). M-076's retirement by the window (4bd5ee7a) leaves the module with NO active divergence. No core code changes proposed. The remote S12 lane's I-035
   "DiskHealth resident shell" row is the shallow complement this walk supersedes
   in depth.
+
+## Session-86 update — the F61 lane's ACL diagnosis (M-105 option (a) landed; 2026-10-30)
+
+The F61 parameter's harvest half gains the og's service-equivalent
+diagnosis: the locked-volume path's failure now distinguishes "no keys
+configured" (ERR_FVE_LOCKED) from "the store exists but this token
+cannot read it" (the new ERR_FVE_ELEVATION_REQUIRED, 0x50060002) via
+the cr_elevate TokenElevation probe — the pure rule in
+include/cr/health/cr_fve_policy.h (health::fve_denial_diagnosis, the
+M-075 cr_fsck_launch pattern), wired through try_auto_unlock's
+live-open capture (ERROR_ACCESS_DENIED vs FILE_NOT_FOUND) and
+try_auto_unlock_offline's hive-file open capture. The legitimate-
+unlock-only stance (D-16) is untouched: no decryption, no bypass; the
+diagnosis is a REPORTED error, not an unlock. F61's harvest half:
+MATCH (the og's service bridge → the core's elevation claim, the
+D-166 registered posture).

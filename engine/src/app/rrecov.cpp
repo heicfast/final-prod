@@ -147,6 +147,21 @@ std::string narrow(const std::wstring& s) {
     return n;
 }
 
+/* N-145 journal paths: byte-truncating wide->narrow. This is the EXACT
+ * semantics of the std::string(begin, end) range construction it replaces
+ * (each wchar_t's low byte, same order) - kept as its own helper because
+ * narrow() maps >=0x80 to '?', which would change the journal file name for
+ * non-ASCII paths. The per-element explicit char(c) makes the narrowing
+ * intentional so MSVC /W4 C4244 has no implicit site inside xutility's
+ * copy template (the range ctor's instantiation point). */
+std::string narrow_bytes(const std::wstring& s) {
+    std::string n;
+    n.reserve(s.size());
+    for (wchar_t c : s)
+        n.push_back(char(c));
+    return n;
+}
+
 /* stdout progress line: "\r  42.1% | quick 100% deep 12% carve 0%" */
 struct ProgressDisplay {
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -3370,7 +3385,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
      * trace, not a correctness mechanism. */
     std::wstring journal_w =
         in_path.empty() ? L"rrecov-apply-inflight.jrn" : in_path + L".inflight";
-    std::string journal_path(journal_w.begin(), journal_w.end());
+    std::string journal_path = narrow_bytes(journal_w);
     char disk_identity[96];
     std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
     {
@@ -3707,7 +3722,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         /* N-145: the undo is an in-flight write op too - journaled beside
          * the undo log the same way apply journals beside the session */
         std::wstring journal_w = undo_apply_path + L".inflight";
-        std::string journal_path(journal_w.begin(), journal_w.end());
+        std::string journal_path = narrow_bytes(journal_w);
         char disk_identity[96];
         std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
         (void)apply::inflight_begin(journal_path.c_str(), disk_identity);

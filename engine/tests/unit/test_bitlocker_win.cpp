@@ -493,3 +493,25 @@ TEST(Bitlocker, TurnOffRefusesLoudlyOnFailure) {
     EXPECT_FALSE(mbde.empty());
     EXPECT_NE(ps, mbde) << "the dual forms must be distinct commands (the fallback is real)";
 }
+
+/* ---- M-105 option (a): the FVE denial diagnosis (the no-service
+ * posture - the K71-K73 DRWService slice's registered divergence) ---- */
+
+TEST(Bitlocker, FveDiagnosisDistinguishesDenialFromAbsence) {
+    /* The ACL diagnosis (M-105): "no keys configured" vs "the store
+     * exists but this token cannot read it". Through the offline entry
+     * point: a MISSING hive (ERROR_FILE_NOT_FOUND / PATH_NOT_FOUND -
+     * both != ACCESS_DENIED) and a PRESENT-but-garbage hive (the read
+     * succeeded, the validation refused) both stay the loud
+     * ERR_FVE_LOCKED refusal - never a false elevation claim. The
+     * present-file-ACCESS_DENIED arm (the elevation claim,
+     * ERR_FVE_ELEVATION_REQUIRED) is pinned on both lanes by the pure
+     * rule (test_fve_policy.cpp); a live ACL-denial fixture is a
+     * Windows-lab artifact (a deny-ACL file is flaky on CI runners) -
+     * recorded here, not simulated. */
+    EXPECT_EQ(ERR_FVE_LOCKED,
+              try_auto_unlock_offline(L'Z', L"C:\\nonexistent-dir-91b4\\config\\SYSTEM"));
+    const std::wstring junk = temp_hive_file(std::vector<u8>(0x2000, 0xAB));
+    EXPECT_EQ(ERR_FVE_LOCKED, try_auto_unlock_offline(L'Z', junk.c_str()));
+    DeleteFileW(junk.c_str());
+}

@@ -34,6 +34,18 @@ elevation is required to install the kernel service. The engine
 accesses raw devices under the caller's own privileges and never
 modifies the driver's ACLs.
 
+## No persistent service (M-105, the no-service posture)
+
+The core never installs a persistent service and never persists key
+material. The og ships a transient LocalSystem SCM service
+("Read FVE Server", `DRWService.exe`) so a non-elevated host can read
+the SYSTEM-ACL'd FVEAutoUnlock store, and persists the harvested keys
+as plaintext `auto.txt`; the core reads the same store in-process
+under the caller's own token and, when that token cannot read it,
+surfaces the honest diagnosis (`ERR_FVE_ELEVATION_REQUIRED`) instead
+of bridging the ACL. No SCM create/start/stop/delete code exists
+anywhere in the core (PARITY-DELTAS D-166).
+
 ## Supported floor
 
 Every shipped PE loads on **Windows 7 SP1** — enforced in CI by the
