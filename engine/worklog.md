@@ -9263,3 +9263,16 @@ Refs.RecognitionRequiresFsrsMarker RED (forged OEM dispatched Refs) ->
 GREEN (Unknown); Refs 41/41; lost/ldm/probe 153/153. Trail: FIXED finding
 + Resolution, ledger row, matrix MATCH cell (row 23), refs.md +
 orchestration.md verdicts, SUMMARY block, this entry.
+
+---
+
+## Session-60 lane open — the diff-to-fix execution lane, MINOR-first per the user directive (2026-10-29)
+
+Opened at core `98a5b139`, corpus `be0cfe9`. Baseline recorded: suite 1338/0-fail
+(linux-release), doc_truth_gate green (52 active / 133 retired / 389 ledger-resolved /
+135 unique D-rows). Board at open (filesystem truth): 1 SEVERE (S-040) · 23 MAJOR ·
+22 MINOR · 2 INFO active, 136 FIXED files, 4 tracked-open. The mandate is saved
+token-redacted at `worklog/session-60-diff-to-fix-prompt.md`. Order: the 22 MINOR
+findings first (the user's explicit priority), then INFO acks, then MAJOR-tier as
+time permits; N-107/N-127's fix surfaces live in the driver repo (out of the
+two-repo grant) — disposition notes to be recorded honestly rather than fake-fixed.
