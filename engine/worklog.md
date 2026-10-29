@@ -12376,3 +12376,21 @@ tracked-open** (M-086/M-087/M-089 + N-107/N-127 driver-repo-resident
 per OQ-S10-3). Next: the MAJOR queue — M-075 (chkdsk), M-078
 (BitLocker), M-101 (tree branches), M-105 (DRWService), then M-107's
 remaining members, then the OQ items.
+
+## Session-84 S84 fix-lane — entry 3: the gate repair rider (2026-10-29)
+
+**The doc_truth_gate was RED at this lane's own push** (two gates, both
+repaired in this rider): (1) an orphan `>>>>>>>` marker this lane's own
+N-221 rebase-resolution left in FIXED-LEDGER.md (the script's non-greedy
+regex consumed only the first of two overlapping regions — the exact
+M-120 class this lane had just filed N-221 about; the lesson absorbed
+literally: ci-local.sh runs before EVERY push now); (2) the N-219 seat
+claimed by two retired files (the M-117 collision class — the S85 lane's
+f18ba226 filing at 16:23 vs a convergent lane's 15c59ee7 filing at
+17:11). Resolution: the first N-219 keeps the seat (per SA-9); the
+later file renumbers to N-222 with the renumber note inside (the M-153
+precedent); the ledger's two rows rebuilt to describe their own files
+(N-219 = the S85 seat; N-222 = the convergent filing's trail-file
+contributions); the gate GREEN post-repair. The N-221 finding's own
+lesson line now reads both ways: the exit code is the truth, and the
+gate list is not optional.

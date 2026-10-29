@@ -1,4 +1,13 @@
-# MINOR N-219 — committed conflict markers survive the M-151 landing: main is RED (the M-120/N-210/N-217 class, fourth recurrence) — the A-016 test and all four M-151 tests were committed inside live conflict hunks
+# MINOR N-222 (RENUMBERED from the born-collided N-219 seat — the second N-219 file; the M-117 collision class) — committed conflict markers survive the M-151 landing: main is RED (the M-120/N-210/N-217 class, fourth recurrence) — the A-016 test and all four M-151 tests were committed inside live conflict hunks
+
+> **Renumber note:** this finding was drafted as N-219 by a lane that did
+> not see the racing S85 lane's same-window filing (f18ba226, 16:23) —
+> the doc_truth_gate's retired-file ID uniqueness check caught the
+> collision at this lane's push; the first N-219 keeps the seat, this
+> one renumbers to N-222 per the M-153 precedent. The two filings cover
+> the same event (the 27bda40e marker repair) from two convergent
+> repair lanes; the S84 convergence addendum in the first N-219 records
+> the corroboration.
 
 **Severity:** MINOR (board-integrity: a red main blocks every other lane; no recovery-results defect — both sides' content was fully present, only the merge resolution was committed as markers)
 **Module:** tests (test_ntfs_volume.cpp) + audit trail (CROSS-REF-MATRIX.md)
