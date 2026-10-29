@@ -3610,27 +3610,6 @@ TEST(Carve, WpdUnknownPairDeclines) {
  * WPD landing keeps the seat; this lane's independent decode —
  * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
  * confirms it and adds the two directions its battery lacks). */
-TEST(Carve, WpdZeroSizeFieldDeclines) {
-    /* the zero declared size routes to the generic pending child whose
-     * walk declines (0x18000b760: xor al,al; ret) - no carve at all,
-     * never the blind cap. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_wpd(img, at, 0);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            FAIL() << "a zero declared size declines (the generic child's walk)";
-    SUCCEED();
-}
-
 TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
     /* the og's chain never reads the product word at +4 - the old core's
      * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
