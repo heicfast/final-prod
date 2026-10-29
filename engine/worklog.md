@@ -12459,3 +12459,25 @@ battery in full. RED first-hand (the build fails at :5802); GREEN: suite
 clang-format clean; `git config core.hooksPath .githooks` re-asserted (the
 pusher's hook was evidently not installed — the gate would have caught
 this class). Trail: findings/FIXED/N-219 + ledger row + this entry.
+
+## Session 84 — entry 2: the racing window absorbed (M-154/M-111/M-114/I-048/N-178/N-181/CRW all landed by racing lanes; the FIFTH marker recurrence swept)
+
+The rebase at push time surfaced a large racing window: `1d7d31a6` (the
+M-151 marker repair — convergent with this lane's, conceded), `0cf6142d`
+(M-107's CRW member), `af5987d0`+rider (M-154), and `b2bc1970` (I-048
+ACKNOWLEDGED as D-155/D-160/D-161/D-162; M-111 closed by the D-158 scope
+decision; M-114 closed by the D-159 decline; M-154's hardening rider).
+N-178 (--pause-stdin + D-154) and N-181 (the carve-before-deep reorder)
+also landed in the same window per the ledger.
+
+**N-219's convergence + the fifth recurrence:** the racing `b2bc1970`
+committed markers in FIVE audit-trail files (worklog, ledger,
+PARITY-DELTAS ×2, matrix, I-048's Resolution) — swept at this lane's
+rebase with union resolutions (both sides preserved everywhere; the
+D-155-combined + D-160/161/162-split born-collided pair kept per the
+convention; the matrix's M-154 MATCH row kept over the stale DIVERGENCE
+row; the ledger's exact-duplicate rows deduped). The lane's remaining
+queue re-planned against the new board: M-075 (chkdsk launch), M-078
+(BitLocker turn-off), M-101 (Versions + Tags branches), M-105 (DRWService
+option a), M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE →
+EPS → DXF → SWF-RECT), the OQs.
