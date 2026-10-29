@@ -8719,3 +8719,21 @@ TableGatePolarityInTableSkips, DotlessSkipsTwins, TwinAddressFlagsBoth
 pre-fix, 16/16 green post-fix; suite 1311/1311. Trail: findings/FIXED/S-058 +
 ledger row + orchestration.md grading cell + SUMMARY session block + this
 entry. Next: S-059 (the sparse-hole export).
+entry. Next: S-059 (the sparse-hole export).
+
+---
+
+## Session-56 ACUTE-first lane — the hot-window repair batch (2026-10-29)
+
+Three merge artifacts from the S47..S57 windows closed (the M-133/09490fea
+class, found by this lane's post-rebase full-gate discipline — the rule the
+S42 lane registered after 1fb7603b): (1) the grading polarity test's
+fixture/assert splice re-truthed (the merge interleaved two lanes' fixture
+blocks — a/c extension swap + the stray dot-less pair; the asserts' own
+comment reading kept); (2) the N-177 duplicate ext4 TEST renamed to its
+unique behavior (the deleted-inode path); (3) the N-171 validated
+double-increment deduped at the user-sign emission site. Plus this lane's
+earlier win-gate repair (rrecov.cpp's PartitionSlice retype — convergent with
+the S53 lane's N-188; cr_ui.cpp's Level::Warn — this lane's unique half).
+Suite 1392/1392 green, win gate 10/10, format clean. The lane continues down
+the SEVERE queue (S-059 next).
