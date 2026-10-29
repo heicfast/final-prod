@@ -16,7 +16,11 @@
 #include "cr/apply/cr_apply.h"
 #include "cr/cr_error.h"
 #include <atomic>
+#include <cstdio>
 #include <cstring>
+#include <ctime>
+#include <string>
+#include <vector>
 
 namespace cr {
 namespace apply {
@@ -580,6 +584,176 @@ u32 undo_apply(IApplyDevice& dev, const repair::UndoLog& undo) {
      * reported (the bytes ARE restored and verified - the distinct code
      * exists so bytes-truth and OS-view-truth are never conflated). */
     return refresh_tail(dev);
+}
+
+/* ---- N-145: the cross-run in-flight journal ---- */
+
+namespace {
+
+/* parses one "<identity>\t<unix>\n" line; returns false on a malformed
+ * line (skipped silently - a torn line is a crashed crash-trace, the
+ * journal's own tolerance) */
+bool parse_journal_line(const std::string& line, InFlightDisk& out) {
+    const size_t tab = line.find('\t');
+    if (tab == std::string::npos || tab == 0 || tab >= sizeof(out.identity))
+        return false;
+    const std::string ts = line.substr(tab + 1);
+    if (ts.empty())
+        return false;
+    u64 v = 0;
+    for (char c : ts) {
+        if (c < '0' || c > '9')
+            return false;
+        if (v > (~0ull - 9) / 10)
+            return false; /* overflow guard */
+        v = v * 10 + u64(c - '0');
+    }
+    std::memcpy(out.identity, line.c_str(), tab);
+    out.identity[tab] = 0;
+    out.begin_unix = v;
+    return true;
+}
+
+std::vector<InFlightDisk> read_journal(const char* journal_path, u32* err_out) {
+    std::vector<InFlightDisk> recs;
+    *err_out = OK;
+    FILE* f = nullptr;
+#ifdef _WIN32
+    fopen_s(&f, journal_path, "rb");
+#else
+    f = std::fopen(journal_path, "rb");
+#endif
+    if (f == nullptr)
+        return recs; /* missing journal: zero in-flight disks (OK) */
+    std::string acc;
+    int c = 0;
+    while ((c = std::fgetc(f)) != EOF) {
+        if (c == '\n') {
+            InFlightDisk r;
+            if (parse_journal_line(acc, r))
+                recs.push_back(r);
+            acc.clear();
+        } else if (acc.size() < 256) {
+            acc.push_back(char(c));
+        }
+    }
+    if (!acc.empty()) { /* a torn final line: a crash mid-append */
+        InFlightDisk r;
+        if (parse_journal_line(acc, r))
+            recs.push_back(r);
+    }
+    std::fclose(f);
+    return recs;
+}
+
+u32 write_journal(const char* journal_path, const std::vector<InFlightDisk>& recs) {
+    FILE* f = nullptr;
+#ifdef _WIN32
+    fopen_s(&f, journal_path, "wb");
+#else
+    f = std::fopen(journal_path, "wb");
+#endif
+    if (f == nullptr)
+        return ERR_WRITE_FAILED;
+    for (const InFlightDisk& r : recs) {
+        if (std::fputs(r.identity, f) < 0 || std::fputc('\t', f) == EOF) {
+            std::fclose(f);
+            return ERR_WRITE_FAILED;
+        }
+        char buf[24];
+        const u64 v = r.begin_unix;
+        size_t n = 0;
+        if (v == 0)
+            buf[n++] = '0';
+        else
+            for (u64 x = v; x != 0; x /= 10)
+                buf[n++] = char('0' + x % 10);
+        buf[n] = 0;
+        for (size_t i = 0; i < n / 2; ++i) {
+            const char t = buf[i];
+            buf[i] = buf[n - 1 - i];
+            buf[n - 1 - i] = t;
+        }
+        if (std::fputs(buf, f) < 0 || std::fputc('\n', f) == EOF) {
+            std::fclose(f);
+            return ERR_WRITE_FAILED;
+        }
+    }
+    std::fclose(f);
+    return OK;
+}
+
+u64 now_unix() {
+    return u64(std::time(nullptr));
+}
+
+} // namespace
+
+u32 inflight_begin(const char* journal_path, const char* disk_identity) {
+    if (journal_path == nullptr || journal_path[0] == 0 || disk_identity == nullptr ||
+        disk_identity[0] == 0)
+        return ERR_BAD_PARAMETER;
+    const size_t idlen = std::strlen(disk_identity);
+    if (idlen >= sizeof(InFlightDisk::identity))
+        return ERR_BAD_PARAMETER; /* the identity must fit the record */
+    u32 rc = OK;
+    std::vector<InFlightDisk> recs = read_journal(journal_path, &rc);
+    if (rc != OK)
+        return rc;
+    bool refreshed = false;
+    for (InFlightDisk& r : recs) {
+        if (std::strcmp(r.identity, disk_identity) == 0) {
+            r.begin_unix = now_unix(); /* idempotent: refresh the mark */
+            refreshed = true;
+        }
+    }
+    if (!refreshed) {
+        InFlightDisk r;
+        std::memcpy(r.identity, disk_identity, idlen + 1);
+        r.begin_unix = now_unix();
+        recs.push_back(r);
+    }
+    return write_journal(journal_path, recs);
+}
+
+u32 inflight_end(const char* journal_path, const char* disk_identity) {
+    if (journal_path == nullptr || journal_path[0] == 0 || disk_identity == nullptr ||
+        disk_identity[0] == 0)
+        return ERR_BAD_PARAMETER;
+    u32 rc = OK;
+    std::vector<InFlightDisk> recs = read_journal(journal_path, &rc);
+    if (rc != OK)
+        return rc;
+    std::vector<InFlightDisk> kept;
+    kept.reserve(recs.size());
+    bool removed = false;
+    for (const InFlightDisk& r : recs) {
+        if (std::strcmp(r.identity, disk_identity) == 0)
+            removed = true; /* idempotent removal - the op ended */
+        else
+            kept.push_back(r);
+    }
+    if (!removed && recs.empty())
+        return OK; /* no journal at all: nothing to clear */
+    return write_journal(journal_path, kept);
+}
+
+u32 inflight_probe(const char* journal_path, InFlightDisk* out, u32 max_records, u32* found) {
+    if (journal_path == nullptr || found == nullptr ||
+        (out == nullptr && max_records != 0) || (out != nullptr && max_records == 0))
+        return ERR_BAD_PARAMETER;
+    *found = 0;
+    u32 rc = OK;
+    const std::vector<InFlightDisk> recs = read_journal(journal_path, &rc);
+    if (rc != OK)
+        return rc;
+    *found = u32(recs.size());
+    if (max_records == 0)
+        return OK; /* the count-only probe (out == nullptr): never truncated */
+    const u32 n = max_records < u32(recs.size()) ? max_records : u32(recs.size());
+    for (u32 i = 0; i < n; ++i)
+        out[i] = recs[i];
+    return n < u32(recs.size()) ? ERR_TRUNCATED : OK;
 }
 
 } // namespace apply

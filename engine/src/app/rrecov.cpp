@@ -3235,6 +3235,33 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         return 0;
     }
 
+    /* N-145: the cross-run in-flight journal. The og marks the target
+     * disk while a whole-disk repartition op is in flight (rwConfig.ini
+     * pendingMarkedDisk, engine event 0x102d) so the next start can
+     * detect an interrupted apply; the core's CRUNDO01 container is
+     * per-operation. The journal file lives beside the input session
+     * (the og's CWD-relative ini is the registered decline); a journal
+     * failure is a WARNING, never a gate - the journal is a crash
+     * trace, not a correctness mechanism. */
+    std::wstring journal_w = in_path.empty() ? L"rrecov-apply-inflight.jrn"
+                                             : in_path + L".inflight";
+    std::string journal_path(journal_w.begin(), journal_w.end());
+    char disk_identity[96];
+    std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
+    {
+        apply::InFlightDisk marks[8] = {};
+        u32 found = 0;
+        if (apply::inflight_probe(journal_path.c_str(), marks, 8, &found) == OK) {
+            for (u32 m = 0; m < found && m < 8; ++m)
+                if (std::strcmp(marks[m].identity, disk_identity) == 0)
+                    wprintf(L"[apply] WARNING: an earlier apply on disk %u was interrupted "
+                            L"(in flight since unix %llu) - the table may be half-applied; "
+                            L"the undo log / a re-scan will reconcile\n",
+                            disk,
+                            static_cast<unsigned long long>(marks[m].begin_unix));
+        }
+    }
+
     /* execute (consent-gated transactional write) */
     /* the union's apply-capable view: the RW transport carrying the corpus
      * device-control chain (0x7C100/0x7C010/0x7C058/0x70140 + the 3x
@@ -3253,7 +3280,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     ApplyCliCtx ctx;
     ctx.apply = do_apply;
     repair::UndoLog log;
+    if (apply::inflight_begin(journal_path.c_str(), disk_identity) != OK)
+        wprintf(L"[apply] warning: could not write the in-flight journal - crash detection "
+                L"for this run is unavailable\n");
     rc = apply::execute_apply(wdev.get(), plan, apply_cli_consent, &ctx, log);
+    /* the op ended (committed or rolled back - either way not in
+     * flight; only process death leaves the mark, the detectable class) */
+    (void)apply::inflight_end(journal_path.c_str(), disk_identity);
     if (rc != OK) {
         wprintf(L"execute FAILED: rc=%08x %hs (any written bytes were rolled back)\n", rc,
                 err_text(rc));
@@ -3461,7 +3494,15 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
                         : "administrator rights required for repairs (elevate and retry)");
             return 2;
         }
+        /* N-145: the undo is an in-flight write op too - journaled beside
+         * the undo log the same way apply journals beside the session */
+        std::wstring journal_w = undo_apply_path + L".inflight";
+        std::string journal_path(journal_w.begin(), journal_w.end());
+        char disk_identity[96];
+        std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
+        (void)apply::inflight_begin(journal_path.c_str(), disk_identity);
         rc = repair::undo(*wdev, log);
+        (void)apply::inflight_end(journal_path.c_str(), disk_identity);
         if (rc != OK) {
             wprintf(L"undo FAILED (rc=%08x %hs) - verify the disk state!\n", rc, err_text(rc));
             return 2;

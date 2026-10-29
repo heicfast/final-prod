@@ -813,3 +813,98 @@ TEST(LostApply, PlanIsReadOnlyAndRefusalsAreResults) {
     EXPECT_TRUE(hp.refused);
     EXPECT_NE(hp.refusal_reason.find("32-bit MBR LBA range"), std::string::npos);
 }
+
+/* ---- N-145: the cross-run in-flight journal ---- */
+
+namespace {
+
+/* a temp journal path unique per test run (the build dir, removed on
+ * teardown - the journal is a crash trace, the tests never leave one) */
+class JournalDir {
+public:
+    JournalDir() {
+        char tmpl[128];
+        std::snprintf(tmpl, sizeof(tmpl), "cr-inflight-jrn-%d.tmp", int(std::time(nullptr)));
+        path_ = tmpl;
+    }
+    ~JournalDir() { std::remove(path_.c_str()); }
+    const char* path() const { return path_.c_str(); }
+
+private:
+    std::string path_;
+};
+
+} // namespace
+
+TEST(Apply, InFlightJournalLifecycle) {
+    /* N-145: begin marks the disk in flight; the probe sees it; end
+     * removes it; a simulated crash (no end) leaves the mark for the
+     * next start's probe - the og's pendingMarkedDisk semantics
+     * (RecoveryModule :48164-48315) on the core's state-dir journal. */
+    JournalDir j;
+    const char* disk = "\\\\.\\PhysicalDrive3";
+
+    /* the clean lifecycle */
+    ASSERT_EQ(inflight_begin(j.path(), disk), OK);
+    InFlightDisk recs[4] = {};
+    u32 found = 0;
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    ASSERT_EQ(found, 1u);
+    EXPECT_STREQ(recs[0].identity, disk);
+    EXPECT_GT(recs[0].begin_unix, 0ull);
+    ASSERT_EQ(inflight_end(j.path(), disk), OK);
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    EXPECT_EQ(found, 0u) << "the completed op's mark is gone";
+
+    /* the crash shape: begin with no end - the mark survives */
+    ASSERT_EQ(inflight_begin(j.path(), disk), OK);
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    EXPECT_EQ(found, 1u) << "the interrupted apply's mark survives for the next start";
+}
+
+TEST(Apply, InFlightJournalMultipleDisksAndIdempotence) {
+    /* the og's list is multi-disk (the pipe-separated pendingMarkedDisk
+     * form); begin is idempotent per identity (a timestamp refresh, not
+     * a duplicate row); end removes only the named disk. */
+    JournalDir j;
+    ASSERT_EQ(inflight_begin(j.path(), "\\\\.\\PhysicalDrive0"), OK);
+    ASSERT_EQ(inflight_begin(j.path(), "\\\\.\\PhysicalDrive1"), OK);
+    ASSERT_EQ(inflight_begin(j.path(), "\\\\.\\PhysicalDrive0"), OK); /* idempotent */
+    InFlightDisk recs[4] = {};
+    u32 found = 0;
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    ASSERT_EQ(found, 2u) << "the identity-refreshed begin adds no duplicate row";
+    EXPECT_STREQ(recs[0].identity, "\\\\.\\PhysicalDrive0");
+    EXPECT_STREQ(recs[1].identity, "\\\\.\\PhysicalDrive1");
+
+    /* end removes only the named disk */
+    ASSERT_EQ(inflight_end(j.path(), "\\\\.\\PhysicalDrive0"), OK);
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    ASSERT_EQ(found, 1u);
+    EXPECT_STREQ(recs[0].identity, "\\\\.\\PhysicalDrive1");
+
+    /* end of a missing identity is the no-op (the idempotent removal) */
+    ASSERT_EQ(inflight_end(j.path(), "\\\\.\\PhysicalDrive9"), OK);
+    ASSERT_EQ(inflight_probe(j.path(), recs, 4, &found), OK);
+    EXPECT_EQ(found, 1u);
+}
+
+TEST(Apply, InFlightJournalProbeTruncationAndMissing) {
+    /* the probe's contract: a missing journal is OK/zero (the fresh
+     * install); an undersized buffer reports ERR_TRUNCATED with the true
+     * count; nullptr/0 counts only. */
+    JournalDir j;
+    u32 found = 99;
+    ASSERT_EQ(inflight_probe(j.path(), nullptr, 0, &found), OK);
+    EXPECT_EQ(found, 0u) << "a missing journal reports zero in-flight disks";
+
+    ASSERT_EQ(inflight_begin(j.path(), "disk-a"), OK);
+    ASSERT_EQ(inflight_begin(j.path(), "disk-b"), OK);
+    ASSERT_EQ(inflight_begin(j.path(), "disk-c"), OK);
+    InFlightDisk one[1] = {};
+    ASSERT_EQ(inflight_probe(j.path(), one, 1, &found), ERR_TRUNCATED);
+    EXPECT_EQ(found, 3u) << "the true count rides the truncated probe";
+    EXPECT_STREQ(one[0].identity, "disk-a");
+    ASSERT_EQ(inflight_probe(j.path(), nullptr, 0, &found), OK);
+    EXPECT_EQ(found, 3u);
+}

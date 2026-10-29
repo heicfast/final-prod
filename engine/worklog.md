@@ -11619,6 +11619,7 @@ lane contributed that their landing already carried better: the INDX
 floor constant; this lane's version of the same discovery is preserved
 in this entry for the history).
 
+<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 5: M-149 (2026-10-29)
 
 **M-149 FIXED (MAJOR, lost-partition):** the ghost-score two-pass form
@@ -11701,3 +11702,22 @@ Session.HostileCountBombRefused / CountAtWireBoundFailsCleanlyBeyondIt /
 TornTailGarbageCountStillFailsCleanly. Session suite 29/29; full suite
 1627/1627. Trail: findings/FIXED/M-150 + Resolution, matrix MATCH,
 modules/session.md S80 addendum, SUMMARY board.
+=======
+---
+
+## Session-80 S80 fix-lane — entry 6 (2026-10-29): N-145 lands
+
+**N-145 FIXED (MINOR, apply/orchestrator):** the cross-run in-flight
+journal. Corpus re-verified (RecoveryModule :48164-48315 the shared
+marker utility; MainModule :123130-123144 the event-0x102d trigger).
+The landing follows the finding's recommended posture: a first-class
+journal beside the CRUNDO01 container, host-supplied state dir (the
+og's CWD-relative ini declined), mark-at-begin / remove-at-completion
+(only process death leaves the mark), journal failures as warnings.
+Core API apply::inflight_begin/end/probe + both CLI write paths wired
+(execute_apply + fix --undo-apply) + the next-start probe warning.
+Three tests green (lifecycle incl. the crash shape, multi-disk
+idempotence, probe contracts); win_syntax_check green; suite 1540 /
+0-fail. Trail: findings/FIXED/N-145 + Resolution, ledger row, matrix
+MATCH, modules/apply.md addendum, this entry.
+>>>>>>> f30b042d (fix(apply): N-145 — the cross-run in-flight journal lands (the og's pendingMarkedDisk semantics on the core's state-dir posture))

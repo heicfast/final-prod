@@ -72,3 +72,21 @@ S-029 (FIXED) · D-98 (PARITY-DELTAS `:2313`) · D-68 (PARITY-DELTAS `:2010`) ·
 M-040 (the boot-chain repair family, FIXED `94c9dda` — the apply endpoints'
 siblings) · S-051/M-104 (the whole-disk scan-side pair — the candidates this
 module applies) · N-121 (the boot-fix ESP consumer).
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-145 lands)
+
+**N-145 FIXED** (the S11-lead Lane D filing): the cross-run in-flight
+journal. `apply::inflight_begin/end/probe` — a single journal file in a
+host-supplied state directory (`<identity>\t<begin-unix>` per line),
+idempotent in all three operations, with the og's exact semantic: mark
+at op-begin, remove at op-completion, so only process death leaves the
+mark (the detectable class). The og's CWD-relative rwConfig.ini is the
+REGISTERED DECLINE (the finding's own fix plan names it an og defect).
+Wired at both CLI write paths (cmd_apply around execute_apply, with
+the next-start probe warning for a surviving mark; fix --undo-apply
+around repair::undo), the journal beside the session / undo artifacts.
+The cr_ui ABI hosts adopt the same helpers when they carry a state dir
+(the og's own next-start consumer is UI-side and undecoded). Tests:
+the lifecycle (incl. the crash shape), the multi-disk idempotence, and
+the probe's missing/truncation contracts; win_syntax_check green over
+the CLI wiring; suite 1540 ran / 0 FAILED.
