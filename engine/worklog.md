@@ -14766,3 +14766,96 @@ the truncation catch's lesson), the pre-push marker grep + the
 doc_truth_gate + the N-231 name gate as the triple check, and the
 SA-9 concession-with-riders pattern for every contested seat. The
 final state: 1738/1738 on a clean rebuild, every gate green.
+
+---
+
+## Session-93 — the coherence + release lane (2026-10-30; prompt archived token-redacted at worklog/session-coherence-s90-prompt.md; opened at `374c54cb`, corpus untouched `be0cfe9` throughout; the user's closing rider: fix all errors and CI, cut the release tag, start the release workflow immediately)
+
+**The lane's shape:** post-remediation coherence on top of the S80-S92
+fix wave, then the v0.6.0 cut. Five racing windows landed mid-session
+(the S92 close, the APE/SWF window, the M-107 completion window, the
+N-231/N-233 collision windows); every window was absorbed, arbitrated,
+and re-verified before the next push.
+
+**The CI-red root causes found and fixed (the session's core work):**
+
+1. **The fsck win-battery compile break** (run 321's red): tests/unit/
+   test_fsck_win.cpp shipped in d10ae333 with unresolved names (bare
+   u32 / the Err constants) — the file is WIN32-gated out of every
+   Linux build and the first MSVC compile was the CI run. The racing
+   window's 7bd3ed8b landed the identical one-line repair first
+   (`using namespace cr;`) — conceded per SA-9.
+2. **The class prevention (this lane's commit):** win_syntax_check.sh
+   now parse-gates every tests/unit/test_*_win.cpp (5 files; 18/18
+   green), with the win-stub SDK grown (direct/io/stdio/string/stdlib/
+   process/sys-stat + the registry/BYTE/GetCurrentDirectoryW surface;
+   include_next rides the real glibc headers; not-found-is-failure for
+   the gtest dir). Two files dropped the MSVC-only multi-word
+   functional cast for the identical static_cast form. test_enumerate_
+   win.cpp's header claim of parse-gating became TRUE.
+3. **The SIT concession resurrection** (the merged HEAD's build red):
+   the 5ed0f07f merge resurrected the five withdrawn SIT tests + the
+   losing plant_sit flavor signature — first fresh build failed
+   (-Werror=unused-parameter) and two tests ran red. Both code files
+   restored to the last first-hand-green state (31b3d2f7); the winning
+   seven-test battery stands.
+4. **The 76c65109 committed-marker class** (twelfth N-210 occurrence):
+   five live conflict-marker blocks in test_carve.cpp + one in
+   cr_analysers.cpp committed by a merge that resolved only the
+   finding-file conflict; 099ab254's "marker-sweep clean" claim swept
+   the trail file only. Restored, verified, pushed; a racing lane's
+   convergent N-233/N-234 repair landed beside it.
+5. **Two born-collision renumbers** (the M-117 class): N-231/N-232
+   (the duplicate-gtest gate holds N-231, the win-syntax flat-layout
+   repair renumbers — a defect another lane found IN this lane's gate
+   discovery, fixed by them as N-232) and N-233/N-234 (the racing-SIT
+   finding holds N-233, the marker-repair renumbers).
+6. **Three format sweeps** (runs 339/343/348's lint reds): the racing
+   windows' merges repeatedly reintroduced unformatted content over
+   their own pre-merge "format clean" claims; each swept with the
+   pinned clang-format 18.1.8, each verified tree-wide.
+
+**The release-truth work:**
+
+- **Version stamps track the line again:** v0.5.0/v0.5.1/v0.5.2
+  shipped core_version 0.4.0 in their MANIFEST.json (verified against
+  the published v0.5.2 manifest first-hand); CMakeLists.txt +
+  vcpkg.json now carry the tag (0.6.0).
+- **RELEASE-NOTES.md reconciled to the final tree:** the v0.6.0
+  section (the racing lane's semver-correct minor bump) corrected for
+  the SIT landing, then for M-107's completion (all eleven members,
+  the finding CLOSED), M-160's APE whole-family fix, and the SWF-RECT
+  deep gates; the version-truth paragraph, the honest v0.5.0-v0.5.2
+  notes gap, and the coherence-close record added.
+- **The stale doc rows re-truthed:** REFERENCE-API-GAP R-20's "Missing:
+  Versions node/Tags Extracted" corrected (M-101 landed at b7d05b12,
+  cited to cr_node.h:312/:322 + cr_query.h:241/:379); SUMMARY's board
+  counts re-counted against the disk at every window (208 -> 212 ->
+  215 -> 219, each with the provenance note).
+- **The Phase-0 sheets re-stamped:** build-surface (the cr_fsck_win_
+  tests row + the gate coverage + the display-artifact warning for
+  `[m`-class sequences), cli-surface (14 verbs: unlock + fix --chkdsk
+  + the image --create repair), api-surface (93/93 with the two new
+  exports), api-cli-mismatches (the D-row census + F1 resolved).
+
+**The verification stack at the tag (`112b15bd` / v0.6.0):** fresh
+linux-release configure+build clean (zero warnings under -Wall -Wextra
+-Wpedantic -Werror -Wshadow); full ctest 1742/1742 (167 s); win_syntax_
+check 18/18; doc_truth_gate green (zero finding-ID collisions, 443
+ledger-resolved); clang-format 18.1.8 tree-wide 0 violations; zero
+conflict markers repo-wide. Evidence: worklog/builds/linux-release-
+{configure,build}-final*.log, worklog/ci-failures/run{321,347}-*.log.
+
+**The release:** v0.6.0 tagged at 112b15bd, pushed; release.yml run 27
+(tag push) started immediately — the validate gate (checks.yml via
+workflow_call, the push-storm-immune concurrency group) -> build-core
+-> driver-tier (fetch + test-dev-sign) -> assemble-and-publish ->
+test-benchmark dispatch. [Outcome recorded below at completion.]
+
+**The commit trail (this lane, rebased forms):** the SIT concession
+restoration + format -> the win-stub gate extension -> the version
+stamps -> the v0.6.0 notes reconciliation -> the R-20 correction -> the
+SUMMARY re-truths (x3, one per window) -> the sheets re-stamp -> the
+marker repair -> the N-231/N-233 renumbers -> the two format sweeps ->
+the final scope update. Every push rebased on the then-current origin,
+every window re-verified before the next.
