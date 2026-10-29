@@ -872,7 +872,11 @@ const Signature kTable[] = {
      4,
      0,
      20480,
-     200000000,
+     2000000000ull, /* M-107 member 9 (SIT): the og walk's OWN cap - the
+                       child's 200,000,000 max scaled by ten (the asm's
+                       lea (%rax,%rax,4)+add at 0x180015e77-7b, the
+                       force-stamp boundary); the 64 MiB stand-in gone.
+                       The min keeps the ctor's 20480 floor (N-093). */
      620,
      validate_sit,
      "StuffIt Archive"},
@@ -1668,6 +1672,25 @@ const Signature kTable[] = {
      validate_office_zip,
      "DRP",
      true},
+    /* M-107 member 6's S91 sub-format rider: the SHW row - an override
+     * TARGET (the N-115 pattern). The FMT_WPD row wins the shared
+     * \xFFWPC trial tie (it rides earlier in kTrialOrder) and the
+     * validator's format_override carries the og's id 0x3d for the
+     * {0x00010f0f, 0x00030000} pair; this slot keeps the trial table
+     * exhaustive and gives the M-024 disable surface its row. The
+     * bounds mirror the family row (the og's analyser object carries
+     * no FileInfo bounds of its own - the declared u32@+0x14 with the
+     * device-end clamp). */
+    {FMT_SHW,
+     "shw",
+     {0xFF, 'W', 'P', 'C'},
+     4,
+     0,
+     16,
+     4ull << 30,
+     600,
+     validate_wpd,
+     "WordPerfect Shell Show"},
 };
 } // namespace
 

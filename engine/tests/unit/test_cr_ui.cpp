@@ -2001,6 +2001,181 @@ TEST(CrUi, PreviewSessionAndSnapshot) {
     EXPECT_EQ(pv, nullptr);
 }
 
+TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
+    /* M-101 (this lane's rider over the racing seat): the Tags Extracted
+     * PRODUCER + the ABI exposure. The seat landed the carrier (the props
+     * flag + query::tags_only + session bit-14) but no stamping path and
+     * no ABI surface; this rider is both. A real EXIF read through
+     * preview_metadata marks the live session node's props (the seat's
+     * documented semantics: orientation/datetime, duration/codec,
+     * dimensions); the query axis + row fields + snapshot node_info
+     * observe the mark; a text neighbor stays unmarked; session close
+     * invalidates the mark path (the private copy still serves metadata);
+     * the versions axis maps (the seat's u64 hash filter). */
+    /* the fixture: PHOTO.JPG carrying a minimal EXIF APP1 (Orientation 6)
+     * - 40 bytes at the file's cluster, the pattern tail stays behind it */
+    auto img = build_fat16();
+    {
+        unsigned char exif_jpeg[] = {
+            0xFF, 0xD8,                   /* SOI */
+            0xFF, 0xE1, 0x00, 0x22,       /* APP1, len 34 */
+            'E',  'x',  'i',  'f',  0, 0, /* "Exif\0\0" */
+            'I',  'I',  0x2A, 0x00,       /* TIFF II, magic */
+            0x08, 0x00, 0x00, 0x00,       /* IFD0 at TIFF+8 */
+            0x01, 0x00,                   /* 1 entry */
+            0x12, 0x01,                   /* tag 274 Orientation */
+            0x03, 0x00,                   /* type 3 SHORT */
+            0x01, 0x00, 0x00, 0x00,       /* count 1 */
+            0x06, 0x00, 0x00, 0x00,       /* value 6 (inline) */
+            0x00, 0x00, 0x00, 0x00,       /* next IFD: none */
+            0xFF, 0xD9                    /* EOI */
+        };
+        unsigned char* p = img.data() + kDATA + (30 - 2) * 512;
+        std::memcpy(p, exif_jpeg, sizeof(exif_jpeg));
+    }
+    const std::string img_path = cr_test::tmp_path("cr_ui", "m101.jpg.img");
+    {
+        FILE* f = std::fopen(img_path.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        ASSERT_EQ(std::fwrite(img.data(), 1, img.size(), f), img.size());
+        std::fclose(f);
+    }
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img_path.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    const std::string crsf = img_path + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+
+    const uint64_t photo = query_node_id(u.sess, "PHOTO.JPG");
+    ASSERT_NE(photo, 0u);
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u);
+
+    /* before the read: the axis is empty (zero-init safe) */
+    {
+        cr_ui_query q{};
+        q.tags_only = 1;
+        q.limit = 50;
+        cr_ui_query_row* rows = nullptr;
+        uint32_t n = 0;
+        uint64_t total = 0;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, 0u) << "nothing is tag-marked before any read";
+        EXPECT_EQ(n, 0u);
+        cr_ui_query_rows_free(rows, n);
+    }
+
+    /* the tag read: preview metadata on PHOTO.JPG extracts Orientation 6 */
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, photo, &pv), CR_UI_OK);
+    cr_ui_metadata meta{};
+    ASSERT_EQ(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
+    EXPECT_EQ(std::string(meta.kind), "image");
+    EXPECT_EQ(std::string(meta.orientation), "6") << "the EXIF read happened";
+    cr_ui_preview_close(pv);
+
+    /* after the read: PHOTO.JPG is the only tag-marked row; the row
+     * carries the axis; DOC.TXT stays unmarked; the versions axis maps
+     * (no FAT groups -> empty) and zero-inits off */
+    {
+        cr_ui_query q{};
+        q.tags_only = 1;
+        q.limit = 50;
+        cr_ui_query_row* rows = nullptr;
+        uint32_t n = 0;
+        uint64_t total = 0;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        ASSERT_EQ(total, 1u);
+        ASSERT_EQ(n, 1u);
+        EXPECT_STREQ(rows[0].name, "PHOTO.JPG");
+        EXPECT_EQ(rows[0].tags_extracted, 1u);
+        EXPECT_EQ(rows[0].version_group, 0u)
+            << "FAT files carry no group (the seat: NTFS-scoped stamping)";
+        cr_ui_query_rows_free(rows, n);
+    }
+    {
+        cr_ui_query q{}; /* default: both axes off */
+        q.limit = 50;
+        cr_ui_query_row* rows = nullptr;
+        uint32_t n = 0;
+        uint64_t total = 0;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_GE(total, 2u); /* DOC + PHOTO at least */
+        for (uint32_t i = 0; i < n; ++i) {
+            if (std::strcmp(rows[i].name, "PHOTO.JPG") == 0) {
+                EXPECT_EQ(rows[i].tags_extracted, 1u);
+            }
+            if (std::strcmp(rows[i].name, "DOC.TXT") == 0) {
+                EXPECT_EQ(rows[i].tags_extracted, 0u)
+                    << "a text file yields no tag-family datum: unmarked";
+                EXPECT_EQ(rows[i].version_group, 0u);
+            }
+        }
+        cr_ui_query_rows_free(rows, n);
+    }
+    {
+        cr_ui_query q{}; /* the versions axis maps at the ABI: a nonzero
+                          * group filter over an all-zero session (the
+                          * seat stamps only structured NTFS nodes) */
+        q.version_group = 0x1234ull;
+        q.limit = 50;
+        cr_ui_query_row* rows = nullptr;
+        uint32_t n = 0;
+        uint64_t total = 0;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, 0u)
+            << "no group members on a FAT session (the seat: NTFS-scoped stamping)";
+        cr_ui_query_rows_free(rows, n);
+    }
+
+    /* the snapshot node_info carries the mark */
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+    {
+        uint32_t count = 0;
+        ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+        int photo_idx = -1;
+        for (uint32_t i = 0; i < count && photo_idx < 0; ++i) {
+            cr_ui_node_info info{};
+            char name[512];
+            ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+            if (std::strcmp(name, "PHOTO.JPG") == 0) {
+                photo_idx = int(i);
+                EXPECT_EQ(info.tags_extracted, 1u) << "the mark rides the snapshot rows";
+                EXPECT_EQ(info.version_group, 0u);
+            }
+            if (std::strcmp(name, "DOC.TXT") == 0) {
+                EXPECT_EQ(info.tags_extracted, 0u) << "text: unmarked through the snapshot rows";
+            }
+        }
+        ASSERT_GE(photo_idx, 0);
+    }
+
+    /* session close invalidates the mark path: the preview's private copy
+     * still serves metadata, nothing is marked (the watch is dead), and
+     * the handle stays safe to use */
+    {
+        cr_ui_preview* pv2 = nullptr;
+        ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, doc, &pv2), CR_UI_OK);
+        cr_ui_session_close(u.sess);
+        u.sess = nullptr; /* the Ui dtor must not double-close */
+        cr_ui_metadata meta2{};
+        ASSERT_EQ(cr_ui_preview_metadata(pv2, &meta2), CR_UI_OK)
+            << "metadata still served from the private copy after close";
+        EXPECT_GT(std::strlen(meta2.kind), 0u)
+            << "metadata still served (kind sniffed) after close";
+        cr_ui_preview_close(pv2);
+    }
+}
+
 TEST(CrUi, RecoverySubtreeAndRename) {
     Ui u;
     std::string img, crsf;

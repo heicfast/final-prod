@@ -6,6 +6,8 @@
 #include "cr/tree/cr_node.h"
 #include <algorithm>
 #include <cstring>
+#include <functional>
+#include <unordered_set>
 
 namespace cr {
 namespace tree {
@@ -81,6 +83,11 @@ FileProperties* FileProperties::clone() const {
     /* N-100: the +0x60 total-clusters twin rides the same clone (the og's
      * clone copies the whole props block; the fan-out keeps both anchors). */
     p->ntfs_total_clusters = ntfs_total_clusters;
+    /* M-101: the version-group id rides the clone — the og's clone
+     * copies the whole props block, and a fan-out link of a
+     * multi-version family record is part of the family. */
+    p->version_group = version_group;
+    p->tags_extracted = tags_extracted;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;

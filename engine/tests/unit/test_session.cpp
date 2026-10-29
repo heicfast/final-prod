@@ -2171,3 +2171,36 @@ TEST(Session, AutoPointerNameGateRefusesSmuggledPaths) {
     if (f)
         fclose(f);
 }
+
+TEST(Session, VersionsRoundTrip) {
+    /* M-101: the multi-version family id persists through the session
+     * wire (nflags bit 14) - a stopped scan's version families reload
+     * with their groupings intact, so the host's Versions node renders
+     * identically after resume. The runtime tag_group deliberately does
+     * NOT round-trip (the og's grammar carries no tag field; the branch
+     * re-derives by re-extraction). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    t.refresh_stats();
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"dupe.doc";
+    p->logical_size = 700;
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->record_ref = 32;
+    p->version_group = 32; /* M-101: a stamped family member */
+    (void)t.add_file(root, p);
+    p->release();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    tree::FileNode* dupe = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "dupe.doc")
+                dupe = c;
+    ASSERT_NE(dupe, nullptr);
+    EXPECT_EQ(u64(32), dupe->props()->version_group)
+        << "RED pre-fix: the family id was never on the wire";
+}

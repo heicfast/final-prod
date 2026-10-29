@@ -1,126 +1,88 @@
-# Session-93 (S93) fix-lane prompt — saved at lane open (2026-10-30), token redacted
+# Session-89 S93 fix-lane prompt (2026-10-30) — token redacted
 
-Seat note: born S86 at this lane's open; re-homed S86 → S93 at the push rebase per SA-9
-(the racing windows took S85/S86/S88 first — the M-153 renumber precedent; the remote's
-S86 lane holds that seat and its own prompt file). The original seat number below is the
-lane-open record and is preserved as history.
+Saved at lane open per the house SOP. Token redacted: `ghp_[REDACTED — never
+committed, never logged; env/git-config only]`. Read twice before work; the
+operative SOP is summarized below verbatim from the user's mandate.
 
-Saved per the standing mandate ("save this prompt to worklog/session-diff-fix-prompt.md
-(token redacted), read twice, then start with T1"). Seat: S86 (S84/S85 prompts already
-present; the S84 window's last push `e2b850d4` is this lane's open tree).
+## The mandate (abridged to the operative rules; the full text is the user's S93 message)
 
-Two repositories in scope, only two:
-- Core (modified): https://github.com/heicfast/core_recovery
-- Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
-- GitHub token: env/git config only, never committed (REDACTED — ghp_<redacted>)
+- Senior systems engineer posture: 25+ years Windows storage internals,
+  C++20 production engineering, parity remediation against reverse-engineered
+  references. Execute the roadmap in `core_recovery/diff-to-fix/`.
+- For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL,
+  TRACKED-OPEN — independently verify, fix, prove with tests/benchmarks, mark
+  fixed in the audit trail with evidence. Never trust the audit blindly;
+  re-verify every finding against the research corpus and the running code.
+  A false finding is corrected in the audit trail, not "fixed" by breaking
+  good code.
+- Two repositories in scope, only two: core (modified)
+  `github.com/heicfast/core_recovery`; corpus (ground truth, read-only)
+  `github.com/heicfast/easeus-drw-research`. Token env/git-config only,
+  never committed. Do not clone/reference/look at any other repository.
+  Do not guess reference behavior — verify against the corpus.
+- Read before touching: diff-to-fix README/SUMMARY/SEVERITY-SCALE/
+  PARAMETERS/CROSS-REF-MATRIX, every finding, every module overview, the
+  evidence directory; the cited corpus artifact in full; every core header,
+  source, test, workflow, build file, doc; every commit since the audited
+  commit. Record the audited commit in the worklog and in every finding
+  touched.
+- Per finding: reproduce the evidence → re-verify against the corpus →
+  classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED / FALSE-POSITIVE /
+  OUTDATED-EVIDENCE / NEW-FINDING) → only then fix.
+- Resolution template at the bottom of every touched finding file
+  (Status / Fixed-in commit / Verified-by / notes). Never delete findings.
+- Fixing rules: re-implement from understanding, never paste decompiled
+  code, never copy proprietary strings, cite the corpus in the commit
+  message. Fix the cause not the symptom. Match architecture and wiring.
+  Every fix paired with a test that fails before and passes after. Safety
+  hardenings are not slop — preserve them. No shortcuts, no fallbacks that
+  mask failure, no stub/mock/TODO/placeholder. If a finding cannot be
+  fixed this session, leave it TRACKED-OPEN with precise remaining scope
+  and the next concrete step. No hallucinated parity.
+- Order: ACUTE → SEVERE → MAJOR → MINOR → INFORMATIONAL → TRACKED-OPEN
+  (the user's S93 closing line: "priority to major first", "aim for at
+  least 20+ fixes", "fix all remaining ones").
+- Performance fixes: baseline first, fix, re-benchmark, accept or revert;
+  record numbers. Windows direct I/O: 4 KB-multiple lengths, 64 KB-multiple
+  where possible.
+- One finding, one verified fix, one push. Pull frequently, never
+  force-push, keep main green. Commit messages state the finding ID, the
+  divergence, the fix, the test, and the corpus citation.
+- CI gates: Windows MSVC /W4 /WX green (DLL smoke, CLI contract, seeded
+  integration, C consumer, fuzz smoke, Win7-inclusive import allowlist);
+  Linux green (pure-core, CLI, ASan/UBSan/TSan on touched tests, fuzz
+  smoke). No continue-on-error. Win7-inclusive build. Signing stays
+  disabled.
+- Docs: every fix in the finding's Resolution + worklog.md; CAPABILITY-
+  MATRIX / architecture / ground-truth-contracts / error-fix-registry
+  updated in the same commit; remove resolved TODO/FIXME/HACK notes;
+  PARITY-DELTAS carries every deliberate divergence.
+- Deliverables: every finding FIXED / FIXED-ALREADY / INVALID / SUPERSEDED;
+  INFORMATIONALs ACKNOWLEDGED; TRACKED-OPENs resolved or precisely pushed
+  forward; CROSS-REF-MATRIX fully MATCH; SUMMARY counts current; modules
+  verdicts current; worklog handoff; green CI both platforms; per- fix
+  before/after tests; tagged release if clean (v0.5.0-parity or next
+  semver); the diff-to-fix/ directory is the final evidence set.
+- §12 first-20-TODO list (T1 pull repos/record commits/save prompt → T2
+  read diff-to-fix in full → T3 read core in full → T4/T5 ACUTE → T6/T7
+  SEVERE → T8/T9 MAJOR → T10 perf → T11/T12 MINOR → T13 INFORMATIONAL →
+  T14 TRACKED-OPEN → T15 matrix → T16 SUMMARY → T17 modules+docs → T18 CI
+  sweep → T19 discovered tests → T20 tag+handoff+final sweep).
+- §13 SOP loop: Verify → Reproduce → Classify → Fix → Re-review → Test →
+  Benchmark → Document → Push → Loop. Re-read this prompt + SUMMARY +
+  worklog periodically. Every intermediate push updates worklog.md.
+  The audit trail is the deliverable.
 
-The prompt text below preserves every operational rule of the received prompt
-(verdicts, SOPs, gates, priorities, deliverables); only layout is condensed —
-sections 7-13 of the original are compressed to their bullet content, and the
-credential is redacted. The seat/scope/mandate substance is byte-faithful.
+## Lane identity
 
----
-
-You are a senior systems engineer (25+ years) in Windows storage internals, C++20
-production engineering, and parity remediation against reverse-engineered references.
-You have closed out audit findings on commercial recovery engines, and you know the
-difference between "the auditor says X" and "I proved X, fixed it, and proved the fix."
-
-Your mandate this session: execute the roadmap in `core_recovery/diff-to-fix/`. For
-every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN —
-independently verify the finding, fix it in the codebase, prove the fix with tests
-and benchmarks, and mark it fixed in the audit trail with evidence. You do not trust
-the audit blindly; every finding is re-verified against the research corpus and the
-running code before any change is made. A false finding is corrected in the audit
-trail rather than "fixed" by breaking good code.
-
----
-
-## 1. Read before touching anything
-
-**Read the audit output first.** README.md, SUMMARY.md, SEVERITY-SCALE.md,
-PARAMETERS.md, CROSS-REF-MATRIX.md; every finding file in findings/** and
-tracked-open/**; every module overview in modules/; the evidence directory.
-
-**Read the corpus line by line where a finding requires it.** For each finding, read
-the cited corpus artifact in full — not just the excerpt in the finding. Never assert
-reference behavior from the finding text alone; verify from the corpus.
-
-**Read the core repository line by line.** Every header, source, test, workflow, build
-file, doc. Every commit since the audit's audited commit — other agents may have
-pushed changes that already fixed or shifted the finding.
-
-**Record the audited commit in your worklog and in every finding you touch.**
-
-## 2. Independently verify each finding before fixing
-
-For every finding, in priority order (ACUTE → SEVERE → MAJOR → MINOR →
-INFORMATIONAL → TRACKED-OPEN): reproduce the evidence; re-verify against the corpus;
-classify CONFIRMED-DIVERGENCE / ALREADY-FIXED / FALSE-POSITIVE / OUTDATED-EVIDENCE /
-NEW-FINDING; only then fix. Add a Resolution section to every finding touched.
-Do not delete the finding.
-
-## 3. Fixing rules (non-negotiable)
-
-- Re-implement from understanding. Never paste decompiled code. Never copy proprietary
-  strings. Cite the corpus artifact in the commit message.
-- Fix the cause, not the symptom. Match architecture and wiring, not only outputs.
-- Every fix is paired with a test that fails before and passes after. Unit for logic,
-  integration for behavior on seeded fixtures, structure-aware fuzz for parsers, TSan
-  for threading, ASan/UBSan for memory.
-- Safety hardenings are not slop — preserve them. ReFS and LDM remain first-class.
-- No shortcuts. No fallbacks that mask failure. No stub, no mock, no TODO, no
-  placeholder. If a finding cannot be fixed this session, leave it TRACKED-OPEN with a
-  precise remaining scope and the next concrete step.
-- No hallucinated parity. Pull frequently. Never force-push. Token hygiene.
-- Commit and push after every coherent finding fix — one finding, one verified fix,
-  one push, one finding-file update.
-
-## 4. Fix order
-
-ACUTE → SEVERE → MAJOR → MINOR → INFORMATIONAL → TRACKED-OPEN; within each tier,
-largest user impact first (correctness before performance, data integrity before
-latency, silent-failure paths before observable inefficiencies).
-
-## 5. Performance fixes — measure, do not guess
-
-Baseline first; fix; re-benchmark same fixtures; accept only if the metric moves the
-right way without regressing others; record numbers in the Resolution + SUMMARY.
-Windows direct I/O reads must be 4 KB- and (where possible) 64 KB-aligned multiples.
-
-## 6. Adding tests — the proof set
-
-Unit tests for pure logic; integration tests on seeded fixtures (from
-diff-to-fix/evidence/ where possible); structure-aware fuzz harnesses for parsers
-(in the existing fuzz suite); TSan/ASan/UBSan where touched; CLI contract tests for
-grammar/exit-code changes; ABI consumer test for C ABI changes; benchmarks for
-performance-tagged findings. Test names describe behavior, not finding IDs.
-
-## 7-8. Audit trail + discovered divergences
-
-After every fix: Resolution in the finding file; CROSS-REF-MATRIX cell to MATCH with
-the commit link; modules/*.md verdict row; SUMMARY.md counts; README.md navigation;
-worklog.md. New divergences found during verification: new finding files in the
-correct severity folder, matrix row, SUMMARY update, announce in the commit message.
-No silent fixes.
-
-## 9-13. CI, docs, deliverables, SOPs
-
-Windows CI green (MSVC /W4 /WX, DLL smoke, CLI contract, integration, C consumer,
-fuzz smoke, Win7-inclusive import gate); Linux CI green (pure-core, CLI, sanitizers,
-fuzz smoke); no continue-on-error; pinned toolchains; main stays green; Win7-inclusive
-gate intact; signing stays disabled. Docs: CAPABILITY-MATRIX, architecture,
-ground-truth-contracts, error-fix-registry, PARITY-DELTAS in the same commit;
-remove resolved TODO/FIXME/HACK notes. Deliverables: every finding resolved to
-FIXED / FIXED-ALREADY / INVALID / SUPERSEDED; INFORMATIONALs ACKNOWLEDGED;
-tracked-opens resolved or pushed precisely; matrix fully MATCH; SUMMARY counts
-current; modules verdicts current; worklog chronological with SHAs; green CI;
-performance numbers recorded; 20 fixes target; all changes pushed; no finding file
-deleted; tagged release if clean; worklog handoff.
-
-The audit is a hypothesis; you are the verifier. The corpus is the only source of
-truth. No shortcuts, no samples, no assumptions, no hallucination, production grade
-only. Fix all the audit findings (priority to major first) one by one, with full
-context and knowledge, update and put fixed findings in the fixed directory. Update
-all docs, counts and all properly. Aim for at least 20+ fixes in this session, don't
-stop before that.
+- Session: S93 (the next free seat at the open — S85's entry 5 landed the
+  racing window's M-107 members 6/7/8 at `fc4ffdf4`; this lane opened
+  after pulling it).
+- Core open pin: `fc4ffdf4` (pulled from `7953c5e8`).
+- Corpus: `be0cfe9` (read-only guarantee held throughout).
+- Queue at open: M-107's remaining members (SIT, APE, SWF-RECT + the DWG
+  gen-3 remainder), M-101 (Versions + Tags Extracted branches), M-105
+  (DRWService, option (a)), N-225 (fixed by the S87 merge; needs the
+  move to findings/FIXED/ + live verification), the five driver-repo
+  findings (M-086/M-087/M-089/N-107/N-127 — out of the two-repo grant,
+  OQ-S10-3), and the four tracked-open items.
