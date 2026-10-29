@@ -166,7 +166,10 @@ bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
 
 /* The 169-entry deep-validation extension table (dumped from the corpus
  * DRWUI.exe .data 0x141bb0500; first key "Raw", every flag byte 0).
- * Membership gates the generic path's twin detection. */
+ * NON-membership enters the generic path's twin detection (S-058: the
+ * og's gate runs the deep block on the lookup MISS); the empty key is
+ * skipped by the call site (the og's runtime set carries the
+ * ctor-inserted "" key, so dot-less names skip too). */
 bool extension_in_grading_table(const std::string& ext_utf8_lower);
 size_t grading_table_entry_count();
 

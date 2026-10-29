@@ -491,6 +491,14 @@ first-hand; every fix RED-test-first.
   worklog's session-42 false-green claim dated per the 1233b4a0 precedent; the
   code was already green at HEAD — record-truth only).
 
+- **N-184 FIXED** — the preview media metadata families (four bounded head-window
+  extractors: AVI avih/LIST walk, Matroska EBML vint grammar, FLAC STREAMINFO, MP3
+  ID3-skip + bitrate estimate; the M4A/MOV ftyp-branch pin; the UTF-16-BOM/MP3-sync
+  collision caught by the two BOM text tests and excluded; 5 RED→GREEN tests, two
+  real bugs caught by the pin during the RED pass; suite 1341/1299/42/0).
+
+- **N-165 FIXED (S46/S57 convergent — the S57 stance stands)**
+
 **Board (filesystem truth, running): 61 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 25 MINOR · 0 INFO / 77 FIXED files / 5 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
@@ -7495,3 +7503,28 @@ the merged tree (filesystem truth, this lane's re-count): 0 ACUTE · 9 SEVERE ·
 MAJOR · 30 MINOR · 0 INFO active (the S48 INFO retirements closed the tier) /
 77 FIXED files / 6 tracked-open (OQ-S42-2's Btrfs-nsec decode landed; its finding
 file's retirement pending its own lane's trail sweep).**
+# SUMMARY.md — executive summary (the S56 ACUTE-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-56 ACUTE-first lane delta (2026-10-29 — the parity-fix execution lane per the user's operative directive: ACUTE -> SEVERE -> MAJOR; opened on `fa654673`, corpus `be0cfe9`; suite at open 1273/1273 after the lane's own red-main repair)
+
+**Red main repaired at lane open:** the S-054 TS-pin tests
+(`Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB`) walked off
+`kTable`'s end with terminator-style registry iteration (the ASan lane's
+global-buffer-overflow — the M-133/N-157 class); both converted to count-based
+`registry_size()` form. No retirement (the class is FIXED/M-133's own).
+
+**S-058 FIXED (SEVERE — the grading extension-table gate polarity):** the
+twin/deep-validation branch now runs for NOT-in-table extensions exactly as
+the og does (FUN_1401bebe0 the inequality comparator at :324923-324930,
+re-verified first-hand at the corpus alongside the :585888 control case);
+`extension_in_grading_table("")` re-pinned TRUE (the ctor's sentinel-less
+2000-iteration init loop inserts the empty key — dot-less files skip);
+the header/cpp/table comments re-truthed; the s5 evidence erratum landed
+in-file (§5 item 4 + §6.2) + the CORPUS-ERRATA session-56 row; 5 tests
+re-pinned/added, RED->GREEN proven (TableGatePolarityNotInTableEnters,
+TableGatePolarityInTableSkips, DotlessSkipsTwins, the re-pinned
+TwinAddressFlagsBoth + TableMembershipAndCount); suite 1311/1311.
+
+**Board (filesystem truth at this block): 62 active (0 ACUTE · 8 SEVERE ·
+25 MAJOR · 29 MINOR · 0 INFO) / 79 FIXED / 6 tracked-open.** The lane
+continues down the SEVERE queue (S-059 next — the sparse-hole export).

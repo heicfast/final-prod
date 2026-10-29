@@ -1033,3 +1033,13 @@ window's carve landings PARITY (S-048's 7-folder skeleton exact incl. the
 5..11 id order; S-049's naming contract; M-121 Dbx; M-099 AEP; N-146 FH11;
 N-149 exempt set; N-152's 999 branch; N-139's OOM policy; N-172/N-173's
 FAT presentations — the sweep table rows 1-25).
+
+**N-169 FIXED (session-46 lane addendum)** — the EUUserData duplicate-key
+semantics: the raw-file census re-measured (112 members, the duplicate asf
+at offsets 4770/16766 — same sign, mimes "application/vnd.ms-asf" then
+"asf"); the finding's decisive cite FUN_140077dca0 recorded as a citation
+erratum (absent from both decompiles); the core's MERGE registered as
+PARITY-DELTAS D-137 (every member parses; each block's mime backfills its
+own signs; the og's parse-side append stays the recorded OQ); the shipped
+default's dedup documented (111/190, the LAST asf block's mime). Tests:
+UserSigns.DuplicateKeySemantics + ShippedCensusDedupTruth.

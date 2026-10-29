@@ -1,3 +1,24 @@
+**Session-46 lane — N-169 lands (2026-10-29).**
+
+- **N-169 FIXED (MINOR, carve)** — the EUUserData duplicate-key semantics:
+  the raw-file census re-measured first-hand (a duplicate-preserving parse
+  counts 112 members; the duplicate asf at positions 31/111, offsets
+  4770/16766; the two blocks carry the SAME sign
+  "0,3026B2758E66CF11A6D900AA0062CE6C" with mimes "application/vnd.ms-asf"
+  then "asf"). The fix plan's "one focused read" could not close the
+  og-side question: the finding's decisive cite FUN_140077dca0 does NOT
+  exist in either decompile (citation erratum recorded per corpus-wins),
+  and the iteration-side evidence (the child-chain member walks + the
+  per-child "signs" lookup, RAWSearchDLL :24295-24333) supports but does
+  not prove the merge. Per the plan's own alternative: the core's MERGE
+  registered as PARITY-DELTAS D-137 (the loader walks every member; each
+  block's mime backfills its own signs; the og's parse-side append stays
+  the recorded OQ), and the shipped-defaults dedup documented (111/190,
+  the LAST asf block's mime "asf" — last-wins at the asset level). Tests:
+  UserSigns.DuplicateKeySemantics (no rejection, both blocks install,
+  per-block mime) + ShippedCensusDedupTruth (both censuses pinned). The
+  census-drift confusion the finding flagged is closed.
+
 
 **Session-47 S47 lane HANDOFF (2026-10-29 — the MAJOR-first fix lane closes at this
 push; every landing verified, tested, documented, pushed; main green 1296/1296 +
@@ -8702,3 +8723,57 @@ this entry. **Also this window: five main-red repairs** (the e1/e2 dangling vars
 duplicate test, the crossed grading assertions, the carve triple-tick, the win-stub S-060 gap,
 the test_carve comment splice — several converged with the parallel lanes' own repairs per
 SA-9), all verified at 1419/1419 before their pushes.
+**S-058 CONVERGENT (SEVERE — the grading extension-table gate polarity).** This
+lane's independent verification + fix preceded its push by a full build/test
+cycle (the comparator pair :324923-324939, FUN_140256d00's set::find idiom
+:413990-414019, and the :585885-585905 control case all re-read first-hand at
+the corpus; the 4-test RED battery ran at the pre-fix tree). The S52 landing
+(byte-equivalent gate inversion + the call-site empty-skip arm) stands. This
+lane's landings riding the convergence commit: the in-place s5 evidence
+erratum CONVERGENT with the S47 lane's own in-place note (both kept at the
+file; the S52 tail ERRATUM section stays as the summary record), the
+CORPUS-ERRATA session-56 row, and the predicate header doc-truth repair
+("Membership gates" -> non-membership enters). Tests: TableGatePolarityNotInTableEnters,
+TableGatePolarityInTableSkips, DotlessSkipsTwins, TwinAddressFlagsBoth
+(re-pinned to out-of-table exts), TableMembershipAndCount ("" TRUE) — 4 RED
+pre-fix, 16/16 green post-fix; suite 1311/1311. Trail: findings/FIXED/S-058 +
+ledger row + orchestration.md grading cell + SUMMARY session block + this
+entry. Next: S-059 (the sparse-hole export).
+entry. Next: S-059 (the sparse-hole export).
+
+---
+
+## Session-56 ACUTE-first lane — the hot-window repair batch (2026-10-29)
+
+Three merge artifacts from the S47..S57 windows closed (the M-133/09490fea
+class, found by this lane's post-rebase full-gate discipline — the rule the
+S42 lane registered after 1fb7603b): (1) the grading polarity test's
+fixture/assert splice re-truthed (the merge interleaved two lanes' fixture
+blocks — a/c extension swap + the stray dot-less pair; the asserts' own
+comment reading kept); (2) the N-177 duplicate ext4 TEST renamed to its
+unique behavior (the deleted-inode path); (3) the N-171 validated
+double-increment deduped at the user-sign emission site. Plus this lane's
+earlier win-gate repair (rrecov.cpp's PartitionSlice retype — convergent with
+the S53 lane's N-188; cr_ui.cpp's Level::Warn — this lane's unique half).
+Suite 1392/1392 green, win gate 10/10, format clean. The lane continues down
+the SEVERE queue (S-059 next).
+=======
+
+## Session-46 minors lane — N-184 landed (2026-10-29)
+
+**N-184 FIXED (MINOR — the preview media metadata families).** Four bounded
+head-window extractors landed: avi_info (the LIST/hdrl walk: avih
+dwMicroSecPerFrame × dwLength + the strh stream count), mkv_info (the minimal
+EBML vint grammar — Segment → Info's TimecodeScale + the 4-or-8-byte Duration
+float + the Tracks TrackEntry count), flac_info (the STREAMINFO packed field:
+rate/channels/total samples), mp3_info (the ID3v2 syncsafe skip + the first
+frame's bitrate → the size-based duration estimate). M4A/MOV needed no code —
+they are ISO-BMFF containers riding the ftyp branch (the M4aTypedAsMp4Family
+pin). The RED pass caught two real bugs in the first implementation (the 4-byte
+EBML float memcpy'd into a double; the strict 8-byte element fetch refusing the
+final partial TrackEntry) AND one dispatch collision the existing BOM text
+tests exposed (the UTF-16 BOM FF FE matching the MPEG frame-sync mask — now
+explicitly excluded, reproducing the og's extension-driven net behavior for
+text files). Tests: the five named pins, 4 pre-fix FAILs. Suite 1341 ran /
+1299 pass / 42 env-skips / 0 fail. Trail: findings/FIXED/N-184 + ledger row +
+matrix row + this entry.

@@ -124,3 +124,24 @@ polarity pin failed: the out-of-table pair unflagged AND the in-table pair
 flagged), plus a DotlessSkipsTwins quirk guard (their DotlessNamesSkipTwinDetection
 is the same pin). This lane's redundant code/test changes were DROPPED per the
 superset rule; the winning landing's 23/23 battery stands.
+
+### Convergence addendum (session-56 ACUTE-first lane, 2026-10-29 — fifth lane on this seat)
+
+The S52 landing stands (SA-9). This lane's independent verification preceded its
+own push by a full build/test cycle: the comparator pair + `FUN_140256d00`'s
+set::find idiom + the `:585885-905` control case all re-read first-hand at the
+corpus before any edit; the RED battery ran at the pre-fix tree (4 tests: the
+out-of-table pair unflagged AND the in-table pair flagged — both halves of the
+inversion reproduced). This lane's design difference — baking the runtime-set
+`""` truth INTO `extension_in_grading_table` (TRUE for empty) rather than the
+call-site skip arm — was set aside for the winning call-site form; the
+observable contract (dot-less files skip) is identical. This lane's unique
+landings riding this convergence commit: (1) the s5 evidence erratum landed
+**in place** (§5 item 4's blockquote + §6.2's own text corrected — the tail
+`## ERRATUM` section the S52 lane appended stays as the summary record);
+(2) the CORPUS-ERRATA session-56 row (the core's own evidence-tree defect
+registered per the finding's step 4); (3) the predicate's header doc-truth
+repair ("Membership gates" → non-membership enters — the one comment cell the
+S52 landing left carrying the inverted reading). Suite 1311/1311 on the ASan
+lane after the reconcile.
+
