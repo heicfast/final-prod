@@ -12416,3 +12416,42 @@ never populates `$Matches` on the 240-line `list-carve-formats` output →
 misfire; the message describes only the profile half. Both fixes are real,
 both evidenced in `worklog/ci-failures/test-benchmark-6.txt`; recorded here
 so the history stays truthful (no rewrite of pushed main).
+
+---
+
+## Session-84 — entry 3 (this lane): the phantom export lands — cr_ui_session_resume_last implemented (2026-10-30)
+
+**The defect (the api-surface sheet's F1 HIGH, independently confirmed
+here):** cr_ui.h:927 has declared the M-154 pointed-resume export since
+b2bc1970 (a header-only landing; the racing window dropped the
+implementation half). 91 declared exports vs 90 definitions in
+src/ui/cr_ui.cpp; `nm -D` showed nothing. The Linux gates stayed green
+because GCC emits nothing for an undeffed visibility declaration, while
+the MSVC DLL build would LNK2001 the moment Build+test unblocks behind
+the (now-green) lint job — the exact class this session hunts.
+
+**The fix (wiring, not behavior):** `session_resume_last_impl`
+(src/ui/cr_ui.cpp:3660-3701) — pointer read via
+`session::last_scan_info_read`; every dead-pointer class returns
+ERR_OPEN_FAILED per the cr_ui.h:917-926 contract (no sidecar / dead
+pointed file / a name that is not an auto session / the
+two-fields-disagree tamper — the S82 rider's rule extended from the
+retention path to the load, mirroring cr_lastscan.cpp's gate); the load
+goes through the shared `session_load_impl` (the og's "restore through
+the shared path", DRWUI:443092-443127). Header comment typo repaired in
+the same commit: cr_ui.h:920 "lastscan.info" -> "last_scan.info" (what
+cr_lastscan.cpp:142 actually builds). The write side was already wired
+(cr_ui.cpp:2330/:2344 for ABI hosts, rrecov.cpp:2033/:2043 for the CLI)
+— this landing completes the lifecycle.
+
+**Verification (all first-hand):** linux-gcc preset build clean at
+-Wall -Wextra -Wpedantic -Werror -Wshadow; `nm -D libcr_ui.so` =>
+`T cr_ui_session_resume_last`; the new pin
+`CrUi.SessionResumeLastLoadsPointedAutoAndRefusesTampered` PASSES with
+six contract arms (pointed-load stats == direct-load stats,
+BAD_PARAMETER x2, no-sidecar, tampered-name, tampered-save_path against
+a loadable decoy, dead pointer); the full cr_ui_tests suite 89/89
+(127.9 s); doc_truth_gate green (exports=91 unchanged — the header count
+already included the phantom); clang-format 18.1.8 dry-run clean on all
+three touched files. Side effect: CORE-API-CURRENT.md:15's
+"91 definitions in cr_ui.cpp" claim — false at Phase 0 — is now true.

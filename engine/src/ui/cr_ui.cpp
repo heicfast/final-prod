@@ -3657,6 +3657,49 @@ extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_
     return guarded(session_last_autosave_path_impl, utf8_dir, out_path, cap);
 }
 
+namespace {
+/* M-154 (the pointed-resume ABI half): the og's continue-last flow reads
+ * the pointer (SavePath, PathFileExistsA-validated, FUN_140286390's
+ * SavePath-restore, DRWUI:443092-443127) and restores through the shared
+ * load path instead of enumerating - no directory scan, no sort
+ * (cr_ui.h:917-927 contract). The dead-pointer class is ERR_OPEN_FAILED
+ * per that contract: no sidecar, a pointed file that does not exist, or
+ * a pointer that does not name an auto session. The auto-name gate
+ * mirrors cr_lastscan.cpp's own retention gate (name_is_auto + the S82
+ * rider's two-field agreement - save_path must END WITH the gated name):
+ * a tampered sidecar is refused, never followed, exactly as the
+ * retention path refuses what it is asked to remove. */
+bool resume_last_name_is_auto_(const std::string& name) {
+    if (name.size() <= 5 || name.compare(0, 5, "auto_") != 0)
+        return false;
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
+        return false;
+    if (name.find("..") != std::string::npos)
+        return false;
+    return name.size() >= 5 + 5 && name.compare(name.size() - 5, 5, ".crsf") == 0;
+}
+u32 session_resume_last_impl(const char* utf8_dir, cr_ui_session** out) {
+    if (!utf8_dir || !*utf8_dir || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/out");
+    session::LastScanInfo info;
+    if (!session::last_scan_info_read(utf8_dir, info) || !info.exists)
+        return ret_(ERR_OPEN_FAILED, "no live last-scan pointer in %s", utf8_dir);
+    if (!resume_last_name_is_auto_(info.name))
+        return ret_(ERR_OPEN_FAILED, "pointer does not name an auto session (%s)",
+                    info.name.c_str());
+    if (info.save_path.size() < info.name.size() ||
+        info.save_path.compare(info.save_path.size() - info.name.size(), info.name.size(),
+                               info.name) != 0)
+        return ret_(ERR_OPEN_FAILED, "pointer fields disagree (save_path does not name %s)",
+                    info.name.c_str());
+    return session_load_impl(info.save_path.c_str(), out);
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_session_resume_last(const char* utf8_dir, cr_ui_session** out) {
+    return guarded(session_resume_last_impl, utf8_dir, out);
+}
+
 /* =========================================================================
  * snapshot enumeration
  * ========================================================================= */

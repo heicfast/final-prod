@@ -5141,6 +5141,88 @@ TEST(CrUi, AutosaveDeadPointerDoesNotBlock) {
     EXPECT_TRUE(std::filesystem::exists(fresh)) << "the pointer names the new session";
 }
 
+/* Session-84 (coherence): the pointed-resume ABI half - cr_ui.h:927
+ * declared cr_ui_session_resume_last in b2bc1970 but the racing window
+ * dropped the implementation (the phantom-export class: MSVC LNK2001
+ * the moment Build+test runs; the Linux build silently emits nothing).
+ * The pin covers every contract arm of cr_ui.h:917-927: the pointed
+ * load through the shared path (no enumeration, no sort), BAD_PARAMETER
+ * on null args, and the dead-pointer classes as ERR_OPEN_FAILED
+ * (0x50020001) - including the two tamper refusals (the S82 rider's
+ * rule extended to the load: a sidecar whose fields disagree, or whose
+ * name is not an auto session, is refused, never followed). */
+TEST(CrUi, SessionResumeLastLoadsPointedAutoAndRefusesTampered) {
+    const std::string img = write_fixture("m154rl");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/m154_rl_" + std::to_string(CR_TEST_PID());
+    std::filesystem::remove_all(adir);
+    std::filesystem::create_directories(adir);
+
+    /* one auto-saving run: the auto session + the pointer */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    }
+    /* (1) the pointed load: same session the direct load sees */
+    char pointed[1024] = {0};
+    ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), pointed, sizeof(pointed)), CR_UI_OK);
+    cr_ui_session* direct = nullptr;
+    ASSERT_EQ(cr_ui_session_load(pointed, &direct), CR_UI_OK);
+    cr_ui_scan_stats dst{};
+    ASSERT_EQ(cr_ui_session_stats(direct, &dst), CR_UI_OK);
+    cr_ui_session* resumed = nullptr;
+    ASSERT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), CR_UI_OK);
+    cr_ui_scan_stats rst{};
+    ASSERT_EQ(cr_ui_session_stats(resumed, &rst), CR_UI_OK);
+    EXPECT_EQ(rst.files_found, dst.files_found)
+        << "the pointed resume loads the same session as the direct load";
+    cr_ui_session_close(resumed);
+    cr_ui_session_close(direct);
+
+    /* (2) null args: BAD_PARAMETER */
+    EXPECT_EQ(cr_ui_session_resume_last(nullptr, &resumed), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), nullptr), CR_UI_ERR_BAD_PARAMETER);
+
+    /* (3) a dir with no sidecar: ERR_OPEN_FAILED */
+    const std::string no_ptr = adir + "_nopointer";
+    std::filesystem::create_directories(no_ptr);
+    EXPECT_EQ(cr_ui_session_resume_last(no_ptr.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: no pointer sidecar */;
+
+    /* (4) tampered name (not an auto session): refused, never followed -
+     * save_path still names the real, loadable file */
+    cr::session::LastScanInfo good;
+    ASSERT_TRUE(cr::session::last_scan_info_read(adir, good));
+    cr::session::LastScanInfo info = good;
+    info.name = "manual_save.crsf";
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, info));
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: the pointer does not name an auto session */;
+
+    /* (5) tampered save_path (fields disagree): refused even though the
+     * target is a real, loadable session - the smuggled-path refusal */
+    const std::string decoy = adir + "/decoy_save.crsf";
+    std::filesystem::copy_file(good.save_path, decoy);
+    info = good;
+    info.save_path = decoy;
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, info));
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: save_path does not name the gated name */;
+
+    /* (6) dead pointer (the pointed file deleted out-of-band) */
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, good));
+    std::filesystem::remove(good.save_path);
+    std::filesystem::remove(decoy);
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: the pointed file does not exist */;
+}
+
 /* Session-84 (coherence): the image verb's --create selector - the
  * five-site surface (dispatch / -h / usage header / docs / the parser)
  * was four-site until now: 13fe7258 landed the verb with the documented
