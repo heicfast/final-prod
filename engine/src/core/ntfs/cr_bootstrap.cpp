@@ -498,6 +498,13 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
             *err = rc;
         return nullptr;
     }
+    /* M-151: the growth probe runs at volume-open on the primary
+     * bootstrap's runs (the og's :5554 post-load call site) - a runlist
+     * that LOADS but under-declares is exactly the population this
+     * annexes; the S-063 mirror fallback and the M-043 backup retry
+     * land their own loads above and the growth runs on whichever run
+     * map the successful bootstrap produced. */
+    v->grow_mft_runs_to_valid_records();
     if (!v->p_.mirror_invalid) {
         /* mirror stream is best-effort; its failure is not fatal */
         (void)v->load_mftmirr_stream();
@@ -514,6 +521,80 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
     if (err)
         *err = OK;
     return v;
+}
+
+
+void NtfsVolume::grow_mft_runs_to_valid_records() {
+    /* M-151: the og's growth loop, decoded first-hand (FUN_180007670
+     * :5617-5700): per run node, probe 4 KiB windows at the run's
+     * declared end; count consecutive records that pass FUN_180041bb0's
+     * validator chain (FILE magic + the N-213 pre-gate band + the fixup
+     * tails); extend the run's length by the validated count; a fully
+     * valid window advances to the next 4 KiB, a partial one stops (the
+     * og's `uVar10 < uVar12` break), a failed read stops. The og runs
+     * this at volume-open over the loaded run map (:5554's post-load
+     * call) - the core runs it after the PRIMARY $MFT load (the mirror
+     * fallback's emergency bootstrap is S-063's surface; the growth's
+     * population is the truncated/stale PRIMARY runlist that LOADS but
+     * under-declares). */
+    if (p_.record_size == 0 || p_.record_size < 512 || mft_run_.empty())
+        return;
+    std::vector<u8> win(4096);
+    std::vector<DataRun>& runs = mft_run_.runs();
+    for (size_t ri = 0; ri < runs.size(); ++ri) {
+        DataRun& dr = runs[ri];
+        if (dr.sparse)
+            continue; /* a hole has no physical tail to probe */
+        /* the probe never crosses the next run's physical start (the
+         * core's vector-based vcn mapping must stay unambiguous under
+         * extension; the og's map tolerates the overlap - registered
+         * difference, the growth's population is the LAST run) */
+        u64 ceiling = dev_->size();
+        for (size_t nj = ri + 1; nj < runs.size(); ++nj) {
+            if (!runs[nj].sparse) {
+                ceiling = std::min<u64>(ceiling, runs[nj].lcn * p_.cluster_bytes);
+                break;
+            }
+        }
+        u64 probe = (dr.lcn + dr.length) * p_.cluster_bytes;
+        u64 grown_bytes = 0; /* validated bytes past the declared end */
+        while (probe + win.size() <= ceiling) {
+            if (dev_->read_at(probe, win.data(), u32(win.size())) != OK)
+                break; /* the og's failed-read termination */
+            u64 valid = 0;
+            while (valid + p_.record_size <= win.size()) {
+                const u8* rec = win.data() + size_t(valid);
+                RecordHeader rh;
+                std::memcpy(&rh, rec, sizeof(rh));
+                if (rh.magic != RECORD_MAGIC_FILE)
+                    break;
+                if (fixup_validate(rec, p_.record_size, rh.update_sequence_offset,
+                                   rh.update_sequence_size, p_.sector_bytes) != OK)
+                    break;
+                valid += p_.record_size;
+            }
+            if (valid == 0)
+                break; /* nothing annexable: done with this run */
+            grown_bytes += valid;
+            if (valid < win.size())
+                break; /* partial window: the og's uVar10 < uVar12 break */
+            probe += win.size();
+        }
+        /* extend by whole clusters only (the vcn mapping's granularity);
+         * a fractional trailing record-worth stays unannexed - the
+         * conservative floor, never an over-annex */
+        const u64 grown_clusters = grown_bytes / p_.cluster_bytes;
+        if (grown_clusters != 0) {
+            dr.length += grown_clusters;
+            if (cr::log::enabled())
+                cr::log::write(cr::log::Level::Info,
+                               "ntfs: M-151 run growth annexed %llu clusters past the "
+                               "declared $MFT run end (LCN %llu, length now %llu)",
+                               static_cast<unsigned long long>(grown_clusters),
+                               static_cast<unsigned long long>(dr.lcn),
+                               static_cast<unsigned long long>(dr.length));
+        }
+    }
 }
 
 u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {

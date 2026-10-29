@@ -11858,7 +11858,6 @@ the ghost-score math, M-150 the session count prealloc bomb, M-151 the
 truncated-$MFT probe, M-152 the ext4 orphan-reserved skip, M-154 the
 auto-session lifecycle), then M-107's remaining ten members (CRW's
 CIFF heap chain next), then the MINOR queue.
->>>>>>> f30b042d (fix(apply): N-145 — the cross-run in-flight journal lands (the og's pendingMarkedDisk semantics on the core's state-dir posture))
 
 ---
 
@@ -11885,3 +11884,25 @@ full suite 1509 pass / 0 fail; clang-format clean.
 **Trail:** findings/FIXED/M-152 + the Resolution; the D-150
 PARITY-DELTAS row; the ledger row; the matrix B1/B5 -> MATCH;
 modules/ext4.md's Session-82 addendum; this entry.
+
+## Session-80 S80 fix-lane — entry 7: M-151 (2026-10-29)
+
+**M-151 FIXED (MAJOR, ntfs):** the truncated-$MFT run-growth probe
+(FUN_180007670 :5617-5700, verified first-hand): per non-sparse run,
+4 KiB windows probed past the declared end; consecutive records
+validated through FILE magic + fixup_validate (N-213's pre-gate band
+inside — FUN_180041bb0's chain); the run length grows by the validated
+bytes (cluster floor); termination per the og. Wired at volume-open on
+the primary bootstrap's runs. Registered differences: the
+next-run-physical-start guard (the og's map tolerates middle-run
+overlap) and the cluster floor. The mirror tests' holes made PHYSICAL
+(zeroed) so the S-063 population is unaffected — re-pinned.
+NonresidentAttrlistOnMft re-truthed (max_record_no 20→23 — the growth
+greedily annexed the fixture's physically-present records 16..22 past
+the truncated declaration, the og's exact shape). Tests RED first-hand
+(stash dance): TruncatedRunlistGrowsToValidRecords /
+RunGrowthPartialWindowCountsValidPrefix; guards:
+RunGrowthStopsAtFirstInvalidRecord / MirrorFallbackUnaffectedByGrowth
+Pass. NTFS suite 95/95; full suite 1634/1634. Trail:
+findings/FIXED/M-151 + Resolution, matrix MATCH, modules/ntfs.md S80
+addendum, SUMMARY board.

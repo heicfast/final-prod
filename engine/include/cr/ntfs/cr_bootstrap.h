@@ -93,6 +93,20 @@ public:
 private:
     NtfsVolume() = default;
     u32 load_mft_stream(u64 at_lcn, bool from_mirror);
+
+    /* M-151 (diff-to-fix): the og's truncated-$MFT run-growth probe
+     * (FUN_180007670 :5617-5700). After the primary $DATA runlist loads,
+     * walk each run's declared END and read 4 KiB windows outward,
+     * counting consecutive fixup-valid FILE records at the record-size
+     * stride (the N-213 pre-gate + the fixup chain = FUN_180041bb0's
+     * validator); each run's length grows by the validated byte count
+     * (floor to clusters - the mapping granularity), so records beyond
+     * a torn/stale runlist (the recently-written MFT tail - the files
+     * the user most likely needs) become walkable. Termination: the
+     * first invalid record in a window (the partial prefix still
+     * counts), a failed device read, the next run's physical start, or
+     * the device end. */
+    void grow_mft_runs_to_valid_records();
     u32 load_mftmirr_stream();
     u32 enum_mirr_attrs(const std::vector<u8>& buf);
 

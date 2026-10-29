@@ -151,8 +151,8 @@ A-016+, D-150+.
   findings/FIXED/M-149, matrix MATCH, modules/lost-partition.md S80
   addendum.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR ·
-1 INFO active / 177 FIXED / 4 tracked-open.** Next free IDs:
+**Board after this landing: 0 ACUTE · 0 SEVERE · 14 MAJOR · 10 MINOR ·
+1 INFO active / 178 FIXED / 4 tracked-open.** Next free IDs:
 S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
@@ -206,6 +206,21 @@ M-156+, N-218+, I-049+, A-016+, D-150+.
   HostileCountBombRefused / CountAtWireBoundFailsCleanlyBeyondIt /
   TornTailGarbageCountStillFailsCleanly; suite **1627/1627**. Trail:
   findings/FIXED/M-150, matrix MATCH, modules/session.md S80 addendum.
+
+- **M-151 FIXED (MAJOR, ntfs)** — the truncated-$MFT run-growth probe:
+  per run, 4 KiB windows probed past the declared end, consecutive
+  records validated (FILE magic + fixup_validate with N-213's pre-gate
+  inside), the run length grown by the validated bytes (cluster floor);
+  termination per the og (first invalid / failed read / next run's
+  start / device end). A runlist that LOADS but under-declares has its
+  tail annexed — the recently-written MFT-tail records become walkable.
+  The mirror population unaffected (the S-063 fixtures' holes made
+  physical, re-pinned). Tests RED first-hand (stash dance):
+  TruncatedRunlistGrowsToValidRecords / RunGrowthPartialWindowCounts
+  ValidPrefix; + RunGrowthStopsAtFirstInvalidRecord /
+  MirrorFallbackUnaffectedByGrowthPass; NTFS suite 95/95; suite
+  **1634/1634**. Trail: findings/FIXED/M-151, matrix MATCH,
+  modules/ntfs.md S80 addendum.
 
 **Board after this landing: 0 ACUTE · 2 SEVERE · 18 MAJOR · 11 MINOR ·
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same

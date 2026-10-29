@@ -662,3 +662,34 @@ IndxFloorIsTwoBytesLower + NtfsVolume.RemnantMisalignedDeclaredAllocSizeRejects
 (RED) / RemnantAllocSizeFitCoversUsaRejects (RED) /
 RemnantAllocSizeAboveFourKStillEmits (the D-143 pin). Suite 1585/1585.
 The B3 row: MATCH (the false-positive admission band on garbage records).
+
+## S80 addendum — M-151 FIXED: the truncated-$MFT run-growth probe (2026-10-29)
+
+**The torn-runlist salvage landed.** FUN_180007670's growth loop,
+decoded first-hand (:5617-5700): per run node, 4 KiB windows probed at
+the run's declared end; consecutive records validated through
+FUN_180041bb0's chain (FILE magic + the N-213 pre-gate band + the fixup
+tails — the core reuses fixup_validate, one validator one truth); each
+run's length grows by the validated count; a fully-valid window
+advances, a partial one stops after counting its prefix (the
+uVar10 < uVar12 break), a failed read stops. NtfsVolume::
+grow_mft_runs_to_valid_records runs at volume-open on the primary
+bootstrap's runs — a runlist that LOADS but under-declares (the torn/
+stale shape) has its tail annexed: the recently-written records at the
+MFT tail become walkable. Registered differences (the Resolution): the
+next-run's-physical-start guard (the og's map tolerates middle-run
+overlap; the core's vector vcn mapping needs it) and the
+cluster-granular floor on the extension (fractional record-worths stay
+unannexed — conservative). The mirror-fallback population is
+unaffected: the S-063 fixtures' holes are now PHYSICAL (the holed bytes
+zeroed) so the growth finds nothing annexable and the mirror stays the
+service — MirrorCoversRunlistSize / MirrorResidentDataRejected re-pinned
+on the physical-hole fixtures. The og's open-path loop carries no
+cancellation (no checkpoint in FUN_180007670) — the pass is bounded by
+the first-invalid termination and the device end, the og-equal posture.
+Tests: TruncatedRunlistGrowsToValidRecords (records 20..22 annexed past
+a 40-cluster declaration — RED first-hand) / RunGrowthStopsAtFirst
+InvalidRecord (zero growth past non-record bytes) / RunGrowthPartial
+WindowCountsValidPrefix (the 2048-byte prefix of a mixed window) /
+MirrorFallbackUnaffectedByGrowthPass. NTFS suite 95/95; full suite
+1634/1634.

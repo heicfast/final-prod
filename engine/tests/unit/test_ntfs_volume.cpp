@@ -896,8 +896,13 @@ TEST(NtfsVolume, NonresidentAttrlistOnMft) {
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    /* the record gate now covers the extension (audit row 3) */
-    EXPECT_EQ(vol->max_record_no(), 20u);
+    /* the record gate now covers the extension (audit row 3). M-151: the
+     * growth probe ALSO annexed the standard fixture's physically-present
+     * records 16..22 at LCN 36..49 (valid FILE records past the truncated
+     * 32-cluster declaration - the og's greedy FUN_180007670 shape), so
+     * the covered span is the grown primary 46 clusters = 23 records, not
+     * the attrlist-only 20. */
+    EXPECT_EQ(vol->max_record_no(), 23u);
     std::vector<u8> rec;
     ASSERT_EQ(vol->read_record(18, rec), OK);
     EXPECT_EQ(std::memcmp(rec.data(), "FILE", 4), 0);
@@ -3188,6 +3193,13 @@ TEST(NtfsVolume, MirrorCoversRunlistSize) {
      * gate refused it even though the runlist covers 8 records */
     std::memcpy(img.sec(MIRR_LCN + 10), img.sec(MFT_LCN + 4), RECORD_SIZE);
     patch_mft_runlist_with_hole(img);
+    /* M-151: make the hole PHYSICAL - zero the holed region's bytes so
+     * the growth probe finds no valid records past run 0's end (the
+     * annexable tail would otherwise serve records 2.. from the primary
+     * and the mirror fallback this test pins would never run). The hole
+     * run starts at vcn 4 = LCN 8 (run 0 is 4 clusters at LCN 4); the
+     * zeroing stops at the mirror region (LCN 68). */
+    std::memset(img.sec(MFT_LCN + 4), 0, size_t(60 * CLUSTER));
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
@@ -3221,6 +3233,10 @@ TEST(NtfsVolume, MirrorResidentDataRejected) {
         attr[8] = 0;                       /* nonresident flag -> resident */
     }
     patch_mft_runlist_with_hole(img); /* primary hole forces the fallback */
+    /* M-151: the hole is PHYSICAL (the holed region zeroed, LCN 8..67)
+     * - the growth probe must find nothing annexable, keeping the
+     * mirror-fallback premise intact */
+    std::memset(img.sec(MFT_LCN + 4), 0, size_t(60 * CLUSTER));
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
@@ -5761,6 +5777,7 @@ TEST(NtfsVolume, RemnantAllocSizeAboveFourKStillEmits) {
         << "the >4 KiB declared size stays accepted (the D-143 registered superset)";
 }
 
+<<<<<<< HEAD
 TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
     /* A-016: the NTFS volume-root "." node (record 5, $FILE_NAME ".",
      * reparented to the Found root - cr_mftwalk :1162-1166, pinned at
@@ -5783,10 +5800,69 @@ TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
     auto* ra = tree.add_root(u"a");
     auto* rd = tree.add_root(u"d");
     auto* rl = tree.add_root(u"l");
+=======
+/* ---- M-151: the truncated-$MFT run-growth probe (FUN_180007670) -------
+ * The og walks each run's declared END and counts fixup-valid FILE
+ * records outward in 4 KiB windows; a runlist that LOADS but
+ * under-declares (the torn/stale shape) has its tail annexed, so the
+ * recently-written records at the MFT tail - the files the user most
+ * likely needs - become walkable. */
+
+namespace {
+/* patch record 0's $DATA runlist to declare `clusters` clusters at
+ * MFT_LCN (the stale-runlist simulation: the physical records beyond
+ * the declaration stay on disk) */
+void patch_mft_runlist_declared(Image& img, u64 clusters) {
+    u8* rec = img.sec(MFT_LCN); /* record 0 */
+    u32 name_alen = (0x18 + 66 + 2 * 4 + 7) / 8 * 8; /* "$MFT" = 4 chars */
+    u8* attr = rec + 0x38 + name_alen;
+    RunList rl;
+    rl.runs().push_back(DataRun{0, clusters, 0, MFT_LCN, false});
+    std::vector<u8> rle = rl.encode();
+    ASSERT_LE(rle.size(), 8u); /* the runlist area (alen 72 - 0x40) */
+    std::memset(attr + 0x40, 0, 8);
+    std::memcpy(attr + 0x40, rle.data(), rle.size());
+    put64le_at(attr + 0x18, clusters - 1);           /* last_vcn */
+    put64le_at(attr + 0x28, clusters * CLUSTER);     /* allocated */
+}
+} // namespace
+
+TEST(NtfsVolume, TruncatedRunlistGrowsToValidRecords) {
+    /* the stale-runlist shape: the $DATA runlist declares 40 clusters
+     * (records 0..19) while the on-disk tail carries the valid records
+     * 20,21,22 (partial.dat / hardlink / ads.txt at LCN 44..49). The
+     * og's growth probe annexes them: the walk sees 23 records. Before
+     * the fix, records 20..22 were ERR_RANGE_OUT_OF_BOUNDS - present on
+     * disk, valid, and invisible. */
+    Image img;
+    build_image(img);
+    patch_mft_runlist_declared(img, 40); /* records 0..19 declared */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    /* the growth annexed LCN 44..51 (records 20..23's 4 KiB window:
+     * 20,21,22 valid + record 23's zeros -> the partial window stops
+     * after the valid prefix: 3 records = 3072 bytes -> 6 clusters) */
+    EXPECT_EQ(vol->max_record_no(), 23u);
+    std::vector<u8> rec;
+    for (u64 rn : {20u, 21u, 22u}) {
+        ASSERT_EQ(OK, vol->read_record(rn, rec)) << "record " << rn << " annexed by growth";
+        EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4));
+    }
+    /* record 23 is past the grown run (the window's zeros stopped it) */
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(23, rec));
+    /* the end-to-end walk surfaces the annexed files */
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+>>>>>>> 9647e8b0 (fix(ntfs): M-151 — the truncated-$MFT run-growth probe lands: each run's declared end is probed outward for fixup-valid records, annexing the torn/stale runlist's invisible tail)
     WalkerFlags wf;
     WalkStats stats;
     ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
               OK);
+<<<<<<< HEAD
     /* the tree carries the "." root node under the Found root (the
      * engine-shape premise this test pins) */
     tree::FileNode* dot = nullptr;
@@ -5826,4 +5902,87 @@ TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
     /* the prune is scoped, not total: the counters moved but the tree
      * still holds nodes */
     EXPECT_LT(ps.files, stats.emitted) << "a partial prune, never the whole volume";
+=======
+    bool saw_partial = false, saw_ads = false;
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "partial.dat")
+                saw_partial = true;
+            if (c->name_utf8() == "ads.txt")
+                saw_ads = true;
+            walk(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        walk(r);
+    EXPECT_TRUE(saw_partial) << "the annexed record 20 surfaces in the walk";
+    EXPECT_TRUE(saw_ads) << "the annexed record 22 surfaces in the walk";
+}
+
+TEST(NtfsVolume, RunGrowthStopsAtFirstInvalidRecord) {
+    /* the termination pin: a run whose physical tail is NON-record bytes
+     * grows by ZERO (the first invalid record in the probe window stops
+     * the pass - the og's uVar10 < uVar12 break). The declaration ends
+     * at LCN 26 (record 11); LCN 26..35 are zeros (records 12..15 are
+     * not planted in the fixture). */
+    Image img;
+    build_image(img);
+    patch_mft_runlist_declared(img, 22); /* records 0..10 declared */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->max_record_no(), 11u) << "no growth past non-record bytes";
+    std::vector<u8> rec;
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(11, rec));
+}
+
+TEST(NtfsVolume, RunGrowthPartialWindowCountsValidPrefix) {
+    /* the partial-window shape: the probe window at the declared end
+     * holds TWO valid records then zeros (records 21,22 at LCN 46..49,
+     * then LCN 50..53 empty) - the growth counts the valid prefix only
+     * (2048 bytes = 4 clusters) and stops (the og's partial-window
+     * break). */
+    Image img;
+    build_image(img);
+    patch_mft_runlist_declared(img, 42); /* records 0..20 declared */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    /* 42 declared + 4 grown = 46 clusters = 23 records */
+    EXPECT_EQ(vol->max_record_no(), 23u);
+    std::vector<u8> rec;
+    ASSERT_EQ(OK, vol->read_record(21, rec));
+    ASSERT_EQ(OK, vol->read_record(22, rec));
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(23, rec));
+}
+
+TEST(NtfsVolume, MirrorFallbackUnaffectedByGrowthPass) {
+    /* the S-063 interplay re-pin: the physical-hole fixture (the mirror
+     * fallback's population) - the growth probe finds nothing annexable
+     * at run 0's end (the holed bytes are zeroed), and the mirror's
+     * span-derived service is exactly the pre-growth behavior. The
+     * MirrorCoversRunlistSize / MirrorResidentDataRejected re-pins above
+     * carry the same interplay on their own fixtures; this pin asserts
+     * it directly on the growth's seam: a holed primary + a valid
+     * mirror serves through the mirror, never through growth. */
+    Image img;
+    build_image(img);
+    patch_mirror_runlist(img, MIRR_LCN, 16);
+    std::memcpy(img.sec(MIRR_LCN + 2), img.sec(MFT_LCN + 2), RECORD_SIZE);
+    std::memcpy(img.sec(MIRR_LCN + 4), img.sec(MFT_LCN + 4), RECORD_SIZE);
+    std::memcpy(img.sec(MIRR_LCN + 10), img.sec(MFT_LCN + 4), RECORD_SIZE);
+    patch_mft_runlist_with_hole(img);
+    std::memset(img.sec(MFT_LCN + 4), 0, size_t(60 * CLUSTER)); /* the physical hole */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::vector<u8> rec;
+    ASSERT_EQ(OK, vol->read_record(5, rec)) << "the mirror serves the holed record";
+    EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4));
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec))
+        << "past the mirror span: refused, not fabricated by growth";
+>>>>>>> 9647e8b0 (fix(ntfs): M-151 — the truncated-$MFT run-growth probe lands: each run's declared end is probed outward for fixup-valid records, annexing the torn/stale runlist's invisible tail)
 }
