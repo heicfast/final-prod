@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -O3 -DNDEBUG -shared -Wl,--dependency-file=CMakeFiles/cr_ui.dir/link.d -Wl,-soname,libcr_ui.so -o libcr_ui.so CMakeFiles/cr_ui.dir/cr_ui.cpp.o  ../core/libcr_core.a /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/x86_64-linux-gnu/liblz4.so /usr/lib/x86_64-linux-gnu/libxxhash.so /usr/lib/x86_64-linux-gnu/libzstd.a

@@ -11255,3 +11255,37 @@ the builder band). The M-018 mis-attribution removed; the OOS-UI
 disposition stands; M-101's Versions/Tags-Extracted gap statement kept.
 Trail: findings/FIXED/N-215 + Resolution, matrix row, modules/query.md
 addendum, ledger row.
+
+---
+
+## Session-80 S80 fix-lane — entry 2 (2026-10-29): the convergent-lane concession + the stack-window rider
+
+**The racing reconciliation (SA-9, earlier-push-wins):** this lane's own
+M-155 repair (independently verified and resolved for the same S71
+semantics from the same corpus sites — FUN_1800535b0 read in full, the
+:1780-1808 dual registration, the same relative-limit coordinate fix,
+the same three-test re-pin) was pushed minutes after the convergent
+lane's `6d74ec2c` landed. Their push owns the seat: the M-155 file, the
+matrix row, the SUMMARY block, and the modules/carve.md addendum on
+main are theirs. This lane's duplicate trail files were conceded (never
+pushed); the record here is the concession. The two lanes' corpus reads
+agree on every substantive point (the File one-shot analyser is the
+authority; the Brance count-walk is the streaming half; SECd + 0x4C in
+all three branches; the unconditional loop-exit torn salvage) — the
+convergence itself is independent verification of the resolution.
+
+**The rider this lane contributes (the one unique delta):**
+`validate_x3f`'s 256 KiB scan window moved from a stack array to the
+file's heap-vector convention — the validator runs on the carve
+fan-out's worker threads, where a 256 KiB stack frame is an overflow
+risk on small-stack hosts; every neighboring validator (the kProbeBlock
+family) already uses heap vectors. No semantic change; the X3F pin set
+re-run green over the rider.
+
+**Executed suite evidence at this rider (the record-precision note):**
+1495 ran / 1453 passed / 42 Win-only skipped / 0 FAILED (gcc 14.2,
+linux-release, this lane's from-scratch build2). The racing entry 1's
+"Suite 1578/1578" figure does not reproduce at this tree with the
+default filter (the N-129 numeric-precision class — recorded here so
+the next lane's board-sweep does not chase a phantom count; the GREEN
+verdict itself stands, 0 failures on both lanes' evidence).

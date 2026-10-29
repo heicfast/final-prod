@@ -5025,18 +5025,25 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     const u64 limit = probe_limit(s, hit, cap); /* absolute device bound */
     const u64 rel_limit = limit - hit;          /* the walk's relative bound */
     constexpr u64 X3F_DIR_TAIL = 0x4C; /* the og's fixed directory tail */
-    u8 win[256 * 1024];
+    /* the S80 convergent-rider hardening: the 256 KiB window is a heap
+     * vector, not a stack array — validate_x3f runs on the carve fan-out's
+     * worker threads, and a 256 KiB stack frame is an overflow risk on
+     * small-stack hosts the file's other validators avoid by convention
+     * (the kProbeBlock vectors above) */
+    constexpr u32 X3F_WIN = 256 * 1024;
+    std::vector<u8> win(X3F_WIN);
     bool found = false;
     u64 sec_at = 0;
     /* the og's walk starts at the hit (uVar7 = 0) and steps forward in
      * overlapping windows to its cap; all coordinates here are relative
      * to the hit, the probe limit converted once on entry */
-    for (u64 off = 0; off + 4 <= rel_limit && !found; off += sizeof(win) - 3) {
-        u64 want = std::min<u64>(sizeof(win), rel_limit - off);
-        if (!rd(s, hit + off, win, u32(want)))
+    for (u64 off = 0; off + 4 <= rel_limit && !found; off += X3F_WIN - 3) {
+        const u64 want = std::min<u64>(X3F_WIN, rel_limit - off);
+        if (!rd(s, hit + off, win.data(), u32(want)))
             break;
         for (u64 i = 0; i + 4 <= want; ++i) {
-            if (win[i] == 'S' && win[i + 1] == 'E' && win[i + 2] == 'C' && win[i + 3] == 'd') {
+            if (win[size_t(i)] == 'S' && win[size_t(i) + 1] == 'E' &&
+                win[size_t(i) + 2] == 'C' && win[size_t(i) + 3] == 'd') {
                 sec_at = off + i;
                 found = true;
                 break;
@@ -5046,7 +5053,7 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
             break; /* the last window - no more data */
     }
     if (found) {
-        r.end = hit + std::min(sec_at + X3F_DIR_TAIL, rel_limit);
+        r.end = hit + std::min<u64>(sec_at + X3F_DIR_TAIL, rel_limit);
         r.confidence = 620;
         r.note = "x3f-section-directory-walk";
     } else {
