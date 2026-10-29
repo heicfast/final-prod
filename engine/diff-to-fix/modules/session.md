@@ -359,10 +359,12 @@ only — firmware/WWN/interface and the boot-sector content have no equivalent
   findings/FIXED/N-186 with the false-grep note + the VolumeSessionInfo
   exposure sliver (optional follow-up, not a gap). The N-066 row above
   remains the owner of record.
-- **N-192 (MINOR — NEW, tree/session axis)** — `FileProperties::clone()`
-  drops `short_name` on the hard-link fan-out (cr_node.cpp:49-80 vs the
-  og's whole-block clone contract; the fan-out at cr_mftwalk.cpp:981-992)
-  — cloned links lose the 8.3 axis in the session records. The
+- **N-192 (MINOR — tree/session axis — FIXED in the S60 lane)** — `FileProperties::clone()`
+  dropped `short_name` on the hard-link fan-out (cr_node.cpp vs the
+  og's whole-block clone contract); the one-line carrier landed (the
+  name block of clone()), the fan-out clone and the session roundtrip
+  pinned RED->GREEN by NtfsVolume.HardLinkFanOutClonesKeepShortName —
+  `findings/FIXED/N-192-clone-drops-short-name-on-fanout.md`. The
   part1-census sibling register I-047 (the +0x80 format/icon-ID constant
   family, acknowledged-at-filing) landed in findings/FIXED/.
 - **The ifileproperties-part1 under-cited flag discharged:** the full

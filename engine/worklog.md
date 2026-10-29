@@ -9187,3 +9187,28 @@ FIXED-LEDGER rows — which a window fold had also dropped, re-landed — the co
 comments in cr_analysers.cpp, the test comments, the SUMMARY block). The gate now
 green locally: 53 active, 132 retired, 386 ledger-resolved, zero collisions, 135
 unique D-rows.
+
+
+## Session-60 lane open + N-192 landed (2026-10-29)
+
+**Lane open.** The MINOR-first diff-to-fix execution lane (the user's
+mandate: fix priority to minor first, aim 20+; put fixed findings in
+findings/FIXED/; update all docs and counts). Repos: core `98a5b139`
+(baseline full suite **1460/1460 green** before the first change — the
+never-push-a-red-commit base), corpus `be0cfe9`. Prompt saved token-redacted
+at worklog/session-diff-fix-s60-prompt.md. Board re-counted first-hand at
+open: 50 active (1 SEVERE · 23 MAJOR · 24 MINOR · 2 INFO) + 4 tracked-open;
+FIXED archive 136. N-107/N-127 are driver-repo-resident (OQ-S10-3 boundary).
+
+**N-192 FIXED (MINOR — clone drops short_name).** Corpus re-verified:
+ifileproperties-part1 slot +0x08 (SetShortName) + the whole-block clone
+contract. Core re-verified: clone() enumerated its copies without the
+field; capture at cr_mftwalk.cpp:915 and nflags-bit2 persistence live.
+Fix: `p->short_name = short_name;` in clone()'s name block — repairs the
+fan-out clones, the session records of cloned links, and the UI preview
+clone in one line. Proof: NtfsVolume.HardLinkFanOutClonesKeepShortName
+RED pre-fix (cloned POSIX link's short_name empty at walk AND roundtrip)
+-> GREEN post-fix; NtfsVolume family 71/71. Trail: finding retired to
+findings/FIXED/N-192 + Resolution, ledger row, matrix MATCH cell (S60
+section + the S50 row annotated), session.md verdict, SUMMARY block,
+this entry. One finding, one push.

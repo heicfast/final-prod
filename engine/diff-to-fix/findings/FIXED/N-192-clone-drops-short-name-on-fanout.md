@@ -85,3 +85,10 @@ mirrors), N-131 (the parent-anchor persistence family).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S60 lane's N-192 landing — one-line carrier + the fan-out/session pins; SHA in the worklog entry and the ledger row)
+**Verified by:** NtfsVolume.HardLinkFanOutClonesKeepShortName — RED pre-fix (the cloned POSIX link's `short_name` empty at the walk AND at the session roundtrip; the executed fail output quotes `posix2[0]->props()->short_name Which is: u""`), GREEN post-fix; the full NtfsVolume family 71/71; baseline suite 1460/1460 green before the lane's first change.
+**Resolution notes:** Corpus re-verified first-hand before the change: ifileproperties-part1's slot +0x08 (SetShortName, the heap-copied 8.3 name) and §2's whole-block clone contract — the same artifact cr_node.cpp's own N-100 comment cites. Core re-verified: clone() at cr_node.cpp enumerated its copies with `short_name` absent; the capture at cr_mftwalk.cpp:915 and the nflags-bit2 persistence at cr_records.cpp:160/:218 confirmed the field is live on canonical props and lost only at the clone boundary. The fix: `p->short_name = short_name;` added to clone()'s copy set (the name/name_raw block — the field travels with the name axes), which repairs the NTFS walk's hard-link fan-out clones, the UI preview clone (cr_ui.cpp:3795 rides the same clone()), and the cloned links' session records in one line. The fix plan's optional exFAT/other-engine sweep: no other clone site exists (grep clone() — cr_node.cpp is the only props duplication path). No behavior other than the carrier: the default single_link_per_record mode never clones, and the fan-out tests (HardLinkFanOutOptIn et al.) stay green.
