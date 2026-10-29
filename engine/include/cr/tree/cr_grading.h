@@ -122,10 +122,26 @@ struct GradeContext {
  *                               remnant-salvage surface: INDX harvest, GUID
  *                               dump, size-0 rescue, freed-node sweeps)
  *   quick_scan_delete_extend  = the NTFS device-index rule's tick (exact)
+ *
+ * raw_count semantics (N-205, registered deliberate divergence D-143):
+ * the og's rawCount (+0x1a0) is a VALIDATED-RECOVERABLE count - the
+ * forced observe-only deep-read probe over the grade-1 NTFS population,
+ * ANDed with the size rule (FUN_1401c76e0: the 0x23 ctor-default arm ->
+ * size <= 0x77fffff) - ticked at quick-scan populate (FUN_1401c7d80,
+ * DRWUI:331183-331311). The core's raw_count keeps the landed
+ * Origin::Carved census (the report field's shipped meaning); the
+ * og-parity population is carried by raw_tail_zero below.
  */
 struct AssistantStats {
     u64 total_file_count = 0;
     u64 raw_count = 0;
+    /* N-205: the og's rawCount population - the forced observe-only
+     * tail-zero probe (FUN_14038c470's param_3=1 form, no grade change)
+     * over grade-1 NTFS-family nodes with 0 < key < device-size, ANDed
+     * with the 0x77fffff size arm. Core-internal counter (the C ABI
+     * surface keeps its shipped field set; an append-only exposure rides
+     * a future ABI bump if a finding demands it). */
+    u64 raw_tail_zero = 0;
     u64 lost_partition_exist_file_count = 0;
     u64 lost_partition_delete_file_count = 0;
     u64 quick_scan_exist_file_count = 0;

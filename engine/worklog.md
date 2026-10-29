@@ -9298,3 +9298,29 @@ block, this entry.
 block overstated MINOR at 24; the first-hand recount is 22 (the two
 driver-repo-resident N-107/N-127 are counted active-open). SUMMARY
 corrected in this push.
+
+
+## Session-60 lane — N-205 landed (2026-10-29)
+
+**N-205 FIXED (MINOR — the rawCount population + the phantom member).**
+Corpus re-verified first-hand: FUN_1401c7d80's forced-probe walk
+(DRWUI:331183-311), the increment arms (:331278/:331289), the size rule
+(FUN_1401c76e0, 0x23 ctor default -> <= 0x77fffff), the +0x1a0 counter,
+the SearchDLL ctor-default census. Landing: (1) AssistantStats gains
+raw_tail_zero, ticked in grade_tree's NEW pass 0 (the quick-scan-populate
+analog, pre-solo-rules): NTFS-family, grade Average, 0 < extent-end <
+device-bytes, forced_tail_zero_probe (the observe-only port of
+FUN_14038c470's param_3=1 form — no grade mutation, no index gate) AND
+the 0x77fffff arm; (2) option (b): raw_count keeps the Origin::Carved
+census — REGISTERED deliberate divergence D-143 + the header mapping
+block now states the split; (3) the M-134 Resolution's phantom
+"raw_tail_zero" sentence repaired by addendum in the FIXED file; (4) the
+C ABI untouched (the append hazard documented in the D-row). Proof:
+Grading.RawTailZeroTicksForcedProbePopulation + RawTailZeroSizeArmBoundary
++ RawCountSemanticsRegistered (the registration leg RED until D-143
+landed; the counter legs could not compile pre-fix — the field's absence
+WAS the finding's phantom claim); Grading family 40/40. Trail: FIXED
+finding + Resolution, ledger row, matrix MATCH (row 1177 + S60 section),
+tree.md verdict, D-143, the M-134 addendum, SUMMARY block (board recount:
+42 active — the racing window's I-045/I-046 retirements absorbed), this
+entry.

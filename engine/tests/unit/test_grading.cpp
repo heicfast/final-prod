@@ -11,6 +11,7 @@
 #include "cr/recovery/cr_report.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
+#include "test_tmpdir.hpp"
 #include <functional>
 
 using namespace cr;
@@ -918,4 +919,96 @@ TEST(Grading, DeepReadReaderAbsentChangesNothing) {
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_NE(Grade::Low, f->grade())
         << "without a reader the zeroed content cannot demote (the registered seam)";
+}
+
+/* ---- N-205 (diff-to-fix): the rawCount population ------------------ */
+
+TEST(Grading, RawTailZeroTicksForcedProbePopulation) {
+    /* N-205: the og's rawCount is the VALIDATED-RECOVERABLE count - the
+     * forced observe-only tail-zero probe (FUN_14038c470's param_3=1
+     * form) over grade-1 NTFS nodes with 0 < key < device-size, ANDed
+     * with the 0x23-default size arm (<= 0x77fffff), ticked at
+     * quick-scan populate (FUN_1401c7d80, DRWUI:331183-311). The core's
+     * raw_tail_zero carries that population. A node whose final sector
+     * ends in the 16-byte zero padding signature ticks; the same-shape
+     * node with a nonzero tail does not; a >0x77fffff node does not. */
+    GradeMemDevice dev(u64(64) * 512);
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    /* A: extent [512,1024) - the final sector (1) carries real head +
+     * the zero tail signature -> ticks */
+    dev.data_[1 * 512] = 0x55;
+    dev.data_[1 * 512 + 100] = 0x33;
+    add_file(t, root, "tick.bin", 600, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 512, 512);
+    /* B: extent [1536,2048) - the final sector (3) ends NONZERO -> no tick */
+    dev.data_[3 * 512] = 0x55;
+    std::fill(dev.data_.begin() + 4 * 512 - 16, dev.data_.begin() + 4 * 512, 0xAB);
+    add_file(t, root, "dirty.bin", 600, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 1536, 512);
+    /* C: extent [2048,3072) - the zero tail signature but size 0x7800000
+     * > 0x77fffff (the 0x23 default arm refuses) -> no tick */
+    dev.data_[5 * 512] = 0x44;
+    add_file(t, root, "huge.bin", 0x7800000ull, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 2048, 1024);
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(u64(1), st.raw_tail_zero)
+        << "exactly the tail-zero, size-legal NTFS node ticks (A yes; B no tail; C no size arm)";
+}
+
+TEST(Grading, RawTailZeroSizeArmBoundary) {
+    /* N-205: the 0x23-default size arm's exact boundary - 0x77fffff is
+     * the last ticking size, 0x7800000 the first refused (FUN_1401c76e0's
+     * <= form). Both nodes carry the identical zero-tail final sector. */
+    GradeMemDevice dev(u64(64) * 512);
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    add_file(t, root, "edge_in.bin", 0x77fffffull, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 512, 512);
+    add_file(t, root, "edge_out.bin", 0x7800000ull, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 1536, 512);
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(u64(1), st.raw_tail_zero)
+        << "0x77fffff ticks, 0x7800000 does not (the arm's boundary)";
+}
+
+TEST(Grading, RawCountSemanticsRegistered) {
+    /* N-205 option (b): raw_count keeps the landed Origin::Carved census
+     * (the report field's shipped meaning); the deliberate divergence
+     * from the og's validated-recoverable rawCount is REGISTERED (the
+     * D-143 row) with raw_tail_zero carrying the og-parity population.
+     * The pin: the register row + the header's mapping comment exist and
+     * name the divergence. */
+    const std::string deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    ASSERT_FALSE(deltas.empty());
+    EXPECT_NE(deltas.find("### D-143"), std::string::npos)
+        << "the raw_count semantics divergence must carry its D-row";
+    const std::string hdr = cr_test::read_repo_file("include/cr/tree/cr_grading.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(hdr.find("raw_count semantics (N-205"), std::string::npos)
+        << "the header's counter-mapping block must state the registered divergence";
+    /* the population split is real: a carved node ticks raw_count but
+     * never raw_tail_zero; the tail-zero NTFS node above ticks
+     * raw_tail_zero but not raw_count */
+    GradeMemDevice dev(u64(64) * 512);
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    dev.data_[1 * 512] = 0x55;
+    add_file(t, root, "carved.bin", 50, u32(FsKindCode::Raw), DeletedState::Deleted,
+             Origin::Carved);
+    add_file(t, root, "tick.bin", 600, u32(FsKindCode::Ntfs), DeletedState::Deleted,
+             Origin::Structured, 512, 512);
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(u64(1), st.raw_count);
+    EXPECT_EQ(u64(1), st.raw_tail_zero)
+        << "the two counters count disjoint populations (provenance vs validated)";
 }

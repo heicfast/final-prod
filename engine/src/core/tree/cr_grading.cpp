@@ -294,6 +294,40 @@ bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     }
     return false;
 }
+
+/* N-205: the og's forced observe-only tail-zero probe - FUN_14038c470's
+ * param_3=1 form (the quick-scan populate walk's call at DRWUI:331183-311,
+ * the increment arm at :331278/:331289). Unlike the completion-pass deep
+ * read (deep_read_grade above), the forced form passes the read address
+ * in directly (no twin-key index gate) and NEVER changes the grade - the
+ * return value is the tail-zero evidence alone (the intact-file padding
+ * signature on the extent's final sector). */
+bool forced_tail_zero_probe(tree::FileNode* n, const GradeContext& ctx) {
+    if (ctx.reader.dev == nullptr)
+        return false; /* the og's null-manager bail */
+    const tree::FileProperties* pr = n->props();
+    if (pr == nullptr)
+        return false;
+    u32 ss = ctx.reader.sector_size;
+    if (ss == 0)
+        ss = ctx.reader.dev->geometry().logical_sector;
+    if (ss == 0 || ss > 4096)
+        return false; /* hostile geometry: no content read */
+    if (pr->extents.empty())
+        return false; /* key 0: outside the walk's 0 < addr window */
+    const u64 end = pr->extents.front().offset + pr->extents.front().length;
+    if (end == 0)
+        return false;
+    const u64 last = ((end - 1) / ss) * ss; /* the file's own final sector */
+    u8 sec[4096];
+    if (ctx.reader.dev->read_at(last, sec, ss) != OK)
+        return false; /* the og: a failed read changes nothing */
+    for (u32 i = ss > 16 ? ss - 16 : 0; i < ss; ++i)
+        if (sec[i] != 0)
+            return false; /* no tail-zero signature */
+    return true;
+}
+
 /* the og decision tree minus the twin detection (which needs the global
  * key map). Returns the grade to apply for the solo rules. */
 bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stats) {
@@ -361,6 +395,47 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
 /* ---- the pass ------------------------------------------------------------ */
 
 void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& out) {
+    /* N-205 pass 0 - the og's rawCount population, ported as raw_tail_zero:
+     * the forced-probe walk over the grade-1 (Average-at-emit) NTFS-family
+     * nodes with 0 < key < device-size (FUN_1401c7d80, DRWUI:331183-311;
+     * the increment at :331278/:331289 gated on the probe's return AND the
+     * size rule). Runs BEFORE the solo rules mutate grades - the og ticks
+     * at quick-scan populate, when the NTFS population is still grade 1
+     * (no insert-time hook grades NTFS). Size rule: FUN_1401c76e0's 0x23
+     * ctor-default arm (the FS-code every SearchDLL node carries by
+     * default) -> size <= 0x77fffff; the core's NTFS nodes map to that
+     * default arm (CandidateFs has no per-node FS-code twin). */
+    if (ctx.reader.dev != nullptr) {
+        const u64 dev_bytes = ctx.reader.dev->geometry().total_bytes;
+        if (dev_bytes > 0) {
+            std::vector<tree::FileNode*> walk;
+            for (tree::FileNode* r : t.roots())
+                walk.push_back(r);
+            while (!walk.empty()) {
+                tree::FileNode* n = walk.back();
+                walk.pop_back();
+                for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
+                    walk.push_back(c);
+                if (n->is_full() || !n->props())
+                    continue;
+                if (ctx.fs_kind_of(n) != u32(FsKindCode::Ntfs))
+                    continue;
+                if (n->grade() != Grade::Average)
+                    continue; /* the og's grade-1 population */
+                const tree::FileProperties* pr = n->props();
+                const u64 end = pr->extents.empty()
+                                    ? 0
+                                    : pr->extents.front().offset + pr->extents.front().length;
+                if (end == 0 || end >= dev_bytes)
+                    continue; /* the walk's 0 < addr < device-size window */
+                if (pr->logical_size > 0x77fffffull)
+                    continue; /* the 0x23 default size arm */
+                if (forced_tail_zero_probe(n, ctx))
+                    ++out.raw_tail_zero;
+            }
+        }
+    }
+
     /* pass 1: solo rules + collect twin candidates (extension-gated) */
     std::vector<TwinKey> twins;
     std::vector<tree::FileNode*> stack;

@@ -78,3 +78,22 @@ The three sub-gates inside the deep read (`FUN_1401bc5a0`'s predicate, the bit-7
 **Fixed in commit:** (this session's M-134 landing, session-52 lane — post-push SHA in the ledger row and worklog entry)
 **Verified by:** `Grading.DeepReadPrevSectorTailZeroGradesHigh` / `DeepReadZeroedFirstSectorGradesLow` / `DeepRead0xFFHeadGradesLow` / `RegradeRunsFullTreeOnce` (all four RED pre-fix — the core never read the disk and the re-grade was solo-rules-only; GREEN post-fix), `Grading.DeepReadNonZeroTailStaysAverage` (the control), `Grading.DeepReadSkipsOverlapFlagged` (the og's first-skip pin), `Grading.DeepReadFat16SkippedLikeOgFailedRead` (the failed-read class pin — the shifted kinds' keys land outside any reader in the og, the read fails, the grade never changes; the core skips the same population). Suite 1379/1379 (linux-release).
 **Resolution notes:** FUN_14038c470 re-read first-hand in full (the function, the completion-pass call site :605798, the re-grade gate :340852-873) plus the twin-key arithmetic at the call site — the deep read's `addr` parameter IS the node's twin key (extent end + shifted index · unit, computed at :605774 for the map lookup and reused for the read), which settles the address semantics the finding left ambiguous: the read at (key − 1) is the extent's LAST sector; the key==0 path (no extent) reads the reader's sector 0. The port: `GradeReader` (a plain-C sector callback — test-wireable, no device-type dependency) on GradeContext, wired at the orchestrator's grade_tree call with the scan's own slice and geometry-derived sector size; `deep_read_grade` in cr_grading.cpp implementing the two threshold rules (first-32-zero / first-4-0xFF → Low; last-16-zero of the final sector → High) with the overlap skip, the null-reader bail, and the nonzero-index failed-read class all matched to the og's control flow; pass 3 in grade_tree runs it for unflagged S-058 candidates; the "graded" bit (a new in-memory FileNode bit, `deep_read_done`) marks exactly where the og marks — not for flagged nodes, not on the null-reader bail, yes on failed reads; `regrade_node` now re-enters the full per-node path (solo rules + the S-058 table gate + the deep read) behind the og's grade==1 ∧ graded-bit-clear one-shot gate. The twin-map re-lookup on re-grade is documented-skipped: the og's persistent address map can only re-discover collisions the completion pass already flagged on a stable tree (the flag survives); rebuilding the map per selection would be cost without behavior. The pre-check trio (FUN_1401bc5a0 ∧ bit-7-of-+0x72 ∧ ¬bit-2-of-+0x74 → presumptive grade 0 without reading) stays unadopted per OQ-S42-3 — the read-based rules are the evidence path; the OQ is updated with this session's control-flow decode (the trio's goto target and the mark placement). The N-183 rawCount consumer now has its input (`raw_tail_zero` in AssistantStats).
+
+
+## Resolution addendum — the raw_tail_zero claim repaired (N-205, S60 lane, 2026-10-29)
+
+The Resolution's final sentence — "The N-183 rawCount consumer now has
+its input (`raw_tail_zero` in AssistantStats)" — was **aspirational, not
+landed**: at the M-134 landing (and at every tree until the S60 lane)
+`grep raw_tail_zero src/ include/` returned ZERO hits; no such member
+existed (the N-205 phantom-claim defect, re-verified first-hand before
+this repair). The S60 lane's N-205 landing makes the sentence true:
+`AssistantStats::raw_tail_zero` now exists and ticks the og's exact
+rawCount population (the forced observe-only tail-zero probe over
+grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default
+size arm — FUN_1401c7d80 :331183-311 re-read first-hand), proven by
+Grading.RawTailZeroTicksForcedProbePopulation /
+Grading.RawTailZeroSizeArmBoundary. The raw_count semantics split is
+registered at docs/PARITY-DELTAS.md D-143. This addendum is the
+correction the N-205 fix plan demanded — the audit trail now matches
+the tree.

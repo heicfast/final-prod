@@ -68,12 +68,14 @@ acceptable because the schema is append-only with compile-time consumers.
 
 ## S55 addendum (2026-10-29 — the sixth continuation lane: the grading deep dive)
 
-New on this module: **N-205** (the recoverability rawCount counts different
-populations — the og's +0x1A0 counter ticks only the forced quick-scan
-deep-read probe ∧ FS-code size-rule hits [grade-1 NTFS nodes, size ≤
-0x77fffff on the 0x23 default arm]; the core's raw_count is the Origin::Carved
-census — and the landed M-134 resolution's claimed `raw_tail_zero`
-AssistantStats member does not exist at HEAD, a phantom verification claim).
+New on this module: **N-205 — FIXED in the S60 lane** (the recoverability
+rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's
+exact population — the forced observe-only tail-zero probe over grade-1 NTFS
+nodes with 0 < key < device-size, the 0x77fffff default arm, pass 0 of
+grade_tree; raw_count keeps the Origin::Carved census as the REGISTERED
+deliberate divergence D-143; the M-134 resolution's phantom `raw_tail_zero`
+sentence repaired by addendum; Grading.RawTailZero* + RawCountSemanticsRegistered
+RED-side proof — findings/FIXED/N-205-rawcount-population-semantics-og-validated-vs-core-carved-plus-phantom-raw-tail-zero.md).
 **OQ-S42-3 closed this session** (retired to findings/FIXED/): the last
 undecoded sub-gates are now pinned — the vt+0xb8 bool gate → grade 0, the
 vt+0x100 FS-code field (0x23 ctor default in every SearchDLL; 0xa8 → grade 0 +
