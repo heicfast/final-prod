@@ -1340,45 +1340,29 @@ merged into the original definition with both rationales kept.
 
 ---
 
-## Session-94 addendum — the fourth convergent-lane concession record (the S94 lane; the WPD zero-size COVERAGE restoration filed as N-234)
+## Session-93 concession addendum (the APE member's concurrent landing — re-appended at the second merge)
 
-This lane independently decoded the DWG member's full walk (gen-1's
-section-locator table: count u32@+0x15, the 9-byte records, the
-full-width id counter, the running max, the mismatch decline, the torn
-salvage; gen-2's rand()-XOR security header: the +0x80 offset, the six
-gates, qword@+0x34 + 0x6c) and separately re-derived the TIER-1 CENSUS
-correction (the table is TEN pairs — `0x39303031` at 0x18002feae = the
-AC1009 entry; the `cmp edx,0xa` bound — AC1009 gate-passed but
-un-walked, the decline og-true) — both convergent with the racing
-windows' landings and riders (`ddab68b4`/`f7e49eaf`/`d35e1cbb` +
-`47c849bb`'s three-rider set, whose TenPairs test + third arm hold the
-seats). This lane's DWG code, tests, census-rider form, and its own
-N-229-class red-main filing all conceded/withdrew across three window
-rebases. The convergence itself — multiple independent
-instruction-level decodes agreeing — is the strongest verification class
-the house records.
+This lane (S93) landed the APE member concurrently (the seek-table MAX
+walk + the two header forms + the APETAGEX tail, RED-proven at the
+stand-in first-hand: the walk battery FAILED — the full suite
+1732/1732 at the pre-merge tree) while the racing window pushed its
+own APE landing first (43f476e0). **Per SA-9 the racing seat holds; it
+is also the better decode on the one point the two landings
+disagreed:** the < 3801 adjustment — the raw line `uVar12 = uVar12 -
+(uint)local_60._24_4_` follows the :39134 REASSIGNMENT of uVar12 to
+the FIRST ENTRY's value, so the adjusted quantity is the SCAN BOUND
+(first - aux), not the table position as this lane had traced it.
+Their terminal also carries the torn-salvage epilogue (the 512-byte
+finalizing window clamped at the readable extent, confidence 550) this
+lane's version reduced to a plain min(). This lane's APE
+implementation and its five-test battery are withdrawn at the merge;
+the racing landing's 8-test battery covers the member (8/8 at the
+merged tree).
 
-**The unique carry (N-234, filed+fixed): the WPD zero-size COVERAGE
-restoration.** The windows' arbitration records state the zero-size
-coverage was preserved three separate times (`8301c72b`: "the S87
-seat's test keeps its name ... both batteries' coverage preserved";
-`47c849bb`: "the second renamed ... both green"; this finding's own
-closing text: "merged into the original definition with both rationales
-kept") — yet the tips (`84a3670e`, `69a9a437`) carried ZERO tests for
-the behavior anywhere in the tree (the whole-tree search, first-hand).
-The extent!=0 engine-gate behavior (the landed validator's
-`end <= hit` decline, corpus-decoded at 0x18000d7e1) shipped unpinned: a
-future regression would pass the suite green. The S94 landing restores
-the S87 seat's test verbatim against the landed validator — the
-seat-holder's own recorded intent, re-implemented:
-findings/FIXED/N-234. The class lesson: arbitration records are not
-tree state.
-
-**M-107's final state (the windows' close, recorded here for the
-history):** all eleven members landed across the S71-S93 lanes (X3F's
-chain router, CRW's CIFF heap walk, DWG's three generations, PSP's
-~BK chain, WPG's zero-tail walk, WPD's version-table declared size,
-SIT's entry-marker walk, EPS's %%EOF trailer scan, AI's header
-formula, DXF's EOF-trailer scan, APE's CAPE walk via M-160 + the S87
-continuation, SWF-RECT's validation gate) + the DWG gen-3 R2007
-remainder resolved on the seat — the finding retired to FIXED/.
+**The rider kept (unique to this lane):** the two stale pre-M-106
+header comments retired (validate_one / validate_3DS — their BODIES
+landed the walks in M-106; the file-level headers still said "the
+DWG-pattern bounded extent stands in"). The finding's FIXED status
+stands on the racing seat with the three registered remainders (the
+DWG gen-3 R2007 chain, the SIT ' '-form epilogue, the CWS
+compressed-body RECT).

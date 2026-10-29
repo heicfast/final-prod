@@ -6758,8 +6758,9 @@ CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap) {
  * :52287-52311, first-hand) completes the OneNote GUID: qword@+4 ==
  * 0x7853b1ae4da7d88c and dword@0xc == 0xd32969d0. The FileInfo bounds
  * {20, 500,000,000} are the og ctor's own (FUN_180016080 :17191-17209).
- * The chunk-chain size walk (FUN_180044e30) is the recorded follow-up;
- * the DWG-pattern bounded extent stands in. */
+ * The chunk-chain size walk landed as M-106 (FUN_180044e30, the body
+ * below) - this header's pre-M-106 "stands in" sentence is retired
+ * (the S93 lane's rider over the racing APE seat). */
 CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the chunk-chain size walk (FUN_180044e30 :52316-52358,
      * decoded in the trail's own evidence - s8-batch2-formats.md:29).
@@ -6983,9 +6984,9 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
  * :50906-50916, first-hand): 'MM'@0 AND '=='@+0x10, OR the alt branch
  * u32@0x100 == 0x4453434e ('NCSD' - extracted from the og DLL's .data,
  * VA 0x180093978 / file offset 0x91778) AND u32@0x104 == 0x200000.
- * The section size-walk (FUN_180042ff0) is the recorded follow-up; the
- * DWG-pattern bounded extent stands in. Row max = S-041's census
- * bound (200 MB). */
+ * The section walk landed as M-106 (FUN_180042ff0, the MM branch in the
+ * body below); row max = S-041's census bound (200 MB). This header's
+ * pre-M-106 "stands in" sentence is retired (the S93 lane's rider). */
 CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the MM branch carries the section walk (FUN_180042ff0
      * :50921-50971, decoded in s8-batch2-formats.md:31): per chunk at

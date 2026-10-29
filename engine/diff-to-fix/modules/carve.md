@@ -1,5 +1,21 @@
 # modules/carve.md — carve module audit verdicts
 
+
+## Session-93 fix row (2026-10-30 — the APE member: the SA-9 concession; the finding is FIXED on the racing seat)
+
+- **APE — CONCEDED (the racing window's landing holds)**: this lane
+  landed the member concurrently (RED-proven at the stand-in) but the
+  racing push won the window; their decode is the better one on the
+  <3801 point (the raw :39134 reassignment: the SCAN BOUND first-aux,
+  not the table position) and their terminal carries the torn-salvage
+  epilogue. This lane's implementation + battery withdrawn at the
+  merge; the racing 8-test battery covers the member (8/8 at the
+  merged tree). **The rider kept:** the two stale pre-M-106 headers
+  retired (validate_one/validate_3ds — their bodies landed the walks in
+  M-106; the file-level headers still said "stands in"). The finding is
+  FIXED with the three registered remainders (the DWG gen-3 R2007
+  chain, the SIT ' '-form epilogue, the CWS compressed-body RECT).
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
 
 New active findings on this module: **S-055** (FIXED session-51 — the user-sign layer
@@ -835,7 +851,7 @@ The carve surface's size-walk residue now has owners:
   (`DwgVersionGateIsTheOgsTenPairs` + the gen-3 explicit-'21' repair);
   the current per-member state (the window's S87/S89/S90 sections) is
   authoritative.
-- **N-234 (the unique carry, filed+fixed; renumbered from the born-collided N-231):** the WPD zero-size-decline
+- **N-235 (the unique carry, filed+fixed; renumbered N-231→N-234→N-235 at the window rebases):** the WPD zero-size-decline
   coverage lost in the window's final merge state — N-230's Resolution
   claims the S87 seat's test kept (count 1); the shipped tip carried
   count 0. The S87 seat's `WpdZeroSizeFieldDeclines` restored verbatim
@@ -1300,9 +1316,6 @@ DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
 
 ---
 
-
----
-
 The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
 remainder named): the section-locator walk (count u32@0x15, 9-byte records
 {number==index, seeker, size} from 0x19, extent = max(seeker+size), the
@@ -1541,10 +1554,6 @@ WPD slice stay MATCH — now with the sub-format ids faithful.**
 
 ---
 
->>>>>>> origin/main
-
----
-
 ## Session-87 addendum 4 — M-107 member 11: the SWF-RECT validation gate landed
 
 The SWF rows (FWS and CWS) move to **MATCH** on the gate axis: the
@@ -1612,10 +1621,9 @@ SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
 three rejection tests RED at the pre-fix tree). Suite 1724/1724.
 **The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
 the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
->>>>>>> origin/main
----
 
 ---
+
 ## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
 
 This lane's independent three-generation decode (evidence/s86-lane-sheets/
@@ -1654,4 +1662,3 @@ FIXED/.
 
 ---
 
->>>>>>> origin/main
