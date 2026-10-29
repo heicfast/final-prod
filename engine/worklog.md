@@ -1,5 +1,45 @@
 ## Session-92 S92 fix lane (renumbered from the born-collided S89/S91 — the racing windows took each seat) — opens (2026-10-30, the MINOR-first 20+ mandate)
 
+---
+
+## Session-92 S92 fix lane (renumbered from the born-collided S91) — the WPD member's SUB-FORMAT RIDER lands over the racing S87 seat (the engine-side name split; the 'report-layer' framing corrected) (2026-10-30)
+
+**The convergence first:** this lane had independently decoded the WPD
+member (the three-pair tier-1 + the u32@+0x14 extent + the +4 gate
+retirement) and proven it RED→GREEN locally before the first push hit
+the racing window — the S84 d20a8483 and S87 1ff8ae24 landings held
+the seat per SA-9 (earlier-push-wins); this lane's local landing
+dropped at the rebase. The S87 seat is the better base: it carries the
+zero-size decline (the engine's extent!=0 gate at 0x18000d7e1) this
+lane's decode missed.
+
+**The rider (the one surviving delta):** the S87 message framed the
+three tier-1 ids (WPD 0x44 / WPG 0x45 / SHW 0x3d) as "the og's
+report-layer routing ... the registered model-divergence stance, the
+CRW precedent" — but (a) no registration ever landed in any trail file
+(the stance exists only in the commit message — the trail-truth class
+this session hunts), and (b) the framing is wrong: the ENGINE assigns
+the name. First-hand: the CRawFileInfo child's +0x28 processor
+(0x18000b7a0) reads the id at child+0x18, indexes the 9-byte-stride
+name table at 0x18008f070, and assigns WPD/WPG/SHW to the result
+string — engine-side, not UI-side. The CRW citation is also a
+mis-citation (CRW II/MM are distinct KEYS; the true precedents are the
+N-111 JP2 brands and the N-115/N-158 office typing — both
+format_override shapes).
+
+**The landing:** the WPG pair carries via format_override onto
+FMT_WPG; the SHW pair onto the appended FMT_SHW row (the N-115
+override-target pattern, kTrialOrder slot added, the exhaustive-table
+static_assert held). RED→GREEN via the validator-only stash dance (the
+strengthened WpdSecondAndThirdRecordsCarve asserts both sub-format ids
++ sizes: RED at the pre-rider validator — everything FMT_WPD — GREEN
+with the rider). The WPD battery 7/7; the full suite **1705/1705**;
+clang-format 18.1.8 clean. Trail: M-107's S92 addendum, the matrix
+row's rider extension, modules/carve.md's S92 addendum, this entry.
+Corpus: be0cfe9, read-only guarantee held.
+
+## Session-91 S91 fix lane (renumbered from the born-collided S89 — the racing windows took S89/S90) — opens (2026-10-30, the MINOR-first 20+ mandate)
+
 - **Baseline:** opened at core `390069ab` (the S87/S88 windows' landing
   head — pulled BEFORE this lane's first action: the window landed the
   N-224 win-stub growth (three convergent lanes, the N-225 collision

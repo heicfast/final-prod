@@ -139,3 +139,56 @@ dropped as superseded; the racing battery (SitEntryMarkerWalkSetsExtent
 / SitMarkerStrideTable / SitNewHeaderAtSectorBoundaryEndsTheWalk /
 SitCorruptEntryTerminalStampsTheSectorStart /
 SitByteSevenOutsideTheWindowIsRefused) owns the coverage.
+
+---
+
+---
+
+## Session-92 addendum (renumbered from the born-collided S92) — the WPD member's S92 SUB-FORMAT RIDER (the engine-side name split; the S87 landing's 'report-layer' framing corrected)
+
+**The rider (this lane's unique delta over the racing S87 seat):** the
+racing 1ff8ae24 landing kept the single FMT_WPD family carve for all
+three tier-1 rows, framing the id split as "the og's report-layer
+routing ... the registered model-divergence stance, the CRW precedent"
+— but the framing is factually wrong and the registration never landed
+in any trail file (PARITY-DELTAS.md carries no WPD row; the S87
+addendum's text names no divergence — the stance exists only in the
+commit message; the trail-truth class this session's doc sweep hunts).
+
+The first-hand decode that corrects it: the og's ENGINE assigns the
+sub-format name. The plain CRawFileInfo child's **+0x28 processor
+(0x18000b7a0)** — decoded this session: `mov eax,[rcx+0x18]` (the id
+the tier-1 stamped), `lea r9,[rax+rax*8]` + `0x18008f070` (the
+9-byte-stride name table), the strlen walk, the string-assign call —
+maps the stamped id (0x44/0x45/0x3d) to the name string WPD/WPG/SHW
+inside the engine's own result object. The "CRW precedent" citation is
+also a mis-citation: CRW II/MM are distinct 4-byte KEYS (registry
+dispatch), while the WPC split is post-key discrimination — the true
+precedents are N-111 (JP2 brands via format_override) and N-115/N-158
+(the office typing set).
+
+**The landing:** the WPG pair {0x00021601, 0x00030000} carries via
+`format_override` onto the existing FMT_WPG row (the "wpg\0"-keyed row
+keeps its own zero-tail-walk entry semantics — two paths, one format
+id, the og's shape); the SHW pair {0x00010f0f, 0x00030000} takes the
+appended **FMT_SHW** row (ext "shw", the og name table's id 0x3d) — an
+override target in the N-115 pattern, its kTrialOrder slot keeping the
+exhaustive-table static_assert true. The WPD row itself (min 16, max
+4 GiB — the racing S90 rider's house-pattern form) is untouched. The
+strengthened `WpdSecondAndThirdRecordsCarve` asserts both sub-format
+ids + both sizes: RED first-hand via the validator-only stash dance
+(the pre-rider tree stamps everything FMT_WPD), GREEN with the rider;
+the full WPD battery 7/7; the full suite 1705/1705.
+
+**The convergence record (this lane's seat history):** this lane
+independently decoded the WPD member pre-window (the three-pair
+tier-1, the u32@+0x14 extent, the +4 gate retirement — all agreeing
+with the racing S84/S87 landings; the local landing dropped at the
+rebase per SA-9 with the concession recorded in the worklog's S92
+entry). The racing S87 seat added the zero-size decline gate (the
+engine's extent!=0 gate at 0x18000d7e1) this lane's decode missed —
+their seat is the better base and holds. This rider is the one delta
+that survives: the sub-format split the seat's own message saw
+("-> type 0x44 / 0x45 / 0x3d") but routed away on the mistaken
+report-layer framing. The divergence registration the S87 message
+promised is thereby MOOT — the split is implemented, not diverged.
