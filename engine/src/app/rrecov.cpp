@@ -2060,8 +2060,11 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         wprintf(L"session saved: %s\n", effective_out.c_str());
     }
     /* W1c (R-52): the completion auto-save (the og's SaveScan window;
-     * cancelled runs return before this point, so ONLY completed runs
-     * auto-save). The N-061 corpus naming + sanitizer; silent write,
+     * S-057/N-211: the user-stop path above calls the same helper with
+     * stopped_window=true, so BOTH completed and stopped-with-results runs
+     * auto-save - the og's stop path feeds the shared completion handler,
+     * DRWUI :1549399-421 -> :339076-79 -> FUN_140395e50 with no
+     * stopped-check). The N-061 corpus naming + sanitizer; silent write,
      * one printed outcome line - never silent failure.
      * S-044: the og's trigger-site gates (FUN_1402857c0's call sites,
      * evidence s8-autosave-and-stamps.md): results-found (an empty

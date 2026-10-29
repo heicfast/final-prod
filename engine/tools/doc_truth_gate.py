@@ -495,6 +495,23 @@ RETIRED_HEADER_CONTRACT_PHRASES = [
     ("a cancelled run never auto-saves", "N-211"),
 ]
 
+# N-211 rider (the S83 lane): the SAME retired-contract class in the CLI's
+# autosave prose. The header landings re-truthed both headers but missed
+# rrecov.cpp's completion-window comment ("cancelled runs return before
+# this point, so ONLY completed runs auto-save" - stale since S-057's
+# cancel-path call). These phrases are searched over src/app/rrecov.cpp
+# alongside the header scan so the third site's class cannot recur either.
+RETIRED_CLI_CONTRACT_PHRASES = [
+    ("cancelled runs return before this point", "N-211"),
+    ("ONLY completed runs auto-save", "N-211"),
+]
+
+# The surfaces the two phrase families scan: the public headers (the
+# original N-211 gate) plus the CLI's own autosave contract comments
+# (the S83 rider - rrecov.cpp owns the third site).
+HEADER_PHRASE_SURFACES = [("include", "*.h", RETIRED_HEADER_CONTRACT_PHRASES),
+                          ("src/app", "rrecov.cpp", RETIRED_CLI_CONTRACT_PHRASES)]
+
 
 def check_header_contract_phrases():
     """Public headers must not assert contracts a landed finding retired.
@@ -508,23 +525,24 @@ def check_header_contract_phrases():
     """
     ok = True
     hits = 0
-    for header in sorted((ROOT / "include").rglob("*.h")):
-        try:
-            lines = header.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            continue
-        for i, line in enumerate(lines):
-            for phrase, finding in RETIRED_HEADER_CONTRACT_PHRASES:
-                if phrase in line:
-                    rel = header.relative_to(ROOT)
-                    print(
-                        f"doc_truth_gate: FAIL: {rel}:{i + 1} asserts the "
-                        f"retired contract phrase '{phrase}' (retired by "
-                        f"{finding} - the header-contract drift class; "
-                        f"re-truth the comment against the landed behavior)"
-                    )
-                    hits += 1
-                    ok = False
+    for surface_dir, surface_glob, phrases in HEADER_PHRASE_SURFACES:
+        for header in sorted((ROOT / surface_dir).rglob(surface_glob)):
+            try:
+                lines = header.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(lines):
+                for phrase, finding in phrases:
+                    if phrase in line:
+                        rel = header.relative_to(ROOT)
+                        print(
+                            f"doc_truth_gate: FAIL: {rel}:{i + 1} asserts the "
+                            f"retired contract phrase '{phrase}' (retired by "
+                            f"{finding} - the header-contract drift class; "
+                            f"re-truth the comment against the landed behavior)"
+                        )
+                        hits += 1
+                        ok = False
     if ok:
         print("doc_truth_gate: header-contract phrases clean (N-211 class)")
     return ok

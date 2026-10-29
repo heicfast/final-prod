@@ -60,3 +60,29 @@ None.
 **Fixed in commit:** this session's N-211 landing (the S81 MINOR-first lane)
 **Verified by:** the reproduction at the open pin (both contradiction sites read first-hand: `cr_scan.h:321-322`'s "a cancelled run never auto-saves" vs `rrecov.cpp`'s `autosave_if_due(true)` on the cancel path — the S-057 landing) + the corpus spot-check this session (DRWUI :1549399-421: the stop window's own "Organizing Found Files" / "Scan stopped and found %1 files." messaging feeding FUN_140395e50 at :339079 — the S-057 decode re-verified) + the NEW gate check as the executed guard: `tools/doc_truth_gate.py`'s `check_header_contract_phrases()` — **RED at the pre-fix tree (it caught a SECOND drift site the finding missed: `include/cr/cr_ui.h:636`'s "a cancelled run never auto-saves" in the shim's own config comment, whose code at `cr_ui.cpp:2418` has auto-saved the stop window since S-057)** and GREEN at the post-fix tree (`doc_truth_gate: header-contract phrases clean (N-211 class)`), plus the linux-release build green after both comment re-truths.
 **Resolution notes:** Both header comments re-truthed to the landed behavior: the field is honored on completion AND on the stop window (the og's stop path runs its own organize into the shared completion handler — DRWUI :1549399-421 → :339076-79 → FUN_140395e50, gates :612571-587 with no stopped-check; S-057's landing, cited at both code sites). The sibling-comment sweep the fix plan ordered: the `raw_category_name` and auto-checkpoint blocks carry no cancel-path claims (verified by read + the gate's include-wide sweep); the sweep's real find was cr_ui.h's twin drift (the gate caught it, not the eye — the class needed the gate, exactly the fix plan's step-4 prediction). The gate extension: `RETIRED_HEADER_CONTRACT_PHRASES` + `check_header_contract_phrases()` wired into `main()` — the retired-phrase class now fails CI the moment it recurs in any public header. No code change (the code was already og-faithful at both sites); no behavioral surface to test — the gate run IS the test, per the fix plan's own step 4.
+
+---
+
+## Rider addendum (S83 lane, 2026-10-29 — the THIRD site the header landings missed, found by this lane's independent verification)
+
+The header landings re-truthed cr_scan.h + the gate-caught cr_ui.h twin, but
+`src/app/rrecov.cpp`'s completion-window comment still asserted "cancelled runs
+return before this point, so ONLY completed runs auto-save" — stale since
+S-057's cancel-path call landed (the comment sits twelve lines BELOW the
+`autosave_if_due(true)` call it contradicts). This lane's independent N-211
+verification (run before the rebase revealed the header landings) had re-truthed
+all THREE sites; the delta rider lands the third:
+
+1. `rrecov.cpp`'s comment re-truthed (completion AND stop window, the S-057
+   decode + the cancel-path call cited in the comment itself).
+2. The gate widened so the class cannot recur on the CLI surface either:
+   `RETIRED_CLI_CONTRACT_PHRASES` ("cancelled runs return before this point" /
+   "ONLY completed runs auto-save") scanned over `src/app/rrecov.cpp` beside
+   the header family via `HEADER_PHRASE_SURFACES` — RED proven against the
+   pre-rider tree (the gate FAILed at rrecov.cpp:2063 with the extended gate
+   over the stale comment), GREEN post-fix.
+3. No code change (the CLI's behavior was already the S-057 landing; only the
+   prose lagged — the doc-truth class applied to a source comment this time,
+   the surface neither the markdown gate nor the header gate covered).
+
+**Status:** FIXED (the rider completes the landing's site set: 3/3)
