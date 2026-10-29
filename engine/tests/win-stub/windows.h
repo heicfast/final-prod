@@ -27,6 +27,7 @@
 typedef unsigned long DWORD;
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
+typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
 typedef long LONG;
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
@@ -293,6 +294,17 @@ inline DWORD GetCurrentProcessId() {
 inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() {
     return 0;
+}
+/* M-075's chkdsk launcher (cr_fsck.cpp): the WoW64 file-system
+ * redirection pair - BOOL-returning no-ops on the stub lane (the native
+ * signatures take PVOID* / PVOID). */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return TRUE;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return TRUE;
 }
 inline DWORD GetTickCount() {
     return 0;
