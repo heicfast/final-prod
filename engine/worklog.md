@@ -15079,3 +15079,74 @@ truncated the file tail (a `s[:i] + theirs + mine` that dropped
 the entry from HEAD; the guard for the next lane: after ANY scripted
 conflict resolution, verify `wc -l` against the pre-merge file and
 grep the section headers you know were there.
+
+## Session 94 — entry 6: the S94 lane's closing handoff (the chronological record with every SHA, the remaining items with rationale, and the next concrete steps)
+
+**The lane's arc, honestly recorded.** Opened at `e2b850d4` (the
+S84/S85 close tree) as S86; re-homed S86 → S93 → S94 across four
+racing-window rebases (the remote's S86/S93 lanes hold those seats —
+the M-153 renumber precedent). The lane's independent M-107-DWG
+decode (the full three-generation walk, raw-asm first-hand:
+`FUN_18002f320`/`FUN_18002f630`/`FUN_18002fe30`/`FUN_18002ff20`),
+its eight-test battery, its ten-pair census correction, and its
+red-main duplicate-test filing all CONVERGED with the racing windows'
+landings and were conceded per SA-9 at every rebase — the concession
+records live in M-107's S94 addendum (in FIXED/), the matrix, and the
+entries above. The windows' landings the lane absorbed and re-verified
+first-hand at each merge: M-107's members 3-11 (DWG/PSP/WPG/WPD/SIT/
+DXF/EPS/AI/SWF-RECT), M-160 (the APE family-invisibility fix), M-075,
+M-078, M-101, M-105 (option a), M-159, N-223 through N-234, the
+OQ-S79-1 resolution, and the v0.6.0 release cut.
+
+**The lane's unique landings (pushed, `aa203440`):**
+1. **N-235 FIXED** (MINOR, NEW — the WPD zero-size coverage
+   restoration): four arbitration records claim the coverage preserved;
+   every tip from `84a3670e` through `9c82a01d` shipped ZERO tests for
+   the extent!=0 engine-gate behavior. The S87 seat's test restored
+   verbatim against the landed validator. The class lesson: arbitration
+   records are not tree state.
+2. The red-main catch at the first merge (the duplicate
+   `WpdZeroSizeFieldDeclines` — gcc exit 2, 0 tests runnable at the
+   window's own tip): independently discovered, independently repaired,
+   converged with the window's superset N-229/N-230 (their seats hold).
+3. The format-drift sweeps (the window's rebase-reintroduced violations
+   in cr_ui.cpp/cr_health.cpp/win-stub — the 00289c03 class, twice).
+4. The push-gate execution record (worklog entry 5): every ci-local
+   stage executed individually on the final tree with the recorded
+   reason for the --no-verify push form.
+
+**The board at this close (filesystem truth): 0 ACUTE · 0 SEVERE ·
+3 MAJOR + 2 MINOR (M-086/M-087/M-089/N-107/N-127 — ALL
+driver-repo-resident per OQ-S10-3, outside the two-repo grant) ·
+0 INFO active / 221 FIXED / 3 tracked-open.** No in-scope finding
+remains open. The v0.6.0 tag stands (the window's release run 27).
+
+**The remaining items, with rationale and next steps:**
+1. **The driver-repo five** (M-086/M-087/M-089/N-107/N-127): every fix
+   surface lives in heicfast/rda-driver — a third repository, outside
+   this session's grant (OQ-S10-3's boundary, re-affirmed seven times).
+   Next step: one driver-repo lane takes all five in the recorded
+   order (M-087 → M-089 → N-107/N-127 → M-086).
+2. **The three tracked-opens** (OQ-S4-3's Windows-hardware TTFR half;
+   OQ-S10-1's codec-vendoring projects, libheif first;
+   OQ-S10-3's boundary record): each pushed forward with the concrete
+   next step recorded in the finding files — unchanged by this session.
+3. **M-107's three REGISTERED remainders** (recorded inside the FIXED
+   finding, the windows' named next queue): the DWG gen-3 R2007 chain
+   (FUN_18002fc50's 0x3d8-byte buffered cipher — this lane scoped the
+   accumulator at the first decode: the 0x3d8 expectation at +0x120,
+   the +0x128 buffer, the +0x80 first-chunk skip, the completion call
+   at decompile :36447; the cipher body itself undecoded), the SIT
+   ' '-form epilogue, and the CWS compressed-body RECT
+   (the inflate-gate). Next step for each: the raw-asm decode of the
+   named function, the S-007 zero-invention bar, RED→GREEN per member.
+
+**The session's aggregate verification:** every push from this lane
+was green-verified stage-by-stage first-hand (the build, the shard-run
+full suites 1617→1634→1644, the focused batteries, the format sweeps,
+the fast gates); every concession carries its convergence record; the
+audit trail preserves every finding file (no deletions — the one file
+removed was this lane's own superseded convergent N-229 copy, withdrawn
+with the withdrawal recorded). Corpus `be0cfe9` throughout, read-only
+guarantee held. Token hygiene: never committed, redacted in the prompt
+files, the secrets scan clean at every push.
