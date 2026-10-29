@@ -2089,8 +2089,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
                     L"loss boundary\n");
             if (!out_path.empty())
-                wprintf(L"reattach the device, then resume: `rrecov resume %ls` continues "
-                        L"from the session checkpoint\n",
+                wprintf(L"reattach the device, then resume: `rrecov scan --resume %ls` "
+                        L"continues from the session checkpoint\n",
                         out_path.c_str());
             else
                 wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
