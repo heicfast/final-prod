@@ -15,7 +15,6 @@ row cited below where it governs a parameter).
 | Flag | Default | Meaning |
 |---|---|---|
 | `--disk N` / `--volume C:` / `--image file` | — (one required) | target: PhysicalDrive N, volume letter, or a disk image (`.img`/`.vmdk`/`.vhd`/`.vhdx`/raw `.dmg`) |
-| `--part P` | whole disk | limit to partition P (with `--disk`) |
 | `--whole-disk` | off | lost-partition discovery over the full disk view (implies the disk target) |
 | `--quick-only` | off | quick stage only (deep + carve disabled) |
 | `--no-carve` | off | disable the carve stage |
@@ -48,8 +47,9 @@ row cited below where it governs a parameter).
 - `apply` / `undo` — lost-partition table apply and its undo
   (**consent**; plan is read-only with refusals listed).
 - `bench --disk N [--mode seq|rand|open|read|info] [--mb N]
-  [--block-kb N] [--iterations N] [--seed N] [--json] [--no-rda]` —
-  transport/device microbenchmarks.
+  [--block-kb N] [--iterations N] [--seed N] [--json]` —
+  transport/device microbenchmarks (`--no-rda` is REMOVED — the
+  driver-only architecture, PLAN-DRIVER-ONLY R10; the parser rejects it).
 - `list`, `list-carve-formats`, `info` (via bench mode) — read-only.
 
 ## 2. ScanConfig (the C++ / ABI surface)
