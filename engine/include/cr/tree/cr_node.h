@@ -441,13 +441,16 @@ public:
      * cadence; the core's stage-boundary stamps stay the authoritative
      * close-of-stage sample). Lock-free read: an atomic load. Hard links
      * count per tree entry (per-parent attach), matching the structured
-     * engines' own per-link counting. */
+     * engines' own per-link counting.
+     *
+     * The raw/carved subset (fs_kind == FsKindCode::Raw at attach time —
+     * carve stamps it before add_file) so carved_found refreshes live
+     * too. Relaxed atomics bumped inside add_file's existing lock;
+     * readable from ANY thread without the tree mutex. Monotonic by
+     * design: a detached rejected-candidate subtree does NOT decrement
+     * (the boundary stamp re-truths at the stage close). */
     u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
     u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
-    /* [red-main repair: the N-166 landing's merge artifact duplicated the
-     * live_files accessor + member here (the second block carried only
-     * live_raw uniquely - both blocks otherwise identical); the duplicate
-     * declarations removed, one accessor pair + one member pair kept] */
 
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
@@ -469,7 +472,7 @@ public:
     void detach_subtree(FileNode* root);
 
     /* N-166: the live counters (see the accessors above) */
-    std::atomic<u64> live_files_{0};
+    mutable std::atomic<u64> live_files_{0};
     std::atomic<u64> live_raw_{0};
 
     /* clear without destroying (engines may reuse) */
