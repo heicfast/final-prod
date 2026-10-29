@@ -14611,3 +14611,73 @@ doc_truth_gate green; the repo-wide marker sweep clean. The session's
 final board: M-107 FIXED at origin (the eleven members + the gen-3
 R2007 recorded residue), the driver-repo five the only active
 findings, the audit trail current.
+---
+## Session-86 S86 fix-lane — the closing handoff (2026-10-30)
+
+**The exact tip:** this lane's last push `033bcad4` (on top of `b4bb09f6`
+the N-231 gate, `47c849bb` the DWG convergence riders, `7dd82a1c` the
+minor-first boundary batch). Five racing windows absorbed mid-flight
+(S84-S92: the M-075 chkdsk launcher, M-078 BitLocker turn-off, M-101's
+tree branches, M-105's option-(a) ACL diagnosis, M-107's members
+1-9+SWF-RECT, N-229/N-230, OQ-S79-1 resolved) — every one verified
+present in FIXED/ at the final tree, every concession recorded per
+SA-9.
+
+**This lane's unique landings (the four pushes):**
+1. The minor-first boundary batch (N-107/N-127 to the PUSHED-FORWARD
+   posture + the OQ-S10-3 fifth re-affirmation, both MINORs'
+   core-side halves re-verified first-hand).
+2. The DWG three-generation decode → the concession with THREE riders
+   landed on the seat: the TEN-pair gate truth (the asm's tenth "09"
+   entry; AC1009 gate-passed-but-un-walked → the decline og-true; the
+   test renamed + the third arm), the gen-3 FALL-THROUGH fix (the
+   explicit "21" match restores the og's routing), the WPD
+   duplicate-test red-main repair (convergent with N-230, the rename
+   form conceded and recorded in its Resolution).
+3. **N-231** (MINOR, filed+fixed): the duplicate-gtest-name class's
+   root-cause gate — scripts/verify/verify_test_names.py + the
+   ci-local.sh stage-2 wiring + the pre-commit FULL-TREE form + the
+   ctest entry. RED proven at the historical 98bd30d6 tree AND the
+   staged two-file collision; GREEN 1751/0 at the close.
+4. The tracked-open push-forwards (OQ-S10-1's by-name refusals
+   verified current; OQ-S4-3's harness verified, the one-Windows-
+   execution step unchanged) + the M-107 gen-3 decode-progress record
+   (FUN_18002eb10 = the one-byte ROTATION transform identified
+   first-hand; the accumulate + de-interleave chain confirmed; the
+   three named next probes).
+
+**The closing verification sweep:** the full suite **1723/1723**
+(1717 fast + the 6 heavy scans, ASan on, LSAN clean at exit); the
+marker lint clean repo-wide; the N-231 lint clean (1751
+registrations); the pre-commit fast gate clean; the doc-truth /
+format gates clean at every push.
+
+**The remaining board (filesystem truth at the close): 0 ACUTE · 0
+SEVERE · 4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3
+tracked-open.** The six open findings' rationale and next steps:
+- **M-086/M-087/M-089/N-107/N-127** — the ENTIRE fix surfaces live in
+  heicfast/rda-driver, outside every fix session's two-repo grant
+  since S10 (the OQ-S10-3 lane record: M-087 → M-089 → N-107/N-127
+  → M-086, one driver-repo lane takes all five).
+- **M-107** — the DWG gen-3 R2007 remainder ONLY (every other member
+  landed). The next concrete step: the raw-asm pass over
+  FUN_18002fc50's mid-section records flow + the size-field
+  accumulator (the three probes named in the finding's S86 addendum
+  2; the rotation transform + the accumulate/de-interleave chain
+  already decoded in evidence/s86-lane-sheets/
+  s86-dwg-three-generation-walk-decode.md).
+- **OQ-S10-1** — the codec vendoring decision (owner call, libheif
+  first); **OQ-S4-3** — exactly one Windows bench execution; both
+  pushed forward with current-tree verification.
+
+**No release tag this session** (the mandate's own criterion: the
+audit does not close cleanly — six open findings, all with recorded
+rationale; the tag belongs to the window that lands the gen-3
+remainder and the driver-repo five's lane).
+
+**The session's lesson for the next lane:** five racing windows
+pushed while this lane worked — the pull-rebase-concede-rider loop
+is the operational reality. The N-231 gate now catches the class
+that broke main in three of the last nine racing windows; run the
+fast gate before every push (the S92 handoff's lesson, now
+enforced by tooling).
