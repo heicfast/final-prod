@@ -9952,3 +9952,37 @@ log), DRWUI scan state machine + progress math + stuck-watchdog decode,
 per-engine sector/LBA arithmetic + scan-math fresh eyes, core-side counterpart
 read; (3) lead first-hand verification + filing (next free IDs: S-068+, M-148+,
 N-210+, I-048+, A-016+, D-148+); (4) board re-truth + push + handoff.
+
+
+---
+
+**Session-70 S70 lane — the tenth continuation audit lane of the same user
+second-session mandate (2026-10-29).**
+
+- **Lane open record:** prompt saved (token redacted) at
+  `worklog/session-diff-audit-s70-prompt.md`, read twice. The S68/S69 seats
+  conceded to the racing lanes per SA-9 (both opened on the remote while this
+  lane's clones were in flight); this lane takes a **disjoint slice**: the
+  S69 lane claimed the liveness battery + the og local-database inventory +
+  the DRWUI scan state machine/progress/stuck-watchdog decode + per-engine
+  sector/LBA arithmetic + the core counterpart read — this lane claims
+  instead (a) the **function-level engine pipeline census** (per-SearchDLL
+  scan-stage algorithm steps and dentry/record-level detection validators,
+  deliberately NOT the LBA arithmetic), (b) the **adversarial execution
+  battery** on the built core (no-stuck-or-freeze by execution: cyclic
+  runlists / cyclic FAT chains / self-referential trees / corrupt geometry
+  fixtures run under timeout — the strongest evidence class, complementing
+  S55's static clean bill), (c) the **calculation/grading/results-assembly
+  math** sweep (sizes, counts, candidate scoring, merge/dedup precedence
+  beyond the landed display-math family), and (d) lead verification + filing.
+- **Pins at open:** core `3799dee2` (the S69 opening absorbed by pull;
+  code-identical to `f3da99f1` — both racing landings are worklog-only),
+  corpus `be0cfe9`. Baseline build + suite launched first-hand
+  (linux-release, gcc Werror). Board re-counted first-hand from the
+  filesystem at open: **0 ACUTE · 0 SEVERE · 17 MAJOR · 11 MINOR · 0 INFO
+  active / 156 FIXED / 4 tracked-open** (N-107/N-127 driver-repo-resident
+  per OQ-S10-3). Next free IDs (filesystem + ledger sweep):
+  **S-067+, M-149+, N-210+, I-048+, A-015+**.
+- **Read-only guarantee:** this lane's delta = `diff-to-fix/` (new content)
+  + `worklog*` only. No source, header, test, build, workflow, or doc file
+  is modified.
