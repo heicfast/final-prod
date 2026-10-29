@@ -814,6 +814,10 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
      * rsf-format section 5.2 +0x6C); old readers stop before it and old
      * files simply lack it (the deserializer len-gates the read). */
     put64(out, vi.save_unix);
+    /* N-090 v6 tail: the complete label at the og's volumeName[100]
+     * width - label[32] above keeps the legacy prefix view; old readers
+     * stop before this tail (the same len-gate pattern as v2..v5). */
+    out.insert(out.end(), vi.label_full, vi.label_full + 100);
     return OK;
 }
 
@@ -865,6 +869,15 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
              * is the caller's fallback display, never a silent guess). */
             if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8)
                 vi.save_unix = c.g64();
+            /* N-090 v6 tail: the complete label (the og's
+             * volumeName[100]); absent on v1..v5 records - zeros mean
+             * "the legacy 31-char card is the whole truth" (the
+             * surface joins to label[] alone, exactly pre-v6). */
+            if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8 + 100) {
+                if (!c.bytes(reinterpret_cast<u8*>(vi.label_full), 100))
+                    return 0x50040001;
+                vi.label_full[99] = 0; /* never trust a torn NUL */
+            }
         }
     }
     return c.fail ? u32(0x50040001) : u32(OK);

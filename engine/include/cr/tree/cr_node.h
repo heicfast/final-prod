@@ -16,6 +16,7 @@
 
 #include "../cr_types.h"
 #include "cr/storage/cr_device.h"
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <unordered_set>
@@ -88,7 +89,7 @@ public:
     u64 logical_size = 0; /* real_size */
     u64 allocated_size = 0;
     FileTimes times;
-    u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
+    u32 attributes = 0; /* DOS attributes (dir/hidden/...) */
     /* internal flags: 4 = system-filter (corpus); 0x10 = in-use (NTFS);
      * 0x02 = NTFS dir mirror. N-177: 0x0200 = size-exceeds-blocks
      * damage (the og's ext4 FLAGS bit 0x200 at +0x39, FUN_180007510's
@@ -421,6 +422,16 @@ public:
     size_t node_count() const { return nodes_.size(); }
     size_t file_count() const;
     u64 total_logical() const;
+    /* N-166: the live attach counter - every add_file ticks it under the
+     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and
+     * a deserialized tree self-seeds through its own add_file calls).
+     * The telemetry layer samples it at progress-event time so mid-stage
+     * counters MOVE (the og's results grid tracks the live tree at ~2 s
+     * cadence; the core's stage-boundary stamps stay the authoritative
+     * close-of-stage sample). Lock-free read: an atomic load. Hard links
+     * count per tree entry (per-parent attach), matching the structured
+     * engines' own per-link counting. */
+    u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
 
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
@@ -480,6 +491,8 @@ public:
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
+    /* N-166: see live_files() */
+    mutable std::atomic<u64> live_files_{0};
     void rebase_props_locked(FileNode* n, u64 base, std::unordered_set<FileProperties*>& visited);
     static u64 extent_len_class_(const FileProperties* p);
 

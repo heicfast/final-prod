@@ -214,18 +214,37 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
+<<<<<<< HEAD
+=======
+    /* the in-table DOC pair at one key (skips the deep path) */
+>>>>>>> db82b5e64567a16453c23d574413e6ccc6ce17c5
     auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
     auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    /* the out-of-table ZZQX pair at another key (enters the deep path) */
+>>>>>>> 81b4cdaf418cbcacc0134e9042e3cd214b324249
+>>>>>>> db82b5e64567a16453c23d574413e6ccc6ce17c5
     auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
+<<<<<<< HEAD
     /* (the dotless pair's pin moved to DotlessNamesSkipTwinDetection at
      * the S-058 re-pin - the merge dropped its assertions here) */
+=======
+    (void)add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                   Origin::Structured, 0xD000, 0x400);
+    (void)add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                   Origin::Structured, 0xD000, 0x400);
+>>>>>>> db82b5e64567a16453c23d574413e6ccc6ce17c5
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
+<<<<<<< HEAD
     EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
     EXPECT_FALSE(a2->overlap());
     EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
@@ -233,6 +252,20 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
     EXPECT_TRUE(c2->overlap());
     EXPECT_EQ(Grade::High, c1->grade());
     EXPECT_EQ(Grade::High, c2->grade());
+    /* the merged dot-less rows (the hot-window edit added the files but
+     * not their pins - the assertions restored): the runtime set's ""
+     * quirk makes dot-less files IN-table -> skip the deep path */
+    EXPECT_FALSE(e1->overlap()) << "dot-less names skip the twin path (the \"\" quirk)";
+    EXPECT_FALSE(e2->overlap());
+=======
+    EXPECT_TRUE(a1->overlap()) << "out-of-table (.zzqx) extensions enter the deep path";
+    EXPECT_TRUE(a2->overlap());
+    EXPECT_EQ(Grade::High, a1->grade()) << "the twin pair promotes";
+    EXPECT_EQ(Grade::High, a2->grade());
+    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions skip the deep path";
+    EXPECT_FALSE(c2->overlap());
+    EXPECT_NE(Grade::High, c1->grade()) << "no twin-induced promotion for in-table rows";
+>>>>>>> 81b4cdaf418cbcacc0134e9042e3cd214b324249
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {

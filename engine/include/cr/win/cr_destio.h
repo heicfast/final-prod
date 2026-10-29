@@ -27,6 +27,10 @@ public:
     /* N-015: GetDiskFreeSpaceExW "available to caller" at the root;
      * 0 when the root cannot be probed (not-yet-created etc.) */
     u64 free_bytes(const std::u16string& root_utf16) const override;
+    /* S-060: the og's per-item restoration tail (SetFileAttributesW +
+     * the mask-gated SetFileTime trio, DRWUI :874686-718) */
+    u32 set_metadata(u64 item_id, const std::u16string& final_path_utf16,
+                     const FileMeta& meta) override;
 
 private:
     struct Open {

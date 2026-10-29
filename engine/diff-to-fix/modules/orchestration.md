@@ -1,5 +1,7 @@
 # modules/orchestration.md — scan orchestrator audit verdicts
 
+**S47 addendum (2026-10-29):** M-126 FIXED (`089b7cc8`) — the og's ETA model landed (FUN_1401af410's whole-run base + 0.2/0.8 rate EMA + the x0.6 time-budget variant + the '3m00s' placeholder + the 1 Hz countdown): the query-layer `eta_compute`/`eta_format_m_s`/`eta_countdown_tick` helper family beside the M-125 progress-display math, `ScanTelemetrySnapshot.eta_seconds`/`eta_smoothed_rate` computed live (the EMA state server-side), and the CLI's remaining-time line. O39's 'UI-side formatting' premise is superseded — the decode shows a computed model, and it is now a core surface. #38/#39 → MATCH.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — progress/ETA mathematics + state management)
 
 New active findings on this module: **M-125** (the og's piecewise progress remap +
@@ -339,3 +341,20 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   insert-time High absent), M-138 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair), M-134 — FIXED (session-52: the deep-read grade + the one-shot full-tree re-grade landed; suite 1379/1379; the pre-check trio stays OQ-S42-3) (the deep-read
   validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
   Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings touching this module: **M-146** (probe_family's NTFS gate
+family mismatch — the dispatch layer's gate set re-derived from the analyser),
+**N-199** (the ReFS second signature FSRS@+0x10 absent in probe_family),
+**N-194** (the size display formatters absent — the query surface). Verified-MATCH
+this session (the state-management axis, the user's focus battery): the scan
+lifecycle states and every transition writer re-walked against cr_scan's
+single-owner model (the I-041/I-042/I-043/D-122 registers corroborated — no new
+state divergence), the watchdog's bounded teardown, the CUIScanProgressInfo
+monotonicity protocol, the telemetry clamp family (the 99→100 clamp kept distinct
+from the 98% classifier and the 99.99 display cap — three different constants,
+now each pinned), and the progress/stage weighting. The pause type-gate and the
+"Reading sector" ticker are recorded as precise next probes in
+`evidence/s54-deepdive-orchestration.md` (UNRESOLVED #1/#2).

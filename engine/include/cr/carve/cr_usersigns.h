@@ -46,10 +46,10 @@ namespace usersigns {
 constexpr u32 kMaxSignBytes =
     48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
 constexpr u32 kMaxEntries = 256;      /* N-170: the cap is enforced against TOTAL SIGNS
-                                         * (the loader's out.signs.size() check, cr_usersigns.cpp)
-                                         * - the og's shipped set carries 190 signs deduped (191 raw,
-                                         * the duplicate-asf merge; N-169), so 256 = 1.34x the raw
-                                         * count, the hostile-blob bound */
+                                       * (the loader's out.signs.size() check, cr_usersigns.cpp)
+                                       * - the og's shipped set carries 190 signs deduped (191 raw,
+                                       * the duplicate-asf merge; N-169), so 256 = 1.34x the raw
+                                       * count, the hostile-blob bound */
 constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
 constexpr u32 kMaxOffset = 1024; /* the og's max offset is 526 (zip "526,504B537058"); the og has no
                                   * probe-stride bound - 1024 keeps a hostile-input bound */
@@ -94,6 +94,12 @@ u32 parse(const char* bytes, size_t len, UserSignSet& out);
 u32 install_set(UserSignSet&& set); /* returns the install error or OK */
 u32 active_count();                 /* installed sign count (0 = none) */
 u32 snapshot(UserSignSet& out);     /* value copy under the lock (ABI info) */
+/* S-055 companion: unregister the active set (the empty registry -
+ * install_set cannot take an empty set by its own validation, so the
+ * explicit reset is the only way back to "no user signs". Mirrors the
+ * og's config-file-absent posture; test isolation uses it to pin the
+ * no-user-sign world that absence-asserting fixtures intend). */
+u32 clear();
 
 /* Match `p` (the stride base, at least kMaxOffset+1 bytes valid) against
  * the active set; returns the matching sign or nullptr. First match in

@@ -67,3 +67,10 @@ orchestration.md:210-213 read directly.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-166 landing, session-53 minors lane — post-push SHA in the worklog entry)
+**Verified by:** `Telemetry.CountersMoveDuringStage` (RED pre-fix proven by the stashed-overlay rebuild — with the live refresh disabled, every mid-carve ScanProgress sample carried carved_found == 0 while three carved JPEGs were already attached; GREEN post-fix: the last pre-park sample carries the attach-time delta) + `Telemetry.LiveAttachCounterTracksTheTree` (the O(1) counter's add/detach/reset lifecycle) + the full Telemetry family green; suite 1382/1382 at the landing.
+**Resolution notes:** The live datum is a new O(1) attach counter on ResultTree itself (`live_files()`: an atomic ticked in add_file under the tree's own lock, subtracted by detach_subtree, zeroed by reset — a deserialized tree self-seeds through its own add_file calls; lock-free atomic read at event time). `emit_event_` overlays the counter's delta over the boundary snapshot on ScanProgress samples ONLY, attributing the growth to the ACTIVE stage's counter (carve growth -> carved_found, structured growth -> files_found) so the three counters' semantics are preserved and their sum tracks the og's live-tree headline; the delta clamps at zero across a lost-candidate detach (non-decreasing by construction). The stage-boundary stamps and the FilesFound boundary events stay snapshot-based exactly as before — the finding's "authoritative close-of-stage sample" requirement. The header contract line (cr_scan.h §events) now states the live refresh. The finding's premise correction: the stats counters are NOT atomics (the finding's "the counters already are atomics" was the plan's assumption; the ScanStats fields are plain u64 in the caller's struct — the tree's own atomic is the live source that exists), recorded here rather than silently deviating from the plan.

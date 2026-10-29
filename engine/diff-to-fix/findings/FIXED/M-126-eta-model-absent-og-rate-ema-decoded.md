@@ -94,3 +94,26 @@ disposition being corrected.
 ## Open questions
 
 None — the model is fully decoded from FUN_1401af410 + display sites.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `089b7cc8` (the S47 MAJOR-first fix lane; the hot-window main-red repairs rode separately in `ae2f9206`)
+**Verified by:** Eta.WholeRunModel (the finding's worked example: 40/100 in 400 s -> 600 s remaining; plus the rate-passes-through first-sample pin) · Eta.EmaDamping (exact integer pins: settled stays, the 20%-of-gap moves in both directions — the og's (2*rate+8*prev)/10 with integer truncation) · Eta.TimeBudgetVariant (the x0.6 leg: the 1000 s budget at 40/100/400 s -> 360; the over-budget 500 s shape -> 180) · Eta.PlaceholderAndCountdownFormat ("07m43s"/"10m00s" zero-padded renders, the literal "3m00s" placeholder, the unpadded re-render parses, "0m00s" stops the slot, garbage never ticks) · Eta.ParameterErrorClass (done==0/total<done/total==0 -> -1, eta<=0 -> no estimate) — the full suite 1280/1280 green (including the four hot-window main-red repairs the landing surfaced: the N-171 double-tick, the default-set registry leak, the N-177 same-name convergence, the S-058 fixture swap).
+**Resolution notes:** The fix plan executed in full. (1) The model landed as a pure query-layer helper family beside the M-125 progress-display helpers: `eta_compute(done, total, elapsed_ms, prev_smoothed, time_budget_variant, budget_seconds)` -> `EtaModel { eta_seconds, smoothed_rate }` implementing FUN_1401af410 verbatim (re-read first-hand at DRWUI:314835-314887 before the fix — the opening parameter gate, the integer tick math, the EMA weights, the type-gated budget leg with the projected floor), `eta_format_m_s` (the computed render: both fields zero-padded — the runtime anchor's "07m43s" shape; the empty-label placeholder is the og's LITERAL "3m00s"), and `eta_countdown_tick` (the :1527550-1527768 section parse — minutes before 'm', seconds between 'm' and 's', the unpadded re-renders parse identically — minus one second, with the og's minutes*60-1+seconds<0 stop condition). (2) `ScanTelemetrySnapshot` carries `eta_seconds` + `eta_smoothed_rate`, computed live on every snapshot read from (overall_permille, elapsed_ms) through the whole-run leg with the EMA state held in the controller — hosts need no state of their own (the fix plan's exact ask); the type-gated budget variant is the display-side leg hosts opt into via `eta_compute` directly (the core's snapshot serves the plain leg, the og's type-0 field). (3) The CLI progress line now prints "remaining: XmYs" beside the elapsed seconds, with the og's "3m00s" placeholder posture before an estimate exists. (4) O39's wrong-premise disposition ("UI-side formatting, no engine gap") is superseded by this landing — the module row and the helper docs carry the decode. No safety hardening touched; no benchmark (the model is arithmetic, not an I/O path).
+---
+
+## Addendum (S54 lane, 2026-10-29): the ETA time-budget SEED decoded — the missing helper input
+
+The og's ETA budget does not start from zero: `DRWUI_decompiled.c:315150` seeds the
+budget with `total_bytes / 60 MiB + 60 s` before the rate EMA takes over — i.e. an
+initial assumption of **1 MiB/s plus a flat 60-second base**. The finding's fix plan
+(step: "adopt the og's rate model") should seed the budget identically so the
+pre-first-measurement window (the first ~60 s of a scan, where the EMA has no data)
+renders the og's ETA rather than an arbitrary initial value. Corpus cite re-read
+first-hand this session by the S54 deep-dive F leg (the full derivation in
+`evidence/s54-deepdive-orchestration.md`, Axis 3); core side: no seed exists at
+`34d6cf10` (the ETA budget starts at zero/absent until the EMA has samples).
+
+Test to add alongside the finding's own: `Eta.InitialSeedIs1MiBPerSecPlus60s`
+(a scan with zero rate samples renders `total/1MiB/s + 60s`, not zero/infinite).

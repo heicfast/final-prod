@@ -93,3 +93,12 @@ helper or register the plain counter as a deliberate delta; PriorityDisplayType
 needs an OOS-UI row (the usefullostfiles.xml precedent) unless the CLI `tree` wants
 ordering parity. Grep record:
 `evidence/decompiled-quotes/s10-config-layer-absence-greps.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **N-194** (the og's two byte-size display
+formatters — log-side KB/MB/GB binary tiers with the +1 flip boundaries, UI-side
+B..TB with caller precision — have no core counterpart; hosts cannot render
+og-faithful sizes; the M-125 `progress_display_*` family is the landed precedent
+for the fix).

@@ -304,3 +304,15 @@ ExfatEngine.RecyclePairingMirrored (fail-before EXECUTED — engine
 mutation 3/4 RED; the over-matching pin green by design). B4/B5/D11
 verdict: MATCH.
 
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-066** (SEVERE — the lost-anchor base−12
+re-base ladder absent: the og probes FAT media words at base and base−12 after a
+failed backup-boot gate and corrects the volume base; the core scans 12 sectors
+off), **N-198** (the three core-only numeric bounds — register the hardening).
+Verified-MATCH this session: the og gate set (FUN_180021e80's full `!= 0` family),
+the dual ROL15 entry checksum, the boot-region checksum parity (informational on
+both sides — confirmed neither validates it at open outside RawFixer), the
+cluster→heap u64 math, and the exFAT engine's non-use of FSI 'RRaA' (both sides).

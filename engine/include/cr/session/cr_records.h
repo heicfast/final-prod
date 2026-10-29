@@ -126,6 +126,13 @@ struct VolumeInfo {
      * section 5.2 +0x6C; the og's session list shows the EMBEDDED time,
      * which survives copies, unlike the mtime). */
     u64 save_unix = 0;
+    /* N-090 (v6 tail - v1..v5 sessions deserialize with zeros = the
+     * legacy 31-char card is the whole truth): the COMPLETE volume
+     * label at the og's record-2 volumeName[100] width (strncpy(...,99)
+     * - rsf-format section 5.2 +0x04). label[32] stays the legacy
+     * prefix view; old readers stop before this tail (the v2..v5
+     * len-gate pattern). */
+    char label_full[100] = {0};
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
@@ -222,7 +229,10 @@ struct VolumeSessionInfo {
     u64 slice_bytes = 0;
     u32 logical_sector = 0;
     u32 physical_sector = 0;
-    char label[32] = {0}; /* utf8, NUL padded */
+    char label[32] = {0}; /* utf8, NUL padded (the legacy prefix view) */
+    /* N-090: the complete label (the v6 record tail; == label on
+     * v1..v5 sessions - the uniform degrade). */
+    char label_full[100] = {0};
     u64 scanned_bytes = 0;
     u64 elapsed_ms = 0;
     /* identity card (SESS-2 v2 tail; zeros on v1 sessions = unverifiable) */

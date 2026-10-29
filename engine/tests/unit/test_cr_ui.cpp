@@ -1198,6 +1198,126 @@ TEST(CrUi, SessionListTieBreakDeterministic) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(CrUi, SessionListVolumeLabelFullWidthRoundTrips) {
+    /* The og's record-2 volumeName[100] (strncpy 99, rsf-format
+     * --scan-session.md 5.2 +0x04) vs the core's 31-char session card: a
+     * 60-char HOST label now round-trips COMPLETE through the v6 record
+     * tail into row.label_full (the ABI append); the legacy label[32]
+     * keeps its 31-char prefix view (old callers see exactly what they
+     * always saw); a short label's label_full == label (the uniform
+     * degrade - v1..v5 sessions surface the legacy card unchanged). */
+    const std::string label60 =
+        "012345678901234567890123456789012345678901234567890123456789"; /* 60 */
+    Ui u;
+    const std::string img = write_fixture("sesslw");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.volume_label_utf8 = label60.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    const std::string crsf = img + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+
+    /* the loaded session's info surface carries the complete label; the
+     * legacy card field keeps the 31-char prefix (NUL at [31]) */
+    cr_ui_session_info si{};
+    ASSERT_EQ(cr_ui_session_get_info(u.sess, &si), CR_UI_OK);
+    EXPECT_STREQ(si.label_full, label60.c_str());
+    EXPECT_EQ(std::strlen(si.label), 31u);
+    EXPECT_EQ(std::string(si.label), label60.substr(0, 31));
+
+    /* the list row agrees with the load on the full label */
+    const std::string dir = std::filesystem::path(crsf).parent_path().string();
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_GE(n, 1u);
+    std::vector<cr_ui_session_row> rows(n);
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    const cr_ui_session_row* row = nullptr;
+    for (const auto& r : rows)
+        if (crsf == r.path)
+            row = &r;
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(row->valid, 1u);
+    EXPECT_STREQ(row->label_full, label60.c_str());
+    EXPECT_EQ(std::strlen(row->label), 31u);
+    EXPECT_EQ(std::string(row->label), label60.substr(0, 31));
+
+    /* the short-label degrade: a fresh scan with a tiny label carries
+     * label_full == label (the uniform join; old-width files identical) */
+    Ui u2;
+    const std::string img2 = write_fixture("sesssh");
+    ASSERT_FALSE(img2.empty());
+    ASSERT_EQ(cr_ui_open_image(img2.c_str(), 0, 0, &u2.dev), CR_UI_OK);
+    cr_ui_scan_config cfg2{};
+    cfg2.volume_label_utf8 = "tiny";
+    ASSERT_EQ(cr_ui_scan_create(&cfg2, &u2.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u2.scan, u2.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u2.scan), CR_UI_OK);
+    const std::string crsf2 = img2 + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u2.scan, crsf2.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u2.scan);
+    u2.scan = nullptr;
+    /* re-probe: the second save added a file to the shared dir (the
+     * two-call contract - a stale capacity returns TRUNCATED, never a
+     * silent short read) */
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    rows.resize(n);
+    cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    const cr_ui_session_row* row2 = nullptr;
+    for (const auto& r : rows)
+        if (crsf2 == r.path)
+            row2 = &r;
+    ASSERT_NE(row2, nullptr);
+    EXPECT_STREQ(row2->label_full, "tiny");
+    EXPECT_STREQ(row2->label, "tiny");
+}
+
+TEST(CrUi, SessionListScopeSupersetPinsAutoAndManual) {
+    /* The scope rule: the og's home list keeps ONLY names containing
+     * BOTH auto_ and .rsf (FUN_140273940, DRWUI:432326-432333 +
+     * rsf-format 5.5); the core lists EVERY *.crsf - the REGISTERED
+     * SUPERSET (a manual save is a resumable session too; a host wanting
+     * the og's exact home view filters client-side). Pin: BOTH classes
+     * list, both valid, same save_unix for the same underlying file. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("scope", u, img, crsf));
+    const std::string dir = cr_test::tmp_path("cr_ui", "_scope_superset");
+    std::filesystem::create_directories(dir);
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/auto_test_10_14_23_13_21.crsf",
+                                           std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/manual-save.crsf",
+                                           std::filesystem::copy_options::overwrite_existing));
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_EQ(n, 2u);
+    std::vector<cr_ui_session_row> rows(n);
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    const cr_ui_session_row* auto_row = nullptr;
+    const cr_ui_session_row* manual_row = nullptr;
+    for (const auto& r : rows) {
+        if (std::string(r.path) == dir + "/auto_test_10_14_23_13_21.crsf")
+            auto_row = &r;
+        if (std::string(r.path) == dir + "/manual-save.crsf")
+            manual_row = &r;
+    }
+    ASSERT_NE(auto_row, nullptr);
+    ASSERT_NE(manual_row, nullptr);
+    EXPECT_EQ(auto_row->valid, 1u);   /* the og's home-list class */
+    EXPECT_EQ(manual_row->valid, 1u); /* the superset's extra class */
+    EXPECT_EQ(auto_row->save_unix, manual_row->save_unix);
+    EXPECT_GT(auto_row->save_unix, 0ull);
+}
+
 TEST(CrUi, EnumerationRefreshContractPinned) {
     /* N-098: the always-fresh enumeration contract - each
      * cr_ui_enumerate_disks call re-queries the OS, no cache, no retained
@@ -3697,6 +3817,41 @@ std::vector<unsigned char> build_fat16_tiny_pbm() {
     return img;
 }
 
+/* M-115 (the S47 lane's convergence supplement): a JPEG-shaped file with
+ * clean extents but NO SOF - the marker walk (jpeg_dims) fails
+ * deterministically at the first non-marker byte, so the decode is refused
+ * while every read is clean. Exercises the DIMS-seam of the read-evidence
+ * promotion (the parallel lane's damaged-PNG fixture exercises the
+ * entropy-seam - together the two refusal classes cover both DecodeFailed
+ * exits the promotion consumes). */
+static const unsigned char kJpgNoSof[] = {
+    255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 255, 254, 0, 4, 65, 66,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+/* the no-SOF JPEG as a DELETED entry (0xE5 -> '#'): deleted non-carved files
+ * grade below 2, so the read-evidence promotion is observable */
+std::vector<unsigned char> build_fat16_jpg_corrupt() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kJpgNoSof) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    dentry(img, 3, "BAD     JPG", 0x20, 40, (unsigned long)sizeof(kJpgNoSof), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kJpgNoSof, sizeof(kJpgNoSof));
+    return img;
+}
+
 bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
                          std::string& img_out, std::string& crsf_out) {
     img_out = cr_test::tmp_path("cr_ui", tag);
@@ -4389,8 +4544,7 @@ TEST(CrUi, ThumbnailPromotesOnReadNotDecode) {
     /* the decode refuses the corrupt stream: ERR_TRUNCATED is the
      * honest refusal - but the READ was clean, so the promotion fired */
     EXPECT_EQ(0x50030004u, rc) << "the damaged stream still refuses the decode";
-    EXPECT_EQ(2u, grade_of(u.sess, dname))
-        << "M-115: the clean read promotes - decode-independent";
+    EXPECT_EQ(2u, grade_of(u.sess, dname)) << "M-115: the clean read promotes - decode-independent";
 }
 
 TEST(CrUi, ThumbnailTinyFileDoesNotPromote) {
@@ -4435,4 +4589,56 @@ TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
     EXPECT_EQ(src.find("if (st == preview::ThumbStatus::Ok) {\n        node->set_grade"),
               std::string::npos)
         << "the decode-gated promotion shape must stay gone";
+}
+
+TEST(CrUi, ThumbnailPromotesOnReadNotDecodeDimsRefusal) {
+    /* M-115 (the S47 lane's convergence supplement to the parallel lane's
+     * landing): the same read-evidence promotion proven at the DIMS seam -
+     * a JPEG-shaped file with clean extents but NO SOF refuses at
+     * jpeg_dims (native_dims), the other DecodeFailed exit; the og's
+     * promote-on-read (FUN_1403eba50 verdict==0, the guard :422507-514)
+     * fires identically. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("m115dims", build_fat16_jpg_corrupt(), u, img, crsf));
+    const uint64_t bad = query_node_id(u.sess, "#AD.JPG");
+    ASSERT_NE(bad, 0u) << "the deleted no-SOF JPEG must be a result row";
+    const uint32_t g0 = grade_of(u.sess, "#AD.JPG");
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: the deleted non-carved node starts below 2";
+
+    cr_ui_thumbnail_info info{};
+    EXPECT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, bad, nullptr, nullptr, 0, &info), 0x50030004u)
+        << "the decoder refusal still returns ERR_TRUNCATED";
+    EXPECT_EQ(1u, info.truncated);
+    EXPECT_EQ(2u, grade_of(u.sess, "#AD.JPG"))
+        << "M-115: the clean-read dims-seam refusal promotes exactly like the og";
+}
+
+TEST(CrUi, PreviewPaneNeverPromotes) {
+    /* M-115 doctrine pin: the og's category-3 "PreViewFile" request never
+     * promotes through the thumbnail path (the != 3 clause at
+     * :422507-514, the cat-3 early return at :652280-281); the core's ABI
+     * has no category channel - the PREVIEW surface is the pane
+     * equivalent and must leave grades untouched. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("m115prev", build_fat16_jpg_corrupt(), u, img, crsf));
+    const uint64_t bad = query_node_id(u.sess, "#AD.JPG");
+    ASSERT_NE(bad, 0u);
+    const uint32_t g0 = grade_of(u.sess, "#AD.JPG");
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: below 2 before the preview reads";
+
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, bad, &pv), CR_UI_OK);
+    uint64_t size = 0;
+    ASSERT_EQ(cr_ui_preview_size(pv, &size), CR_UI_OK);
+    EXPECT_EQ(sizeof(kJpgNoSof), size_t(size));
+    std::vector<char> buf(64, 0);
+    uint32_t placed = 0;
+    ASSERT_EQ(cr_ui_preview_read(pv, 0, buf.data(), 32, &placed), CR_UI_OK);
+    EXPECT_EQ(32u, placed);
+    EXPECT_EQ(g0, grade_of(u.sess, "#AD.JPG"))
+        << "the preview surface never promotes - the pane doctrine";
 }

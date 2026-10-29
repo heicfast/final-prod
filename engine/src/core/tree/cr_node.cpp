@@ -196,6 +196,7 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     }
     n->node_id_ = nodes_.size();
     nodes_.push_back(n);
+    live_files_.fetch_add(1, std::memory_order_relaxed); /* N-166 */
     index_node_locked(n);
     return n;
 }
@@ -432,6 +433,9 @@ void ResultTree::detach_subtree(FileNode* root) {
     nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
                                 [&dead](FileNode* n) { return dead.count(n) != 0; }),
                  nodes_.end());
+    /* N-166: the live counter follows the removal (the telemetry delta
+     * clamps at zero, so a detached subtree can never push it negative) */
+    live_files_.fetch_sub(dead.size(), std::memory_order_relaxed);
     /* roots_: remove the root itself (a detached root always is one; the
      * loop guards against a future non-root call shape). */
     roots_.erase(std::remove(roots_.begin(), roots_.end(), root), roots_.end());
@@ -465,6 +469,7 @@ void ResultTree::reset() {
     roots_.clear();
     by_record_.clear();
     by_extent_.clear();
+    live_files_.store(0, std::memory_order_relaxed); /* N-166 */
     for (auto& a : arenas_) {
         delete[] static_cast<unsigned char*>(a.base);
         a.base = nullptr;
