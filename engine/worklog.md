@@ -10078,3 +10078,27 @@ FIXED / 4 tracked-open. `diff-to-fix/FIXED-LEDGER.md` row appended.
 
 **Commit SHA recorded in the finding file's Resolution section at push
 time.**
+
+---
+
+## Session-74 S74 (2026-10-29 — the thirteenth continuation fix lane; MAJOR-first per the user mandate)
+
+**Lane open.** The racing S72/S73 fix lane holds the front of the MAJOR queue
+(its announced order: M-136 → M-135 → M-143 → [M-144 landed `ee19145c`] →
+M-118 → M-113 → M-114 → M-075 → M-078 → M-073 → M-101 → M-107 → the MINORs);
+this lane takes the DISJOINT reverse end per SA-9: **M-073 → M-078/M-075 →
+M-101 → M-105/M-111/M-114 (decision-class registrations) → M-107's per-format
+decode-then-land order → the MINOR ladder → the tracked-open set**, conceding
+any seat the racing lane lands first (earlier-push-wins; rebase + re-verify at
+every pull). Prompt saved token-redacted at
+`worklog/session-diff-fix-s74-prompt.md`. Opened at core `ee19145c`
+(clean tree, the S72 lane's M-144 absorbed), corpus `be0cfe9` throughout.
+Baseline suite re-run first-hand on the moved tree **before the first
+change**: linux-release build clean, **1505/1505 green** (91 s).
+
+**Board re-counted first-hand from the filesystem at open:** 0 ACUTE · 0
+SEVERE · 16 MAJOR · 11 MINOR · 0 INFO active / 157 FIXED / 4 tracked-open
+(M-086/M-087/M-089 + N-107/N-127 driver-repo-resident per OQ-S10-3's
+two-repo grant boundary — PUSHED-FORWARD, not fixable in core this session).
+Fixable set: 13 MAJOR + 9 MINOR + 4 tracked-open. Next free IDs: S-068+,
+M-149+, N-211+, I-048+, A-016+, D-149+.
