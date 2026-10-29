@@ -204,7 +204,6 @@ TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {
-<<<<<<< HEAD
     /* S-058 re-pin (the CANONICAL form after three hot-window crossings
      * - this block is rewritten whole per the 72a17b7c precedent): the
      * og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the iterator
@@ -214,18 +213,6 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * one key skips the deep path (engine-default grade, no twin
      * machinery); the out-of-table ZZQX pair at another key enters it
      * (twins flagged + promoted). */
-=======
-    /* S-058 re-pin: the og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the
-     * iterator INEQUALITY comparator - the :605743 deep-validation block
-     * runs exactly when the 169-key set lookup MISSES; the control case
-     * at :585885-905 calibrates the direction). Two same-key files with
-     * OUT-OF-TABLE extensions -> twins; in-table -> the engine-default
-     * grade stands, no twin machinery. (The pre-fix pin ran the twins
-     * for the in-table pair - the s5 evidence's inverted polarity line,
-     * which this test had pinned. The db82b5e6/81b4cdaf hot-window merge
-     * left two generations of conflict markers here - collapsed to this
-     * single form, the fixtures matching the asserts.) */
->>>>>>> 9b1e3f3d (repair(gates): the S-060/S-058 window residue closed - (1) win-stub grown for the S-060 metadata tail (SetFileAttributesW/SetFileTime declaration-only stubs per the gate's own contract; gate 10/10 ok again); (2) test_grading.cpp's two generations of hot-window markers collapsed to the single fixture-matches-assert form (the db82b5e6/81b4cdaf nested residue); (3) PreviewPaneNeverPromotes closes its preview (LSan red); suite 1410/1410)
     ResultTree t;
     auto* root = t.add_root(u"Found");
     /* the in-table DOC pair at one key (skips the deep path) */
@@ -238,7 +225,6 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                         Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-<<<<<<< HEAD
     /* the dot-less pair (its pin moved to DotlessNamesSkipTwinDetection;
      * kept here as load - the "" quirk makes it IN-table -> skip) */
     (void)add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
@@ -252,16 +238,6 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * mirrored variable naming - onto this lane's fixture block):
      * a1/a2 are the IN-TABLE DOC pair -> skip; c1/c2 are the
      * OUT-OF-TABLE ZZQX pair -> twins + promotion */
-=======
-    /* the dot-less pair at a third key: the runtime set's "" quirk makes
-     * dot-less files IN-table -> skip the deep path too */
-    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
-    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
-    grading::AssistantStats st;
-    grading::grade_tree(t, single_disk_ctx(), st);
->>>>>>> 9b1e3f3d (repair(gates): the S-060/S-058 window residue closed - (1) win-stub grown for the S-060 metadata tail (SetFileAttributesW/SetFileTime declaration-only stubs per the gate's own contract; gate 10/10 ok again); (2) test_grading.cpp's two generations of hot-window markers collapsed to the single fixture-matches-assert form (the db82b5e6/81b4cdaf nested residue); (3) PreviewPaneNeverPromotes closes its preview (LSan red); suite 1410/1410)
     EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
     EXPECT_FALSE(a2->overlap());
     EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
@@ -269,11 +245,6 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
     EXPECT_TRUE(c2->overlap());
     EXPECT_EQ(Grade::High, c1->grade()) << "the twin pair promotes";
     EXPECT_EQ(Grade::High, c2->grade());
-<<<<<<< HEAD
-=======
-    EXPECT_FALSE(e1->overlap()) << "dot-less names skip the twin path (the \"\" quirk)";
-    EXPECT_FALSE(e2->overlap());
->>>>>>> 9b1e3f3d (repair(gates): the S-060/S-058 window residue closed - (1) win-stub grown for the S-060 metadata tail (SetFileAttributesW/SetFileTime declaration-only stubs per the gate's own contract; gate 10/10 ok again); (2) test_grading.cpp's two generations of hot-window markers collapsed to the single fixture-matches-assert form (the db82b5e6/81b4cdaf nested residue); (3) PreviewPaneNeverPromotes closes its preview (LSan red); suite 1410/1410)
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {
