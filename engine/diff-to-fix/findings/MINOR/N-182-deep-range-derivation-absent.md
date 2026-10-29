@@ -48,3 +48,50 @@ I-044 (the scan-mode decode batch), D-36 (the registered delta this qualifies).
 ## Open questions
 
 What device-type 6 *is* (the RTTI name was not chased this session — likely a removable/media class; one lookup settles it; recorded in the worksheet).
+
+---
+
+## Addendum (S69 lane, 2026-10-29 — the resolver's full first-hand decode + the open question narrowed)
+
+**The resolver `FUN_14035a6d0` (DRWUI:575024-575170) re-read in full this
+session** (the s42 worksheet's summary confirmed; two refinements):
+
+1. **Refinement 1 — the small-volume rule's semantics:** the rule is a
+   BACKWARD EXTENSION, not just a flag. Verified at DRWUI:575053-575057:
+   `start = device->vtable[0x68]()` (GetStartSector — the vtable-slot
+   mapping is proven by the caller's printf pair at :567911-567918);
+   `if (start < 0x12C00000 / sector_size)` — start below the 300 MB-in-
+   sectors line — then `*(controller + 0x118) = 1` AND `start = 0`: the
+   deep scan is extended backward to LBA 0, covering the pre-partition gap
+   of volumes that begin within the first 300 MB of the disk.
+2. **Refinement 2 — the neighbor extension is bounded to ONE following
+   entry:** after finding the matching partition entry (identity match on
+   +4/+0x89/+0x91), the end extends by the entry's own size (+0x91), then
+   by the NEXT entry's size ONLY IF its FS code (+0x10) is 0x0E or 0x06
+   (both FAT16-family codes) — DRWUI:575103-575113. Not an unbounded walk.
+3. The device-size clamp (end ≤ total sectors, DRWUI:575115-575119), the
+   sub-range construction `FUN_1400d03e0` (DRWUI:575121-575137), and the
+   fallback structure (any failure → the original device = the same range
+   as quick) are confirmed as the finding describes.
+4. **The observable seam for a future fix:** the "Quick scan
+   StartSector=%I64d, TotalSector=%I64d" / "Deep scan …" log pair
+   (DRWUI:567902-567925) prints the RETURNED device's vtable[0x68]/[0x18]
+   — on a derived-range deep pass the two lines print DIFFERENT ranges.
+
+**The open question (device type 6) narrowed:** the type getter is vtable
+slot +0xa8 on the scan device; the type VALUE lives in `CDiskDeviceType`
+(Partition.mo): ctor `FUN_180001560` (Partition_decompiled.c:279-291) sets
+the type field at +0x20 with **default 4**; setter `FUN_180001540`
+(:269-272). No constant `return 6` getter exists in
+Device/DeviceAdapter/DeviceManager/Partition decompiles — the 6 is
+data-driven, stamped at enumeration time (likely from Windows device
+characteristics via IOCTL_STORAGE_QUERY_PROPERTY in the
+CWindowsStorageDevice family). **Next probe:** map vtable slot +0xa8 of
+CVolumeDevice/CWindowsStorageDevice (Device_decompiled.c:546-611 vftable
+listings) to the concrete getter, then find the CDiskDeviceType
+construction in DeviceManager.mo's enumeration.
+
+Evidence: `evidence/s69-lane-sheets/S69-B-scanstatemachine.md` §B/§E.
+Core-side unchanged at `271f5d06`: `cr_scan.cpp` still runs deep over the
+identical slice; the finding stays MINOR (rare device shapes, bounded
+coverage delta).

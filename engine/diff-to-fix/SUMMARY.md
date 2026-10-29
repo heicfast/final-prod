@@ -1,3 +1,66 @@
+# SUMMARY.md — executive summary (the S69 continuation audit lane on top; the prior lanes below, newest-first)
+
+## Session-69 S69 lane delta (2026-10-29 — the NINTH continuation audit lane of the user's second-session mandate [remove-the-fixed + go-deeper + mark-all-remaining, focus: sector numbers / scanning / accurate detection / calculation / mathematics / no stuck or freeze / local database / state management]; the S68 seat conceded to the racing citation-census lane per SA-9 — this lane executed the S61 seat's never-landed plan, a disjoint slice; opened at core `3799dee2`, findings verified there and re-verified LIVE at the rebase head `271f5d06` after absorbing the S71..S79 fix windows [M-118/M-135/M-136/M-143/N-140/N-212/N-131/N-200/N-210/OQ-S52-1 landed by the racing lanes — zero of this lane's filings collided], corpus `be0cfe9` throughout)
+
+- **The liveness battery (28/28 at the open pin):** every then-active
+  finding's core-side claim re-verified first-hand — 23 core-side STILL +
+  5 driver-repo ACTIVE-OPEN (OQ-S10-3); zero falsely-active, zero
+  phantom-fixed. The racing fix lanes retired M-118/M-135/M-136/M-143/
+  N-140/N-200 + OQ-S52-1 in the same window — all correctly in FIXED/.
+  Evidence: `evidence/s69-lane-sheets/liveness-battery.md`.
+
+- **Four new findings + one register filed** (all corpus cites read
+  first-hand by the lead; all core cites re-verified LIVE at `271f5d06`):
+  **M-154** (MAJOR — the auto-session lifecycle: the og deletes the
+  previous auto .rsf via the LastScanInfo.ini pointer before writing the
+  new one [DRWUI:442815-442833], keeps exactly one live auto session,
+  writes the 4-field pointer + an HKLM `SOFTWARE\EASEUS\DRW` mirror
+  [:443060-443086], resumes pointed [:443092-443127]; the core never
+  prunes — unbounded accumulation, no pointer); **N-214** (MINOR — the
+  lost-partition ext probe's journal-indicator XOR gate: PRD:1273-1293
+  rejects torn SBs with exactly one journal indicator set; core's
+  probe_ext accepts them); **N-215** (MINOR — R-20's mechanism
+  mis-attribution: the og's "Unimportant files" bucket is the
+  usefullostfiles.xml extension gate at tree-build [DRWUI:635764-635910],
+  not the M-018 junk-name filter); **N-216** (MINOR — version.ini's
+  `MaxFileSize ` cap surface [GiB units, default 1 TiB, two config
+  objects, consumer undecoded] has no core counterpart);
+  **I-048** (INFO — three registers: FileFilter.xml Selected=2 dead
+  data; the remote-tunable summary-family groups; the og's 32-bit
+  lost-partition ext size vs its own engine's 64-bit).
+
+- **Two addenda to active findings:** M-151 gains the truncated-$MFT
+  family's INITIAL-bound site (FUN_18000ecb0, NTFS:11274-11277 — the
+  device-end-derived record count when no declared size exists);
+  N-182 gains the deep-range resolver's full first-hand decode
+  (FUN_14035a6d0, DRWUI:575024-575170 — the <300 MB rule is a backward
+  extension to LBA 0; the neighbor extension is bounded to ONE following
+  FAT16-family entry; the device-type-6 open question narrowed to
+  CDiskDeviceType's +0x20 field, data-driven, ctor default 4).
+
+- **MATCH confirmations:** the FAT DOS-timestamp invalid class (A-014,
+  re-verified against FAT:32135/:32144/:32151 first-hand); the auto-session
+  naming (N-061, byte-parity against all three shipped samples); the
+  RawConfig gating semantics; the FileFilter membership data; the autosave
+  trigger gates (S-044/S-057); the racing lanes' OQ-S52-1 landing verified
+  LIVE. The prior-coverage spot checks (S55-D1's EUUserData cites, M-129's
+  gates, the log-channel dispositions) all re-confirmed.
+
+- **The not-reached register (honest):** the engine-side cancel-pause poll
+  census and the quick→advanced transition trigger were not decoded (the
+  subagent infrastructure timed out twice; the lead re-scoped to the
+  resolver decode + the three deep dives). The MaxFileSize consumer and
+  the APPDATA subfolder constant remain undecoded (N-216's open
+  questions). No UNVERIFIED finding was left untracked: every candidate
+  either filed with evidence, registered INFO, or carried in an active
+  finding's open questions.
+
+**Board at this lane's filing: 32 active — 2 SEVERE (S-067/S-068, the
+racing S79 lane's) · 17 MAJOR (16 racing + M-154) · 12 MINOR (9 racing +
+N-214/N-215/N-216) · 1 INFO (I-048) / 169 FIXED / 4 tracked-open
+(OQ-S79-1 new).** Next free IDs: S-069+ (unused — this lane filed none),
+M-155+, N-217+, I-049+, A-016+, D-150+.
+
 # SUMMARY.md — executive summary (the S78 MINOR-tail fix lane on top [re-homed s70->s76->s77->s78 per SA-9: the racing windows took S70-S77]; the prior lanes below, newest-first)
 
 ## Session-78 S78 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `3799dee2`, now rebased at `adb26797` after the racing windows' M-136/M-143/M-144/M-135/M-118/M-148/N-131/N-140/N-200/N-210 landings were absorbed; corpus `be0cfe9` throughout; baseline suite green first-hand at the open [1422 ran / 1380 passed / 0 fail]; the racing S76-MINOR lane announced the FORWARD ladder N-131→N-212 — this lane takes the TAIL disjointly)

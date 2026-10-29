@@ -629,3 +629,14 @@ Suite after the three landings: 1465/1465. The remaining module rows:
   merge exists at `cr_mftwalk.cpp` — FUN_18001d690's call sites are the MFT-emission path,
   not the USN path), the USN harvest bounds (N-039), the INDX first-class walk (the
   documented scope refusal).
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+**M-151's addendum** landed: the truncated-$MFT family's INITIAL-bound site
+decoded first-hand — FUN_18000ecb0 (NTFSSearchDLL:11274-11277) derives
+record_count = (device_end − start)/record_size when no declared size
+exists (the registration-list site, type-3 object, +0x9c=0x100 flags); the
+core's max_record_no (cr_bootstrap.h:77-91) remains runlist-derived only.
+Both sites of the family (the initial device-end floor + the growth loop)
+belong to the finding's fix plan. Evidence:
+`evidence/s69-lane-sheets/S69-C-sectormath.md` §4.b.

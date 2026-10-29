@@ -443,3 +443,21 @@ channel = this landing). Suite 1541/1541.
   The standing "0.1/0.3 gap keeps … no core counterpart" note (M-017's known remainder)
   stays a separate open gap — not re-filed. N-200's landing (the mirror-retry probe gates)
   does not touch the scoring seam.
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New active finding on this module: **N-214** (MINOR — the ext probe's
+journal-indicator XOR gate: PRD FUN_180002b90 [PRD:1273-1293, first-hand]
+rejects candidates with exactly one journal indicator set [compat&4 XOR
+journal_inum != 0 → no classification, no candidate]; core probe_ext
+[cr_candidates.cpp:380-441] has no journal check — the torn-SB false-positive
+class). **N-182's addendum** landed: the deep-range resolver FUN_14035a6d0
+fully decoded first-hand (DRWUI:575024-575170) — the <300 MB rule is a
+BACKWARD extension (start := 0, :575053-575057), the neighbor extension is
+bounded to ONE following FAT16-family entry (FS 0x0E/0x06, :575103-575113),
+the printf seam is the StartSector/TotalSector log pair (:567902-567925), and
+the device-type-6 open question is narrowed to CDiskDeviceType's +0x20 field
+(Partition.mo ctor :279-291, default 4, data-driven at enumeration).
+Registered: the og's lost-partition ext SIZE estimate is a 32-bit signed
+product (PRD:1413) while its own engine uses 64-bit (EXT4SearchDLL:3234) —
+the core's 64-bit form is the registered engine-faithful choice (I-048C).
+Evidence: `evidence/s69-lane-sheets/S69-C-sectormath.md` + `S69-B-scanstatemachine.md`.

@@ -1,5 +1,36 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-69 S69 lane (2026-10-29 — the NINTH continuation audit lane of the same
+user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining,
+the user's named focus areas: sector numbers / scanning / accurate detection /
+calculation / no stuck or freeze / local database / state management; the S68
+seat conceded to the racing citation-census lane per SA-9 — this lane executed
+the S61 seat's never-landed plan as a disjoint slice; opened at core `3799dee2`,
+filings verified there and re-verified LIVE at the rebase head `271f5d06`, corpus
+`be0cfe9`):** the 28/28 liveness battery at the open pin (23 core-side STILL + 5
+driver-repo ACTIVE-OPEN; zero falsely-active, zero phantom-fixed — the racing fix
+lanes' retirements all correctly in FIXED/) + the local-database deep dive
+(**M-154** the auto-session lifecycle: retention-one via the LastScanInfo.ini
+pointer + the HKLM mirror, the core's unbounded accumulation; **N-216** the
+version.ini MaxFileSize cap surface; **I-048** registers: FileFilter.xml
+Selected=2 dead data, the remote-tunable summary groups, the og's 32-bit
+lost-partition ext size vs its engine's 64-bit) + the scan-state deep dive
+(**N-182's addendum**: the deep-range resolver FUN_14035a6d0 fully decoded —
+the <300 MB rule is a backward extension to LBA 0, the neighbor extension
+bounded to one FAT16-family entry, the device-type-6 question narrowed to
+CDiskDeviceType's data-driven +0x20 field) + the sector-math deep dive
+(**N-214** the ext probe's journal-indicator XOR gate, PRD:1273-1293;
+**N-215** R-20's Unimportant mechanism mis-attribution; **M-151's addendum**
+the truncated-$MFT initial-bound site FUN_18000ecb0; the FAT DOS-timestamp
+invalid class re-confirmed MATCH [A-014]). Evidence:
+`evidence/s69-lane-sheets/` (liveness battery + three deep-dive sheets).
+Board at filing: 32 active (2 S · 17 M · 12 N · 1 I) / 169 FIXED / 4
+tracked-open. Next free IDs: M-155+, N-217+, I-049+, A-016+, D-150+. The
+audited commit for every S69 filing is `3799dee2` with LIVE re-verification
+at `271f5d06`.
+
+
+
 **Session-79 S79 lane (2026-10-29 — the ELEVENTH continuation audit lane of the
 same user second-session mandate, remove-the-fixed + go-deeper +
 mark-all-remaining, the user's named focus areas: sector numbers / scanning /

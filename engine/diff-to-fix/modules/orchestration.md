@@ -403,3 +403,19 @@ counts), GREEN post; suite 1312.
   the OS-level disk timeout bounds both engines. The deserialize count bomb is filed under
   session.md (M-150). The stage/loop-bounds census (55+ loops: 50 BOUNDED, 0 UNBOUNDED,
   5 assumption-laden) is in `evidence/s79-lane-sheets/agentD-core-map.md`.
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New finding touching this module: **N-216** (MINOR — version.ini's
+`MaxFileSize ` per-file cap surface [trailing space in the key, GiB units,
+default 0x400 → 1 TiB] read into two config objects [DRWUI:337923-337925 +
+:749901-749903, first-hand]; the consumer is undecoded — the finding carries
+the precise next probe; core has no equivalent). **N-182's addendum** (the
+deep-range resolver's full decode) is registered under lost-partition.
+Verified-MATCH this lane: the autosave trigger gates + stop window
+(S-044/S-057, re-verified at `271f5d06`); the FAT DOS-timestamp invalid
+class (A-014, vs FAT:32135/:32144/:32151 first-hand). The not-reached
+register: the engine-side cancel-pause poll census + the quick→advanced
+transition trigger (subagent infra timeouts; the policy level is
+dispositioned by D-18/S54-Axis-4 — the per-engine poll-site census stays
+open for a future lane). Evidence: `evidence/s69-lane-sheets/`.

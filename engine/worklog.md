@@ -11127,3 +11127,67 @@ S71 addendum, SUMMARY delta, this entry.
   Trail: findings/FIXED/N-144 + Resolution, ledger row, matrix MATCH,
   modules/preview.md S76 addendum, SUMMARY board 12 M / 7 N / 168 FIXED,
   this entry.
+
+---
+
+---
+
+
+---
+
+## Session-69 S69 lane — the ninth continuation audit lane's filings (2026-10-29)
+
+**Filings (all corpus cites read first-hand by the lead; all core cites
+re-verified LIVE at the rebase head `271f5d06` after the S71..S79 fix
+windows were absorbed — M-118/M-135/M-136/M-143/N-140/N-212/OQ-S52-1
+landed by the racing lanes, zero ID collisions with this lane's set):**
+
+- **M-154** (MAJOR, session) — the auto-session lifecycle: the og's
+  retention-one (delete-previous via the LastScanInfo.ini pointer,
+  DRWUI:442815-442833), the 4-field pointer + HKLM mirror
+  (:443060-443086), the pointed resume (:443092-443127), the auto_-only
+  list (:432256-432341); the core never prunes (cr_ui.cpp:2287-2323) and
+  has no pointer — unbounded auto-session accumulation.
+- **N-214** (MINOR, lost-partition) — the ext probe's journal-indicator
+  XOR gate (PRD:1273-1293: mixed indicators → rejected; core's probe_ext
+  accepts the torn-SB class).
+- **N-215** (MINOR, docs/query) — R-20's Unimportant mechanism
+  mis-attribution (the usefullostfiles.xml gate, not the M-018 filter).
+- **N-216** (MINOR, orchestration/config) — version.ini's MaxFileSize
+  cap surface (default 1 TiB, GiB units, consumer undecoded).
+- **I-048** (INFO) — three registers: FileFilter.xml Selected=2 dead
+  data; the remote-tunable summary-family groups; the og's 32-bit
+  lost-partition ext size vs its engine's 64-bit (the core's 64-bit
+  form registered as the engine-faithful choice).
+- **Addenda:** M-151 gains the truncated-$MFT INITIAL-bound site
+  (FUN_18000ecb0, NTFS:11274-11277 — the device-end-derived record
+  count); N-182 gains the deep-range resolver's full first-hand decode
+  (FUN_14035a6d0, DRWUI:575024-575170 — the <300 MB backward extension,
+  the one-neighbor-FAT16 bound, the printf seam, the device-type-6
+  question narrowed to CDiskDeviceType's +0x20 field).
+
+**The liveness battery:** 28/28 at the open pin `3799dee2` (23 core-side
+STILL + 5 driver-repo ACTIVE-OPEN per OQ-S10-3); zero falsely-active,
+zero phantom-fixed. Evidence:
+`diff-to-fix/evidence/s69-lane-sheets/liveness-battery.md`.
+
+**MATCH confirmations:** the FAT DOS-timestamp invalid class (A-014,
+first-hand vs FAT:32135/:32144/:32151); the auto-session naming (N-061,
+byte-parity vs all three shipped samples); RawConfig gating; FileFilter
+membership data; the autosave trigger gates (S-044/S-057); the racing
+lanes' OQ-S52-1 landing verified LIVE (ext_family_kind
+cr_ext4_engine.cpp:239-250); the S55-D1 prior-sheet spot checks.
+
+**Not reached (honest):** the engine-side cancel-pause poll-site census
+and the quick→advanced transition trigger (the subagent infrastructure
+timed out twice — Agent A and the Agent C retry succeeded; Agent B's
+scope was re-executed by the lead as the resolver decode). Every
+divergence candidate from the three deep dives was either filed,
+registered INFO, or folded into an active finding's addendum — no
+UNVERIFIED candidate was left without a home.
+
+**Board after this lane:** 32 active (2 SEVERE · 17 MAJOR · 12 MINOR ·
+1 INFO) / 169 FIXED / 4 tracked-open. Next free: M-155+, N-217+, I-049+,
+A-016+, D-150+. Trail: findings/{MAJOR,MINOR,INFORMATIONAL} + addenda x2
++ matrix S69 rows + SUMMARY/README lane blocks + modules/{session,
+lost-partition,ntfs,query,orchestration} addenda + this entry.

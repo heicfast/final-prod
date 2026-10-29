@@ -453,3 +453,19 @@ landing.
   rsf-record4 :16/:26). The container's 64 MiB record cap and the P1-7 amplification
   budget do not reach the in-record count field. The torn-session READ-side freeze/OOM
   complement to M-131's write-side repair. Evidence: `s79-lead-verification.md` §A.
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New active finding on this module: **M-154** (MAJOR — the auto-session
+lifecycle: the og reads the LastScanInfo.ini pointer and DELETES the previous
+auto .rsf before writing the new one [DRWUI:442815-442833, first-hand], keeps
+exactly one live auto session, writes the 4-field pointer `[Info]
+SavePath/Name/Count/Time` + an HKLM `SOFTWARE\EASEUS\DRW`
+LastScanConfig/LastScanFile mirror [:443060-443086], resumes pointed
+[:443092-443127], and its auto-list surface shows only `auto_*.rsf`
+[:432256-432341]; the core's autosave_if_due_ [cr_ui.cpp:2287-2323] never
+prunes — unbounded auto-session accumulation — and has no pointer/pointed
+resume). Verified-MATCH this lane: the auto-session naming (N-061 byte-parity
+against all three shipped samples), the trigger gates incl. the stop window
+(S-044/S-057), the name sanitizer (D-110 superset). Evidence:
+`evidence/s69-lane-sheets/S69-A-localdb.md` §B.6.

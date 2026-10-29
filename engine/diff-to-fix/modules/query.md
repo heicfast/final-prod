@@ -119,3 +119,19 @@ unreadable-bytes diagnostic) render through the log-faithful form; throughput
 rates stay rate-formatted. Pins: `Display.SizeLogFormatterBoundaries` /
 `Display.SizeUiFormatterTiers` / `Display.SizeUiFormatterPrecisionAndStrip`
 (RED: link-failure Not-Run with the implementation stashed; GREEN post-fix).
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New findings touching this module: **N-215** (MINOR — R-20's mechanism
+mis-attribution in REFERENCE-API-GAP.md:214: the og's "Unimportant files"
+bucket is the usefullostfiles.xml extension gate at tree-build time
+[DRWUI:635764-635910, first-hand — _strlwr + set-membership, strlen<3
+folders, the recursive any-useful-descendant walk], NOT the M-018 junk-name
+filter; doc-truth, the behavioral gap itself is OOS-UI-dispositioned);
+**I-048A/B registers** (FileFilter.xml Selected=2 = dead data, no reader
+anywhere — the core's omission correct; the og's summary-family groups are
+remote-tunable at runtime [value_sumaryfiletype/value_fastgoodfile,
+DRWUI:319007-319022] — the core's N-132 tables are the static ini snapshot,
+remote layer REPORTING-OOS). Verified-MATCH this lane: the N-132 display
+tables byte-exact vs the XML; the FileFilter membership data (1,481 unique
+exts). Evidence: `evidence/s69-lane-sheets/S69-A-localdb.md`.

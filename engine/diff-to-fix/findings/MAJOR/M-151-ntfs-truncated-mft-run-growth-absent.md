@@ -95,3 +95,37 @@ Decompiled evidence, lead-verified first-hand this session: FUN_180007670 quoted
 ## Open questions
 
 None — the og's loop is fully decoded (window size, stride, extension arithmetic, termination); the only design choice is whether the core's probe reuses `read_record`'s validation (recommended — one validator, one truth) rather than porting FUN_180041bb0's chain separately.
+
+---
+
+## Addendum (S69 lane, 2026-10-29 — a complementary corpus site for the same family)
+
+**The device-end-derived record-count estimate — `FUN_18000ecb0` (NTFSSearchDLL:11274-11277), read first-hand this session:**
+
+```c
+lVar9 = (**(code **)(**(longlong **)(param_1 + 0xb8) + 0x18))();     // device size
+lVar15 = (lVar9 - *(longlong *)(lVar15 + 0x10)) / (longlong)uVar11;  // record_count = (device_end − start) / record_size
+puVar10[0x15] = lVar15;                                              // store record count
+puVar10[0xc] = uVar11 * lVar15;                                      // byte size = record_size × record_count
+```
+
+Context (NTFSSearchDLL:11240-11285): the function searches a registration
+list for the matching id (`*(uint *)(lVar9 + 0xc) == uVar6`); when absent,
+it allocates a 0x1a8-byte object, stamps type 3, stores the found entry's
+start (+0x10), and derives the record count **from the device end —
+(device_size − start) / record_size — not from any declared size**,
+alongside +0x9c = 0x100 and two liveness flags (+4 = 1, +0x34 = 1).
+
+**Relation to the finding:** this is the INITIAL-bound sibling of the
+finding's growth loop (FUN_180007670): where the growth loop extends a
+declared run past its end by validating records, this site constructs the
+initial bound for a stream whose declared size is absent — the device end
+is the floor. Both sites belong to the same behavioral family (the og's
+walk bounds are disk-truth-derived, not metadata-trust-derived); the
+finding's fix plan should consider both surfaces (the estimate site feeds
+the initial `max_record_no`-equivalent, the growth loop extends it).
+Verified at core `271f5d06`: the core's `max_record_no()`
+(include/cr/ntfs/cr_bootstrap.h:77-91) remains runlist-derived only —
+neither the device-end floor nor the growth loop exists.
+
+Evidence: `evidence/s69-lane-sheets/S69-C-sectormath.md` §4.b.
