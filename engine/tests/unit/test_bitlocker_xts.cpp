@@ -120,7 +120,7 @@ std::vector<u8> build_small_fat16() {
     b[0x10] = 2;            /* FAT count */
     put16v(img, 0x11, 512); /* root entries */
     put16v(img, 0x13, kFat16TotalSecs);
-    b[0x15] = 0xF8;       /* media */
+    b[0x15] = 0xF8;        /* media */
     put16v(img, 0x16, 12); /* sectors/FAT - the Fat16 window floor */
     put16v(img, 0x18, 63);
     put16v(img, 0x1A, 255);

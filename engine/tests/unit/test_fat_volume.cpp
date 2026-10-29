@@ -2508,16 +2508,16 @@ TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
     u8* b = img.data();
     std::memcpy(b + 3, "MSWIN4.1", 8);
     put16(img, 0x0B, 512);
-    b[0x0D] = 1;              /* spc 1: 5000 data clusters (FAT16 bracket) */
-    put16(img, 0x0E, 2);      /* reserved */
-    b[0x10] = 2;              /* FAT count */
-    put16(img, 0x11, 0);      /* root entries 0 (FAT32 shape) */
-    put16(img, 0x13, 0);      /* total16 unused */
+    b[0x0D] = 1;         /* spc 1: 5000 data clusters (FAT16 bracket) */
+    put16(img, 0x0E, 2); /* reserved */
+    b[0x10] = 2;         /* FAT count */
+    put16(img, 0x11, 0); /* root entries 0 (FAT32 shape) */
+    put16(img, 0x13, 0); /* total16 unused */
     b[0x15] = 0xF8;
-    put16(img, 0x16, 0);      /* spf16 unused */
-    put32v(img, 0x20, 5514);  /* total32 */
-    put32v(img, 0x24, 256);   /* spf32 - the string branch's gate + the window floor */
-    put32v(img, 0x2C, 2);     /* root cluster 2 */
+    put16(img, 0x16, 0);     /* spf16 unused */
+    put32v(img, 0x20, 5514); /* total32 */
+    put32v(img, 0x24, 256);  /* spf32 - the string branch's gate + the window floor */
+    put32v(img, 0x2C, 2);    /* root cluster 2 */
     std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
@@ -2550,7 +2550,8 @@ TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
     tree::FileNode* n = find_node(tree, "STRFMT32.TXT");
     ASSERT_NE(n, nullptr);
-    EXPECT_EQ(n->props()->fs_kind, 2u) << "the FAT32 string drives flavor 2 under the FAT16 bracket";
+    EXPECT_EQ(n->props()->fs_kind, 2u)
+        << "the FAT32 string drives flavor 2 under the FAT16 bracket";
 }
 
 TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
@@ -2561,7 +2562,7 @@ TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
     std::vector<u8> img(u64(3000) * 512, 0);
     build_fat16_boot(img);
     put16(img, 0x13, 3000);
-    put16(img, 0x16, 12); /* spf 12: inside the Fat12 window [1,12] */
+    put16(img, 0x16, 12);                    /* spf 12: inside the Fat12 window [1,12] */
     std::memset(img.data() + 0x36, 0x20, 8); /* blank the FAT16 string */
     /* FAT12-shaped media words (family-tolerant validator); layout:
      * reserved 2 + 2x12 FAT + 32 root -> FAT2 at 14, root at 26, data 58 */
