@@ -2694,10 +2694,10 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     }
     if (!ends_with_ci(out, L".img") && !ends_with_ci(out, L".raw") && !out.empty()) {
         /* the og's create ships FLAT images; vhd/vhdx/vmdk writers are out
-         * of scope (D-143) - name the container honestly instead of
+         * of scope (D-147) - name the container honestly instead of
          * writing a flat file under a container extension */
         wprintf(L"image --out writes the FLAT raw form only (see docs/PARITY-DELTAS.md "
-                L"D-143); use a .img/.raw path\n");
+                L"D-147); use a .img/.raw path\n");
         return 1;
     }
 
@@ -3630,7 +3630,7 @@ int wmain(int argc, wchar_t** argv) {
             L"              the safe-scan posture's producer: scan the image\n"
             L"              instead of the live disk on damaged drives, UIUX/11:17;\n"
             L"              flat raw only, VHD/VHDX writers out of scope -\n"
-            L"              docs/PARITY-DELTAS.md D-143; a .sha256 sidecar is\n"
+            L"              docs/PARITY-DELTAS.md D-147; a .sha256 sidecar is\n"
             L"              written; cancel keeps '<out>.partial', never a\n"
             L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"

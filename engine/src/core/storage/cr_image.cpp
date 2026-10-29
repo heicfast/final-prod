@@ -1542,7 +1542,7 @@ std::unique_ptr<IStorageDevice> open_image(ImageFileIo& io, const std::u16string
  * FLAT form only - the og's own reader accepts flat, and the corpus does
  * not decode the og's writer format beyond the libvmdk link (VHD/VHDX
  * writers are out of scope, a registered divergence; see
- * docs/PARITY-DELTAS.md D-143).
+ * docs/PARITY-DELTAS.md D-147).
  *
  * Clean-room: a plain ascending copy loop, 64 KiB at a time (the
  * transport's direct-I/O envelope - cr_transport.cpp's aligned_read_at

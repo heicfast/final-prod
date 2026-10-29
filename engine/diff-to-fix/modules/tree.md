@@ -73,7 +73,7 @@ rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's
 exact population — the forced observe-only tail-zero probe over grade-1 NTFS
 nodes with 0 < key < device-size, the 0x77fffff default arm, pass 0 of
 grade_tree; raw_count keeps the Origin::Carved census as the REGISTERED
-deliberate divergence D-143; the M-134 resolution's phantom `raw_tail_zero`
+deliberate divergence D-146; the M-134 resolution's phantom `raw_tail_zero`
 sentence repaired by addendum; Grading.RawTailZero* + RawCountSemanticsRegistered
 RED-side proof — findings/FIXED/N-205-rawcount-population-semantics-og-validated-vs-core-carved-plus-phantom-raw-tail-zero.md).
 **OQ-S42-3 closed this session** (retired to findings/FIXED/): the last

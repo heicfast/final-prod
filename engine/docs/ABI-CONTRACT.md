@@ -698,7 +698,7 @@ Contract:
   complete. A sidecar write failure is reported while the image itself
   stays committed.
 - Flat raw only: VHD/VHDX writers are out of scope (registered
-  divergence D-143); the og's own reader accepts flat and the corpus
+  divergence D-147); the og's own reader accepts flat and the corpus
   does not decode the og's writer format beyond the libvmdk link.
 - The copy loop is portable core (`storage::create_image_stream`,
   cr_image.cpp: 64 KiB envelope reads, SHA-256 over the stream, cancel

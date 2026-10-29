@@ -9720,3 +9720,21 @@ re-synced against their landings before each fix.
   then the 4 tracked-open items, then the bounded MAJORs outside the
   parallel lanes' claimed families. Pull before every push; SA-9
   convergence discipline on any raced landing.
+
+## Session-64 S64 lane — the main-RED-at-open seat repair landed (2026-10-29)
+
+**The FOURTH born-collided D-seat repair per SA-9 (trail-only; no
+behavior change).** The lane-open doc_truth_gate run failed:
+PARITY-DELTAS carried two D-143 rows — the S60-B window's N-196
+registration (landed first, keeps the seat) and the S63 lane's S-040
+registration (landed later, born-collided). S-040's registration
+renumbers **D-143 → D-147**; every live citation swept (the
+PARITY-DELTAS row header, rrecov.cpp ×3 + cr_image.cpp +
+cr_image_create.h + cr_ui.h comments, ABI-CONTRACT 7j,
+REFERENCE-API-GAP ×2, API-DELTA S3-W4b, modules/{imaging,cli,abi}.md,
+the S-040 ledger row, the imaging matrix row, the SUMMARY S63 block,
+the S-040 finding file + its renumber addendum). Two stale mid-ride
+N-205 citations repaired to the D-146 terminal seat in the same pass
+(matrix row 1184, modules/tree.md, the ledger row's D-144). Dated
+worklog history stays. Gate green after the repair (exit 0, no
+duplicate rows).

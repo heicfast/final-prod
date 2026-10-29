@@ -133,4 +133,4 @@ S42 decode pack §6.
 the disk-image CREATE producer landed (portable copy loop + win-layer
 disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
 cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
-flat-only boundary is registered as D-143.
+flat-only boundary is registered as D-147.

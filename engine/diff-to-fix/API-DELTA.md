@@ -256,7 +256,7 @@ HEALTH facet, NOT the enumeration-row facet R-63 wants):
 | S3-W3c | enumeration refresh export (R-86 PARTIAL) | UIUX/13-ui-core-wiring-state.md:14 | behavior already always-fresh; the plan's remaining half is the header contract sentence | this session (doc) |
 | S3-W3d | TRIM facet in enumeration rows (R-63 PARTIAL) | UIUX/07-home-phase-deep-dive.md:17 (TRIM chip per row) | `cr_ui_disk_info` rows lack trim fields; health report has them (cr_ui.h:1189); opt-in flag + the plan's DEFERRED-if-slow measurement still open | this session |
 | S3-W4a | preview caps shipped defaults (R-34 PARTIAL) | UIUX/10-preview-subsystem.md:22-27 (100 MB / 15 s) | LANDED (M-077; N-180 re-truth): `cr_preview.h:125-126` ships `max_file_bytes = 100 MiB` / `max_decode_ms = 15000` as the defaults | this session |
-| S3-W4b | image create (R-93 PRESENT — S-040 FIXED; flat-raw producer, D-143 boundary) | UIUX/07-home-phase-deep-dive.md:36-37 (disk -> image) | `cr_ui_image_create` + `image --create` landed (S-040): `storage::create_image_stream` + `win::create_image_file`/`create_disk_image`; the reader stays `storage::open_image` (S-030) | done |
+| S3-W4b | image create (R-93 PRESENT — S-040 FIXED; flat-raw producer, D-147 boundary) | UIUX/07-home-phase-deep-dive.md:36-37 (disk -> image) | `cr_ui_image_create` + `image --create` landed (S-040): `storage::create_image_stream` + `win::create_image_file`/`create_disk_image`; the reader stays `storage::open_image` (S-030) | done |
 | S3-W5a | BitLocker turn-off (R-88 tail) | DRWService-exe--bitlocker-service.md:50-89 (unlock chain incl. turn-off) | `cr_ui_turn_off_bitlocker` ABSENT (grep) | next |
 
 ## 5.3 Execution rules this session obeys

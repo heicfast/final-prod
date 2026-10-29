@@ -1,4 +1,31 @@
-# SUMMARY.md — executive summary (the S62 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S64 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-64 S64 lane delta (2026-10-29 — the user's MINOR-first fix mandate ["priority to minor first", 20+ fixes]; opened at core `24e480c4` (the S60-B/S63 hot-window merge head), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
+
+**Opening repair (main was RED at open): the FOURTH born-collided
+D-seat repair per SA-9.** The doc_truth_gate failed at the lane-open
+run — PARITY-DELTAS carried two D-143 rows (the S60-B window's N-196
+registration AND the S63 lane's S-040 registration; the S63 push raced
+the window and took a seat that was taken). N-196 landed first and
+keeps D-143; **S-040's registration renumbers D-143 → D-147** (the
+N-205 ride filled D-144..D-146). Every live citation swept (the
+PARITY-DELTAS row, four code comments, ABI-CONTRACT 7j,
+REFERENCE-API-GAP ×2, API-DELTA, modules/{imaging,cli,abi,tree}.md, the
+ledger row, two matrix rows, the SUMMARY S63 block, both finding
+files); two stale mid-ride N-205 citations (matrix row 1184 and
+modules/tree.md still saying D-143; the ledger row still saying D-144)
+repaired to the D-146 terminal seat in the same pass. Dated worklog
+history stays (the N-107 dated-record convention). Gate green at 140
+unique D-rows after the repair. No behavior change — trail repair only.
+
+**Board at lane open (re-counted first-hand from the filesystem):**
+0 ACUTE · 0 SEVERE · 20 MAJOR · 13 MINOR · 0 INFO active / 151 FIXED /
+4 tracked-open. N-107/N-127 (with M-086/M-087/M-089) are
+driver-repo-resident (OQ-S10-3's two-repo grant boundary) — not
+fixable in core, counted active-open. Next free IDs: S-068+, M-148+,
+N-210+, I-048+, A-016+, D-148+.
+
+
 
 ## Session-62 S62 fix-lane delta (2026-10-29 — the user's MAJOR-first directive; core `98a5b139` at open, corpus `be0cfe9`; baseline suite 1460/1460)
 
@@ -7849,7 +7876,7 @@ over open_disk) + ABI `cr_ui_image_create` (87 exports, contract 7j,
 the ERR_DRIVER_* gate, honest ERR_UNSUPPORTED off-Windows) + CLI verb 13
 `image --create` (four-site lock; exit 3/2 with the kept-.partial
 reporting). Flat raw only — VHD/VHDX writers out of scope, registered
-D-143. 7 portable tests + 4 win-lane disposition tests + C-consumer
+D-147. 7 portable tests + 4 win-lane disposition tests + C-consumer
 rows; R-93 PARTIAL→PRESENT; a Windows-lane probe added to
 Run-Benchmark.ps1 (create → sidecar digest == Get-FileHash → size ==
 disk size → scan --image exit 0). Board after this push: 45 active —

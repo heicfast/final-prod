@@ -1506,7 +1506,7 @@ CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
 /* S-040 (R-93): create a flat raw disk image of physical disk N at
  * utf8_path (the og home page's "Create Image" producer - the safe-scan
  * posture's first step, UIUX/07:36-37 + UIUX/11:17; raw-flat only,
- * VHD/VHDX writers out of scope - PARITY-DELTAS D-143).
+ * VHD/VHDX writers out of scope - PARITY-DELTAS D-147).
  *
  * Classification (a) driver-required (DRIVER-REQUIRED.md): the call
  * requires the RDA driver Ready like every disk-data-path verb, and

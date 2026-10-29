@@ -7,7 +7,7 @@
  * posture for failing disks (UIUX/11:17). This is the producer half the
  * core lacked (S-040); the reader half is S-030 (storage::open_image).
  * Flat raw only - VHD/VHDX writers are out of scope (registered
- * divergence D-143: the og's own reader accepts flat, and the corpus does
+ * divergence D-147: the og's own reader accepts flat, and the corpus does
  * not decode the og's writer format beyond the libvmdk link).
  *
  * Disposition policy (the truth contract, S-040's acceptance):

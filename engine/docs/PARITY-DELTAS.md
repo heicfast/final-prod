@@ -4174,7 +4174,7 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   documentation must stop describing the og's .dat pair as a persistent
   knowledge base (it is one process-generation old at most).
 
-### D-143 — the image-CREATE producer: flat raw only, no VHD/VHDX writers (S-040 registration, REGISTERED SCOPE EXCLUSION - the R-93 plan-of-record's own boundary)
+### D-147 — the image-CREATE producer: flat raw only, no VHD/VHDX writers (S-040 registration, REGISTERED SCOPE EXCLUSION - the R-93 plan-of-record's own boundary; renumbered D-143→D-147 at the S64 seat repair: the S60-B window's N-196 registration took the D-143 seat first per SA-9)
 
 - **WHAT OG DOES:** ships a home-page "Create Image" flow
   (DiskBackupDialog -> DiskBackupSaveDlg -> DiskBackProgressPage,
