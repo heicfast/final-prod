@@ -4596,13 +4596,22 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(v, "AC10", 4) != 0)
         return r;
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly these
-     * nine. The S-007 landing carried "30" (AC1030 - not a real DWG
-     * release) and lacked "13" (AC1013 = R13) - corrected here. The og
-     * has NO sentinel check (the version table is the whole gate). */
-    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32"};
+    /* the og's tier-1 table (FUN_18002fe30 @ 0x18002fe30, raw asm: the
+     * stack table writes run [rbp-0x50]..[rbp-0x18] - the tenth entry's
+     * suffix u16 "09" lives at rbp-0x16 (the 0x39303031 constant's high
+     * half) - with the loop bound `cmp edx,0xa; jl` at 0x18002fede):
+     * exactly these TEN pairs. The S-007 landing carried "30" (AC1030 -
+     * not a real DWG release) and lacked "13" (AC1013 = R13) - corrected
+     * by the first landing. "09" (AC1009 = R12) IS in the og's gate but
+     * in NO generation's walk table: the og stamps the id 0x18 and the
+     * size stays the ctor's 0, so the decline below IS the og-true
+     * outcome for it (the S86 convergence rider: the initial landing
+     * read nine pairs; the tenth entry re-verified first-hand from the
+     * asm this session). The og has NO sentinel check (the version
+     * table is the whole gate). */
+    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32", "09"};
     int ver = -1;
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < 10; ++i)
         if (v[4] == u8(kVersions[i][0]) && v[5] == u8(kVersions[i][1])) {
             ver = i;
             break;
@@ -4727,7 +4736,16 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     }
 
     /* ---- gen-3 (AC1021 = R2007): the undecoded de-interleave chain -
-     * the bounded extent stays, the finding's recorded remainder ---- */
+     * the bounded extent stays, the finding's recorded remainder. The
+     * og's gen-3 table matches "21" ONLY (0x18002f4eb-0x18002f505: the
+     * u16 0x3132 compare) - it is NOT a default: a gate-passed version
+     * in no generation's table ("09" = AC1009/R12) keeps the ctor's
+     * extent 0 and declines (the S86 rider: the first landing reached
+     * this branch by fall-through, which the nine-pair gate happened
+     * to mask - the ten-pair gate exposes it; the explicit "21" check
+     * restores the og's own routing) ---- */
+    if (std::memcmp(ver_str, "21", 2) != 0)
+        return r; /* gate-passed but un-walked: the og's size stays 0 */
     u64 end = hit + (64ull << 20);
     if (end > limit)
         end = limit;
@@ -5864,199 +5882,212 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* APE: "MAC " key 0x2043414d (:5653) -> CAPEAnalyser idx 81 (frame-sync
- * school, no index). M-160: the og's version gate is the u16 LE at +4
- * against [1000, 9999] (FUN_180033180's first check - the release
- * integers; the walk's own branches split at 3980/3801); the old core's
- * u32-BE [300, 5000] read matched no real APE file.
- * M-107's APE member (this landing): the SIZE WALK, decoded first-hand
- * from FUN_180033180 (the CAPERawFileInfo chunk processor) + the S87
- * addendum 4's decode notes, both raw reads agreeing:
- *  - the walk's own cap: singleton+0x70 (0xBEBC200) x 10 = 2 GB (the
- *    final clamp; the row max carries it);
- *  - the OLD form (< 3980, the 3.80-3.97 32-byte header): the format
- *    flags u16 LE@+8 - bit 2 -> the data start 0x24 else 0x20; bit 4
- *    (the seek-elements field) -> +4; nHeaderBytes u32@+0x10 nonzero ->
- *    +0x2C (the 44-byte WAV block); the alignment = channels (u16 LE@+0xA)
- *    x bytes-per-sample (flag bit 3 -> 3, bit 0 -> 8, else 2) with the
- *    gates alignment != 0 AND channels in {1,2} (0x1800331xx: the
- *    `iVar14 == 0 || 1 < uVar20-1` decline); version < 3801 -> the table
- *    position -= the u32@+0x18 (the old-old adjustment);
- *  - the SEEK-TABLE walk: the u32 entries from the data start; the first
- *    entry must be nonzero and < 2 GB (the :39133 gate) else the
- *    extent-0 decline; each entry 0 or >= 2 GB terminates; the extent is
- *    the running MAX (0x120) - the audio end;
- *  - the NEW form (>= 3980): the descriptor u32@+8; the u64 at
- *    (file + descriptor + 16) = bitsPerSample | channels<<16 |
- *    sampleRate<<32; the alignment = (bitsPerSample >> 3) x channels
- *    with the same != 0 / {1,2} gates; the extent = the descriptor's
- *    size-field sum (u32@+0x20 + u32@+0x0C + the u64@+0x18 + u32@+0x14
- *    + (u32@+0x10 + u32@+0x08), the 0x18003349b sum);
- *  - the APETAGEX terminal: backward from the walked end for the u64
- *    0x5845474154455041 with item count u32@tag+0x10 < 0x10000 and
- *    (tag size u32@tag+0x0C - 0x20) < 0x1000001; span = tag size + 0x20,
- *    or tag size when the flags u32@tag+0x14 bit 31 is clear; the
- *    position adjusts by the flags byte@tag+0x17 bit 5 (bit 29): clear
- *    -> the extent = tag position + 0x20, set -> + span; the OLD form
- *    adds it at the tag position, the NEW form as the aligned sum;
- *    no tag -> the walked extent rounded up to the sector (512) + one
- *    sector (the og's chunk-length rounding).
- * The registered model divergence (the CRW/X3F/WPG class): the og's
- * chunk-fed state machine (+0x110/+0x118 multi-chunk bookkeeping) is
- * the streaming artifact; the static model walks the same entries and
- * the same tail from the candidate's own device window. */
+/* M-107 (the APE member) + M-160 (the version gate, convergent): the
+ * og's CAPEAnalyser walk, raw-asm decoded first-hand (objdump over
+ * og-codebase/RAWSearchDLL.dll). The chain: the registry key "MAC "
+ * (0x2043414d, the registration at RAWSearchDLL_decompiled.c:1953-1959)
+ * -> the tier-1 FUN_180033090 stamps ONLY the id 0x51 (no size - the
+ * WPG class); the size walk is CAPERawFileInfo's +0x20 processor
+ * FUN_180033180 (0x180033180-0x180033603):
+ *  - the version gate (M-160's seat, the racing S92 window's landing
+ *    19e7a0d1 - the gates agree byte-exact): the u16 LE at +4 in
+ *    [1000, 9999] (raw-asm 0x180033228/:232, $0x2710/$0x3e8); outside,
+ *    the walk never sets a size - the decline. The stand-in read a u32
+ *    BE and gated [300,5000]: every real Monkey's Audio file (u16 LE
+ *    3800..4400) was REJECTED - the discovered live defect (the M-156
+ *    ASCII-gate class).
+ *  - the format split at 3980 (0xf8c, raw-asm :272/:56b):
+ *    OLD (< 3980, the 0x180033366 arm): base = 0x20 | (flags&4 ? 4 : 0),
+ *      +4 when flags&0x10 (the descriptor dword becomes the aux), +0x2c
+ *      when u32@16 != 0; align = u16@10 x mult (mult = 3 if flags&8, 8
+ *      if flags&1, else 2); the align != 0 and u16@10 in {1,2} gates;
+ *      the seek-table dword scan from base - entry[0] is the byte bound
+ *      (version <= 3800 subtracts the aux dword), the scan stops at a 0
+ *      entry or an entry >= the cap, and the max entry is the walked
+ *      size (0x180033421-0x180033478).
+ *    NEW (>= 3980, the 0x180033294 arm): the descriptor block at the
+ *      u32@8 offset; align = (u16@desc >> 3) x u16@desc+2 (the {1,2}
+ *      gate on the second); size = u32@8 + u32@12 + u32@16 + u32@20 +
+ *      u32@24 + u32@32 - the og's own arithmetic, the dword@32 MD5 term
+ *      included (raw-asm 0x180033323-0x180033353; an og quirk kept).
+ *  - the epilogue (0x1800334a3+, THE CONTINUATION the S92 window's S87
+ *    addendum 4 named as "the next lane's start" - landed here): fires
+ *    on the feed chunk where the accumulated position first reaches the
+ *    size - the whole-file model takes the 512-byte window ending at
+ *    round_up(size, 512); the backward "APETAGEX" scan (.rdata
+ *    0x18006bf70, verified byte-exact) with the footer gates (items
+ *    u32@f+16 <= 0xFFFF, the signed (tag_size - 0x20) <= 0x1000000,
+ *    flags bit29 clear - the footer, not the header); span = tag_size +
+ *    (flags bit31 ? 0x20 : 0); OLD+tag: extent = the footer end (the
+ *    span algebra cancels, raw-asm 0x180033593-:59e); NEW+tag: extent =
+ *    round_up(size + span, 512); no tag: extent = round_up(accum -
+ *    zero_tail, 512) + 512 (the og's own +512 over-tolerance, kept).
+ *  - the cap: singleton+0x70 x 10 = 2,000,000,000 (raw-asm
+ *    0x1800331ec-0x1800331f4: lea (%rcx,%rcx,4); add %r12,%r12) - the
+ *    row max mirrors it (the CRW/X3F precedent).
+ *  - torn (the readable extent ends before the finalizing window): the
+ *    walked size clamps at the reduced confidence (the SIT/X3F salvage
+ *    class; the og's pending force-finalize is the streaming machinery's
+ *    job - the registered model divergence).
+ * The streaming chunk model is the registered divergence (the CRW/WPG
+ * stance): the whole-file window reproduces every found shape without
+ * the pending re-feed artifacts. */
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[96];
+    u8 h[64];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "MAC ", 4) != 0)
         return r;
-    /* M-160: the og's version gate (FUN_180033180, the CAPERawFileInfo
-     * processor): the u16 LE at +4 against [1000, 9999] - the release
-     * integers (the walk's own branches split at 3980 and 3801). The
-     * old core's u32-BE [300, 5000] read matched NO real APE file (the
-     * version field is the u16 LE; a real header's BE read is ~0x820F0000)
-     * - every real Monkey's Audio archive was rejected. */
-    const u16 version = u16_from_bytes_le(h + 4);
+    const u32 version = u16_from_bytes_le(h + 4);
     if (version < 1000 || version > 9999)
-        return r;
+        return r;                               /* the og's exact window (raw-asm $0x3e8/$0x2710) */
+    constexpr u64 APE_WALK_CAP = 2000000000ull; /* singleton+0x70 x 10 */
     const u64 limit = probe_limit(s, hit, cap);
-    constexpr u64 WALK_CAP = 2000000000ull; /* singleton+0x70 x10 = 2 GB */
-    u64 extent = 0;
-
-    if (version < 3980) {
-        /* ---- the OLD form (3.80-3.97): the 32-byte header ---- */
-        const u16 flags = u16_from_bytes_le(h + 8);
-        const u16 channels = u16_from_bytes_le(h + 0xA);
-        const u32 bps = (flags & 8) ? 3 : ((flags & 1) ? 8 : 2);
-        const u64 align = u64(channels) * bps;
-        if (align == 0 || channels < 1 || channels > 2)
-            return r; /* the alignment/channel gates (the extent-0 decline) */
-        u32 pos = (flags & 4) ? 0x24 : 0x20;
-        if (flags & 0x10)
-            pos += 4; /* the seek-elements field: a u32 read at the data start */
-        if (u32_from_bytes_le(h + 0x10) != 0)
-            pos += 0x2C; /* nHeaderBytes present: the 44-byte WAV block */
-        /* the first seek-table entry gates the table's existence */
-        u8 e[4];
-        if (!rd(s, hit + pos, e, sizeof(e)))
-            return r;
-        const u32 first = u32_from_bytes_le(e);
-        if (first == 0 || first >= WALK_CAP)
-            return r; /* the :39133 gate - no seek table, extent 0 */
-        u32 table_pos = pos;
-        if (version < 3801) {
-            const u32 adj = u32_from_bytes_le(h + 0x18);
-            if (u32(table_pos) < adj)
-                return r; /* the old-old adjustment would run off the front */
-            table_pos -= adj;
-        }
-        /* the seek-table walk: entries from the data start; 0 or >= 2 GB
-         * terminates; the extent is the running MAX (the audio end). The
-         * iteration guard (1 Mi entries = a 4 MB table; real tables are
-         * <= 64K entries) keeps the walk bounded - never a stuck scan. */
-        extent = first;
-        {
-            u64 at = hit + table_pos;
-            u32 guard = 0;
-            constexpr u32 MAX_ENTRIES = 1u << 20;
-            u8 blk[4096];
-            u64 blk_base = ~u64(0);
-            u32 blk_len = 0;
-            while (guard++ < MAX_ENTRIES && at + 4 <= limit) {
-                if (at + 4 > blk_base + blk_len || at < blk_base) {
-                    const u32 want = u32(std::min<u64>(sizeof(blk), limit - at));
-                    if (want < 4 || !rd(s, at, blk, want))
-                        break;
-                    blk_base = at;
-                    blk_len = want;
-                }
-                const u32 v = u32_from_bytes_le(blk + size_t(at - blk_base));
-                if (v == 0 || v >= WALK_CAP)
-                    break; /* the og's own termination */
-                if (v > extent)
-                    extent = v; /* the running max (the audio end) */
-                at += 4;
-            }
-        }
-    } else {
-        /* ---- the NEW form (3.98+): the descriptor ---- */
+    u64 size = 0;
+    if (version >= 3980) {
+        /* the NEW format: the descriptor's own size fields */
         const u32 desc = u32_from_bytes_le(h + 8);
-        u8 q[8];
-        if (!rd(s, hit + u64(desc) + 16, q, sizeof(q)))
-            return r; /* the descriptor's compression qword must be readable */
-        const u16 bits = u16_from_bytes_le(q);
-        const u16 channels = u16_from_bytes_le(q + 2);
-        const u64 align = u64(bits >> 3) * channels;
-        if (align == 0 || channels < 1 || channels > 2)
+        if (desc == 0 || u64(desc) + 4 > sizeof(h))
+            return r; /* the desc arm's bounds gate (raw-asm :2bb-:2df) */
+        const u32 a = u16_from_bytes_le(h + desc);
+        const u32 b = u16_from_bytes_le(h + desc + 2);
+        const u64 align = u64(a >> 3) * b;
+        if (align == 0 || (b != 1 && b != 2))
+            return r; /* the align gates (raw-asm :317-:321) */
+        size = u32_from_bytes_le(h + 8) + u32_from_bytes_le(h + 12) + u32_from_bytes_le(h + 16) +
+               u32_from_bytes_le(h + 20) + u32_from_bytes_le(h + 24) + u32_from_bytes_le(h + 32);
+        if (size == 0 || size > APE_WALK_CAP)
             return r;
-        extent = u64(u32_from_bytes_le(h + 0x20)) + u64(u32_from_bytes_le(h + 0x0C)) +
-                 u64_from_bytes_le(h + 0x18) + u64(u32_from_bytes_le(h + 0x14)) +
-                 u64(u32_from_bytes_le(h + 0x10) + desc);
-    }
-
-    /* ---- the APETAGEX terminal (both forms) ---- */
-    {
-        /* the og scans its LAST chunk backward for the footer; the static
-         * model scans the final 512-byte window of the walked region */
-        const u64 tail_base = extent > 512 ? extent - 512 : 0;
-        u8 tail[512];
-        u64 have = 0;
-        if (limit > hit + tail_base && limit - (hit + tail_base) >= 32) {
-            have = std::min<u64>(sizeof(tail), limit - (hit + tail_base));
-            if (!rd(s, hit + tail_base, tail, u32(have)))
-                have = 0;
+    } else {
+        /* the OLD format: the seek-table scan */
+        const u32 flags = u16_from_bytes_le(h + 8);
+        const u32 channels = u16_from_bytes_le(h + 10);
+        u64 mult = ((flags & 8) | 0x10) >> 3;
+        if (flags & 1)
+            mult = 8;
+        const u64 align = u64(channels) * mult;
+        if (align == 0 || (channels != 1 && channels != 2))
+            return r; /* the align gates (raw-asm :3d0-:3db) */
+        u64 base = 0x20 + ((flags & 4) ? 4 : 0);
+        u32 aux = u32_from_bytes_le(h + 24);
+        if (flags & 0x10) {
+            aux = u32_from_bytes_le(h + base);
+            base += 4;
         }
-        u64 tag_off = ~u64(0);
-        if (have >= 32) {
-            for (u64 p = have - 32 + 1; p-- > 0;) {
-                if (std::memcmp(tail + p, "APETAGEX", 8) != 0)
-                    continue;
-                const u32 items = u32_from_bytes_le(tail + p + 0x10);
-                const u32 tsize = u32_from_bytes_le(tail + p + 0x0C);
-                const u32 tflags = u32_from_bytes_le(tail + p + 0x14);
-                if (items >= 0x10000)
-                    continue;
-                if (u32(tsize - 0x20) >= 0x1000001u)
-                    continue;
-                u64 span = u64(tsize) + 0x20;
-                if ((i32(tflags) >= 0))
-                    span = tsize; /* flags bit 31 clear: the items' bytes only */
-                const bool bit29 = (tail[p + 0x17] >> 5 & 1) != 0;
-                const u64 tag_file = tail_base + p; /* the footer's file offset */
-                u64 add = bit29 ? span : 0x20;
-                if (version < 3980) {
-                    extent = tag_file + add;
-                } else {
-                    u64 v = extent + span;
-                    v = (v - v % 512) + 512;
-                    extent = v;
-                }
-                tag_off = tag_file;
+        if (u32_from_bytes_le(h + 16) != 0)
+            base += 0x2c;
+        if (base + 4 > sizeof(h))
+            return r; /* the seek base must live in the header window */
+        const u32 first = u32_from_bytes_le(h + base);
+        if (first == 0 || u64(first) >= APE_WALK_CAP)
+            return r; /* the first-entry gates (raw-asm :3e6-:3f9) */
+        u64 bound_bytes = first;
+        if (version <= 3800)
+            bound_bytes = u64(first) - aux; /* the aux subtraction */
+        /* the scan: dwords from base while the position stays under the
+         * bound; a 0 entry or an entry >= the cap stops it; the max is
+         * the walked size */
+        u64 max_entry = 0;
+        std::vector<u8> win(kProbeBlock);
+        u64 pos = base;
+        const u64 rel_fed_scan = limit - hit;
+        while (pos + 4 <= bound_bytes && pos + 4 <= rel_fed_scan) {
+            const u64 chunk =
+                std::min<u64>(std::min<u64>(win.size(), bound_bytes - pos), rel_fed_scan - pos);
+            if (chunk < 4)
                 break;
+            if (!rd(s, hit + pos, win.data(), u32(chunk)))
+                break; /* unreadable: the walked prefix ends here */
+            for (u64 i = 0; i + 4 <= chunk; i += 4) {
+                const u32 e = u32_from_bytes_le(win.data() + i);
+                if (e == 0 || u64(e) >= APE_WALK_CAP)
+                    goto scan_done;
+                if (e > max_entry)
+                    max_entry = e;
             }
+            pos += chunk;
         }
-        if (tag_off == ~u64(0)) {
-            /* no tag: the walked extent rounded up to the sector + one
-             * sector (the og's chunk-length rounding) */
-            u64 v = extent;
-            if (v % 512)
-                v = v - v % 512 + 512;
-            extent = v + 512;
+    scan_done:
+        size = max_entry;
+        if (size == 0)
+            return r; /* the walk never set a size - the decline */
+    }
+    r.ok = true;
+    /* the epilogue: the finalizing window is the 512 bytes ending at
+     * round_up(size, 512); torn when the readable extent ends first */
+    const u64 accum = (size + 511) & ~u64(511);
+    const u64 rel_fed = limit - hit;
+    if (accum > rel_fed) {
+        /* torn: the walked size clamps to the readable extent */
+        r.end = hit + std::min(size, rel_fed);
+        r.confidence = 550;
+        r.note = "ape-cape-analyser-walk+torn-salvage";
+        return r;
+    }
+    u8 win[512] = {};
+    const u64 win_end = accum;
+    const u64 win_start = accum - 512;
+    if (win_end > rel_fed || !rd(s, hit + win_start, win, sizeof(win))) {
+        r.end = hit + std::min(size, rel_fed);
+        r.confidence = 550;
+        r.note = "ape-cape-analyser-walk+torn-salvage";
+        return r;
+    }
+    /* the backward APETAGEX scan within the finalizing window */
+    u64 extent = 0;
+    u64 zero_tail = 0;
+    {
+        bool counting = true;
+        for (u64 i = sizeof(win); i >= 8; --i) {
+            const u64 p = i - 8; /* the 8-byte compare position */
+            if (counting) {
+                if (win[i - 1] == 0)
+                    ++zero_tail;
+                else
+                    counting = false;
+            }
+            if (std::memcmp(win + p, "APETAGEX", 8) == 0) {
+                const u32 items = u32_from_bytes_le(win + p + 16);
+                const u32 tag_size = u32_from_bytes_le(win + p + 12);
+                const u32 fflags = u32_from_bytes_le(win + p + 20);
+                if (items <= 0xFFFF && i64(u32(tag_size - 0x20)) <= 0x1000000 &&
+                    ((fflags >> 29) & 1) == 0) {
+                    const u64 span = (fflags & 0x80000000u) ? u64(tag_size) + 0x20 : u64(tag_size);
+                    if (version >= 3980) {
+                        /* NEW: extent = round_up(size + span, 512) */
+                        const u64 v = size + span;
+                        extent = (v + 511) & ~u64(511);
+                    } else {
+                        /* OLD: extent = tag_start + span = the footer end
+                         * (raw-asm 0x180033593-:59e: r15d = footer - span
+                         * + 0x20, then + prev_accum + span - the span
+                         * cancels to the absolute footer + 0x20) */
+                        extent = win_start + p + 0x20;
+                    }
+                    break;
+                }
+            }
+            if (p == 0)
+                break; /* u64 underflow guard */
         }
     }
-
-    extent = std::min(extent, WALK_CAP);
-    r.ok = true;
+    if (extent == 0) {
+        /* no tag: round_up(accum - zero_tail, 512) + 512 (the og's slack) */
+        u64 v = accum - std::min<u64>(zero_tail, 512);
+        if (v % 512 != 0)
+            v = (v - v % 512) + 512;
+        extent = v + 512;
+    }
+    if (extent > APE_WALK_CAP)
+        extent = APE_WALK_CAP; /* the og's final clamp (raw-asm :5c6) */
+    if (hit + extent > limit)
+        extent = limit - hit;
     r.end = hit + extent;
-    if (r.end > limit)
-        r.end = limit;
-    r.confidence = 620;
-    r.note = "ape-seektable-walk+apetagex-tail";
+    r.confidence = 650;
+    r.note = "ape-cape-analyser-walk";
     return r;
 }
-
 /* AU: ".snd" key 0x646e732e (:6155) -> FileAUAnalyser idx 9. Sun/NeXT
  * audio: BE data-offset (>= 24), BE size (0xFFFFFFFF = unknown), BE
  * encoding 1..27, BE sample-rate and channel-count sanity. */
@@ -6728,7 +6759,8 @@ CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap) {
  * 0x7853b1ae4da7d88c and dword@0xc == 0xd32969d0. The FileInfo bounds
  * {20, 500,000,000} are the og ctor's own (FUN_180016080 :17191-17209).
  * The chunk-chain size walk landed as M-106 (FUN_180044e30, the body
- * below) - this header's pre-M-106 "stands in" sentence is retired. */
+ * below) - this header's pre-M-106 "stands in" sentence is retired
+ * (the S93 lane's rider over the racing APE seat). */
 CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the chunk-chain size walk (FUN_180044e30 :52316-52358,
      * decoded in the trail's own evidence - s8-batch2-formats.md:29).
@@ -6914,7 +6946,7 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
  * VA 0x180093978 / file offset 0x91778) AND u32@0x104 == 0x200000.
  * The section walk landed as M-106 (FUN_180042ff0, the MM branch in the
  * body below); row max = S-041's census bound (200 MB). This header's
- * pre-M-106 "stands in" sentence is retired. */
+ * pre-M-106 "stands in" sentence is retired (the S93 lane's rider). */
 CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the MM branch carries the section walk (FUN_180042ff0
      * :50921-50971, decoded in s8-batch2-formats.md:31): per chunk at

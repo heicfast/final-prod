@@ -3,8 +3,12 @@
 # core_recovery v0.6.0
 
 **Scope of this release:** the capability + parity milestone on top of
-v0.5.2 — 803 commits, the M-107 carve size-walk family (members 1-9 of
-11 landed; SIT/APE/SWF-RECT remain), the whole-disk partition scan, the
+v0.5.2 — 803 commits, the M-107 carve size-walk family (members 1-10 of
+11 landed: X3F, CRW, DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI, SIT;
+APE and SWF-RECT remain + the DWG gen-3 R2007 remainder — corrected by
+the coherence session: the SIT landing 2214af90 postdated this section's
+first draft; validate_sit registered at cr_registry.cpp:881 with its
+12-test battery), the whole-disk partition scan, the
 pointed-resume session surface, and the warnings-hygiene coherence pass
 (the MSVC /W4 /WX build restored to zero warnings; the full Linux suite
 green at every landing). The headline set since v0.5.2:
@@ -23,7 +27,10 @@ green at every landing). The headline set since v0.5.2:
   zero-tail continuation walk, the DXF EOF-trailer scan (LF and CRLF
   forms), the EPS Adobe covenant (`%!PS-Adobe-` required — a bare `%!PS`
   is the og's decline), and the AI header formula (three start+length
-  pairs, max wins).
+  pairs, max wins), and the SIT entry-marker walk (the per-ENTRY
+  marker + stride table, the corrupt-entry terminal, the new-header
+  gate at 512-byte boundaries; the racing lanes' convergence kept
+  the fuller 2214af90 decode per SA-9).
 - **S-054 (repair of the S-047 landing)**: the MPEG-TS/AVCHD (TS/M2TS)
   carve cap is the og's 200 MB controller global EXACTLY — the S-047
   landing's "× 10" value (2 GB) was a refuted provenance; any release
@@ -74,6 +81,31 @@ green at every landing). The headline set since v0.5.2:
 - The committed conflict-marker classes swept (the N-210 gate now holds
   across the merged windows); the suite grew to 1,700+ tests, green at
   every landing.
+
+## Release truth (the coherence session's addendum)
+
+- **Version stamps track the tag again:** v0.5.0/v0.5.1/v0.5.2 shipped
+  with `core_version: 0.4.0` in their MANIFEST.json (vcpkg.json +
+  CMakeLists.txt were never bumped through the line; verified against
+  the published v0.5.2 MANIFEST first-hand). From this release the
+  stamps carry the tag: 0.6.0.
+- **The v0.5.0-v0.5.2 notes gap (honest):** those three releases were
+  cut without release-notes entries. Their content, from the tags:
+  **v0.5.0** (11 commits) the driver-only era transition (Win7
+  import-allowlist entries for the SCM surface, C4477 fixes, the
+  capability matrix's driver-only rows); **v0.5.1** (3 commits) the
+  extended-IOCTL phantom-zero repair + the prebuilt fetcher's binding
+  fixes; **v0.5.2** (97 commits) the CI consolidation + the Windows
+  empty-directory listing fix (both surfaces).
+- **The win-only test battery compiled for the first time:** the M-075
+  fsck wiring battery (test_fsck_win.cpp) shipped uncompiled by any
+  compiler until checks.yml run 321 caught it (7bd3ed8b's
+  `using namespace cr;` repair). The class is now gated on the Linux
+  lane: win_syntax_check.sh parse-covers every
+  tests/unit/test_*_win.cpp (18/18 at this session's HEAD) with the
+  win-stub SDK grown to carry the gtest CRT surface; two test files
+  dropped the MSVC-only multi-word functional cast for the identical
+  static_cast form.
 
 ## vNext (CI consolidation, 2026-10-28) — folded into this release
 

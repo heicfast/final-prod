@@ -621,3 +621,37 @@ the errmod ids with static_asserts (cr_ui.cpp:93-107).
   comment literals at cr_error.h:6-7 (reproduced with the gate's own regex).
 - **Event types: 12** (CR_EVT_* values 1..12, cr_ui.h:151-223) — matches the
   docs. (Core-side enum emits only 8 of them; 8, 9, 11, 12 are shim-side.)
+
+---
+
+## Session-90 coherence addendum (re-stamped at the pre-v0.5.3 close)
+
+Deltas against the Session-84 record (91 declared / 90 implemented,
+e8dcaba8):
+
+- **The census is now 93 declared / 93 implemented.** The M-075/M-078
+  window added two exports this sheet predated:
+  - `cr_ui_fsck_volume` (include/cr/cr_ui.h:1617, impl src/ui/cr_ui.cpp:5058,
+    the M-075 chkdsk launch endpoint; args (char letter, uint32_t flags,
+    int32_t* exit_code) per cr_ui.h:1617; the OK / ERR_BAD_PARAMETER /
+    ERR_OPEN_FAILED / ERR_UNSUPPORTED contract is the win-layer
+    fsck_volume's (include/cr/win/cr_fsck.h:36-41, timeout bound inside
+    the win layer))
+  - `cr_ui_turn_off_bitlocker` (cr_ui.h:1635, impl cr_ui.cpp:5091, the
+    M-078 consented destructive twin of the unlock surface)
+- **F1 is resolved**: `cr_ui_session_resume_last` (the phantom) landed
+  at a47419c7 — declarations and implementations now balance exactly
+  (93 = 93, counted first-hand this session).
+- Error enum: 43 codes + OK, as recorded (M5 holds).
+- WPD/M-101 (1ff8ae24, b7d05b12): core-internal only — no public ABI
+  surface change (validate_wpd is engine-internal; version_group /
+  tags_extracted ride the tree/query C++ surface, not the C ABI).
+  Observation filed for the next behavior session: `cr_ui_query_row`
+  does not yet expose the version-group axis.
+
+— Session-90 coherence lane. End of addendum.
+
+### Post-window correction: re-verified at the v0.6.0 cut - doc_truth_gate's
+own census confirms exports=93 / error codes=43 at the merged HEAD; the
+cr_ui_session_resume_last implementation (M-154, a47419c7) and the
+archive ABI pair are inside the 93. The 93/93 balance stands.

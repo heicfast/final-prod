@@ -3097,18 +3097,28 @@ TEST(Carve, DwgR2004GateFailDeclines) {
             << "the failed struct gate must decline";
 }
 
-TEST(Carve, DwgVersionGateIsTheOgsNine) {
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly
-     * {12,13,14,15,18,21,24,27,32}. The pre-fix core carried "30"
-     * (AC1030 - no such DWG release) and LACKED "13" (AC1013 = R13) -
-     * both directions pinned here. */
-    for (int k = 0; k < 2; ++k) {
+TEST(Carve, DwgVersionGateIsTheOgsTenPairs) {
+    /* the og's tier-1 table (FUN_18002fe30 @ 0x18002fe30, raw asm: the
+     * stack table runs [rbp-0x50]..[rbp-0x18], the tenth entry's suffix
+     * u16 "09" at rbp-0x16, the loop bound `cmp edx,0xa; jl` at
+     * 0x18002fede): exactly {32,27,24,21,18,15,14,13,12,09} - TEN
+     * pairs. The pre-fix core carried "30" (AC1030 - no such DWG
+     * release) and LACKED "13" (AC1013 = R13) - both directions
+     * pinned here. The S86 convergence rider: "09" (AC1009 = R12) is
+     * gate-PASSED by the og but walked by NO generation (the og's size
+     * stays the ctor's 0), so it must DECLINE - and specifically NOT
+     * take the gen-3 bounded fall-through (the explicit "21" check
+     * restores the og's own tables; this third arm was RED at the
+     * rider tree without it). */
+    for (int k = 0; k < 3; ++k) {
         std::vector<u8> img(128 * 1024, 0);
         const size_t at = 512;
         if (k == 0)
             plant_dwg_header(img, at, "13"); /* R13 - MUST carve */
-        else
+        else if (k == 1)
             plant_dwg_header(img, at, "30"); /* AC1030 - MUST NOT carve */
+        else
+            plant_dwg_header(img, at, "09"); /* AC1009 - gate-passed, un-walked */
         plant_dwg_locator(img, at, 1, {{0x100, 0x2000}});
         MemDevice dev(std::move(img));
         tree::ResultTree tree;
@@ -3124,8 +3134,11 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
                 dwg = c;
         if (k == 0)
             EXPECT_NE(dwg, nullptr) << "AC1013 (R13) is in the og's table - it must carve";
-        else
+        else if (k == 1)
             EXPECT_EQ(dwg, nullptr) << "AC1030 is NOT a DWG release - the og's table refuses";
+        else
+            EXPECT_EQ(dwg, nullptr) << "AC1009 is gate-passed but un-walked - the og's size stays "
+                                       "0 (never the gen-3 bounded fall-through)";
     }
 }
 
@@ -3351,6 +3364,11 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
 /* ---- M-160: the APE version gate (the u16 LE [1000, 9999] window) -- */
 
 size_t plant_ape(std::vector<u8>& img, size_t at);
+/* M-107's walk battery helpers (defined at the file tail) */
+void plant_ape_old_at(std::vector<u8>& img, size_t at, u16 version, u32 seek_max, u32 scan_bound,
+                      bool with_footer, u32 footer_at);
+void plant_ape_new_at(std::vector<u8>& img, size_t at, u32 md5_term, bool with_footer,
+                      u32 footer_at);
 
 TEST(Carve, ApeRealFormVersionGateCarves) {
     /* The og's gate (FUN_180033180): the u16 LE at +4 in [1000, 9999].
@@ -3379,26 +3397,22 @@ TEST(Carve, ApeRealFormVersionGateCarves) {
 
 TEST(Carve, ApeVersionWindowIsTheOgsThousandWindow) {
     /* The window's both edges and both outsides: 1000 and 9999 carve;
-     * 999 and 10000 decline - the og's exact bounds. [M-107's APE member:
-     * the plants carry the minimal walk-valid fields - 1000 is an OLD-form
-     * version (the seek entry at +0x20), 9999 a NEW-form one (the
-     * descriptor qword at +16) - so the version WINDOW is what varies,
-     * not the walk's own gates.] */
+     * 999 and 10000 decline - the og's exact bounds. M-107's walk
+     * landing re-pin: a bare "MAC " + version header no longer carves
+     * (the walk's structural gates - the align/{1,2} channel gates, the
+     * seek-table/first-entry gates - decline it, exactly like the og's
+     * walk never setting a size); the window edges are probed with the
+     * walkable grammar instead (the old arm for 1000, the new arm for
+     * 9999, the M-160 gate still the first filter). */
     for (int k = 0; k < 4; ++k) {
         std::vector<u8> img(64 * 1024, 0);
         const size_t at = 512;
-        std::memcpy(img.data() + at, "MAC ", 4);
         const u16 ver = (k == 0) ? 1000 : (k == 1) ? 9999 : (k == 2) ? 999 : 10000;
-        put16(img, at + 4, ver);
-        if (k == 0) { /* OLD form: flags 0, stereo, the seek entry at +0x20 */
-            put16(img, at + 8, 0);
-            put16(img, at + 0xA, 2);
-            put32v(img, at + 0x18, 0);  /* total frames: no old-old adjustment */
-            put32v(img, at + 0x20, 64); /* first seek entry (nonzero < 2 GB) */
-        }
-        if (k == 1) { /* NEW form: desc 0, the qword at +16 = bps16|ch2 */
-            put16(img, at + 16, 16);
-            put16(img, at + 18, 2);
+        if (k == 1) {
+            plant_ape_new_at(img, at, 0x100, true, 0x2C0);
+            put16(img, at + 4, ver); /* the window edge on the new arm */
+        } else {
+            plant_ape_old_at(img, at, ver, 0x3E0, 0x400, true, 0x3C0);
         }
         MemDevice dev(std::move(img));
         tree::ResultTree tree;
@@ -3419,141 +3433,6 @@ TEST(Carve, ApeVersionWindowIsTheOgsThousandWindow) {
                 << "version " << ver << " is outside [1000, 9999] - the og declines";
     }
 }
-
-/* ---- M-107's APE member: the size walk (the seek-table max + the
- * APETAGEX tail + the sector rounding) ------------------------- */
-
-TEST(Carve, ApeSeekTableWalkSetsExtent) {
-    /* The og's walk (FUN_180033180): the seek-table entries' running MAX
-     * is the audio end; no tag -> the walked extent rounded up to the
-     * sector + one sector. The 3.97 form plants the table {40, 80, 120,
-     * 0} -> the audio end 120 -> the extent 1024. RED at the stand-in
-     * (which carved min(64 MiB, device end) - a blind extent). */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_ape(img, at);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* ape = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->extents.front().offset == at)
-            ape = c;
-    ASSERT_NE(ape, nullptr);
-    EXPECT_EQ(ape->props()->logical_size, size_t(1024))
-        << "round_up_512(120) + 512 - the og's no-tag sector rounding";
-}
-
-TEST(Carve, ApeApetagexTailExtendsTheCarve) {
-    /* The og's terminal: the backward scan finds the APETAGEX footer;
-     * flags bit 31 clear -> the span is the tag size; byte@+0x17 bit 5
-     * (bit 29) clear -> the extent = the tag position + 0x20. The footer
-     * at file offset 300 (inside the walk's 512-byte tail window) with
-     * tag size 0x20, 1 item, flags 0 -> the extent 300 + 0x20(32) = 332. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_ape(img, at);
-    std::memcpy(img.data() + at + 300, "APETAGEX", 8);
-    put32v(img, at + 300 + 8, 2000);    /* the tag version */
-    put32v(img, at + 300 + 0x0C, 0x20); /* the tag size */
-    put32v(img, at + 300 + 0x10, 1);    /* one item */
-    put32v(img, at + 300 + 0x14, 0);    /* flags: bit31 clear, bit29 clear */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* ape = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->extents.front().offset == at)
-            ape = c;
-    ASSERT_NE(ape, nullptr);
-    EXPECT_EQ(ape->props()->logical_size, size_t(332)) << "the tag footer position + 0x20";
-}
-
-TEST(Carve, ApeNewFormDescriptorSumSetsExtent) {
-    /* The 3.98+ form: the descriptor's size-field sum is the extent.
-     * desc@+8 = 52; the qword@+68 = bps16|ch2 (align 4); the sum
-     * u32@+0x20(44) + u32@+0x0C(0) + u64@+0x18(1000) + u32@+0x14(0) +
-     * (u32@+0x10(0) + desc(52)) = 1096; no tag -> round_up_512(1096) +
-     * 512 = 2048. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    std::memcpy(img.data() + at, "MAC ", 4);
-    put16(img, at + 4, 3980);
-    put32v(img, at + 8, 52);      /* the descriptor size */
-    put32v(img, at + 0x0C, 0);    /* the descriptor's +12 term */
-    put32v(img, at + 0x10, 0);    /* the +16 term */
-    put32v(img, at + 0x14, 0);    /* the +20 term */
-    put32v(img, at + 0x18, 1000); /* the +24 qword (frames | terminating) */
-    put32v(img, at + 0x1C, 0);    /*   ... the terminating half */
-    put32v(img, at + 0x20, 44);   /* the +32 term (the WAV block) */
-    put16(img, at + 52 + 16, 16); /* the qword@desc+16: bps 16 */
-    put16(img, at + 52 + 18, 2);  /*   ... channels 2 */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* ape = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->extents.front().offset == at)
-            ape = c;
-    ASSERT_NE(ape, nullptr);
-    EXPECT_EQ(ape->props()->logical_size, size_t(2048)) << "the descriptor's size-field sum";
-}
-
-TEST(Carve, ApeZeroFirstSeekEntryDeclines) {
-    /* The og's :39133 gate: the first seek-table entry 0 (or >= 2 GB) ->
-     * the extent-0 decline - no carve at all, never the blind cap. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_ape(img, at);
-    put32v(img, at + 0x20, 0); /* the first entry zeroed */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
-            << "a zero first seek entry declines (no seek table)";
-}
-
-TEST(Carve, ApeFourChannelsDeclines) {
-    /* The og's channel gate {1,2}: four channels -> the alignment gate
-     * decline (the `1 < uVar20-1` branch). */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_ape(img, at);
-    put16(img, at + 0xA, 4);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
-            << "four channels decline (the og's {1,2} gate)";
-}
-
 /* ---- M-107 member 6 (WPD): the version-table walk
  * (FUN_180041f50) ------------------------------------------ */
 
@@ -3906,32 +3785,40 @@ size_t plant_gz(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_ape(std::vector<u8>& img, size_t at) {
-    /* M-160 + M-107's APE member: the real 3.97 old form, walk-active.
-     * The version is the u16 LE at +4 (3970 = 0x0F82 -> bytes 82 0F;
-     * the old plant's u32 BE 00 00 0F 8C was the byte order no real APE
-     * file carries - the og's own gate rejects it, M-160's discovery).
-     * The 3.97 header: flags u16@+8 (0 -> 16-bit audio, bps 2, data
-     * start 0x20), channels u16@+0xA = 2 (align 4 - the og's channel
-     * gate {1,2}), nHeaderBytes u32@+0x10 = 0 (no WAV block), the seek
-     * table at +0x20 = {40, 80, 120, 0} (the 0 terminates the og's
-     * walk; the max 120 is the audio end) -> no APETAGEX tail: the
-     * extent = round_up_512(120) + 512 = 1024 (the og's sector
-     * rounding). */
+    /* M-107 (the APE member): the og's real grammar - the u16 LE version
+     * at +4 (the old S-007 stub wrote a u32 BE that only the invented
+     * [300,5000] gate ever accepted; real Monkey's Audio files carry the
+     * version x100 LE: 3.95 = 3950 = 0x0F6E). The CAPE walk's OLD-format
+     * arm: flags 0 (base 0x20, mult 2), channels 2 (the {1,2} gate),
+     * dword@16 == 0 (no +0x2c shift), the seek table at 0x20 with
+     * entry[0] the scan bound and the max entry the walked size; the
+     * APETAGEX footer inside the finalizing window - the extent is the
+     * footer end. */
     std::memcpy(img.data() + at, "MAC ", 4);
-    put16(img, at + 4, 3970);     /* 3.97: the u16 LE release integer */
-    put16(img, at + 6, 2000);     /* compression level */
-    put16(img, at + 8, 0);        /* flags: 16-bit, data start 0x20 */
-    put16(img, at + 0xA, 2);      /* channels: stereo (the og's {1,2} gate) */
-    put32v(img, at + 0xC, 44100); /* sample rate */
-    put32v(img, at + 0x10, 0);    /* nHeaderBytes: no WAV block */
-    put32v(img, at + 0x14, 100);  /* final frame blocks */
-    put32v(img, at + 0x18, 500);  /* total frames */
-    put32v(img, at + 0x1C, 4);    /* seek elements */
-    put32v(img, at + 0x20, 40);   /* the seek table: frame byte offsets */
-    put32v(img, at + 0x24, 80);
-    put32v(img, at + 0x28, 120);
-    put32v(img, at + 0x2C, 0); /* the terminating entry (the og's break) */
-    return 1024;               /* the walk's extent (round_up_512(120) + 512) */
+    put16(img, at + 4, 3950); /* the OLD format (< 3980) */
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0);  /* flags: base 0x20, mult 2 */
+    put16(img, at + 10, 2); /* channels: the {1,2} gate, align 4 */
+    put32v(img, at + 12, 0x2AAA);
+    put32v(img, at + 16, 0); /* == 0: no +0x2c base shift */
+    put32v(img, at + 20, 0);
+    put32v(img, at + 24, 0); /* aux (the dword@24 read, flags&0x10 clear) */
+    /* the seek table: entry[0] the scan bound, the max the walked size
+     * (0x3E0), the 0 terminator stops the scan */
+    put32v(img, at + 0x20, 0x400);
+    put32v(img, at + 0x24, 0x380);
+    put32v(img, at + 0x28, 0x3E0);
+    put32v(img, at + 0x2c, 0);
+    for (size_t i = 0x30; i < 0x3C0; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* frame data */
+    /* the APETAGEX footer inside the finalizing window [0x200, 0x400):
+     * the extent = the footer end = 0x3E0 */
+    std::memcpy(img.data() + at + 0x3C0, "APETAGEX", 8);
+    put32v(img, at + 0x3C8, 2000);        /* the tag version */
+    put32v(img, at + 0x3CC, 0x60);        /* the tag size (incl. footer) */
+    put32v(img, at + 0x3D0, 3);           /* items (<= 0xFFFF gate) */
+    put32v(img, at + 0x3D4, 0x80000000u); /* flags: bit31 = has header */
+    return 0x3E0;
 }
 
 size_t plant_au(std::vector<u8>& img, size_t at) {
@@ -4626,11 +4513,11 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     std::memcpy(img.data() + 49152 + 4, "\x00\x00HEAP\x00\x00", 8);
     std::memcpy(img.data() + 49152 + 0xA, "CCDR", 4);
     img[49152 + 0xE] = 3; /* wrong version */
-    /* MAC with an out-of-window version @ 18432 (M-160: the u16 LE form
-     * - 500 < 1000, the og's decline; the old BE-999999 plant read as
-     * u16 LE = 3840, INSIDE the og's window) */
+    /* MAC with an out-of-band version @ 18432 (M-107: the u16 LE 999 -
+     * outside the og's [1000,9999] window; the old BE 999999 fixture read
+     * as LE u16 3840 and would now carve) */
     std::memcpy(img.data() + 18432, "MAC ", 4);
-    put16(img, 18432 + 4, 500);
+    put16(img, 18432 + 4, 999);
     /* .snd with encoding 99 @ 20480 */
     std::memcpy(img.data() + 20480, ".snd", 4);
     putbe32(img, 20480 + 4, 24);
@@ -14296,4 +14183,163 @@ TEST(CarveEngine, JpegExifTagGroupStamps) {
             }
         EXPECT_TRUE(saw);
     }
+}
+
+/* ---- M-107's APE member: the CAPEAnalyser walk (FUN_180033180, raw asm
+ * 0x180033180-0x180033603, objdump first-hand) ---- */
+
+namespace {
+
+/* a minimal old-format APE with a parametrized seek max + footer position */
+void plant_ape_old_at(std::vector<u8>& img, size_t at, u16 version, u32 seek_max, u32 scan_bound,
+                      bool with_footer, u32 footer_at) {
+    std::memcpy(img.data() + at, "MAC ", 4);
+    put16(img, at + 4, version);
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0);  /* flags: base 0x20, mult 2 */
+    put16(img, at + 10, 2); /* channels 2: the {1,2} gate */
+    put32v(img, at + 12, 0x2AAA);
+    put32v(img, at + 16, 0);
+    put32v(img, at + 20, 0);
+    put32v(img, at + 24, 0);
+    put32v(img, at + 0x20, scan_bound); /* entry[0]: the scan bound */
+    put32v(img, at + 0x24, seek_max);   /* the max entry */
+    put32v(img, at + 0x28, 0);          /* the terminator */
+    for (size_t i = 0x30; i < 0x800 && at + i < img.size(); ++i)
+        if (i & 0xFF)
+            img[at + i] = u8((i * 7) & 0xFF); /* nonzero filler */
+    if (with_footer) {
+        std::memcpy(img.data() + at + footer_at, "APETAGEX", 8);
+        put32v(img, at + footer_at + 8, 2000);
+        put32v(img, at + footer_at + 12, 0x60);
+        put32v(img, at + footer_at + 16, 3);
+        put32v(img, at + footer_at + 20, 0x80000000u);
+    }
+}
+
+/* a minimal new-format (>= 3980) APE with the descriptor size fields */
+void plant_ape_new_at(std::vector<u8>& img, size_t at, u32 md5_term, bool with_footer,
+                      u32 footer_at) {
+    std::memcpy(img.data() + at, "MAC ", 4);
+    put16(img, at + 4, 3980);
+    put16(img, at + 6, 0);
+    put32v(img, at + 8, 0x38);   /* descriptor bytes (the desc block at +0x38) */
+    put32v(img, at + 12, 0x18);  /* header bytes */
+    put32v(img, at + 16, 0x60);  /* seek table bytes */
+    put32v(img, at + 20, 0);     /* header data bytes */
+    put32v(img, at + 24, 0x100); /* APE frame data bytes */
+    put32v(img, at + 28, 0);
+    put32v(img, at + 32, md5_term); /* the og sums dword@32 (the MD5 term) */
+    put16(img, at + 0x38, 0x20);    /* (0x20 >> 3) = 4 */
+    put16(img, at + 0x3A, 2);       /* the {1,2} gate: align 8 */
+    for (size_t i = 0x3C; i < 0x800 && at + i < img.size(); ++i)
+        if (i & 0xFF)
+            img[at + i] = u8((i * 5) & 0xFF);
+    if (with_footer) {
+        std::memcpy(img.data() + at + footer_at, "APETAGEX", 8);
+        put32v(img, at + footer_at + 8, 2000);
+        put32v(img, at + footer_at + 12, 0x60);
+        put32v(img, at + footer_at + 16, 3);
+        put32v(img, at + footer_at + 20, 0x80000000u); /* span = 0x60 + 0x20 */
+    }
+}
+
+u64 carve_one_extent(std::vector<u8> image, size_t at) {
+    MemDevice dev{std::move(image)};
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    if (carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats) !=
+        OK)
+        return 0;
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* n : all)
+        if (n->props() && n->props()->extents.front().offset == at)
+            return n->props()->logical_size;
+    return 0;
+}
+
+} // namespace
+
+TEST(Carve, ApeVersionGateIsTheOgsExactWindow) {
+    /* The og's version gate: the u16 LE at +4 in [1000, 9999] (raw-asm
+     * 0x180033228/:232, $0x2710/$0x3e8). The old stand-in read a u32 BE
+     * and gated [300,5000] - every real Monkey's Audio file (u16 LE
+     * 3800..4400) was REJECTED: the discovered live defect (the M-156
+     * ASCII-gate class). */
+    for (u16 version : {u16(1000), u16(3950)}) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_ape_old_at(img, 512, version, 0x3E0, 0x400, true, 0x3C0);
+        EXPECT_NE(carve_one_extent(img, 512), u64(0)) << "old version " << version << " accepted";
+    }
+    { /* 9999 is the NEW format's window edge - the descriptor arm */
+        std::vector<u8> img(64 * 1024, 0);
+        plant_ape_new_at(img, 512, 0x100, true, 0x2C0);
+        EXPECT_NE(carve_one_extent(img, 512), u64(0)) << "version 9999 accepted (the new arm)";
+    }
+    for (u16 version : {u16(999), u16(0), u16(10000)}) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_ape_old_at(img, 512, version, 0x3E0, 0x400, true, 0x3C0);
+        EXPECT_EQ(carve_one_extent(img, 512), u64(0)) << "version " << version << " rejected";
+    }
+}
+
+TEST(Carve, ApeOldFormatTagEndsAtTheFooter) {
+    /* The old-format tag arm (raw-asm 0x180033593-0x18003359e): the
+     * extent = tag_start + span = the footer end (the span cancels).
+     * The finalizing window is the 512 bytes ending at round_up(seek_max,
+     * 512) - the footer must sit inside it; the extent lands at
+     * footer + 0x20, NOT the device end. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_ape_old_at(img, 512, 3950, 0x3E0, 0x400, true, 0x2C0);
+    /* seek max 0x3E0 -> the window [0x200, 0x400); the footer at 0x2C0
+     * -> the extent = 0x2C0 + 0x20 = 0x2E0 */
+    EXPECT_EQ(carve_one_extent(img, 512), u64(0x2E0));
+}
+
+TEST(Carve, ApeNewFormatTagExtentIsHeaderSumPlusSpan) {
+    /* The new-format arm (raw-asm 0x180033294-0x180033353): the size =
+     * dword@8 + dword@12 + dword@16 + dword@20 + dword@24 + dword@32 -
+     * the og's own arithmetic, the dword@32 MD5 term included (an og
+     * quirk kept). The tag arm: extent = round_up(size + span, 512).
+     * With the MD5 term 0x100: S = 0x2B0 -> the window [0x200, 0x400);
+     * the footer at 0x2C0, span 0x80 -> extent = round_up(0x330, 512) =
+     * 0x400. A five-field sum (0x1B0) would put the window at [0, 0x200)
+     * and miss the footer - the discriminator. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_ape_new_at(img, 512, 0x100, true, 0x2C0);
+    EXPECT_EQ(carve_one_extent(img, 512), u64(0x400));
+}
+
+TEST(Carve, ApeNoTagExtentIsTheRoundUpPlusSlack) {
+    /* The no-tag arm (raw-asm 0x1800335a0-0x1800335b9): extent =
+     * round_up(accum - zero_tail, 512) + 512 - the og's own +512 slack.
+     * seek max 0x3E0 -> accum = 0x400; the window's trailing zero run
+     * ([0x3C0, 0x400) zero) = 64 -> round_up(0x3C0, 512) + 512 = 0x600. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_ape_old_at(img, 512, 3950, 0x3E0, 0x400, false, 0);
+    /* the filler left [0x3C0, 0x400) zero (the i & 0xFF guard) */
+    EXPECT_EQ(carve_one_extent(img, 512), u64(0x600));
+}
+
+TEST(Carve, ApeOldFormatChannelGateRequiresOneOrTwo) {
+    /* The align gates (raw-asm 0x180033317-0x180033321): align != 0 and
+     * the channels u16@10 in {1,2} - a channels-3 header never emits. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_ape_old_at(img, 512, 3950, 0x3E0, 0x400, true, 0x3C0);
+    put16(img, 512 + 10, 3);
+    EXPECT_EQ(carve_one_extent(img, 512), u64(0));
+}
+
+TEST(Carve, ApeTornSalvagesTheWalkedSize) {
+    /* Torn: the feed ends before the finalizing window (the device ends
+     * at +0x200, the walked size is 0x400) - the walked size clamps to
+     * the readable extent at the reduced confidence (the SIT/X3F salvage
+     * class; the og's force-finalize is the pending machinery's job).
+     * MemDevice floors to whole sectors, so the image is 2 sectors. */
+    std::vector<u8> img(1024, 0);
+    plant_ape_old_at(img, 512, 3950, 0x3E0, 0x400, false, 0);
+    EXPECT_EQ(carve_one_extent(img, 512), u64(0x200));
 }

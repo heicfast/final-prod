@@ -35,6 +35,7 @@ typedef LONG LSTATUS; /* M-105's FVE diagnosis: RegOpenKeyExW's return type
                          src/win grows the stub here) */
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
+typedef unsigned char BYTE; /* N-228: the bitlocker battery's REG_BINARY payloads */
 typedef unsigned int UINT;
 typedef void* HANDLE;
 typedef void* HKEY;
@@ -190,6 +191,9 @@ struct TOKEN_ELEVATION {
 #define HKEY_LOCAL_MACHINE ((HKEY)(long long)0x80000002)
 #define HKEY_CURRENT_USER ((HKEY)(long long)0x80000001)
 #define KEY_READ 0x20019UL
+#define KEY_ALL_ACCESS 0xF003FUL /* N-228: the bitlocker battery's create access */
+#define REG_OPTION_VOLATILE 1UL  /* N-228: the battery's RAM-only staging keys */
+#define REG_OPTION_NON_VOLATILE 0UL
 #define REG_SZ 1UL
 #define REG_BINARY 3UL
 #define REG_EXPAND_SZ 2UL
@@ -230,6 +234,11 @@ inline BOOL FlushFileBuffers(HANDLE) {
 }
 inline BOOL DeleteFileW(const wchar_t*) {
     return 1;
+}
+/* N-228 gate extension (test_destio_win.cpp's CWD probe): the SDK shape
+ * returns the copied length; the parse stub returns 0 (never linked). */
+inline DWORD GetCurrentDirectoryW(DWORD, wchar_t*) {
+    return 0;
 }
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
@@ -460,6 +469,18 @@ inline LONG RegCloseKey(HKEY) {
     return 0;
 }
 inline LONG RegGetValueW(HKEY, const wchar_t*, const wchar_t*, DWORD, DWORD*, void*, DWORD*) {
+    return 0;
+}
+/* N-228 gate extension (test_bitlocker_win.cpp's live-hive staging):
+ * the create/delete-tree pair the battery pokes the real registry with. */
+inline LONG RegCreateKeyExW(HKEY, const wchar_t*, DWORD, wchar_t*, DWORD, DWORD,
+                            SECURITY_ATTRIBUTES*, HKEY*, DWORD*) {
+    return 0;
+}
+inline LONG RegDeleteTreeW(HKEY, const wchar_t*) {
+    return 0;
+}
+inline LONG RegSetValueExW(HKEY, const wchar_t*, DWORD, DWORD, const BYTE*, DWORD) {
     return 0;
 }
 /* M-118: the og's narrow registry surface (PartitionRecoveryD's

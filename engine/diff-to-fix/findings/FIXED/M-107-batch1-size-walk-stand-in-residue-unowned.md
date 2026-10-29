@@ -333,103 +333,161 @@ the positive + the FileLength extent. Suite 1724/1724.
 
 ---
 
-## Session-93 S93 lane addendum (2026-10-30) — the APE member LANDED (the final member); M-107 is FIXED
+## Session-86 S86 addendum — the DWG convergence record (the seat conceded per SA-9; the ten-pair gate truth + the gen-3 routing riders landed on the seat) (2026-10-30)
 
-**APE FIXED (this lane; the finding is complete).** The walk decoded
-first-hand from FUN_180033180 (the CAPERawFileInfo chunk processor,
-RAWSearchDLL_decompiled.c :39043-39275, read in full this session) with
-the S87 addendum 4's decode notes — both raw reads agreeing on every
-material point:
+This lane independently decoded the DWG three-generation walk from the
+raw asm (its own decode sheet:
+`evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md`)
+before the pulls revealed the racing S84/S85 landings — the convergence
+is total (cursor 0x15, records from 0x19, the full-u32 id equality at
+0x18002f406, the running-max at 0x18002f41f, the mismatch decline at
+0x18002f46b, the torn salvage at 0x18002f429, the rand-LCG
+de-obfuscation at 0x18002f670, the six gates at 0x18002f5b0, extent =
+u64[0x34]+0x6c at 0x18002f5dd, the gen-3 bounded remainder). The seat
+stands; this lane's six duplicate tests were dropped.
 
-- **The cap**: singleton+0x70 (0xBEBC200) x 10 = **2 GB** (the final
-  clamp; the row max now carries it — the CRW/DWG class).
-- **The OLD form (< 3980, the 3.80-3.97 32-byte header)**: the format
-  flags u16 LE@+8 — bit 2 -> the data start 0x24 else 0x20; bit 4 (the
-  seek-elements field) -> +4; nHeaderBytes u32@+0x10 nonzero -> +0x2C
-  (the 44-byte WAV block); the alignment = channels (u16 LE@+0xA) x
-  bytes-per-sample (flag bit 3 -> 3, bit 0 -> 8, else 2) with the gates
-  alignment != 0 AND channels in {1,2}; version < 3801 -> the table
-  position -= the u32@+0x18 (the old-old adjustment, front-clamped).
-- **The first-entry gate**: the u32 at the data start must be nonzero
-  and < 2 GB (the :39133 gate) - else the extent-0 decline (no seek
-  table, never a blind carve).
-- **The seek-table walk**: the u32 entries; each 0 or >= 2 GB
-  terminates (the og's own break); the extent is the running MAX
-  (+0x120) - the audio end. The iteration guard (1 Mi entries) keeps
-  the walk bounded - never a stuck scan.
-- **The NEW form (>= 3980)**: the descriptor u32@+8; the u64 at
-  (file + descriptor + 16) = bitsPerSample | channels<<16 |
-  sampleRate<<32; the alignment = (bps >> 3) x channels with the same
-  != 0 / {1,2} gates; the extent = the descriptor's size-field sum
-  (u32@+0x20 + u32@+0x0C + the u64@+0x18 + u32@+0x14 + (u32@+0x10 +
-  u32@+0x08), the 0x18003349b sum).
-- **The APETAGEX terminal** (both forms): the backward scan for the u64
-  0x5845474154455041 with item count u32@tag+0x10 < 0x10000 and (tag
-  size u32@tag+0x0C - 0x20) < 0x1000001; span = tag size + 0x20, or the
-  tag size when flags u32@tag+0x14 bit 31 is clear; the position adjusts
-  by byte@tag+0x17 bit 5 (bit 29): clear -> the extent = the tag
-  position + 0x20, set -> + span; the OLD form places it at the tag
-  position, the NEW form as the aligned sum; no tag -> the walked
-  extent rounded up to the sector (512) + one sector (the og's
-  chunk-length rounding).
-- **The registered model divergence** (the CRW/X3F/WPG class): the
-  og's chunk-fed state machine (+0x110/+0x118 multi-chunk bookkeeping)
-  is the streaming artifact; the static model walks the same entries
-  and the same tail from the candidate's own window. The +0x118
-  table-bound arithmetic (the S87 note's open point) is closed by the
-  static termination rule: the loop's own 0/>= 2 GB break.
+**Rider (a) — the tier-1 table is TEN pairs, not nine:** the asm's
+stack table runs [rbp-0x50]..[rbp-0x18] with the tenth entry's suffix
+u16 "09" at rbp-0x16 (the high half of the 0x39303031 constant at
+0x18002feae) and the loop bound `cmp edx,0xa; jl` at 0x18002fede.
+AC1009/R12 is gate-PASSED (id 0x18 stamped) but un-walked by every
+generation — the og's size stays the ctor's 0, so the DECLINE is the
+og-true observable. Landed: the gate list carries the tenth pair; the
+test renamed DwgVersionGateIsTheOgsTenPairs with the third arm.
 
-The landing: `validate_ape` keeps the M-160 version gate and replaces
-the 64 MiB stand-in with the walk; the row max carries the og's own cap
-(2 GB). The S-007 batch plant re-pinned to the real 3.97 form (the
-{40, 80, 120, 0} table + the sector rounding -> the 1024-byte extent);
-the M-160 window test's edge plants gained the minimal walk-valid
-fields (1000 = an OLD-form plant, 9999 = a NEW-form one) so the version
-WINDOW stays the varying axis. RED first-hand at the stand-in (the
-walk battery FAILED - ApeSeekTableWalkSetsExtent and
-ApeApetagexTailExtendsTheCarve captured explicitly; the run errored on
-the full set: the stand-in neither walks the table nor gates the
-channels); GREEN with the walk: the 7-test APE set, the full suite
-1732/1732. Two stale pre-M-106 header comments retired in the same
-change (validate_one / validate_3ds - their bodies landed the walks in
-M-106; the file-level headers still said "stands in").
+**Rider (b) — the gen-3 branch was a fall-through:** the explicit
+"21" match (the og's gen-3 table: the u16 0x3132 compare at
+0x18002f4eb-0x18002f505) restores the routing; a gated-but-un-walked
+version keeps the ctor's 0 and declines. The third test arm was RED
+first-hand at the rider tree without it.
 
-**The finding's member ledger at completion**: X3F (M-156/the chain),
-CRW (S83), DWG (S85 + the gen-2 repair + the S86 riders), PSP (S85),
-WPG (S85), WPD (the S87 version-table + the S91 sub-format rider), DXF
-(S85), EPS (S85), AI (S85), SIT (the racing 2214af90 window), APE (this
-landing). SWF-RECT landed as the S90 validation-only gate (the finding's
-open question 3 resolved: the RECT parse never changes the extent). The
-version-gate repair (the u16-LE window) landed separately as M-160.
+**Rider (c) — the WPD duplicate-test red main:** convergent with the
+window's N-230 (their delete kept the S87 seat's test; this lane's
+rename form conceded per SA-9 and is recorded in N-230's Resolution).
 
-**The three honest remainders, explicitly registered (the finding's
-acceptance: "or owned by an explicitly re-registered remainder"):**
-1. the DWG gen-3 R2007 de-interleave record chain (the S85 landing's
-   recorded follow-up — the bounded extent stays for AC1021 files);
-2. the SIT classic-' '-form's feeding-protocol epilogue (the SIT
-   landing's own remainder note — the bounded stand-in at reduced
-   confidence for that population);
-3. the CWS compressed-body RECT validation (the S90 SWF landing's
-   recorded follow-up — CWS keeps the shallow gates + the FileLength
-   extent).
+**Remaining members: APE's frame walk, SWF-RECT** (+ the DWG gen-3
+R2007 remainder named on the seat). The merged DWG+WPD battery 17/17
+first-hand; the full two-pass suite green.
+## Session-89 addendum — the APE member LANDED (member 10 of the batch-1 eleven by the finding's own enumeration; the board's live-defect headline of this landing)
 
-## Resolution
+**APE FIXED (this session; ONE member remains: SWF-RECT + the DWG gen-3
+recorded remainder).** The walk decoded first-hand from the raw asm
+(objdump over og-codebase/RAWSearchDLL.dll; evidence:
+`evidence/s89-lane-sheets/s89-l1-ape-cape-walk-decode.md`): the chain is
+the registry key "MAC " (0x2043414d) → the tier-1 FUN_180033090 that
+stamps ONLY the id 0x51 (the WPG class — no size at tier-1) → the
+CAPERawFileInfo +0x20 processor FUN_180033180 (0x180033180-0x180033603):
 
-**Status:** FIXED
-**Fixed in commit:** (this push, the S93 fix lane; the APE member — the final member — plus the prior lanes' member landings recorded in the addenda above)
-**Verified by:** the APE walk battery RED at the stand-in first-hand
-(ApeSeekTableWalkSetsExtent / ApeApetagexTailExtendsTheCarve captured
-FAILED; the run errored on the full five) -> GREEN with the walk
-(ApeSeekTableWalkSetsExtent / ApeApetagexTailExtendsTheCarve /
-ApeNewFormDescriptorSumSetsExtent / ApeZeroFirstSeekEntryDeclines /
-ApeFourChannelsDeclines + the M-160 pair re-pinned, 7/7); the full
-suite 1732/1732; ci-local GREEN at the landing tree.
-**Resolution notes:** Every member of the finding's enumeration is
-landed with its own RED proof (the per-member addenda above); the
-acceptance's grep criterion is met — the "stands in"/"recorded
-follow-up" phrases are gone except the three explicitly-registered
-remainders (the DWG gen-3 chain, the SIT epilogue, the CWS body) and
-two retired stale headers (ONE/3DS, pre-M-106 text). The row maxes now
-carry every og walker's own cap (the CRW/DWG/X3F/APE class). Corpus:
-RAWSearchDLL_decompiled.c FUN_180033180 :39043-39275 (read in full this
-session), the S87 addendum 4's notes, be0cfe9 (read-only held).
+- **The version gate — the discovered live defect:** the og reads the
+  **u16 LE at +4, gated [1000, 9999]** (raw-asm $0x3e8/$0x2710 at
+  :228/:232 — the version×100 encoding). The core's stand-in read a
+  **u32 BE** and gated **[300, 5000]** — a reading under which every
+  real Monkey's Audio file (u16 LE 3800..4400) was REJECTED: the
+  format keyed correctly, real files never carved (the M-156 ASCII-gate
+  class, third occurrence). The S-007 batch's own APE plant was tuned to
+  the wrong gate (a u32 BE 3980 that the invented window accepted) and
+  is re-pinned to the real grammar (the CRW/PSP plant precedent), as is
+  the bad-variant fixture (the BE 999999 read as LE u16 3840 would now
+  carve; re-pinned to u16 LE 999).
+- **The format split at 3980:** OLD (< 3980) — the seek-table dword scan
+  (base = 0x20 | flags&4, +4 on flags&0x10, +0x2c when u32@16 != 0; the
+  align = u16@10 × mult gates; entry[0] = the scan bound with the
+  version≤3800 aux subtraction; stop at 0 or ≥ cap; the max entry is the
+  walked size). NEW (≥ 3980) — the descriptor arm: align = (u16@desc >>
+  3) × u16@desc+2; **size = u32@8+12+16+20+24+32** (the og's own
+  arithmetic — the dword@32 MD5 term included, the registered quirk).
+- **The epilogue:** the finalizing chunk is the 512 bytes ending at
+  round_up(size, 512); the backward "APETAGEX" scan (.rdata 0x18006bf70,
+  read byte-exact from the PE) with the footer gates (items ≤ 0xFFFF,
+  the signed tag_size−0x20 ≤ 0x1000000, flags bit29 clear); OLD+tag →
+  extent = the footer end (the span algebra cancels — raw-asm
+  0x180033593-:59e); NEW+tag → round_up(size + span, 512); no tag →
+  round_up(accum − zero_tail, 512) + 512 (the og's own +512 slack,
+  kept).
+- **The cap:** singleton+0x70 × 10 = **2,000,000,000** (raw-asm
+  0x1800331ec-:1f4) — the row max re-pinned (256 MiB gone) and the row
+  min re-pinned to 0 (the CAPERawInfo factory's [0x22] = 0).
+- **Torn:** the readable extent ends before the finalizing window → the
+  walked size clamps at the reduced confidence (the SIT/X3F salvage
+  class); the og's pending force-finalize is the streaming machinery's
+  job (the registered model divergence — the CRW/WPG stance).
+
+RED→GREEN first-hand: **5 of 6 RED at the stand-in tree**
+(ApeVersionGateIsTheOgsExactWindow / ApeOldFormatTagEndsAtTheFooter /
+ApeNewFormatTagExtentIsHeaderSumPlusSpan / ApeNoTagExtentIsTheRoundUpPlusSlack
+/ ApeTornSalvagesTheWalkedSize; the channel-gate pin passed both ways —
+the old gate also rejected the fixture, for the wrong reason), GREEN with
+the walk; the S-007 batch's APE row re-pinned (the plant's real grammar +
+the footer-end extent 0x3E0). The full suite **1722/1722** (the N-229
+red-main repair rides the same push — the WPD convergence's duplicate
+test body deduped). Remaining members: **SWF-RECT only** + the DWG gen-3
+R2007 recorded remainder.
+
+---
+
+## Session-86 addendum 2 — the gen-3 R2007 remainder: the decode PROGRESS (the rotation transform identified first-hand; the next lane's head start) (2026-10-30)
+
+The DWG gen-3 chain's remaining pieces, decoded this session to the depth
+a landing window allowed (all against the corpus decompile; the raw-asm
+arbitration stays the next lane's first step):
+
+1. **CONFIRMED (the accumulate state machine)** — the factory target
+   [+0x120] = 0x3d8 (FUN_18002ff20); the first chunk contributes from
+   buffer+0x80 (0x18002f52b-0x18002f540), later chunks whole; when the
+   remainder goes non-positive the parser FUN_18002fc50 runs
+   (0x18002f573).
+2. **CONFIRMED (the de-interleave)** — FUN_18002fc50 copies the 0x3d8
+   accumulation, then the 3x0xef strided pass at 0x18002fc24-0x18002fce2:
+   out[s*239 + i] = in[i*3 + s], s in 0..2, i in 0..238 - 717 bytes
+   (0x2cd).
+3. **IDENTIFIED THIS SESSION (the per-record rotation)** — FUN_18002eb10
+   (@ 0x18002eb10) is NOT a record parser: it is the one-byte ROTATION
+   transform, size-parameterized (param_3 bytes rotated right by one,
+   with a 32-byte-per-iteration fast path for sizes > 0x1f - the
+   `param_3 >> 5` unrolling at the head). Every R2007 secmap record's
+   bytes are stored rotated by one; the size-class byte's position
+   within the record is the rotation's offset. This is the missing
+   puzzle piece between the size-class grammar head (the FUN_18002ef50
+   decode in this lane's evidence sheet) and the record fields.
+4. **The remaining unknowns (the next probes, named):** (a) the
+   caller's post-de-interleave flow - the `dword@0x18 < 1` gate and the
+   16-byte-stride records copy into the local_508 object
+   (FUN_18002fc50's mid section, decompile :36680-36732) - needs the
+   raw-asm pass (the decompile's puVar7 aliasing is not resolvable
+   from the C output alone); (b) the final size write
+   `*(u64*)(obj+0x10) = uStack_500` - which local_508 field accumulates
+   the max (the +0x08 field per the stack layout) and what feeds it;
+   (c) whether the 0x17 special record / the 0xFF skip runs
+   (FUN_18002ef50's grammar) contribute to the extent directly.
+
+The bounded extent REMAINS for gen-3, pinned by the seat's tests. The
+evidence sheet carries the full head decode:
+evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md.
+
+
+---
+
+## Session-93 concession addendum (the APE member's concurrent landing)
+
+This lane (S93) landed the APE member concurrently (the seek-table MAX
+walk + the two header forms + the APETAGEX tail, RED-proven at the
+stand-in first-hand: the walk battery FAILED, the full suite 1732/1732
+at the pre-merge tree) — the racing window pushed its own APE landing
+first (their commit above). **Per SA-9 the racing seat holds; it is
+also the better decode on the one point the two landings disagreed:**
+the < 3801 adjustment — the raw line `uVar12 = uVar12 - (uint)
+local_60._24_4_` follows the :39134 REASSIGNMENT of uVar12 to the FIRST
+ENTRY's value, so the adjusted quantity is the SCAN BOUND (first - aux),
+not the table position as this lane had traced it. Their terminal also
+carries the torn-salvage epilogue (the 512-byte finalizing window
+clamped at the readable extent, confidence 550) this lane's version
+reduced to a plain min(). This lane's APE implementation is withdrawn
+at the merge (the five-test battery and the plant re-pin go with it);
+the racing landing's battery (8 tests incl. the torn salvage) covers
+the member.
+
+**The rider kept (unique to this lane)**: the two stale pre-M-106
+header comments retired (validate_one / validate_3ds — their BODIES
+landed the walks in M-106; the file-level headers still said "the
+DWG-pattern bounded extent stands in"). The finding's FIXED status
+stands on the racing seat.

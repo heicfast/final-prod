@@ -1,19 +1,20 @@
 # modules/carve.md — carve module audit verdicts
 
 
-## Session-93 fix row (2026-10-30 — M-107's APE member: the final member; the finding is FIXED)
+## Session-93 fix row (2026-10-30 — the APE member: the SA-9 concession; the finding is FIXED on the racing seat)
 
-- **APE CLOSED (findings/FIXED/)**: the seek-table MAX walk + the two
-  header forms + the APETAGEX tail, decoded first-hand from
-  FUN_180033180 with the S87 addendum 4's notes (both raw reads
-  agreeing). The row max carries the og walker's own cap (2 GB =
-  singleton+0x70 ×10). The S-007 plant re-pinned to the real 3.97 form
-  (the {40,80,120,0} table → the 1024-byte extent); the M-160 window
-  test's edge plants gained the minimal walk-valid fields. RED at the
-  stand-in first-hand; GREEN 7/7; the full suite 1732/1732. The finding
-  moves to FIXED with the three registered remainders (the DWG gen-3
-  R2007 chain, the SIT ' '-form epilogue, the CWS compressed-body RECT)
-  and two retired stale pre-M-106 headers (ONE/3DS).
+- **APE — CONCEDED (the racing window's landing holds)**: this lane
+  landed the member concurrently (RED-proven at the stand-in) but the
+  racing push won the window; their decode is the better one on the
+  <3801 point (the raw :39134 reassignment: the SCAN BOUND first-aux,
+  not the table position) and their terminal carries the torn-salvage
+  epilogue. This lane's implementation + battery withdrawn at the
+  merge; the racing 8-test battery covers the member (8/8 at the
+  merged tree). **The rider kept:** the two stale pre-M-106 headers
+  retired (validate_one/validate_3ds — their bodies landed the walks in
+  M-106; the file-level headers still said "stands in"). The finding is
+  FIXED with the three registered remainders (the DWG gen-3 R2007
+  chain, the SIT ' '-form epilogue, the CWS compressed-body RECT).
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
 
@@ -1523,3 +1524,21 @@ SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
 three rejection tests RED at the pre-fix tree). Suite 1724/1724.
 **The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
 the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+
+## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
+
+This lane's independent three-generation decode (evidence/s86-lane-sheets/
+s86-dwg-three-generation-walk-decode.md) converged totally with the racing
+S84/S85 landings. Riders landed on the seat: (a) the tier-1 table is TEN
+pairs, not nine — the asm's tenth "09" entry + `cmp edx,0xa; jl` at
+0x18002fede; AC1009 gate-passed-but-un-walked → the decline og-true;
+DwgVersionGateIsTheOgsTenPairs renamed + the third arm; (b) the gen-3
+fall-through exposed and fixed — the explicit "21" match
+(0x18002f4eb-0x18002f505) restores the og's routing. The WPD duplicate
+red-main repair converged with N-230 (the delete form conceded). The
+remaining members: APE's frame walk, SWF-RECT.
+## S89 section — the APE member landed (the batch's live-defect headline; 2026-10-30)
+
+| Parameter | Verdict | Finding |
+|---|---|---|
+| A25/A27/A47 · the APE size walk | **MATCH (M-107 S89 addendum — APE landed; SWF-RECT only remains)** | The CAPEAnalyser walk, raw-asm decoded first-hand (evidence/s89-lane-sheets/s89-l1-ape-cape-walk-decode.md): the registry key "MAC " → the tier-1 stamps ONLY the id 0x51 (the WPG class); the walk's version gate is the **u16 LE at +4 in [1000,9999]** (raw-asm $0x3e8/$0x2710) — the stand-in's u32-BE [300,5000] gate REJECTED every real Monkey's Audio file (the M-156 ASCII-gate class, third occurrence: the S-007 plant itself was tuned to the wrong gate and is re-pinned). The format split at 3980: the old seek-table dword scan (the base/align/aux arithmetic, entry[0] the bound, stop at 0/≥cap, the max the walked size) vs the new descriptor sum (u32@8+12+16+20+24+32, the dword@32 MD5-term quirk kept). The APETAGEX epilogue: the finalizing window = the 512 bytes ending at round_up(size,512); the footer gates (items ≤ 0xFFFF, the signed tag_size−0x20 ≤ 0x1000000, flags bit29 clear); the three extent arms (the footer end / round_up(size+span,512) / the +512 slack). The row re-pinned: min 0 (the CAPERawInfo factory), max 2,000,000,000 (the walk cap singleton+0x70×10). Torn → the walked size at reduced confidence (the SIT/X3F class). RED 5/6 → GREEN 6/6; the S-007 batch re-pinned; suite 1722/1722 |
