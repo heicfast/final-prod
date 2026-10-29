@@ -1388,7 +1388,6 @@ tree for the wrong reason (the 512 floor) - the fixture now carries
 2304-byte per-record ends so the counter gate is the only refusal under
 test.
 
-<<<<<<< HEAD
 ## Session-89 fix lane (2026-10-30 — the M-107 SIT member: the entry-marker walk + the acceptance-window repair)
 
 - **M-107 member 10 (SIT) LANDED**: the acceptance is now the og's processor
@@ -1410,7 +1409,8 @@ test.
   SitClassicSpaceFormKeepsTheRegisteredStandIn (5/7 RED at the stand-in
   tree via the stash dance); the S-007 SIT plant re-pinned; the full suite
   1711/1711. Remaining members: APE, SWF-RECT.
-=======
+---
+
 ---
 
 ## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
@@ -1438,4 +1438,4 @@ Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
 WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
->>>>>>> origin/main
+

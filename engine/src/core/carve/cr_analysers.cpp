@@ -5709,10 +5709,9 @@ CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
         for (u64 a = (base == 0 ? 512 : base); a + 16 <= base + chunk; a += 512) {
             const u8* p = win.data() + (a - base);
             const bool stuf = std::memcmp(p, "Stuf", 4) == 0 && std::memcmp(p + 4, "fIt", 3) == 0;
-            const bool key = u32_from_bytes_le(p) == 0x42424557u &&
-                             u32_from_bytes_le(p + 4) == 0x454b4941u &&
-                             u32_from_bytes_le(p + 8) == 0xb4eb6666u &&
-                             u32_from_bytes_le(p + 12) == 0x7bbd74a3u;
+            const bool key =
+                u32_from_bytes_le(p) == 0x42424557u && u32_from_bytes_le(p + 4) == 0x454b4941u &&
+                u32_from_bytes_le(p + 8) == 0xb4eb6666u && u32_from_bytes_le(p + 12) == 0x7bbd74a3u;
             if (stuf || key) {
                 new_header = a;
                 break;

@@ -593,3 +593,50 @@ pass both ways by design. The S-007 batch's SIT plant re-pinned (the '!'
 magic + the real 0x19-stride marker at bytes-12; the old filler's byte[7]=7
 would now correctly refuse). The full suite **1711/1711** (1705 + the six
 new tests). Remaining members: **APE, SWF-RECT**.
+
+---
+
+## Session-87 addendum 3 (the S87-continuation lane's SIT convergence record — the seat conceded per SA-9)
+
+This lane independently decoded and implemented the SIT member in the
+same window as the racing S89 lane's landing (`2214af90` — the earlier
+push holds the seat). The two decodes AGREE on: the 7-byte "StuffIt"
+tier-1, the processor's byte@+7 window ('!' = the SIT5 search arm; ' '
+= the classic arm; any other byte never finalizes — the racing lane's
+"acceptance-window repair" and this lane's routing are the same
+decode), the marker family 02 D7 0A XX 98 F6 42 88 (this lane's
+first-hand .data dump at 0x180067858/68/78 vs the racing lane's
+stack-constant read at 0x180044b17-0x180044b1e), and the WEBB AIKE
+66 66 EB B4 A3 74 BD 7B family form. The racing lane's walk is the
+FULLER decode: FUN_180044ae0's per-ENTRY marker walk (the stride table
+{0x19→4, 0x3B→5, else 6} past the marker end, the corrupt-entry
+terminal at the 512-aligned sector start, the new-header gate at the
+512-byte boundaries) — this lane had stopped at the processor's
+FUN_180015b60 chunk-level magic search and translated it directly;
+the racing seat's walk supersedes.
+
+**The convergence deltas this lane contributes for the future
+arbitration lane (both first-hand, neither contradicts the seat):**
+1. **The walk cap:** this lane's decode of the heuristic gate at
+   0x180015e69-0x180015e81 reads `len × rel < max × 10` — the child's
+   200,000,000 max scaled by ten (the asm's `lea (%rax,%rax,4)+add`)
+   = a 2 GB force-stamp boundary; the racing seat's bound is the
+   singleton-halved form. The two bounds differ by 10×; a future lane
+   reading FUN_180044ae0's own loop exit (vs the processor's
+   heuristic) settles which cap the og's walk actually carries.
+2. **The classic ' ' form's walk:** this lane decoded the processor's
+   else-branch re-validation as the ' ' form's ONLY terminator (the
+   next full StuffIt/WEBB-family header) — a real walk, not a
+   stand-in; the racing seat keeps the honest 64 MiB stand-in at
+   reduced confidence with the "primary's feeding walk" as the
+   recorded follow-up. A future lane decoding the primary chain's
+   feeding path settles whether the classic form walks.
+3. The stream-end drop (a candidate whose walk never completes before
+   the device ends) — this lane's translation (the decline) matches
+   the seat's torn-salvage posture only when the bound is reached;
+   the difference is unobservable below whichever cap is right.
+
+This lane's five SIT tests were withdrawn with the concession (they
+pin the processor-level translation the seat's fuller walk
+supersedes); the racing seat's seven-test battery stands as the
+member's proof.
