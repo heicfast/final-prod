@@ -278,6 +278,66 @@ A-017+, D-167+.
 
 # SUMMARY.md — executive summary (the S91 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 
+## Session-91 S91 fix-lane close (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes"]; opened at core `ddab68b4` (RED at open on two counts), corpus `be0cfe9` throughout; re-homed S88 → S90 → S91 per SA-9 as the racing windows took each seat; NINE racing windows absorbed at nine merges, every one resolved corpus-first with the trail record)
+
+**The session's unique landings (the seats the racing windows did not
+take):**
+
+- **N-228 FIXED (the red-at-open repair #1):** the ddab68b4 worklog
+  marker residue — the SIXTH M-120/N-210-class recurrence, found at
+  the clean-clone open, repaired both-sides-kept. (Born N-224; three
+  renumbers as the racing windows filled every adjacent seat.)
+- **The M-075 stub-gap repair — the FOURTH convergent instance,**
+  conceded per SA-9 with the record in FIXED/N-224's convergence
+  addendum 2: RED first-hand at the open (win_syntax_check FAIL since
+  d10ae333), the identical stub growth landed, the FULL suite
+  1679/1679 — the first fully-green count since the M-075 push.
+- **The WPD member's riders + the census erratum:** the independent
+  raw-asm decode (evidence/s91-lane-sheets/s91-l1-wpd-version-table
+  decode.md) converging with the racing landings; the 0x90001/
+  0x9ac6cdd7 keys corrected to the WMF node with S-042 re-verified
+  byte-for-byte; the two rider tests the racing battery lacked.
+- **The SIT member — the arbitration (N-233's record):** the racing
+  landing shipped RED (the unused-flavor build break — the battery
+  never ran; three failures + two contradictory classic-form pins on
+  first execution); repaired corpus-first with the classic-form
+  next-header walk folded into the racing seat, then superseded by
+  the racing window's own fuller reconciliation (the magic's-END
+  extent) — conceded again per SA-9 with the record.
+- **The truncation catch (the honesty record):** this lane's own
+  entry-5 plant reconstruction dropped the test file's tail — a
+  truncated tree a stale-object build reported green; caught at the
+  next merge (local-only, never pushed), repaired, and the
+  clean-rebuild verification discipline adopted for every later claim.
+- **N-233 (the racing-SIT-red record):** the orthogonal surface no
+  racing finding covered — the unused-flavor break, the never-run
+  battery, the contradictory pins.
+- **The red-main repairs at four separate merges:** live markers
+  pushed by the racing windows (the N-210 class's occurrences
+  10-12), each swept corpus-first with the duplicate-test residue
+  deduped and the clean-rebuild verification.
+
+**The board at the session close (filesystem truth): 0 ACUTE · 0
+SEVERE · 3 MAJOR · 2 MINOR active / 219 FIXED / 3 tracked-open.** Every
+active finding (M-086/M-087/M-089, N-107/N-127) is driver-repo-resident
+per OQ-S10-3 — outside this session's two-repo grant, with the recorded
+next step (one driver-repo lane takes all five, M-087 first). The
+tracked-open three carry their precise push-forwards (the vendoring
+decision, the Windows bench leg, the driver-repo boundary). M-101,
+M-105, and M-107 — the session's in-scope MAJOR targets — are FIXED
+with their resolutions, batteries, and evidence sets. The final
+verification: the FULL suite **1738/1738** on a clean rebuild; the
+N-231 test-name gate clean (1755 registrations); doc_truth_gate green;
+the repo-wide marker sweep clean; the Win7-inclusive gate untouched
+(no win-layer API surface changed beyond the parse-stub declarations);
+signing stays disabled. No release tag (the audit does not close
+cleanly while the driver-repo five stand — the honest posture per the
+mandate's own criterion).
+
+---
+
+# SUMMARY.md — executive summary (the S91 MAJOR-first fix lane (below); the prior lanes below, newest-first)
+
 ## Session-91 S91 fix-lane delta (re-homed S88 → S90 → S91 per SA-9 — the racing windows took S68-S90; 2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes"]; opened at core `ddab68b4` (clean clone — RED at open on two counts: the worklog markers and win_syntax_check), corpus `be0cfe9` throughout; re-homed S88 → S90 at the merge per SA-9 [the racing windows took S68-S89]; prompt saved token-redacted at worklog/session-diff-fix-s91-prompt.md; the N-number cascade: the worklog-marker repair born N-224 → N-227 → N-228 [the racing N-224/N-225/N-227 seats stand])
 
 - **N-228 FIXED (MINOR, NEW — the red-at-open repair #1):** the

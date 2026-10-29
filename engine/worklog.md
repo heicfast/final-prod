@@ -14681,3 +14681,32 @@ is the operational reality. The N-231 gate now catches the class
 that broke main in three of the last nine racing windows; run the
 fast gate before every push (the S92 handoff's lesson, now
 enforced by tooling).
+
+
+## Session-91 S91 fix-lane — the closing handoff (2026-10-30)
+
+**The lane's disposition:** the session opened on a RED main (the
+worklog markers + the win-stub gap) with the mandate to fix every
+finding, MAJOR-first. The racing windows ran the same mandate in
+parallel — nine windows, nine merges, every seat contested. The
+in-scope MAJORs all closed: M-101 (the Versions/Tags Extracted
+branches), M-105 (the DRWService disposition), M-107 (the eleven
+members + the gen-3 R2007 recorded residue) — most seats taken by the
+racing windows' pushes, this lane's contributions the riders, the
+arbitration, the red-main repairs, and the verification catches that
+kept the trail honest through five pushed-red windows.
+
+**The remaining scope (the next lane's start):** the driver-repo five
+(M-086/M-087/M-089/N-107/N-127 — one lane, M-087 first, per
+OQ-S10-3's recorded order); the three tracked-opens (the libheif
+vendoring decision, the Windows bench leg, the gen-3 R2007 record
+chain if a future lane decodes FUN_18002eb10's rotation fully). No
+release tag — the audit does not close cleanly while the driver-repo
+five stand.
+
+**The verification discipline this lane added to the record:** the
+clean-rebuild rule (the object files removed before any green claim —
+the truncation catch's lesson), the pre-push marker grep + the
+doc_truth_gate + the N-231 name gate as the triple check, and the
+SA-9 concession-with-riders pattern for every contested seat. The
+final state: 1738/1738 on a clean rebuild, every gate green.
