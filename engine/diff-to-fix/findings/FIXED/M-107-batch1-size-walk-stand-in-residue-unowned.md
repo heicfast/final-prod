@@ -876,6 +876,56 @@ promised is thereby MOOT — the split is implemented, not diverged.
 
 ---
 
+## Session-87 addendum 5 — the SWF-RECT member LANDED (member 11 of 11: the RECT validation gate; the open question 3 resolved)
+
+**SWF-RECT FIXED (this session — the last enumerated member; the APE
+walk and the DWG gen-3 R2007 remainder stay as the finding's recorded
+remainders).** The walk decoded first-hand (the FileSWFAnalyser chain):
+**FUN_1800268a0** (:29970-29996, the analyser): the key gate accepts
+"FWS" (u16 0x5746 + 'S') or "CWS" (u16 0x5743 + 'S') — ZWS is NOT
+accepted; on the deep gate's success it stamps type 0x3e and **extent
+= u32@+4 (the FileLength) VERBATIM** — the finding's open question 3
+RESOLVED: the RECT walk is VALIDATION-ONLY, the extent never comes
+from it (the old core's FileLength source was already right).
+
+- **FUN_180026940** (the FWS deep gate, raw asm 0x180026940+): version
+  byte@+3 ∈ [3,20]; FileLength > 8; the RECT at +8: Nbits = byte@8 >>
+  3 with the Nbits > 1 gate; four signed fields (a sign bit +
+  Nbits-1 magnitude bits, MSB-first — the og's sign-magnitude read of
+  the two's-complement fields); the acceptance: ALL FOUR coordinates
+  non-negative, both maxes strictly positive, Xmin < Xmax AND Ymin <
+  Ymax — a sane positive rectangle.
+- **FUN_180026b80** (the CWS deep gate): version ∈ [6,20] ((v-6) <
+  0xf — TIGHTER than the FWS arm); the deflate CMF nibble (byte@+8 &
+  0xF) == 8; the zlib inflate from +8 into a 512-byte window; ≥ 16
+  inflated bytes; the SAME RECT gate on the inflated bytes.
+
+The landing: the shared `swf_rect_is_sane` bit-walk helper + the
+per-arm version windows + the CWS deflate-nibble/stream/inflated-RECT
+gates (a partial-tolerant streaming inflate — only Z_DATA_ERROR/
+Z_MEM_ERROR decline; the truncated-but-valid prefix yields partial
+output, the og's own streaming shape). The extent = FileLength
+verbatim (the RECT never sizes); the row max carries the u32 field's
+own ceiling 0xFFFFFFFF (the WPD precedent — the 64 MiB stand-in
+gone); both rows (FWS and CWS) updated. The plants re-pinned: the FWS
+plant writes a REAL sane RECT (Nbits=9, 0/100/0/100 — the MSB-first
+bit packer, byte-verified 48 00 C8 00 32 00); the CWS plant writes a
+REAL zlib stream (compress2 of the RECT payload — the og validates
+the INFLATED RECT).
+
+RED→GREEN first-hand via the stash dance: five tests RED at the
+pre-RECT validator (SwfRectGateRequiresSaneRectangle — the inverted
+and negative-coordinate RECTs accepted; SwfNbitsUnderTwoDeclines —
+Nbits=1 accepted; SwfCwsVersionWindowStartsAtSix — the CWS arm's
+version-4 accepted under the shared [3,20] window;
+SwfCwsDeflateNibbleAndCorruptStreamDecline — a non-deflate nibble and
+a garbage stream accepted; SwfCwsInflatedRectIsGated — an inflated
+Nbits=1 RECT accepted), GREEN with the gates; the sixth
+(SwfCwsRealStreamCarvesAtFileLength) is the happy-path pin (the
+FileLength extent, both arms' unchanged semantics). The 216-test
+carve suite green. **The member enumeration closes: 11 of 11 landed
+(the APE walk and the DWG gen-3 remainder are the finding's recorded
+remainders, each with its decode progress).**
 ## Session-92 addendum — the APE member's decode IN PROGRESS (the frame walk's first half decoded first-hand; the precise continuation probes recorded)
 
 **APE's chain decoded this session (objdump over og-codebase/RAWSearchDLL.dll;
@@ -1063,6 +1113,84 @@ R2007 recorded remainder.
 
 ---
 
+## Session-87 addendum 6 — the SWF-RECT member COMPLETED (the CWS deep gate lands over the racing FWS seat); the enumeration closes
+
+**SWF-RECT COMPLETE (this session — the racing window's FWS seat
+(their `swf_rect_valid` + the five-test battery + the
+SwfCwsDeepGateIsTheRecordedFollowUp pin) + this lane's CWS deep-gate
+completion, landed in one convergence merge):**
+
+- **The CWS version window [6,20]** — FUN_180026b80's own `(v-6) <
+  0xf` head gate, TIGHTER than the FWS arm's [3,20] (the compressed
+  form postdates SWF 6); the pre-completion core applied the shared
+  [3,20] window to both arms — a CWS header with version 4 was
+  accepted the og refuses.
+- **The deflate CMF nibble gate** — `(byte@+8 & 0xF) == 8` (the
+  zlib CM field must be deflate; the og checks it before the
+  inflate).
+- **The zlib inflate + the inflated-RECT validation** — the og
+  inflates from +8 into a 512-byte window and runs the SAME
+  four-field RECT walk over the INFLATED bytes, with a >= 16
+  inflated-byte gate. The completion: a partial-tolerant streaming
+  inflate (only Z_DATA_ERROR/Z_MEM_ERROR decline — a
+  truncated-but-valid prefix yields partial output, the og's own
+  streaming shape), the >= 16 gate, and `swf_rect_valid` over the
+  inflated buffer (the helper refactored to take the RECT pointer —
+  the FWS raw +8 window and the CWS inflated buffer feed the same
+  walk).
+- **The follow-up pin FLIPPED**: the racing seat's
+  SwfCwsDeepGateIsTheRecordedFollowUp test — which pinned the
+  shallow-gates contract "until the inflate-validation landing flips
+  this pin deliberately" — now pins the deep-gate contract (a CWS
+  header whose +8 bytes are a raw-written broken RECT, a corrupt
+  zlib stream, declines). The flip is the landing the pin
+  anticipated.
+
+The convergence proof set: the racing seat's five FWS tests + this
+lane's four CWS completion tests (SwfCwsVersionWindowStartsAtSix /
+SwfCwsDeflateNibbleAndCorruptStreamDecline /
+SwfCwsInflatedRectIsGated / SwfCwsRealStreamCarvesAtFileLength — the
+first three RED at the pre-completion seat, proven via the stash
+dance before the merge resolution) + the flipped pin; the plants
+re-pinned both arms (the FWS real RECT via swf_write_rect; the CWS
+real compress2 stream — the og validates the INFLATED RECT). The
+carve suite green.
+
+**THE ENUMERATION CLOSES: all eleven members landed** (X3F, CRW, DWG
+gen-1+2, PSP, WPG, WPD, DXF, EPS, AI, SIT, APE, SWF-RECT — twelve
+carve sites across eleven member seats). The ONE recorded remainder:
+the DWG gen-3 R2007 (AC1021) de-interleave record chain — the bounded
+extent stays for that generation alone, precisely registered in the
+S85 addendum (the 0x3d8 accumulate + the 3×239 stride-3 de-interleave
++ FUN_18002ef50's record chain, the decode scope for the future lane).
+
+## Resolution
+
+**Status:** FIXED (the eleven-member enumeration closed; the DWG gen-3
+R2007 remainder is the recorded, precisely-scoped residue)
+**Fixed in commit:** the member landings across the S78-S87 windows —
+X3F (S78/S71/S84 arbitration), CRW (S83), DWG gen-1+2 (S84/S85 +
+the +0x80 offset repair f7e49eaf), PSP (S85), WPG (S85), WPD (the
+S84/S89/S87 convergence), DXF/EPS/AI (S89), SIT (the S89/S87
+convergence + the N-229 red-tree repair), APE (the S89/S87
+convergence — the M-160 gate + the full walk), SWF-RECT (the S91/S87
+convergence — the FWS seat + this lane's CWS completion)
+**Verified by:** each member's RED→GREEN battery in its landing
+addendum (the stash-dance proofs); the carve suite's growth
+174→216 tests across the landings; the full suite green at every
+push; the standing "recorded follow-up"/"stands in" grep now clean
+except the two DELIBERATE registered stand-ins (the DWG gen-3
+remainder and the NCSD/CCI leg's M-106-registered deviation)
+**Resolution notes:** The finding's own acceptance criteria met: the
+stand-in comments are gone (grep-verified) or owned by explicitly
+registered remainders; the over-cap plants carve og-exact; the
+batch-1 suites stayed green throughout. The discovered defects fixed
+along the way (each with its own finding): M-160 (the APE gate's
+whole-family absence), the PSP 16-byte-prefix acceptance, the DWG
+phantom-30/missing-13 tier-1 table, the AI invented version gate, the
+EPS bare-%!PS acceptance, the SWF CWS shared-window acceptance. The
+DWG gen-3 R2007 remainder keeps its bounded extent with the precise
+decode scope registered — the never-silently rule honored.
 ## Session-86 addendum 2 — the gen-3 R2007 remainder: the decode PROGRESS (the rotation transform identified first-hand; the next lane's head start) (2026-10-30)
 
 The DWG gen-3 chain's remaining pieces, decoded this session to the depth
@@ -1101,3 +1229,111 @@ arbitration stays the next lane's first step):
 The bounded extent REMAINS for gen-3, pinned by the seat's tests. The
 evidence sheet carries the full head decode:
 evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md.
+
+---
+
+## Session-89 addendum 2 — the SWF-RECT member LANDED (member 11 of 11: the validation-only downgrade the finding's own open question 3 prescribed)
+
+**SWF-RECT FIXED (this session; the finding's open question 3 answered
+first-hand: the RECT parse is VALIDATION-ONLY — the extent is the
+FileLength u32@4 in BOTH paths, the caller's stamp at :29987-88; the walk
+never contributes to the extent).** The chain decoded first-hand from the
+raw asm:
+
+- **FWS (FUN_180026940)**: version byte@3 ∈ [3,20] (0x18002695b), the
+  FileLength >= 9 gate (0x180026969), then the RECT walk — nbits =
+  byte[8]>>3 must be >= 2 (0x18002697d); the four fields (Xmin Xmax Ymin
+  Ymax) each read sign-bit-first then (nbits-1) magnitude bits MSB-first
+  (the sign from the field's own first bit — byte[8]&4 for Xmin, raw-asm
+  0x180026ad1-0x180026ae8); value = sign ? -magnitude : magnitude (the
+  og's sign-magnitude arithmetic: the -0 form reads as 0 and PASSES the
+  gate — the og's own edge, pinned in the battery); the geometry gate
+  (0x180026b3e-0x180026b5b): both axes 0 <= min < max (min >= 0 via `js`,
+  max > 0 via `jle`, min < max via `jge` — any violation declines).
+- **CWS (FUN_180026b80)**: the version window is [6,20] (0x180026bb2
+  `sub $0x6; cmp $0xe` — the compressed form exists only from SWF 6; the
+  pre-fix core accepted [3,20] for both sigils — the discovered
+  divergence, FIXED), the zlib CMF low nibble must be 8 (0x180026bc4 —
+  the deflate method; byte 8 is the zlib stream's first byte in a CWS
+  file, FIXED), FileLength >= 9. The og then INFLATES the body and runs
+  the RECT walk on the decompressed stream (the zlib calls at
+  0x180054a90/0x180054c10) — the core keeps the GZ no-inflate precedent:
+  the inflate validation is the REGISTERED follow-up, the version + CMF
+  gates are the honest header-validation floor.
+
+RED→GREEN via the stash dance: **5/5 RED at the pre-fix tree**
+(SwfRectGeometryGateRejectsDegenerateRect /
+SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo /
+SwfCwsVersionGateIsSix / SwfCwsZlibCmfNibbleRequired), GREEN with the
+walk; the SWF plants re-pinned (the FWS plant carries the real nbits=11
+RECT 0,640/0,480; the CWS plant carries the 0x78 0x9C zlib CMF/FLG
+pair). The full suite **1721/1721**. Remaining members: **APE only**.
+
+The rider swept in the same change: the S91 racing window's duplicate
+WpdZeroSizeFieldDeclines definition (the N-210 class, NINTH occurrence —
+the rider survived its own concession's test-drop sweep; cr_tests could
+not build: `redefinition of Carve_WpdZeroSizeFieldDeclines_Test`,
+first-hand at the pre-fix tree) — the duplicate merged into the original
+:3434 definition with both rationales kept.
+---
+
+## Session-89 addendum 3 — the SIT RECONCILIATION (the corpus-true arbitration of the two convergent landings: the ARCHITECTURE decides, not the push order)
+
+The S89 lane's SIT landing (this file's Session-89 addendum) and the racing
+S87/S91 lane's SIT5 landing (their 11a819c1) decoded DIFFERENT authorities:
+the FileSITAnalyser secondary (FUN_180044a10 — the stride table, the
+corrupt-entry terminal, the walked-bound torn salvage) vs the primary
+processor (FUN_180015d70 + the search FUN_180015b60 — the three full 8-byte
+end magics, the stream-end drop, the ' '-form next-header-only walk, the
+max×10 = 2 GB cap). Their merge (72b96a93) conceded the seat to the S89
+decode ("the fuller decode") — but the concession's premise was wrong, and
+this lane's reconciliation corrects it with the ARCHITECTURAL proof:
+
+**The SIT node's wrapper vtable (RawSpeed::SITAnalyser::vftable =
+0x180067890) carries the RETURN-0 STUB at +0x40** (the full .rdata
+node-vtable enumeration — only 8 node classes override +0x40 with the real
+getter FUN_180013700; SIT is not among them; the M-156/S83 precedent's own
+census re-verified). The magic-key dispatcher's secondary-first consult
+NEVER FIRES for a "Stuf" candidate: the FileSITAnalyser is never asked.
+The PRIMARY processor (the walker child's +0x20 slot, FUN_180015d70) is the
+scan-path authority — the racing lane's decode was the corpus-true one on
+every point the two landings disagreed:
+
+1. **The extent formula: the found magic's END** (the full 8-byte magic
+   search, FUN_180015b60's three compare loops over the .data constants at
+   0x180067858/68/78) — NOT the FileSIT stride table (marker + 8 + stride).
+   The stride table is the SECONDARY's own semantics — preserved in this
+   record, withdrawn from the scan path.
+2. **The stream-end drop**: a walk that finds neither magic nor next header
+   never stamps — the pending candidate drops (NO carve). The FileSIT's
+   loop-exit stamp (the walked bound) is again the secondary's detail.
+3. **The ' ' (pre-SIT5) form: the next-header-only walk** (the magic-search
+   flag [child+0x110] is set only on '!') — the S89 lane's "honest
+   stand-in" for that population is retired; the stream-end drop applies
+   when no header follows.
+4. **The 2 GB cap** (the child's 200,000,000 max × 10, the asm's
+   lea (%rax,%rax,4)+add at 0x180015e77-7b) — the force-stamp boundary; the
+   racing lane's row-max constant stands.
+
+The S89 landing's own contributions that survive the reconciliation: the
+**acceptance-window repair** (byte[7] ∈ {' ', '!'} — the processor's own
+gate; the pre-fix core accepted any byte[7]) and the **512-aligned
+next-header translation** (the chunk-head re-validation at the chunk
+granularity — both landings' readings agree in the whole-buffer model).
+
+The landing (this lane's rewrite on top of the merged tree): validate_sit
+now implements the primary's semantics with the surviving repairs; the
+corrupted merge artifact (the auto-merge had mangled the unified plant's
+body — `img]` lines, first-hand) rewritten as the flavor-aware plant (the
+magic at bytes-8). The batteries: the racing lane's five tests pass
+unchanged (Sit5MagicWalkSetsExtent / Sit5AllThreeMagicVariantsCarve /
+Sit5NoMagicNoHeaderDeclines / SitNextHeaderTerminatesTheWalk /
+SitWebbHeaderTerminatesTheWalk) + this lane's five rewritten pins
+(SitEntryMarkerWalkSetsExtent [the magic's END] /
+SitNewHeaderAtSectorBoundaryEndsTheWalk / SitBrokenMagicDrops [the
+corrupt-terminal withdrawal pin] / SitByteSevenOutsideTheWindowIsRefused /
+SitClassicSpaceFormDropsWithoutNextHeader) + the N-093 floor pin — **11/11
+green; the full suite 1729/1729**. The racing lane's withdrawn
+WpdZeroSizeFieldDeclines duplicate rider (the N-210 class, NINTH
+occurrence — cr_tests could not build at the merged tree, first-hand)
+merged into the original definition with both rationales kept.

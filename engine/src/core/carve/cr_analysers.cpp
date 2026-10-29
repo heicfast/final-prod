@@ -4609,8 +4609,7 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
      * read nine pairs; the tenth entry re-verified first-hand from the
      * asm this session). The og has NO sentinel check (the version
      * table is the whole gate). */
-    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21",
-                                      "24", "27", "32", "09"};
+    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32", "09"};
     int ver = -1;
     for (int i = 0; i < 10; ++i)
         if (v[4] == u8(kVersions[i][0]) && v[5] == u8(kVersions[i][1])) {
@@ -5663,48 +5662,60 @@ CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* SIT: "Stuf" key 0x66757453 (:2153) -> the SIT chain idx 93 (index-first
- * archive family). The M-107 member landing (the FileSITAnalyser walk,
- * FUN_180044a10, raw-asm-decoded first-hand):
+/* SIT: "Stuf" key 0x66757453 (:2153) -> the SIT chain idx 93. The M-107
+ * SIT member, the corpus-true reconciliation of the two convergent
+ * landings (the S89 lane's FileSITAnalyser decode + the S87/S91 lane's
+ * primary-processor decode), arbitrated by the ARCHITECTURE, not by
+ * push order: the SIT node's wrapper vtable (RawSpeed::SITAnalyser::
+ * vftable = 0x180067890) carries the RETURN-0 STUB at +0x40 (the full
+ * .rdata node-vtable enumeration — only 8 node classes override +0x40
+ * with the real getter FUN_180013700; SIT is not among them), so the
+ * magic-key dispatcher NEVER consults the FileSITAnalyser secondary
+ * for a "Stuf" candidate: the PRIMARY processor (FUN_180015d70, the
+ * walker child's +0x20 slot) is the scan-path authority. The
+ * FileSITAnalyser walk (FUN_180044a10 — the stride table, the
+ * corrupt-entry terminal) is the secondary's own semantics, preserved
+ * in M-107's record but NOT the scan path's — withdrawn from the
+ * landing by the S89 reconciliation (its Session-89 addendum's
+ * authority claim corrected by this note).
  *
- *  - The acceptance gate is the family union the og's processor enforces
- *    (raw-asm 0x180015df3-0x180015e67: `sub $0x20,%al; ja` + the u16@4/
- *    byte@6 checks): "Stuf"+"fI"+'t' with byte[7] in {' ', '!'} — the
- *    classic "StuffIt " and the "StuffIt!" forms. The FileSITAnalyser's
- *    own gate (0x180044a93, `cmpb $0x21,0x7(%rax)`) serves the '!' form
- *    only; a byte[7] outside the window never finalizes in the og (the
- *    node's 7-byte gate accepts, the processor refuses, the candidate
- *    rides the continuation until it dies) — the core refuses it outright.
+ * The scan-path semantics (the primary processor 0x180015d70-0x180015f76
+ * + the search helper FUN_180015b60, both raw-asm decoded first-hand;
+ * the .data magic table at 0x180067858/68/78):
  *
- *  - The '!' form's size walk (FUN_180044a10, the File*Analyser
- *    one-function tier-1+size shape; the M-090 authority precedent): a
- *    windowed search for the 8-byte entry marker 02 D7 0A XX 98 F6 42 88
- *    (the 3-byte prefix search FUN_180044890 + the +4 u32 0x8842f698
- *    validation, raw-asm 0x180044ca3-0x180044ca9); a full hit stamps
- *    extent = marker + 8 + stride (raw-asm 0x180044ccc-0x180044cd2) with
- *    the stride table: XX == 0x19 -> 4, XX == ';' (0x3b) -> 5, else 6
- *    (the .rdata pattern table at 0x180067848 lists the three forms
- *    {0x10, 0x3b, 0x19}). A 3-byte prefix hit whose +4 u32 mismatches is
- *    the corrupt-entry terminal: the extent is the 512-aligned sector
- *    start containing it (the og's walk position at the break).
+ *  - The acceptance gate: "Stuf"+"fI"+'t' with byte[7] in {' ', '!'}
+ *    (the processor's own gate, raw-asm 0x180015df3-0x180015e67) —
+ *    anything else never finalizes (the node's wider 7-byte gate
+ *    accepts, the processor refuses, the candidate rides the
+ *    continuation until the stream ends: never carved).
  *
- *  - The new-header gate: a following archive's header — the 7-byte
- *    "StuffIt" form or the 16-byte "WEBB"+"AIKE"+66 66 EB B4 A3 74 BD 7B
- *    key (FUN_180044960, raw-asm-verified) — at a 512-byte boundary
- *    beyond the start ends the walk there (raw-asm 0x180044bef-0x180044c10).
+ *  - The '!' (SIT5) form: the search for the three FULL 8-byte end
+ *    magics (02 D7 0A 19 98 F6 42 88 / 02 D7 0A 3B ... / 02 D7 0A 10
+ *    ... - the .data constants, FUN_180015b60's three compare loops);
+ *    a hit ends the walk at the magic's END (the chunk-granular stamp
+ *    translated to the exact structural position - the registered
+ *    model-divergence class).
  *
- *  - Torn (no marker, no new header) -> the walked bound (the loop-exit
- *    stamps the position; the og's own cap is the singleton+0x70 halved
- *    bound — the SITRawFileInfo row max 200,000,000, the X3F stance).
+ *  - The ' ' (pre-SIT5) form: the magic-search flag is unset (the
+ *    processor sets [child+0x110] only on '!') - the next-header-only
+ *    walk.
  *
- *  - The classic ' ' form's size comes from the primary's feeding
- *    protocol (the (offset-stored+1)*len epilogue at 0x180015f42 — the
- *    streaming artifact, undecoded as a whole-file semantic): the honest
- *    bounded-extent stand-in stays for that population, at reduced
- *    confidence, naming the recorded follow-up. The og's zero-tailed-
- *    sector gate and the 0x20 straddle retry are the streaming model's
- *    artifacts (the registered CRW/X3F divergence class) — the core
- *    searches every window, the registered superset stance. */
+ *  - The next-header gate: a later chunk head that is a full
+ *    SIT-family header (the 7-byte "StuffIt" form or the 16-byte
+ *    WEBB+AIKE+6666EBB4+A374BD7B form) ends the walk at that position
+ *    (the else-branch re-validation, raw-asm 0x180015e47-0x180015e67) -
+ *    translated at the 512-byte chunk granularity.
+ *
+ *  - The stream-end drop: a walk that finds neither magic nor next
+ *    header before the data ends never stamps - the pending candidate
+ *    drops (NO carve, never the blind cap).
+ *
+ *  - The walk's own cap: the child's 200,000,000 max scaled by ten =
+ *    2,000,000,000 (the asm's lea (%rax,%rax,4)+add at 0x180015e77-7b)
+ *    - the force-stamp boundary; crossing it stamps the current
+ *    chunk's end (the row max carries the constant; its unit-scale pin
+ *    is the recorded residue - a 2 GB device is out of the suite's
+ *    memory budget). */
 CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5715,14 +5726,13 @@ CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
     if (h[7] != ' ' && h[7] != '!')
         return r; /* the processor's byte[7] window: anything else never finalizes */
     const u64 limit = probe_limit(s, hit, cap);
-    const u64 rel_limit = limit > hit ? limit - hit : 0;
-    const u64 bound = rel_limit; /* the probe window; the row's 2 GB max carries the og walk's own cap */
-    /* the shared new-header gate (both forms): the first 512-aligned
-     * SIT-family header beyond the start - "Stuf" (the 7-byte tier-1
-     * form) or the WEBB 16-byte key {0x42424557, 0x454b4941,
-     * 0xb4eb6666, 0x7bbd74a3} - caps the walk at that boundary */
+    const u64 rel_limit = limit - hit;
+    const u64 bound = std::min<u64>(rel_limit, 2000000000ull);
     std::vector<u8> win(kProbeBlock);
-    u64 new_header = bound;
+    /* the next-header gate: the first 512-aligned SIT-family header
+     * beyond the start (the chunk-head re-validation translated at the
+     * chunk granularity) */
+    u64 next_header = bound;
     for (u64 base = 0; base < bound; base += kProbeBlock) {
         const u64 chunk = std::min<u64>(win.size(), bound - base);
         if (chunk < 16)
@@ -5732,114 +5742,82 @@ CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
         for (u64 a = (base == 0 ? 512 : base); a + 16 <= base + chunk; a += 512) {
             const u8* p = win.data() + (a - base);
             const bool stuf = std::memcmp(p, "Stuf", 4) == 0 && std::memcmp(p + 4, "fIt", 3) == 0;
-            const bool key =
-                u32_from_bytes_le(p) == 0x42424557u && u32_from_bytes_le(p + 4) == 0x454b4941u &&
-                u32_from_bytes_le(p + 8) == 0xb4eb6666u && u32_from_bytes_le(p + 12) == 0x7bbd74a3u;
+            const bool key = u32_from_bytes_le(p) == 0x42424557u &&
+                             u32_from_bytes_le(p + 4) == 0x454b4941u &&
+                             u32_from_bytes_le(p + 8) == 0xb4eb6666u &&
+                             u32_from_bytes_le(p + 12) == 0x7bbd74a3u;
             if (stuf || key) {
-                new_header = a;
+                next_header = a;
                 break;
             }
         }
-        if (new_header != bound)
+        if (next_header != bound)
             break;
         if (chunk < win.size())
             break; /* short final read: nothing further to scan */
     }
-    if (h[7] != '!') {
-        /* the classic ' ' form - the S91 decode folded into the racing
-         * seat at the arbitration: the first-chunk gate sets NO search
-         * flag for the space form (FUN_180015d70: ' ' -> size 0,
-         * continue; only '!' sets the +0x110 flag) - the next
-         * SIT-family header at a sector boundary is the ONLY
-         * terminator, the end-magic search never runs. The racing
-         * lane's own SitNextHeaderTerminatesTheWalk pins the same
-         * semantics; the earlier stand-in branch is superseded. No
-         * header before the stream ends: the pending candidate drops
-         * (the stream-end decline - both decodes agree a
-         * no-terminator SIT does not carve). */
-        if (new_header == bound)
-            return r; /* the stream-end drop */
-        r.ok = true;
-        r.end = hit + new_header;
-        r.confidence = 640;
-        r.note = "sit-classic-next-header-walk";
-        return r;
-    }
-    /* the '!' form: the FileSITAnalyser marker walk (the search flag
-     * the first-chunk gate sets) - the entry-marker search within the
-     * new-header bound: the 8-byte marker's 3-byte prefix (02 D7 0A)
-     * + the u32@+4 validation (0x8842f698), windowed with the
-     * straddle overlap */
-    u64 marker_at = 0;
-    u64 stride = 0;
-    bool corrupt = false;
-    u64 corrupt_at = 0;
-    bool found = false;
-    u64 pos = 0;
-    const u64 search_bound = new_header;
-    while (pos + 3 <= search_bound) {
-        const u64 chunk = std::min<u64>(win.size(), search_bound - pos);
-        if (chunk < 3)
-            break;
-        if (!rd(s, hit + pos, win.data(), u32(chunk)))
-            break; /* unreadable window: the walked prefix ends here */
-        for (u64 i = 0; i + 3 <= chunk; ++i) {
-            if (win[i] != 0x02 || win[i + 1] != 0xd7 || win[i + 2] != 0x0a)
-                continue;
-            if (i + 8 > chunk)
-                break; /* the marker straddles the window: the overlap re-reads it */
-            if (u32_from_bytes_le(win.data() + i + 4) != 0x8842f698u) {
-                /* the corrupt-entry terminal: the extent is the 512-aligned
-                 * sector start containing the broken marker (the og's walk
-                 * position at the break, raw-asm 0x180044ca9 `jne` -> the
-                 * extent stamp at pos) */
-                corrupt = true;
-                corrupt_at = pos + i;
+    const u64 search_bound = next_header;
+    if (h[7] == '!') {
+        /* the SIT5 form: the three full 8-byte end magics */
+        static const u64 MAGICS[3] = {0x8842f698190ad702ull, 0x8842f6983b0ad702ull,
+                                      0x8842f698100ad702ull};
+        u64 magic_at = 0;
+        bool found = false;
+        u64 pos = 0;
+        while (pos + 8 <= search_bound) {
+            const u64 chunk = std::min<u64>(win.size(), search_bound - pos);
+            if (chunk < 8)
                 break;
+            if (!rd(s, hit + pos, win.data(), u32(chunk)))
+                break; /* unreadable window: the walked prefix ends here */
+            for (u64 i = 0; i + 8 <= chunk; ++i) {
+                const u64 m = u64_from_bytes_le(win.data() + i);
+                if (m == MAGICS[0] || m == MAGICS[1] || m == MAGICS[2]) {
+                    magic_at = pos + i;
+                    found = true;
+                    break;
+                }
             }
-            marker_at = pos + i;
-            const u8 x = win[i + 3];
-            stride = (x == 0x19) ? 4 : (x == 0x3b ? 5 : 6);
-            found = true;
-            break;
+            if (found)
+                break;
+            if (chunk < win.size())
+                break;        /* short final read: the window is exhausted */
+            pos += chunk - 7; /* straddle overlap: an 8-byte magic never splits */
         }
-        if (found || corrupt)
-            break;
-        if (chunk < win.size())
-            break;        /* short final read: the window is exhausted */
-        pos += chunk - 2; /* straddle overlap: a 3-byte prefix never splits */
+        if (found) {
+            r.ok = true;
+            r.end = hit + magic_at + 8;
+            if (r.end > limit)
+                r.end = limit;
+            r.confidence = 650;
+            r.note = "sit5-end-magic-walk";
+            return r;
+        }
     }
-    if (found) {
+    /* the stream-end drop for the no-magic walk - UNLESS the next
+     * header ended it first (the boundary IS the extent) or the 2 GB
+     * force-stamp boundary was crossed (the chunk-end stamp, the
+     * walked bound) */
+    if (next_header != bound) {
         r.ok = true;
-        r.end = hit + marker_at + 8 + stride;
-        if (r.end > limit)
-            r.end = limit;
-        r.confidence = 650;
-        r.note = "sit-entry-marker-walk";
-        return r;
-    }
-    if (corrupt) {
-        r.ok = true;
-        r.end = hit + (corrupt_at & ~u64(511));
-        r.confidence = 600;
-        r.note = "sit-corrupt-entry-terminal";
-        return r;
-    }
-    if (new_header != bound) {
-        r.ok = true;
-        r.end = hit + new_header;
+        r.end = hit + next_header;
         r.confidence = 640;
-        r.note = "sit-new-header-boundary";
+        r.note = h[7] == '!' ? "sit5-next-header-boundary" : "sit-old-form-next-header-boundary";
         return r;
     }
-    /* the stream-end drop: no magic, no header, the window exhausted -
-     * the pending candidate never finalizes (the og's stream-end
-     * decline; the 2 GB force-stamp path produces an over-row extent
-     * the row gate rejects - a no-terminator SIT does not carve in the
-     * og, both decodes agree) */
+    if (rel_limit >= 2000000000ull) {
+        /* the force-stamp: the walk crossed its own cap */
+        r.ok = true;
+        r.end = hit + bound;
+        r.confidence = 550;
+        r.note = "sit-walk-force-stamp-at-cap";
+        return r;
+    }
+    /* the stream-end drop: no magic, no next header, under the cap -
+     * the pending candidate never finalizes (NO carve) */
+    r.ok = false;
     return r;
 }
-
 
 /* GZ: u16 key 0x8B1F (:6481) -> GZAnalyzer+FileGZ chain idx 39. The
  * modern analyser is header-validation; the core walks the optional
@@ -6906,8 +6884,11 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
  * validating - the recorded follow-up (the finding's explicit
  * remainder; the CWS row keeps the shallow gates + the FileLength
  * extent, which the og's caller also stamps for CWS). */
-static bool swf_rect_valid(const u8* h) {
-    const u32 nbits = u32(h[8]) >> 3;
+static bool swf_rect_valid(const u8* rect) {
+    /* the rect pointer: the FWS arm's raw +8 window, or the CWS arm's
+     * INFLATED buffer (FUN_180026b80's tail runs the same four-field
+     * walk over the inflated bytes) */
+    const u32 nbits = u32(rect[0]) >> 3;
     if (nbits < 2)
         return false; /* 0x180026980: cmp $0x1,%eax; jbe reject */
     u32 bitpos = 5;   /* MSB-first, after the 5-bit Nbits field (stream bits
@@ -6915,7 +6896,7 @@ static bool swf_rect_valid(const u8* h) {
                        * asm's `bl & 4` sign check at 0x180026a03, and the
                        * first magnitude bit = LSB bit 1, the traced shr $1) */
     auto read_bit = [&]() -> u32 {
-        const u32 bit = (h[8 + (bitpos >> 3)] >> (7 - (bitpos & 7))) & 1u;
+        const u32 bit = (rect[bitpos >> 3] >> (7 - (bitpos & 7))) & 1u;
         ++bitpos;
         return bit;
     };
@@ -6940,15 +6921,53 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[25];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
+    const bool cws = h[0] == 'C';
+    if ((!cws && h[0] != 'F') || h[1] != 'W' || h[2] != 'S')
         return r; /* FWS | CWS only (the registry keys, re-checked) */
-    if (h[3] < 3 || h[3] > 20)
-        return r; /* the og's version gate */
+    const u32 ver = h[3];
+    if (cws ? (ver < 6 || ver > 20) : (ver < 3 || ver > 20))
+        return r; /* the og's per-arm version windows: FWS [3,20], CWS [6,20] */
     const u32 len = u32_from_bytes_le(h + 4);
     if (len <= 8)
         return r; /* the og's FileLength gate */
-    if (h[0] == 'F' && !swf_rect_valid(h))
-        return r; /* the FWS deep gate: the RECT bounding-box validation */
+    if (!cws) {
+        if (!swf_rect_valid(h + 8))
+            return r; /* the FWS deep gate: the RECT bounding-box validation */
+    } else {
+        /* the CWS deep gate - the recorded follow-up LANDED: FUN_180026b80's
+         * own sequence - the deflate CMF nibble (byte@+8 & 0xF) == 8, the
+         * zlib inflate from +8 into the 512-byte window, >= 16 inflated
+         * bytes, the SAME RECT walk over the inflated bytes. A corrupt
+         * stream (Z_DATA_ERROR/Z_MEM_ERROR) declines; a truncated-but-
+         * valid prefix yields partial output (the og's streaming shape). */
+        if ((h[8] & 0xF) != 8)
+            return r; /* the zlib CM nibble must be 8 (deflate) */
+        u8 src[512];
+        const u64 avail =
+            std::min<u64>(sizeof(src), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
+        if (avail < 2 || !rd(s, hit + 8, src, u32(avail)))
+            return r;
+        u8 dst[512];
+        uLongf dst_len = 0;
+        {
+            z_stream zs = {};
+            if (inflateInit(&zs) != Z_OK)
+                return r;
+            zs.next_in = src;
+            zs.avail_in = uInt(avail);
+            zs.next_out = dst;
+            zs.avail_out = uInt(sizeof(dst));
+            const int rc = inflate(&zs, Z_FINISH);
+            dst_len = uLongf(zs.total_out);
+            inflateEnd(&zs);
+            if (rc == Z_DATA_ERROR || rc == Z_MEM_ERROR)
+                return r; /* a corrupt stream declines */
+        }
+        if (dst_len < 16)
+            return r; /* the og's inflated-size gate (0xf < size) */
+        if (!swf_rect_valid(dst))
+            return r; /* the inflated RECT's decline */
+    }
     r.ok = true;
     r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
     r.confidence = 700;
