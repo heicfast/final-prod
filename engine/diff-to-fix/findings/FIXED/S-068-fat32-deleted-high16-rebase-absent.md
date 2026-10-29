@@ -104,3 +104,31 @@ Decompiled evidence, lead-verified first-hand this session: all three og sites q
 ## Open questions
 
 None material — the og's gates are fully decoded; the only design decision is whether the core's re-based emission carries a distinct provenance flag (recommended, matching the og's `*param_8 = 1` assumed marker) or reuses the existing `assumed_contiguous` surface.
+
+---
+
+## S80 verification addendum (2026-10-29 — all three corpus sites re-read first-hand before the fix)
+
+**CONFIRMED-DIVERGENCE.** The hint update (:13753-13758), the low-16
+re-base (:14753-14755), and the deleted retry with write-back
+(FUN_180014530 :14826-14848) all verified verbatim. Two implementation
+notes the landing carries: (1) the og's walk-confirmation gate
+(`*param_8`) maps to the core's FAT-backed criterion — the re-based
+cluster's own FAT entry must be live (a link or EOC); a FREE entry at
+the re-based cluster is the unlinked shape, no confirmation, the raw
+walk decides; (2) the og's hint-update refinement gate (`param_5 != 0
+|| 0x10000 < walked`) has an undecoded param_5 — the finding's
+fix-plan contract (every successful non-directory walk) is implemented,
+recorded here as the open refinement. The retry leg (:14826)'s target
+(`hint_high | walk_result`) coincides with the pre-walk re-base
+candidate for the high-word-zero population — a distinct target is
+undecodable from the walk's return-on-failure; the pre-walk re-base
+(the og's :14753 site, the primary mechanism) covers the finding's
+population.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** the S-068 S80-lane commit (this session; SHA in the commit footer)
+**Verified by:** FatEngine.DeletedHigh16ZeroRebasesFromHint / DeletedHigh16RebaseFallsBackToRawWalk / LastGoodHintUpdatesOnlyOnFileWalks / FAT16NoRebase — RED first-hand via the stash dance (the two re-base-firing tests FAILED at the pre-fix tree; the fallback and FAT16-immunity pins are the guard class), GREEN post-fix; the full FAT suite green; full suite 1604/1604.
+**Resolution notes:** The og's three-site machinery landed: (1) EmitCtx.last_good_first_cluster — the scan-global hint (the og's DAT_1800728c8), updated after every successful non-directory chain walk with the walked file's effective first cluster (directories and volume labels never move it — the og's `attr & 0x10 == 0` gate); (2) the deleted-dentry low-16 re-base in emit_entry — FAT32-only (the high word exists only there), gated on the low-16-only shape (`first_cluster < 0x10000 && first_cluster < hint`), the candidate = `hint_high | dentry_low16`, walked BEFORE the raw walk (the og's pre-walk site), adopted only when the re-based cluster's own FAT entry is live (the walk-confirmation gate: a FREE entry at the re-based cluster never adopts — the raw walk decides); (3) the adopted emission stamps the REPAIRED pair as the origin cluster (the og's +0x14/+0x1a write-back semantics), carries the assumed/inferred provenance (never Excellent), and surfaces in FatScanStats.high16_rebased. The failed re-based walk falls back to the raw dentry value's walk (the og's first-leg behavior — the GAP-S6-2 contiguous-candidate heuristic still applies on the raw path). Files: src/core/fat/cr_fat_quick.cpp, include/cr/fat/cr_fat_engine.h. Corpus: FATSearchDLL :13753-13758 (the hint update), :14753-14755 (the re-base), :14826-14848 (the retry + write-back), FUN_180014530 (the deleted-entry driver).

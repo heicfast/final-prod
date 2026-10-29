@@ -25,9 +25,25 @@
   ReservedFFF6EntryEndsChainCleanly); the EXFAT-2/EXFAT-3 families re-pinned;
   exFAT suite 44/44. The damaged-FAT semantics family is now three-for-three.
 
-**Board after this landing (filesystem truth, post-rebase over the S81
-lane's N-211/N-215 landings): 0 ACUTE · 1 SEVERE (S-068) · 17 MAJOR ·
-10 MINOR · 1 INFO active / 174 FIXED / 4 tracked-open.** Next free IDs:
+- **S-068 FIXED (SEVERE, fat — the SEVERE tier closes; the S80
+  diff-to-fix lane)** — the og's deleted-FAT32 high-16 re-base: the
+  scan-global last-good first-cluster hint (DAT_1800728c8, :13753-13758)
+  + the pre-walk low-16 re-base of torn-high-word deleted dentries
+  (`hint_high | dentry_low16`, the < 0x10000 && < hint gates,
+  :14753-14755) + the repaired-pair emission (the :14840-14842
+  write-back semantics). The adoption criterion is the og's
+  walk-confirmation shape: the re-based cluster's own FAT entry must be
+  live — FREE never adopts (the raw walk decides, GAP-S6-2 intact on
+  the raw path). The assumed provenance (never Excellent) +
+  FatScanStats.high16_rebiased surface the population. Tests RED
+  first-hand (stash dance): DeletedHigh16ZeroRebasesFromHint /
+  DeletedHigh16RebaseFallsBackToRawWalk /
+  LastGoodHintUpdatesOnlyOnFileWalks / FAT16NoRebase; suite 1604/1604.
+  Trail: findings/FIXED/S-068 + the S80 verification addendum, matrix
+  MATCH, modules/fat.md S80 addendum.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 17 MAJOR · 10 MINOR ·
+1 INFO active / 175 FIXED / 4 tracked-open.** Next free IDs:
 S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)

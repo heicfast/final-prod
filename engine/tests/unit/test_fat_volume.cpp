@@ -3331,3 +3331,205 @@ TEST(FatChain, CycleGuardPerf) {
      * shape by 6.2x and passes the fix with 6.4x headroom. */
     EXPECT_LT(ms, 10000) << "100 maximal chains took " << ms << " ms - the stall class";
 }
+
+/* ---- S-068: the deleted FAT32 high-16 re-base (the last-good hint) ----
+ * The og's machinery (FATSearchDLL, all three sites re-read first-hand):
+ * a scan-global hint holds the most recently successfully-walked
+ * non-directory file's first cluster (:13753-13758); a deleted dentry
+ * whose first-cluster field is LOW-16-ONLY (below 0x10000 and below the
+ * hint - the torn/stale high-word shape) is re-based by borrowing the
+ * hint's high 16 bits before the walk (:14753-14755); the failed re-based
+ * walk falls back to the raw value. FAT32 only - the high word exists
+ * only there. */
+
+namespace {
+/* a FAT32 volume whose data clusters live ABOVE 0x10000 (the high word
+ * is meaningful - the re-base's population), with a live anchor file at
+ * 0x10000 and a deleted file whose dentry lost the high word.
+ * Geometry: reserved 8, FAT 2x545 sectors (69632 entries covers
+ * clusters 2..0x10FFE), data from sector 1098; ~35 MiB image. */
+std::vector<u8> build_fat32_high16_image(u32 deleted_first /* the RAW dentry value */,
+                                         bool plant_true_chain = true,
+                                         u32 true_first = 0x10000 + 0x123) {
+    const u32 SPF = 545;            /* sectors per FAT */
+    const u32 DATA_START = 8 + 2 * SPF; /* sector of cluster 2 */
+    const u32 TOTAL = DATA_START + 0x11000 + 64;
+    std::vector<u8> img(u64(TOTAL) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1; /* 512B clusters */
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0); /* FAT32: no fixed root */
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    put32v(img, 0x20, TOTAL);
+    put32v(img, 0x24, SPF);
+    put32v(img, 0x2C, 2); /* root cluster */
+    put16(img, 0x32, 6);
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 6 * 512, b, 512);
+
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + SPF) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 0x0FFFFFFF);    /* root: single cluster */
+    link32(0x10000, 0x10001); /* the anchor file's chain */
+    link32(0x10001, 0x0FFFFFFF);
+    if (plant_true_chain)
+        link32(true_first, 0x0FFFFFFF); /* the deleted file's true chain */
+
+    /* root dir at cluster 2 */
+    u8* root = img.data() + u64(DATA_START) * 512;
+    /* the anchor: a LIVE file at 0x10000 - walks successfully, moves the
+     * hint to 0x10000 (the high word the re-base borrows) */
+    make_dentry(root + 0 * 32, "ANCHOR  BIN", 0x20, 0x10000, 1024, 0x5A46, 0x6000, false);
+    /* the deleted file: the dentry's high word is ZERO (torn) - the raw
+     * value is the true chain's low 16 only */
+    make_dentry(root + 1 * 32, "TORN    DAT", 0x20, deleted_first, 512, 0x5A46, 0x6000, true);
+
+    /* content markers: the TRUE chain's bytes (the wrong-content
+     * discriminator - the recovered bytes must come from the TRUE chain) */
+    const u64 data_base = u64(DATA_START) * 512; /* cluster 2 */
+    auto cluster_off = [&](u32 c) { return data_base + u64(c - 2) * 512; };
+    std::memcpy(img.data() + cluster_off(0x10000), "ANCHORDATA", 10);
+    if (plant_true_chain)
+        std::memcpy(img.data() + cluster_off(true_first), "TRUEDATA", 8);
+    return img;
+}
+const u32 S068_DATA_START = 8 + 2 * 545; /* shared: the fixture's data start */
+} // namespace
+
+TEST(FatEngine, DeletedHigh16ZeroRebasesFromHint) {
+    /* S-068: the anchor's walk moves the hint to 0x40000; the deleted
+     * dentry's torn high word (raw first_cluster = 0x123) re-bases to
+     * 0x40000|0x123 = the TRUE chain - the recovered extent is the true
+     * cluster's, not the low cluster's wrong content. Before the fix:
+     * the raw walk started at cluster 0x123 (free space / another
+     * file's chain) - wrong bytes under the deleted name or a drop. */
+    auto img = build_fat32_high16_image(0x123);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the torn dentry re-based from the hint";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the re-based walk recovers the file";
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    const u64 true_off = data_base + u64(0x10000 + 0x123 - 2) * 512;
+    ASSERT_EQ(torn->props()->extents.size(), 1u);
+    EXPECT_EQ(torn->props()->extents[0].offset, true_off)
+        << "the extent is the TRUE chain's cluster, not the low cluster";
+    /* the repaired pair is stamped (the og's write-back semantics) */
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x10000u + 0x123u);
+    /* the assumed flag: never Excellent */
+    EXPECT_EQ(torn->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(FatEngine, DeletedHigh16RebaseFallsBackToRawWalk) {
+    /* S-068: the re-based walk fails (no chain at the re-based cluster -
+     * the true content is gone too): the emission falls back to the raw
+     * dentry value's walk (the og's first-leg behavior), the raw walk
+     * produces whatever cluster 0x123 holds (here: nothing - empty
+     * chain, the Overwritten grade), and the re-base counter stays 0. */
+    auto img = build_fat32_high16_image(0x123, /*plant_true_chain=*/false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 0u) << "a failed re-based walk never adopts";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the fallback emission still surfaces the dentry";
+    /* the raw walk at 0x123 (a FREE cluster) reconstructs the
+     * contiguous candidate [0x123, 0x124) - the GAP-S6-2 heuristic's
+     * shape, or an empty chain. Either way the extent is NOT at the
+     * re-based cluster. */
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    const u64 raw_off = data_base + u64(0x123 - 2) * 512;
+    if (!torn->props()->extents.empty()) {
+        EXPECT_EQ(torn->props()->extents[0].offset, raw_off)
+            << "the fallback walks the RAW dentry value";
+    }
+}
+
+TEST(FatEngine, LastGoodHintUpdatesOnlyOnFileWalks) {
+    /* S-068: directories and volume labels never move the hint (the og's
+     * `attr & 0x10 == 0` gate, :13753). A deleted dentry whose raw value
+     * is below a DIRECTORY's cluster (no file walked above 0x10000 yet
+     * except the anchor) re-bases off the ANCHOR's hint - the directory
+     * in between does not clobber it. Proven negatively: the re-base
+     * still fires after a directory dentry sits between the anchor and
+     * the torn file in directory order. */
+    auto img = build_fat32_high16_image(0x123);
+    /* insert a DIRECTORY dentry (cluster 3, an ordinary low cluster)
+     * between the anchor and the torn file */
+    u8* root = img.data() + u64(S068_DATA_START) * 512;
+    make_dentry(root + 1 * 32, "ASUBDIR    ", ATTR_DIRECTORY, 3, 0, 0x5A46, 0x6000, false);
+    make_dentry(root + 2 * 32, "TORN    DAT", 0x20, 0x123, 512, 0x5A46, 0x6000, true);
+    /* root must stay one cluster (cluster 3 is the directory's own chain
+     * start - plant its '.' self-entry so the recursion walks it harmlessly */
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + 545) * 512;
+    put32v(img, FAT1 + 3 * 4, 0x0FFFFFFF);
+    put32v(img, FAT2 + 3 * 4, 0x0FFFFFFF);
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    u8* sub = img.data() + data_base + (3 - 2) * 512;
+    make_dentry(sub + 0 * 32, ".          ", ATTR_DIRECTORY, 3, 0, 0x5A46, 0x6000, false);
+    make_dentry(sub + 1 * 32, "..         ", ATTR_DIRECTORY, 2, 0, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u)
+        << "the directory dentry between them does not clobber the hint";
+}
+
+TEST(FatEngine, FAT16NoRebase) {
+    /* S-068: the machinery is FAT32-only - the high word exists only
+     * there. On the FAT16 fixture a deleted dentry whose value is below
+     * 0x10000 (which is EVERY cluster on a FAT16 volume) never re-bases:
+     * the flavor gate refuses before the hint is consulted. */
+    auto img = build_fat16_image();
+    /* the fixture's own deleted entries (20/21 intact, 30 FREE) - all
+     * below 0x10000 by construction; a re-base would need a hint > the
+     * value, and FAT16's flavor gate must keep the counter at 0 even if
+     * one existed (the GONE entry at 30 walks nothing, DEL at 20 walks
+     * successfully and would move a hint on FAT32) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.high16_rebased, 0u) << "FAT16 never re-bases (no high word)";
+}

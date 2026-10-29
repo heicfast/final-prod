@@ -87,6 +87,18 @@ struct EmitCtx {
         std::u16string token;
     };
     std::vector<PendingRecycleR> pending_recycle_r;
+    /* S-068 (diff-to-fix): the og's last-good first-cluster hint
+     * (DAT_1800728c8) - the first cluster of the most recently
+     * successfully-walked non-directory file (FATSearchDLL :13753-13758:
+     * the non-directory gate `attr & 0x10 == 0`, the value = the walked
+     * file's first cluster after any adoption). The deleted-dentry
+     * low-16 re-base consults it (:14753-14755): a deleted FAT32 dentry
+     * whose first-cluster field looks LOW-16-ONLY (below 0x10000 and
+     * below the hint - the torn/stale high-word shape some deleters,
+     * sanitizers, and torn writes produce) is re-based by borrowing the
+     * hint's high 16 bits before the chain walk. Scan-global state like
+     * the og's global. */
+    u32 last_good_first_cluster = 0;
 };
 
 tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_clusters) {
@@ -289,13 +301,50 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     const u32 first_cluster = (u32(e.first_cluster_high) << 16) | e.first_cluster_low;
     const bool is_dir = (e.attributes & ATTR_DIRECTORY) != 0;
     const u32 expect_clusters = u32((e.file_size + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
+    /* S-068: the effective first cluster - the dentry's value, or the
+     * re-based value when the deleted high-16 re-base adopts (the og's
+     * in-memory dentry repair writes the corrected pair back at
+     * +0x14/+0x1a, FATSearchDLL :14840-14842; the core's equivalent is
+     * emitting the corrected cluster). */
+    u32 effective_first = first_cluster;
 
     /* chain resolution (F-A1-11: the walkers poll the token per step) */
     ChainResult chain;
     bool inferred_chain = false;
+    /* S-068: the og's deleted high-16 re-base (FAT32 only - the high
+     * word exists only there; the og's own gates at :14753-14755 fire
+     * under the FAT32 shape). The pre-walk position matches the og's
+     * site: the value is re-based BEFORE the walk, the walk at the
+     * re-based cluster decides adoption, and a failed re-based walk
+     * falls back to the raw dentry value (the og's first-leg
+     * behavior). The re-based emission carries the assumed/inferred
+     * provenance (the og's `*param_8 = 1` flag - the same assumed
+     * family as the EXFAT-2 salvage) and never grades Excellent. */
+    bool high16_rebased = false;
+    if (deleted && ctx.p.flavor == Flavor::Fat32 && ctx.flags.reconstruct_deleted_chains &&
+        first_cluster >= 2 && first_cluster < 0x10000 &&
+        first_cluster < ctx.last_good_first_cluster) {
+        const u32 rebased =
+            (ctx.last_good_first_cluster & 0xFFFF0000u) | u32(e.first_cluster_low);
+        ChainResult rb = reconstruct_deleted_chain(*ctx.table, rebased,
+                                                   is_dir ? 0 : expect_clusters, ctx.cancel);
+        /* the og's confirm semantics (FUN_180014530's `*param_8` gate):
+         * the walk CONFIRMS only when the re-based cluster's own FAT
+         * entry is live (a link or EOC - the chain is FAT-backed); a
+         * FREE entry at the re-based cluster is the unlinked shape -
+         * no confirmation, the raw dentry value's walk decides (the
+         * og's first-leg fallback). */
+        if (!rb.cancelled && !rb.clusters.empty() && ctx.table->raw(rebased) != 0) {
+            chain = std::move(rb);
+            effective_first = rebased;
+            high16_rebased = true;
+            inferred_chain = true; /* the assumed flag: never Excellent */
+            ++ctx.stats->high16_rebased;
+        }
+    }
     if (!deleted) {
         chain = follow_chain(*ctx.table, first_cluster, 0x10000, ctx.cancel);
-    } else if (ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
+    } else if (!high16_rebased && ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
         chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters,
                                           ctx.cancel);
         /* GAP-S6-2 (bench 40079065019: 46/10143 hash-true): an UNLINKED
@@ -319,6 +368,18 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
+
+    /* S-068: the og's last-good hint update (FATSearchDLL :13753-13758) -
+     * after a successful non-directory walk, the walked file's (possibly
+     * re-based/adopted) first cluster becomes the hint. Directories and
+     * volume labels never move it (the og's `attr & 0x10 == 0` gate);
+     * empty/unresolvable chains do not either. The og's own extra gate
+     * (`param_5 != 0 || 0x10000 < walked`) is a refinement whose param_5
+     * is undecoded in the decompile - the finding's fix-plan contract
+     * (every successful non-directory walk) is implemented; recorded in
+     * the Resolution as the open refinement. */
+    if (!is_dir && !chain.clusters.empty())
+        ctx.last_good_first_cluster = effective_first;
 
     /* M-052: recycle-bin pairing inside the recognized bin roots (the
      * og's four-name _stricmp set, FATSearchDLL :1668-1677). $I<token>
@@ -402,8 +463,10 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * resolution — for deleted entries the reconstruction helper
      * FUN_180012e60 ALWAYS stamps, with the DENTRY's own first-cluster
      * when reconstruction produced nothing (FATSearchDLL :13702-13738).
-     * Passive datum; 0 stays 0 (empty file). */
-    props->fat_origin_cluster = first_cluster;
+     * Passive datum; 0 stays 0 (empty file). S-068: a re-based emission
+     * stamps the REPAIRED pair (the og's write-back at :14840-14842
+     * corrects the dentry in memory before the stamp). */
+    props->fat_origin_cluster = effective_first;
     if (deleted)
         props->flags &= ~u16(0x10);
     else
@@ -475,7 +538,9 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
             g == tree::Confidence::Excellent)
             g = tree::Confidence::PartialRisk;
         /* GAP-S6-2: an inferred (contiguous-candidate) run is NEVER
-         * Excellent - it is a reconstruction, not FAT-verified truth */
+         * Excellent - it is a reconstruction, not FAT-verified truth.
+         * S-068: a high-16 re-based chain carries the same assumed flag
+         * (the og's `*param_8 = 1`) - inferred_chain covers both. */
         if (inferred_chain && g == tree::Confidence::Excellent)
             g = tree::Confidence::PartialRisk;
         n->set_confidence(g);

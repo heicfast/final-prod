@@ -11569,3 +11569,26 @@ the D-143 >4 KiB superset preserved and pinned on a 6144 stride). RED x3
 stride-equality paraphrase corrected against the corpus. Trail:
 findings/FIXED/N-213 + Resolution, matrix row, modules/ntfs.md addendum,
 PARITY-DELTAS D-143 touch-note, ledger row.
+
+---
+
+## Session-80 S80 fix-lane — entry 4: S-068 (2026-10-29 — the SEVERE tier closes)
+
+**S-068 FIXED (SEVERE, fat):** the deleted-FAT32 high-16 re-base — the
+og's DAT_1800728c8 last-good-hint machinery, all three sites verified
+first-hand before the fix (:13753-13758 / :14753-14755 / :14826-14848).
+Landing: EmitCtx.last_good_first_cluster (moved only by successful
+non-directory file walks); the FAT32-only pre-walk re-base (candidate =
+hint_high | dentry_low16, gates < 0x10000 && < hint) with the
+walk-confirmation adoption criterion (the re-based cluster's own FAT
+entry must be live — FREE never adopts); the repaired-pair origin stamp
++ the assumed provenance (never Excellent) + FatScanStats.high16_rebased;
+the failed re-based walk falls back to the raw walk (GAP-S6-2 intact).
+Open refinements recorded in the finding's S80 addendum: the og's
+hint-update refinement gate (param_5 undecoded) and the retry leg's
+distinct target (undecodable from the walk's return-on-failure).
+Tests RED first-hand (stash dance — the two re-base-firing tests FAILED
+pre-fix): DeletedHigh16ZeroRebasesFromHint /
+DeletedHigh16RebaseFallsBackToRawWalk / LastGoodHintUpdatesOnlyOnFileWalks /
+FAT16NoRebase. Suite 1604/1604. Trail: findings/FIXED/S-068, matrix
+MATCH, modules/fat.md S80 addendum, SUMMARY board (0 SEVERE).

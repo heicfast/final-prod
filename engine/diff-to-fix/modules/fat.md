@@ -376,3 +376,32 @@ Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
   or dropped files on the torn-high-word deleted population. Distinct from N-172 (the
   first-CHAR naming) and M-130 (the dentry shape validator); N-201's landing (the media-word
   re-flavor) does not touch this seam. Evidence: `s79-lead-verification.md` §A.
+
+## S80 addendum — S-068 FIXED: the deleted FAT32 high-16 re-base (2026-10-29)
+
+**The last-good-hint machinery landed (the SEVERE tier closes).** All
+three og sites verified first-hand before the fix (:13753-13758 the
+hint update, :14753-14755 the low-16 re-base, :14826-14848 the deleted
+retry + write-back). The landing: EmitCtx.last_good_first_cluster —
+the scan-global hint (DAT_1800728c8), moved only by successful
+non-directory file walks; the deleted-dentry pre-walk re-base — FAT32
+only, the low-16-only shape (`< 0x10000 && < hint`), the candidate
+`hint_high | dentry_low16` walked before the raw walk, ADOPTED only
+when the re-based cluster's own FAT entry is live (the og's
+walk-confirmation gate — a FREE entry at the re-based cluster is the
+unlinked shape and never adopts); the adopted emission stamps the
+repaired pair as the origin cluster (the og's in-memory dentry repair
++0x14/+0x1a), carries the assumed/inferred provenance (never
+Excellent), and counts in FatScanStats.high16_rebased. The failed
+re-based walk falls back to the raw dentry value (the og's first-leg
+behavior; GAP-S6-2 still applies on the raw path). Open refinements
+recorded in the finding's S80 addendum: the og's hint-update
+refinement gate (param_5 undecoded) and the retry leg's distinct
+target (undecodable from the walk's return-on-failure; the pre-walk
+re-base covers the population). Tests: DeletedHigh16ZeroRebasesFromHint
+(the true-chain extent + the repaired origin stamp + PartialRisk) /
+DeletedHigh16RebaseFallsBackToRawWalk (FREE at the re-based cluster:
+no adoption, the raw walk decides) / LastGoodHintUpdatesOnlyOnFileWalks
+(a directory dentry between the anchor and the torn file never
+clobbers the hint) / FAT16NoRebase (the flavor gate). RED first-hand
+via the stash dance; suite 1604/1604.
