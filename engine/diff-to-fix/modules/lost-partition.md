@@ -383,3 +383,21 @@ The finding's dedup-consumer scenario is architecturally unreachable as
 literally stated (a deep-rerun resume REPLACES the restored list; the fresh
 pass self-dedups on its own anchored extents); the RestoredWindowMatchesFreshDiscovery
 pin holds the restored window to the fresh-derived equivalent.
+
+## S70 lane (2026-10-29): N-200 landed
+
+**N-200 FIXED** — the NTFS candidate acceptance now requires positive MFT
+evidence exactly as the og's classifier (PartitionRecoveryD FUN_180011150
+:9889-9906 → FUN_180011560 :10023-10075): the BPB-valid path's record-0
+probe runs primary-first, then the og-exact $MFTMirr re-read; both legs
+failing drops the candidate as noise (the og's 0xfffffff1 slot) — a forged
+OEM with a plausible BPB no longer surfaces. Mirror-only acceptance carries
+the `mft-mirror-probe` evidence label and the mirror-blind strong-probe
+bonus (fs_bonus). The A30 scoring row's model is unchanged (15/25/30 + the
+content model); what changed is the acceptance DIRECTION (score-and-keep →
+require-evidence-or-drop), which the B3 false-positive row now carries as
+MATCH. The boot-pair arm (FUN_180011260's field set) stays deferred on the
+finding's own open question (its slot writes the same 0xfffffff1 as the
+both-fail arm — backup-DBR dedup reading, getter decode pending). RED→GREEN:
+ForgedOemNoMftEvidenceRejected / TornPrimaryMftMirrorEvidenceScored /
+HealthyCandidateMftEvidenceUnchanged; suite 1425/1425.

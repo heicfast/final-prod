@@ -10019,6 +10019,46 @@ the discovered-divergence rule (new finding + fix in the same session).
 decision), M-075/M-078 (chkdsk + BitLocker turn-off), M-073 (scan-time folder
 filter), M-101 (Versions/Tags nodes), M-107 (the carve size-walk batch), then
 the 9 fixable MINORs, then the tracked-open set.
+
+---
+
+## Session-70 S70 lane — the MINOR-first fix lane (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-70-diff-fix-prompt.md`. The user's directive: fix all audit
+findings, **MINOR-first**, 20+ fixes this session. Opening HEAD `3799dee2`
+→ post-fetch rebase to `449fc594` (the S70/S71/S72 racing windows absorbed;
+this lane's own matrix trail-repair seat conceded to the N-210 equivalent
+landing per SA-9 — the racing lane's repair preserved the same rows and
+added the S71 lane row). Corpus `be0cfe9` throughout. Baseline suite re-run
+green first-hand on the moved tree: 1422 tests / 1380 pass / 42 Win-skips /
+0 fail.
+
+**Board at open (re-counted from the filesystem): 0 ACUTE · 0 SEVERE ·
+17 MAJOR · 11 MINOR · 0 INFO active / 156 FIXED / 4 tracked-open.**
+
+### N-200 — FIXED (the lost-scan NTFS candidate acceptance)
+
+`fix(lostpart): N-200 — the MFT-evidence requirement with the $MFTMirr retry`
+
+- Corpus re-verified first-hand: FUN_180011150 (:9889-9906 the classifier's
+  three-arm structure) + FUN_180011560 (:10023-10075 the 4×record-size read,
+  FUN_180011440 validation, the mirror re-read at FUN_180011b30's LCN).
+- probe_ntfs's BPB-valid path: record-0 probe as a soft requirement —
+  primary first, then the og-exact mirror re-read; both failing → -100 noise
+  drop (the og's 0xfffffff1 reject slot). Mirror-only success: +30 with the
+  `mft-mirror-probe` evidence label. fs_bonus's strong branch accepts both
+  labels (the og's acceptance is mirror-blind).
+- RED pre-fix: ForgedOemNoMftEvidenceRejected + TornPrimaryMftMirrorEvidenceScored
+  (2 failures proving the defect); control HealthyCandidateMftEvidenceUnchanged
+  green before and after. GREEN post-fix; suite 1425/1425 (1383 pass +
+  42 Win-skips, 0 fail).
+- Trail: findings/FIXED/N-200 (Resolution) + ledger row + matrix cell MATCH
+  + modules/lost-partition.md S70 addendum + SUMMARY S70 head.
+- Deferred with cause: the boot-pair arm (FUN_180011260's field set — its
+  arm writes the same 0xfffffff1 slot value as the both-fail arm, a
+  backup-DBR dedup reading; the FUN_180011bb0/bd0 getter decode is the next
+  concrete step, recorded in the finding's Resolution notes).
 ---
 
 ## Session-73 S73 (2026-10-29 — the MAJOR-first continuation fix lane)

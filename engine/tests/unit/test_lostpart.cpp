@@ -192,6 +192,123 @@ TEST(LostDiscovery, OverlapClassification) {
     EXPECT_EQ(classify_overlap(900, 800, known), Overlap::Contains);
 }
 
+/* ---- N-200: the og's lost-scan NTFS acceptance requires positive MFT
+ * evidence (PartitionRecoveryD FUN_180011150 :9889-9906: the classifier
+ * rejects into the 0xfffffff1 slot when FUN_180011560's 4-record read
+ * validates NEITHER at the primary $MFT LCN NOR at the $MFTMirr retry
+ * :10023-10075). A forged OEM with a plausible BPB surfaces no candidate;
+ * a torn-primary volume with an intact mirror surfaces WITH the mirror
+ * evidence label. The record-0 probe is a soft requirement: primary
+ * first, mirror retry, reject only when both fail. ---- */
+
+/* a standalone MFT record plant (the record-planting half of plant_ntfs,
+ * split out so the mirror-retry fixtures can target an arbitrary LBA) */
+void plant_mft_record(std::vector<u8>& img, u64 abs_lba) {
+    const u64 rec_off = abs_lba * 512;
+    put32v(img, rec_off + 0, 0x454C4946); /* 'FILE' */
+    put16(img, rec_off + 4, 0x30);        /* USA offset */
+    put16(img, rec_off + 6, 3);           /* USA size: 2+1 */
+    put16(img, rec_off + 8, 1);           /* sequence */
+    put16(img, rec_off + 0x14, 0x38);     /* attribute offset */
+    put16(img, rec_off + 0x18, 1);        /* in-use */
+    put32v(img, rec_off + 0x1C, 1024);
+    put32v(img, rec_off + 0x20, 1024);
+    put32v(img, rec_off + 0x2C, u32(0));
+    /* USA slots: USN, orig0, orig1 */
+    put16(img, rec_off + 0x30, 0x1234);
+    put16(img, rec_off + 0x32, 0xAAAA);
+    put16(img, rec_off + 0x34, 0xBBBB);
+    /* tails carry the USN */
+    img[rec_off + 510] = 0x34;
+    img[rec_off + 511] = 0x12;
+    img[rec_off + 1022] = 0x34;
+    img[rec_off + 1023] = 0x12;
+}
+
+/* one NTFS boot sector at 2048 with a coherent BPB (mft_lcn 100,
+ * mftmirr_lcn 108, volume-relative) and record plants under the
+ * caller's control: primary / mirror / neither */
+std::vector<u8> build_ntfs_mft_evidence_disk(bool plant_primary, bool plant_mirror) {
+    std::vector<u8> img(u64(4096) * 512, 0); /* 2 MiB disk */
+    const u64 lba = 2048;
+    u8* b = img.data() + lba * 512;
+    std::memcpy(b + 3, "NTFS    ", 8);
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = 1; /* spc */
+    b[0x15] = 0xF8;
+    put64(img, lba * 512 + 0x28, 1024);
+    put64(img, lba * 512 + 0x30, 100);
+    put64(img, lba * 512 + 0x38, 108);
+    b[0x40] = 2; /* clusters/record: 1024B */
+    b[0x44] = 2;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    if (plant_primary)
+        plant_mft_record(img, lba + 100);
+    if (plant_mirror)
+        plant_mft_record(img, lba + 108);
+    return img;
+}
+
+TEST(LostPart, ForgedOemNoMftEvidenceRejected) {
+    /* forged OEM + plausible BPB + NO MFT record at either LCN: the og's
+     * classifier rejects (both FUN_180011560 legs fail) - nothing surfaces */
+    auto img = build_ntfs_mft_evidence_disk(false, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    for (const auto& c : r.candidates)
+        EXPECT_NE(c.start_lba, 2048u)
+            << "forged OEM with no MFT evidence must not surface a candidate";
+}
+
+TEST(LostPart, TornPrimaryMftMirrorEvidenceScored) {
+    /* torn primary $MFT + intact mirror: the og's mirror retry accepts;
+     * the candidate surfaces with the mirror evidence label */
+    auto img = build_ntfs_mft_evidence_disk(false, true);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* c2048 = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 2048)
+            c2048 = &c;
+    ASSERT_NE(c2048, nullptr) << "torn primary + valid mirror must surface";
+    EXPECT_EQ(c2048->fs, CandidateFs::Ntfs);
+    EXPECT_EQ(c2048->structural_points, 70); /* 15 boot + 25 bpb + 30 mirror */
+    bool mirror_tag = false;
+    for (const auto& e : c2048->evidence)
+        if (std::string_view(e.tag) == "mft-mirror-probe")
+            mirror_tag = true;
+    EXPECT_TRUE(mirror_tag) << "mirror-validated acceptance carries its evidence label";
+    EXPECT_EQ(c2048->score, 1000) << "the og's acceptance is mirror-blind: the "
+                                     "strong-probe bonus applies";
+}
+
+TEST(LostPart, HealthyCandidateMftEvidenceUnchanged) {
+    /* control: the primary record-0 probe path is unchanged (label + score) */
+    auto img = build_ntfs_mft_evidence_disk(true, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* c2048 = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 2048)
+            c2048 = &c;
+    ASSERT_NE(c2048, nullptr);
+    EXPECT_EQ(c2048->structural_points, 70);
+    bool primary_tag = false, mirror_tag = false;
+    for (const auto& e : c2048->evidence) {
+        if (std::string_view(e.tag) == "mft-probe")
+            primary_tag = true;
+        if (std::string_view(e.tag) == "mft-mirror-probe")
+            mirror_tag = true;
+    }
+    EXPECT_TRUE(primary_tag);
+    EXPECT_FALSE(mirror_tag);
+    EXPECT_EQ(c2048->score, 1000);
+}
+
 /* ---- GAP-S6-6: TWO deleted NTFS partitions must BOTH surface ----
  *
  * Bench run 40073093997 delete_partition: the deep tree carried only

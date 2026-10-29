@@ -1,3 +1,23 @@
+# SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-70 S70 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `449fc594` (rebased over `2fb0cb95` — the S72/S73/S75 racing windows' M-136 + M-144 absorbed) (the S70/S71/S72 racing audit/repair windows absorbed at the reset; the trail-repair seat conceded to N-210's equivalent landing per SA-9; baseline suite 1422 tests / 1380 pass / 42 Win-skips / 0 fail re-run green on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
+
+- **N-200 FIXED (MINOR)** — the lost-scan NTFS candidate acceptance now
+  requires positive MFT evidence with the $MFTMirr retry exactly as the og's
+  classifier (FUN_180011150 :9889-9906 → FUN_180011560 :10023-10075, both
+  corpus sites re-read first-hand at the fix): the record-0 probe runs
+  primary-first, then the og-exact mirror re-read; both legs failing drops
+  the forged-OEM candidate as noise (the og's 0xfffffff1 slot). Mirror-only
+  acceptance carries the `mft-mirror-probe` label + the mirror-blind
+  strong-probe bonus. RED→GREEN: ForgedOemNoMftEvidenceRejected /
+  TornPrimaryMftMirrorEvidenceScored / HealthyCandidateMftEvidenceUnchanged;
+  suite 1425/1425. The boot-pair arm stays deferred on the finding's own
+  open question (FUN_180011260's getter pair).
+
+**Board after this landing (rebased over the racing S71/S72/S73 lanes'
+N-210 + M-136 + M-144): 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR · 0 INFO
+active / 160 FIXED / 4 tracked-open** (N-107/N-127 + M-086/M-087/M-089
+driver-repo-resident per OQ-S10-3).
 # SUMMARY.md — executive summary (the S72 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-72 S72 fix-lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `bbbe78b2` (the S71 seat conceded to the racing N-210 repair lane per SA-9; baseline suite 1503/1503 green re-run on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)

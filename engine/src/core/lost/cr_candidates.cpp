@@ -94,20 +94,53 @@ int probe_ntfs(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     ntfs::VolumeParams vp;
     if (ntfs::validate_boot_sector(*bs, disk->geometry(), vp) == OK) {
         pts += 25;
-        /* $MFT probe (volume-relative -> absolute on the disk) */
+        /* N-200 (diff-to-fix): the og's lost-scan NTFS acceptance requires
+         * POSITIVE MFT evidence — the classifier FUN_180011150
+         * (PartitionRecoveryD :9889-9906) rejects into the 0xfffffff1 slot
+         * when FUN_180011560's record read validates NEITHER at the
+         * primary $MFT LCN NOR at the $MFTMirr retry (:10023-10075: the
+         * primary 4-record read, FUN_180011440 validation, then the
+         * identical read re-issued at FUN_180011b30's +0x38 mirror LCN).
+         * The record-0 probe is now a soft requirement: primary first,
+         * mirror retry, reject only when BOTH fail. The mirror acceptance
+         * is evidence-labeled (mft-mirror-probe) and scores identically —
+         * the og's FUN_180011560 return does not distinguish the leg. */
+        bool mft_evidence = false;
+        bool from_mirror = false;
         std::vector<u8> rec;
         rec.resize(size_t(vp.record_size));
-        u64 off = boot_lba * disk->geometry().logical_sector + vp.mft_lcn * vp.cluster_bytes;
+        const u64 vol_base = boot_lba * disk->geometry().logical_sector;
+        /* primary $MFT probe (volume-relative -> absolute on the disk) */
+        u64 off = vol_base + vp.mft_lcn * vp.cluster_bytes;
         if (disk->read_at(off, rec.data(), u32(rec.size())) == OK) {
             ntfs::RecordHeader rh;
             std::memcpy(&rh, rec.data(), sizeof(rh));
             if (rh.magic == ntfs::RECORD_MAGIC_FILE &&
                 ntfs::fixup_apply(rec.data(), u32(rec.size()), rh.update_sequence_offset,
                                   rh.update_sequence_size, vp.sector_bytes) == OK) {
-                pts += 30; /* $MFT alive: very strong */
-                c.evidence.push_back({"mft-probe", 30});
+                mft_evidence = true;
             }
         }
+        if (!mft_evidence) {
+            /* the og's mirror retry: the same record-0 shape at the
+             * $MFTMirr LCN (the og bounds neither LCN — a failed read
+             * simply fails; read_at enforces the device bound) */
+            const u64 mirr_off = vol_base + vp.mftmirr_lcn * vp.cluster_bytes;
+            if (disk->read_at(mirr_off, rec.data(), u32(rec.size())) == OK) {
+                ntfs::RecordHeader rh;
+                std::memcpy(&rh, rec.data(), sizeof(rh));
+                if (rh.magic == ntfs::RECORD_MAGIC_FILE &&
+                    ntfs::fixup_apply(rec.data(), u32(rec.size()), rh.update_sequence_offset,
+                                      rh.update_sequence_size, vp.sector_bytes) == OK) {
+                    mft_evidence = true;
+                    from_mirror = true;
+                }
+            }
+        }
+        if (!mft_evidence)
+            return -100; /* the og's reject slot: no positive MFT evidence */
+        pts += 30;       /* $MFT alive (primary or mirror): very strong */
+        c.evidence.push_back({from_mirror ? "mft-mirror-probe" : "mft-probe", 30});
         /* length from DBR, bounded by the device */
         u64 sectors = vp.total_clusters * vp.cluster_bytes / vp.sector_bytes;
         c.sector_count = sectors;
@@ -781,9 +814,13 @@ void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cance
 u64 fs_bonus(const Candidate& c) {
     switch (c.fs) {
     case CandidateFs::Ntfs:
-        /* observed 60 (all probes strong) / 30 (partial) */
+        /* observed 60 (all probes strong) / 30 (partial). N-200: the
+         * mirror-validated leg counts strong — the og's FUN_180011560
+         * return does not distinguish primary from mirror acceptance. */
         for (const auto& e : c.evidence)
-            if (c.evidence.size() >= 3 && std::string_view(e.tag) == "mft-probe")
+            if (c.evidence.size() >= 3 &&
+                (std::string_view(e.tag) == "mft-probe" ||
+                 std::string_view(e.tag) == "mft-mirror-probe"))
                 return 60;
         return 30;
     case CandidateFs::Fat:
