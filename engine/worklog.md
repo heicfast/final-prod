@@ -9533,3 +9533,22 @@ scripts); local baseline built and run: **1380 tests, 1338 passed, 0 failed,
 85 skipped (environment-conditional)** — the never-push-a-red-commit
 baseline. Board at lane start: 48 active (1 SEVERE · 23 MAJOR · 22 MINOR ·
 2 INFO) / 136 FIXED / 4 tracked-open.
+
+
+## Session-58 lane — I-045 landed (the INFORMATIONAL-first pass) (2026-10-29)
+
+**I-045 FIXED (ACKNOWLEDGED).** The ext4 unwritten-extent `ee_len` non-adoption
+register (batch #3). Independently verified both sides before the change: the
+og's raw multiply re-read first-hand at EXT4SearchDLL
+`EXT4SearchDLL_decompiled.c:4044-4048` (both forms: the CONCAT24 product and the
+`(ushort)psVar5[-2] * block_size` product — zero unwritten-bit tests in the
+walk family), and the core's kernel-exact decode confirmed at
+`cr_ext4_engine.cpp:346-350` (`raw_len > 0x8000 ? (raw_len & 0x7FFF) :
+raw_len`). The landing: PARITY-DELTAS **D-141** (next-free after D-140, gate
+check 5 green — 136 unique D-rows) + the anti-down-fix pin
+`Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect` (ee_len 0x8005 → exactly 5
+blocks, 0x8001 → exactly 1 block, offsets pinned) — **RED-proven load-bearing**
+(the og's raw form substituted temporarily: the pin FAILS; restored: PASSES).
+No production code change (the core is the registered deliberate non-adoption).
+Trail: findings/FIXED/I-045 (Resolution + moved) + FIXED-LEDGER row +
+modules/ext4.md ACKNOWLEDGED + SUMMARY S58 block + this entry.

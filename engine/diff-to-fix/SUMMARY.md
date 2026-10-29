@@ -84,6 +84,19 @@ tracked-open; FIXED archive 140.
 ---
 
 # SUMMARY.md — executive summary (the S52-B severe-first convergence lane (prior); the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S52-B severe-first convergence lane on top; the prior lanes below, newest-first)
+## Session-58 S58 lane delta (2026-10-29 — the diff-to-fix execution lane; opened on `98a5b139`, corpus `be0cfe9`; the user's ordering override: INFORMATIONAL first, one finding one push)
+
+**I-045 FIXED (ACKNOWLEDGED — the INFORMATIONAL-first pass's first landing):** the
+ext4 unwritten-extent `ee_len` og-defect non-adoption register (batch #3, the
+I-026/I-040/D-123 family) landed as PARITY-DELTAS **D-141** with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+(**RED-proven**: temporarily adopting the og's raw-multiply form —
+EXT4SearchDLL FUN_180005670 :4044-4048, both multiply forms re-read first-hand —
+fails the pin; the kernel-correct decode `raw_len > 0x8000 ? (raw_len & 0x7FFF)
+: raw_len` passes). No production code change — the core's decode is the
+registered deliberate non-adoption. findings/FIXED/I-045 + the ledger row +
+modules/ext4.md ACKNOWLEDGED.
 
 ## Session-52-B S52-B convergence-lane delta (2026-10-29 — the severe-first diff-to-fix execution lane; opened on `659f0f6c`, absorbed the S45..S59 hot windows at the rebase; corpus `be0cfe9`)
 
