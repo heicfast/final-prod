@@ -135,9 +135,23 @@ struct ProgressDisplay {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
                             .count();
-        wprintf(L"\r  %5.1f%%  (%lld s)   ", pct, static_cast<long long>(ms) / 1000);
+        /* M-126: the og's remaining-time label beside the elapsed time
+         * (FUN_1401af410's whole-run model + the "XmYs" render; the
+         * empty-label placeholder is the og's literal "3m00s") */
+        const query::EtaModel em =
+            query::eta_compute(permille, 1000ull, u64(ms), prev_rate, false, 0);
+        prev_rate = em.smoothed_rate;
+        wchar_t eta[32] = L"";
+        if (em.eta_seconds > 0) {
+            const std::string m126 = query::eta_format_m_s(em.eta_seconds);
+            std::mbstowcs(eta, m126.c_str(), 31);
+        }
+        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct,
+                static_cast<long long>(ms) / 1000,
+                em.eta_seconds > 0 ? eta : L"3m00s");
         return true;
     }
+    u64 prev_rate = 0;
     /* Success summary only - a failed/cancelled run must never print
      * "100.0% done" (AUDIT-ARCH F-B-15). */
     void done() { wprintf(L"\r  100.0%%  done          \n"); }

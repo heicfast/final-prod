@@ -532,6 +532,14 @@ struct ScanTelemetrySnapshot {
     u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
+    /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
+     * from (overall_permille, elapsed_ms) through the whole-run leg
+     * with the EMA-smoothed rate carried between snapshots; -1 = no
+     * estimate yet (the parameter-error or eta<=0 class). Hosts render
+     * og-faithful labels with query::eta_format_m_s + the countdown
+     * pair, no state of their own. */
+    long long eta_seconds = -1;
+    u64 eta_smoothed_rate = 0;
     bool paused = false;
     bool running = false;
     bool cancelled = false;
@@ -707,6 +715,7 @@ private:
         std::chrono::steady_clock::time_point run_t0{};
         std::chrono::steady_clock::time_point stage_t0{};
         u64 stage_pause_base = 0; /* run-wide paused_ms() at stage start */
+        u64 eta_prev_rate = 0;    /* M-126: the EMA state between snapshots */
     };
     /* Engine->stage progress bridge context (raw fn-pointer trampoline). */
     struct StageBridge {

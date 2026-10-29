@@ -5,6 +5,8 @@
 
 #include "cr/query/cr_query.h"
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 
@@ -605,6 +607,75 @@ double progress_display_percent(u32 message_type, u64 done, u64 total) {
 
 double progress_display_publish(double current, double next) {
     return next > current ? next : current; /* the monotonic guard */
+}
+
+/* ---- M-126: the og's ETA model (FUN_1401af410, DRWUI :314835-314887) ---- */
+
+EtaModel eta_compute(unsigned long long done, unsigned long long total,
+                     unsigned long long elapsed_ms, unsigned long long prev_smoothed,
+                     bool time_budget_variant, unsigned long long budget_seconds) {
+    EtaModel out;
+    /* FUN_1401af410's opening gate: done == 0, total < done, or
+     * total == 0 -> -1 (no estimate) */
+    if (done == 0 || total < done || total == 0)
+        return out;
+    const long long eta_s =
+        (long long)(((total - done) * elapsed_ms) / done / 1000ull);
+    if (eta_s <= 0)
+        return out; /* the og: no positive estimate -> the field keeps -1 */
+    long long rate = (long long)((total - done) / (unsigned long long)eta_s);
+    if (prev_smoothed != 0)
+        rate = (rate * 2 + (long long)prev_smoothed * 8) / 10; /* EMA 0.2/0.8 */
+    out.smoothed_rate = (unsigned long long)rate;
+    if (!time_budget_variant) {
+        out.eta_seconds = eta_s; /* the type-0 leg: the plain whole-run ETA */
+        return out;
+    }
+    /* the time-budget variant (:314873-314883): projected whole-run
+     * seconds, floored at 1, then the remaining budget scaled by 0.6 */
+    long long elapsed_s = (long long)(elapsed_ms / 1000ull);
+    long long projected = (long long)((total * (unsigned long long)elapsed_s) / done);
+    if (projected == 0)
+        projected = 1;
+    out.eta_seconds =
+        (long long)(((double)((long long)budget_seconds -
+                              (long long)budget_seconds * elapsed_s / projected)) *
+                    0.6);
+    return out;
+}
+
+std::string eta_format_m_s(long long seconds) {
+    if (seconds < 0)
+        return "3m00s"; /* the og's empty-label placeholder literal (:1527664) */
+    const long long m = seconds / 60;
+    const long long sec = seconds % 60;
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%02lldm%02llds", m, sec);
+    return std::string(buf);
+}
+
+long long eta_countdown_tick(const std::string& label) {
+    /* the og's section parse: minutes = the part before 'm', seconds =
+     * the part between 'm' and 's' (the leading zero padding and the
+     * countdown's unpadded re-render both parse) */
+    const size_t m = label.find('m');
+    const size_t sc = label.find('s');
+    if (m == std::string::npos || sc == std::string::npos || m == 0 || m + 1 >= sc)
+        return -1;
+    const std::string mpart = label.substr(0, m);
+    const std::string spart = label.substr(m + 1, sc - m - 1);
+    char* mend = nullptr;
+    char* send = nullptr;
+    const long long minutes = std::strtoll(mpart.c_str(), &mend, 10);
+    const long long seconds = std::strtoll(spart.c_str(), &send, 10);
+    if (mend == mpart.c_str() || send == spart.c_str())
+        return -1; /* non-numeric sections do not parse */
+    /* the og's stop condition: minutes*60 - 1 + seconds < 0 (the
+     * countdown reached zero -> FUN_1409cb4e0 stops the slot) */
+    const long long total = minutes * 60 + seconds;
+    if (total - 1 < 0)
+        return -1;
+    return total - 1;
 }
 
 } // namespace query

@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/query/cr_query.h"
 #include "cr/orchestrator/cr_vollabel.h"
 
 #include <algorithm>
@@ -694,6 +695,18 @@ ScanTelemetrySnapshot ScanController::telemetry() const {
     }
     if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
         out.errors.merge(rd->error_map_copy());
+    /* M-126: the og's ETA model on every snapshot read (the og computes
+     * it on every progress message, FUN_1401af410): the whole-run leg
+     * over (permille, elapsed) with the EMA state carried between
+     * reads - the time-budget variant is the type-gated display-side
+     * leg hosts opt into via query::eta_compute directly. */
+    {
+        const query::EtaModel em = query::eta_compute(
+            out.overall_permille, 1000ull, out.elapsed_ms, tel_.eta_prev_rate, false, 0);
+        out.eta_seconds = em.eta_seconds;
+        out.eta_smoothed_rate = em.smoothed_rate;
+        tel_.eta_prev_rate = em.smoothed_rate;
+    }
     return out;
 }
 
