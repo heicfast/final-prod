@@ -1100,6 +1100,15 @@ TEST(CrUi, AutoSaveSkipsEmptyResults) {
     uint32_t n = 99;
     ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
     EXPECT_EQ(n, 0u) << "no auto session file for a nothing-found run";
+    /* close the scan and the device BEFORE the teardown remove_all: a
+     * live handle to blank.img blocks the delete on Windows (POSIX
+     * unlinks fine - the release-27 catch: the remove_all threw and the
+     * whole test reported as failed). The handles are nulled after the
+     * explicit close so Ui's own destructor does not double-close them. */
+    cr_ui_scan_close(u.scan);
+    cr_ui_device_close(u.dev);
+    u.scan = nullptr;
+    u.dev = nullptr;
     std::filesystem::remove_all(dir);
 }
 
@@ -1399,11 +1408,14 @@ TEST(CrUi, SessionListOgTimeOrdering) {
 
     /* the isolated listing dir: the OLDER session under the path-first
      * name, the NEWER under the path-last name (path order and time
-     * order disagree BY CONSTRUCTION) */
+     * order disagree BY CONSTRUCTION). The expected paths are built in
+     * the NATIVE separator (std::filesystem::path): the listing rows are
+     * native-joined and the '/'-joined form is a Linux-only compare (the
+     * release-27 catch - three session-list pins Windows-red on it) */
     const std::string dir = cr_test::tmp_path("cr_ui", "_n116_order");
     std::filesystem::create_directories(dir);
-    const std::string aa = dir + "/aa_older.crsf";
-    const std::string zz = dir + "/zz_newer.crsf";
+    const std::string aa = (std::filesystem::path(dir) / "aa_older.crsf").string();
+    const std::string zz = (std::filesystem::path(dir) / "zz_newer.crsf").string();
     ASSERT_TRUE(
         std::filesystem::copy_file(crsf1, aa, std::filesystem::copy_options::overwrite_existing));
     ASSERT_TRUE(
@@ -1437,9 +1449,9 @@ TEST(CrUi, SessionListTieBreakDeterministic) {
     ASSERT_TRUE(scan_to_session("tie", u, img, crsf));
     const std::string dir = cr_test::tmp_path("cr_ui", "_n116_tie");
     std::filesystem::create_directories(dir);
-    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/bb.crsf",
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, (std::filesystem::path(dir) / "bb.crsf").string(),
                                            std::filesystem::copy_options::overwrite_existing));
-    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/aa.crsf",
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, (std::filesystem::path(dir) / "aa.crsf").string(),
                                            std::filesystem::copy_options::overwrite_existing));
     uint32_t n = 0;
     ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
@@ -1447,8 +1459,8 @@ TEST(CrUi, SessionListTieBreakDeterministic) {
     std::vector<cr_ui_session_row> rows(n);
     uint32_t cap = n;
     ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
-    EXPECT_EQ(std::string(dir) + "/aa.crsf", rows[0].path);
-    EXPECT_EQ(std::string(dir) + "/bb.crsf", rows[1].path);
+    EXPECT_EQ((std::filesystem::path(dir) / "aa.crsf").string(), rows[0].path);
+    EXPECT_EQ((std::filesystem::path(dir) / "bb.crsf").string(), rows[1].path);
     EXPECT_EQ(rows[0].save_unix, rows[1].save_unix);
     std::filesystem::remove_all(dir);
 }
@@ -1547,22 +1559,27 @@ TEST(CrUi, SessionListScopeSupersetPinsAutoAndManual) {
     ASSERT_TRUE(scan_to_session("scope", u, img, crsf));
     const std::string dir = cr_test::tmp_path("cr_ui", "_scope_superset");
     std::filesystem::create_directories(dir);
-    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/auto_test_10_14_23_13_21.crsf",
-                                           std::filesystem::copy_options::overwrite_existing));
-    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/manual-save.crsf",
-                                           std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(std::filesystem::copy_file(
+        crsf, (std::filesystem::path(dir) / "auto_test_10_14_23_13_21.crsf").string(),
+        std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(
+        std::filesystem::copy_file(crsf, (std::filesystem::path(dir) / "manual-save.crsf").string(),
+                                   std::filesystem::copy_options::overwrite_existing));
     uint32_t n = 0;
     ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
     ASSERT_EQ(n, 2u);
     std::vector<cr_ui_session_row> rows(n);
     uint32_t cap = n;
     ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    const std::string auto_path =
+        (std::filesystem::path(dir) / "auto_test_10_14_23_13_21.crsf").string();
+    const std::string manual_path = (std::filesystem::path(dir) / "manual-save.crsf").string();
     const cr_ui_session_row* auto_row = nullptr;
     const cr_ui_session_row* manual_row = nullptr;
     for (const auto& r : rows) {
-        if (std::string(r.path) == dir + "/auto_test_10_14_23_13_21.crsf")
+        if (std::string(r.path) == auto_path)
             auto_row = &r;
-        if (std::string(r.path) == dir + "/manual-save.crsf")
+        if (std::string(r.path) == manual_path)
             manual_row = &r;
     }
     ASSERT_NE(auto_row, nullptr);
