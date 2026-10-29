@@ -3141,12 +3141,21 @@ BCD restore.
 onward (the Win7-inclusive import gate), and Win7 boots through BCD — a
 legacy ARC-path repair has no recovery-relevant consumer in the envelope
 (the finding's own fix-plan note, adopted verbatim as the registered
-rationale). The chkdsk delegation stays OUT OF CORE: spawning an external
-binary is the host's job (the og itself spawns it from the host-side undo
-chain); the core's contract ends at the byte-exact undo record the host
-acts on. Stage (a) — the BCD offset rewriter — IS ported (cr/bcdfix, the
-consent-gated plan/execute/undo core); stage (b) — the UEFI NVRAM updater
-— is the recorded next step on the finding.
+rationale). ~~The chkdsk delegation stays OUT OF CORE~~ — **SUPERSEDED BY M-075
+(2026-10-30)**: the escalation endpoint IS in core now — `cr/win/fsck::
+fsck_volume` + the `cr_ui_fsck_volume` ABI export + the `fix --chkdsk C:`
+CLI leg launch Windows chkdsk on a volume (elevated, synchronous with a
+documented 15-minute bound, WoW64-native via the redirection disable that
+realizes the og's IsWow64Process branch, the loud refusal on absent
+volumes). The direct `chkdsk.exe <vol> /f` form is the corpus-grounded
+base the og's WinChkdsk.exe wrapper itself delegates to (per-binary/
+WinChkdsk.md:28); the wrapper's own 5 arguments remain undecoded (M-075's
+open question — reconcile on a future decode). The host's post-undo
+invocation of this endpoint (the og's MM:83206 `ChkDsk.exe %C: /F /X`
+shape) remains a host-side orchestration choice; the CORE-side rung of
+the ladder exists and is testable. Stage (a) — the BCD offset rewriter —
+IS ported (cr/bcdfix, the consent-gated plan/execute/undo core); stage
+(b) — the UEFI NVRAM updater — is the recorded next step on the finding.
 
 
 **N-122 addendum — the NVRAM Boot#### create/delete halves are deliberately

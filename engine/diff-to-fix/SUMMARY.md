@@ -80,6 +80,18 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-075 FIXED (MAJOR, the escalation endpoint):** the check ladder's
+  fix rung landed — the pure grammar (the two postures of the guidance
+  string, cross-platform/Linux-tested), the win-layer launch (elevated,
+  synchronous with the documented 15-minute bound, WoW64-native via the
+  redirection disable that realizes the og's IsWow64Process branch, the
+  loud refusal on absent volumes), the `cr_ui_fsck_volume` ABI export
+  #92 (all five count sites refreshed — the A-ABI-3 class swept in the
+  same change), the `fix --chkdsk C:` CLI leg (the three-site lock),
+  D-90 rewritten to the superseded posture, R-65 closed to PRESENT. The
+  og's exact 5 arguments to WinChkdsk.exe stay undecoded (honestly
+  registered; the direct chkdsk.exe form is the corpus-grounded base).
+
 - **The racing window's same-window closures absorbed at the rebase:**
   M-111 (D-158 scope decision), M-114 (D-159 posture decision), M-154
   (the lifecycle + the hardening rider), I-048 (ACKNOWLEDGED, D-155
@@ -88,8 +100,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after this landing (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 8 MAJOR · 2 MINOR · 0 INFO active / 196 FIXED / 4
+**Board after M-075 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 7 MAJOR · 2 MINOR · 0 INFO active / 197 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3

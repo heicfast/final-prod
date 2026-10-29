@@ -1593,6 +1593,26 @@ CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
 CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                       cr_ui_recovery_progress_fn progress, void* user);
 
+/* M-075 (diff-to-fix): the check-phase escalation endpoint — launch
+ * Windows chkdsk on the volume mounted at `letter` ('A'..'Z'; the
+ * narrow ASCII form of the win layer's wide seam).
+ *   flags: 0 = check posture (chkdsk X:), 1 = fix posture (chkdsk X: /f)
+ *     — the guidance string's two halves (FileSystemCheck.mo
+ *     strings_ascii.txt:126); other bits are ignored for forward
+ *     compatibility.
+ *   exit_code (may be NULL): the RAW chkdsk exit code — 0 no errors, 1
+ *     errors fixed, 2 cleanup/scheduled, 3 errors remain (rerun /f), or
+ *     -1 when the spawn itself failed, 259 when the internal timeout
+ *     (15 min, the documented synchronous bound) left the process
+ *     running.
+ * Returns OK when chkdsk ran (its own verdict is in exit_code),
+ * ERR_BAD_PARAMETER for a non-letter, ERR_OPEN_FAILED when no volume is
+ * mounted at the letter (the loud refusal — never a silent skip),
+ * ERR_UNSUPPORTED when not elevated or on non-Windows lanes.
+ * The escalation ladder: in-engine check (this header's scan-side
+ * pre_scan_check) -> this endpoint -> the host's raw-carve fallback. */
+CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

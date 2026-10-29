@@ -281,7 +281,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-62 health verdicts | `health::grade_smart/grade_nvme` pure seams + CLI verdict print (§a) | PRESENT | Good/Caution-equivalent grading present at C++ level (not a dedicated cr_ui export; verdict derivable from `SmartReport`). |
 | R-63 TRIM chip per row | TRIM state in `cr_ui_health_read` (per disk) | PARTIAL | `cr_ui_enumerate_volumes` carries letter/disk/FVE flag only — **no TRIM/SSD flag in enumeration output** (requires a second health call per disk). |
 | R-64 bad-sector skip visibility | `ERROR_RANGE` events w/ M-049 module/operation/attempts + retry Skip (§b.13) | PRESENT | Equivalent (ours richer: attribution triple). |
-| R-65 disk check | `check::run_fscheck` (M-041) + CLI `fix --check` + `FS_CHECK` event (§a/§c.7) | PARTIAL | FS-level damage audit PRESENT; **external chkdsk launch (WinChkdsk.exe) absent** (deliberate — no chkdsk integration). |
+| R-65 disk check | `check::run_fscheck` (M-041) + CLI `fix --check` + `FS_CHECK` event (§a/§c.7) + the M-075 escalation endpoint: `cr_ui_fsck_volume` ABI + `fix --chkdsk C:` CLI (the direct `chkdsk.exe <vol> /f` form WinChkdsk itself wraps) | PRESENT | The gap closed by M-075 (2026-10-30): the external chkdsk launch is in core, elevated + synchronous + timeout-bounded, WoW64-native (the og's IsWow64Process branch realized as the redirection disable), loud-refusal on absent volumes. The og's WinChkdsk.exe wrapper layer (its .ini config, LogMsg.txt results, VSS coordination) is host-side UI chrome around the same chkdsk — the core's contract is the launch + the raw exit code. |
 
 ### Partition recovery
 

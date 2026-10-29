@@ -28,6 +28,9 @@
  *         [--deleted-only] [--filter s] [--report file.json]
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *         [--chkdsk C:] (the M-075 escalation endpoint: launch Windows
+ *          chkdsk /f on a volume - the fix rung of the check ladder;
+ *          no --disk needed: a volume-letter operation)
  *   apply --disk N --session file.crsf [--candidate N] [--apply]
  *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
  *
@@ -93,6 +96,8 @@
 #include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
+#include "cr/win/cr_fsck.h" /* M-075: the chkdsk escalation endpoint */
+#include "cr/check/cr_fsck_launch.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/crypto/cr_sha256.h"   /* S-040: the digest line */
@@ -3544,6 +3549,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     int part = -1; /* -1 = whole disk (LBA0 view, superfloppy/lost FS) */
     bool apply = false;
     std::wstring undo_path, undo_apply_path;
+    std::wstring chkdsk_vol; /* M-075: the escalation endpoint (fix --chkdsk C:) */
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
@@ -3567,9 +3573,52 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
             ++i;
             continue;
         }
+        if (get_opt(argc, argv, i, L"--chkdsk", &v)) {
+            chkdsk_vol = v;
+            continue;
+        }
         wprintf(L"unknown fix option: %s\n", argv[i]);
         return 1;
     }
+    /* ---- chkdsk mode (M-075): the escalation endpoint ----
+     * A volume-letter operation (no --disk, no driver: the RDA disk
+     * path is not involved; chkdsk itself needs only elevation - the
+     * og's WinChkdsk wrapper runs beside the engine, not under it).
+     * The posture is the FIX form (the fix verb's own family):
+     * chkdsk X: /f, the guidance string's second half. The refusal is
+     * loud: an absent volume or a bad letter prints and exits 2. */
+    if (!chkdsk_vol.empty()) {
+        const wchar_t c0 = chkdsk_vol[0];
+        if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+            wprintf(L"--chkdsk needs a volume letter (e.g. --chkdsk C:)\n");
+            return 1;
+        }
+        const wchar_t letter = chkdsk_vol[0];
+        int32_t exit_code = -1;
+        const u32 rc = cr::win::fsck::fsck_volume(letter, cr::check::fsck_launch::CHKDSK_FIX,
+                                                  900000u, &exit_code);
+        if (rc == ERR_UNSUPPORTED && !cr::win::is_elevated()) {
+            wprintf(L"chkdsk /f needs administrator rights (elevate and retry)\n");
+            return 2;
+        }
+        if (rc != OK) {
+            wprintf(L"cannot launch chkdsk on %c: (rc=%08x %hs)\n", letter, rc, err_text(rc));
+            return 2;
+        }
+        if (exit_code == 259) {
+            wprintf(L"chkdsk still running after the 15-minute bound - it was left to finish "
+                    L"on its own; re-run to read the final state\n");
+            return 0;
+        }
+        wprintf(L"chkdsk %c: exit code %d\n", letter, int(exit_code));
+        if (cr::check::fsck_launch::chkdsk_exit_means_errors_remain(exit_code)) {
+            wprintf(L"the volume still reports errors (chkdsk could not fix them without a "
+                    L"dismount - close open files and re-run)\n");
+            return 3;
+        }
+        return 0;
+    }
+
     if (!have_disk) {
         /* undo-apply also needs the disk: the undo log carries absolute
          * sector offsets for a specific disk. Without this guard,
@@ -3881,6 +3930,9 @@ int wmain(int argc, wchar_t** argv) {
             L"              written; cancel keeps '<out>.partial', never a\n"
             L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov fix --chkdsk C:  (launch Windows chkdsk /f on the volume -\n"
+            L"                           the check ladder's fix endpoint, M-075; no\n"
+            L"                           --disk needed: volume-letter operation)\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
             L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
             L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"

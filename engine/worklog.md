@@ -12931,6 +12931,7 @@ missing struct-layout static pins.
 **Marker state at this entry:** only M-120's sanctioned evidence quotes
 remain (3 lines) — the C-1 opening finding is closed.
 
+<<<<<<< HEAD
 ---
 
 ---
@@ -12966,3 +12967,26 @@ sequence (41, 18467, 6334, 26500 — the first four low bytes). The S-007
 batch's DWG plant re-pinned the CRW way (a real locator map). The carve
 suite 180/180; the full suite **1666/1666**. Trail: M-107's S85 addendum,
 the matrix row, modules/carve.md's S85 addendum 1, this entry.
+=======
+## Session-84 S84 fix-lane — entry 4: M-075 FIXED (2026-10-30)
+
+**M-075 FIXED (MAJOR, the check ladder's fix rung):** the chkdsk
+escalation endpoint. Corpus re-verified first (the decompile's
+:7099/:7134/:7217 launch sites, the WinChkdsk.md:28 wrapper role, the
+strings_ascii.txt:126 two-posture guidance). The landing per the
+finding's own fix plan: the pure grammar seam
+(cr/check/cr_fsck_launch.* — build_chkdsk_command, the letter
+validation, the documented exit classes; FsckVolume.* 3/3 on Linux),
+the win layer (src/win/cr_fsck.cpp — elevated synchronous launch,
+15-minute documented bound, WoW64-native redirection disable, loud
+refusal; FsckWin.* 6-test seam battery on the Windows lane), the ABI
+cr_ui_fsck_volume (export #92 — the five count sites refreshed, the
+doc_truth_gate green), the CLI fix --chkdsk C: (three-site lock; a
+volume-letter op placed outside the driver precondition — the og's
+wrapper runs beside the engine), D-90 rewritten to the superseded
+posture (the doc/code contradiction resolved), R-65 closed PRESENT,
+the CI-SCENARIOS end-to-end row (staged 0x1005 → chkdsk exit 1 →
+re-audit clean). Open residue honest: the og's 5 wrapper arguments
+undecoded (reconcile on a future decode). Board: 7 MAJOR · 2 MINOR
+active / 197 FIXED / 4 tracked-open.
+>>>>>>> ff01708d (fix(check): M-075 — the chkdsk escalation endpoint lands: the check ladder's fix rung (the pure grammar + the win-layer launch + the cr_ui_fsck_volume ABI + the fix --chkdsk CLI))
