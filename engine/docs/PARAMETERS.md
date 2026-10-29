@@ -60,10 +60,6 @@ row cited below where it governs a parameter).
   [--block-kb N] [--iterations N] [--seed N] [--json]` —
   transport/device microbenchmarks (`--no-rda` is REMOVED — the
   driver-only architecture, PLAN-DRIVER-ONLY R10; the parser rejects it).
-
-  transport/device microbenchmarks (the old `--no-rda` flag was removed
-  with the dead-surface cleanup, N-041; the RDA transport is the only
-  path).
 - `list`, `list-carve-formats`, `info` (via bench mode) — read-only.
 - `sessions [--dir D] [--json]` — the saved-session inventory.
 - `archive-list --in file.crsf (--disk N | --image file) --node ID

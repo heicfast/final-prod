@@ -4644,7 +4644,15 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
                 }
             }
             const u8* rec = win.data() + (rec_off - win_base);
-            if (rec[0] != u8(i)) {
+            /* the id-sequence gate: the og compares the id byte against the
+             * FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
+             * id into eax, `cmp %ecx,%eax` with ecx the counter) - so the
+             * walk SELF-LIMITS at 256 records (no byte can match a
+             * counter >= 256). The S86 convergence rider: the u8(i)
+             * truncation of the first landing accepted count>256 fixtures
+             * with wrapped ids the og refuses (FUN_18002f320's loop,
+             * 0x18002f400-0x18002f441). */
+            if (u32(rec[0]) != i) {
                 /* the og's only structural gate: number != index ->
                  * extent 0 (the decline, :36379-83) */
                 return r;
@@ -4662,8 +4670,13 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         u64 end = hit + extent;
         if (end > limit)
             end = limit;
-        if (end - hit < 512)
-            return r;
+        /* the S86 convergence rider: the residual 512-byte floor removed -
+         * the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
+         * factory FUN_18002ff20's qword write at +0x110 - the SAME write
+         * that seeds the walk cursor; the PNG/ONE ctor pattern
+         * [0x22]=min/[0x23]=max), and the og's gen-1 walk has no other
+         * floor: a 21-byte walked extent emits at 21. The 512 floor was
+         * the stand-in era's leftover (the pre-landing code's shape). */
         r.ok = true;
         r.end = end;
         r.confidence = torn ? 550 : 650; /* the torn salvage: reduced */
@@ -4674,7 +4687,14 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     if (gen2) {
         /* ---- gen-2: the rand-XOR struct walk (R2004+) ---- */
         u8 enc[0x6c];
-        if (!rd(s, hit + 0x20, enc, sizeof(enc)))
+        /* the encrypted struct sits at +0x80 BYTES (raw-asm 0x18002f5a0:
+         * `lea rdx,[rdi+0x80]` with rdi = the chunk base, set once at
+         * 0x18002f342 and never reloaded - the misaligned `mov edi` at
+         * 0x18002f596 is the tail byte of `lea rcx,[rbp-0x41]`; the Ghidra
+         * decompile's `param_2 + 0x20` is INT* arithmetic = 0x80 bytes,
+         * the unscaled port repaired against the asm; evidence:
+         * evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md §4) */
+        if (!rd(s, hit + 0x80, enc, sizeof(enc)))
             return r; /* the struct never completes: the extent stays 0 */
         u8 dec[0x6c];
         u32 st = 1; /* the MSVC rand() LCG, seed 1 (FUN_18002f630) */
@@ -5507,12 +5527,26 @@ CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68. The
- * document stream walk is undecoded; the 4-byte key + a nonzero
- * product-version word at +4 carry the gate, bounded extent stands in. */
+/* WPD: the registry binding FF 'W' 'P' 'C' (key 0x435057ff) ->
+ * FileWPDAnalyser idx 0x44 (0x180003cb5-0x180003cbf). M-107 member 6:
+ * the pair-table tier-1 + the declared-size walk, decoded in
+ * validate_wpd below. */
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
+    /* M-107 member 6 (WPD): the og's FileWPDAnalyser walk, decoded
+     * first-hand from the raw asm (the registry binding 'FF WPC' ->
+     * vtable 0x18006cff0 idx 0x44 at 0x180003cb5-0x180003cbf; the
+     * +0x10 slot FUN_180041f50 = the tier-1 pair table + the size in
+     * ONE function - the File*Analyser family shape). The tier-1: the
+     * pair (u32@+8, u32@+0xE) must be one of the three known
+     * {(0x01020a01, 0x00050200) -> id 0x44, (0x00021601, 0x00030000)
+     * -> id 0x45, (0x00010f0f, 0x00030000) -> id 0x3D} (the compare
+     * table at 0x18006ef40, the groups at 0x180041f8a-0x180041fd0); an
+     * unknown pair returns 0 - the DECLINE. The size: **extent =
+     * u32@+0x14** (0x18004200c: mov ecx,[r9+0x14]; the result's +0x10
+     * write) - the declared document size, never a walk. The old
+     * 'zero product word' gate and the 64 MiB stand-in are GONE. */
     CarveResult r;
-    u8 h[8];
+    u8 h[0x18];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h,
@@ -5520,12 +5554,23 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
                     "WPC",
                     4) != 0)
         return r;
-    if (h[4] == 0 && h[5] == 0)
-        return r; /* zero product word: degenerate */
+    const u32 a = u32_from_bytes_le(h + 8);
+    const u32 b = u32_from_bytes_le(h + 0xE);
+    const bool known = (a == 0x01020a01u && b == 0x00050200u) ||
+                       (a == 0x00021601u && b == 0x00030000u) ||
+                       (a == 0x00010f0fu && b == 0x00030000u);
+    if (!known)
+        return r; /* the og's unknown-pair decline */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 600;
-    r.note = "wpd-magic+bounded-extent";
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = hit + u32_from_bytes_le(h + 0x14);
+    if (end > limit)
+        end = limit;
+    if (end <= hit)
+        return r;
+    r.end = end;
+    r.confidence = 650;
+    r.note = "wpd-pair-table,declared-size";
     return r;
 }
 
@@ -6024,48 +6069,114 @@ CarveResult validate_tar(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* EPS: u16 key "%!" 0x2125 (:6205/:6219, the CEPS-family PostScript
- * chain). The canonical PS covenant "%!PS" is the analyser-side gate
- * (every shipped PostScript carries it); extent is bounded (the PS
- * trailer scan is the recorded follow-up). */
+/* M-107 member 7 (EPS): the og's tier-1 + the %%EOF trailer scan,
+ * decoded first-hand this session. The tier-1 (FUN_180032b50
+ * :38746-38762) accepts ONLY "%!PS-Adobe-" headers (the qword
+ * "%!PS-Ado" + short "be" + '-'): a bare "%!PS" file RETURNS 0 - the
+ * og declines it (the pre-fix core's 4-byte gate accepted it - a
+ * discovered divergence, pinned by test). The Adobe-key child is a
+ * CZeroEndRawFileInfo (FUN_180032c50) with the cap singleton+0x70 x
+ * 100 = 20 GB; its walk runs FUN_180042ab0's BACKWARD "%%EOF" search
+ * per chunk (the general-ctx arm :41446-41449: found -> extent =
+ * past-the-pattern + 2, the DSC trailer's EOL); no trailer -> the
+ * walked bound (the model-translation salvage; the og's CZeroEnd
+ * family carries the zero-end metric - the D-101-registered class).
+ * The 0x20-ctx arm's -0x10 form (:41439-41442) is the recorded
+ * residue (the ctx-window variant, undecoded). */
 CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[4];
+    u8 h[11];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (h[0] != '%' || h[1] != '!' || h[2] != 'P' || h[3] != 'S')
-        return r;
+    if (std::memcmp(h, "%!PS-Adobe-", 11) != 0)
+        return r; /* the og's exact gate - a bare "%!PS" declines */
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    constexpr u64 EPS_WALK_CAP = 0x4A817C800ull; /* singleton+0x70 x 100 */
+    const u64 bound = std::min<u64>(rel_limit, EPS_WALK_CAP);
+    /* the %%EOF trailer scan: the extent ends past "%%EOF" + 2 */
+    static const char kTrailer[] = "%%EOF";
+    constexpr size_t tlen = sizeof(kTrailer) - 1;
+    u64 found = 0;
+    {
+        std::vector<u8> win(64 * 1024);
+        u64 pos = 0;
+        while (pos < bound) {
+            const u64 chunk = std::min<u64>(win.size(), bound - pos);
+            if (chunk < tlen)
+                break;
+            if (!rd(s, hit + pos, win.data(), u32(chunk)))
+                break;
+            for (u64 i = 0; i + tlen <= chunk; ++i) {
+                if (std::memcmp(win.data() + i, kTrailer, tlen) == 0) {
+                    found = pos + i + tlen + 2; /* past the pattern + the EOL */
+                    break;
+                }
+            }
+            if (found)
+                break;
+            if (chunk < win.size())
+                break;
+            pos += chunk - (tlen - 1);
+        }
+    }
     r.ok = true;
-    /* N-148: 64 MiB - the M-107-verified stand-in shape (the registry
-     * row and the finding's "all eleven at 64 MiB"; the 16 MiB drift
-     * made the validator 4x tighter than its own row) */
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 620;
-    r.note = "postscript-covenant+bounded-extent";
+    if (found) {
+        r.end = hit + found;
+        r.confidence = 650;
+        r.note = "eps-%%eof-trailer-walk";
+    } else {
+        r.end = hit + bound;
+        r.confidence = 550;
+        r.note = "eps-torn-no-%%eof";
+    }
     return r;
 }
 
-/* AI: C5 D0 D3 C6 key 0xc6d3d0c5 (:5690) -> CEPSAnalyser idx 27 (the
- * session-3 correction: Adobe Illustrator AI/EPS - NO dBase analyser
- * exists in the og). Version word at +4 gates; bounded extent stands
- * in for the undecoded PS-body walk. */
+/* M-107 member 8 (AI): the og's HEADER FORMULA, decoded first-hand
+ * this session (the CEPS tier-1's AI arm, FUN_180032b50 :38765-38790):
+ * the C5 D0 D3 C6 key accepts and stamps extent = max of the three
+ * (start + length) pairs from the header - (dw@4 + dw@8), (dw@0xC +
+ * dw@0x10), (dw@0x14 + dw@0x18) - capped at singleton+0x70 x 100 =
+ * 20 GB. The factory's non-Adobe path (FUN_180032c50 :38797-38803)
+ * returns the PLAIN base child (no walk refinement) - the tier-1's
+ * formula IS the size. The pre-fix core's "version word 1..64" gate
+ * was a stand-in-era invention (dw@4 is a block START in the formula,
+ * not a version) - dropped with this landing. */
 CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[0x1c];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "\xC5\xD0\xD3\xC6", 4) != 0)
         return r;
-    const u32 v = u32_from_bytes_le(h + 4);
-    if (v < 1 || v > 64)
-        return r; /* AI format versions 2..10 */
+    const u64 s1 = u64(u32_from_bytes_le(h + 4)) + u64(u32_from_bytes_le(h + 8));
+    const u64 s2 = u64(u32_from_bytes_le(h + 0xC)) + u64(u32_from_bytes_le(h + 0x10));
+    const u64 s3 = u64(u32_from_bytes_le(h + 0x14)) + u64(u32_from_bytes_le(h + 0x18));
+    u64 extent = std::max(std::max(s1, s2), s3);
+    constexpr u64 AI_WALK_CAP = 0x4A817C800ull; /* singleton+0x70 x 100 */
+    if (extent > AI_WALK_CAP)
+        extent = AI_WALK_CAP;
+    const u64 limit = probe_limit(s, hit, cap);
+    if (extent > limit - hit)
+        extent = limit - hit;
+    if (extent < 64)
+        return r; /* a degenerate all-zero header: nothing to carve */
     r.ok = true;
-    /* N-148: 64 MiB - the M-107-verified stand-in shape (the row
-     * re-pinned with it; was 16 MiB) */
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 620;
-    r.note = "ai-version-gate+bounded-extent";
+    r.end = hit + extent;
+    r.confidence = 650;
+    r.note = "ai-header-formula-walk";
     return r;
+}
+
+/* M-107 member 6 helper: the DXF line-ending form (the og walk's
+ * byte[3] read at FUN_1800379c0 :42395-42404: '\n' -> the LF pattern,
+ * anything else -> the CRLF pattern). */
+static bool dxf_is_lf_form(IStorageDevice* s, u64 hit) {
+    u8 b[4];
+    if (!rd(s, hit, b, 4))
+        return true; /* unreadable: the LF default (the og's byte[3]=='\n' compare) */
+    return b[3] == 0x0a;
 }
 
 /* DXF: "  0\r" key 0x0d302020 (:5555) -> CDXF chain (g146+g144, idx
@@ -6097,7 +6208,6 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     bool ok = std::memcmp(h, "  0\r\nSECTION\r\n  ", 16) == 0;
-    const char* note = "dxf-group-code-covenant+bounded-extent";
     if (!ok) {
         /* the 999-comment entry key's branch */
         u8 c[5];
@@ -6124,16 +6234,63 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
                     }
                 }
             }
-            if (ok)
-                note = "dxf-999-comment-entry+section-scan";
+            /* the 999-leg's acceptance note rides the new trailer-scan
+             * tail below (the og's one id for the whole chain) */
         }
     }
     if (!ok)
         return r;
+    /* M-107 member 6 (DXF): the og's trailer scan (the CDXFRawFileInfo
+     * walk FUN_1800379c0, :42400-42432): the line ending from byte[3]
+     * ('\n' -> the LF pattern "  0\nEOF\n" (8B), else the CRLF form
+     * "  0\r\nEOF\r\n" (10B)); FUN_180042ab0's backward pattern
+     * search per chunk returns past-the-pattern; the extent ends past
+     * the FIRST trailer; the walk cap is the RAW singleton field
+     * (0xbebc200 = 200 MB, :42426-42431); no trailer -> the walked
+     * bound (the og's extent += len accumulation to the cap). */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 620;
-    r.note = note;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    constexpr u64 DXF_WALK_CAP = 0xbebc200; /* the singleton's +0x70, raw */
+    const u64 bound = std::min<u64>(rel_limit, DXF_WALK_CAP);
+    const bool lf = dxf_is_lf_form(s, hit);
+    static const char kPatLf[] = "  0\nEOF\n";
+    static const char kPatCrLf[] = "  0\r\nEOF\r\n";
+    const char* pat = lf ? kPatLf : kPatCrLf;
+    const size_t plen = lf ? sizeof(kPatLf) - 1 : sizeof(kPatCrLf) - 1;
+    u64 found = 0;
+    {
+        std::vector<u8> win(64 * 1024);
+        u64 pos = 0;
+        while (pos < bound) {
+            const u64 chunk = std::min<u64>(win.size(), bound - pos);
+            if (chunk < plen)
+                break;
+            if (!rd(s, hit + pos, win.data(), u32(chunk)))
+                break;
+            for (u64 i = 0; i + plen <= chunk; ++i) {
+                if (std::memcmp(win.data() + i, pat, plen) == 0) {
+                    found = pos + i + plen;
+                    break;
+                }
+            }
+            if (found)
+                break;
+            if (chunk < win.size())
+                break; /* short final read: the window is exhausted */
+            pos += chunk - (plen - 1); /* the straddle overlap */
+        }
+    }
+    if (found) {
+        r.end = hit + found;
+        r.confidence = 650;
+        r.note = "dxf-eof-trailer-walk";
+    } else {
+        /* torn: the og's extent accumulation ends at the walked bound */
+        r.end = hit + bound;
+        r.confidence = 550;
+        r.note = "dxf-torn-no-eof-trailer";
+    }
     return r;
 }
 

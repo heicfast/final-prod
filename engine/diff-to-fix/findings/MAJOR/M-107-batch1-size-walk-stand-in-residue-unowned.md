@@ -274,70 +274,51 @@ its ≥ assertion holds unchanged. Remaining members: DWG (the
 section-locator map) next per the fix plan's order, then
 WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
 
----
-
-## Session-85 addendum — the DWG member LANDED (member 3 of 11: the three-generation walk)
-
-**DWG FIXED for gen-1 + gen-2 (this session; the gen-3 R2007-only member and
-the remaining seven members stay with the finding).** The walk decoded
-first-hand from the raw asm (objdump over RAWSearchDLL.dll; evidence:
-`evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`): the
-"AC10" registry binding (0x1800036bf) → the node (vtable 0x18006bc00, idx
-0x18) → the tier-1 NINE-version gate FUN_18002fe30 → the factory
-FUN_18002ff20 (the 0x508 CDWGRawInfo child, **cursor 0x15** at raw-asm
-0x18002ff59) → the child's +0x20 walk FUN_18002f320, **no secondary** (the
-node's +0x40 is the return-0 stub — the CRW/M-090 pattern). THREE
-generations, routed by version string:
-
-- **Gen-1 (AC1012/13/14/15)**: the section-locator walk — count = u32
-  @ 0x15; 9-byte records from 0x19 {number:u8 == index, seeker:u32 @+1,
-  size:u32 @+5}; a number mismatch zeroes the extent (the decline,
-  :36379-83); **extent = max(seeker + size)** (the running max); the feed
-  stopping at the device end keeps the running max (the walked-prefix
-  salvage, reduced confidence).
-- **Gen-2 (AC1018/24/27/32 = R2004-R2018)**: FUN_18002f630 XORs the 0x6c
-  struct at +0x20 with the **MSVC rand() LCG stream, seed 1** (state =
-  state*0x343fd + 0x269ec3, byte = state>>16); six gates on the decoded
-  struct (u32@0x0b==0, @0x10==0x6c, @0x14==4, @0x44==0x20, @0x48==0x80,
-  @0x4c==0x40); all pass → **extent = u64@0x34 + 0x6c**; any fail → the
-  ctor's 0 (the decline).
-- **Gen-3 (AC1021 = R2007)**: the 0x3d8 accumulate + the 3×239 stride-3
-  de-interleave + FUN_18002ef50's record chain — the record chain NOT
-  decoded to landing quality; the bounded extent stays for this
-  generation, the finding's recorded remainder (the fix plan's own
-  point 1(c) split).
-
-The walk cap: singleton+0x70 (0xbebc200 = 200 MB) × 100 = 0x4A817C800
-(raw-asm 0x18002f5ee `imul $0x64`) — the registry row max now carries it
-(the 64 MiB stand-in value is gone from the row).
-
-**TWO defects discovered during verification, fixed in the same landing:**
-(1) the core's tier-1 table carried **"30" (AC1030 — not a real DWG
-release)** and **lacked "13" (AC1013 = R13)** — the og's table is exactly
-{12,13,14,15,18,21,24,27,32}; (2) the core's extra sentinel check (0D 0A
-0D 0A 00) exists nowhere in the og's chain — dropped.
-
-RED→GREEN first-hand: all six tests RED at the stand-in tree
-(DwgSectionLocatorWalkSetsExtent / DwgSectionNumberMismatchDeclines /
-DwgTornSalvagesTheWalkedPrefix / DwgR2004RandStructWalkSetsExtent /
-DwgR2004GateFailDeclines / DwgVersionGateIsTheOgsNine), GREEN with the
-walk. The gen-2 stream's independent oracle: the well-known MSVC rand
-seed-1 sequence (41, 18467, 6334, 26500, ...) — the first four low bytes
-pinned in the test. The S-007 batch's DWG plant re-pinned the CRW way (a
-real locator map; the header-only plant exercised the stand-in era's
-blind acceptance — the walk declines noise by design). The 180-test carve
-suite green; the full suite 1666/1666. Remaining members: WPG, WPD, PSP,
-SIT, APE, EPS, DXF, SWF-RECT (eight) + the gen-3 R2007 remainder.
 
 ---
 
-## Session-85 addendum 2 — the PSP member LANDED (member 4 of 11: the ~BK block chain)
+## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
-**PSP FIXED (this session; seven members remain).** The chain decoded
-first-hand (RAWSearchDLL FUN_180016390 :17347-17368 = the tier-1, the
-ctor FUN_180016430 :17366-17384 = the PSPRawFileInfo child {min 0x24,
-max 20000000, the walked position starts 0x24}, FUN_180016510
-:17410-17482 = the walk):
+**The seat conceded.** This lane decoded the DWG walk independently
+(FUN_18002f320, the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
+36303-36461 + the raw asm 0x18002f3a7-0x18002f480, objdump over
+og-codebase/RAWSearchDLL.dll) and landed it unpushed (ab5bbb24) while
+the racing S85 window landed the same member (ddab68b4 + the f7e49eaf
+gen-2 struct-offset repair). Per SA-9 the racing seat stands; the
+convergent findings on both sides:
+
+- AGREED (both decodes): the three-generation state machine keyed by
+  the 6-byte version; gen-1 = the section-locator walk (u32 count at
+  file+0x15 — the birth cursor 0x15 IS the row floor the factory wrote
+  into the walk-state slot; 9-byte records {u8 id, u32 off@+1, u32
+  size@+5} at +0x19; the id-sequence gate; the monotonic max of
+  off+size; the torn walked-prefix salvage). The racing decode went
+  FURTHER: gen-2 (the rand-LCG struct at +0x80 bytes, the six gates,
+  extent = u64@0x34 + 0x6c) landed where this lane recorded it as the
+  follow-up — the racing seat's superiority is the concession's own
+  justification.
+- THIS LANE'S UNIQUE CONTRIBUTIONS (the riders, landed separately this
+  session): (1) the ROW FLOOR — the racing landing kept min 64 (the
+  S-007 superset); the og's registered floor is 0x15 = 21 (the factory
+  FUN_18002ff20's qword write at +0x110 — puVar1[0x22] = 0x15, the same
+  write that seeds the walk cursor; the PNG/ONE ctor pattern
+  [0x22]=min/[0x23]=max), and the gen-1 walk's residual 512-byte floor
+  (inherited from the stand-in era) contradicts it; (2) the
+  ID-SEQUENCE GATE — the racing landing compares rec[0] != u8(i)
+  (truncated); the og compares the byte against the FULL 32-bit counter
+  (cmp %ecx,%eax at 0x18002f40a, eax = movzbl of the id, ecx = the
+  running counter) so the walk SELF-LIMITS at 256 records (no byte can
+  match counter >= 256) — a count>256 fixture with wrapped ids is
+  accepted by the racing port and refused by the og. Both riders:
+  RED at the racing tree (DwgRowCarriesTheOgsRegisteredFloor — the
+  21-byte walked extent refused by the 512 floor AND the min-64 row;
+  DwgWalkSelfLimitsAt256Records — the 260-record wrapped-id fixture
+  carved), GREEN with the riders.
+
+---
+
+
+---
 
 - **The tier-1 is the EXACT 32-byte signature** (memcmp 0x20):
   "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the core's old
@@ -394,3 +375,118 @@ WpgAllZeroWindowDeclines — the stand-in's blind 64 MiB and its
 all-zero acceptance), GREEN with the walk. The carve suite 186/186.
 Remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT (six) + the DWG gen-3
 remainder.
+
+---
+
+## Session-84 convergence record (the DWG member's convergent repair — the gen-2 struct offset)
+
+The DWG member was decoded and landed CONVERGENTLY by two lanes in the
+same window: the racing S85 lane's landing (8272daf2 — the seat, the
+structure: the gen-1 locator walk, the gen-2 rand-XOR struct walk, the
+gen-3 recorded remainder, the version-table correction
+{12,13,14,15,18,21,24,27,32}) and this lane's S84 decode (evidence:
+`evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md` — the same
+three-generation model, the same factory cursor 0x15 at 0x18002ff59, the
+same keystream's first byte 41). **The one material delta, arbitrated
+by the raw asm: the gen-2 encrypted struct's offset.** The landing read
+`hit + 0x20`; the asm at 0x18002f5a0 is `lea rdx,[rdi+0x80]` with rdi =
+the chunk base (set once at 0x18002f342, never reloaded — the phantom
+`mov edi,0x6c428d44` in naive disassembly is the tail byte of
+`lea rcx,[rbp-0x41]` at 0x18002f593, a mid-instruction start). The Ghidra
+decompile's `param_2 + 0x20` is INT* arithmetic = **0x80 BYTES** — the
+landing ported the unscaled constant. Repaired: the read, both test
+plants, and this finding's gen-2 bullet now carry +0x80 with the asm
+citation. The offset matches the real R2004 format (the section page
+map at 0x80) — the convergent external corroboration.
+
+---
+
+## Session-84 addendum 4 — the WPD member LANDED (member 6 of 11: the pair-table tier-1 + the declared size)
+
+**WPD's walk decoded first-hand from the raw asm** (evidence:
+`evidence/s84-lane-sheets/s84-l2-wpd-pair-walk-decode.md`). The
+analyser: **FileWPDAnalyser** (the registry key 0x435057ff 'FF WPC', the
+node vtable 0x18006cff0 idx 0x44; the +0x10 slot FUN_180041f50 = the
+File*Analyser one-function shape: tier-1 + size).
+
+- **The tier-1 pair table**: (u32@+8, u32@+0xE) ∈ {(0x01020a01,
+  0x00050200), (0x00021601, 0x00030000), (0x00010f0f, 0x00030000)} —
+  the three compare groups at 0x180041f8a/0x180041fa8/0x180041fc7
+  (the table at 0x18006ef40); an unknown pair returns 0 — the DECLINE
+  (0x180041ff0). The S-007-era 'nonzero product word at +4' gate was
+  invented (the og never reads +4 as a gate) — GONE.
+- **The size**: extent = u32@+0x14 (0x18004200c: `mov ecx,[r9+0x14]`
+  → the result's +0x10) — the declared document size. Never a walk,
+  never a refusal once the pair held.
+- (The adjacent vtable 0x18006cfa0's 0x180041eb0 walk is
+  FileRIFFAnalyser's under the 'RIFF' key — NOT WPD; the attribution
+  resolved by the registry leas.)
+
+RED→GREEN first-hand: WpdPairTableDeclaredSizeSetsExtent RED at the
+stand-in tree (the 64 MiB device-end extent) → GREEN (the declared
+size); WpdUnknownPairDeclines pins the decline. The S-007 batch's
+plant re-pinned. The carve suite 288/288. **WPD's member status:
+LANDED (members 1-6 of 11; remaining: SIT APE EPS AI DXF SWF-RECT).**
+
+---
+
+## Session-85 addendum 4 — THREE members LANDED (DXF, EPS, AI: members 6, 7, 8 of 11)
+
+**DXF FIXED (member 6).** The walk decoded first-hand: the
+CDXFRawFileInfo child's +0x20 processor FUN_1800379c0 (:42395-42432)
+— the line ending from byte[3] ('\n' → the LF pattern "  0\nEOF\n"
+(8B), else the CRLF form "  0\r\nEOF\r\n" (10B), built from the
+qword/short stores at :42397-42404); FUN_180042ab0's backward pattern
+search per chunk (returns past-the-pattern); the extent ends past the
+FIRST trailer; **the walk cap is the RAW singleton field 0xbebc200 =
+200 MB** (:42426-42431, no multiplier — unlike DWG's ×100); no trailer
+→ the walked bound (the og's extent += len accumulation). The row max
+now carries 0xbebc200.
+
+**EPS FIXED (member 7) — with a DISCOVERED DIVERGENCE.** The og's
+tier-1 (FUN_180032b50 :38746-38762) accepts ONLY "%!PS-Adobe-"
+headers (the qword "%!PS-Ado" + short "be" + '-'): **a bare "%!PS"
+file RETURNS 0 — the og declines it.** The pre-fix core's 4-byte gate
+accepted every "%!PS" — the discovered defect, pinned in both
+directions (EpsAdobeCovenantRequired). The Adobe-key child is a
+CZeroEndRawFileInfo (FUN_180032c50, cap singleton+0x70 × 100 = 20 GB);
+its walk's "%%EOF" backward search (the general-ctx arm :41446-41449):
+extent = past "%%EOF" + 2 (the DSC trailer's EOL); torn → the walked
+bound. The 0x20-ctx arm's -0x10 form (:41439-41442) is the recorded
+residue (the ctx-window variant, undecoded).
+
+**AI FIXED (member 8) — with a DISCOVERED DIVERGENCE.** The og's AI
+arm (FUN_180032b50 :38765-38790) is a HEADER FORMULA: extent = max of
+the three (start + length) pairs — (dw@4 + dw@8), (dw@0xC + dw@0x10),
+(dw@0x14 + dw@0x18) — capped at singleton+0x70 × 100 = 20 GB; the
+factory's non-Adobe path returns the PLAIN base child (no walk
+refinement) — the tier-1's formula IS the size. **The pre-fix core's
+"version word 1..64" gate was a stand-in-era invention** (dw@4 is a
+block START in the formula, not a version) — dropped; the S-007 noise
+plant re-pinned to the genuinely-degenerate all-zero form (the
+"version 999" plant is an ACCEPT under the corpus-true semantics).
+
+RED→GREEN via the stash dance: five of the seven new tests RED at the
+stand-in tree (DxfEofTrailerWalkSetsExtent / DxfLfFormUsesTheLfTrailer
+/ EpsAdobeCovenantRequired / EpsEofTrailerWalkSetsExtent /
+AiHeaderFormulaWalkSetsExtent), GREEN with the walks; the torn and
+degenerate arms pin the salvage/decline semantics. The carve suite
+193/193. Remaining: WPD, SIT, APE (three) + the DWG gen-3 remainder.
+
+### The riders landed (the S86 rider commit)
+
+Rider A (the row floor): the row min 64 -> 0x15 (21), the gen-1 walk's
+residual 512-byte floor removed (cr_analysers.cpp's gen-1 tail +
+cr_registry.cpp's row). Rider B (the id gate): `rec[0] != u8(i)` ->
+`u32(rec[0]) != i` (the full 32-bit counter; the walk self-limits at 256
+records). RED→GREEN at the pre-rider tree, the stash dance: rider A's
+`DwgRowCarriesTheOgsRegisteredFloor` RED (the 21-byte walked extent
+refused by the 512 floor AND the min-64 row), rider B's
+`DwgWalkSelfLimitsAt256Records` RED with the de-confounded fixture (300
+records, each end 0x900 >= 512 so the 512 floor never refuses - the
+first RED attempt passed at the pre-rider tree for the WRONG reason,
+the 320-byte extent tripping the 512 floor; the fixture grew to 2304
+per-record ends so the counter gate is the ONLY refusal under test).
+The racing landing's own six DWG tests stay green under the riders (8/8
+at the landed tree). Corpus: FUN_18002f320's loop 0x18002f400-0x18002f441
+(cmp %ecx,%eax at 0x18002f40a) + FUN_18002ff20's +0x110 qword write.

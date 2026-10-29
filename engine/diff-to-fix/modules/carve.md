@@ -1259,9 +1259,30 @@ with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
 CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
 
+
+## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+
+**The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
+ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
+section-locator walk (the count at +0x15, the 9-byte records, the
+id-sequence gate, the monotonic max); the racing decode went further (gen-2
+landed — the rand-LCG struct at +0x80, the six gates, extent = u64@0x34 +
+0x6c). This lane's unique contributions land as riders (see the M-107
+finding's Session-86 addendum): the ROW FLOOR 0x15 = 21 (the factory's
+qword write at +0x110 — the same write that seeds the walk cursor; the
+racing row kept the S-007-era min 64, and the gen-1 walk's residual
+512-byte floor contradicts it) and the ID-SEQUENCE GATE against the FULL
+32-bit counter (cmp %ecx,%eax at 0x18002f40a — the walk self-limits at 256
+records; the racing port's u8(i) truncation accepts count>256 fixtures
+with wrapped ids that the og refuses). RED→GREEN for both riders at the
+racing tree: DwgRowCarriesTheOgsRegisteredFloor (the 21-byte walked
+extent refused by the 512 floor AND the min-64 row) and
+DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
+
 ---
 
-## Session-85 addendum 1 — M-107 member 3: the DWG three-generation walk landed
+
+---
 
 The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
 remainder named): the section-locator walk (count u32@0x15, 9-byte records
@@ -1306,3 +1327,63 @@ recorded in the finding: a future decode of the result object's layout
 could shift the window by multiples of 512. Tests: the three Wpg*
 pins (all RED at the stand-in via the stash dance). The carve suite
 186/186.
+
+## S84 rider — the DWG gen-2 struct offset repaired (+0x20 → +0x80)
+
+The racing S85 landing's gen-2 walk read the encrypted 0x6c struct at
+`hit + 0x20` — the Ghidra decompile's `param_2 + 0x20` ported without
+the INT* scaling. The raw asm arbitrates: 0x18002f5a0 is
+`lea rdx,[rdi+0x80]` with rdi = the chunk base (set once at
+0x18002f342, never reloaded; the phantom `mov edi,0x6c428d44` in naive
+disassembly is a mid-instruction start — the tail byte of
+`lea rcx,[rbp-0x41]`). **The struct sits at +0x80 BYTES** — matching the
+real R2004 format's section page map at 0x80 (the external
+corroboration). The read, both R2004 test plants, and the finding's
+gen-2 bullet repaired; RED first-hand (the +0x20 code against the +0x80
+plant declines — the struct at the wrong offset decodes zeros and the
+gates refuse). The full convergence record: M-107's Session-84
+convergence addendum + evidence/s84-lane-sheets/
+s84-l1-dwg-walk-decode.md §4.
+
+## S84 addendum 4 — M-107's WPD member (the pair table + the declared size; 2026-10-30)
+
+**WPD LANDED (members 1-6 of 11).** FileWPDAnalyser's one-function walk
+(the +0x10 slot FUN_180041f50; evidence:
+`evidence/s84-lane-sheets/s84-l2-wpd-pair-walk-decode.md`): the tier-1
+pair table (u32@+8, u32@+0xE against the three known pairs — the decline
+on unknown pairs) then extent = **u32@+0x14** (the declared document
+size). The S-007-era 'nonzero product word' gate was invented — the og
+never gates on +4 — and is gone with the 64 MiB stand-in. Tests:
+WpdPairTableDeclaredSizeSetsExtent (RED first-hand at the stand-in) +
+WpdUnknownPairDeclines; the batch plant re-pinned. The carve suite
+288/288. Remaining members: SIT APE EPS AI DXF SWF-RECT.
+
+---
+
+---
+
+## Session-85 addendum 4 — M-107 members 6/7/8: the DXF, EPS, and AI walks landed
+
+**DXF**: the EOF-trailer scan (the line-ending form from byte[3]; the
+extent past the first "  0\nEOF\n" / "  0\r\nEOF\r\n"; the cap the
+RAW singleton 0xbebc200 = 200 MB; torn → the walked bound). **EPS**: the
+og-exact "%!PS-Adobe-" covenant (a bare "%!PS" declines — the discovered
+acceptance defect) + the "%%EOF" trailer scan (past + 2; the 0x20-ctx
+arm's -0x10 form the recorded residue). **AI**: the header formula —
+extent = max of the three (start+length) pairs, capped at 20 GB; the
+invented "version 1..64" gate dropped (dw@4 is a block start, not a
+version). Seven new tests (five RED at the stand-in); the carve suite
+193/193. Remaining members: WPD, SIT, APE + the DWG gen-3 remainder.
+
+### The S86 riders landed (the rider commit, this session)
+
+Both convergence riders over the racing DWG landing: (A) the row floor
+0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed
+from the gen-1 walk) and (B) the id-sequence gate against the FULL
+32-bit counter (u32(rec[0]) != i - the walk self-limits at 256 records).
+RED→GREEN at the pre-rider tree via the stash dance; the racing landing's
+own six DWG tests stay green (8/8 at the landed tree). The de-confound
+note: rider B's first fixture (320-byte extent) passed at the pre-rider
+tree for the wrong reason (the 512 floor) - the fixture now carries
+2304-byte per-record ends so the counter gate is the only refusal under
+test.
