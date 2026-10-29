@@ -4238,3 +4238,35 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   the signed form shifts (exponent 128 & 31 = 0 -> 1). A nonsense byte
   either way (no formatter emits it); registered here rather than
   silently diverging.
+
+### D-144 — the exFAT boot-gate numeric bounds: core-only hardening the og's nonzero-form gates lack (N-198 registration, REGISTERED DELIBERATE DIVERGENCE — FP-suppression direction)
+
+- **WHAT OG DOES:** the complete exFAT boot gate conjunction
+  (exFATSearchDLL FUN_180021e80 :28180-28210) requires the four size
+  fields to be merely NONZERO — `fat_length(+0x54) != 0`,
+  `heap_offset(+0x58) != 0`, `fat_offset(+0x50) != 0`,
+  `volume_length(+0x48) != 0`, `cluster_count(+0x5c) != 0` — plus the
+  shift band, the numFATs ∈ {1,2} form, root-cluster > 1, and the
+  ordering/fit inequalities. NO numeric floors or ceilings on any size
+  field: a garbage boot with `fat_offset = 10` or `volume_length = 100`
+  (ordering-consistent) enters the og's engine, which then fails on the
+  FAT read.
+- **WHAT WE DO:** the core adds three bounds the og does not have
+  (`cr_exfat_dentry.cpp`): `volume_length >= 2048` sectors (+ device
+  fit), `cluster_count <= 0xFFFFFFF5`, `fat_offset >= 24` (the boot
+  region). Each refuses the nonsense-BPB noise earlier and cheaper than
+  the og's engine-level failure.
+- **WHY DELIBERATE:** core-stricter-in-the-FP-direction with zero real
+  population cost — no real formatter emits `fat_offset < 24` (the boot
+  region is 24 sectors by spec), `volume_length < 2048` (the spec
+  minimum volume), or `cluster_count > 0xFFFFFFF5` (the spec max,
+  2^32-11; the og's own ordering conjunction only admits counts that
+  large on devices past 2 TiB at 512 B clusters). The D-70 precedent
+  (core-stricter bounds with the og sites acknowledged and the
+  no-real-formatter rationale).
+- **EVIDENCE:** the og gate set re-read first-hand at the decompile
+  lines above; the three core bounds pinned as deliberate by
+  `ExfatEngine.HardeningBoundsPinned` (the volume_length and fat_offset
+  edges isolated on ordering-consistent garbage the og's full
+  conjunction ACCEPTS; the cluster_count edge pinned at the boundary
+  value with the reachability analysis in the test comment).

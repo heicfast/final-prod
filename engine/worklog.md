@@ -9496,3 +9496,20 @@ full decoded constant set with every cite, the engine-layer-vs-device-layer
 OQ-S4-3 acceptance-criterion cross-link. Registration-only per the finding's
 own fix plan — no code change, no new tests (nothing behavioral). Trail:
 findings/FIXED/N-204 + matrix MATCH + carve.md + this entry.
+
+---
+
+## Session-60-B lane — N-198 landed (2026-10-29)
+
+**N-198 FIXED (MINOR — exFAT hardening bounds registered).** Corpus
+re-verified first-hand: FUN_180021e80 :28180-28210 — the og's complete
+conjunction is nonzero-forms + ordering/fit, no numeric floors. Core's three
+bounds re-verified (volume_length :211, cluster_count :155, fat_offset :229).
+Per the fix plan: PARITY-DELTAS D-144 (D-70 precedent form) +
+ExfatEngine.HardeningBoundsPinned (volume_length/fat_offset edges isolated on
+og-ACCEPTING ordering-consistent garbage — the og-side acceptance proven by
+walking the conjunction field-by-field; the cluster_count boundary pinned with
+the > 2 TiB reachability analysis; S-066's re-base ladder verified inert under
+dual-boot patching). No behavior change. ExfatEngine 41/41. Trail:
+findings/FIXED/N-198 + Resolution, ledger row, matrix MATCH, SUMMARY, this
+entry.

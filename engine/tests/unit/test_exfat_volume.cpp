@@ -137,6 +137,95 @@ TEST(ExfatEngine, LostAnchorBackupBootRebasedToTrueStart) {
         << "slice-relative extent = the true position minus the slice base";
 }
 
+/* ---- N-198: the three core-only boot-gate bounds, pinned deliberate -- */
+
+TEST(ExfatEngine, HardeningBoundsPinned) {
+    /* N-198 (PARITY-DELTAS D-144): the og's exFAT boot gates (FUN_180021e80
+     * :28180-28210, re-read first-hand) require the four size fields to be
+     * merely NONZERO (plus ordering/fit) - no numeric floors. The core adds
+     * three bounds the og does not have, all FP-suppression on garbage
+     * boot sectors; no real formatter emits a population in the refused
+     * windows (the boot region is 24 sectors by spec; the spec minimum
+     * volume is 2048 sectors; cluster_count's spec max is 0xFFFFFFF5).
+     * This pin asserts the three refusal edges as DELIBERATE - if a bound
+     * is ever dropped, this test forces the register to be re-truthed. */
+
+    /* edge 1: volume_length in (0, 2048) - ordering-consistent garbage
+     * (fat 24, fat_len 1, heap 25, cc 50: the og's full conjunction
+     * PASSES this boot; the core refuses at the 2048 floor) */
+    {
+        auto img = build_exfat_image();
+        /* patch BOTH boots (main at 0, backup at 12*512) identically so
+         * the S-066 re-base ladder stays inert */
+        for (u64 base : {0u, 12u * 512u}) {
+            testfixture::fx_put64(img, base + 72, 100);    /* volume_length */
+            testfixture::fx_put32v(img, base + 92, 50);    /* cluster_count */
+        }
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
+                                 stats))
+            << "volume_length < 2048 refuses (the og accepts this boot into its engine)";
+    }
+
+    /* edge 2: fat_offset in [1, 23] - nonzero and ordering-consistent
+     * (fat_len 1 + 10 = 11 <= heap 25): the og accepts; the core refuses
+     * below the 24-sector boot region */
+    {
+        auto img = build_exfat_image();
+        for (u64 base : {0u, 12u * 512u})
+            testfixture::fx_put32v(img, base + 80, 10); /* fat_offset */
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
+                                 stats))
+            << "fat_offset < BOOT_REGION_SECTORS refuses (the og accepts)";
+    }
+
+    /* edge 3: cluster_count > 0xFFFFFFF5 (the spec max, 2^32-11). The
+     * og-acceptance window for this count exists only on devices past
+     * 2 TiB at 512 B clusters (its ordering conjunction needs
+     * (cc-1)<<spcs + heap <= volume_length <= device/512); on every
+     * smaller geometry the og's own ordering rejects the same boot, so
+     * the core's bound is the spec-truth reject of a corrupt field the
+     * og would only honor by accident of geometry. Pinned at the
+     * boundary value: the bound is a deliberate spec gate, not drift. */
+    {
+        auto img = build_exfat_image();
+        for (u64 base : {0u, 12u * 512u})
+            testfixture::fx_put32v(img, base + 92, 0xFFFFFFF6u); /* cluster_count */
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
+                                 stats))
+            << "cluster_count > 0xFFFFFFF5 refuses at the structural gate";
+    }
+}
+
 TEST(ExfatEngine, IntactPrimaryNotShifted) {
     /* control: the backup at +12 validates -> no probe, no shift (the
      * anchor is the primary; a damaged-backup volume keeps its base) */

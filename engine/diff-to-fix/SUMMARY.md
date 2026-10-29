@@ -65,7 +65,9 @@ tracked-open; FIXED archive 140.
 
 - **N-197 FIXED (MINOR)** — the spc shift-decode threshold registered: D-52's ADDENDUM documents the og's three internal forms (0xF0-nibble controller / >= 0x81 NTFSLib+analyser / raw PartitionRecoveryD — all four sites re-read first-hand) + the core's registered signed-byte choice + the 0x80 boundary nuance; the decode extracted to the pure wire helper `sectors_per_cluster_from_dbr` and pinned by `BootSpcShiftDecodeConventionPinned` (the eight-byte table). Behavior unchanged on every real-volume population.
 
-**Board at this push (filesystem truth):** 44 active — 1 SEVERE · 23 MAJOR · 17 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 143 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196/N-197).
+- **N-198 FIXED (MINOR)** — the exFAT boot-gate numeric bounds registered as deliberate hardening: PARITY-DELTAS **D-144** (the og's nonzero-form conjunction re-read first-hand at :28180-28210; the no-real-formatter rationale; the > 2 TiB cluster_count reachability analysis) + `ExfatEngine.HardeningBoundsPinned` (the volume_length/fat_offset edges isolated on og-ACCEPTING ordering-consistent garbage, the cluster_count boundary pinned). ExfatEngine family 41/41; no behavior change.
+
+**Board at this push (filesystem truth):** 43 active — 1 SEVERE · 23 MAJOR · 16 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 144 files.
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
