@@ -3708,6 +3708,34 @@ TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
     EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000));
 }
 
+TEST(Carve, WpdZeroSizeFieldDeclines) {
+    /* The engine's acceptance gate (0x18000d7e1: extent==0 -> no carve):
+     * a valid version pair with a zero declared-size field declines -
+     * never the blind-cap carve of the stand-in era. RESTORED by the S94
+     * lane: the window's three arbitration records all state the
+     * zero-size coverage was preserved (the S87 seat's
+     * WpdZeroSizeFieldDeclines kept, the S91 rider's copy renamed), but
+     * the tip's final merge state carried NEITHER test - the coverage
+     * hole this restoration closes (the seat-holder's own recorded
+     * intent, re-implemented verbatim against the landed validator's
+     * `end <= hit` decline). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && !c->props()->extents.empty() &&
+                     c->props()->extents.front().offset == at)
+            << "a zero size field must decline (the extent!=0 engine gate)";
+}
+
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
  * (FUN_180016390 :17347-17368: "Paint Shop Pro Image File" + 0x0a + 0x1a
  * + 5 NULs, memcmp 0x20) - the old 26-byte plant lacked the 0x0a 0x1a.

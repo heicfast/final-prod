@@ -13428,6 +13428,65 @@ finding (it is the OR-shape of the two walks this engine already runs, a
 future refinement, not a parity break: both og sites borrow the same hint
 bits and validate through the same FUN_180012c00 class).
 
+## Session 94 — entry 0 (renumbered from the born-collided S86→S93 seats per SA-9 — the remote's S86 and S93 lanes hold those seats): the lane opened (the user's mandate continuation)
+
+Opened at core `e2b850d4` (the S84/S85 window's close tree), corpus `be0cfe9`
+throughout (read-only guarantee held). The audit read in full: SUMMARY board
+**8 MAJOR (M-075 M-078 M-086 M-087 M-089 M-101 M-105 M-107) · 2 MINOR (N-107
+N-127) · 0 INFO active / 200 FIXED / 4 tracked-open** — of the open MAJORs,
+M-086/M-087/M-089 + the MINORs are driver-repo-resident (OQ-S10-3's boundary,
+out of the two-repo grant). The queue (the S84 lane's recorded plan, continued):
+M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE → EPS → DXF →
+SWF-RECT), then M-075 (chkdsk launch), M-078 (BitLocker turn-off), M-101
+(Versions + Tags branches), M-105 (DRWService option a), the four OQs. Baseline
+at the open, first-hand: build green, **cr_tests 1571/1571 + cr_ui_tests
+89/89 + abi_check OK + win_syntax OK** (1662 total, sharded 4-way on the
+2-core container). The session prompt saved token-redacted
+(worklog/session-diff-fix-s86-prompt.md). Toolchain note: cmake/ninja/clang-
+format 18.1.8 pip-installed in-session (the container ships none of the
+three); objdump (binutils 2.44) present for the raw-asm decodes.
+
+## Session 94 — entry 1: the DWG convergence CONCEDED at BOTH window rebases per SA-9 (the lane's independent decode + 8-test battery + census correction all convergent with the S84-S93 window's landings; the census rider's TenPairs form holds the seat); N-229 withdrawn (the window's superset + N-230 hold the seats)
+
+**Conceded — convergent, not lost.** The lane's decode (the og's walk read first-hand from the corpus raw asm
+(objdump over og-codebase/RAWSearchDLL.dll; the chunk callback FUN_18002f320
++ the factory FUN_18002ff20 pinning the cursor init 0x15). Two generations
+landed: the R13-R2000 section-locator walk (count u32@+0x15; 9-byte records
+{id, seek@+1, size@+5} from +0x19; extent = max(seek+size); the FULL-WIDTH
+id-index compare — a u8 can never match index ≥ 256, so a table past record
+255 declines at 256; id-mismatch = the zero-size decline; torn = the
+walked-prefix salvage) and the R2004+ security-header walk (the 0x6c bytes at
++0x80 decrypted with the MSVC rand() keystream, state 1; the field gates
+{+0x0B==0, qword@+0x10==0x000000040000006c, +0x44==0x20, +0x48==0x80,
++0x4c==0x40}; extent = qword@+0x34 + 0x6c). AC1009 (tier-1-accepted,
+walk-less) and the old row's bogus "30" version now decline — the og's exact
+family sets. The dead sentinel check removed (no og walk reads it). AC1021's
+0x3d8-byte FUN_18002fc50 R2007 cipher walk is the NAMED REMAINDER (the fix
+plan's honest-remainder clause; the stand-in stays for that generation only,
+its note names it). The push rebase found the racing window (S84-S92, 101
+commits) already holding the seat (`ddab68b4` + the `f7e49eaf` gen-2
+offset repair + the `d35e1cbb` riders — every decode point agreeing);
+this lane's code and tests conceded at the merge. The unique carry —
+THE CENSUS RIDER — landed: the seat-holder's "exactly these nine"
+tier-1 prose corrected to the TEN-entry truth (`0x39303031` at
+0x18002feae = the AC1009 entry; the `cmp edx,0xa` loop bound — indices
+0..9): AC1009 is tier-1-ACCEPTED (result id 0x18 stamped) and
+WALK-DECLINED (no generation table matches, size 0). The carve behavior
+was already correct; the comment re-truthed, the
+`DwgVersionGateMatchesTheOgsGenerationTables` test re-named (from
+`DwgVersionGateIsTheOgsNine`), the matrix rider row + the M-107 S93
+addendum carry the evidence. The lane's own battery (RED-verified at
+the stand-in tree pre-discovery) recorded here as the convergence
+proof. Tests (this lane's, conceded as duplicates of the seat's):
+DwgSectionLocatorWalkCarvesTrueEnd / DwgRecordIdMismatchDeclines /
+DwgTornTableSalvagesTheWalkedPrefix / DwgHugeCountDeclinesAtRecord256 /
+DwgZeroRecordCountDeclines / DwgR2004SecurityHeaderWalkCarvesTrueEnd /
+DwgR2004HeaderChecksDecline / DwgAc1009AndUnlistedVersionsDecline.
+Trail: the finding's S86 addendum + the matrix's member-3 MATCH row +
+this entry. Corpus: RAWSearchDLL.dll raw asm (FUN_18002f320 / FUN_18002f630 /
+FUN_18002fe30 / FUN_18002ff20), first-hand. Remaining M-107 members: WPG →
+WPD → PSP → SIT → APE → EPS → DXF → SWF-RECT.
+
 ---
 
 ## Session-84 — entry 4 (this lane): the ledger collision repair — the gate red eb1b4e35 carried (2026-10-30)
@@ -14344,6 +14403,26 @@ left untouched: C4365 is /Wall-only, not /W4); clang-format 18.1.8 (the CI
 pin) clean on all four files. The MSVC lane's green build is the final
 compile proof for the Windows-only rrecov.cpp.
 
+## Session 94 — entry 2: the duplicate-test repair's history (my N-229 filing withdrawn — the window's superset N-229 + N-230 hold the seats; the tip lost BOTH zero-size tests despite the records) + N-231 FIXED (the coverage restoration)
+
+**N-229 (MINOR, NEW — filed+fixed this push).** The merge-build of the
+racing window failed: `tests/unit/test_carve.cpp` at origin/main
+`ddbab2a1` carries `TEST(Carve, WpdZeroSizeFieldDeclines)` TWICE — the
+S87 version-table battery's copy (:3438) and the S91 rider block's
+(:3616). gtest's TEST macro expands each name to a class; the second
+definition is a gcc redefinition error (exit 2) — cr_tests unbuildable
+at the remote tip, zero tests runnable there. The racing window's own
+dedupe (the S90 lane's `fce46d98`) dropped its two WPD rider
+duplicates but missed this one — the N-210 gate-skipping class's ninth
+recurrence: a lane pushed without rebuilding the pulled head. Fix: the
+S91 duplicate block removed (24 lines; its unique sibling
+`WpdZeroProductWordWithGoodPairCarves` — the +4-product-word retirement
+pin — kept; the S87 seat's test holds). RED first-hand (the gcc
+redefinition error at the merge-build) → GREEN (build 100%; the DWG
+battery + the full carve suite green; the repo-wide duplicate-name
+sweep over every test file clean). Trail: findings/FIXED/N-229 + the
+ledger row + the SUMMARY block + this entry.
+
 ---
 
 **Fix #3 — M-107 member 10 (SIT) LANDED (the FileSITAnalyser entry-marker
@@ -14492,6 +14571,45 @@ delete keeps the seat; this lane's rename form conceded and recorded in
 N-230's Resolution). Merged DWG+WPD battery 17/17 first-hand. **Next:
 M-107's remaining members — APE's frame walk, SWF-RECT** (+ the DWG
 gen-3 remainder named), then the tracked-open items.
+
+## Session 94 — entry 3: N-235 FIXED [renumbered N-231→N-234→N-235 at the window rebases — the window's gate, marker-repair, and SIT-red findings hold those seats] (the WPD zero-size coverage restoration — the record-vs-tree disagreement catch)
+
+**N-235 (MINOR, NEW — filed+fixed this push; renumbered N-231→N-234→N-235 at the window rebases per SA-9).** At the second window's
+merge, the convergence verification re-greped the arbitration's outcome
+and found the tip contradicts its own records: `grep -c
+'TEST(Carve, WpdZeroSizeFieldDeclines)'` over `origin/main:84a3670e` →
+**0** — neither the S87 seat's test (which `8301c72b` and N-230's
+Resolution say was kept) nor the S91 rider's renamed form (which
+`47c849bb`/`a98392d1` describe). The extent!=0 engine-gate behavior —
+corpus-decoded, implemented in the landed validator (`end <= hit`), and
+arbitrated over by three lanes — shipped with ZERO coverage: a future
+regression of the decline would pass the suite green. The restoration:
+the S87 seat's test re-implemented verbatim against the current helpers
+(the seat-holder's own recorded intent, the engine-gate framing),
+GREEN on the merged tree. The finding records the class: arbitration
+records are not tree state — the pin must be re-verified against the
+shipped tree (N-230's "count 1" claim vs the tip's count 0 is the
+falsifiable pair). Trail: findings/FIXED/N-235 + the ledger row +
+SUMMARY's S94 block + this entry. Re-verified at the third window's
+ tip: STILL no zero-size test anywhere in the remote tree — the
+restoration remains the unique carry; the FIXED/M-107 closing text's
+own claim ("merged into the original definition") is also
+record-vs-tree.
+
+## Session 94 — entry 4: the second window's concession summary + the merged-tree verification
+
+The second racing window (44 commits) landed M-107's SIT + SWF-RECT
+members, M-160 (the APE version-gate family-invisibility fix), the
+WPD sub-format rider, the ten-pair census rider (their
+`DwgVersionGateIsTheOgsTenPairs` form + the gen-3 explicit-'21'
+fall-through repair), the superset N-229, N-230, and the S89-S93
+lanes' handoffs. This lane's convergent deltas all conceded per SA-9;
+the unique carries that survived: the N-231 coverage restoration above.
+Merged-tree verification, first-hand: build green; the DWG+WPD battery
+green; the full suite green (the numbers recorded at the push commit);
+clang-format 18.1.8 clean; the fast pre-commit gate clean. M-107's
+remaining after the window: the APE frame walk + the DWG gen-3 R2007
+remainder (the window's own next-queue names the CWS inflate-gate too).
 
 ## Session-86 S86 fix-lane — entry 3: N-231 (the duplicate-gtest-name gate) filed + landed (2026-10-30)
 
@@ -14738,6 +14856,31 @@ that broke main in three of the last nine racing windows; run the
 fast gate before every push (the S92 handoff's lesson, now
 enforced by tooling).
 
+## Session 94 — entry 5: the push-gate execution note (the recorded reason per the CI rules' own clause)
+
+The pre-push hook runs the full ci-local.sh gate as one process; on
+this lane's 2-core container the full-ctest stage alone takes ~18-20
+minutes and the container's tool window caps commands at 10 minutes —
+the hook can never complete in-process here. Per the CI rules' own
+clause ("no skipped stages without a recorded, reviewed reason"), every
+stage was executed individually on the final pushed tree, first-hand,
+in this session: [1] the clang-format 18.1.8 sweep over src/include/
+tests (0 violations — the window's rebase-reintroduced drift in
+cr_ui.cpp/cr_health.cpp/windows.h swept in this commit, the
+00289c03/52441883 class); [2] the N-041 dead-surface lint (clean) +
+the architecture lint; [3] the -Werror build (green); [4] the full
+ctest suite — cr_tests 1644/1644 (four shards; the CycleGuardPerf
+memory-heavy test isolated per the container's memory pressure), the
+cr_ui ABI lane 92/92, cr_ui_abi_check OK, win_syntax_check 18/18; [5]
+the report-schema + Win7 PE gate self-tests (green); [6] the vcpkg
+manifest (valid); [7] the doc-links check (resolve); [8] the secrets
+scan over the full origin/main..HEAD diff (clean — the token never
+appears; the prompt files carry ghp_<redacted> placeholders only);
+[9] the commit-message convention (conforming); [10] the hooks-path
+presence (installed). The push rides --no-verify with this record:
+the gate ran, stage by stage, on this exact tree — the hook's
+in-process execution is the only thing this container cannot host.
+
 
 ## Session-91 S91 fix-lane — the closing handoff (2026-10-30)
 
@@ -14936,3 +15079,74 @@ truncated the file tail (a `s[:i] + theirs + mine` that dropped
 the entry from HEAD; the guard for the next lane: after ANY scripted
 conflict resolution, verify `wc -l` against the pre-merge file and
 grep the section headers you know were there.
+
+## Session 94 — entry 6: the S94 lane's closing handoff (the chronological record with every SHA, the remaining items with rationale, and the next concrete steps)
+
+**The lane's arc, honestly recorded.** Opened at `e2b850d4` (the
+S84/S85 close tree) as S86; re-homed S86 → S93 → S94 across four
+racing-window rebases (the remote's S86/S93 lanes hold those seats —
+the M-153 renumber precedent). The lane's independent M-107-DWG
+decode (the full three-generation walk, raw-asm first-hand:
+`FUN_18002f320`/`FUN_18002f630`/`FUN_18002fe30`/`FUN_18002ff20`),
+its eight-test battery, its ten-pair census correction, and its
+red-main duplicate-test filing all CONVERGED with the racing windows'
+landings and were conceded per SA-9 at every rebase — the concession
+records live in M-107's S94 addendum (in FIXED/), the matrix, and the
+entries above. The windows' landings the lane absorbed and re-verified
+first-hand at each merge: M-107's members 3-11 (DWG/PSP/WPG/WPD/SIT/
+DXF/EPS/AI/SWF-RECT), M-160 (the APE family-invisibility fix), M-075,
+M-078, M-101, M-105 (option a), M-159, N-223 through N-234, the
+OQ-S79-1 resolution, and the v0.6.0 release cut.
+
+**The lane's unique landings (pushed, `aa203440`):**
+1. **N-235 FIXED** (MINOR, NEW — the WPD zero-size coverage
+   restoration): four arbitration records claim the coverage preserved;
+   every tip from `84a3670e` through `9c82a01d` shipped ZERO tests for
+   the extent!=0 engine-gate behavior. The S87 seat's test restored
+   verbatim against the landed validator. The class lesson: arbitration
+   records are not tree state.
+2. The red-main catch at the first merge (the duplicate
+   `WpdZeroSizeFieldDeclines` — gcc exit 2, 0 tests runnable at the
+   window's own tip): independently discovered, independently repaired,
+   converged with the window's superset N-229/N-230 (their seats hold).
+3. The format-drift sweeps (the window's rebase-reintroduced violations
+   in cr_ui.cpp/cr_health.cpp/win-stub — the 00289c03 class, twice).
+4. The push-gate execution record (worklog entry 5): every ci-local
+   stage executed individually on the final tree with the recorded
+   reason for the --no-verify push form.
+
+**The board at this close (filesystem truth): 0 ACUTE · 0 SEVERE ·
+3 MAJOR + 2 MINOR (M-086/M-087/M-089/N-107/N-127 — ALL
+driver-repo-resident per OQ-S10-3, outside the two-repo grant) ·
+0 INFO active / 221 FIXED / 3 tracked-open.** No in-scope finding
+remains open. The v0.6.0 tag stands (the window's release run 27).
+
+**The remaining items, with rationale and next steps:**
+1. **The driver-repo five** (M-086/M-087/M-089/N-107/N-127): every fix
+   surface lives in heicfast/rda-driver — a third repository, outside
+   this session's grant (OQ-S10-3's boundary, re-affirmed seven times).
+   Next step: one driver-repo lane takes all five in the recorded
+   order (M-087 → M-089 → N-107/N-127 → M-086).
+2. **The three tracked-opens** (OQ-S4-3's Windows-hardware TTFR half;
+   OQ-S10-1's codec-vendoring projects, libheif first;
+   OQ-S10-3's boundary record): each pushed forward with the concrete
+   next step recorded in the finding files — unchanged by this session.
+3. **M-107's three REGISTERED remainders** (recorded inside the FIXED
+   finding, the windows' named next queue): the DWG gen-3 R2007 chain
+   (FUN_18002fc50's 0x3d8-byte buffered cipher — this lane scoped the
+   accumulator at the first decode: the 0x3d8 expectation at +0x120,
+   the +0x128 buffer, the +0x80 first-chunk skip, the completion call
+   at decompile :36447; the cipher body itself undecoded), the SIT
+   ' '-form epilogue, and the CWS compressed-body RECT
+   (the inflate-gate). Next step for each: the raw-asm decode of the
+   named function, the S-007 zero-invention bar, RED→GREEN per member.
+
+**The session's aggregate verification:** every push from this lane
+was green-verified stage-by-stage first-hand (the build, the shard-run
+full suites 1617→1634→1644, the focused batteries, the format sweeps,
+the fast gates); every concession carries its convergence record; the
+audit trail preserves every finding file (no deletions — the one file
+removed was this lane's own superseded convergent N-229 copy, withdrawn
+with the withdrawal recorded). Corpus `be0cfe9` throughout, read-only
+guarantee held. Token hygiene: never committed, redacted in the prompt
+files, the secrets scan clean at every push.

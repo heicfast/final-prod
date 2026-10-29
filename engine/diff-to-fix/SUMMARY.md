@@ -1,3 +1,43 @@
+# SUMMARY.md — executive summary (the S94 fix lane on top; the prior lanes below, newest-first)
+
+## Session-94 S94 fix-lane delta (2026-10-30 — the user's fix mandate continuation; born S86 at the open, re-homed S86 → S93 → S94 across the two window rebases per SA-9 — the remote's S93 lane [born S89] holds that seat; corpus `be0cfe9` throughout; baseline green first-hand at the open [cr_tests 1571/1571 + cr_ui 89/89 + abi OK + win_syntax OK])
+
+- **The second-window concession (the record):** this lane's DWG
+  decode, eight-test battery, census correction (the TEN-pair tier-1
+  truth, independently re-derived from `0x39303031`@0x18002feae + the
+  `cmp edx,0xa` bound), plant re-pin, and red-main duplicate-test filing
+  all converged with the S84-S93 window's landings and riders — conceded
+  per SA-9 at both rebases; the racing seats hold (`ddab68b4`/`f7e49eaf`/
+  `d35e1cbb`/`47c849bb`'s TenPairs rider; the superset N-229 + N-230).
+  The convergence is recorded in M-107's S94 addendum.
+- **N-231 FIXED (MINOR, NEW — filed+fixed this push, the unique carry):
+  the WPD zero-size coverage restoration.** The window's arbitration
+  records all state the `WpdZeroSizeFieldDeclines` coverage was
+  preserved (the S87 seat's test kept + the S91 rider's renamed), but
+  the tip's final merge state carried NEITHER test — the extent!=0
+  engine-gate behavior (the landed validator's `end <= hit` decline,
+  corpus-decoded at 0x18000d7e1) had zero coverage at `84a3670e`. The
+  S87 seat's test restored verbatim against the landed validator —
+  the seat-holder's own recorded intent, re-implemented. RED by
+  inspection (no test anywhere exercises the zero-size decline) →
+  GREEN (the restored test passes; the DWG+WPD battery green on the
+  merged tree).
+
+**Board after the third window + this lane's merge (filesystem truth,
+at the S94 push): 0 ACUTE · 0 SEVERE · 3 MAJOR (M-086 M-087 M-089 —
+ALL driver-repo-resident per OQ-S10-3, outside the two-repo grant) ·
+2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO active / 220
+FIXED / 3 tracked-open.** The third window closed M-107 (all eleven
+members + the gen-3 remainder landed; the finding moved to FIXED/)
+and landed M-160 (the APE family-invisibility fix) — the board's every
+in-scope finding is now FIXED; the six open findings are all
+driver-repo-resident with recorded rationale and named next steps (the
+S86/S87 lanes' closing handoffs). The window's own honest posture: no
+release tag — the audit does not close cleanly (the driver-repo five
+stand). Next free IDs: S-069+, M-161+, N-235+, I-050+, A-017+, D-168+.
+
+---
+
 # SUMMARY.md — executive summary (the S87 MAJOR-first 20+ fix lane on top; the prior lanes below, newest-first)
 
 ## Session-87 S87 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings(priority to major first) one by one... Aim for atleast 20+ fixes in this session, put fixed findings in fixed directory. Update all docs , counts and all properly"]; opened at core `ddab68b4` [clean tree], corpus `be0cfe9` throughout; five racing windows absorbed and reconciled at the pushes; prompt saved token-redacted at worklog/session-diff-fix-s87-prompt.md)

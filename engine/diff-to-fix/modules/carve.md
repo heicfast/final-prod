@@ -840,6 +840,25 @@ The carve surface's size-walk residue now has owners:
 - **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
   carries the closure record).
 
+## S94 fix-lane addendum (2026-10-30 — renumbered from the born-collided S86→S93 seats; both window rebases conceded per SA-9; the N-231 coverage restoration the unique carry)
+
+- **The concessions:** this lane's independent DWG decode (gen-1 + gen-2,
+  both raw-asm first-hand), its eight-test battery, and its census
+  correction (the TEN-pair tier-1 truth — the same asm evidence the
+  window's S86 rider landed: `0x39303031`@0x18002feae + the
+  `cmp edx,0xa` bound) all converged with the racing window's landings
+  and conceded at the rebases. The seat's forms hold
+  (`DwgVersionGateIsTheOgsTenPairs` + the gen-3 explicit-'21' repair);
+  the current per-member state (the window's S87/S89/S90 sections) is
+  authoritative.
+- **N-235 (the unique carry, filed+fixed; renumbered N-231→N-234→N-235 at the window rebases):** the WPD zero-size-decline
+  coverage lost in the window's final merge state — N-230's Resolution
+  claims the S87 seat's test kept (count 1); the shipped tip carried
+  count 0. The S87 seat's `WpdZeroSizeFieldDeclines` restored verbatim
+  against the landed validator's `end <= hit` decline; the
+  record-vs-tree disagreement class recorded in the finding: arbitration
+  records are not tree state.
+
 ## Session-11D fix lane (2026-10-29 — A-012, DISCOVERED during S-051's verification: the registry row restore)
 
 - **A-012 (ACUTE)** — the 81ee9775 rebase-window conflict sweep (the
