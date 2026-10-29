@@ -4629,7 +4629,6 @@ step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 - **VERDICT: ACCEPTED** (the registered open modeling difference,
   N-178's leg 2 — revisit if a future decode surfaces the engine-side
   consumer).
-<<<<<<< HEAD
 
 ---
 
@@ -4653,7 +4652,7 @@ journal salvage is on): surfacing the filesystem's own journal as a lost
 "InodeN" entry would be FS-internal circular metadata noise, not user
 content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
-=======
+
 ## D-152 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM
 
 **Surface:** the auto-session lifecycle (M-154). The og's pointer is
@@ -4678,4 +4677,36 @@ flows) have no core counterpart by architecture.
 finding); the M-154 tests (RetentionDeletesPreviousAndPointerNamesIt /
 ManualSaveSurvivesRetention / DeadPointerDoesNotBlock) + the C consumer
 check pin the semantics.
->>>>>>> 309f7af8 (fix(session): M-154 — the auto-session lifecycle lands: retention-one (the pointer-named previous auto session deleted before every write), the last_scan.info pointer (the og's [Info] four fields), and the pointed-resume ABI)
+
+
+### D-155 — I-048's three registers (the S69 local-database deep dive: dead data, a remote-tunable layer, and an engine-faithful superset — INFORMATIONAL, ACKNOWLEDGED)
+
+- **Register A — FileFilter.xml's `Selected` fields are dead data (correct by
+  omission):** the shipped file carries the attribute/element pair at 16
+  sites, and the ONLY "Selected" string consumers in any decompiled binary
+  are Qt stylesheet states (`WSHover`/`WSNormal` theming, DRWUI:1209830/
+  :1209887) — no XML reader touches the field. The core's M-023 table
+  carries no such field: correct. Registered so no future lane burns time
+  decoding "Selected semantics" that do not exist.
+- **Register B — the summary-family groups are remote-tunable at runtime
+  (REPORTING-OOS):** DRWUI's results-config init reads `value_fastgoodfile`
+  and `value_sumaryfiletype` from the remote-config settings singleton
+  (DRWUI:319007-319022, both keys verified first-hand in the
+  remote_config_data cache). The core's N-132 tables are the static ini
+  snapshot — the og's groups can drift from the shipped ini at runtime and
+  the core's cannot. Acceptable under the prior remote-config REPORTING-OOS
+  disposition; the remote-vs-ini precedence question is undecoded and
+  immaterial under it.
+- **Register C — the og's lost-partition ext size is a 32-bit signed
+  product; its own engine is 64-bit (the engine-faithful superset is
+  deliberate):** PRD FUN_180003090 (PRD:1407-1414, re-verified first-hand:
+  `return *(int*)(param_2+4) * (int)uVar1;` — s_blocks_count as signed
+  int32, the product int×int; ≥2^31 sectors goes NEGATIVE) while the og's
+  engine validator uses the full 64-bit count (EXT4SearchDLL:3234). The og
+  is internally inconsistent; the core's probe uses the 64-bit form — the
+  engine-faithful superset, the D-50 calibration family (adopting the og's
+  own probe defect would be a down-fix). Preserved as deliberate.
+- **VERDICT: ACKNOWLEDGED** (all three registers verified against the
+  corpus this session — the PRD product form and the remote key reads
+  re-read first-hand; no code change; the divergences are intentional or
+  data-level and must be preserved in future work).

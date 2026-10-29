@@ -46,3 +46,10 @@ M-023 (the FileFilter table landing), N-132 (the display-config tables), D-50 (t
 ## Open questions
 
 Register B's precedence question (remote vs ini default) — immaterial under the OOS disposition; recorded for completeness.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Fixed in commit:** this session's push (the S80/S81 lane's I-048 registration — no code change, per the finding's own fix plan)
+**Verified by:** the corpus cites re-verified first-hand this session (PRD:1407-1414 — FUN_180003090's `return *(int*)(param_2+4) * (int)uVar1;` read directly; DRWUI:319007/:319016 — the `value_fastgoodfile`/`value_sumaryfiletype` remote-key reads located); the three rows registered as D-155 in PARITY-DELTAS with the cites.
+**Resolution notes:** All three registers acknowledged with the rationale verified: (A) the `Selected` dead-data register — correct by omission, preserved; (B) the remote-tunable summary groups — the static ini snapshot stands under the REPORTING-OOS disposition, preserved; (C) the 32-bit-vs-64-bit ext size — the core's engine-faithful 64-bit superset is deliberate (the D-50 calibration family), preserved and must NOT be "fixed" toward the og's own probe defect. The three rows now live in PARITY-DELTAS D-155 so future lanes do not re-litigate them; the finding's registration-only fix plan followed exactly (no code change).

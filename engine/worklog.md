@@ -12040,3 +12040,16 @@ push's committed conflict remnants in test_ntfs_volume.cpp repaired
 (the N-210 gate's ^<<<<<<< pattern misses >>>>>>>-only remnants — the
 gate-gap note recorded for the next lane). Trail: findings/FIXED/M-154,
 matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.
+
+---
+
+## Session-80 S80 fix-lane — entry 10 (2026-10-29): I-048 acknowledged
+
+**I-048 ACKNOWLEDGED (INFO):** the three registers verified against the
+corpus (the PRD:1407-1414 32-bit product and the DRWUI:319007/319016
+remote-key reads re-read first-hand) and registered as D-155 in
+PARITY-DELTAS. No code change — the finding's own registration-only fix
+plan. The dead-data omission, the OOS remote layer, and the
+engine-faithful 64-bit superset all preserved as deliberate. Trail:
+findings/FIXED/I-048 + Resolution (ACKNOWLEDGED), ledger row, D-155,
+this entry. The INFO tier is now EMPTY.
