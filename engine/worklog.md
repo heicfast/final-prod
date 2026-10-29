@@ -12189,3 +12189,30 @@ recorded in the racing lanes' convergence addenda. The S83 CRW landing
 (0cf6142d) completed this lane's decode path (the vtable slot census, the
 three 07-28-{A8,B2,E4} needles, the {70,60,50} map — all carried into the
 landing's own evidence sheet).
+
+---
+
+## Session-84 — the post-remediation coherence session, opened (2026-10-29)
+
+**Mandate:** coherence, not behavior. After the multi-lane fix windows
+(S80–S83 and their racing landings), this session verifies the tree is
+what everyone believes it is: builds clean, wired correctly, documented
+accurately, green in CI for the right reasons. Prompt saved to
+`worklog/session-coherence-prompt.md` (token redacted).
+
+**Baseline:** `main` at `cac42582` (2026-10-29 16:47:46 +0000). 1099
+tracked files (302 C/C++, 621 md), 4 workflows. Corpus:
+`easeus-drw-research` @ clone HEAD, read-only guarantee held.
+
+**Opening sweep (before any fix):** live conflict markers committed at
+HEAD in 5 non-sanctioned files (the M-120/N-210 class, the repo's own
+ci-local.sh check would be RED): `worklog.md:12069-12168`,
+`diff-to-fix/CROSS-REF-MATRIX.md:39-46`, `diff-to-fix/FIXED-LEDGER.md:656-669`
+(two blocks), `diff-to-fix/findings/FIXED/I-048-...md:52-62`,
+`docs/PARITY-DELTAS.md:4677-4682` and `4707-4863` (nested double
+conflict). The M-120 evidence file remains the one sanctioned carrier.
+These are Phase 3 targets; nothing is fixed until the Phase 0 picture
+sheets are committed and pushed.
+
+**Phase 0 next:** parallel read agents A–E produce
+`worklog/{build,api,cli,doc}-surface.md` + `recent-commits.md`.
