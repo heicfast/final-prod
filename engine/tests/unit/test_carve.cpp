@@ -2757,8 +2757,13 @@ void plant_dwg_r2004(std::vector<u8>& img, size_t at, u64 extent_base) {
     dwg_put32(plain + 0x44, 0x20);
     dwg_put32(plain + 0x48, 0x80);
     dwg_put32(plain + 0x4c, 0x40);
+    /* the encrypted struct sits at +0x80 BYTES (raw-asm 0x18002f5a0:
+     * `lea rdx,[rdi+0x80]` with rdi = the chunk base, set once at
+     * 0x18002f342 and never reloaded; the Ghidra decompile's `param_2 +
+     * 0x20` is INT* arithmetic = 0x80 bytes - the unscaled port repaired
+     * against the asm by the convergent lane's S84 evidence sheet) */
     for (size_t i = 0; i < sizeof(plain); ++i)
-        img[at + 0x20 + i] = u8(plain[i] ^ dwg_rand_stream(u32(i)));
+        img[at + 0x80 + i] = u8(plain[i] ^ dwg_rand_stream(u32(i)));
 }
 
 TEST(Carve, DwgSectionLocatorWalkSetsExtent) {
@@ -2884,8 +2889,8 @@ TEST(Carve, DwgR2004GateFailDeclines) {
     const size_t at = 512;
     plant_dwg_r2004(img, at, 0x30000);
     /* tear one gate byte in the PLAIN domain: byte 0x44 must decode to
-     * 0x20; corrupt its ciphertext */
-    img[at + 0x20 + 0x44] = u8(img[at + 0x20 + 0x44] ^ 0xFF);
+     * 0x20; corrupt its ciphertext (at the +0x80 struct offset) */
+    img[at + 0x80 + 0x44] = u8(img[at + 0x80 + 0x44] ^ 0xFF);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"L");

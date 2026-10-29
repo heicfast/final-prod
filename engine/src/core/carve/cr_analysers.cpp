@@ -4683,7 +4683,14 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     if (gen2) {
         /* ---- gen-2: the rand-XOR struct walk (R2004+) ---- */
         u8 enc[0x6c];
-        if (!rd(s, hit + 0x20, enc, sizeof(enc)))
+        /* the encrypted struct sits at +0x80 BYTES (raw-asm 0x18002f5a0:
+         * `lea rdx,[rdi+0x80]` with rdi = the chunk base, set once at
+         * 0x18002f342 and never reloaded - the misaligned `mov edi` at
+         * 0x18002f596 is the tail byte of `lea rcx,[rbp-0x41]`; the Ghidra
+         * decompile's `param_2 + 0x20` is INT* arithmetic = 0x80 bytes,
+         * the unscaled port repaired against the asm; evidence:
+         * evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md §4) */
+        if (!rd(s, hit + 0x80, enc, sizeof(enc)))
             return r; /* the struct never completes: the extent stays 0 */
         u8 dec[0x6c];
         u32 st = 1; /* the MSVC rand() LCG, seed 1 (FUN_18002f630) */

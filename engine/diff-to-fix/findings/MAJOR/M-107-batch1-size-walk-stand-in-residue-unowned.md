@@ -296,7 +296,11 @@ generations, routed by version string:
   stopping at the device end keeps the running max (the walked-prefix
   salvage, reduced confidence).
 - **Gen-2 (AC1018/24/27/32 = R2004-R2018)**: FUN_18002f630 XORs the 0x6c
-  struct at +0x20 with the **MSVC rand() LCG stream, seed 1** (state =
+  struct at **+0x80 BYTES** (raw-asm 0x18002f5a0 `lea rdx,[rdi+0x80]`, rdi
+  = the chunk base set once at 0x18002f342 — the Ghidra decompile's
+  `param_2 + 0x20` is INT* arithmetic = 0x80 bytes; the landing's initial
+  +0x20 was the unscaled port, REPAIRED against the asm by the convergent
+  S84 lane) with the **MSVC rand() LCG stream, seed 1** (state =
   state*0x343fd + 0x269ec3, byte = state>>16); six gates on the decoded
   struct (u32@0x0b==0, @0x10==0x6c, @0x14==4, @0x44==0x20, @0x48==0x80,
   @0x4c==0x40); all pass → **extent = u64@0x34 + 0x6c**; any fail → the
@@ -394,3 +398,26 @@ WpgAllZeroWindowDeclines — the stand-in's blind 64 MiB and its
 all-zero acceptance), GREEN with the walk. The carve suite 186/186.
 Remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT (six) + the DWG gen-3
 remainder.
+
+---
+
+## Session-84 convergence record (the DWG member's convergent repair — the gen-2 struct offset)
+
+The DWG member was decoded and landed CONVERGENTLY by two lanes in the
+same window: the racing S85 lane's landing (8272daf2 — the seat, the
+structure: the gen-1 locator walk, the gen-2 rand-XOR struct walk, the
+gen-3 recorded remainder, the version-table correction
+{12,13,14,15,18,21,24,27,32}) and this lane's S84 decode (evidence:
+`evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md` — the same
+three-generation model, the same factory cursor 0x15 at 0x18002ff59, the
+same keystream's first byte 41). **The one material delta, arbitrated
+by the raw asm: the gen-2 encrypted struct's offset.** The landing read
+`hit + 0x20`; the asm at 0x18002f5a0 is `lea rdx,[rdi+0x80]` with rdi =
+the chunk base (set once at 0x18002f342, never reloaded — the phantom
+`mov edi,0x6c428d44` in naive disassembly is the tail byte of
+`lea rcx,[rbp-0x41]` at 0x18002f593, a mid-instruction start). The Ghidra
+decompile's `param_2 + 0x20` is INT* arithmetic = **0x80 BYTES** — the
+landing ported the unscaled constant. Repaired: the read, both test
+plants, and this finding's gen-2 bullet now carry +0x80 with the asm
+citation. The offset matches the real R2004 format (the section page
+map at 0x80) — the convergent external corroboration.

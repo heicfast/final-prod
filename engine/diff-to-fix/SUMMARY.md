@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SUMMARY.md — executive summary (the S84 fix lane on top — M-101 landed, the red main closed, the trail repaired; the prior lanes below, newest-first)
 
 ## Session-84 S84 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first)... Aim for atleast 20+ fixes..."]; opened at core `cac42582`, corpus `be0cfe9` throughout; the baseline suite run FIRST exposed the red main — 2 failing S-068 tests — closed by the racing cd3479e7 byte-restore with this lane's convergent repair conceded per SA-9, the corroboration in the racing N-220's convergence addendum)
@@ -41,6 +42,49 @@ MINOR (N-107/N-127, both PUSHED-FORWARD posture) · 0 INFO active /
 Next free IDs: S-069+, M-158+, N-224+, I-049+, A-017+, D-165+.
 
 ---
+=======
+# SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)
+
+- **M-159 FIXED (MAJOR, NEW — filed+fixed this session):** the S-068
+  machinery's complementary halves, decoded and landed on top of the
+  byte-restored seat: (1) the hint is the **WALKED END** (first + the
+  dentry's size-derived cluster count, :13722-27/:13754-56) — the landed
+  bare-first form re-bases into the WRONG 64K bank when the anchor's
+  declared size crosses a bank boundary; (2) the **failed-but-high arm**
+  (param_5 = the walk-success flag, DECODED where the landing's comment
+  said "undecoded") — a broken high anchor still feeds the hint; (3) the
+  **dispatcher's ATTR_DIRECTORY routing** (:13744-49) — the eager primary
+  is the FILE site (`!is_dir` added); **Site B implemented** (the
+  deleted-DIRECTORY raw-first retry under the 0x310000 gate, :14826-48 —
+  the N-220 finding's own "unmodeled sibling"), seam-exposed as
+  `dir_retry_rebase_cluster`. RED 3/4 first-hand via the revert-rebuild
+  (the two discriminators + the below-gate guard all FAIL against the
+  origin/main structure) → GREEN: FAT families 98/98, full suite
+  **1676/1676**.
+
+- **N-224 FIXED (MINOR, NEW — filed+fixed):** the M-075 landing's
+  cr_fsck.cpp broke win_syntax_check at origin/main (the WoW64 pair +
+  ULONGLONG never grown into the win-stub; six parse errors, first-hand)
+  — the stub grown per its own N-116 contract; the gate GREEN; the
+  launcher's logic untouched.
+
+- **N-223 moved to findings/FIXED/** (the fixed-directory directive —
+  its own Resolution was FIXED but the file sat in MINOR/).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 7
+MAJOR · 2 MINOR · 0 INFO active / 204 FIXED / 4 tracked-open.** (M-159
+and N-224 were filed AND fixed this session — they land on the FIXED side
+directly. Of the 7 active MAJORs, M-086/M-087/M-089 are driver-repo-resident
+per OQ-S10-3 — out of this grant's two-repo boundary; the 2 active MINORs,
+N-107/N-127, are the same driver-repo class. M-107 remains active for its
+EIGHT un-landed members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT —
+X3F, CRW, and DWG landed as members 1-3). The in-scope fix queue after
+this push: M-101 (the Versions / Tags Extracted branches), M-107's
+members, then M-078/M-105, then the tracked-open resolutions.)
+Next free IDs: S-069+, M-160+, N-225+, I-049+, A-017+, D-165+.
+>>>>>>> 322dbdc0e0f9385a7618c5918ffc39d93d121203
 
 ---
 
