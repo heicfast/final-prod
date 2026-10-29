@@ -1,23 +1,81 @@
 # core_recovery release notes
 
-## vNext (additions, 2026-10-29 session 40)
+# core_recovery v0.6.0
 
+**Scope of this release:** the capability + parity milestone on top of
+v0.5.2 — 803 commits, the M-107 carve size-walk family (members 1-9 of
+11 landed; SIT/APE/SWF-RECT remain), the whole-disk partition scan, the
+pointed-resume session surface, and the warnings-hygiene coherence pass
+(the MSVC /W4 /WX build restored to zero warnings; the full Linux suite
+green at every landing). The headline set since v0.5.2:
+
+## Carve engines — the M-107 size-walk family (the blind stand-ins retired)
+
+- **PSP, DWG, WPD, WPG, DXF, EPS, AI** (members 1-9 of 11): each format's
+  size is now computed by the og's own walk — decoded first-hand from the
+  reference binary (objdump/pefile over the corpus), landed with RED→GREEN
+  stash-dance proof per member, and pinned by per-format batteries. The
+  blind 64 MiB stand-ins are gone: recovered extents no longer truncate
+  (or over-extend) versus the reference. Notable decodes: the DWG
+  three-generation walk (the 0x15 position constant, the R2004 XOR-LCG
+  keystream), the WPD version-table gate (the og stamps extent = the
+  header's own u32 size field on any of three version pairs), the WPG
+  zero-tail continuation walk, the DXF EOF-trailer scan (LF and CRLF
+  forms), the EPS Adobe covenant (`%!PS-Adobe-` required — a bare `%!PS`
+  is the og's decline), and the AI header formula (three start+length
+  pairs, max wins).
 - **S-054 (repair of the S-047 landing)**: the MPEG-TS/AVCHD (TS/M2TS)
   carve cap is the og's 200 MB controller global EXACTLY — the S-047
   landing's "× 10" value (2 GB) was a refuted provenance; any release
   that shipped S-047's cap should read this as the correction (recovered
   TS/M2TS files above 200 MB were over-extended vs the reference).
+- **M-117**: contiguous TS/M2TS/MPEG-audio streams no longer pay the
+  quadratic mid-stream re-walk in the carve stage (covered candidates
+  resolve at the covered check before the validator).
+
+## Scan + session surfaces
+
 - **S-051**: a whole-disk scan target (the ABI's `cr_ui_open_disk`, the
   CLI `scan --disk` / whole-disk images) now reads the partition list at
   scan setup and scans every table volume (the og's CDoScanPartition
   flow) — a partitioned disk no longer completes "successfully" with
   zero files.
-- **M-117** (discovered during S-054's verification; renumbered at the push per the ID-collision rule): contiguous
-  TS/M2TS/MPEG-audio streams no longer pay the quadratic mid-stream
-  re-walk in the carve stage (covered candidates resolve at the covered
-  check before the validator).
+- **M-154 (pointed resume)**: `cr_ui_session_resume_last` — the header's
+  phantom export implemented; the last-autosave path reads the pointer
+  sidecar (not the directory enumeration), with the full dead-pointer
+  refusal taxonomy (ERR_OPEN_FAILED per the cr_ui.h contract).
+- **M-101**: the results-tree gains the Versions node and Tags Extracted
+  branches (the two missing results-tree surfaces).
+- **M-116**: the archive-list verb + the two-call archive ABI
+  (STASH.ZIP-class archives surface their member inventory end-to-end).
+- **The `image` verb**: `image --create --disk N --out file.img` — the
+  flat-raw image producer (atomic temp+rename commit, .sha256 sidecar,
+  explicit .partial on cancel/failure).
+- **M-075**: `fix --chkdsk`; **M-078**: BitLocker unlock/turn-off
+  (`unlock --turn-off` CLI + `cr_ui_turn_off_bitlocker` ABI);
+  **M-105**: the DRWService elevation-broker decision closed as
+  NO-SERVICE (the FVE harvest's ACL diagnosis replaces the transient
+  LocalSystem service).
 
-## vNext (CI consolidation, 2026-10-28)
+## Hygiene + verification (the coherence pass)
+
+- The Windows empty-directory listing fix (runs `40694592245` /
+  `40700058960`): a directory containing NO `.crsf` sessions listed as
+  `ERR_OPEN_FAILED` on Windows — the version-proof discriminator now
+  probes directory existence (`GetFileAttributesW`) on failed
+  enumeration: an existing directory with zero matches is the empty-list
+  SUCCESS (POSIX `opendir` semantics), a missing path stays
+  `ERR_OPEN_FAILED`. Both surfaces: `cr_ui_session_list` and the CLI
+  `sessions` verb.
+- The MSVC /W4 /WX build restored to zero warnings (the C4310/C4127/
+  C4267/C4244 classes fixed at their root — explicit lo-word masks, the
+  direct-failure convention, explicit EOCD casts, `narrow_bytes()` for
+  the journal paths), zero suppressions added.
+- The committed conflict-marker classes swept (the N-210 gate now holds
+  across the merged windows); the suite grew to 1,700+ tests, green at
+  every landing.
+
+## vNext (CI consolidation, 2026-10-28) — folded into this release
 
 - *(Corrected 2026-10-29, M-088: the lane set is FOUR, not three — the
   S-038 `installer.yml` gates lane postdates the consolidation and the
@@ -35,20 +93,6 @@
   the driver's unsigned AND signed SHA-256 plus the dev-sign subject.
 - The ubuntu sanitizer/fuzz CI lanes were dropped (owner directive;
   coverage remains available locally via `ci-local.sh --san|--fuzz`).
-- **The Windows empty-directory listing fix** (runs `40694592245` /
-  `40700058960`): a directory containing NO `.crsf` sessions listed as
-  `ERR_OPEN_FAILED` on Windows - and the `FindFirstFileExW` error code
-  proved NOT to be the reliable empty-vs-missing axis on real systems
-  (the observed matrix inverted from the documented one). The fix is
-  the version-proof discriminator: on a failed enumeration the seam
-  probes directory existence (`GetFileAttributesW`) - an existing
-  directory with zero matches is the empty-list SUCCESS (POSIX
-  `opendir` semantics; the `CrUi.AutoSaveOnCompletion` first-block
-  contract: `OK` + `n==0`), while a missing path - or a plain file
-  handed as a dir - stays `ERR_OPEN_FAILED` (the `no-such-dir-*` rows
-  in `SessionListTwoCallPattern` and the abi C-gate). Both surfaces:
-  the ABI's `cr_ui_session_list` and the CLI `sessions` verb (zero
-  rows, exit 0; a genuinely missing directory stays FB-K01 exit 1).
 
 # core_recovery v0.4.1-parity
 
