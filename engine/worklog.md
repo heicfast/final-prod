@@ -12763,3 +12763,26 @@ the audit trail is the deliverable of this landing.
 finding's decode-then-land order), then M-075/M-078/M-101/M-105, then the OQ
 items (S79-1's $LogFile decode is in-repo workable).
 
+
+---
+
+## Session-84 — entry 5 (this lane): the T3/T4 registers land (2026-10-30)
+
+**`worklog/api-cli-mismatches.md`** — the ABI↔CLI↔docs cross-check register:
+the architecture truth first (the CLI links cr::core/cr::win directly by
+design, rrecov.cpp:859-867 — the "wired to the ABI" gate is the two edges
+CLI→core and cr_ui→core), then six defects FIXED this session with SHAs
+(F-1 phantom export a47419c7, F-2 image --create 32441353, F-3 exit-5 docs
+78c60e89, F-4 ledger collisions 24edbb04, F-5 lint/bench root causes, F-6
+the marker class swept), nine DOC dispositions for the T17 batch, three
+BEHAVIOR dispositions filed, and the corpus-parity seed.
+
+**`worklog/api-findings.md`** — the next-behavior-session scope: AF-1 the
+exit-code taxonomy inconsistencies; AF-2 the two zero-coverage exports
+(cr_ui_open_volume_with_key, cr_ui_unlock_volume_with_dictionary — union
+coverage 89/91 computed first-hand); AF-3 the oracle's phantom error-code
+matches (43+OK real vs 45 counted); AF-4 the event-emission split; AF-5 the
+missing struct-layout static pins.
+
+**Marker state at this entry:** only M-120's sanctioned evidence quotes
+remain (3 lines) — the C-1 opening finding is closed.
