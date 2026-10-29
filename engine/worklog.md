@@ -11620,7 +11620,6 @@ lane contributed that their landing already carried better: the INDX
 floor constant; this lane's version of the same discovery is preserved
 in this entry for the history).
 
-<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 5: M-149 (2026-10-29)
 
 **M-149 FIXED (MAJOR, lost-partition):** the ghost-score two-pass form
@@ -11675,7 +11674,6 @@ session count bomb), M-152 (the ext4 orphan skip), M-151 (the NTFS run
 growth), M-154 (the autosave retention), M-107's remaining members (CRW
 next), then M-075/M-078/M-101/M-105/M-111/M-113/M-114, then the MINOR
 queue (N-216/N-145/N-178/N-181/N-182), then I-048's registers.
-=======
 **N-216 FIXED (MINOR, orchestrator/config) — fix #4 of the S81 ladder:**
 the finding's open question (the cap's consumer) DECODED this session —
 DRWUI:750172-175: the tree-builder hides nodes whose size exceeds the
@@ -11686,4 +11684,3 @@ max_file_size/set_max_file_size/size_exceeds_cap + apply() flags
 oversize nodes; set(0)=OFF registered as D-150. RED (compile-form) →
 suite 1621/1621. Trail: findings/FIXED/N-216 + Resolution, matrix row,
 modules/orchestrator.md addendum, PARITY-DELTAS D-150, ledger row.
->>>>>>> 067449ed (fix(orchestrator): N-216 — the MaxFileSize cap: the consumer decoded (the finding's open question closed) and the predicate landed. Corpus first-hand this session: the +0xa0 cap field (ctor FUN_140478d10, DRWUI:749901-749903) is consumed at DRWUI:750172-175 INSIDE the tree-builder that also runs the FilterFolder name gate (:750147-150, same function): the node's size accessor FUN_140089170 vs the cap; cap < size -> FUN_140088f40(node, 0) — the node is HIDDEN from the results tree through the same visibility clear the junk-name path uses. A tree-visibility size cap (fix-plan hypothesis (a) with the mechanism precision), not a scan gate, not display truncation; the negative-size half is a signed-accessor artifact (the u64 translation: the strict > compare). The shipped version.ini carries no key (read first-hand) -> the 1 TiB default governs — the og's corrupt-size guard. Landing in filterfolder (M-018's seam — the og consumes both gates in the same tree-builder): max_file_size() default 0x400<<30, set_max_file_size() (the per-host tunable, the og's [ver] 'MaxFileSize ' key in GiB units), size_exceeds_cap(), apply() flags oversize nodes NODE_FLAG_JUNK_FILTERED. One registered divergence: set(0) = OFF (the og has no 0 semantics — minimum 1 GiB via the <<0x1e shift; 0<<30 would hide everything — the og's own footgun) — PARITY-DELTAS D-150. RED->GREEN: the three tests fail as compile-errors pre-fix and pass post-fix (MaxFileSizeDefaultIsOneTebibyte / SizeCapHidesOversizeNode — 2 TiB flags, the exact-cap boundary stays per the og's strict compare / SizeCapHostOverrideRoundTrip); suite 1621/1621. Trail: findings/FIXED/N-216 + Resolution, matrix S81 row MATCH, modules/orchestration.md addendum, PARITY-DELTAS D-150, ledger row, worklog)
