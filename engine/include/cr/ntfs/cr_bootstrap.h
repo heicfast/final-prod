@@ -37,6 +37,15 @@ struct VolumeParams {
      * flag mirroring the og analyser's verified-backup state (+0x510);
      * repairing the primary stays consent-gated (rawfixer, S-008). */
     bool boot_from_backup = false;
+    /* S-063 (diff-to-fix): the MFT bootstrap READ RECORD 0 FROM THE
+     * $MFTMirr LCN (the primary $MFT's first cluster was torn/unreadable
+     * or the geometry gates rejected it — the og's walk-entry fallback,
+     * NTFSSearchDLL FUN_1800272b0's LAB_180027467 :31595-31609). The
+     * mirror's record-0 slot is a copy of $MFT's own record, whose $DATA
+     * runlist describes the whole primary MFT — everything to bootstrap
+     * FROM. Report-only flag; the primary is never written (repair stays
+     * consent-gated, rawfixer S-008). */
+    bool boot_from_mftmirr = false;
 };
 
 /* Opened NTFS volume: owns the MFT stream mapping and the geometry. */
@@ -76,7 +85,7 @@ public:
 
 private:
     NtfsVolume() = default;
-    u32 load_mft_stream();
+    u32 load_mft_stream(u64 at_lcn, bool from_mirror);
     u32 load_mftmirr_stream();
     u32 enum_mirr_attrs(const std::vector<u8>& buf);
 

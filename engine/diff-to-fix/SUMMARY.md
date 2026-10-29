@@ -7714,6 +7714,16 @@ ContiguousPhysicalBlocksMergedToSingleExtent (4 vs 1). Ext4 family 42/42;
 suite 1444/1444; win gate 10/10; format clean. Trail: findings/FIXED/S-065 +
 ledger row + ext4.md cell -> MATCH + matrix row + this block.
 
+**S-063 FIXED (SEVERE — the NTFS torn-$MFT bootstrap):** the record-0 read
+is retried at the $MFTMirr LCN exactly as the og's walk entry does
+(FUN_1800272b0's LAB_180027467, re-verified first-hand; both failing = the
+0x610016 refusal class); `boot_from_mftmirr` lands as the open diagnostic
++ an Info log line; the wrong "nothing to mirror FROM" comment re-truthed.
+3 tests RED->GREEN + the preserved-refusal control; the RawFixer
+MftRestore pin re-truthed to the boot-source axis (mirror -> repair ->
+undo); suite 1453/1453. Trail: findings/FIXED/S-063 + ledger row + ntfs.md
++ the matrix MATCH cell.
+
 **Hot-window repairs this window:** the S-060/S-058 window residue (win-stub
 grown for the metadata tail, the grading test's nested markers collapsed, the
 preview leak closed, the _TRUNCATE format drift) + the S53's convergent
