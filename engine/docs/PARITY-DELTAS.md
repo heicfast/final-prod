@@ -4205,6 +4205,19 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   landing; the CLI refuses a container-extension --out honestly rather
   than writing a flat file under a .vhd name).
 
+### N-213 touch-note on D-143 (the S81 lane, 2026-10-29): the pre-gate band landed WITHOUT the og's 4 KiB alloc cap — the superset's >4 KiB leg preserved and pinned
+
+The N-213 landing (the record-header pre-gate band) touched this row's
+surface: the og's FUN_180046160 alloc-set half caps the declared size at
+0x1000, but the landed remnant-path gate carries NO upper cap (the
+declared size must be 0x400-aligned and fit its USA array — nothing
+more), so oversize-stride records declaring their true >4 KiB size stay
+accepted exactly as this row registers. Pinned by
+`NtfsVolume.RemnantAllocSizeAboveFourKStillEmits` (a 6144-byte stride,
+declared 0x1800, emits through the full gate chain). The D-143 stance is
+unchanged; the touch is recorded so the next audit reading FUN_180046160
+does not mistake the missing cap for an omission.
+
 ### D-143 — the NTFS walk-entry record-geometry gate declined: the core's wider acceptance band is deliberate (N-196 registration, REGISTERED DELIBERATE DIVERGENCE — accept-direction superset)
 
 - **WHAT OG DOES:** the MFT walk entry refuses records whose device-sector

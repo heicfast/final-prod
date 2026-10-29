@@ -17,12 +17,31 @@
 
 #include "cr/ntfs/cr_fixup.h"
 
+#include <cstring>
+
 namespace cr {
 namespace ntfs {
 
 namespace {
 constexpr u64 MIN_PARSE_BYTES = 0x400; /* corpus: fixup min size gate */
 constexpr u32 VALIDATE_TAIL_COUNT = 2; /* og FUN_1800411f0: first two tails */
+/* N-213 (the og's record-header pre-gate band, re-read first-hand — the
+ * og keys the floor on the record family): FUN_180046160 :55187-55220
+ * gates FILE records to usa_offset ∈ [0x2A, 0x100] with usa_count ≤ 16
+ * (the pre-gate before the fixup chain, FUN_180041bb0); FUN_180045510
+ * :54704-54745 gates INDX blocks to usa_offset ∈ [0x28, 0x100] with the
+ * same count cap (the INDX header's shorter tail lowers the floor by
+ * two bytes). Real volumes carry 0x30 (1 KiB records) / 0x48 (4 KiB
+ * records) / 0x28 (INDX), all inside; the bands reject the torn/random
+ * residue whose offset lands below the family floor or above 0x100.
+ * The og's alloc_size-set half of the FILE pre-gate is remnant-path-only
+ * (see cr_mftwalk.cpp) - on the main walk the volume's declared record
+ * size makes it redundant, and the >4 KiB half is the registered
+ * deliberate D-143 superset. */
+constexpr u32 USA_OFFSET_MIN_FILE = 0x2A;
+constexpr u32 USA_OFFSET_MIN_INDX = 0x28;
+constexpr u32 USA_OFFSET_MAX = 0x100;
+constexpr u32 USA_COUNT_MAX = 0x10;
 } // namespace
 
 u32 fixup_validate(const u8* record, u64 record_bytes, u32 usa_offset, u32 usa_count,
@@ -33,6 +52,15 @@ u32 fixup_validate(const u8* record, u64 record_bytes, u32 usa_offset, u32 usa_c
         return ERR_BAD_PARAMETER;
     if (usa_offset == 0 || usa_offset & 1)
         return ERR_BAD_PARAMETER; /* corpus: nonzero */
+    /* N-213: the family-keyed band (FILE: < 0x2A or > 0x100 fails,
+     * FUN_180046160 :55208-55216; INDX: < 0x28 or > 0x100 fails,
+     * FUN_180045510 :54733-54742; count >= 0x11 fails in both) */
+    const u32 floor =
+        (std::memcmp(record, "INDX", 4) == 0) ? USA_OFFSET_MIN_INDX : USA_OFFSET_MIN_FILE;
+    if (usa_offset < floor || usa_offset > USA_OFFSET_MAX)
+        return ERR_BAD_PARAMETER;
+    if (usa_count > USA_COUNT_MAX)
+        return ERR_BAD_PARAMETER;
     if (usa_count < 2)
         return ERR_BAD_PARAMETER;
     const u32 sectors = usa_count - 1;

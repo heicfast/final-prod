@@ -640,3 +640,25 @@ core's max_record_no (cr_bootstrap.h:77-91) remains runlist-derived only.
 Both sites of the family (the initial device-end floor + the growth loop)
 belong to the finding's fix plan. Evidence:
 `evidence/s69-lane-sheets/S69-C-sectormath.md` §4.b.
+
+## Session-81 addendum — N-213: the record-header pre-gate band, family-keyed (2026-10-29)
+
+**The garbage-filter band landed, with a decode-scope correction.** The
+og gates every record BEFORE the fixup chain, keyed on family: FILE
+records require usa_offset ∈ [0x2A, 0x100] and usa_count ≤ 0x10
+(FUN_180046160 :55187-55220 — the finding's site, confirmed); INDX
+blocks require usa_offset ∈ [0x28, 0x100] with the same count cap
+(FUN_180045510 :54704-54745 — discovered during the fix when the
+blanket 0x2A floor broke the INDX harvest fixtures: real INDX blocks
+carry 0x28). `fixup_validate` derives the floor from the record's magic.
+The remnant path additionally gates the declared alloc size in the og's
+own form: 0x400-aligned + the declared-fit (`declared/0x200 ≥
+usa_count − 1`) — no stride-equality (FUN_180046160 carries none; the
+fix plan's paraphrase corrected), no upper cap (the >4 KiB half stays
+the registered D-143 superset, pinned by the 6144-stride emit test).
+Tests: Fixup.OffsetBandRejectsLowAndHigh (RED) /
+OffsetBandAcceptsRealVolumeOffsets / UsaCountAboveSixteenRejects /
+IndxFloorIsTwoBytesLower + NtfsVolume.RemnantMisalignedDeclaredAllocSizeRejects
+(RED) / RemnantAllocSizeFitCoversUsaRejects (RED) /
+RemnantAllocSizeAboveFourKStillEmits (the D-143 pin). Suite 1585/1585.
+The B3 row: MATCH (the false-positive admission band on garbage records).

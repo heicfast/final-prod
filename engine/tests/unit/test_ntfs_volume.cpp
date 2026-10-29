@@ -5667,3 +5667,98 @@ TEST(NtfsVolume, MirrorBootstrapFlaggedInOpenDiagnostics) {
     EXPECT_TRUE(vol->params().boot_from_mftmirr)
         << "the params flag is the open diagnostic surface";
 }
+
+/* ---- N-213: the remnant-path declared-alloc-size gate (FUN_180046160's
+ * alloc half, remnant-path only; the >4 KiB half preserved per D-143) ---- */
+
+TEST(NtfsVolume, RemnantMisalignedDeclaredAllocSizeRejects) {
+    /* a floating 'FILE' record whose +0x1C declared alloc size is torn to
+     * a non-0x400-aligned value (0x440): the og's pre-gate rejects it
+     * (FUN_180046160 :55196-55201: % 0x400 == 0 required), so the remnant
+     * scan must not emit a node for it. RED pre-N-213: the record's other
+     * gates (magic, fixup, $FILE_NAME) all pass and the node emits. */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"tornalloc.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 100, 100);
+        r.finish();
+        /* tear the declared size off the og's 0x400 lattice */
+        auto* rh = reinterpret_cast<RecordHeader*>(r.buf.data());
+        rh->bytes_allocated = 0x440;
+        std::memcpy(img.sec(10), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "tornalloc.dat")
+            FAIL() << "a misaligned declared alloc size must reject (the og's pre-gate)";
+}
+
+TEST(NtfsVolume, RemnantAllocSizeFitCoversUsaRejects) {
+    /* the pre-gate's fit form: the declared size's sector count must
+     * cover the USA array (declared/0x200 >= usa_count - 1,
+     * FUN_180046160 :55202-55204). A record declaring 0x400 with a
+     * 4-entry USA (usa_count 5, needing 4 sectors = 0x800) fails the og's
+     * fit check. RED pre-N-213. */
+    Image img;
+    {
+        RecBuilder r(2048); /* USA spans 4 sectors (usa_count 5) */
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"smallfit.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 100, 100);
+        r.finish();
+        auto* rh = reinterpret_cast<RecordHeader*>(r.buf.data());
+        rh->bytes_allocated = 0x400; /* 2 sectors; the USA needs 4 */
+        std::memcpy(img.sec(10), r.buf.data(), 2048);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, 2048, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "smallfit.dat")
+            FAIL() << "a declared size too small for its USA must reject (the og's fit form)";
+}
+
+TEST(NtfsVolume, RemnantAllocSizeAboveFourKStillEmits) {
+    /* the D-143 deliberate superset pin: the og's pre-gate caps the
+     * declared size at 0x1000, but the core's registered stance keeps
+     * oversize strides walkable (accept-direction only). A remnant record
+     * on an 8 KiB stride declaring its full 0x2000 size must still emit —
+     * the N-213 gate must not smuggle the og's 4 KiB cap back in. */
+    constexpr u64 RS6K = 0x1800; /* 12 sectors: usa_count 13 <= the og's
+                                  * 0x10 cap, while the declared size 6144
+                                  * exceeds the og's 0x1000 alloc cap */
+    Image img;
+    {
+        RecBuilder r(RS6K);
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"bigstride.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 100, 100);
+        r.finish();
+        std::memcpy(img.sec(10), r.buf.data(), RS6K);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RS6K, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "bigstride.dat")
+            found = c;
+    ASSERT_NE(found, nullptr)
+        << "the >4 KiB declared size stays accepted (the D-143 registered superset)";
+}

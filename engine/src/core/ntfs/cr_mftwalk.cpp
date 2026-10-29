@@ -2072,9 +2072,25 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
         std::memcpy(fix.data(), rec, size_t(ctx.record_size));
         RecordHeader rh;
         std::memcpy(&rh, fix.data(), sizeof(rh));
+        /* N-213: the og's pre-gate alloc_size half, remnant-path only
+         * (FUN_180046160 :55196-55201, re-read first-hand: the declared
+         * +0x1C size must be 0x400-aligned and its sector count must
+         * cover the USA array - declared/0x200 >= usa_count - 1). On the
+         * main walk the volume-declared record size makes this redundant;
+         * here the record size is scan-geometry-supplied, so the declared
+         * size is the record's own garbage filter. NO upper cap: the >4
+         * KiB half of the og's set is the registered deliberate D-143
+         * accept-direction superset (oversize strides stay walkable, the
+         * per-record validation carrying the safety). A torn record with
+         * a zeroed declared size fails the fit form (0 < usa_count - 1)
+         * exactly like the og. */
+        const u32 us_cnt = rh.update_sequence_size;
+        const bool alloc_size_ok =
+            (rh.bytes_allocated % 0x400) == 0 && us_cnt >= 2 &&
+            (rh.bytes_allocated / 0x200) >= (us_cnt - 1u);
         /* every parse failure below falls through to the shifted-header
          * salvage (og behavior: the probe runs on the failed record) */
-        if (rh.magic == RECORD_MAGIC_FILE &&
+        if (rh.magic == RECORD_MAGIC_FILE && alloc_size_ok &&
             fixup_apply(fix.data(), u32(fix.size()), rh.update_sequence_offset,
                         rh.update_sequence_size, ctx.sector_bytes) == OK) {
             std::vector<AttrView> attrs;

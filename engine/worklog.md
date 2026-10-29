@@ -11529,3 +11529,15 @@ two extents); ChainClampsAtFatAddressableBoundary (entry == 128 → clean
 end) + BadClusterEntryEndsChainCleanly (assumed_contiguous == 0) added.
 Suite 1598/1598. Trail: the finding's S80 correction addendum, ledger
 row parenthetical, modules/exfat.md correction block, this entry.
+**N-213 FIXED (MINOR, ntfs) — fix #3 of the S81 ladder:** the og's
+record-header pre-gate band landed family-keyed — FILE [0x2A, 0x100]
+(FUN_180046160, the finding's site confirmed) + INDX [0x28, 0x100]
+(FUN_180045510 — a decode-scope correction discovered during the fix:
+the blanket 0x2A floor broke the INDX harvest, real INDX carries 0x28);
+usa_count ≤ 0x10 both families; the remnant path gains the declared-
+alloc gate in the og's own form (0x400-aligned + declared-fit, no cap —
+the D-143 >4 KiB superset preserved and pinned on a 6144 stride). RED x3
+(offset band + two remnant rejects); suite 1585/1585. The fix plan's
+stride-equality paraphrase corrected against the corpus. Trail:
+findings/FIXED/N-213 + Resolution, matrix row, modules/ntfs.md addendum,
+PARITY-DELTAS D-143 touch-note, ledger row.
