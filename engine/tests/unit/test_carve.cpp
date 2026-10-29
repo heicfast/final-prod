@@ -3011,6 +3011,79 @@ TEST(Carve, PspTornChainSalvagesTheWalkedEnd) {
         << "the walked end clamps to the device end - never a refusal";
 }
 
+TEST(Carve, WpgZeroTailWalkSetsExtent) {
+    /* the og's zero-tail walk (FUN_180042b30 :50703-50750 + the
+     * processor FUN_180014160: extent = the trailing-zero-run position
+     * of the first 512-byte window) - NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    for (size_t i = 4; i < 300; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* 300 bytes of content */
+    /* [at+300, at+512) stays zeros: the zero run -> extent 300 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpg = c;
+    ASSERT_NE(wpg, nullptr) << "the WPG must carve through the zero-tail walk";
+    EXPECT_EQ(wpg->props()->logical_size, size_t(300))
+        << "extent = the first all-zero-tail position (300), not 512 and "
+           "not the 64 MiB stand-in";
+}
+
+TEST(Carve, WpgZeroTailFullWindowIsTheBoundary) {
+    /* FUN_180042b30's no-zeros arm: the whole window non-zero -> the
+     * extent is the WINDOW length (512) - the og's one-chunk walk. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    for (size_t i = 4; i < 512; ++i)
+        img[at + i] = u8(1 + (i % 251)); /* no zeros anywhere in-window */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpg = c;
+    ASSERT_NE(wpg, nullptr);
+    EXPECT_EQ(wpg->props()->logical_size, size_t(512))
+        << "no zero tail in the window: the extent is the window length";
+}
+
+TEST(Carve, WpgAllZeroWindowDeclines) {
+    /* FUN_180042b30's whole-buffer-zero arm returns 0 - the og's
+     * extent-0 decline class; the core refuses the carve. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    /* everything past the magic stays zero */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the all-zero window is the og's extent-0 decline";
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */

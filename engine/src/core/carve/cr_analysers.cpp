@@ -5429,10 +5429,27 @@ CarveResult validate_lowdoc(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WPG: "wpg\0" key 0x00677077 (:5872) -> FileInfo {min 20, max
- * 0x5F5E100} verified at the ctor (:20542-20548); the modern analyser's
- * whole validation is the magic re-check (:20519-20528) - the size walk
- * is the recorded follow-up, the DWG-pattern bounded extent stands in. */
+/* M-107 member 5 (WPG): the og's ZERO-TAIL size walk, decoded
+ * first-hand this session. The chain: the "wpg\0" tier-1 FUN_180014030
+ * (:15660-15683: the magic re-check, id 0x45), the factory
+ * FUN_180014090 (the 0x120 WPGRawFileInfo child: min 20, max 100 MB),
+ * and the child's +0x20 processor FUN_180014160 (:15721-15785, raw asm
+ * 0x180014160-0x1800142b0): extent = chunk_offset + zero_tail(chunk)
+ * where zero_tail is FUN_180042b30 (:50703-50750) - a binary search for
+ * the FIRST position whose remainder is all zeros (the whole buffer
+ * zero -> 0; no zeros -> the buffer length), then +1. The processor
+ * walks the FIRST fed chunk and RETURNS 1 (done) - the driver
+ * (FUN_18000d670's +0x20 dispatch at 0x18000d7ae) passes the DEVICE
+ * SECTOR SIZE as the chunk length (ctx+0xF0, the storage device's
+ * sector query at :9192-9195, default 0x200). The model translation
+ * (the registered divergence class): the core reads the hit's own
+ * 512-byte window and stamps the trailing-zero-run position - the
+ * og's semantic (the extent ends at the file's last non-zero byte
+ * within the first sector window), without the streaming chunk
+ * artifacts. The deferral residue (the processor's ctx gate
+ * [result+0x14] >= 0x10 - undecoded; if it defers the walk to a later
+ * sector the extent shifts by multiples of 512) is recorded in the
+ * finding. */
 CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[20];
@@ -5440,10 +5457,50 @@ CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
         return r; /* the og FileInfo floor is 20 bytes */
     if (std::memcmp(h, "wpg\x00", 4) != 0)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    /* the og's chunk = the device sector (0x200); clamp to the row
+     * bound + the device end */
+    constexpr u64 WPG_WINDOW = 0x200;
+    u8 win[WPG_WINDOW];
+    const u64 avail = std::min<u64>(WPG_WINDOW, rel_limit);
+    if (avail < 20)
+        return r; /* the FileInfo floor */
+    if (!rd(s, hit, win, u32(avail)))
+        return r;
+    /* FUN_180042b30's zero-tail: the first position whose remainder is
+     * all zeros (+1); the whole window zero -> 0 (the og's extent 0 =
+     * the decline class); no zeros -> the window length */
+    u64 zt = 0;
+    bool all_zero = true;
+    for (u64 i = 0; i < avail; ++i)
+        if (win[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    if (!all_zero) {
+        u64 lo = 0, hi = avail; /* hi = the first all-zero tail candidate */
+        while (lo < hi - 1) {
+            const u64 mid = (lo + hi) / 2;
+            bool zeros = true;
+            for (u64 i = mid; i < avail; ++i)
+                if (win[i] != 0) {
+                    zeros = false;
+                    break;
+                }
+            if (zeros)
+                hi = mid;
+            else
+                lo = mid;
+        }
+        zt = hi; /* the boundary: [hi, avail) is the zero run */
+    }
+    if (zt < 20)
+        return r; /* the walked extent under the FileInfo floor */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = hit + zt;
     r.confidence = 620;
-    r.note = "wpg-magic-recheck+bounded-extent";
+    r.note = "wpg-zero-tail-walk";
     return r;
 }
 

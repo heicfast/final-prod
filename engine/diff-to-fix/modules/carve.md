@@ -1291,3 +1291,18 @@ block / the 20 MB bound / the device end; the torn straddle salvages).
 Tests: PspBkBlockChainWalkSetsExtent / PspExactSignatureRequired /
 PspTornChainSalvagesTheWalkedEnd (the first two RED at the stand-in via
 the stash dance). The carve suite 183/183.
+
+---
+
+## Session-85 addendum 3 — M-107 member 5: the WPG zero-tail walk landed
+
+The WPG row moves to **MATCH**: the extent is the trailing-zero-run
+position of the hit's own 512-byte window (FUN_180042b30's binary
+search — the whole-buffer-zero case declines; the no-zeros case takes
+the window length), the og's one-chunk-then-done semantic with the
+sector-size chunk (the driver's ctx+0xF0). The deferral residue (the
+processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+recorded in the finding: a future decode of the result object's layout
+could shift the window by multiples of 512. Tests: the three Wpg*
+pins (all RED at the stand-in via the stash dance). The carve suite
+186/186.

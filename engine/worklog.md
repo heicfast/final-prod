@@ -13032,3 +13032,32 @@ a real two-block chain). The carve suite 183/183. Trail: M-107's S85
 addendum 2, the matrix row, modules/carve.md's S85 addendum 2, this
 entry.
 
+
+---
+
+---
+
+## Session-85 S85 fix-lane — entry 3: M-107 member 5, the WPG zero-tail walk lands (2026-10-30)
+
+**The decode (first-hand):** the WPG chain — the tier-1 FUN_180014030
+("wpg\0" re-check, id 0x45); the factory FUN_180014090 (the 0x120
+WPGRawFileInfo child, min 20 / max 100 MB — already in the row); the
+processor FUN_180014160 (raw asm 0x180014160-0x1800142b0): **extent =
+chunk offset + zero_tail(chunk)**, return 1 after the first walked
+chunk. The zero-tail walk FUN_180042b30 (:50703-50750): a binary
+search for the first all-zero-tail position (+1); whole-buffer zero →
+0 (the decline); no zeros → the buffer length. The driver's chunk
+length = the DEVICE SECTOR SIZE (ctx+0xF0, :9192-95, default 0x200;
+the +0x20 dispatch at 0x18000d7ae).
+
+The landing: the trailing-zero-run position of the hit's 512-byte
+window (the registered model-divergence class). The deferral residue
+(the processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+RECORDED in the finding: if the gate defers the walk to a later sector
+the extent shifts by multiples of 512; the walk and the formula are
+byte-exact.
+
+**RED→GREEN via the stash dance:** all three Wpg* tests RED at the
+stand-in (the blind 64 MiB; the all-zero acceptance), GREEN with the
+walk. The carve suite 186/186. Trail: M-107's S85 addendum 3, the
+matrix row, modules/carve.md's S85 addendum 3, this entry.

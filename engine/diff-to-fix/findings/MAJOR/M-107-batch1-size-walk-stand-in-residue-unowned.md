@@ -356,3 +356,41 @@ S-007 batch-1 PSP plant re-pinned (the og's exact 32-byte signature +
 a real two-block chain; the old 26-byte plant lacked the 0x0a/0x1a).
 The carve suite 183/183. Remaining members: WPG, WPD, SIT, APE, EPS,
 DXF, SWF-RECT (seven) + the DWG gen-3 remainder.
+
+---
+
+## Session-85 addendum 3 — the WPG member LANDED (member 5 of 11: the zero-tail walk)
+
+**WPG FIXED (this session; six members remain).** The chain decoded
+first-hand: the "wpg\0" tier-1 FUN_180014030 (:15660-15683, id 0x45),
+the factory FUN_180014090 (the 0x120 WPGRawFileInfo child: min 20, max
+100 MB — already in the row), and the child's +0x20 processor
+FUN_180014160 (raw asm 0x180014160-0x1800142b0): **extent = chunk
+offset + zero_tail(chunk)**, returning 1 (done) after the first walked
+chunk. The zero-tail walk is FUN_180042b30 (:50703-50750): a binary
+search for the FIRST position whose remainder is all zeros (+1); the
+whole buffer zero → 0 (the decline class); no zeros → the buffer
+length. The chunk length the driver passes is the DEVICE SECTOR SIZE
+(ctx+0xF0, the storage device's sector query at :9192-9195, default
+0x200; the +0x20 dispatch at 0x18000d7ae).
+
+The model translation (the registered divergence class, the CRW/X3F
+stance): the core stamps the trailing-zero-run position of the hit's
+own 512-byte window — the og's semantic (the extent ends at the file's
+last non-zero byte within the first sector window) without the
+streaming artifacts. **The deferral residue, recorded:** the
+processor's gate `[result+0x14] >= 0x10` (the result-object field is
+undecoded — the same field gates GZ at >= 8 and the third zero-tail
+caller at >= 8) — if it defers the walk to a later sector, the extent
+shifts by multiples of 512; the landing takes the first window (the
+gate's most coherent reading: the candidate's available bytes in the
+feed). A future decode of the result object's +0x14 field settles the
+window position; the walk itself and the extent formula are
+byte-exact.
+
+RED→GREEN via the stash dance: all three tests RED at the stand-in
+(WpgZeroTailWalkSetsExtent / WpgZeroTailFullWindowIsTheBoundary /
+WpgAllZeroWindowDeclines — the stand-in's blind 64 MiB and its
+all-zero acceptance), GREEN with the walk. The carve suite 186/186.
+Remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT (six) + the DWG gen-3
+remainder.
