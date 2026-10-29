@@ -2952,8 +2952,8 @@ TEST(Carve, EpsAdobeCovenantRequired) {
         auto* root = tree.add_root(u"L");
         CarveFlags flags;
         CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats),
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
                   OK);
         tree::FileNode* eps = nullptr;
         for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
@@ -3002,8 +3002,8 @@ TEST(Carve, AiHeaderFormulaWalkSetsExtent) {
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at, "\xC5\xD0\xD3\xC6", 4);
-    put32v(img, at + 4, 0x100);   /* block A start */
-    put32v(img, at + 8, 0x2000);  /* block A length */
+    put32v(img, at + 4, 0x100);    /* block A start */
+    put32v(img, at + 8, 0x2000);   /* block A length */
     put32v(img, at + 0xC, 0x2800); /* block B start */
     put32v(img, at + 0x10, 0x800); /* block B length */
     put32v(img, at + 0x14, 0x40);  /* block C start */

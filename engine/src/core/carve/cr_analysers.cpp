@@ -6277,7 +6277,7 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
             if (found)
                 break;
             if (chunk < win.size())
-                break; /* short final read: the window is exhausted */
+                break;                 /* short final read: the window is exhausted */
             pos += chunk - (plen - 1); /* the straddle overlap */
         }
     }
