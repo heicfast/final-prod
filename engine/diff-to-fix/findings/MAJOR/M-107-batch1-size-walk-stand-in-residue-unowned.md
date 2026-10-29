@@ -1,78 +1,33 @@
-# MAJOR M-107 — the batch-1 size-walk stand-in residue is unowned: eleven formats still carve at the DWG-pattern 64 MiB cap (X3F CRW WPG WPD PSP SIT APE EPS AI DXF + DWG's own section walk + SWF's RECT bit-walk) where the og performs a per-format size walk — S-007's "recorded follow-ups" never became findings
-
-**Severity:** MAJOR
-**Module / Surface:** carve (modules/carve.md) — the S-007 batch-1 follow-up residue
-**Parameters affected:** A25 (engine algorithm steps — per-format size walks), A27 (carved extent end), A47-adjacent (the 64 MiB stand-in cap vs per-format og bounds)
-**Corpus references:** `diff-to-fix/findings/FIXED/S-007-carve-missing-common-formats.md:245-248` (the standing registration: "Formats whose og size-walk is undecoded (WPG WPD PSP SIT APE X3F MRW HLP MDB EPS AI DXF) use the DWG-pattern bounded extent … the per-format size-decoding walks are the recorded follow-ups, exactly like DWG's section walk before them"); `re-workspace/artifacts/FileRepair/x3f-repair--section-checkers-walk.md:9-33` (the never-cited residue's corroboration: the X3F section-directory grammar — SECi/SECe/SECm/SECp/SECc section checkers, directory-first validation — sitting in the FileRepair line's repair-walk artifact; first read this session, SA-10/LANE-C); the og walk function sites recorded per format in the core's own validator comments (cr_analysers.cpp — the sites enumerated below), each naming its undecoded og walk.
-**Core references:** audited commit `ea1ac86`-lineage (cites re-verified at the reconciliation HEAD — the M-090/M-084/M-091 carve fixes shifted the file AND resolved two members of S-007's original list: MDB's walk landed with M-091, DMG's with M-090). The stand-in sites, each verified first-hand with its "recorded follow-up"/"stands in" comment: `src/core/carve/cr_analysers.cpp:3079-3084` (X3F — "the section walk is the recorded follow-up"), `:3104-3109` (CRW — "The og's CIFF heap size-walk (FUN_180052160) is the recorded follow-up; the DWG-pattern bounded extent stands in"), `:3193-3197` (WPG — "the size walk is the recorded follow-up"), `:3210-3214` (WPD — "product-version word at +4 carry the gate, bounded extent stands in"), `:3232-3236` (PSP — "the 19-byte prefix is the real discriminator; bounded extent stands in"), `:3249-3253` (SIT — "bounded extent stands in for the undecoded index walk"), `:3325-3329` (APE — "bounded extent stands in for the undecoded frame walk"), `:3698-3702` (EPS — "trailer scan is the recorded follow-up"), `:3737-3741` (DXF — "bounded extent stands in for the text walk"), `:2639-2645` (DWG — the comment's "a full section walk is a follow-up" at `:2644` — "a full section walk is a follow-up; the version gate + bounded extent is the honest floor"), `:3910-3914` (SWF — "The RECT bit-walk past byte 8 is the recorded follow-up"); plus the pattern header `:2795-2806` (the S-007-era rule, unchanged) (the S-007-era rule: "formats whose og size-walk is undecoded use the DWG-pattern bounded extent heuristic (the sanctioned honest cap, conf <= 650, note names the heuristic)"). AI shares the EPS-family trailer/text walk (the EPS validator's family; no separate AI validator exists — the EPS row's `.ai` extension is served by the same stand-in).
-**Status:** READ-ONLY FINDING — no fix applied
-
-## Summary
-
-S-007's batch-1 landing (27 formats) shipped honest key/gate grammars but used a generic 64 MiB "DWG-pattern bounded extent" wherever the og's per-format size walk was not yet decoded, recording the walks as "follow-ups" in the finding and in code comments. That was the sanctioned posture for a first landing — but the follow-ups were never re-registered as findings, so the residue has lived as comments in source with no board owner. Ten sites stand today (eleven minus MDB, resolved mid-flight): X3F, CRW (the M-081 re-landing kept the heap-walk follow-up), WPG, WPD, PSP, SIT, APE, EPS, DXF, DWG's own section walk (the pattern's namesake), and SWF's RECT bit-walk. (MRW/HLP were resolved with og formulas in M-081's fix; MDB's page-chain walk landed with M-091's fix and DMG's koly walk with M-090's — both now FIXED; JP2 is owned by N-111; ONE/3DS by M-106.) The og determines each of these formats' sizes by a real walk (section directory, heap chain, index, frame chain, trailer scan, group-code text walk); the core caps at 64 MiB — files whose true size exceeds the cap carve truncated, and files smaller than it carve without the og's walk-broken salvage semantics.
-
-## What the reference does
-
-Per format, the og's analyser walks the file's own structure to determine the carve extent — the sites are named in the core's own comments (each from a first-hand registration/analyser read at landing time): X3F walks the section directory (SECi/SECe/SECm/SECp/SECc — corroborated by the FileRepair artifact `x3f-repair--section-checkers-walk.md:9-33`, which documents the same section checkers for the repair line); CRW walks the CIFF heap chain (FUN_180052160); WPG walks its size field chain; WPD gates on the product-version word and walks the object header chain; PSP discriminates on the 19-byte "Paint Shop Pro Image File" prefix and walks its header-declared extent; SIT walks the StuffIt entry index; APE walks the frame chain; EPS scans for the trailer; DXF walks the ASCII group-code text; DWG walks the version-dependent section-locator map (R13-R2000) or the compressed R2004+ map; SWF parses the RECT bit-field past byte 8 to validate beyond the FileLength field. The common contract: the carved extent is the walk's natural end (or the walk's break point, salvaging the walked prefix), bounded by the FileInfo row max — never a fixed 64 MiB.
-
-## What our core does
-
-Each of the eleven validators gates correctly on its key/grammar (the S-007/M-081 landings' work — verified) and then returns `r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap))` with a comment recording the stand-in (the sites and comments enumerated in Core references, all first-hand at HEAD). The pattern header at `:2795-2806` documents the rule under which this was sanctioned: the honest cap, confidence ≤ 650, the note naming the heuristic.
-
-## Gap
-
-Falsifiable: for each of the eleven formats, a fixture whose true structure-derived size exceeds 64 MiB (within the row's og bound) carves at exactly 64 MiB in core, while the og carves it at the walk's end; and a fixture whose structure breaks mid-walk carves differently (the og salvages the walked prefix at the break; core takes the blind 64 MiB or the row cap). The follow-up registration exists (S-007:245-248 + the code comments) but no finding on the board owned it until this one — the exact "recorded outside an active finding" state the session mandates close.
-
-## Impact
-
-User-observable truncation for over-cap files in eleven families (the same M-090/M-091/M-104 class), plus missing walk-break salvage semantics (a torn file carves at a structure-aware boundary in the og, at a blind cap in core — the og's carved prefix is a valid partial file; core's can cut mid-record). The practical frequency is lower than the school-2/3 absences (these formats all carve — the defect is the extent, not the presence), but the class is identical and the residue was explicitly promised follow-up status by S-007's own resolution.
-
-## Reproduction / verification
-
-Corpus-derived + decompile-site citations (strength 2/3): S-007:245-248 (the registration, quoted), the per-format og walk function sites in the core's landing-time comments (each was a first-hand read at its landing; re-verified as comments at HEAD this session), and the X3F section-directory grammar corroborated by the never-cited FileRepair artifact (first read this session). Core side: the eleven stand-in sites verified first-hand at HEAD with line numbers. Not executed: per-format plant fixtures belong to each landing's tests (the fix plan's order).
-
-## Fix plan (for the engineering team)
-
-1. **Per-format decode-then-land order (the S-007 zero-invention bar — each landing re-reads its og walk first-hand before implementing):** start where corroboration already exists — (a) **X3F** first (the section-directory grammar is documented in `FileRepair/x3f-repair--section-checkers-walk.md:9-33` — the only walk with a written grammar in the corpus); (b) **CRW** second (FUN_180052160, the heap chain — the M-081 landing's own recorded follow-up); (c) **DWG** third (the R13-R2000 section-locator map; the R2004+ compressed map may stay behind a follow-up of its own, recorded honestly); then WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT in registry order.
-2. Each landing: replace the `64 << 20` stand-in with the walk, keep the row max as the clamp, extend the plant suite with an over-cap fixture (fail-before: carves at 64 MiB) and a torn-walk fixture (walk-break salvage semantics), update the comment to name the implemented walk.
-3. If a walk cannot be decoded in a landing window, land the others and leave the stand-in WITH its finding updated (this finding's row in the matrix gains the per-format status) — never silently.
-4. **Acceptance:** the eleven comments' "recorded follow-up"/"stands in" phrases are gone (grep clean) or owned by an explicitly re-registered remainder; the over-cap plants carve og-exact; the school-1/batch-1 suites stay green.
-
-## Tests to add
-
-Per format (in the decode-then-land order): `plant_<fmt>_over_cap` (true size > 64 MiB within the row bound — carves og-exact, fails before at 64 MiB) and `plant_<fmt>_torn` (structure break mid-walk — the walked prefix salvages; core's carve ends at the break, not the blind cap).
-
-## Related findings
-
-- **S-007 (retired to history with the purge; the FIXED-LEDGER row + the retired file carry the registration)** — the parent landing that sanctioned the stand-ins and recorded the follow-ups (the registration quote: "Formats whose og size-walk is undecoded … the per-format size-decoding walks are the recorded follow-ups, exactly like DWG's section walk before them").
-- **M-106** — the two school-1 walks that WERE decoded (ONE/3DS) — the same pattern, fixable now.
-- **M-090 / M-091** — the decoded-walk precedents (DMG/MDB): truncation class + the bounded-extent stand-in replaced by a real walk.
-- **M-081 (FIXED)** — the CRW re-landing whose heap-walk follow-up this finding owns.
-
-## Open questions
-
-1. AI (Adobe Illustrator): served by the EPS-family validator's stand-in — whether the og's AI walk differs from EPS's trailer scan is undecoded (the EPS landing read only the EPS analyser); the AI row should be re-read at its own registration site during the EPS landing.
-2. DWG's R2004+ compressed section map: likely its own follow-up even after the R13-R2000 map lands (the landing-time comment already splits the two eras).
-3. SWF's RECT bit-walk: the landing gated on FileLength (u32@4) which IS the og's size source; the RECT walk's marginal value is validation depth (rejecting corrupt FileLengths), not extent — verify at FUN_180026940 during the landing whether the og's RECT parse changes the extent or only the accept/reject decision, and scope the fix accordingly (it may downgrade to a validation-only change).
-
 
 ---
 
-## Session-11B addendum (2026-10-29, re-triage at `743d7b8d`): all eleven sites verified standing; three in-file details corrected; + the enumeration extended by M-111
+## Session-87 addendum (the S87-continuation lane's WPD convergence record)
 
-**All eleven sites re-verified standing** (cites drifted ~+300-400 lines after the M-092/M-093/M-096 landings; every site re-located by its comment): X3F :3465-3478, CRW :3490-3512, WPG :3578-3590, WPD :3595-3612, PSP :3617-3629, SIT :3634-3646, APE :3710-3725, EPS :4083-4095, DXF :4122-4134, DWG :3020-3056, SWF :4295-4312 (all in src/core/carve/cr_analysers.cpp). The M-093/M-096 landings cleared NONE of them (their hunks confined to the HTML/XML/SVG/MOBI validators).
-
-**Three in-file corrections (the verdict is unaffected):**
-1. The "no separate AI validator exists" note is stale — `validate_ai` has existed since the S-007 batch-1 commit `e018bf4f` (`git log -S'validate_ai'` shows only that commit); AI stands in via its OWN validator's 16 MiB bounded extent (comment :4097-4100, cap :4112), not the EPS validator's.
-2. EPS and AI stand at **16 MiB**, not 64 MiB (`16 << 20` at :4091 and :4112) — the finding's "64 MiB" figure covers the other nine sites only.
-3. SWF's site takes its size from FileLength (:4308) with no 64 MiB cap — as the finding's own open question 3 anticipated.
-
-**Enumeration extended:** the M-093 landing's own residual — the CSL 0x44c size branch (dword@0x44c + 0x480, corpus FUN_180041950 :49749+) — is the same unowned-stand-in class; filed as **M-112** this session (this lane filed it as M-111; renumbered at the push-time reconciliation over the parallel S11 lane's explorer-browse M-111) (it was recorded only in a code comment + the retired M-093 Resolution). The class now has twelve member sites across two findings (M-107's eleven + M-112's CSL).
-
+This lane independently decoded and landed the WPD member in the same
+window as the racing S84/89 lane's landing (the concession seat per
+SA-9 — their earlier push holds it). The two decodes AGREE on every
+material point: the three-pair tier-1 {(0x01020a01, 0x00050200)→0x44,
+(0x00021601, 0x00030000)→0x45, (0x00010f0f, 0x00030000)→0x3d}, the
+extent = u32@+0x14 (the WPC common header's own file-size field), the
+unknown-pair decline, the +4 product-word gate's retirement, and the
+0xFFFFFFFF row max (the og's registry node carries no min/max). The
+convergent corroboration this lane adds: the raw .rdata dump of the
+36-byte table at 0x18006ef40 (the byte-level ground truth behind the
+pair list) and the engine's extent!=0 acceptance gate at
+0x18000d7e1 (the zero-size decline — the racing landing's `end <= hit`
+check implements the same semantic). This lane's five-test battery
+rides as convergent verification on top of the racing lane's two-test
+proof: WpdVersionTableWalkSetsExtent / WpdOverCapSizeCarvesFull (the
+72 MiB over-cap carve — the truncation class the finding filed) /
+WpdVersionTableGateDeclinesUnknownVersion / WpdZeroSizeFieldDeclines /
+WpdSecondAndThirdRecordsCarve (the records-2/3 variants carve through
+the same walk). The member count after both windows: members 1-8 of
+11 landed (X3F, CRW, DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI);
+remaining: SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder.
 
 ---
 
-## S11-R addendum (2026-10-29, the reconciliation lane; re-verified at `b6e0a9ef`)
+## Session-90 addendum (the S90 lane's final convergence record — the WPG tier-1 corroboration)
 
 **Two factual corrections to this finding's own text (this lane's re-read;
 the 0x44c CSL fold is already landed above as M-112 — the enumeration stands
@@ -491,29 +446,93 @@ The racing landing's own six DWG tests stay green under the riders (8/8
 at the landed tree). Corpus: FUN_18002f320's loop 0x18002f400-0x18002f441
 (cmp %ecx,%eax at 0x18002f40a) + FUN_18002ff20's +0x110 qword write.
 
+---
+
+## Session-91 addendum — the WPD member LANDED (member 6 of 11: the version-table + declared-size contract)
+
+**CONCEDED to the racing windows per SA-9 (earlier-push-wins):** the
+racing windows' convergent WPD landings (the same decode: the same three-pair
+table, the same u32@0x14 extent, the same unknown-pair decline — an
+independent confirmation of this lane's raw-asm read) pushed first and
+keeps the seat; this lane's WPD validator/tests withdrew at the merge.
+This lane's riders kept: the two directions the racing battery lacks —
+WpdZeroSizeFieldDeclines (the zero-size generic-child decline) and
+WpdZeroProductWordWithGoodPairCarves (the invented product-word gate's
+removal pin) — plus this lane's evidence sheet
+(evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md) whose
+decode of FUN_1800264d0 independently re-verified the landed S-042 WMF
+grammar byte-for-byte and corrected the census's 0x90001/0x9ac6cdd7
+grouping (the WMF keys, not "WordPerfect"/"thumbnail cache").
+
+**The decode record (this lane's independent read, converging with the
+racing landing):** the tier-1 decoded
+first-hand from the raw asm (objdump over RAWSearchDLL.dll; evidence:
+`evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md`):
+the "\xFFWPC" registry binding (0x180003ccb-0x180003cde, the pipelined
+cascade calibrated against the FOVb/X3F and II/CRW anchors) maps to the
+node {vtable 0x18006cff0, idx 0x44} whose +0x40 is the return-0 stub —
+no secondary consult, the node's own +0x10 (FUN_180041f50) is the size
+authority. The grammar: a THREE-entry version table gates the file —
+the pair (u32@8, u32@0xe) must be one of
+{(0x01020a01, 0x00050200)→id 0x44, (0x00021601, 0x00030000)→id 0x45,
+(0x00010f0f, 0x00030000)→id 0x3d} — and on match the extent is the
+header-declared **u32@0x14 verbatim** (0x18004200c-0x180042015). A
+zero size field routes to the generic pending child whose walk
+declines (0x18000b760: `xor al,al; ret`) — no carve.
+
+**The member's own premise corrected by the decode:** this finding's
+"What the reference does" prose ("WPD gates on the product-version
+word and walks the object header chain") was the audit's hypothesis —
+the og gates on the version PAIR at (+8, +0xe) (never reading the
+product word at +4) and takes the size from a direct header field (no
+chain walk). The corpus wins; the landing follows the decode.
+
+**A census erratum corrected in the same decode:** the
+analyser-registry census's row grouping "\xFFWPC / D7 CD C6 9A →
+FileWPDAnalyser (WordPerfect)" is half wrong — the 0x9ac6cdd7
+(Aldus placeable WMF) and 0x00090001 (bare standard WMF: type=1 +
+headersize=9 as the KEY) keys map to a different node {vtable
+0x18006b200, idx 0x46} whose tier-1 (FUN_1800264d0) is the WMF
+grammar — decoded this session and matching the core's landed S-042
+validators byte-for-byte (an independent re-verification of that
+landing). The census's "01 00 09 00 → Windows thumbnail cache" label
+is wrong for the same reason.
+
+The landing: `validate_wpd` gates on the og's three-entry version-pair
+table, requires the declared size nonzero, and takes the extent =
+u32@0x14 clamped by the row bound + device end (probe_limit — the
+X3F/CRW registered approximation posture for the og's undecoded
+chain-row caps; the og's three chain ids 0x44/0x45/0x3d share the
+core's single FMT_WPD row). The old "zero product word" gate is GONE
+(it existed nowhere in the og's chain). RED→GREEN first-hand via the
+stash dance: WpdVersionTableSetsExtentFromTheDeclaredSize (the
+stand-in carved the wrong extent) + WpdZeroProductWordWithGoodPairCarves
+(the invented gate declined a real version-pair file) + the re-pinned
+S-007 batch plant (the old filler-byte plant never carried a real
+pair) all RED at the stand-in tree (3 FAILED), GREEN with the
+contract; WpdUnknownVersionPairDeclines + WpdZeroSizeFieldDeclines pin
+the decline directions. The 190-test carve suite green.
 
 ---
 
-## Session-87 addendum (the S87-continuation lane's WPD convergence record)
-
-This lane independently decoded and landed the WPD member in the same
-window as the racing S84/89 lane's landing (the concession seat per
-SA-9 — their earlier push holds it). The two decodes AGREE on every
-material point: the three-pair tier-1 {(0x01020a01, 0x00050200)→0x44,
-(0x00021601, 0x00030000)→0x45, (0x00010f0f, 0x00030000)→0x3d}, the
-extent = u32@+0x14 (the WPC common header's own file-size field), the
-unknown-pair decline, the +4 product-word gate's retirement, and the
-0xFFFFFFFF row max (the og's registry node carries no min/max). The
-convergent corroboration this lane adds: the raw .rdata dump of the
-36-byte table at 0x18006ef40 (the byte-level ground truth behind the
-pair list) and the engine's extent!=0 acceptance gate at
-0x18000d7e1 (the zero-size decline — the racing landing's `end <= hit`
-check implements the same semantic). This lane's five-test battery
-rides as convergent verification on top of the racing lane's two-test
-proof: WpdVersionTableWalkSetsExtent / WpdOverCapSizeCarvesFull (the
-72 MiB over-cap carve — the truncation class the finding filed) /
-WpdVersionTableGateDeclinesUnknownVersion / WpdZeroSizeFieldDeclines /
-WpdSecondAndThirdRecordsCarve (the records-2/3 variants carve through
-the same walk). The member count after both windows: members 1-8 of
-11 landed (X3F, CRW, DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI);
-remaining: SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder.
+This lane's third WPD/WPG window (the racing S90 concession lane's record, absorbed at the S91 merge): the independent decode converged with
+BOTH racing landings (the S84 d20a8483 pair-table seat and the S87
+1ff8ae24 version-table walk + 0xFFFFFFFF row max — all three decodes
+agree on every material point; the row-max rider this lane built at
+4 GiB is conceded to the S87 lane's earlier-pushed 0xFFFFFFFF, the more
+exact u32 ceiling). This lane's one UNIQUE record, the corroboration no
+other window carried: **the WPG tier-1 decode closes the S85 zero-tail
+landing's own honest residue.** Byte-exact (FUN_180014030 @ 0x180014030,
+objdump first-hand): `mov eax,[rdx]; cmp 0x677077; jne reject; movl
+$0x45,0x18(%r8); mov $1,%eax; ret` — the tier-1 stamps ONLY the id
+0x45, NO size. The size==0 acceptance cannot finalize in the scan loop
+(the :9564 `plVar12[2] != 0` emit gate fails), so the candidate rides
+the continuation path where the +0x20 processor (FUN_180014160, the S85
+landing's zero-tail walk) computes the extent — the pending machinery
+(:9564-9591, the 16-candidate force-finalize) is the racing processor's
+calling context. The S85 landing's recorded residue ("the processor's
+ctx gate [result+0x14] >= 0x10 — undecoded; if it defers the walk to a
+later sector the extent shifts by multiples of 512") is thereby
+EXPLAINED: the "deferral" is the pending-list re-feed cadence (each
+re-feed advances the chunk by one sector), not an undecoded gate in the
+walk itself. The tier-1 id-only stamp is WHY the +0x20 processor exists.
