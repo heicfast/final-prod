@@ -2,7 +2,14 @@
 
 ---
 
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S88 fix lane on top; the prior lanes below, newest-first)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S89 fix lane on top; the prior lanes below, newest-first)
+
+**Session-89 S89 lane rows (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one... Aim for at least 20+ fixes... fix all remaining ones"]; opened at core `fc4ffdf4` (the racing window's M-107 members 6/7/8 absorbed pre-work), corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| tree/query · the results tree's five branch axes (A11/A16/A42-adjacent — the two missing og roots) | **MATCH (M-101 FIXED)** | **M-101 FIXED (findings/FIXED/)** — the "Versions" node (NTFS multi-version record siblings) and "Tags Extracted" (EXIF/tag grouping) land as engine-carried, host-rendered concepts (the og's own split: DRWUI derives both at model-build time from the live tree — the branch-type tooltip decode FUN_140aeaec0 ids 0/3; the rsf grammar persists neither). Versions: `FileProperties::version_group` stamped by the walk's phase F ((parent record, name) collision key — hard links never collide; torn-overwrite families only), persisted as nflags bit-14; Tags: the runtime-only node bit marked by the preview tag reader through a liveness watch (handle stays session-independent). Exposure: query Filter axes + Row fields, SnapNode fields, the ABI twins (cr_ui_query/cr_ui_query_row/cr_ui_node_info tail-appends, zero-init = safe default, plain-C driven in ui_abi_check.c). RED→GREEN first-hand via the block-neutralize dance (3/3 FAIL with the blocks removed, GREEN restored; suite 1692→1697); `Snapshot.M101BranchAxesAndExistingBranchesUnchanged` pins the three landed branches unchanged |
+
 
 **Session-88 S88 lane rows (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... Aim for at least 20+ fixes"]; opened at core `842a587e`, pulled through the racing windows to the landing head `db468e29`, corpus `be0cfe9` throughout; the lane re-homed S84 → S88 per SA-9 — the racing windows took S68-S87; every dispute arbitrated by a fresh first-hand corpus read):**
 

@@ -40,6 +40,9 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
         s.confidence = u8(n->confidence());
         s.grade = u8(n->grade());
         s.overlap = n->overlap();
+        s.tags_extracted =
+            n->tags_extracted(); /* M-101: the runtime mark
+                                  * rides the node like graded/failed - never the props */
         if (const FileProperties* p = n->props()) {
             s.name = p->name;
             s.name_raw = p->name_raw; /* N-016b: raw bytes survive snapshots */
@@ -54,6 +57,7 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
             s.resident_data = p->resident_data;
             s.carve_format = p->carve_format;
             s.carve_confidence = p->carve_confidence;
+            s.version_group = p->version_group; /* M-101 */
             std::memcpy(s.sha128, p->sha128, sizeof(s.sha128));
             s.hash_valid = p->hash_valid;
         }
@@ -127,6 +131,9 @@ FileProperties* Snapshot::materialize_props(u32 index) const {
     p->extents = s.extents;
     p->carve_format = s.carve_format;
     p->carve_confidence = s.carve_confidence;
+    p->version_group = s.version_group; /* M-101: the materialized copy
+                                         * carries the group so snapshot-side recovery/preview
+                                         * addresses see the same relation the live tree does */
     std::memcpy(p->sha128, s.sha128, sizeof(p->sha128));
     p->hash_valid = s.hash_valid;
     return p;

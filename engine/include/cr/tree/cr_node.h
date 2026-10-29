@@ -294,6 +294,24 @@ public:
      * persisted as the nflags bit-13 block (u32). */
     u64 ntfs_parent_ref = 0;
     u32 fat_parent_cluster = 0;
+    /* M-101 (diff-to-fix): the NTFS multi-version sibling group id — the
+     * og's "Versions" results-tree branch (UIUX/09:34: "It is another
+     * version of the file in the same directory. You can view different
+     * versions of the same file" — the branch-type id 3 tooltip decode,
+     * DRWUI FUN_140aeaec0 :1678502-1678506; the five distinguished roots
+     * at UIUX/09:27-36). The NTFS walk stamps a shared nonzero group id
+     * on every emitted node whose (parent record, name) pair collides
+     * with another record's — the torn-overwrite population the og
+     * surfaces as versions of one file instead of unlinked siblings.
+     * Hard links never collide on the key (same record, distinct parents
+     * → distinct keys), so the group is exactly the multi-version record
+     * family. 0 = not a version sibling (the default; non-NTFS engines
+     * carry nothing — the corpus ties the branch to NTFS record
+     * multi-version, the finding's scoping question resolved conserv-
+     * atively). Deterministic: ids assigned in emission order, 1-based.
+     * Persisted as the nflags bit-14 block (u32, cr_records.cpp) so the
+     * grouping survives the session round-trip. */
+    u32 version_group = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;
@@ -374,6 +392,18 @@ public:
      * mark without re-reading the report. */
     bool recover_failed() const { return failed_; }
     void mark_recover_failed() { failed_ = 1; }
+    /* M-101 (diff-to-fix): the Tags Extracted runtime mark — the og's
+     * EXIF/tag-grouping branch (UIUX/09:31, branch-type id 0 in the
+     * tooltip decode). Runtime-only by design, exactly like failed_/
+     * graded_: the og derives the branch at model-build time from its
+     * tag reader's output and persists NOTHING (the rsf grammar carries
+     * no tag field - grep verified; a reloaded session re-derives when
+     * the host re-reads tags). Stamped by the preview tag reader when a
+     * file yields EXIF tags (preview_metadata through the session path);
+     * read by the query layer's grouping axis, the snapshot rows, and
+     * the ABI node_info surface. */
+    bool tags_extracted() const { return tags_; }
+    void mark_tags_extracted() { tags_ = 1; }
     /* Direct field set (session deserialize round-trip ONLY - never a
      * rule application; the setter above is the graded path). */
     void set_grade_raw(Grade g) { grade_ = g; }
@@ -414,6 +444,7 @@ protected:
     u8 overlap_ : 1 = 0;               /* og twin/overlap flag (bit 2 of +0x73) */
     u8 graded_ : 1 = 0;                /* M-134: the re-grade one-shot bit */
     u8 failed_ : 1 = 0;                /* M-135: runtime recovery-failure mark (bit 1) */
+    u8 tags_ : 1 = 0;                  /* M-101: runtime Tags Extracted mark */
     bool full_ = false;                /* FullNode marker (non-polymorphic discrimination) */
     u32 basis_ = 0;                    /* S-052: root's extent-basis id (0 = absolute) */
     u64 node_id_ = 0;

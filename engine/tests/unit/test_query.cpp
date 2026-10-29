@@ -471,6 +471,76 @@ TEST(Query, M072PathSubstringAndStateMask) {
     }
 }
 
+TEST(Query, M101VersionsAndTagsBranchAxes) {
+    /* M-101: the two og results-tree branch axes (UIUX/09:27-36 — the
+     * five distinguished roots; Versions = the NTFS multi-version record
+     * family, Tags Extracted = the EXIF/tag grouping). versions_only
+     * passes only version-group siblings; tags_extracted_only passes
+     * only tag-marked nodes; rows carry both axes so hosts build the
+     * branches without re-walking; the axes compose with the state mask. */
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    auto* v1 = add_file(t, found, "doc.txt", 100, 1000, 1, false, tree::Origin::Structured);
+    auto* v2 = add_file(t, found, "doc.old", 90, 900, 1, true, tree::Origin::Structured);
+    auto* tagged = add_file(t, found, "photo.jpg", 200, 2000, 1, false, tree::Origin::Structured);
+    add_file(t, found, "plain.bin", 10, 10, 1, false, tree::Origin::Structured);
+    /* the version relation: both doc.* nodes share a group id; the tag
+     * mark: photo.jpg only (the runtime mark is host/reader-driven - the
+     * test stamps it exactly as preview_metadata_impl would) */
+    v1->props()->version_group = 7;
+    v2->props()->version_group = 7;
+    tagged->mark_tags_extracted();
+    t.refresh_stats();
+
+    /* the Versions branch: only the group members */
+    {
+        Query q;
+        q.filter.versions_only = true;
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(2), r.total_matched);
+        EXPECT_EQ("doc.txt", r.rows[0].name_utf8);
+        EXPECT_EQ("doc.old", r.rows[1].name_utf8);
+        EXPECT_EQ(7u, r.rows[0].version_group);
+        EXPECT_EQ(7u, r.rows[1].version_group);
+        EXPECT_EQ(0u, r.rows[0].tags_extracted);
+    }
+    /* the Tags Extracted branch: only the marked node */
+    {
+        Query q;
+        q.filter.tags_extracted_only = true;
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("photo.jpg", r.rows[0].name_utf8);
+        EXPECT_TRUE(r.rows[0].tags_extracted);
+        EXPECT_EQ(0u, r.rows[0].version_group);
+    }
+    /* the axes compose: versions AND deleted-only -> only the prior version */
+    {
+        Query q;
+        q.filter.versions_only = true;
+        q.filter.state_mask = 2u; /* bit1 Deleted */
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("doc.old", r.rows[0].name_utf8);
+    }
+    /* zero-init defaults: both axes off, all four rows match */
+    {
+        Query q;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(4), r.total_matched);
+        /* un-grouped rows carry the honest zeros */
+        for (const Row& row : r.rows) {
+            if (row.name_utf8 == "photo.jpg") {
+                EXPECT_TRUE(row.tags_extracted);
+                EXPECT_EQ(0u, row.version_group);
+            } else if (row.name_utf8 == "plain.bin") {
+                EXPECT_FALSE(row.tags_extracted);
+                EXPECT_EQ(0u, row.version_group);
+            }
+        }
+    }
+}
+
 TEST(Query, RandomizedAgainstReference) {
     std::mt19937_64 rng(12345);
     for (int round = 0; round < 20; ++round) {

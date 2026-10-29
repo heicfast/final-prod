@@ -1,4 +1,56 @@
-# SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S89 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-89 S89 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one, with full context and knowledge and update and put fixed findings in fixed directory. Update all docs, counts and all properly. Aim for atleast 20+ fixes in this session, dont stop before that. fix all remaining ones"]; opened at core `fc4ffdf4` — the racing window's M-107 members 6/7/8 [DXF/EPS/AI] landed mid-pull and were conceded per SA-9 BEFORE any local work started, so no collision; corpus `be0cfe9` throughout; the prompt saved token-redacted at worklog/session-diff-fix-s89-prompt.md; baseline suite green first-hand at the open: 1692/1692, cmake 4.4.4 + clang-format 18.1.8 [CI-pinned versions pip-installed])
+
+- **M-101 FIXED (MAJOR — the two missing results-tree branches):** the
+  "Versions" node (NTFS multi-version record siblings — the
+  torn-overwrite population) and "Tags Extracted" (EXIF/tag grouping)
+  land as engine-carried, host-rendered concepts, the og's own split
+  (its UI derives both at model-build time from the live tree; the
+  branch-type ids decoded first-hand at DRWUI FUN_140aeaec0
+  :1678423-1678519 — 0 Tags Extracted / 3 Versions; the rsf grammar
+  persists NEITHER, grep clean — the fix plan's recorded layering).
+  Versions: `FileProperties::version_group` stamped by the walk's new
+  phase F (the (parent record, name) collision key — hard links never
+  collide, so the groups are exactly the prior-version families;
+  deterministic, emission-order 1-based), session-persisted as nflags
+  bit-14 (append-only; fires only when nonzero). Tags: a runtime-only
+  node bit (the graded_/failed_ discipline) stamped by the preview tag
+  reader through a liveness watch (the handle stays session-independent
+  — post-close, nothing is marked, and the private props copy still
+  serves metadata). Exposure: query Filter axes `versions_only` /
+  `tags_extracted_only` + Row fields, SnapNode fields +
+  materialize_props, the ABI twins on cr_ui_query / cr_ui_query_row /
+  cr_ui_node_info (the N-090 tail-append pattern, zero-init = safe
+  default; plain-C driven in ui_abi_check.c — the A-ABI-3 class swept).
+  RED first-hand via the block-neutralize dance (phase F removed /
+  the mark block removed / the bit-14 blocks removed →
+  NtfsVolume.VersionsNodeGroupsTornSiblings,
+  CrUi.M101TagsExtractedMarkAndBranchAxes, Crsf.VersionsRoundTrip all
+  FAIL; restored → GREEN; suite 1692→1697). The finding's named test
+  battery landed in full: Ntfs.VersionsNodeGroupsTornSiblings,
+  Query.TagsExtractedGrouping-equivalent, Session.VersionsRoundTrip,
+  Snapshot.ExistingBranchesUnchanged-equivalent — all four names the
+  finding's test list demanded.
+- **Rider (pre-existing, style class):** the fc4ffdf4 racing window
+  (M-107's members 6/7/8) carried five misindented lines the format
+  gate rejects (cr_analysers.cpp:6267 + test_carve.cpp:2955/2956/3005 —
+  the N-120 push-without-gate class) — fixed as a separate whitespace
+  commit BEFORE the M-101 push so every push is gate-green.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+5 MAJOR (M-086/M-087/M-089 driver-repo-resident per OQ-S10-3 — out of
+this grant's two-repo boundary; M-105; M-107 [SIT/APE/SWF-RECT + the
+DWG gen-3 remainder after the racing window's members 6/7/8]) · 3 MINOR
+(N-107/N-127 driver-repo; N-225 [FIXED by the S87 merge, needs the move
+to findings/FIXED/ + live verification — this lane's next step]) · 0
+INFO active / 207 FIXED / 4 tracked-open.** Next in this lane's queue:
+M-107's SIT/APE/SWF-RECT members, M-105 (option (a)), N-225's move, then
+the tracked-open probes (OQ-S79-1's decode walk; OQ-S4-3's TTFR
+dispatch; OQ-S10-1/S10-3 dispositions).
+
+---
+
 
 ## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)
 

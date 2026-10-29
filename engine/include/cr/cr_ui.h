@@ -1082,6 +1082,11 @@ typedef struct cr_ui_node_info {
     uint32_t hash_valid;
     uint8_t sha128[16]; /* truncated content hash when hash_valid */
     uint32_t name_len;  /* name bytes excluding NUL (UTF-8) */
+    /* M-101 (ABI-appended, the N-090 tail pattern - no version bump):
+     * the two og results-tree branch axes (UIUX/09:27-36). Zero-init =
+     * the safe default (no group / not marked). */
+    uint32_t version_group;  /* NTFS multi-version sibling group id; 0 = none */
+    uint32_t tags_extracted; /* 1 when the preview tag reader marked the node */
 } cr_ui_node_info;
 
 CR_UI_API void cr_ui_snapshot_close(cr_ui_snapshot* snap);
@@ -1140,6 +1145,10 @@ typedef struct cr_ui_query {
     uint64_t offset;
     uint32_t limit; /* 0 = default 100 */
     uint32_t count_only;
+    /* M-101 (ABI-appended): the two branch axes (UIUX/09:27-36). Zero
+     * = the axis is off (the safe default); composes with the axes above. */
+    uint32_t versions_only;       /* 1 = only version-group siblings */
+    uint32_t tags_extracted_only; /* 1 = only tag-marked nodes */
 } cr_ui_query;
 
 typedef struct cr_ui_query_row {
@@ -1150,6 +1159,9 @@ typedef struct cr_ui_query_row {
     uint32_t origin, deleted, confidence, category;
     uint32_t grade; /* S-023: tree::Grade 0..2 (rows carry the verdict so
                      * parity UIs can sort grade-2 first like the og) */
+    /* M-101 (ABI-appended): the branch axes per row. */
+    uint32_t version_group;  /* 0 = not a version sibling */
+    uint32_t tags_extracted; /* 1 = the preview tag reader marked it */
 } cr_ui_query_row;
 
 CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,

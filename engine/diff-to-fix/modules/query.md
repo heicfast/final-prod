@@ -1,5 +1,23 @@
 
 
+## Session-89 fix row (2026-10-30 — M-101's two branch axes landed)
+
+- **M-101 CLOSED (FIXED, findings/FIXED/)**: `versions_only` /
+  `tags_extracted_only` on query::Filter (zero-init = off; compose with
+  the M-072 axes), `version_group` / `tags_extracted` on Row; the ABI
+  twins on cr_ui_query/cr_ui_query_row/cr_ui_node_info (the N-090
+  tail-append pattern, no version bump; plain-C driven in
+  ui_abi_check.c). The Versions group is NTFS-walk-produced (phase F:
+  the (parent record, name) collision key — hard links never collide)
+  and session-persisted (nflags bit-14); the tag mark is runtime-only
+  (the preview tag reader through a liveness watch — the og persists no
+  tag field, rsf grep clean). Pinned by
+  Query.M101VersionsAndTagsBranchAxes,
+  CrUi.M101TagsExtractedMarkAndBranchAxes (a real EXIF read marks the
+  live node; close-then-metadata stays safe), and
+  Snapshot.M101BranchAxesAndExistingBranchesUnchanged. RED first-hand
+  via the block-neutralize dance; the full suite grew 1692→1697.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive)
 
 New active findings on this module: **N-167** (the found-size aggregate absent —

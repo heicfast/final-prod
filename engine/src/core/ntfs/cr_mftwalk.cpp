@@ -1710,6 +1710,44 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         }
     }
 
+    /* ---- phase F (M-101): the Versions grouping pass ----
+     *
+     * The og's results tree surfaces same-(parent, name) record siblings
+     * as the "Versions" branch (UIUX/09:34 — "It is another version of
+     * the file in the same directory. You can view different versions
+     * of the same file"; the branch-type id 3 tooltip decode, DRWUI
+     * FUN_140aeaec0). The main walk emits that population as unlinked
+     * siblings (two records for one $FILE_NAME — the torn-overwrite
+     * family); this pass stamps the queryable branch relation: every
+     * emitted node whose (parent record, name) key collides with
+     * another record's carries the same nonzero version_group id.
+     * Hard links never collide on the key (one record's links carry
+     * distinct parents; the fan-out's per-parent emission keys differ),
+     * so the groups are exactly the multi-version record families.
+     * Deterministic: map iteration over the emission set, ids assigned
+     * in first-appearance order, 1-based; 0 stays "no sibling". */
+    {
+        std::map<std::pair<u64, std::u16string>, std::vector<tree::FileNode*>> by_parent_name;
+        for (const EmittedNode& e : emitted) {
+            if (e.node == nullptr || e.node->props() == nullptr)
+                continue;
+            const std::u16string& nm = e.node->props()->name;
+            if (nm.empty())
+                continue; /* unnamed records never form a group */
+            by_parent_name[{e.parent_record, nm}].push_back(e.node);
+        }
+        u32 next_group = 1;
+        for (const auto& kv : by_parent_name) {
+            if (kv.second.size() < 2)
+                continue;
+            for (tree::FileNode* n : kv.second) {
+                if (n->props() != nullptr && n->props()->version_group == 0)
+                    n->props()->version_group = next_group;
+            }
+            ++next_group;
+        }
+    }
+
     if (progress)
         (void)progress(max_record, max_record, progress_user);
     return OK;

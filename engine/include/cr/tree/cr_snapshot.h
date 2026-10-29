@@ -69,6 +69,13 @@ struct SnapNode {
     std::vector<u8> resident_data;
     u32 carve_format = 0;
     u32 carve_confidence = 0;
+    /* M-101: the Versions branch relation (props) and the Tags
+     * Extracted runtime mark (node) — the two branch axes the og's
+     * results tree renders (UIUX/09:27-36); captured so snapshot-based
+     * hosts enumerate them without the live tree. Append-only fields;
+     * old readers ignore them. */
+    u32 version_group = 0;
+    bool tags_extracted = false;
     u8 sha128[16] = {0};
     bool hash_valid = false;
 };

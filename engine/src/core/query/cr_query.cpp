@@ -132,6 +132,13 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
+    /* M-101: the two branch axes — evaluated on the cheap fields only
+     * (props->version_group / the node's runtime mark), never a string
+     * conversion, so the 1M-node count budget keeps its fast lane. */
+    if (f.versions_only && pr->version_group == 0)
+        return false;
+    if (f.tags_extracted_only && !n->tags_extracted())
+        return false;
     if (f.category_mask != 0x3FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
@@ -420,6 +427,8 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         row.deleted = u32(node->deleted_state());
         row.confidence = u32(node->confidence());
         row.category = u32(cat_of(row.name_utf8));
+        row.version_group = pr ? pr->version_group : 0; /* M-101 */
+        row.tags_extracted = node->tags_extracted();    /* M-101 */
         emit_path(node, row.path_utf8);
         out.rows.push_back(std::move(row));
     }

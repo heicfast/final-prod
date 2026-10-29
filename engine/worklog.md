@@ -13129,3 +13129,57 @@ move to findings/FIXED/ + live verification]) · 206 FIXED · 4
 tracked-open. Fix queue (MAJOR first, contention-aware): M-101 (the
 Versions + Tags Extracted branches — untouched by any lane), M-105
 (option (a)), M-107's remainder, N-225, then the tracked-open probes.
+
+## Session-89 S89 fix-lane — entry 2 (2026-10-30): M-101 FIXED — the Versions + Tags Extracted branches land
+
+**Classification CONFIRMED-DIVERGENCE, re-verified first-hand** (not
+from the finding text): UIUX/09:27-36 read in full; the branch-type
+tooltip decode FUN_140aeaec0 (:1678423-1678519 — ids 0 Tags Extracted,
+3 Versions) read this session; the breadcrumb node-kinds FUN_1403c6fc0
+(:642755-642822) read this session; the rsf grammar's no-tag/no-version
+persistence grep-verified. The fix (engine-carried, host-rendered — the
+og's own layering):
+
+1. **Versions**: `FileProperties::version_group` (0 = no sibling);
+   phase F in cr_mftwalk.cpp (after the S-012 rescue) groups emitted
+   nodes by the (parent record, name) collision key — deterministic
+   emission-order 1-based ids; hard links never collide (one record's
+   links carry distinct parents), so the groups are exactly the
+   torn-overwrite record families. NTFS-scoped (the corpus ties the
+   branch to NTFS record multi-version). Persisted as nflags bit-14
+   (4-byte append-only; fires only when nonzero — pre-M-101 sessions
+   shape-identical); the deserialize sets it back.
+2. **Tags Extracted**: FileNode's runtime-only `tags_` bit (the
+   graded_/failed_ discipline — nothing persisted; a reloaded session
+   re-derives on re-read, the og's posture). The ABI preview path marks
+   it: preview_open_session binds a liveness watch (a session-owned
+   sentinel invalidated in ~CrSession BEFORE the tree member destroys;
+   the handle stays session-independent — post-close the watch is dead,
+   nothing is marked, and the private props copy still serves metadata
+   through the close-then-call sequence).
+3. **Exposure**: query::Filter `versions_only`/`tags_extracted_only`
+   (zero-init = off; compose with the M-072 axes) + Row
+   `version_group`/`tags_extracted`; SnapNode `version_group`/
+   `tags_extracted` (capture + materialize_props); the ABI twins on
+   cr_ui_query / cr_ui_query_row / cr_ui_node_info (N-090 tail-append,
+   zero-init = safe default). ui_abi_check.c drives every appended
+   field and both axes from plain C.
+
+**Proof:** RED first-hand via the block-neutralize dance — phase F
+removed → NtfsVolume.VersionsNodeGroupsTornSiblings FAILED; the
+preview-mark block removed → CrUi.M101TagsExtractedMarkAndBranchAxes
+FAILED; the nflags bit-14 write+read blocks removed →
+Crsf.VersionsRoundTrip FAILED; all restored → GREEN. The suite grew
+1692→1697 (the five new tests: the walk battery, the query-axis
+battery, the session round-trip, the snapshot+existing-branches pin,
+the full-ABI EXIF path); full ctest 1697/1697; ci-local.sh GREEN
+(format, dead-surface, conflict-marker, warnings-as-errors build,
+report schema, Win7 PE gate self-test, vcpkg, doc links, secrets scan,
+commit convention). A rider landed first as a separate commit: the
+racing window's five format-gate violations (cr_analysers.cpp:6267 +
+test_carve.cpp x4) — whitespace-only, the N-120 class caught at this
+lane's open.
+
+Trail: the finding's Resolution + move to findings/FIXED/, the matrix
+S89 row, modules/query.md's S89 fix row, the SUMMARY S89 block, this
+entry. Corpus: be0cfe9, read-only guarantee held.

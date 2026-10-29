@@ -916,11 +916,37 @@ struct CrScan {
 #endif
 };
 
+struct CrSession; /* M-101: PreviewTagWatch's target (defined below) */
+
+/* M-101: the Tags Extracted liveness watch. Declared at namespace scope
+ * (before CrSession): the session creates it at construction, invalidates
+ * it in its destructor (BEFORE the tree member destroys - the explicit
+ * ~CrSession below), and every session-path preview handle holds a
+ * shared_ptr. preview_metadata_impl re-finds the live node by id and
+ * stamps the tag mark only while the watch is alive; a closed session's
+ * previews see alive == false and touch nothing. The close-vs-in-flight
+ * race stays under the ABI's documented caller contract (calls serialize
+ * against close); the watch removes the USE-AFTER-FREE class for the
+ * accepted close-then-call sequence. */
+struct PreviewTagWatch {
+    CrSession* sess = nullptr; /* valid only while alive */
+    bool alive = true;
+};
+
 struct CrSession {
     std::string path;
     tree::ResultTree tree;
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
+    /* M-101: the tag-mark liveness watch (see PreviewTagWatch above).
+     * The ctor binds sess; ~CrSession invalidates BEFORE the tree member
+     * destroys (members destroy after the body runs). */
+    std::shared_ptr<PreviewTagWatch> tag_watch;
+    CrSession() : tag_watch(new PreviewTagWatch()) { tag_watch->sess = this; }
+    ~CrSession() {
+        if (tag_watch)
+            tag_watch->alive = false;
+    }
     /* S-052: the LDM dynamic-volume basis state - the layouts from the
      * session record, armed lazily into virtual devices at the first
      * basis-aware consumer (recovery enqueue / preview / thumbnail).
@@ -973,6 +999,19 @@ struct PropReleaser {
 struct CrPreview {
     std::unique_ptr<tree::FileProperties, PropReleaser> owned;
     std::unique_ptr<preview::PreviewReader> reader;
+    /* M-101: the Tags Extracted mark path. The preview handle must stay
+     * independent of the session's lifetime (the private props copy is
+     * the whole point - "the session may close independently"), so the
+     * mark never holds the node directly: the handle carries a liveness
+     * watch the session invalidates at destruction, plus the node_id to
+     * re-find the live node. preview_metadata_impl stamps the mark only
+     * when the watch is alive (post-close: nothing to mark, the tree is
+     * gone - the og's model-build mark is equally session-bound). The
+     * close-vs-in-flight race is the ABI's documented caller contract
+     * (every handle call serializes against close; the watch removes the
+     * USE-AFTER-FREE class for the accepted close-then-call sequence). */
+    std::shared_ptr<PreviewTagWatch> watch;
+    uint64_t watch_node_id = 0;
     /* M-083: the thumbnail success path promotes the generating node's
      * grade to 2 - but it addresses the node through
      * cr_ui_thumbnail_generate's own session/node_id arguments, never
@@ -3758,6 +3797,8 @@ u32 snapshot_node_impl(cr_ui_snapshot* snap, uint32_t index, cr_ui_node_info* ou
     out->carve_confidence = n.carve_confidence;
     out->hash_valid = n.hash_valid ? 1u : 0u;
     std::memcpy(out->sha128, n.sha128, 16);
+    out->version_group = n.version_group;             /* M-101 */
+    out->tags_extracted = n.tags_extracted ? 1u : 0u; /* M-101 */
     const std::string name = u16_to_u8(n.name);
     out->name_len = u32(name.size());
     if (!name_buf)
@@ -3844,6 +3885,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
     cq.filter.state_mask = q->state_mask ? q->state_mask : 0xFu; /* M-072 */
     cq.filter.deleted_only = q->deleted_only != 0;
     cq.filter.origin_mask = q->origin_mask ? q->origin_mask : 0xFu;
+    cq.filter.versions_only = q->versions_only != 0;             /* M-101 */
+    cq.filter.tags_extracted_only = q->tags_extracted_only != 0; /* M-101 */
     switch (q->sort) {
     case 1:
         cq.sort = query::SortKey::Name;
@@ -3899,6 +3942,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         arr[i].confidence = r.confidence;
         arr[i].category = r.category;
         arr[i].grade = r.node ? u32(r.node->grade()) : 1u;
+        arr[i].version_group = r.version_group;             /* M-101 */
+        arr[i].tags_extracted = r.tags_extracted ? 1u : 0u; /* M-101 */
         if (!arr[i].name || !arr[i].path) {
             for (u32 k = 0; k <= i; ++k) {
                 std::free(arr[k].name);
@@ -4130,6 +4175,10 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
         return ret_(ERR_NO_MEMORY, "props clone failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
+    p->watch = s->tag_watch;    /* M-101: the tag-mark liveness watch */
+    p->watch_node_id = node_id; /* M-101: re-find target (node_id is the
+                                 * ABI's own addressing key; the private
+                                 * props copy stays the content source) */
     /* F-1: extents are absolute - preview through the PARENT disk when the
      * scan device is a volume slice (same basis rule as the recovery writer).
      * S-052: LDM-basis nodes preview through the session's (lazily armed)
@@ -4166,6 +4215,17 @@ u32 preview_metadata_impl(cr_ui_preview* pv, cr_ui_metadata* out) {
         return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
     auto* p = reinterpret_cast<CrPreview*>(pv);
     const preview::Metadata m = preview::extract_metadata(*p->reader, preview::Caps{});
+    /* M-101: the Tags Extracted mark - the tag reader is the source
+     * (UIUX/09:31, branch-type id 0). Fired when the extraction yielded
+     * EXIF tags (orientation/datetime - the reader's tag set); stamped on
+     * the live session node so the query grouping axis, the snapshot
+     * rows, and the ABI node_info observe it. The watch gates the
+     * session's lifetime: post-close, nothing is marked. */
+    if (p->watch && p->watch->alive && (!m.orientation.empty() || !m.datetime.empty())) {
+        tree::FileNode* n = find_node(p->watch->sess->tree, p->watch_node_id);
+        if (n != nullptr)
+            n->mark_tags_extracted();
+    }
     std::memset(out, 0, sizeof(*out));
     bool fit = true;
     fit &= copy_bstr(out->kind, sizeof(out->kind), m.kind);

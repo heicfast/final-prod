@@ -235,6 +235,15 @@ struct Filter {
     u32 state_mask = 0xF;
     bool deleted_only = false;
     u32 origin_mask = 0xF; /* tree::Origin bits */
+    /* M-101 (diff-to-fix): the two og results-tree branch axes the
+     * filter bar targets (UIUX/09:27-36, the branch-type tooltip
+     * decode DRWUI FUN_140aeaec0 - ids 0 Tags Extracted, 3 Versions).
+     * versions_only passes nodes carrying a nonzero version_group (the
+     * NTFS multi-version record family); tags_extracted_only passes
+     * nodes marked by the preview tag reader. Both zero-init = off,
+     * both compose with the axes above. */
+    bool versions_only = false;
+    bool tags_extracted_only = false;
 
     /* effective state mask: deleted_only sugar ORs in the Deleted bit */
     u32 effective_state_mask() const {
@@ -340,6 +349,10 @@ struct Row {
     u32 deleted = 0;    /* tree::DeletedState */
     u32 confidence = 0; /* tree::Confidence ordinal (0..4) */
     u32 category = 0;   /* Category */
+    /* M-101: the branch axes carried per row so hosts can build the
+     * Versions / Tags Extracted groups without re-walking the tree. */
+    u32 version_group = 0;       /* 0 = not a version sibling */
+    bool tags_extracted = false; /* the preview tag reader marked it */
 };
 
 struct Result {
