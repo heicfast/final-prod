@@ -20,6 +20,14 @@
 using namespace cr;
 using namespace cr::carve;
 
+/* N-212: the ASF validator's direct-contract pin needs the file-local
+ * declaration (the analyser set is registry-internal, not header-public) */
+namespace cr {
+namespace carve {
+CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap);
+} // namespace carve
+} // namespace cr
+
 namespace {
 
 class MemDevice final : public IStorageDevice {
@@ -1903,7 +1911,8 @@ size_t plant_gif(std::vector<u8>& img, size_t at) {
  * past the device end. Returns the expected carve extent (one past the
  * last COMPLETE valid object). */
 size_t plant_asf(std::vector<u8>& img, size_t at, int data_objects, const char* tail = "unknown",
-                 u64 torn_size = 0, u32 header_count = 1) {
+                 u64 torn_size = 0, u32 header_count = 1, u64 declared_size = 0,
+                 bool zero_header_size = false) {
     static const u8 asf_guid[16] = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
                                     0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
     static const u8 data_guid[16] = {0x36, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
@@ -1911,14 +1920,28 @@ size_t plant_asf(std::vector<u8>& img, size_t at, int data_objects, const char* 
     size_t p = at;
     /* Header Object: GUID + size (100) + count + 2 reserved + payload */
     std::memcpy(img.data() + p, asf_guid, 16);
-    const u64 hsz = 100;
+    const u64 hsz = zero_header_size ? 0 : 100;
     for (int i = 0; i < 8; ++i)
         img[p + 16 + size_t(i)] = u8(hsz >> (8 * i));
     for (int i = 0; i < 4; ++i)
         img[p + 24 + size_t(i)] = u8(header_count >> (8 * i));
     img[p + 28] = 1; /* broadcast flag (arbitrary non-reserved byte) */
-    for (u32 i = 30; i < hsz; ++i)
+    for (u32 i = 30; i < hsz && i < img.size() - p; ++i)
         img[p + size_t(i)] = 0x44;
+    /* N-212: an optional File Properties child at +30 (the og's +0x174
+     * GUID) carrying the declared total file size at child+0x28 (the ASF
+     * spec's file_size; the og's AVX extraction site) */
+    if (declared_size != 0) {
+        static const u8 fprops_guid[16] = {0xA1, 0xDC, 0xAB, 0x8C, 0x47, 0xA9, 0xCF, 0x11,
+                                           0x8E, 0xE4, 0x00, 0xC0, 0x0C, 0x20, 0x53, 0x65};
+        const size_t fp = p + 30;
+        std::memcpy(img.data() + fp, fprops_guid, 16);
+        const u64 fsz = 0x30;
+        for (int i = 0; i < 8; ++i)
+            img[fp + 16 + size_t(i)] = u8(fsz >> (8 * i));
+        for (int i = 0; i < 8; ++i)
+            img[fp + 0x28 + size_t(i)] = u8(declared_size >> (8 * i));
+    }
     p += size_t(hsz);
     /* Data Objects: GUID + size + payload (sizes 200/150/300/...) */
     static const u64 sizes[] = {200, 150, 300, 240};
@@ -4514,6 +4537,110 @@ TEST(Carve, S007NicheBatch1SharedKeyDiscriminates) {
 /* rawsearch-carving--deep-dive.md:87-91). The pre-fix code ended every  */
 /* carve at the Header Object's own size field (header-only fragments).  */
 /* ===================================================================== */
+
+/* ---- N-212: the ASF acceptance band + the declared-size extent ---- */
+
+TEST(Carve, AsfTornCountFieldStillEmitted) {
+    /* the og's tier-1 is ONLY the 16-byte header GUID (FUN_180037030,
+     * raw-asm verified); the object-count field at +0x18 is never read by
+     * the analyser family. A torn count (zeroed, or garbage-large) with
+     * intact structure otherwise is EMITTED by the og and was REFUSED by
+     * the core's old count==0/count>128 gate - the torn-header recovery
+     * population. Both fixtures must carve with the full walked extent. */
+    for (const u32 torn_count : {0u, 999u}) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        const size_t expect = plant_asf(img, at, 2, "unknown", 0, torn_count);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* wmv = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                wmv = c;
+        ASSERT_NE(wmv, nullptr) << "torn count " << torn_count << " must still carve";
+        EXPECT_EQ(wmv->props()->logical_size, expect)
+            << "torn count " << torn_count << ": the full walked extent";
+    }
+}
+
+TEST(Carve, AsfZeroHeaderSizeEmitsThirtyByteSalvage) {
+    /* the og's semantics: the header-size field only BOUNDS the walk - a
+     * torn/zero size emits a 30-byte salvage candidate (the header's
+     * minimum structural footprint: GUID + size + count + 2 reserved),
+     * never a rejection. The core's old obj_size < 30 gate refused this
+     * population outright. Validator-level pin (the finding's fix plan
+     * keeps the registry row bounds unchanged - the row min is the
+     * engine's separate pre-filter, not the analyser's contract). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    (void)plant_asf(img, at, 0, "none", 0, 1, 0, true /* zero_header_size */);
+    /* the +16 size field reads 0 - the torn case; no data objects (the
+     * zero-size header does not advance the plant cursor) */
+    MemDevice dev(std::move(img));
+    const CarveResult r = validate_asf(&dev, at, 4ull << 30);
+    EXPECT_TRUE(r.ok) << "a torn/zero header size must emit the salvage candidate";
+    EXPECT_EQ(r.end, at + 30) << "the og's 30-byte salvage emission";
+    EXPECT_LT(r.confidence, 700u) << "salvage-class confidence, below the structural 850";
+    EXPECT_NE(nullptr, std::strstr(r.note, "salvage")) << "the note names the heuristic";
+}
+
+TEST(Carve, AsfFilePropsDeclaredSizeDrivesExtent) {
+    /* the og's extent finalization (:42076-42086): max(FileProperties-
+     * declared size, last walked position). A padded file whose declared
+     * size exceeds the walked objects (the walk stopped at an unknown
+     * object early) takes the DECLARED extent - the core's old extent was
+     * the walked end alone. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t walked =
+        plant_asf(img, at, 1, "unknown", 0, 1, 2048 /* declared > walked (100+200+128) */);
+    EXPECT_LT(walked, size_t(2048));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wmv = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wmv = c;
+    ASSERT_NE(wmv, nullptr);
+    EXPECT_EQ(wmv->props()->logical_size, size_t(2048))
+        << "the declared size wins when it exceeds the walked prefix";
+}
+
+TEST(Carve, AsfIntactFileExtentUnchanged) {
+    /* the coincidence pin: when the File Properties child's declared size
+     * EQUALS the true extent (the intact-file case - GUID + header +
+     * objects), the extent is unchanged from the walked-end semantics. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect =
+        plant_asf(img, at, 2, "none", 0, 1, 100 + 200 + 150 /* declared == the true size */);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wmv = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wmv = c;
+    ASSERT_NE(wmv, nullptr);
+    EXPECT_EQ(wmv->props()->logical_size, expect) << "intact file: declared == walked == extent";
+}
 
 TEST(Carve, AsfCarveExtentCoversDataObjects) {
     /* header (100) + 3 data objects (200+150+300) + unknown-GUID break */
@@ -10878,8 +11005,9 @@ TEST(Carve, CslCd01OutOfCapDeclinedIsDropped) {
     img[at + 1] = 0x01;
     img[at + 2] = 0x00;
     img[at + 3] = 0x00;
-    put32v(img, at + 0x44C, 0x200000);         /* + 0x480 > 0x100000: out of cap */
-    const char body[] = "<svg>yyyyyyyy</svg>"; /* a marker the og NEVER consults for a latched CD01 candidate */
+    put32v(img, at + 0x44C, 0x200000); /* + 0x480 > 0x100000: out of cap */
+    const char body[] =
+        "<svg>yyyyyyyy</svg>"; /* a marker the og NEVER consults for a latched CD01 candidate */
     std::memcpy(img.data() + at + 0x20, body, sizeof(body) - 1);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -10892,9 +11020,9 @@ TEST(Carve, CslCd01OutOfCapDeclinedIsDropped) {
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     for (tree::FileNode* c : all) {
-        ASSERT_TRUE(c->props()->extents.empty() ||
-                    c->props()->extents.front().offset != at)
-            << "a declined out-of-cap CD01 candidate must be DROPPED (the og's latch binds it to the 0x44c sizing - no end-tag retry)";
+        ASSERT_TRUE(c->props()->extents.empty() || c->props()->extents.front().offset != at)
+            << "a declined out-of-cap CD01 candidate must be DROPPED (the og's latch binds it to "
+               "the 0x44c sizing - no end-tag retry)";
     }
 }
 
@@ -10924,8 +11052,7 @@ TEST(Carve, CslShortCd01DeclinedIsDropped) {
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     for (tree::FileNode* c : all) {
-        ASSERT_TRUE(c->props()->extents.empty() ||
-                    c->props()->extents.front().offset != at)
+        ASSERT_TRUE(c->props()->extents.empty() || c->props()->extents.front().offset != at)
             << "a short-file declined CD01 candidate must be DROPPED (no end-tag retry)";
     }
 }

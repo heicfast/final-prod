@@ -1086,14 +1086,18 @@ hardening is the D-14 family). Evidence:
 
 **New on this module:**
 
-- **N-212 (MINOR, active)** — the ASF validator's acceptance band (count
-  gate / header-size floor the og never reads — the tier-1 at RVA 0x37030
-  is raw-asm-verified as the 16-byte GUID compare ALONE) and the extent
-  source (the og's FileProperties-declared-size-at-+0x28, maxed with the
-  last top-level position and clamped by global×500, vs the core's
-  walked-object end). Both walk phases decoded first-hand
-  (FUN_180037210 :41994-:42110, the 9-GUID family FUN_1800374c0
-  :42113-:42170).
+- **N-212 — FIXED (S77 lane → MATCH)** — the ASF validator's acceptance
+  band and extent source now match the decoded og family: tier-1 is the
+  16-byte GUID compare alone (the count gate and the header-size floor
+  are gone — a torn/zero size emits the og's 30-byte salvage candidate at
+  salvage-class confidence; a garbage-huge size is a 2 GiB walk cap, the
+  core-scale stand-in for the og's 100 GB product clamp); the phase-1
+  header-children walk captures the File Properties child's declared
+  size at +0x28 (the ctor's +0x174 GUID pair, the AVX extraction site
+  :42057); the extent finalization is max(declared, walked) clamped by
+  the row max and device end (:42076-42086's decode). 4 tests RED→GREEN
+  (torn count / zero-size salvage / declared-size extent / the intact
+  coincidence pin); Carve+RawSigns 246/246.
 
 **Verified-MATCH this lane (no findings — the near-divergences disproven
 first-hand):**

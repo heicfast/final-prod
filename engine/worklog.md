@@ -10788,3 +10788,37 @@ active / 161 FIXED); this entry.
   Trail: findings/FIXED/N-140 + Resolution, ledger row, matrix MATCH,
   modules/carve.md S76 addendum, SUMMARY board 13 M / 9 N / 164 FIXED,
   this entry.
+---
+
+## Session-78 S78 lane — the MINOR-tail fix lane (re-homed s70->s76->s77->s78 per SA-9; the racing windows took S70-S77)
+
+**Seat history:** opened as s70 at `3799dee2` (baseline green first-hand:
+1422/1380/0-fail); the M-136 repair + M-135 work built on the s70 seat
+were CONCEDED to the racing windows' convergent landings (the S75
+window's Skip-pipe landing then the S72 window's error-map M-135 with
+the seven-cause corpus correction — both verified first-hand this
+session post-landing: build green, Writer/WriterDirs/Report 38/38, the
+designs read line-by-line); renumbered s76 (racing window took it),
+then s77. The racing S76-MINOR lane announced the FORWARD ladder
+(N-131 → N-212); this lane takes the TAIL disjointly. Post-rebase at
+`adb26797`: the racing windows' N-131 (parent anchors, exFAT +0x54
+resolved NO-CARRIER), N-140 (the per-extension carve tally), M-118 (the
+register channel), M-148 (the NEW cross-disk LDM member-reads finding,
+filed+fixed), and the M-135 S71 rider (the live-tree node mark + the
+settings-gated accounting skip) absorbed — convergent, verified.
+
+**N-212 FIXED (MINOR, carve):** the ASF validator's acceptance band and
+extent source. The count gate (never read by the og's family) removed;
+torn/zero header size → the og's 30-byte salvage candidate (validator-
+level pin; row bounds unchanged per the fix plan); garbage-huge size →
+a 2 GiB walk cap; the phase-1 children walk captures the FileProps
+child's +0x28 declared size (the ctor's +0x174 GUID pair re-derived
+first-hand; the open question's offset pin RESOLVED — the ASF spec's
+file_size); extent = max(declared, walked) clamped by row max + device
+end. Proof: AsfTornCountFieldStillEmitted / AsfZeroHeaderSizeEmits-
+ThirtyByteSalvage / AsfFilePropsDeclaredSizeDrivesExtent RED first-hand
+(stash dance: 3 FAILED pre-fix) → GREEN; AsfIntactFileExtentUnchanged
+(the coincidence control, passes both sides); the pre-existing ASF trio
+regression-guarded; Carve+RawSigns 246/246. Trail: FIXED finding +
+Resolution, ledger row, carve.md N-212 FIXED, SUMMARY board (12 MAJOR /
+8 MINOR active at the rebase point), this entry.

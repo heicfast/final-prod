@@ -2814,14 +2814,59 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(g, asf_guid, 16) != 0)
         return r;
+    /* N-212: tier-1 is ONLY the 16-byte header GUID compare (FUN_180037030,
+     * raw-asm verified: two sub/jne qword pairs, sete al - no other field is
+     * read). The header object-count field (+0x18..+0x1B) is NEVER read by
+     * the og's analyser family (verified: no +0x1c-indexed read in the ctor
+     * :41948-41980, tier-1 :41927-41946, or walker :41994-42110) - the old
+     * count==0/count>128 rejection refused the torn-header population the og
+     * emits (recovery loss). The size field only BOUNDS the walk: a torn/
+     * zero size emits the og's 30-byte salvage candidate (the header's
+     * minimum structural footprint); a garbage-huge size is a walk cap, not
+     * a rejection (the og's effective bound is the 100 GB product clamp -
+     * 2 GiB is the core-scale stand-in at the 4 GiB row max). */
     const u64 obj_size = rd64(s, hit + 16);
-    if (obj_size < 30 || obj_size > (2ull << 30))
+    const u64 window_end = std::min<u64>(hit + cap, s->size());
+    if (obj_size < 30) {
+        r.ok = true;
+        r.confidence = 650; /* salvage-class: GUID-only + torn size */
+        r.end = std::min<u64>(hit + 30, window_end);
+        r.note = "ASF-GUID-torn-size-salvage";
         return r;
-    const u32 count = rd32(s, hit + 24); /* header object count */
-    if (count == 0 || count > 128)
-        return r;
+    }
+    const u64 header_end = hit + std::min<u64>(obj_size, 2ull << 30);
     r.ok = true;
     r.confidence = 850;
+
+    /* N-212 phase 1: walk the header's children (from +0x1E to the header's
+     * declared size, <= 400 children - the og's cap) capturing the File
+     * Properties child's declared total file size. The og compares each
+     * child's GUID against its precomputed pair at +0x174/+0x17c (ctor
+     * :41970-41971: A1 DC AB 8C 47 A9 CF 11 8E E4 00 C0 0C 20 53 65) and
+     * extracts the qword at child+0x28 via a 32-byte AVX load
+     * (:42057-42058, stored at this+0x128) - the ASF spec's file_size
+     * position (GUID 16 + size 8 + File ID 16 + File Size 8), the offset
+     * cross-checked against the load shape. Unknown children are counted
+     * and walked THROUGH (never a break - the og's +0x140 counter). */
+    static const u8 fileprops_guid[16] = {0xA1, 0xDC, 0xAB, 0x8C, 0x47, 0xA9, 0xCF, 0x11,
+                                          0x8E, 0xE4, 0x00, 0xC0, 0x0C, 0x20, 0x53, 0x65};
+    u64 declared = 0;
+    {
+        const u64 phase1_end = std::min(header_end, window_end);
+        u64 pos1 = hit + 30;
+        u32 children = 0;
+        while (pos1 + 24 <= phase1_end && children < 400) {
+            if (!rd(s, pos1, g, 16))
+                break;
+            const u64 csz = rd64(s, pos1 + 16);
+            if (csz < 24 || pos1 + csz > phase1_end)
+                break; /* undersized / torn child ends the walk */
+            if (csz >= 0x30 && std::memcmp(g, fileprops_guid, 16) == 0)
+                declared = rd64(s, pos1 + 0x28);
+            pos1 += csz;
+            ++children;
+        }
+    }
 
     /* The top-level grammar: the ASF specification's five object types
      * after the header (Data, Simple Index, Index, Media Object Index x2
@@ -2841,8 +2886,7 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
                                           0xBB, 0x5B, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
     static const u8 mediaidx2_guid[16] = {0xAD, 0x3B, 0x20, 0x6B, 0x11, 0x3F, 0xE4, 0x48,
                                           0xAC, 0xA8, 0xD7, 0x61, 0x3D, 0xE2, 0xCF, 0xA7};
-    const u64 window_end = std::min<u64>(hit + cap, s->size());
-    u64 pos = hit + obj_size; /* first byte past the Header Object */
+    u64 pos = std::min(header_end, window_end); /* first byte past the Header */
     while (pos + 24 <= window_end) {
         if (!rd(s, pos, g, 16))
             break;
@@ -2855,8 +2899,23 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
             break; /* unknown top-level object = grammar break */
         pos += sz;
     }
-    r.end = pos; /* the last valid position (family contract) */
-    r.note = "ASF-GUID+object-walk";
+    /* N-212 extent finalization (the og's :42076-42086): the FIRST
+     * non-family top-level object (or a torn tail / the window end)
+     * finalizes the extent as max(FileProperties-declared size, the last
+     * walked top-level position), then clamps - the og's product clamp is
+     * global(+0x70) x 500 (the 200 MB default x 500 = 100 GB); the core's
+     * stand-ins are the row max (already in `cap`) and the device end
+     * (window_end). For intact files the declared size IS the walked end -
+     * the two sources coincide; for padded/torn files the declared size
+     * wins when the walk stopped early. */
+    u64 end = pos;
+    if (declared > 0)
+        end = std::max<u64>(end, hit + declared);
+    end = std::min<u64>(end, window_end);
+    if (end <= hit)
+        end = std::min<u64>(hit + 30, window_end); /* never a zero-extent emission */
+    r.end = end;
+    r.note = declared > 0 ? "ASF-GUID+object-walk+declared" : "ASF-GUID+object-walk";
     return r;
 }
 

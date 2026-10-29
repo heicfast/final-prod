@@ -1,3 +1,27 @@
+# SUMMARY.md — executive summary (the S78 MINOR-tail fix lane on top [re-homed s70->s76->s77->s78 per SA-9: the racing windows took S70-S77]; the prior lanes below, newest-first)
+
+## Session-78 S78 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `3799dee2`, now rebased at `adb26797` after the racing windows' M-136/M-143/M-144/M-135/M-118/M-148/N-131/N-140/N-200/N-210 landings were absorbed; corpus `be0cfe9` throughout; baseline suite green first-hand at the open [1422 ran / 1380 passed / 0 fail]; the racing S76-MINOR lane announced the FORWARD ladder N-131→N-212 — this lane takes the TAIL disjointly)
+
+- **N-212 FIXED (MINOR, carve)** — the ASF acceptance band and extent
+  source: the count gate the og never reads is gone (tier-1 is the
+  16-byte GUID compare alone, raw-asm verified by the filing lane and
+  re-confirmed against the ctor/tier-1/walker this session); a torn/zero
+  header size emits the og's 30-byte salvage candidate (salvage-class
+  confidence, validator-level pin — the row bounds stay unchanged per
+  the fix plan); a garbage-huge size is a 2 GiB walk cap (the og's
+  100 GB product clamp's core-scale stand-in); the phase-1 children
+  walk captures the File Properties child's declared size at +0x28 (the
+  ctor's +0x174 GUID bytes re-derived first-hand; the open question's
+  offset pin RESOLVED — the ASF spec's file_size position); the extent
+  is max(declared, walked) clamped by the row max and device end.
+  RED first-hand (stash dance): 3/4 new tests fail at the pre-fix
+  validator; Carve+RawSigns 246/246 green post-fix.
+
+**Board after this landing (filesystem truth, post-rebase over the racing
+windows' N-131 + N-140 + M-118 + M-148 landings): 0 ACUTE · 0 SEVERE ·
+12 MAJOR · 8 MINOR · 0 INFO active / 167 FIXED / 4 tracked-open.**
+Next free IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-150+.
+
 # SUMMARY.md — executive summary (the S76 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-76 S76 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `1ec36d6c` (the racing S71/S73 lanes' M-136 convergent re-landing + M-143 absorbed at the push-rebase), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the racing lanes' own push gates held the moved tree green (M-143's 1507+ landing suite, M-136's convergent re-landing suite), this lane's first full-suite run was post-fix at 1526/1526 — the baseline at open was the build-started tree, not an independently re-run suite; honesty recorded)
@@ -73,6 +97,9 @@ M-111 → M-114 → M-107 → M-135 → the driver/launcher/UI tail.) Next free 
 S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
 
 # SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+# SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
 ## Session-70 S70 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `449fc594` (rebased over `2fb0cb95` — the S72/S73/S75 racing windows' M-136 + M-144 absorbed) (the S70/S71/S72 racing audit/repair windows absorbed at the reset; the trail-repair seat conceded to N-210's equivalent landing per SA-9; baseline suite 1422 tests / 1380 pass / 42 Win-skips / 0 fail re-run green on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
 
 - **N-201 FIXED (MINOR)** — the quick-open media-word re-flavor landed with
