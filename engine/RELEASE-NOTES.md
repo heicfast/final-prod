@@ -3,12 +3,13 @@
 # core_recovery v0.6.0
 
 **Scope of this release:** the capability + parity milestone on top of
-v0.5.2 — 803 commits, the M-107 carve size-walk family (members 1-10 of
-11 landed: X3F, CRW, DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI, SIT;
-APE and SWF-RECT remain + the DWG gen-3 R2007 remainder — corrected by
-the coherence session: the SIT landing 2214af90 postdated this section's
-first draft; validate_sit registered at cr_registry.cpp:881 with its
-12-test battery), the whole-disk partition scan, the
+v0.5.2 — 897 commits, the M-107 carve size-walk family COMPLETE (all
+eleven members landed — X3F, CRW, DWG, PSP, WPG, WPD, DXF, EPS, AI,
+SIT, APE, SWF-RECT; the finding CLOSED and moved to findings/FIXED/,
+with the DWG gen-3 R2007 remainder recorded as the precisely-scoped
+residue; the M-160 APE whole-family absence fixed beside it — the
+u32-BE gate rejected every real Monkey's Audio file, the u16-LE window
+[1000,9999] + the CAPEAnalyser walk land), the whole-disk partition scan, the
 pointed-resume session surface, and the warnings-hygiene coherence pass
 (the MSVC /W4 /WX build restored to zero warnings; the full Linux suite
 green at every landing). The headline set since v0.5.2:
@@ -27,10 +28,16 @@ green at every landing). The headline set since v0.5.2:
   zero-tail continuation walk, the DXF EOF-trailer scan (LF and CRLF
   forms), the EPS Adobe covenant (`%!PS-Adobe-` required — a bare `%!PS`
   is the og's decline), and the AI header formula (three start+length
-  pairs, max wins), and the SIT entry-marker walk (the per-ENTRY
+  pairs, max wins), the SIT entry-marker walk (the per-ENTRY
   marker + stride table, the corrupt-entry terminal, the new-header
   gate at 512-byte boundaries; the racing lanes' convergence kept
-  the fuller 2214af90 decode per SA-9).
+  the fuller 2214af90 decode per SA-9), the APE CAPEAnalyser walk
+  (the OLD-format seek-table scan with entry[0] the bound and the max
+  entry the walked size; convergent with M-160's u16-LE version gate),
+  and the SWF-RECT validation gates (the per-arm version windows FWS
+  [3,20] / CWS [6,20], the FWS RECT bounding-box walk, the CWS deflate
+  CMF nibble + the partial-tolerant streaming inflate + the SAME RECT
+  walk over the inflated bytes — the recorded follow-up landed).
 - **S-054 (repair of the S-047 landing)**: the MPEG-TS/AVCHD (TS/M2TS)
   carve cap is the og's 200 MB controller global EXACTLY — the S-047
   landing's "× 10" value (2 GB) was a refuted provenance; any release
