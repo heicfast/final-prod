@@ -1,3 +1,65 @@
+# SUMMARY.md — executive summary (the S87 MAJOR-first 20+ fix lane on top; the prior lanes below, newest-first)
+
+## Session-87 S87 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings(priority to major first) one by one... Aim for atleast 20+ fixes in this session, put fixed findings in fixed directory. Update all docs , counts and all properly"]; opened at core `ddab68b4` [clean tree], corpus `be0cfe9` throughout; five racing windows absorbed and reconciled at the pushes; prompt saved token-redacted at worklog/session-diff-fix-s87-prompt.md)
+
+- **M-107 CLOSED (the session's headline): the eleven-member
+  enumeration complete, the finding moved to FIXED/.** This lane's
+  unique landings: **member 6 (WPD)** — the version-table walk decoded
+  first-hand (FUN_180041f50 + the 36-byte .rdata table at 0x18006ef40,
+  the raw dump; convergent with the racing S84/89 lane's landing —
+  this lane's five-test battery rides as the verification: the
+  over-cap 72 MiB carve, the unknown-pair decline, the zero-size
+  decline, the records-2/3 carve); **member 9 (SIT)** — the SIT5
+  end-magic walk decoded (FUN_180015d70/FUN_180015b60 + the three
+  .data magics at 0x180067858/68/78, dumped first-hand) — conceded to
+  the racing lane's fuller FUN_180044ae0 per-ENTRY walk per SA-9, with
+  this lane's deltas recorded for the arbitration lane (the max*10 =
+  2 GB walk cap vs the seat's singleton-halved bound; the classic-' '
+  next-header walk vs the seat's honest stand-in); **member 11
+  (SWF-RECT) COMPLETED** — the CWS deep gate landed over the racing
+  FWS seat (the per-arm version windows — CWS [6,20] TIGHTER than
+  FWS's [3,20]; the deflate CMF nibble gate; the partial-tolerant
+  streaming inflate; the >= 16 inflated-byte gate; the SAME RECT walk
+  over the inflated bytes; the racing seat's own follow-up pin
+  flipped). The DWG gen-3 R2007 remainder is the finding's
+  precisely-scoped recorded residue.
+- **M-160 FIXED (MAJOR, NEW — the discovered whole-family recovery
+  absence):** the og's APE version gate is the u16 LE@+4 against
+  [1000, 9999] (FUN_180033180's first check); the core's u32-BE
+  [300, 5000] read matched NO real APE file — every real Monkey's
+  Audio archive was REJECTED by the carve. Both directions verified
+  first-hand (the real-form plant RED at the old gate; the core's own
+  BE-form plant would fail the og's gate). The two-test battery + both
+  plants re-pinned; the APE walk decode progress recorded (the racing
+  window's full-walk landing 43f476e0 landed the same gate
+  convergently + the complete walk).
+- **N-225 FIXED (MINOR, NEW):** the convergent win-stub repair
+  collision — three racing lanes each landed the M-075 stub growth,
+  leaving THREE definition sets on origin/main (win_syntax_check 0/13
+  RED at 322dbdc0, redefinition errors first-hand). The merge deduped
+  to ONE definition set; 13/13 parse.
+- **N-229 FIXED (MINOR, NEW):** the racing SIT push's red tree — the
+  plant_sit marker writes lost their [m] subscripts (eight `img] =
+  0x02;`-form lines) AND the WPD merge kept both sides'
+  WpdZeroSizeFieldDeclines batteries (a gtest redefinition) — cr_tests
+  could not build at 98bd30d6 over a message claiming "1711/1711".
+  The repair + the finding (the count-in-a-message is a claim, not
+  evidence — the N-210 class's recurrence #8).
+- **The fixed-directory duty:** N-226 (the old N-223 seat), M-160,
+  M-107 all moved to findings/FIXED/ with their Resolutions.
+- **The final state:** ci-local.sh GREEN end-to-end (10/10 stages);
+  the full ctest suite 1738/1738; the format sweep over the merged
+  tree (the racing windows' + this lane's drift); the marker sweep
+  clean; the M-107 both-sides-kept rename-aware resolution.
+
+**Board at the S87 close (filesystem truth): 0 ACUTE · 0 SEVERE ·
+3 MAJOR · 2 MINOR · 0 INFO active / 219 FIXED / 3 tracked-open** —
+M-086/M-087/M-089 + N-107/N-127 driver-repo-resident (out of grant
+per OQ-S10-3, PUSHED-FORWARD); M-107 CLOSED with the DWG gen-3 R2007
+remainder registered inside it. Next free IDs: S-069+, M-161+, N-234+,
+I-049+, A-017+, D-163+.
+
+---
 # SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-86 S86 fix-lane delta 2 (2026-10-30 — the DWG convergence riders + the N-231 root-cause gate)
