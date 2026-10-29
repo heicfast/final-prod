@@ -762,7 +762,12 @@ const Signature kTable[] = {
      700,
      validate_dmg,
      "Apple DMG (bzip2)"},
-    {FMT_X3F, "x3f", {'F', 'O', 'V', 'b'}, 4, 0, 64, 64ull << 20, 620, validate_x3f, "Sigma X3F"},
+    /* M-156: the row bound carries the og walker's OWN cap constant - the
+     * modern X3F walker's [obj+0x118] = 0x6400000 (100 MiB), raw-asm at
+     * the factory FUN_1800400a0 0x1800400ee (evidence:
+     * diff-to-fix/evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md).
+     * The 64 MiB DWG-pattern stand-in VALUE is gone from this row. */
+    {FMT_X3F, "x3f", {'F', 'O', 'V', 'b'}, 4, 0, 64, 0x6400000ull, 620, validate_x3f, "Sigma X3F"},
     /* M-081 (SCAN-4): the II/MM 1A 00 keys are CANON CRW (CIFF) -
      * Brance::CRWAnalyser id 0x12 (registration :1746-1761; grammar
      * FUN_180052000 :62333-62353: 00 00 HEAP + {CCDR,TIFP,ARCH} +

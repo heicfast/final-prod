@@ -180,3 +180,57 @@ is `*(FUN_180001350() + 0x70) >> 1` (the singleton's undecoded field — the
 halved bound), approximated by the row-max probe limit. X3F's member status
 stands as LANDED per the S71/M-155 resolution; the remaining ten members (CRW
 next) stay with this finding. N-217 carries the build-repair record.
+
+---
+
+## Session-83 addendum — the X3F member's FOURTH landing (M-156: the ASCII gate's live bug + the dispatcher-mechanism refutation + the chain router)
+
+The S82-close tree still carried two defects on the X3F surface that the
+four-lane arbitration left behind (filed + fixed this session as
+**M-156**, findings/FIXED/): (1) **the ASCII version gate rejects every
+real Sigma X3F file** — real files carry a BINARY u32 version
+(0x00020001), the gate demanded an ASCII digit + point, so real RAWs
+never carved at all (the og's chain never jointly rejects a readable
+FOVb: the modern tier-1 FUN_180040080 accepts exactly the binary shape,
+the legacy tier-1 FUN_180053590 accepts any readable header); (2) **the
+N-217 dispatcher mechanism does not fire for the X3F node** — the
+secondary-first consult requires the node's class to override vtable
++0x40 with the real getter (FUN_180013700), and a full .rdata scan finds
+exactly 8 node classes that do; the X3F node (vtable 0x18006cbc0) and
+the DMG node (0x18006cd90 — the M-090 precedent) both carry the return-0
+STUB at +0x40, byte-exact from the PE. The magic-key dispatch path
+(FUN_18000cf60's map route, 0x18000d1e4-0x18000d2c9) provably wires the
+MODERN path for binary-version files: the node's own +0x10 binary gate
+accepts, the invocation core calls the factory (+0x38 → the 0x120-byte
+walker, cap 0x6400000), and the walker registers for the feeding
+protocol (+0x20 = FUN_180040160's return-2/return-1 state machine →
+FUN_1800404a0's count-walk, extent = SECd + 16 + count*12, decline on
+no-directory). The full decode, instruction-address-cited:
+`evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md`.
+
+The S83 landing: the version gate is GONE (the union acceptance); the
+version shape routes the generation (binary → the modern count-table
+walk; anything else → the legacy fixed-tail walk — the four-lane
+convergent semantics preserved for the non-binary population; torn → the
+legacy walked-prefix salvage); the row bound carries the og walker's own
+cap constant (0x6400000 = 100 MiB, raw-asm at 0x1800400ee — the 64 MiB
+stand-in value leaves the row). Tests: the five legacy-path pins (all
+ASCII plants) stand unchanged; five new pins cover the modern path and
+the router — X3fModernCountWalkSetsExtent /
+X3fModernGarbageHugeCountClampsToBound /
+X3fModernTornFallsBackToLegacySalvage / X3fChainRoutesByVersionShape /
+X3fRealSigmaBinaryVersionCarves (the headline RED-at-open pin: the
+binary-version plant does not carve under the ASCII gate). The prior
+lanes' Ghidra line cites are recorded as unverifiable-from-corpus (the
+decompile is CI-generated, not committed) — this addendum's cites are
+instruction addresses against the corpus binary itself.
+
+The honest residue (M-156's open questions, named with their decisive
+next probe): the engine's +0x20 feed-loop caller was not located; the
+registry's container merge (the sweep list's membership) is undecoded —
+so for a binary-version file with a directory the og emits EITHER the
+count-walk extent OR the legacy constant; the wiring evidence favors the
+count-walk (this landing), three convergent prior lanes favor the
+constant (the prior). The disagreement is recorded, not papered over.
+**X3F's member status: LANDED (the chain, fourth landing); the remaining
+ten members (CRW's CIFF heap chain next) stay with this finding.**

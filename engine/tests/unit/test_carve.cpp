@@ -2287,9 +2287,21 @@ size_t plant_dmg_koly(std::vector<u8>& img, size_t at, size_t koly_rel, bool ali
  * data - the og SEARCHES for it (sector-stepped with 2-sector overlap),
  * so the plant places it at the true end. */
 size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800, u32 dir_entries = 3,
-                 u64 dir_offset_override = 0) {
+                 u64 dir_offset_override = 0, bool binary_version = false) {
     std::memcpy(img.data() + at, "FOVb", 4);
-    std::memcpy(img.data() + at + 4, "2.1\x00", 4);
+    if (binary_version) {
+        /* the BINARY u32 version (0x00020001 = v2.1) - real Sigma X3F
+         * files carry binary versions; the modern generation's tier-1
+         * gate (FUN_180040080: bytes +5/+7 == 0) accepts exactly this
+         * shape (M-156's chain router; the ASCII form exercises only the
+         * legacy generation) */
+        img[at + 4] = 0x01;
+        img[at + 5] = 0x00;
+        img[at + 6] = 0x02;
+        img[at + 7] = 0x00;
+    } else {
+        std::memcpy(img.data() + at + 4, "2.1\x00", 4);
+    }
     for (size_t i = 8; i < 16; ++i)
         img[at + i] = u8(i & 0xFF);
     /* benign payload fill: a constant that forms no 4-byte registry
@@ -2400,6 +2412,173 @@ TEST(Carve, X3fGarbageCountIsIrrelevantToExtent) {
     ASSERT_NE(x3f, nullptr);
     EXPECT_EQ(x3f->props()->logical_size, 16 + 0x800 + 0x4C)
         << "the garbage count does not move the fixed-tail extent";
+}
+
+/* ---- M-156: the chain's MODERN path (the binary-version router) ---- */
+
+TEST(Carve, X3fModernCountWalkSetsExtent) {
+    /* the MODERN generation (Brance::X3FAnalyser walker FUN_1800404a0,
+     * binary version - the magic-key dispatch's wired path per the
+     * raw-asm decode): the extent is the section directory's END (magic
+     * + 16 + count*12), not the legacy fixed tail - verified at
+     * 0x180040541-0x180040571 (evidence/s83-lane-sheets/
+     * s83-l1-x3f-chain-raw-asm-decode.md). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_x3f(img, at, 0x800, 3, 0, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr) << "the binary-version X3F must carve";
+    EXPECT_EQ(x3f->props()->logical_size, expect)
+        << "extent = the directory end (16 + payload + 16 + count*12) - the "
+           "modern count-walk, og-exact";
+}
+
+TEST(Carve, X3fModernGarbageHugeCountClampsToBound) {
+    /* the MODERN walk's clamp: a torn directory whose count field is
+     * garbage-huge clamps the extent to the walk bound (the raw-asm
+     * cmova clamp at 0x180040602-0x180040609; the core's stand-ins are
+     * the row bound + the device end). The garbage-count IRRELEVANCE pin
+     * above is the LEGACY path's pin - this is the modern path's. */
+    std::vector<u8> img(1 * 1024 * 1024, 0);
+    const size_t at = 512;
+    (void)plant_x3f(img, at, 0x800, 3, 0, true);
+    /* tear the count: 0xFFFFFF entries -> extent clamps to the device end */
+    for (int i = 0; i < 4; ++i)
+        img[at + 16 + 0x800 + 8 + size_t(i)] = u8(0xFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr);
+    EXPECT_EQ(x3f->props()->logical_size, size_t(1 * 1024 * 1024 - at))
+        << "the garbage count clamps the modern walk to the window end";
+}
+
+TEST(Carve, X3fModernTornFallsBackToLegacySalvage) {
+    /* the CHAIN's binary-torn shape: a binary-version file with no
+     * directory - the modern generation declines (its extent field is
+     * never written - the ctor zeroes [obj+0x110] and the cap-exit never
+     * touches it), the chain falls to the legacy generation, whose
+     * loop-exit SALVAGES the walked prefix (FUN_1800535b0's exit
+     * carries the last walked position - never a refusal). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "FOVb", 4);
+    img[at + 4] = 0x01; /* binary 0x00020001 - the modern path's gate */
+    img[at + 6] = 0x02;
+    for (size_t i = 8; i < 4096; ++i)
+        img[at + i] = u8((i * 3) & 0xFF); /* payload, NO "SECd" anywhere */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr) << "the binary torn X3F still carves (the legacy salvage)";
+    EXPECT_EQ(x3f->props()->logical_size, size_t(256 * 1024 - at))
+        << "the walked prefix at the device end - the chain's torn salvage";
+}
+
+TEST(Carve, X3fChainRoutesByVersionShape) {
+    /* M-156 (the chain router): the SAME directory position carves at
+     * TWO different extents depending on the version field's shape - the
+     * binary u32 version (0x00020001) routes to the MODERN generation's
+     * count-table walk (SECd + 16 + count*12); the ASCII "2.1" version
+     * fails the modern's tier-1 (bytes +5/+7 == 0, FUN_180040080) and
+     * falls to the LEGACY generation's fixed tail (SECd + 0x4C,
+     * FUN_1800535b0). Both generations are real og code - the raw-asm
+     * decode pins the routing (evidence/s83-lane-sheets). */
+    const u64 payload = 0x800; /* 2 KiB of sections before the directory */
+    const u32 entries = 3;
+    const u64 expect_modern = 16 + payload + 16 + u64(entries) * 12;
+    const u64 expect_legacy = 16 + payload + 0x4C;
+    for (int gen = 0; gen < 2; ++gen) {
+        std::vector<u8> img(64 * 1024, 0);
+        const u64 at = 512;
+        std::memcpy(img.data() + at, "FOVb", 4);
+        if (gen == 0) {
+            img[at + 4] = 0x01; /* binary 0x00020001 - the modern path */
+            img[at + 6] = 0x02;
+        } else {
+            img[at + 4] = '2'; /* ASCII "2.1" - the legacy path */
+            img[at + 5] = '.';
+            img[at + 6] = '1';
+        }
+        const u64 sec_at = at + 16 + payload;
+        std::memcpy(img.data() + sec_at, "SECd", 4);
+        for (int i = 0; i < 4; ++i) {
+            img[sec_at + 8 + size_t(i)] = u8(entries >> (8 * i)); /* count */
+        }
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        tree::FileNode* nd = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                nd = c;
+        ASSERT_NE(nd, nullptr) << "both generations carve the directory walk";
+        EXPECT_EQ(nd->props()->carve_format, u64(FMT_X3F));
+        EXPECT_EQ(nd->props()->logical_size, size_t(gen == 0 ? expect_modern : expect_legacy))
+            << (gen == 0 ? "binary version -> the modern count-table walk "
+                           "(SECd + 16 + count*12)"
+                         : "ASCII version -> the legacy fixed tail (SECd + 0x4C)");
+    }
+}
+
+TEST(Carve, X3fRealSigmaBinaryVersionCarves) {
+    /* M-156's headline pin: a REAL Sigma X3F file (binary u32 version
+     * 0x00020001 - the shape every real camera writes) MUST carve. The
+     * landed ASCII gate (S71/M-155/S81/S82) rejected this shape outright
+     * - the live bug this correction fixes. RED at the pre-correction
+     * tree (the ASCII gate refuses h[4]=0x01), GREEN here. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_x3f(img, at, 0x800, 3, 0, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr) << "a real binary-version Sigma X3F must carve";
+    EXPECT_EQ(x3f->props()->carve_format, u64(FMT_X3F));
+    EXPECT_EQ(x3f->props()->logical_size, expect);
 }
 
 /* M-081/SCAN-4: Canon CRW (CIFF) - the II/MM 1A 00 keys with the og
@@ -3257,7 +3436,15 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
         EXPECT_FALSE(off == 4096 && fmt == FMT_RM) << "version-2 RMF rejected";
         EXPECT_FALSE(off == 8192 && fmt == FMT_MXF) << "single-KLV MXF rejected";
         EXPECT_FALSE(off == 12288 && fmt == FMT_DMG) << "no-pi BZh1 rejected";
-        EXPECT_FALSE(off == 14336 && fmt == FMT_X3F) << "bad-version X3F rejected";
+        /* M-156: the bad-version X3F is the chain's ACCEPTANCE shape, not
+         * a rejection - the modern's binary gate refuses it, the legacy
+         * generation's permissive tier-1 (FUN_180053590) accepts it, and
+         * the legacy's loop-exit salvage carves the walked prefix (the og
+         * never refuses a readable FOVb). */
+        if (off == 14336 && fmt == FMT_X3F) {
+            EXPECT_GE(n->props()->logical_size, size_t(256 * 1024 - 14336))
+                << "the bad-version X3F salvages the walked prefix (the chain)";
+        }
         EXPECT_FALSE(off == 16384 && fmt == FMT_CRW) << "II1A without HEAP rejected";
         EXPECT_FALSE(off == 49152 && fmt == FMT_CRW) << "version-3 HEAPCCDR rejected";
         EXPECT_FALSE(off == 18432 && fmt == FMT_APE) << "bad-version APE rejected";
@@ -12397,6 +12584,7 @@ TEST(Carve, X3fTornSalvagesTheWalkedPrefix) {
         if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
             nd = c;
     ASSERT_NE(nd, nullptr) << "the torn X3F still carves (the salvage)";
-    EXPECT_EQ(nd->props()->logical_size, size_t(64ull << 20))
-        << "the walked prefix at the row cap - the og's loop-exit salvage";
+    EXPECT_EQ(nd->props()->logical_size, size_t(100ull << 20) - at)
+        << "the walked prefix at the device end - the probe limit under the "
+           "og walker's own 100 MiB cap constant (M-156's row-bound re-pin)";
 }

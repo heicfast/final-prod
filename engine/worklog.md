@@ -11786,3 +11786,75 @@ posture met (the PARITY-DELTAS row with the corrected wording). Trail:
 findings/FIXED/N-182 + Resolution, ledger row, matrix
 DIVERGENCE-INFORMATIONAL, modules/orchestration.md addendum, D-36's
 addendum, this entry.
+
+---
+
+---
+
+## Session-83 (2026-10-29, fix lane — the M-156 X3F correction, the surface's fifth touch; opened at `2d614cf2` after the racing-window absorption, corpus `be0cfe9`)
+
+**The racing window absorbed.** This lane's first act (the S80 composite:
+the X3F chain built from the census prose, six tests green under it)
+never reached origin — the push rejection on the moved remote saved it
+(the S82 lane's own precedent: their identical composite was withdrawn
+the same way). Rebased onto the S82-close tree: the racing lanes had
+repaired the red main (M-155/N-217), landed S-067 (+ its correction),
+M-073, N-211, N-214, N-215, and settled the X3F walk question
+legacy-only. The composite was dropped; the lane re-opened from THEIR
+tree.
+
+**The verification that survived (byte-exact, this session):** the
+corpus DLL disassembled first-hand (objdump; vtables read straight from
+.rdata via pefile). TWO defects in the four-lane settlement:
+
+1. **The live bug (M-156's headline):** the landed ASCII version gate
+   rejects every real Sigma X3F file. Real files carry the BINARY u32
+   version 0x00020001; the gate demanded an ASCII digit + point; real
+   RAWs never carved. The og's chain never jointly rejects a readable
+   FOVb (FUN_180040080 accepts the binary shape; FUN_180053590 accepts
+   any readable header).
+2. **The refuted mechanism:** N-217's dispatcher claim ("vtbl[+0x40]
+   consults the secondary FIRST — the Brance count-walk never
+   contributes") does not fire for the X3F node: the consult requires
+   the node class to override +0x40 with the real getter
+   (FUN_180013700), which exactly 8 node classes do (the
+   embedded-fallback shape); the X3F node (0x18006cbc0) AND the DMG
+   node (0x18006cd90 — the M-090 precedent) both carry the return-0
+   STUB at +0x40. The magic-key path (FUN_18000cf60's map route
+   0x18000d1e4-0x18000d2c9) provably wires the MODERN path for
+   binary-version files: the node's +0x10 binary gate → the invocation
+   core's factory call (+0x38 → the 0x120 walker, cap 0x6400000) → the
+   walker registers for the +0x20 feeding state machine (return 2 =
+   feed me more) → FUN_1800404a0's count-walk (extent =
+   SECd + 16 + count*12, decline on no-directory).
+
+**The M-156 landing:** the version gate GONE (the union acceptance);
+the version shape routes the generation (binary → the modern
+count-table walk; anything else → the legacy fixed-tail walk — the
+four-lane convergent semantics preserved for the non-binary population;
+torn → the legacy walked-prefix salvage); the row bound carries the og
+walker's own cap constant (0x6400000 = 100 MiB, raw-asm at
+0x1800400ee). Tests: the five legacy-path pins (ASCII plants)
+unchanged + five new pins — X3fModernCountWalkSetsExtent /
+X3fModernGarbageHugeCountClampsToBound /
+X3fModernTornFallsBackToLegacySalvage / X3fChainRoutesByVersionShape /
+X3fRealSigmaBinaryVersionCarves (RED at the open tree — the headline
+pin — GREEN post-fix). The X3F battery 10/10; the S-007 batch + noise
+tests green; the full suite green. Evidence:
+`diff-to-fix/evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md`
+(instruction-address cites; the prior lanes' Ghidra line cites recorded
+as unverifiable-from-corpus — CI-generated, not committed).
+
+**The honest residue (M-156's open questions, named):** the engine's
++0x20 feed-loop caller undecoded; the registry container merge
+undecoded — so the binary-with-directory extent (count-walk vs legacy
+constant) disagreement is RECORDED (wiring evidence vs three-lane
+convergence) with its decisive next probe: locate the +0x20 feed
+caller in CRAWSearchController's scan loop.
+
+**Next (per the priority order):** S-068 (the last SEVERE — the FAT32
+deleted first-cluster high-16 re-base), then the MAJOR queue (M-149
+the ghost-score math, M-150 the session count prealloc bomb, M-151 the
+truncated-$MFT probe, M-152 the ext4 orphan-reserved skip, M-154 the
+auto-session lifecycle), then M-107's remaining ten members (CRW's
+CIFF heap chain next), then the MINOR queue.

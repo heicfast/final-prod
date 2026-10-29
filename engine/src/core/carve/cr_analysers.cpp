@@ -4997,21 +4997,58 @@ CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* X3F: "FOVb" key 0x62564f46 (:5504) -> X3F chain idx 108. Version at +4
- * is ASCII ("2.1" etc.). M-107 (the X3F landing, the finding's own
- * decode-then-land order): the og's size walk is FileX3FAnalyser
- * FUN_1800535b0, decoded first-hand - a forward scan for the "SECd"
- * section-directory marker (0x64434553), sector-stepped with 2-sector
- * overlapping windows up to the device cap, and the extent is
- * SECd_position + 0x4C (the directory's fixed 76-byte tail - the og's
- * exact arithmetic in all three found-branch shapes). The directory sits
- * at the file's END by construction (the writer appends sections then
- * the directory), so SECd + 0x4C IS the file's natural end. The core
- * batches the same coverage in 256 KiB windows (3-byte overlap so a
- * marker straddling a window boundary is never missed - the og's
- * 2-sector overlap serves the same role). A torn file (no SECd in
- * range) salvages the walked prefix at reduced confidence - the og's
- * loop-exit shape (the scan stops at its cap with the last offset). */
+/* X3F: "FOVb" key 0x62564f46 (:5504) -> X3F chain idx 108. M-107's X3F
+ * member, the M-156 correction on top of the S71/M-155/S81/S82 chain of
+ * landings (the racing lanes' legacy-only semantics kept their ASCII
+ * version gate, which REJECTS EVERY REAL SIGMA X3F FILE - real files
+ * carry a BINARY u32 version 0x00020001-style, and the gate demanded an
+ * ASCII digit + point; that live bug is what this correction fixes
+ * first). The full raw-asm decode, keyed to instruction addresses:
+ * diff-to-fix/evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md.
+ * The og's X3F surface is a TWO-GENERATION chain (the registry's
+ * construct-then-insert pairing at 0x180003174-0x1800031f4: the 0x18-byte
+ * modern Brance::X3FAnalyser node, vtable 0x18006cbc0, with the 0x10-byte
+ * legacy FileX3FAnalyser child at node+0x10, vtable 0x18006e198):
+ *
+ *   - the MODERN tier-1 (FUN_180040080, node vtable +0x10): the version
+ *     field must be a BINARY u32 - bytes +5/+7 == 0. The magic-key
+ *     dispatch (FUN_18000cf60's map path at 0x18000d1e4-0x18000d2c9)
+ *     looks the node up, calls node->vt[+0x40], and - BYTE-EXACT: the
+ *     X3F node's +0x40 slot is the return-0 STUB (0x18000bae0, read
+ *     straight from .rdata) - so the dispatcher's fallback consult NEVER
+ *     FIRES for X3F (only 8 other node classes - the embedded-fallback
+ *     shape, e.g. the 0xd302020 row - override +0x40 with the real
+ *     getter FUN_180013700 `lea rax,[rcx+0x10]`). The node's own +0x10
+ *     binary gate runs; on acceptance the invocation core
+ *     (0x18000ca8d-0x18000ccfc) calls the node's factory (+0x38 =
+ *     FUN_1800400a0: the 0x120-byte walker, cap [obj+0x118] =
+ *     0x6400000 = 100 MiB) and registers it for the feeding protocol
+ *     (walker vtable +0x20 = FUN_180040160 -> FUN_1800404a0): extent =
+ *     SECd + 16 + count*12 (count = u32@SECd+8, clamped to the cap),
+ *     no directory -> the extent field is never written (the modern
+ *     declines).
+ *   - the LEGACY walk (FUN_1800535b0, the child's vtable +0x08): the
+ *     sector-stepped reads with the string search and the 2-sector
+ *     window; extent = SECd + 0x4C in all three found branches; the
+ *     loop-exit SALVAGES the walked prefix (never a refusal). Its
+ *     tier-1 (FUN_180053590) accepts any readable header - everything
+ *     the modern's binary gate refuses lands here.
+ *
+ * The correction's routing (the honest reading of the verified wiring):
+ * a BINARY-version file takes the modern count-table walk - the
+ * provably-wired magic-key path (the map returns the modern node, the
+ * factory creates the count-walker, the walker registers for feeding);
+ * anything else falls to the legacy fixed-tail walk (the racing lanes'
+ * convergent semantics, preserved); a torn file with no directory lands
+ * at the legacy's walked-prefix salvage at reduced confidence. The
+ * version GATE itself is gone: the chain's net acceptance is the union
+ * (the modern's binary form + the legacy's permissive read) - the og's
+ * registry keys on FOVb alone and no tier-1 pair ever jointly rejects a
+ * readable header. Open questions (registered in M-156): the engine's
+ * feed loop driving walker->vt[+0x20] was not located this session (the
+ * state machine's return-2 "feed me more" protocol is the evidence it
+ * exists); the deeper dispatch layers (the map projections / the
+ * full-registry sweep at 0x18000d2f3) were not fully decoded. */
 CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5019,14 +5056,20 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h, "FOVb", 4) != 0)
         return r;
-    if (h[4] < '0' || h[4] > '9' || h[5] != '.')
-        return r; /* ASCII version digit + point */
+    /* the chain's version router (M-156): the modern generation's tier-1
+     * gate is the BINARY u32 form (FUN_180040080: bytes +5/+7 == 0);
+     * every other shape falls to the legacy generation, whose tier-1
+     * (FUN_180053590) accepts any readable header. NO version gate
+     * survives: the union of the two generations' gates is "readable
+     * header" - the old ASCII gate (S71/S78/M-155/S81/S82's landed code)
+     * rejected every real binary-version Sigma file. */
+    const bool modern_generation = (h[5] == 0 && h[7] == 0);
     r.ok = true;
     const u64 limit = probe_limit(s, hit, cap); /* absolute device bound */
     const u64 rel_limit = limit - hit;          /* the walk's relative bound */
-    constexpr u64 X3F_DIR_TAIL = 0x4C;          /* the og's fixed directory tail */
+    constexpr u64 X3F_DIR_TAIL = 0x4C;          /* the legacy generation's fixed tail */
     /* the S80 convergent-rider hardening: the 256 KiB window is a heap
-     * vector, not a stack array — validate_x3f runs on the carve fan-out's
+     * vector, not a stack array - validate_x3f runs on the carve fan-out's
      * worker threads, and a 256 KiB stack frame is an overflow risk on
      * small-stack hosts the file's other validators avoid by convention
      * (the kProbeBlock vectors above) */
@@ -5053,9 +5096,36 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
             break; /* the last window - no more data */
     }
     if (found) {
-        r.end = hit + std::min<u64>(sec_at + X3F_DIR_TAIL, rel_limit);
-        r.confidence = 620;
-        r.note = "x3f-section-directory-walk";
+        if (modern_generation) {
+            /* the modern count-table walk (FUN_1800404a0's extent math,
+             * raw-asm at 0x180040541-0x180040571 and the half-back retry
+             * 0x180040596-0x180040610): SECd + 16 + count*12, clamped to
+             * the row bound + device end (the og's own cmova clamp). A
+             * directory whose count field is unreadable (the magic at the
+             * very end of the window) is the og's chunk-tail shape
+             * (0x1800404f9-0x180040501): the extent ends at the window
+             * end. */
+            if (sec_at + 12 > rel_limit) {
+                r.end = limit;
+            } else {
+                u8 d[4];
+                u32 count = 0;
+                if (rd(s, hit + sec_at + 8, d, sizeof(d)))
+                    count = u32_from_bytes_le(d);
+                u64 end = hit + sec_at + 16 + u64(count) * 12;
+                if (end > limit)
+                    end = limit; /* the og's clamp */
+                r.end = end;
+            }
+            r.confidence = 620;
+            r.note = "x3f-section-directory-walk";
+        } else {
+            /* the legacy fixed-tail walk (FUN_1800535b0): SECd + 0x4C in
+             * every found branch - the count is never read on this path */
+            r.end = hit + std::min<u64>(sec_at + X3F_DIR_TAIL, rel_limit);
+            r.confidence = 620;
+            r.note = "x3f-legacy-directory-tail-walk";
+        }
     } else {
         /* torn: the walked prefix (bounded by the row cap) - the og's
          * loop-exit salvage shape */

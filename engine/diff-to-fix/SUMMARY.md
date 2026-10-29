@@ -44,6 +44,57 @@
 FIXED side directly; the 10 active MINORs are the S81 board's set.)
 Next free IDs: S-069+, M-156+, N-219+, I-049+, A-017+, D-151+.
 
+---
+
+# SUMMARY.md — executive summary (the S83 fix lane on top — the M-156 X3F correction; the prior lanes below, newest-first)
+
+## Session-83 S83 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `2d614cf2` (the S82-close tree: the racing lanes had repaired the red main, landed S-067, M-073, N-211, N-214, N-215 and the X3F four-lane arbitration while this lane's first composite was being built — the push rejection on the moved remote was the save; the composite was withdrawn unpushed per the S82 lane's own precedent), corpus `be0cfe9` throughout)
+
+- **M-156 (NEW, filed+fixed this session — the X3F surface's FIFTH
+  touch):** the four-lane arbitration left TWO defects standing. (1)
+  **The live bug:** the landed ASCII version gate rejects every real
+  Sigma X3F file — real files carry the BINARY u32 version 0x00020001,
+  the gate demanded an ASCII digit + point; real RAWs never carved at
+  all. The og's chain never jointly rejects a readable FOVb (the modern
+  tier-1 FUN_180040080 accepts the binary shape; the legacy tier-1
+  FUN_180053590 accepts any readable header). (2) **The refuted
+  mechanism:** N-217's dispatcher claim ("vtbl[+0x40] consults the
+  secondary FIRST — the Brance count-walk never contributes") does not
+  fire for the X3F node: the consult requires the node class to
+  override +0x40 with the real getter (FUN_180013700), which exactly 8
+  node classes do — the X3F node AND the DMG node (the M-090 precedent
+  the lanes leaned on) both carry the return-0 STUB at +0x40,
+  byte-exact from .rdata. The magic-key path provably wires the MODERN
+  count-walk for binary versions (the node's binary gate → the factory
+  → the 0x120 walker with the 100 MiB cap → the +0x20 feeding state
+  machine → extent = SECd + 16 + count*12). Evidence:
+  `evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md`
+  (instruction-address cites against the corpus binary — the prior
+  lanes' Ghidra line cites are CI-generated and unverifiable from the
+  corpus).
+
+- **The landing:** the version gate is GONE (the union acceptance); the
+  version shape routes the generation (binary → the modern count-table
+  walk; anything else → the legacy fixed-tail walk, the four-lane
+  convergent semantics preserved; torn → the legacy salvage); the row
+  bound takes the og walker's own cap constant (0x6400000 = 100 MiB).
+  Tests: the five legacy-path pins unchanged + five new pins incl.
+  `X3fRealSigmaBinaryVersionCarves` (RED at the open tree — the
+  headline pin — and GREEN post-fix) and `X3fChainRoutesByVersionShape`
+  (the router itself). The X3F battery 10/10; the full suite green.
+  Honest residue recorded in M-156: the +0x20 feed-loop caller and the
+  registry container merge are undecoded — the binary-with-directory
+  extent (count-walk vs legacy constant) disagreement is RECORDED with
+  its decisive next probe, not papered over.
+
+**Board after this landing: 0 ACUTE · 1 SEVERE (S-068) · 17 MAJOR ·
+10 MINOR · 1 INFO active / 175 FIXED (M-156 new+fixed; M-107's X3F
+member landed — the finding stays active for its remaining ten members)
+/ 4 tracked-open.** Next free IDs: S-069+, M-157+, N-218+, I-049+,
+A-016+, D-150+.
+
+# SUMMARY.md — executive summary (the S80 parity fix lane on top; the prior lanes below, newest-first)
+
 ## Session-80 S80 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `04fb5e88` — main was RED at open; the racing M-155 lane `6d74ec2c` + the S81 lane `9508b90b`/`567694e7`/`3dfb2a5a`/`59a431d3` landed mid-session and were absorbed at the rebases; corpus `be0cfe9` throughout)
 
 - **N-217 FIXED (the red-main repair, convergent with M-155)** — the ed501caa

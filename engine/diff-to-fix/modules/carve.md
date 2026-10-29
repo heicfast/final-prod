@@ -1201,3 +1201,35 @@ X3fNoSectionDirectorySalvagesWalkedPrefix /
 X3fGarbageCountIsIrrelevantToExtent; the S71 pair stands; suite
 1578/1578 at the repair commit. Filed as **M-155** (the M-120/N-210
 class recurrence — the finding carries the full evidence).
+
+## Session-83 addendum — the X3F CHAIN ROUTER (M-156; the member's fourth landing) (2026-10-29)
+
+**The ASCII gate's live bug + the dispatcher-mechanism refutation.** The
+four-lane arbitration (S71 → S78 → M-155/S81 → S82) landed the legacy
+FileX3FAnalyser walk (SECd + 0x4C + the torn salvage) as the sole X3F
+semantics — but kept the ASCII version gate, which REJECTS EVERY REAL
+SIGMA X3F FILE (real files carry the binary u32 version 0x00020001; the
+gate demanded an ASCII digit + point). And its dispatcher rationale
+(N-217's "vtbl[+0x40] GetFallback consults the secondary FIRST") is
+byte-exact REFUTED for the X3F node: the mechanism requires the node
+class to override +0x40 with the real getter (FUN_180013700), which
+exactly 8 node classes do — the X3F node (0x18006cbc0) and the DMG node
+(the M-090 precedent!) both carry the return-0 STUB at +0x40. The
+magic-key path provably wires the MODERN count-walk for binary-version
+files: the node's +0x10 binary gate accepts → the factory creates the
+0x120 walker (cap 0x6400000 = 100 MiB) → the walker registers for the
++0x20 feeding state machine → FUN_1800404a0's extent =
+SECd + 16 + count*12 (decline on no-directory). Full decode:
+`evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md`.
+
+The S83 landing (M-156): the version gate GONE (the union acceptance —
+the og never refuses a readable FOVb); the version shape routes the
+generation (binary → the modern count-table walk; ASCII/other → the
+legacy fixed-tail walk, the four-lane convergent semantics preserved;
+torn → the legacy walked-prefix salvage); the row bound carries the og
+walker's own cap constant (0x6400000). Tests: the five legacy-path pins
+(ASCII plants) unchanged + five new pins (the modern path, the router,
+and `X3fRealSigmaBinaryVersionCarves` — RED at the open tree where the
+ASCII gate refused the binary form). **The rows: A25/A27/B1-adjacent
+MATCH — the CHAIN, router included; the finding stays active for its
+remaining ten members (CRW's CIFF heap chain next).**
