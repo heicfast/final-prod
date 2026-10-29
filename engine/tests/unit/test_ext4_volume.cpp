@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 #include <functional>
+#include <atomic>
 #include <map>
 #include <set>
 
@@ -1593,6 +1594,9 @@ TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
     EXPECT_EQ(0u, st.backup_sb_block);
 }
 
+} // namespace ext4
+} // namespace cr
+
 /* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
 
 namespace cr {
@@ -2058,8 +2062,200 @@ TEST(Ext4Engine, InvalidUtf8NameCarriesRawBytes) {
     EXPECT_TRUE(cafe->props()->name_raw.empty());
 }
 
-} // namespace ext4
-} // namespace cr
-} // namespace ext4
+/* ---- S-065: the indirect-block ladder's bounds -------------------------- */
 
+namespace {
+
+/* the read-counting device: proves the ladder's I/O volume (and keeps the
+ * pre-fix RED runs bounded by failing reads past a cap) */
+class LadderCountingDevice : public MemDevice {
+public:
+    explicit LadderCountingDevice(std::vector<u8> d) : MemDevice(std::move(d)) {}
+    u64 reads = 0;
+    u64 cap = 0; /* 0 = unlimited; otherwise the (cap+1)-th read fails */
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (cap != 0 && reads >= cap)
+            return ERR_READ_FAILED;
+        ++reads;
+        return MemDevice::read_at(off, buf, len);
+    }
+};
+
+/* a cancel token that flips to cancelled on demand */
+class LadderCancelToken : public CancelToken {
+public:
+    bool cancelled() const override { return on_.load(); }
+    void flip() { on_.store(true); }
+
+private:
+    std::atomic<bool> on_{false};
+};
+
+/* the arming device: flips the token the moment the poison block is first
+ * read - the cancel responsiveness is measured from THAT point */
+class LadderArmingDevice : public MemDevice {
+public:
+    explicit LadderArmingDevice(std::vector<u8> d) : MemDevice(std::move(d)) {}
+    u64 poison_reads = 0;
+    u64 poison_off = 0;
+    LadderCancelToken tok;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off == poison_off) {
+            ++poison_reads;
+            tok.flip();
+        }
+        return MemDevice::read_at(off, buf, len);
+    }
+};
+
+/* plant the deleted classic-indirect inode: NO EXTENTS_FL (flags stay 0),
+ * plain i_block pointers (slot 12 = single, 13 = double, 14 = triple) */
+void plant_classic_gone(Img& img, u64 size, int slot, u32 pointer) {
+    u8* p = img.block(B_INODE_TABLE) + size_t((INO_GONE - 1) * INO_SZ);
+    memset(p, 0, INO_SZ);
+    put16(p + 0x00, 0x8000);    /* regular file */
+    put32(p + 0x04, u32(size)); /* i_size_lo (fixtures stay < 4 GiB) */
+    put32(p + 0x14, 5000);      /* dtime: deleted */
+    put16(p + 0x1A, 0);         /* links 0 */
+    put32(p + 0x1C, 8);         /* i_blocks_lo (the N-177 carrier) */
+    put32(p + 0x28 + u64(slot) * 4, pointer);
+}
+
+/* the self-referential poison block: every slot points back at the block
+ * itself (in-range, nonzero, never converges) */
+void plant_self_referential_block(Img& img, u64 block_no) {
+    u8* b = img.block(block_no);
+    memset(b, 0, BS);
+    for (u32 i = 0; i < BS / 4; ++i)
+        put32(b + u64(i) * 4, u32(block_no));
+}
+
+} // namespace
+
+TEST(Ext4Engine, PoisonDoubleIndirectBoundedBySize) {
+    /* S-065: a deleted classic inode with a 2 KiB i_size and a stale
+     * DOUBLE-indirect pointer at a self-referential block. The og's ladder
+     * is bounded by the file's logical size (FUN_180005490 :3952-3954 -
+     * `param_4 <= lVar9` breaks the loop; size 2 KiB ends at logical block
+     * 2, deep inside the 12 direct slots, so the indirect ladder is never
+     * entered). Pre-fix: 1 + 256 indirection-block reads and 65536 extent
+     * pushes for this one inode. The read-count comparison against the
+     * identical control (no poison pointer) is the proof. */
+    Img poison = build_volume();
+    plant_classic_gone(poison, 2048, 13 /* i_block[13] double */, 20);
+    plant_self_referential_block(poison, 20);
+    Img control = build_volume();
+    plant_classic_gone(control, 2048, 13, 0);
+
+    LadderCountingDevice pd(poison.raw());
+    LadderCountingDevice cd(control.raw());
+    tree::ResultTree t1, t2;
+    auto* ra1 = t1.add_root(u"Found");
+    auto* rd1 = t1.add_root(u"Deleted");
+    auto* rl1 = t1.add_root(u"Lost Files");
+    auto* ra2 = t2.add_root(u"Found");
+    auto* rd2 = t2.add_root(u"Deleted");
+    auto* rl2 = t2.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st1, st2;
+    ASSERT_EQ(OK, scan_ext4(&pd, fl, nullptr, nullptr, nullptr, t1, ra1, rd1, rl1, st1))
+        << err_text(0);
+    ASSERT_EQ(OK, scan_ext4(&cd, fl, nullptr, nullptr, nullptr, t2, ra2, rd2, rl2, st2))
+        << err_text(0);
+    EXPECT_LE(pd.reads, cd.reads) << "the size-bounded ladder reads NOTHING the control does not "
+                                     "(the whole indirect subtree is past EOF at size 2 KiB)";
+}
+
+TEST(Ext4Engine, PoisonTripleIndirectBoundedBySize) {
+    /* S-065's headline case: the stale TRIPLE-indirect pointer. Pre-fix the
+     * self-referential block drives 1 + 256*(1+256) ~ 65k reads and 256^3
+     * ~ 16.7M extent pushes (freeze/OOM); the counting device's read cap
+     * keeps the RED run bounded while pinning that the walk BLEW PAST the
+     * size bound. Post-fix the triple subtree (logical start
+     * 12 + 256 + 65536) is far past the 2 KiB size - zero extra reads. */
+    Img poison = build_volume();
+    plant_classic_gone(poison, 2048, 14 /* i_block[14] triple */, 20);
+    plant_self_referential_block(poison, 20);
+    Img control = build_volume();
+    plant_classic_gone(control, 2048, 14, 0);
+
+    LadderCountingDevice pd(poison.raw());
+    pd.cap = 3000; /* bounded RED: the pre-fix walk wants ~65k reads */
+    LadderCountingDevice cd(control.raw());
+    tree::ResultTree t1, t2;
+    auto* ra1 = t1.add_root(u"Found");
+    auto* rd1 = t1.add_root(u"Deleted");
+    auto* rl1 = t1.add_root(u"Lost Files");
+    auto* ra2 = t2.add_root(u"Found");
+    auto* rd2 = t2.add_root(u"Deleted");
+    auto* rl2 = t2.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st1, st2;
+    (void)scan_ext4(&pd, fl, nullptr, nullptr, nullptr, t1, ra1, rd1, rl1, st1);
+    ASSERT_EQ(OK, scan_ext4(&cd, fl, nullptr, nullptr, nullptr, t2, ra2, rd2, rl2, st2))
+        << err_text(0);
+    EXPECT_LE(pd.reads, cd.reads) << "the triple-indirect subtree past EOF is never entered";
+}
+
+TEST(Ext4Engine, StaleIndirectCancelResponsive) {
+    /* S-065: the ladder consults the cancel token inside the walk. The
+     * arming device flips the token when the poison block is FIRST read;
+     * the fixed ladder's next recursion (the cancel check runs at every
+     * indirection-block boundary) stops immediately - the poison block is
+     * read at most once. Pre-fix: no check inside the walk, 257 reads of
+     * the poison block. */
+    Img img = build_volume();
+    plant_classic_gone(img, 1ull << 30 /* 1 GiB: the ladder IS in range */, 13, 20);
+    plant_self_referential_block(img, 20);
+
+    LadderArmingDevice dev(img.raw());
+    dev.poison_off = 20 * BS;
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    (void)scan_ext4(&dev, fl, &dev.tok, nullptr, nullptr, t, ra, rd, rl, st);
+    EXPECT_LE(dev.poison_reads, 1u)
+        << "cancel honored inside the walk: the poison block is read at most "
+           "once before the walk stops";
+}
+
+TEST(Ext4Engine, ContiguousPhysicalBlocksMergedToSingleExtent) {
+    /* S-065: the og's observable output shape - physically-contiguous
+     * blocks merge into ONE extent as the walk proceeds (FUN_180005490
+     * :3986-3996, the merge branch that bounds the vector by physical-run
+     * count). A 16 KiB classic file whose single-indirect block points at
+     * four consecutive blocks emits ONE 4-block extent, not four. */
+    Img img = build_volume();
+    plant_classic_gone(img, 16 * BS, 12 /* i_block[12] single */, 20);
+    u8* ib = img.block(20);
+    memset(ib, 0, BS);
+    for (u32 i = 0; i < 4; ++i)
+        put32(ib + u64(i) * 4, 21 + i); /* consecutive physical blocks */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, t, ra, rd, rl, st)) << err_text(0);
+
+    const tree::FileNode* gone = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "Inode6")
+            gone = c;
+    }
+    ASSERT_NE(nullptr, gone) << "the deleted classic inode must surface";
+    ASSERT_FALSE(gone->props()->extents.empty()) << "its extents must be emitted";
+    ASSERT_EQ(u64(1), gone->props()->extents.size())
+        << "four physically-consecutive blocks = ONE merged extent";
+    EXPECT_EQ(u64(21) * BS, gone->props()->extents.front().offset);
+    EXPECT_EQ(u64(4) * BS, gone->props()->extents.front().length);
+}
+
+} // namespace ext4
 } // namespace cr

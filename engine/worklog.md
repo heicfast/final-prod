@@ -9066,3 +9066,27 @@ the access-slot pin, and the A-014/N-171 addenda. Board re-counted at the merged
 tree: 55 active (0 ACUTE · 3 SEVERE · 24 MAJOR · 26 MINOR · 2 INFO) / 128 FIXED /
 4 tracked-open. Next for the continuation lanes: S-040, S-063, S-065 — the
 remaining SEVERE tier.
+
+---
+
+## Session-56 ACUTE-first lane — S-065 landed (2026-10-29)
+
+**S-065 FIXED (SEVERE — the ext4/ext2/ext3 indirect-block ladder unbounded:
+freeze/OOM).** The corpus re-verified first-hand (FUN_180005490 :3952-3954's
+`param_4 <= lVar9` break + the :3986-3996 contiguous merge;
+FUN_1800068b0's `lVar16 < size` content bound). The ladder now walks only
+logical blocks < ceil(i_size/block_size): the direct loop stops at
+size_blocks, `read_ladder` prunes EOF-past subtrees and breaks at the first
+past-EOF pointer (the og's linear-order stop); the physically-contiguous
+merge is adopted (emit_block); a 65536-extent per-inode budget registered as
+hardening; the cancel token is consulted at every indirection block (Volume
+gains `cancel`, set by scan_ext4). Tests (4, all RED pre-fix):
+PoisonDoubleIndirectBoundedBySize (273 vs 15 reads),
+PoisonTripleIndirectBoundedBySize (the 3000-read cap blown pre-fix),
+StaleIndirectCancelResponsive (257 vs 1 poison-block reads),
+ContiguousPhysicalBlocksMergedToSingleExtent (4 vs 1 extents). Ext4 family
+42/42; full suite 1444/1444; win gate 10/10. En route: the test file's
+doubled-namespace-closure + stray-brace hot-window residue repaired (the
+M-133 class), the convergent win-stub markers collapsed, format clean.
+Trail: findings/FIXED/S-065 + ledger row + ext4.md + the matrix MATCH cell +
+SUMMARY block + this entry.

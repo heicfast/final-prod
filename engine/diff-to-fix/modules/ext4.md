@@ -205,13 +205,14 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 
 ## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
 
-New active findings on this module: **S-065** (SEVERE — the indirect-block ladder
-unbounded: ~10⁹ reads / ~17 GB extents per poison deleted inode; the og bounds by
-file size — the no-stuck-or-freeze focus hit), **M-143** (the journal inode-image
+New active findings on this module: **S-065** **FIXED** (the S56 ACUTE-first
+lane: the ladder bounded by ceil(i_size/bs) + the contiguous merge + the
+65536-extent hardening budget + the cancel token inside the walk —
+findings/FIXED/S-065, 4 RED->GREEN read-count/cancel/merge pins), **M-143** (the journal inode-image
 harvest branch absent — the S-004 sibling surface), **M-144** (the 8 MiB GDT cap
 refusing >16 TiB 64BIT volumes + MAX_GROUPS >128 TiB; the og unbounded),
 **N-193** (four SB acceptance-band deltas consolidated — register), **I-045** (the
 unwritten ee_len og-defect non-adoption register, batch #3). Verified-MATCH this
 session: the size-bounded indirect walk's og form (FUN_180005490), the journal
 dir-block classifier's '.'/'..' test, the GDT allocation math, and the
-extents-path budget (the S-065 gap is the non-extents path only).
+extents-path budget (the S-065 gap is the non-extents path only — now closed).
