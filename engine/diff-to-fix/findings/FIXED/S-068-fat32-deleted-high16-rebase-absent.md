@@ -156,3 +156,53 @@ is not present in the racing version, but is a no-op difference (a hint below
 raw value). This lane's independent corpus re-verification of all three og
 sites (:13756-13759, :14753-14755, :14826-14848) stands as corroborating
 evidence for the racing landing's citations.
+
+---
+
+
+## S82 convergence addendum (2026-10-29 — the THIRD independent implementation conceded; two decode deltas recorded as open questions)
+
+A third fix lane (the S82 lane) implemented the re-base independently
+before pulling and found `ad1bcb9e` already on origin (the second lane's
+S80 convergence record at `638abdd3` covers the first concession). The
+racing landing keeps the seat; this addendum records the two sites where
+the independent decodes DISAGREED, so the next audit's liveness battery
+can discriminate them rather than re-derive from scratch:
+
+1. **The hint value - walked-FIRST vs walked-END.** The landed
+   implementation stores the walked file's (adopted) FIRST cluster as
+   the hint. The S82 decode read :13753's `uVar6 = local_res8 + uVar6`
+   as START + LENGTH (the walked end): the two agree except when a chain
+   crosses a 64K-block boundary (a file at 0x31FFFF with 2 clusters
+   stores 0x31FFFF vs 0x320001 - differing high-16s for the NEXT
+   re-base's borrow). One synthetic volume whose last-good file's chain
+   crosses a 64K boundary, followed by a torn dentry in the lower block,
+   discriminates the two readings; the og's :13753 arithmetic (what
+   local_res8 is) is the settle-site.
+2. **The 0x310000 big-volume gate.** The landed implementation applies
+   NO 0x310000 gate to the pre-walk re-base (reading :14753's own
+   volume-bound gates as the FAT32 shape alone); the S82 implementation
+   gated the whole re-base on `hint > 0x310000` (the finding's fix-plan
+   point 3, attributing the gate to the re-base leg). The corpus
+   supports BOTH readings: :14834's `0x310000 < DAT_1800728c8` gates the
+   :14826 RETRY-WITH-WRITE-BACK leg specifically, while :14753's
+   pre-walk re-base carries its own volume bounds (`local_b0 >= 0x10001`
+   - the FAT32 shape, no 0x310000). The landed reading is the closer
+   site-2 decode; the practical difference is small-volume behavior
+   (under the landed form the re-base fires on any FAT32 volume with
+   hint > first; under the S82 form only on > 0x310000-cluster volumes).
+   Discriminator: a small FAT32 volume (e.g. 65530 clusters) with a
+   live-file hint and a torn dentry whose true chain is in the hint's
+   64K block - the landed form re-bases, the gated form does not.
+3. (minor) **The confirm gate.** The landed form requires the re-based
+   cluster's FAT entry to be live (`raw != 0`) for adoption - the
+   FUN_180014530 confirm reading; the S82 form also completed
+   contiguous FREE runs at the re-based anchor (the GAP-S6-2 recovery
+   applied to the re-based location). The landed stricter form is the
+   conservative choice; the S82 form recovers the freed-chain shape at
+   the true location. Registered here as the recovery-vs-parity choice.
+
+The S82 lane's four-test battery (incl. the sparse 0x320000-cluster
+fixture class) verified ITS variant RED->GREEN; the landed variant's own
+tests cover its reading. The deltas above are decode questions, not
+defects in the landing - recorded per the no-silent-divergence rule.

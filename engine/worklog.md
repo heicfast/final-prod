@@ -11620,6 +11620,7 @@ lane contributed that their landing already carried better: the INDX
 floor constant; this lane's version of the same discovery is preserved
 in this entry for the history).
 
+<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 5: M-149 (2026-10-29)
 
 **M-149 FIXED (MAJOR, lost-partition):** the ghost-score two-pass form
@@ -11637,3 +11638,42 @@ RED first-hand (stash dance): ScoringTableMatchBonusIsNumeratorOnly
 ScoringZeroCountScoresZero / MatchesLogRows re-pin. Suite 1624/1624.
 Trail: findings/FIXED/M-149 + Resolution, matrix MATCH,
 modules/lost-partition.md S80 addendum, PARITY-DELTAS D-151.
+=======
+---
+
+---
+
+# Session 82 — entry 2: S-068 CONCEDED to the racing ad1bcb9e landing (the convergence + decode-delta record)
+
+**S-068 — the third independent implementation, conceded per SA-9.** This
+lane implemented the re-base independently (all three og sites re-verified
+first-hand: FATSearchDLL :13757-13758 the hint update, :14753-14755 the
+low-16-only re-base, :14826-14848 the retry + the dentry write-back + the
+0x310000 gate) and had its four-test battery RED->GREEN locally (the
+sparse 0x320000-cluster S68SparseDevice fixture class, the
+deleted_rebased counter, the adopted-anchor honesty caps) when the push
+revealed the racing lane's `ad1bcb9e` already on origin (and a prior
+lane's own concession record at `638abdd3` — three lanes, one finding,
+the hottest seat on the board).
+
+The concession kept the racing landing; the S82 addendum appended to
+findings/FIXED/S-068 records the TWO open decode deltas the independent
+implementations surfaced (the hint's value — walked-FIRST vs :13753's
+START+LENGTH walked-END arithmetic; the 0x310000 gate's placement —
+site-2's own volume bounds vs site-3's retry-leg gate) plus the minor
+confirm-gate choice (FAT-live-only adoption vs the GAP-S6-2 contiguous
+completion at the re-based anchor), each with its one-volume synthetic
+discriminator, so the next audit settles them by evidence instead of
+re-deriving. No code from this lane survived the concession (the racing
+landing is complete and corpus-cited); the S68SparseDevice page-map
+fixture class is recorded here for the next large-volume FAT test that
+needs it. The lesson banked twice this session: PULL EARLY, PUSH OFTEN —
+the board's fix lanes are racing.
+
+The S82 lane's remaining queue (severity order, minus everything the
+racing lanes landed): M-149 (the lostpart scoring fold), M-150 (the
+session count bomb), M-152 (the ext4 orphan skip), M-151 (the NTFS run
+growth), M-154 (the autosave retention), M-107's remaining members (CRW
+next), then M-075/M-078/M-101/M-105/M-111/M-113/M-114, then the MINOR
+queue (N-216/N-145/N-178/N-181/N-182), then I-048's registers.
+>>>>>>> 1cb39aa0 (converge(S82): S-068 conceded to the racing ad1bcb9e — the THIRD independent implementation of the deleted FAT32 high-16 re-base this window (this lane's variant: the walked-END hint [the :13753 START+LENGTH reading], the 0x310000-gated re-base, the GAP-S6-2 contiguous completion at the re-based anchor, the deleted_rebased counter, four tests RED->GREEN on a sparse 0x320000-cluster fixture class; withdrawn pre-push per SA-9). The S82 addendum in findings/FIXED/S-068 records the two OPEN DECODE DELTAS the independent implementations surfaced — the hint's value (walked-FIRST vs the walked-END arithmetic) and the 0x310000 gate's placement (site-2's own volume bounds vs site-3's retry-leg gate) — plus the confirm-gate choice, each with its one-volume synthetic discriminator, so the next audit settles them by evidence. Trail: the finding's S82 convergence addendum, SUMMARY's S82 block, worklog entry 2)
