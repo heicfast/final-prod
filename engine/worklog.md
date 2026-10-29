@@ -9298,3 +9298,21 @@ block, this entry.
 block overstated MINOR at 24; the first-hand recount is 22 (the two
 driver-repo-resident N-107/N-127 are counted active-open). SUMMARY
 corrected in this push.
+## Session-61 lane open — the seventh continuation audit lane (2026-10-29)
+
+Lane open. The continuation audit lane of the user's second-session mandate
+(lane 7): remove-the-fixed + go-deeper + mark-all-remaining, focus areas sector
+numbers / scanning / accurate detection / calculation / mathematics / no stuck or
+freeze / local database as og-codebase / state management. Repos pinned: core
+`e40b8a86` (pulled first — the racing S60 window's N-199 retirement absorbed),
+corpus `be0cfe9`. Prompt saved token-redacted at
+worklog/session-61-continuation-audit-prompt.md (read twice before starting).
+Board re-counted first-hand at open: **47 active — 1 SEVERE (S-040) · 23 MAJOR ·
+21 MINOR · 2 INFO — + 4 tracked-open; findings/FIXED/ at 137 files.**
+N-107/N-127 driver-repo-resident (OQ-S10-3 boundary) — active-open.
+Plan: (W1) liveness battery over all 47; (W2) four parallel deep-dive agents —
+og local-data/config inventory (beyond lostpart/partinfo), DRWUI scan state
+machine + progress math + stuck-watchdog decode, per-engine detection validators
++ sector/LBA arithmetic fresh eyes, core-side counterpart read; (W3) lead
+first-hand verification + filing (next free IDs: S-067+, M-149+, N-210+, I-048+,
+A-015+); (W4) board re-truth + push + handoff.
