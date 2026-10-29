@@ -14381,3 +14381,31 @@ delete keeps the seat; this lane's rename form conceded and recorded in
 N-230's Resolution). Merged DWG+WPD battery 17/17 first-hand. **Next:
 M-107's remaining members — APE's frame walk, SWF-RECT** (+ the DWG
 gen-3 remainder named), then the tracked-open items.
+
+## Session-86 S86 fix-lane — entry 3: N-231 (the duplicate-gtest-name gate) filed + landed (2026-10-30)
+
+**The discovered divergence (§8):** the build-red class's two shapes are
+asymmetric — the marker half gated since N-210, the duplicate-gtest-name
+half ungated (invisible to the marker lint; reformatted silently by the
+style sweeps; only the Werror build catches it, the step the racing
+lanes' five windows skipped — their own S92 handoff records the
+lesson). Filed N-231 (MINOR, the class convention) + fixed in the same
+session.
+
+**The gate (the fix):** scripts/verify/verify_test_names.py — the
+full-tree TEST/TEST_F/TEST_P uniqueness lint (sub-second, 1745
+registrations at the landing tree); wired into ci-local.sh stage 2
+(beside the marker lint, before the build), the pre-commit hook (the
+FULL-TREE form — the staged-only first draft passed the class's real
+shape wrongly and was replaced after the two-file RED proved it), and
+ctest (test_name_uniqueness, Python3 REQUIRED — honest: a python-less
+lane fails loudly).
+
+**Proofs, all first-hand:** RED at the historical 98bd30d6 tree (the
+lint exits 1 on N-230's exact pair :3434/:3612); RED at the staged
+two-file collision (the hook exits 1 with the pair printed); GREEN at
+the landing tree (1745/0; the ctest 0.11 s). Trail: the finding
+(findings/FIXED/, filed+fixed), the matrix row, SUMMARY, this entry.
+
+**Next:** the DWG gen-3 R2007 remainder decode (M-107's last piece),
+then the tracked-open push-forwards.
