@@ -13315,3 +13315,20 @@ extended to N-224 + N-225, the SUMMARY S89 block opened (board: 6 MAJOR / 2
 MINOR / 0 INFO active / 207 FIXED / 4 tracked-open). No code change owed.
 
 <!-- S89 merge note: the racing window's session-84/85 handoff entries (their side) kept ahead of this lane's S89 open entry (ours); append-append both-sides-kept per the house convention. The window landed M-101 (findings/FIXED/), M-107's DXF/EPS/AI members (SIT/APE/SWF-RECT remain), the N-226 renumber, and the test_m101_branches repair — this lane re-verifies each before building on them. -->
+
+**Fix #2 — N-227 FIXED (MINOR, NEW — filed+fixed this session; the racing
+window's collision repaired).** The first pull of the lane found main RED: the
+window's 708fad32 sweep deleted tests/unit/test_m101_branches.cpp against its
+STALE tree (its own message's grep evidence predates b7d05b12), while b7d05b12
+(the M-101 implementation landing, 18:43 vs the sweep's 18:46) had registered
+the file in tests/CMakeLists.txt AND landed the full surface (version_group /
+tags_extracted / version_groups() — grep-verified present at HEAD). The merged
+HEAD: registration without the file — `cmake --preset linux-release` fails at
+generate ("Cannot find source file: unit/test_m101_branches.cpp"), cr_tests
+unbuildable, 0/1700 tests runnable (first-hand at d15d32a4). The repair: the
+file restored byte-exact from b7d05b12; GREEN — the M-101 battery 5/5, full
+suite 1700/1700 (127.7 s). Trail: findings/FIXED/N-227 + Resolution, the
+ledger row, the SUMMARY S89 block refreshed (board: 5 MAJOR / 2 MINOR / 0
+INFO active / 208 FIXED / 4 tracked-open; M-107's remaining members: SIT,
+APE, SWF-RECT — the window landed DXF/EPS/AI as members 7-9). The N-210
+class's EIGHTH occurrence; the sweep's history stands.
