@@ -562,3 +562,42 @@ register the chosen side). Verified-MATCH this session: the +0x30/+0x38 kernel-l
 getter pair, the runlist decode family (re-walked), the MFT record-size decode forms
 (three og variants mapped), the analyser's zero-sweep offsets, and the remnant-scan
 512-byte stride. Quote pack: `evidence/decompiled-quotes/s54-finding-quote-pack.md`.
+
+---
+
+## S60 addendum (2026-10-29 — the MAJOR-first fix lane)
+
+**Three open-ladder findings FIXED this lane (all corpus re-verified
+first-hand before the fix):**
+
+- **M-147 FIXED** (was M-138's seat, renumbered per SA-9): cpr == 0 and
+  cib == 0 now take the og's four-site scan-path defaults (1024-byte
+  records / 4096-byte index blocks — FUN_180004830 :3427-3440,
+  FUN_180004870 :3443-3456, FUN_18003f630, FUN_180011a10/a90, each
+  re-read at the exact lines). A single zeroed +0x40/+0x44 byte no longer
+  refuses the volume. D-52's "0 rejects" premise corrected (the NTFSLib
+  store-guard misread). Pins: `BootRecordSizeZeroDefaultsTo1024` (the
+  re-pinned seat), `BootCibZeroDefaultsTo4096IndexBlocks`,
+  `BootCprZeroWithValidPrimaryDoesNotConsultBackup` — all RED pre-fix.
+- **M-141 FIXED**: the mft_lcn bound is the og's product form
+  (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301) evaluated
+  overflow-free as `mft_lcn > (total-1)/spc` — floor-tolerant at
+  non-integral totals, wrap-passing refused (registered hardening); the
+  mftmirr bound is GONE (no og layer has one) — a torn mirror LCN sets the
+  report-only `mirror_invalid` flag, skips both mirror reads, logs the
+  Info diagnostic. The M-043 backup fallback gains an MFT-load-failure
+  retry rung (the torn-geometry class). Pins:
+  `TornMftmirrLcnScansWithMirrorSkipped`,
+  `MftLcnProductFormBoundaryAndHardening` — RED pre-fix.
+- **M-145 FIXED**: no 0x55AA gate anywhere on the NTFS open ladder (the
+  og's NTFS path never reads +0x1FE — analyser :3568-3577 and
+  LoadNtfsVolume :19292-19310 re-read in full; the FAT/exFAT paths keep
+  theirs). The D-99 backup fallback's signature requirement is dropped
+  too (its BPB content gates are the proof); the fallback now triggers on
+  content failure only. Pins: `TornPrimaryBackupBootScans` (re-pinned —
+  opens from the primary, no backup consulted),
+  `TornSignatureWithIntactBackupStillFallsBack`,
+  `BackupBadFallsBackToRefusal` (re-pinned to an OEM tear) — RED pre-fix.
+
+Suite after the three landings: 1465/1465. The remaining module rows:
+**M-146** (probe_family gate family) and **N-196/N-197** stay active.

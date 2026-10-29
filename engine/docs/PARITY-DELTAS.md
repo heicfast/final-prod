@@ -1647,13 +1647,30 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 - **Boot ladder (N-011b):** volume open now mirrors NTFSLib
   `CNtfsVolume::LoadNtfsVolume` :19292-19344 exactly: bps 512-multiple
   (pow2 dropped; 256 now rejected like the og), spc signed-byte decode
-  (direct < 0x81 including non-pow2, shift form above), cpr==0 / 0-result /
-  sub-sector record REJECTED (the M-001 fallback ladder belongs to the walk
-  function), index-block byte 0 rejected, no 0x400 clamp at open, no 0xAA55
-  check. **Registered core hardening kept** (the og lacks all four): the
-  4096 bps cap (spec max), the P1-4 shift-UB exponent guard (1 MiB record
-  cap — the og computes a 1 GiB record for cpr=-30), the P1-3 declared-size
-  sanity, and the bps-vs-device-sector match with the 512e escape.
+  (direct < 0x81 including non-pow2, shift form above). **M-147
+  correction (2026-10-29):** cpr == 0 and cib == 0 are the og's
+  scan-path DEFAULTS (1024-byte records / 4096-byte index blocks) at four
+  independent sites (the analyser getters FUN_180004830 :3427-3440 /
+  FUN_180004870 :3443-3456, NTFSSearchDLL FUN_18003f630,
+  PartitionRecoveryD FUN_180011a10/FUN_180011a90) - the volume OPENS on
+  the zero byte; the earlier "0 rejects" premise was a misread of
+  NTFSLib's store-guards (both guarded and unguarded paths share one
+  exit; `extraout_EAX` was unresolvable). **M-141 (2026-10-29):** the
+  mft_lcn bound moved to the og's product form `spc x mft_lcn <
+  total_sectors` (sector space, floor-tolerant) evaluated overflow-free
+  as `mft_lcn > (total-1)/spc`; the mftmirr_lcn bound is DROPPED
+  entirely (no og layer bounds the mirror - a torn mirror LCN demotes to
+  mirror-invalid, the mirror reads skipped). **M-145 (2026-10-29):** no
+  0xAA55 check anywhere on the NTFS open ladder (the og's NTFS path
+  never reads +0x1FE; its FAT/exFAT paths do - the omission is
+  NTFS-specific). **Registered core hardening kept** (the og lacks all
+  of these): the 4096 bps cap (spec max), the P1-4 shift-UB exponent
+  guard (1 MiB record cap — the og computes a 1 GiB record for cpr=-30),
+  the P1-3 declared-size sanity, the bps-vs-device-sector match with the
+  512e escape, the sub-sector-record refusal, and the NON-WRAPPING
+  mft_lcn product evaluation (the og's signed i64 product wraps negative
+  and passes for huge corrupt LCNs - the core refuses; the og's own
+  defect class).
 - **Attributes source (N-012):** serialized from `$STANDARD_INFORMATION`
   dos_flags (:5351-5368, per-bit RO/hidden/system/archive + 0x400 OFFLINE),
   `$FILE_NAME` fallback when `$SI` is absent, mask widened 0xFF → 0x7FF.
@@ -1677,7 +1694,13 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 
 **Pin tests:** `NtfsVolume.AttributesFromSIWhenAvailable`,
 `AttributesFallBackToFileNameWhenSIAbsent`, `AttributesPreserveOfflineBit`,
-`ShortNameFieldRoundtrips` (incl. session roundtrip), `BootRecordSizeZeroRejected`,
+`ShortNameFieldRoundtrips` (incl. session roundtrip),
+`BootRecordSizeZeroDefaultsTo1024` (re-pinned from
+`BootRecordSizeZeroRejected` by M-147), `BootCibZeroDefaultsTo4096IndexBlocks`,
+`BootCprZeroWithValidPrimaryDoesNotConsultBackup`,
+`MftLcnProductFormBoundaryAndHardening`, `TornMftmirrLcnScansWithMirrorSkipped`,
+`TornPrimaryBackupBootScans` (re-pinned by M-145),
+`TornSignatureWithIntactBackupStillFallsBack`,
 `BootNoPow2RecordSizeAcceptedAtDecodedValue`, `BootNegativeExponentOverflowRejected`,
 `AdsDroppedInParityMode`, `AdsEmittedByDefaultSuperset`,
 `UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,

@@ -56,3 +56,34 @@ Decompiled evidence, lead-verified first-hand: the NTFSLib gate chain region rea
 ## Open questions
 
 None — the corpus decode is complete (the gate chain, the stores, and the absence of mirror bounds are all directly read).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S59 MAJOR-first fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on
+`NtfsVolume.TornMftmirrLcnScansWithMirrorSkipped` (RED pre-fix: the
+whole-volume ERR_BAD_PARAMETER; GREEN post: the full tree walks from the
+primary with `mirror_invalid` flagged and no mirror bootstrap) and
+`NtfsVolume.MftLcnProductFormBoundaryAndHardening` (RED pre-fix: the
+floor-boundary mft_lcn=k refused by the cluster form; GREEN post: opens —
+plus the one-past-boundary refusal and the wrapped-huge refusal, the
+registered hardening, pinned GREEN both sides). Full suite 1465/1465.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand
+this session (NTFSLib `:19294-19301` — the `(local_104b & 0xff) *
+local_1028 < local_1030` product form; grep over LoadNtfsVolume/the
+analyser/the search DLL for any mftmirr bound: zero). The fix: the mft_lcn
+gate moved to the product form evaluated overflow-free as
+`mft_lcn > (total_sectors - 1) / spc` (identical truth table in the
+no-wrap domain; a wrapped-huge LCN the og's signed i64 product would let
+PASS stays REFUSED — registered hardening in D-52); the mftmirr bound is
+DROPPED — a torn mirror LCN sets the new report-only
+`VolumeParams::mirror_invalid`, which skips BOTH the S-063 mirror
+bootstrap fallback and the best-effort `load_mftmirr_stream`, plus the
+Info diagnostic line (the "stat surfaced" acceptance). The M-043 backup
+fallback gained an MFT-load-failure retry rung (a primary whose BPB gates
+pass but whose record-0 read fails at the declared LCN retries from the
+backup's geometry before refusing — preserves the torn-geometry fallback
+class the demotion would otherwise have absorbed). No safety hardening
+touched; S-063's mirror fallback is preserved verbatim for in-bounds
+mirrors.

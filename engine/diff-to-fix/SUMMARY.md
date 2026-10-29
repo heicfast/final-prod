@@ -1,3 +1,34 @@
+# SUMMARY.md — executive summary (the S62 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-62 S62 fix-lane delta (2026-10-29 — the user's MAJOR-first directive; core `98a5b139` at open, corpus `be0cfe9`; baseline suite 1460/1460)
+
+**The NTFS open-ladder acceptance-band family closed (M-141 + M-145 + M-147
+— one coherent pass over `validate_boot_sector`/`open()`, corpus re-verified
+first-hand at every cited line before the fix):**
+
+- **M-147 FIXED** — cpr==0/cib==0 are the og's four-site scan-path DEFAULTS
+  (1024/4096; the analyser getters, NTFSSearchDLL, PartitionRecoveryD twice —
+  each re-read at the exact lines). A single zeroed boot byte no longer
+  refuses the volume; D-52's store-guard misread corrected in the same push.
+- **M-141 FIXED** — the mft_lcn bound moved to the og's product form
+  (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301) evaluated
+  overflow-free (the wrap-passing refusal kept as registered hardening); the
+  core-only mftmirr bound is GONE — a torn mirror LCN demotes to the
+  report-only `mirror_invalid` flag (both mirror reads skipped + the Info
+  diagnostic); the M-043 backup fallback gains an MFT-load-failure retry rung.
+- **M-145 FIXED** — no 0x55AA gate anywhere on the NTFS open ladder (the og's
+  NTFS path never reads +0x1FE; its FAT/exFAT paths do — NTFS-specific
+  omission). Content gates are the proof on the primary AND the backup
+  fallback. TornPrimaryBackupBootScans re-pinned (opens from the primary).
+- RED proof: the stash-revert rebuild (fix stashed, the VolumeParams field
+  kept so the tests compile) — 7/7 FAILED pre-fix, 108/108 NTFS+RawFixer
+  GREEN post-fix, full suite **1465/1465**.
+
+**Board after this landing: 0 ACUTE · 1 SEVERE [S-040] · 20 MAJOR · 22
+MINOR · 2 INFO active / 139 FIXED / 4 tracked-open.** Next free IDs:
+S-067+, M-148+, N-210+, I-048+, A-015+.
+
+# SUMMARY.md — executive summary (the S52-B severe-first convergence lane on top; the prior lanes below, newest-first)
 
 # SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
 

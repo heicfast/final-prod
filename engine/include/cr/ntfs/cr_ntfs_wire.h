@@ -221,7 +221,16 @@ inline u64 mft_reference_record(u64 ref) {
     return ref & 0x0000FFFFFFFFFFFFULL;
 }
 
-/* Record size from DBR: clusters_per_record sign convention. */
+/* Record size from DBR: clusters_per_record sign convention.
+ * M-147 (diff-to-fix): cpr == 0 decodes to the DEFAULT 1024 bytes at
+ * every og scan-path site (the analyser getter FUN_180004830 :3427-3440
+ * `if (bVar1 == 0) return 0x400;`, NTFSSearchDLL FUN_18003f630, and
+ * PartitionRecoveryD's parser pair FUN_180011a10/FUN_180011a90 - four
+ * independent defaults; re-verified first-hand). The old core rejected
+ * the volume on the zero byte - a single-byte tear refusing the whole
+ * volume. The negative form keeps the P1-4 shift-UB guard (exponent cap
+ * 20 -> 1 MiB; the og computes 2^(-cpr) unbounded - registered core
+ * hardening in PARITY-DELTAS D-52). */
 inline u64 record_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
     if (bs.clusters_per_record > 0)
         return static_cast<u64>(bs.clusters_per_record) * bs.sectors_per_cluster * bytes_per_sector;
@@ -230,7 +239,7 @@ inline u64 record_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
             return 0;
         return 1ULL << (-bs.clusters_per_record);
     }
-    return 0;
+    return 0x400; /* the og's four-site zero default: 1024-byte records */
 }
 
 /* Sectors-per-cluster from DBR: the signed-byte convention (N-197 pin).

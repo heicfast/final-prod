@@ -46,6 +46,13 @@ struct VolumeParams {
      * FROM. Report-only flag; the primary is never written (repair stays
      * consent-gated, rawfixer S-008). */
     bool boot_from_mftmirr = false;
+    /* M-141 (diff-to-fix): the $MFTMirr LCN decoded OUT OF VOLUME BOUNDS
+     * (the og bounds NEITHER LCN - the mirror read simply fails and the
+     * walk continues from the primary; no og layer carries a mirror
+     * gate). The mirror reads (the S-063 bootstrap fallback AND the
+     * best-effort load_mftmirr_stream) are skipped for this open;
+     * report-only flag + an Info log line at open. */
+    bool mirror_invalid = false;
 };
 
 /* Opened NTFS volume: owns the MFT stream mapping and the geometry. */

@@ -1,3 +1,62 @@
+**Session-62 S62 lane — the MAJOR-first fix lane opens; the NTFS open-ladder
+acceptance-band family lands (M-141+M-145+M-147, 2026-10-29).**
+
+- **Baseline:** core `98a5b139` at open (clean tree), corpus `be0cfe9`;
+  linux-release build clean; suite **1460/1460** (91s). The prompt saved
+  token-redacted at `worklog/session-diff-fix-s60-prompt.md`; board at open:
+  1 SEVERE [S-040] · 23 MAJOR · 22 MINOR · 2 INFO active / 136 FIXED /
+  4 tracked-open. (Lane name: S62 — a prior hot-window lane had taken the
+  S59 seat per its own rebrand note.)
+- **M-147 FIXED (MAJOR, ntfs)** — cpr==0/cib==0 are the og's four-site
+  scan-path DEFAULTS, not rejections. Corpus re-verified first-hand at the
+  exact lines: FUN_180004830 :3427-3440 (`if (bVar1 == 0) return 0x400;`),
+  FUN_180004870 :3443-3456 (`return 0x1000;`), plus the NTFSSearchDLL /
+  PartitionRecoveryD twins. Fix: `record_size_from_dbr` returns the 0x400
+  default on the zero byte; the cib==0 refusal dropped (the decoded value
+  feeds no core walk — INDX extents ride $INDEX_ALLOCATION runs); P1-4
+  exponent guard + sub-sector refusal kept (registered hardening). D-52's
+  WHAT-OG-DOES premise corrected in the same push (the NTFSLib store-guard
+  misread — both paths share one exit; `extraout_EAX` unresolvable). Tests:
+  `BootRecordSizeZeroDefaultsTo1024` (the re-pinned seat),
+  `BootCibZeroDefaultsTo4096IndexBlocks`,
+  `BootCprZeroWithValidPrimaryDoesNotConsultBackup` (the D-99 precedence).
+- **M-141 FIXED (MAJOR, ntfs)** — the mft_lcn bound moved to the og's
+  product form (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301
+  re-read), evaluated overflow-free as `mft_lcn > (total-1)/spc`
+  (floor-tolerant at non-integral totals; the wrapped-huge refusal kept —
+  registered hardening, the og's own signed-wrap defect class). The
+  core-only mftmirr bound is GONE: a torn mirror LCN sets the report-only
+  `VolumeParams::mirror_invalid`, skipping BOTH mirror reads (the S-063
+  fallback and the best-effort stream) + the Info diagnostic line. The
+  M-043 backup fallback gains an MFT-load-failure retry rung (a primary
+  whose BPB gates pass but whose record-0 read fails retries from the
+  backup's geometry — preserves the torn-geometry fallback class).
+  Tests: `TornMftmirrLcnScansWithMirrorSkipped` (full tree, mirror
+  skipped, flag set), `MftLcnProductFormBoundaryAndHardening` (floor
+  boundary opens; +1 past refused; wrapped-huge refused).
+- **M-145 FIXED (MAJOR, ntfs)** — no 0x55AA gate on the NTFS open ladder.
+  Corpus re-verified: the analyser conjunction (:3568-3577) and
+  LoadNtfsVolume (:19292-19310) read in full — no +0x1FE access in either
+  (the only 0x1fe touches in NTFSLib are the USA fixup walkers at
+  :14000/:14071/:14433); the FAT contrast (:38056-38057) proves the
+  omission is NTFS-specific. The gate is dropped on the primary AND the
+  D-99 backup fallback (the fallback's BPB content gates are its proof);
+  the fallback now triggers on CONTENT failure only. Tests:
+  `TornPrimaryBackupBootScans` re-pinned (torn signature + NO backup →
+  opens from the primary, full tree),
+  `TornSignatureWithIntactBackupStillFallsBack` (the D-99 interplay),
+  `BackupBadFallsBackToRefusal` re-pinned to an OEM tear.
+- **RED proof:** the stash-revert rebuild (the fix stashed, the
+  `mirror_invalid` field kept so the tests compile) — **7/7 FAILED
+  pre-fix**; restored: NTFS+RawFixer **108/108 GREEN**, full suite
+  **1465/1465** (87s). Audit trail: 3 finding files moved to
+  findings/FIXED/ with Resolutions; CROSS-REF-MATRIX 3 rows → MATCH;
+  modules/ntfs.md S62 addendum; SUMMARY counts; FIXED-LEDGER 3 rows; this
+  entry.
+- **Corpus side-effects:** the M-142 probe (FUN_18000cf90 read in full —
+  a byte-swap helper, NO fork re-gates downstream) pre-discharges the
+  HFS+ finding's open question for its landing next.
+
 ## Closing-fix lane — the INFO-first pair lands (2026-10-29)
 
 **Session start record:** opened at core `98a5b139` (63 commits after the
