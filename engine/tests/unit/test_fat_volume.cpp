@@ -3065,9 +3065,9 @@ TEST(FatChain, CycleGuardPerf) {
         ASSERT_FALSE(r.cycle);
         ASSERT_EQ(CHAIN_LEN, r.clusters.size()) << "chain " << ch;
     }
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now() - t0)
-                        .count();
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count();
     /* measured at the M-127 landing: the pre-fix vector guard walks
      * this fixture in 62.2 s (the stall class); the run-tree guard in
      * 1.55 s - a 40x improvement. The 10 s budget fails the pre-fix

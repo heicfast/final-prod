@@ -4,9 +4,9 @@
  */
 
 #include "cr/exfat/cr_exfat_engine.h"
-#include "cr/fat/cr_fat_wire.h" /* shared FAT-family datetime core (W4 dedup) */
+#include "cr/fat/cr_fat_wire.h"     /* shared FAT-family datetime core (W4 dedup) */
 #include "cr/fat/cr_visited_runs.h" /* M-127: the run-coalescing cycle guard */
-#include "cr/cr_recycle.h"      /* M-052: shared $I/$R pairing model */
+#include "cr/cr_recycle.h"          /* M-052: shared $I/$R pairing model */
 #include <cstring>
 #include <map>
 #include <set>
