@@ -294,6 +294,32 @@ public:
      * persisted as the nflags bit-13 block (u32). */
     u64 ntfs_parent_ref = 0;
     u32 fat_parent_cluster = 0;
+    /* M-101: the Versions-branch axis - the NTFS namespace-identity hash
+     * (FNV-1a 64 over the namespace-best link's parent record number
+     * and the display name). Two MFT records carrying the same pathname
+     * in the same directory are VERSIONS of one file (the og's Versions
+     * node: "It is another version of the file in the same directory.
+     * You can view different versions of the same file", UIUX/09:31) -
+     * the torn-overwrite and record-reuse population, surfaced as a
+     * groupable relation. PASSIVE datum: stamped at emission for
+     * structured NTFS nodes only (0 = not a member: carved nodes, other
+     * engines, and the record's own namespace-best link is the identity
+     * a multi-parent hard-link record carries - the same one-link
+     * tie-break M-007's one-node-per-record emission documents); never
+     * consumed by the read/recovery paths; persisted as the nflags
+     * bit-14 block (cr_records.cpp). The branch surfaces at query time
+     * when >= 2 live nodes share the id (query::version_groups). */
+    u64 version_group = 0;
+    /* M-101: the Tags-Extracted branch flag - runtime grouping datum
+     * (the og's "We classify and organize the found files by extracted
+     * tags", UIUX/09:29). Stamped by the host's preview/metadata pass
+     * when extract_metadata() produced tag data (EXIF orientation/
+     * datetime, media duration/codec, dimensions); RUNTIME-ONLY: NOT
+     * persisted (the corpus shows the og persisting no tag state in
+     * the session - the branch is runtime grouping, the finding's own
+     * defer note; a reloaded session re-derives it by re-running the
+     * preview pass). Query: Filter::tags_only surfaces the branch. */
+    bool tags_extracted = false;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;
