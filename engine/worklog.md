@@ -8777,7 +8777,6 @@ explicitly excluded, reproducing the og's extension-driven net behavior for
 text files). Tests: the five named pins, 4 pre-fix FAILs. Suite 1341 ran /
 1299 pass / 42 env-skips / 0 fail. Trail: findings/FIXED/N-184 + ledger row +
 matrix row + this entry.
-=======
 
 ## Session-55 continuation audit lane — close-out (2026-10-29)
 
