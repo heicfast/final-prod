@@ -13384,3 +13384,17 @@ registers) → the PARAMETERS/ABI-contract doc pair → b82f75b2+bfda625c
 renumber + format sweeps → 56d27d86 (wr16) → adf91248 (T17 doc audit +
 recounts) → the M-107 format sweep → the dangling-reference repair →
 fc7201c2 (the integrated merge).
+
+**The last repair (the build-break the fresh-configure caught):**
+checks.yml run 317's MSVC configure red — b7d05b12 registered
+`unit/test_m101_branches.cpp` in tests/CMakeLists.txt:65 at 18:43 while
+708fad32's sweep removed the leaked WIP .cpp at 18:46; the merged tree
+carried a registration for a file that no longer exists. The dangling
+line removed (the sweep's decision stands; M-101 stays ACTIVE);
+verified by full fresh local configure+build (0 warnings) + ctest
+1695/1695 + gate green + format clean — evidence
+`worklog/builds/linux-release-final{,-ctest}.log`. The lesson mirrors
+the session's meta-finding: the entry was invisible to my incremental
+builds because it post-dated my last full configure — CI's
+clean-configure lane is the only gate that sees this class, which is
+exactly why it must stay green for the right reason.
