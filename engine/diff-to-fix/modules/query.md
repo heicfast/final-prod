@@ -135,3 +135,21 @@ DRWUI:319007-319022] — the core's N-132 tables are the static ini snapshot,
 remote layer REPORTING-OOS). Verified-MATCH this lane: the N-132 display
 tables byte-exact vs the XML; the FileFilter membership data (1,481 unique
 exts). Evidence: `evidence/s69-lane-sheets/S69-A-localdb.md`.
+
+## Session-81 addendum — N-215: the R-20 "Unimportant" attribution re-truthed (2026-10-29)
+
+**The doc-truth drift closed.** REFERENCE-API-GAP's R-20 rows attributed
+the og's "Unimportant files" branch to the M-018 junk-name filter — the
+wrong layer. The corpus re-verified first-hand this session: the og's
+bucket is the **usefullostfiles.xml extension gate at tree-build** (the
+reader FUN_1401b8380 — `config\usefullostfiles.xml`, a 27-ext set with a
+101-entry cap, DRWUI:320396; the bucket builder FUN_1403bb970 at the
+"Build tree finish." handler — the "Unimportant files" node at :635824,
+`_strlwr` + set-membership for files, `strlen<3` folders, the recursive
+any-useful-descendant walk, DRWUI:635764-635910). The M-018 FilterFolder
+blocklist is the separate scan-time hide — two different data sources,
+timing, and user visibility. Both R-20 rows re-truthed with the cites;
+PARITY-OG-CORE-INVENTORY's usefullostfiles.xml row cross-linked so the
+two documents cannot drift apart again. The behavioral gap itself stays
+OOS-UI (display-tier demotion, never a drop — files are recovered
+regardless). #16/#46 rows: MATCH (attribution layer).

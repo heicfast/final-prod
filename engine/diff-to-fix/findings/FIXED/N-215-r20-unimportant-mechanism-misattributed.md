@@ -53,3 +53,12 @@ M-018 (the junk-name blocklist — the layer R-20 wrongly credits), M-101 (the V
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-215 landing (the S81 MINOR-first lane)
+**Verified by:** the corpus re-verification this session, first-hand: `DRWUI:320396` (`sprintf_s("%s\\config\\usefullostfiles.xml")` — the reader FUN_1401b8380's file path), `DRWUI:635824` (`FUN_1400563c0(local_100, "Unimportant files")` — the bucket node's creation in FUN_1403bb970), the `_strlwr` + membership gate in the same band — all three cited sites re-read directly. The post-fix grep: `rg "Unimportant" docs/` returns only the correct attribution (the usefullostfiles.xml gate) at every site — REFERENCE-API-GAP.md's R-20 detail row + its summary row, PARITY-OG-CORE-INVENTORY.md's cross-linked row.
+**Resolution notes:** Both R-20 rows in REFERENCE-API-GAP.md re-truthed: the og's "Unimportant" branch is the usefullostfiles.xml extension gate at tree-build (the reader DRWUI:320366-320439; the bucket builder FUN_1403bb970 at the "Build tree finish." handler, DRWUI:635764-635910 — `_strlwr` + set-membership for files, `strlen<3` folders, the recursive any-useful-descendant walk), NOT the M-018 junk filter (the separate scan-time name-blocklist hide — different data source, timing, and visibility). The M-018 reference is removed from the R-20 "Ours" column (the junk filter is not the Unimportant counterpart; it stays landed as its own surface). The OOS-UI disposition cross-link added to PARITY-OG-CORE-INVENTORY.md's usefullostfiles.xml row (both documents now name the same mechanism with the same cites — they cannot drift apart again). No code change (the behavioral gap itself is dispositioned OOS-UI; this finding owned only the mis-attribution). The Versions-node/Tags-Extracted gap statement stands (M-101 owns it).

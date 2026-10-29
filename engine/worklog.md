@@ -11246,3 +11246,12 @@ doc_truth_gate's check_header_contract_phrases() — RED at the pre-fix
 tree (the cr_ui.h catch), GREEN post-fix. Build green. Trail:
 findings/FIXED/N-211 + Resolution, matrix S81 row, modules/orchestration.md
 addendum, ledger row.
+
+**N-215 FIXED (MINOR, docs/query) — fix #2 of the S81 ladder:** the R-20
+"Unimportant" attribution re-truthed at both REFERENCE-API-GAP rows +
+the inventory cross-link. Corpus re-verified first-hand (:320396 the
+reader's path sprintf; :635824 the bucket node creation; :635764-635910
+the builder band). The M-018 mis-attribution removed; the OOS-UI
+disposition stands; M-101's Versions/Tags-Extracted gap statement kept.
+Trail: findings/FIXED/N-215 + Resolution, matrix row, modules/query.md
+addendum, ledger row.

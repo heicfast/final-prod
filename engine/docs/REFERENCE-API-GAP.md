@@ -211,7 +211,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 |---|---|---|---|
 | R-18 tree worker pipeline | query runs synchronously server-side (`cr_ui_query_run`, §b.7) | PRESENT | Threading split differs (ours: one query call vs. og's 5 worker classes); engine capability equal. |
 | R-19 dual tree modes (Path/Type) | `Query.Category` + `category_for_extension` + `filefilter_entry_count` (§a query) | PRESENT | Data level present; view models are UI-side. |
-| R-20 special branches | `Origin/DeletedState` enums + `raw_category_name` + junk filter `filterfolder::is_junk_name` (M-018) (§a tree) | PARTIAL | "Unimportant" ≈ M-018 junk filter; "File Name/Path Lost" ≈ raw-category + Origin. **Missing: "Versions node" (NTFS multi-version siblings) and "Tags Extracted" (EXIF tag grouping) — no tree concept for either.** |
+| R-20 special branches | `Origin/DeletedState` enums + `raw_category_name` (§a tree) | PARTIAL | "Unimportant" = the og's **usefullostfiles.xml extension gate at tree-build** (N-215 re-truth: the reader FUN_1401b8380 loads `config\usefullostfiles.xml` into a 27-ext set with a 101-entry cap — DRWUI:320396; the bucket builder FUN_1403bb970 at the "Build tree finish." handler creates the "Unimportant files" node and partitions the lost branch — `_strlwr` + set-membership for files, `strlen<3` folders, the recursive any-useful-descendant walk for the rest — DRWUI:635764-635910; **NOT the M-018 junk filter**, which is the separate scan-time name-blocklist hide — two different data sources, timing, and visibility; disposition OOS-UI per `PARITY-OG-CORE-INVENTORY.md`'s usefullostfiles.xml row). "File Name/Path Lost" ≈ raw-category + Origin. **Missing: "Versions node" (NTFS multi-version siblings — M-101) and "Tags Extracted" (EXIF tag grouping) — no tree concept for either.** |
 | R-21 search + type scope | `tree --filter/--deleted-only`, `Query` filter + Category (§c.4/b.7) | PARTIAL | Name/substring/type present; **no "Unsaved File" (office unsaved-doc) category; no NLT search** (NLT is UI product feature; engine side = free-text query). |
 | R-22 advanced filter (7 groups) | `cr_ui_query_run` (G-12 filter/sort/page) + `cr_ui_query_apply_buckets` (M-029 date/size buckets) (§b.7) | PARTIAL | type/time/size PRESENT (buckets og-parity). **Missing condition axes: path, state (deleted-state beyond boolean), tag.** |
 | R-23 sort | `Query/SortKey/SortDir` (§a query) | PRESENT | Includes recovery-chance (grade) ordering. |
@@ -365,7 +365,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | disconnect retry (R-16) | UIUX/08:39-47 | none | GAP | no disconnect detection/retry surface |
 | tree workers (R-18) | UIUX/13:49 | query_run (sync) | PRESENT | — |
 | dual tree modes (R-19) | UIUX/20:30-37 | Query.Category + filefilter count | PRESENT | — |
-| special branches (R-20) | UIUX/09:27-36 | Origin/raw_category/junk filter | PARTIAL | Versions node + Tags-Extracted grouping missing |
+| special branches (R-20) | UIUX/09:27-36 | Origin/raw_category ("Unimportant" = the usefullostfiles.xml gate, OOS-UI — N-215) | PARTIAL | Versions node + Tags-Extracted grouping missing |
 | search+type scope (R-21) | UIUX/09:49 | tree --filter; Query filter+Category | PARTIAL | no unsaved-file category; NLT is UI-only |
 | advanced filter 7 axes (R-22) | UIUX/31:55-125 | query_run + apply_buckets | PARTIAL | path/state/tag filter axes missing |
 | sort (R-23) | UIUX/25:132-135 | Query SortKey/Dir | PRESENT | — |

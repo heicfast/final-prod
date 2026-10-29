@@ -4,6 +4,7 @@
 
 | Parameter (module · surface) | Verdict | Evidence / finding |
 |---|---|---|
+| docs · R-20 Unimportant mechanism attribution (#46/#16) | **MATCH** | **N-215 FIXED** — the R-20 rows re-truthed (corpus re-verified first-hand: DRWUI:320396 the usefullostfiles.xml reader, :635824/:635764-635910 the bucket builder — `_strlwr` + set-membership, `strlen<3` folders, the any-useful-descendant walk); the M-018 mis-attribution removed; the inventory row cross-linked; the OOS-UI disposition stands |
 | orchestrator · autosave_dir contract text vs S-057 (P46) | **MATCH** | **N-211 FIXED** — both header comments re-truthed (cr_scan.h's autosave_dir block + the gate-caught twin at cr_ui.h:636): the field is honored on completion AND on the stop window (the og's stop path feeds the shared completion handler — DRWUI :1549399-421 → FUN_140395e50, gates :612571-587 no stopped-check; corpus re-verified this session). The new `check_header_contract_phrases()` doc-truth gate: RED at the pre-fix tree (it caught the cr_ui.h twin the finding missed), GREEN post-fix — the retired-phrase class now fails CI on recurrence |
 
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S80 fix lane on top — the diff-to-fix execution per the user's 20+ mandate; the prior lanes below)
