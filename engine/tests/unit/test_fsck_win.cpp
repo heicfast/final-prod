@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <string>
 
+using namespace cr;
 using namespace cr::win::fsck;
 using cr::check::fsck_launch::CHKDSK_FIX;
 using cr::check::fsck_launch::CHKDSK_SCAN_ONLY;
