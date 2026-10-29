@@ -1,3 +1,62 @@
+## Session-90 S90 lane — the closing handoff (2026-10-30)
+
+**The lane's unique landings (three pushes survived the racing
+windows):**
+
+1. **The SWF-RECT member (M-107 member 11) — the lane's second unique
+   seat, landed at c0c61c5c:** the FWS RECT validation gate
+   (swf_rect_valid, the exact bit-walk decoded first-hand from
+   FUN_180026940's raw asm), the finding's open question 3 answered
+   (the walk is VALIDATION-ONLY — the extent stays FileLength), five
+   tests (three RED→GREEN via the stash dance + the positive pin + the
+   CWS recorded-remainder pin), the S-007 plant re-pinned.
+2. **The WPG tier-1 corroboration** (the first push): FUN_180014030
+   stamps ONLY the id — the decode that CLOSES the S85 zero-tail
+   landing's honest residue (the +0x20 processor IS the pending
+   machinery's continuation; the "deferral" is the re-feed cadence).
+3. **The SIT ×10-gate decode + the marker-scope correction** (the
+   second push): the primary's pending cap = row_max × 10 = 2 GB
+   (0x180015e77-0x180015e7b), coexisting with the seat's row-max torn
+   bound; the "markers inert" claim corrected to the dead-gate scope
+   (the CONSTANTS are alive in FUN_180044a10's entry walk).
+
+**The concessions (the SA-9 record):** WPD (three convergent windows —
+the S84 pair-table, the S87 version-table walk with the 0xFFFFFFFF row
+max), WPG (the S85 zero-tail walk — the deeper authority), SIT (the
+racing 2214af90 entry-marker walk — the File*Analyser authority
+precedent), and the remerge cleanups that converged with the racing
+N-229 repair. Every concession carries its convergence record in the
+finding's addenda.
+
+**The board at the close (filesystem truth): 0 ACUTE · 0 SEVERE · 4
+MAJOR (M-086/M-087/M-089 [driver-repo-resident per OQ-S10-3, outside
+the two-repo grant — the boundary re-affirmed for the eighth time] +
+M-107 [the DWG gen-3 R2007 remainder only — members 1-10 + the
+SWF-RECT gate landed]) · 2 MINOR (N-107/N-127, driver-repo-resident) ·
+0 INFO active / 215 FIXED / 3 tracked-open (OQ-S10-1, OQ-S10-3,
+OQ-S4-3).** The session's aggregate landings across all lanes: M-075,
+M-078, M-101, M-105, M-107 members 1-11, M-159, M-160 (APE),
+N-219-N-230, I-048, I-049, the OQ-S79-1 retirement, the three OQ
+dispositions, the v0.6.0 notes — the 20+ mandate satisfied on the
+board.
+
+**The remaining scope (the next session's precise queue):**
+1. **M-107's DWG gen-3 R2007 remainder** — the 0x3d8-byte accumulate +
+   the 3×239 stride-3 de-interleave + FUN_18002ef50's record chain,
+   NOT decoded to landing quality (the bounded extent stands, honestly
+   recorded). The next probe: FUN_18002ef50's record-chain walk, the
+   R2007 section-page system.
+2. **The CWS inflate-gate** (my own recorded follow-up,
+   SwfCwsDeepGateIsTheRecordedFollowUp pins the current contract):
+   FUN_18002f6b80's zlib-inflate validation.
+3. The driver-repo lane (OQ-S10-3's five findings: M-086/M-087/M-089/
+   N-107/N-127) — needs a session with the rda-driver grant.
+4. OQ-S4-3's TTFR half — one Windows bench dispatch away.
+
+Suite **1727/1727** at the close (first-hand, 162 s); the local gate
+GREEN (format swept at 52441883); no live conflict markers; main green
+at `52441883`.
+
 ## Session-92 S92 fix lane — the handoff (2026-10-30, the closing entry)
 
 **This lane's landings (all pushed, main green at every push):**
