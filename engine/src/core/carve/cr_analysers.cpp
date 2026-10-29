@@ -5021,84 +5021,18 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (h[4] < '0' || h[4] > '9' || h[5] != '.')
         return r; /* ASCII version digit + point */
-<<<<<<< HEAD
-    /* M-107: the og's section-directory size walk (Brance::X3FAnalyser,
-     * RAWSearchDLL FUN_1800404a0 :48851-48910 + the magic finder
-     * FUN_18003ffc0 :48624-48638, re-read first-hand this session): the
-     * section directory is SEARCHED for in the window (its magic "SECd"
-     * = 0x64434553 - the same literal the walk's chunk-tail probe
-     * compares; Sigma writes the directory at a variable position after
-     * the section data, hence a search, not a header pointer); the entry
-     * count is read at magic+8; the extent is magic + 16 + count*12 -
-     * the end of the 12-byte-stride entry table (the 16-byte directory
-     * header: magic + size + count + pad; entry[0] at +16 carries
-     * {offset, length} - the og's caller reaches through them at
-     * :48741/:48770 before its SECi make/model read). The FileRepair
-     * artifact corroborates the directory-first grammar
-     * (x3f-repair--section-checkers-walk.md section 2: the directory
-     * walked entry-by-entry, per-section-type validation). The row max
-     * and the device end clamp the extent (the og's own clamp shape at
-     * :48745-48750: the walk extent inside the window, the total past
-     * it). No directory in the window = the og's analyser declines
-     * (FUN_1800404a0's return-1 family) - the old blind 64 MiB stand-in
-     * is gone. The og's streaming chunk-tail gate (every fed chunk must
-     * end in 0 or "SECd") is its chunked-feeding model's artifact, not
-     * reproducible in the single-shot carve; the directory search is
-     * what it accumulates to (documented divergence of model, not of
-     * semantics). */
-    const u64 limit = probe_limit(s, hit, cap);
-    const u64 search_end = limit; /* the row max + device end bound the walk */
-    std::vector<u8> win;
-    win.resize(1u << 20);
-    u64 pos = hit + 16; /* the header is 16 bytes; the directory follows the data */
-    while (pos + 4 <= search_end) {
-        const u64 chunk = std::min<u64>(win.size(), search_end - pos);
-        if (chunk < 4)
-            break;
-        if (!rd(s, pos, win.data(), u32(chunk)))
-            break; /* unreadable window: no directory found -> decline */
-        const u8* base = win.data();
-        const u64 avail = chunk;
-        /* byte-exact search (the og's finder advances one byte at a time);
-         * a 3-byte tail overlap carries a straddling magic into the next
-         * step (the og's half-back retry at :48874-48893 is the same
-         * straddle handling in its streaming model) */
-        for (u64 i = 0; i + 4 <= avail; ++i) {
-            if (base[i] == 'S' && base[i + 1] == 'E' && base[i + 2] == 'C' && base[i + 3] == 'd') {
-                const u64 d = pos + i; /* the directory's absolute position */
-                if (d + 24 > search_end)
-                    break; /* the header + entry[0] do not fit: torn */
-                const u32 count = u32_from_bytes_le(base + i + 8);
-                u64 end = d + 16 + u64(count) * 12;
-                if (end > search_end)
-                    end = search_end; /* the og's clamp (:48904-48906) */
-                if (end <= hit + 64)
-                    break; /* degenerate: header alone is larger */
-                r.ok = true;
-                r.end = end;
-                r.confidence = 720; /* the structural walk over the blind cap */
-                r.note = "x3f-section-directory-walk";
-                return r;
-            }
-        }
-        if (avail < win.size())
-            break; /* short final read: the window is exhausted */
-        pos += chunk - 3; /* straddle overlap */
-    }
-    /* no section directory in the window: the og's analyser declines */
-    r.ok = false;
-    r.end = 0;
-    r.confidence = 0;
-    r.note = "x3f-no-directory";
-=======
     r.ok = true;
-    const u64 limit = probe_limit(s, hit, cap);
+    const u64 limit = probe_limit(s, hit, cap); /* absolute device bound */
+    const u64 rel_limit = limit - hit;          /* the walk's relative bound */
     constexpr u64 X3F_DIR_TAIL = 0x4C; /* the og's fixed directory tail */
     u8 win[256 * 1024];
     bool found = false;
     u64 sec_at = 0;
-    for (u64 off = 8; off + 4 <= limit && !found; off += sizeof(win) - 3) {
-        u64 want = std::min<u64>(sizeof(win), limit - off);
+    /* the og's walk starts at the hit (uVar7 = 0) and steps forward in
+     * overlapping windows to its cap; all coordinates here are relative
+     * to the hit, the probe limit converted once on entry */
+    for (u64 off = 0; off + 4 <= rel_limit && !found; off += sizeof(win) - 3) {
+        u64 want = std::min<u64>(sizeof(win), rel_limit - off);
         if (!rd(s, hit + off, win, u32(want)))
             break;
         for (u64 i = 0; i + 4 <= want; ++i) {
@@ -5108,11 +5042,11 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
                 break;
             }
         }
-        if (off + want >= limit)
+        if (off + want >= rel_limit)
             break; /* the last window - no more data */
     }
     if (found) {
-        r.end = std::min(sec_at + X3F_DIR_TAIL, limit - hit) + hit;
+        r.end = hit + std::min(sec_at + X3F_DIR_TAIL, rel_limit);
         r.confidence = 620;
         r.note = "x3f-section-directory-walk";
     } else {
@@ -5122,7 +5056,6 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
         r.confidence = 550;
         r.note = "x3f-torn-no-section-directory";
     }
->>>>>>> 475907ee (fix(carve): M-107's X3F member - the section-directory size walk replaces the 64 MiB stand-in (the finding's own decode-then-land order, member 1 of 11). The og's walk decoded first-hand from FileX3FAnalyser FUN_1800535b0 (RAWSearchDLL :63457-63560, read in full): a forward scan for the 'SECd' section-directory marker (0x64434553), sector-stepped with overlapping 2-sector windows, extent = SECd_position + 0x4C in ALL THREE found-branch shapes - the directory's fixed 76-byte tail, which by construction IS the file's end (the X3F writer appends the directory last; the FileRepair artifact x3f-repair--section-checkers-walk.md's directory-first repair model corroborates). Landing: validate_x3f scans 256 KiB windows (3-byte straddle overlap - the guard the og's overlapping windows serve) to the probe limit; found -> SECd + 0x4C (row-clamped); torn (no SECd in range) -> the walked prefix at the row cap with reduced confidence (the og's loop-exit salvage shape, never a refusal). The DWG-pattern stand-in and its 'recorded follow-up' comment are gone for X3F. Tests: Carve.X3fSectionDirectoryWalkCarvesTrueEnd (a 1 MiB true end on a 100 MiB device - the stand-in carved 64 MiB; RED by construction pre-fix) + Carve.X3fTornSalvagesTheWalkedPrefix; suite 1570/1570. The finding stays active for the remaining ten members (CRW's CIFF heap chain next). Trail: the finding's S71 addendum, matrix row, modules/carve.md S71 addendum, SUMMARY, worklog)
     return r;
 }
 

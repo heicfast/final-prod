@@ -2279,13 +2279,13 @@ size_t plant_dmg_koly(std::vector<u8>& img, size_t at, size_t koly_rel, bool ali
     return koly_rel + 0x200;
 }
 
-/* M-107: the X3F plant now carries the section directory (the og's
- * walk target - FUN_1800404a0 :48851-48910): header(16) + payload +
- * the directory at a variable position after the data: "SECd" + size +
- * count + pad, then count 12-byte entries {offset, length, name}.
- * Sigma writes the directory after the section data - the og SEARCHES
- * for it (the magic finder FUN_18003ffc0), so the plant places it at
- * the true end. */
+/* M-107: the X3F plant carries the section directory (the og walk's
+ * target - FileX3FAnalyser FUN_1800535b0, the M-090-precedent authority):
+ * header(16) + payload + the directory at a variable position after the
+ * data: "SECd" + size + count + pad, then count 12-byte entries
+ * {offset, length, name}. Sigma writes the directory after the section
+ * data - the og SEARCHES for it (sector-stepped with 2-sector overlap),
+ * so the plant places it at the true end. */
 size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800,
                  u32 dir_entries = 3, u64 dir_offset_override = 0) {
     std::memcpy(img.data() + at, "FOVb", 4);
@@ -2318,15 +2318,18 @@ size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800,
     return d + 16 + size_t(dir_entries) * 12 - at; /* the directory's end */
 }
 
-/* ---- M-107: the X3F section-directory size walk ---- */
+/* ---- M-107: the X3F section-directory size walk (the FileX3FAnalyser
+ * authority - FUN_1800535b0, SECd + 0x4C in all three found-branches;
+ * the S71/M-155 corpus resolution of the two racing landings) ---- */
 
-TEST(Carve, X3fSectionDirectoryWalkSetsExtent) {
-    /* the og's walk: the extent is the section directory's END (magic +
-     * 16 + count*12), not a blind 64 MiB cap - FUN_1800404a0's extent
-     * math (:48900-48906) + the caller's clamp (:48745-48750). */
+TEST(Carve, X3fExtentIsSecdPlusFixedTail) {
+    /* the og's walk: the extent is SECd_position + 0x4C - the
+     * directory's fixed 76-byte tail (FUN_1800535b0's `uVar7 + 0x4c`
+     * and both search-hit `piVar5 + ... + 0x4c` forms) - NOT a
+     * function of the entry count (the count is never read). */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
-    const size_t expect = plant_x3f(img, at, 0x800, 3);
+    plant_x3f(img, at, 0x800, 3);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"L");
@@ -2340,14 +2343,16 @@ TEST(Carve, X3fSectionDirectoryWalkSetsExtent) {
         if (c->props() && c->props()->extents.front().offset == at)
             x3f = c;
     ASSERT_NE(x3f, nullptr) << "the X3F must carve through the directory walk";
-    EXPECT_EQ(x3f->props()->logical_size, expect)
-        << "extent = the directory end (16 + payload + 16 + count*12), og-exact";
+    EXPECT_EQ(x3f->props()->logical_size, 16 + 0x800 + 0x4C)
+        << "extent = SECd + the fixed 0x4C tail, count-independent (og-exact)";
 }
 
-TEST(Carve, X3fNoSectionDirectoryDeclines) {
-    /* the og's analyser declines when no directory is found in the
-     * window (FUN_1800404a0's return-1 family) - the old blind 64 MiB
-     * stand-in carved header-only fragments with no directory at all. */
+TEST(Carve, X3fNoSectionDirectorySalvagesWalkedPrefix) {
+    /* the og's loop-exit shape: no directory in range stamps the
+     * walked prefix as the size with the format id regardless
+     * (FUN_1800535b0's post-loop `*(param_2 + 0x10) = uVar7` +
+     * `*(param_2 + 0x18) = 0x6c`) - never a refusal. On a small device
+     * the walk's bound is the device end. */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at, "FOVb", 4);
@@ -2362,21 +2367,24 @@ TEST(Carve, X3fNoSectionDirectoryDeclines) {
     ASSERT_EQ(
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
         OK);
+    tree::FileNode* x3f = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && c->props()->extents.front().offset == at)
-            FAIL() << "a header with no section directory must NOT carve (the og declines)";
+            x3f = c;
+    ASSERT_NE(x3f, nullptr) << "the torn X3F must still carve (the loop-exit salvage)";
+    EXPECT_EQ(x3f->props()->logical_size, size_t(256 * 1024 - at))
+        << "the walked prefix at the walk's bound - the og's loop-exit salvage";
 }
 
-TEST(Carve, X3fGarbageHugeCountClampsToWindow) {
-    /* a torn directory whose count field is garbage-huge: the og clamps
-     * the extent to its window total (:48904-48906: min(walk extent,
-     * +0x118)); the core's stand-ins are the row max + the device end. */
+TEST(Carve, X3fGarbageCountIsIrrelevantToExtent) {
+    /* the walk never reads the directory's count field (the fixed
+     * 0x4C tail is the extent in every found branch): a garbage-huge
+     * count changes nothing - the S78 count-walk decode is refuted. */
     std::vector<u8> img(1 * 1024 * 1024, 0);
     const size_t at = 512;
-    (void)plant_x3f(img, at, 0x800, 3);
-    /* tear the count: 0xFFFFFF entries -> extent clamps to the device end */
+    plant_x3f(img, at, 0x800, 3);
     for (int i = 0; i < 4; ++i)
-        img[at + 16 + 0x800 + 8 + size_t(i)] = u8(0xFF);
+        img[at + 16 + 0x800 + 8 + size_t(i)] = u8(0xFF); /* count = 0xFFFFFF */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"L");
@@ -2390,8 +2398,8 @@ TEST(Carve, X3fGarbageHugeCountClampsToWindow) {
         if (c->props() && c->props()->extents.front().offset == at)
             x3f = c;
     ASSERT_NE(x3f, nullptr);
-    EXPECT_EQ(x3f->props()->logical_size, size_t(1 * 1024 * 1024 - at))
-        << "the garbage count clamps to the window end";
+    EXPECT_EQ(x3f->props()->logical_size, 16 + 0x800 + 0x4C)
+        << "the garbage count does not move the fixed-tail extent";
 }
 
 /* M-081/SCAN-4: Canon CRW (CIFF) - the II/MM 1A 00 keys with the og

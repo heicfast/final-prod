@@ -11191,3 +11191,31 @@ UNVERIFIED candidate was left without a home.
 A-016+, D-150+. Trail: findings/{MAJOR,MINOR,INFORMATIONAL} + addenda x2
 + matrix S69 rows + SUMMARY/README lane blocks + modules/{session,
 lost-partition,ntfs,query,orchestration} addenda + this entry.
+
+---
+
+## Session-80 S80 fix-lane — entry 1 (2026-10-29)
+
+**Open state:** core `04fb5e88` (RED — see below), corpus `be0cfe9`,
+board 32 active (2 S / 17 M / 12 N / 1 I) / 169 FIXED / 4 tracked-open.
+Prompt saved token-redacted at `worklog/session-diff-fix-s80-prompt.md`.
+
+**M-155 (filed + fixed):** main was RED at open — the `ed501caa` push
+committed unresolved merge conflict markers in `validate_x3f`
+(cr_analysers.cpp) and the M-107 finding file, claiming "suite 1570/1570"
+on a tree that cannot compile (the N-210 gate was not run before that
+push). Resolution decided corpus-first, all sites read this session:
+FUN_1800535b0 (FileX3FAnalyser) in full — the "SECd" forward scan,
+extent = SECd + 0x4C in ALL THREE found-branch shapes, loop-exit
+salvage of the walked prefix, format stamp 0x6c unconditional; the
+dual registration (:1780-1808, "FOVb" → Brance::X3FAnalyser with the
+FileX3FAnalyser at +0x10); the M-090 DMG precedent (FUN_180053de0) —
+the File*Analyser secondary is the size-walk authority. The S71
+implementation kept; its own coordinate bug fixed (absolute probe
+limit mixed with relative offsets — small-volume reads past the device
+end fell to the torn path; `rel_limit` introduced). The S78 count-walk
+trio replaced by corpus-true pins
+(X3fExtentIsSecdPlusFixedTail / X3fNoSectionDirectorySalvagesWalkedPrefix /
+X3fGarbageCountIsIrrelevantToExtent). Suite 1578/1578. Trail: M-155
+file + Resolution, matrix S80 row, modules/carve.md S80 addendum,
+SUMMARY lane block, this entry.

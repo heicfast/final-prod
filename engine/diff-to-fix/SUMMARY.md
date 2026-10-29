@@ -1,3 +1,29 @@
+# SUMMARY.md — executive summary (the S80 fix lane on top; the prior lanes below, newest-first)
+
+## Session-80 S80 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to severe first, one by one, 20+ fixes"; opened at core `04fb5e88` — RED at open, see M-155; corpus `be0cfe9` throughout])
+
+- **M-155 FIXED (MAJOR, NEW — filed+fixed this session)** — **main was
+  RED at open**: the `ed501caa` push (the S71 X3F landing) committed
+  unresolved merge conflict markers in `src/core/carve/cr_analysers.cpp`
+  (`validate_x3f`) and in the M-107 finding file, with a false
+  "suite 1570/1570" claim in the commit message (the tree cannot
+  compile; the N-210 gate was not run before that push). Resolved
+  corpus-first: FUN_1800535b0 (FileX3FAnalyser) re-read in full —
+  SECd + 0x4C in all three found-branches, loop-exit salvage, the count
+  never read; the M-090 DMG precedent establishes the File*Analyser
+  secondary as the size-walk authority (the S78 lane's
+  FUN_1800404a0 count-walk decode — the Brance streaming callback —
+  superseded). The S71 body's own coordinate bug fixed (the absolute
+  probe limit mixed with relative offsets: reads past the device end on
+  small volumes fell to the torn path even with SECd in range —
+  `Carve.X3fExtentIsSecdPlusFixedTail` RED against the ed501caa body).
+  The S78 test trio replaced by corpus-true pins. Suite **1578/1578**
+  at the repair; N-210 lint clean.
+
+**Board after this landing: 0 ACUTE · 2 SEVERE · 18 MAJOR · 11 MINOR ·
+1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same
+session; the +1 MAJOR is M-155 itself, closed on filing).
+
 # SUMMARY.md — executive summary (the S69 continuation audit lane on top; the prior lanes below, newest-first)
 
 ## Session-69 S69 lane delta (2026-10-29 — the NINTH continuation audit lane of the user's second-session mandate [remove-the-fixed + go-deeper + mark-all-remaining, focus: sector numbers / scanning / accurate detection / calculation / mathematics / no stuck or freeze / local database / state management]; the S68 seat conceded to the racing citation-census lane per SA-9 — this lane executed the S61 seat's never-landed plan, a disjoint slice; opened at core `3799dee2`, findings verified there and re-verified LIVE at the rebase head `271f5d06` after absorbing the S71..S79 fix windows [M-118/M-135/M-136/M-143/N-140/N-212/N-131/N-200/N-210/OQ-S52-1 landed by the racing lanes — zero of this lane's filings collided], corpus `be0cfe9` throughout)

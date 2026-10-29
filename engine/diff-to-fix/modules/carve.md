@@ -1086,13 +1086,15 @@ hardening is the D-14 family). Evidence:
 
 **New on this module:**
 
-- **M-107 X3F leg (S78 lane) — the section-directory walk landed**: the
-  X3F stand-in (the blind 64 MiB cap) is replaced by the og's walk
-  (FUN_1800404a0 + FUN_18003ffc0, first-hand this session): search the
-  window for "SECd", count at magic+8, extent = magic+16+count×12
-  clamped by the row max + device end; no directory = the og's decline.
-  3 tests RED→GREEN + the S-007 batch re-pin. The remaining ten
-  stand-in sites (CRW next) tracked in the finding's per-format record.
+- **M-107 X3F leg (S78 lane) — SUPERSEDED-BY-S71 for X3F (the M-155
+  resolution)**: this lane's count-walk decode read FUN_1800404a0, the
+  Brance::X3FAnalyser streaming chunk callback — the wrong authority.
+  The S71 lane's FileX3FAnalyser walk (FUN_1800535b0, the M-090 DMG
+  precedent's established size-walk authority of the dual registration)
+  is the corpus truth: SECd + 0x4C, count never read, no-directory =
+  the loop-exit salvage (not a decline). The S78 X3F tests were replaced
+  by corpus-true pins at the M-155 repair. The remaining ten stand-in
+  sites (CRW next) tracked in the finding's per-format record.
 
 - **N-212 — FIXED (S77 lane → MATCH)** — the ASF validator's acceptance
   band and extent source now match the decoded og family: tier-1 is the
@@ -1176,3 +1178,26 @@ Carve.X3fSectionDirectoryWalkCarvesTrueEnd (the 1 MiB true end on a
 100 MiB device — the stand-in carved 64 MiB) + Carve.X3fTornSalvages
 TheWalkedPrefix. Suite 1570/1570. The row: A25/A27 (X3F slice) MATCH;
 the finding stays active for the remaining ten members (CRW next).
+
+## S80 addendum — the M-155 red-main repair (2026-10-29)
+
+**The committed conflict markers resolved (corpus-first).** The ed501caa
+push landed the S71 X3F walk INSIDE unresolved merge conflict markers —
+main did not compile (GCC's conflict-marker diagnostic), the M-107
+finding file carried the same markers, and the push message claimed
+"suite 1570/1570" (impossible on a non-compiling tree; the N-210 gate
+would have caught it — not run). The resolution, decided against the
+corpus: FUN_1800535b0 (FileX3FAnalyser) re-read in full — SECd + 0x4C in
+all three found-branches, loop-exit salvage, format stamp unconditional
+— and the M-090 DMG precedent (the File*Analyser secondary is the
+size-walk authority). The S71 implementation stays, PLUS its own
+coordinate bug fixed: the committed walk mixed the absolute probe limit
+with relative offsets (reads past the device end on small volumes fell
+to the torn path even with SECd in range — the new
+X3fExtentIsSecdPlusFixedTail pin was RED against the ed501caa body and
+GREEN after the rel_limit repair). Tests: the S78 count-walk trio
+replaced by Carve.X3fExtentIsSecdPlusFixedTail /
+X3fNoSectionDirectorySalvagesWalkedPrefix /
+X3fGarbageCountIsIrrelevantToExtent; the S71 pair stands; suite
+1578/1578 at the repair commit. Filed as **M-155** (the M-120/N-210
+class recurrence — the finding carries the full evidence).

@@ -1,3 +1,11 @@
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S80 fix lane on top — the diff-to-fix execution per the user's 20+ mandate; the prior lanes below)
+
+**Session-80 S80 lane rows (2026-10-29 — every finding independently re-verified against corpus + code before fixing; opened at core `04fb5e88` [RED: the ed501caa push's committed conflict markers — repaired first as M-155], corpus `be0cfe9` throughout):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| carve · build integrity (the M-120/N-210 class recurrence) | **MATCH (repaired)** | **M-155 FIXED** — the ed501caa push committed unresolved `<<<<<<<`/`=======`/`>>>>>>>` markers in `validate_x3f` (cr_analysers.cpp) AND the M-107 finding file, with a false "suite 1570/1570" claim; resolved corpus-first: the S71 FileX3FAnalyser walk (FUN_1800535b0 — SECd + 0x4C in all three found-branches, loop-exit salvage; the M-090 DMG precedent's File*Analyser authority) kept, the S78 count-walk (FUN_1800404a0, the Brance streaming callback — wrong authority) superseded; the S71 body's own absolute/relative coordinate bug fixed (rel_limit) — the S78 trio replaced by corpus-true pins; suite 1578/1578; N-210 lint clean |
+
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S69 continuation audit lane on top — the local-database/scan-state/sector-math deep dives; the prior lanes below)**Session-69 S69 lane rows (2026-10-29 — the ninth continuation audit lane of the user's second-session mandate, executing the S61 seat's never-landed plan (a disjoint slice from the racing S68 citation-census lane per SA-9); opened at core `3799dee2` (the S68 lane's open record absorbed), findings verified at `3799dee2` and re-verified LIVE at the rebase head `271f5d06` (the S71..S79 fix windows absorbed: M-118/M-135/M-136/M-143/N-140/N-212/OQ-S52-1 landed; line cites refreshed), corpus `be0cfe9`):**
 
 | Parameter (module · surface) | Verdict | Evidence / finding |
