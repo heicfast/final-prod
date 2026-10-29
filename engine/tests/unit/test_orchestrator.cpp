@@ -3042,7 +3042,7 @@ TEST(Orchestrator, LostRootNamedFilePathLost) {
     EXPECT_FALSE(legacy) << "the legacy name must not be CREATED anymore";
     /* the resume recognition keeps both names (no duplicate root on an
      * old session) */
-    const std::string src = cr_test::read_repo_file("src/core/orchestrator/cr_scan.cpp");
+    const std::string src = cr_test::read_repo_text("src/core/orchestrator/cr_scan.cpp");
     ASSERT_FALSE(src.empty());
     EXPECT_NE(std::string::npos, src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
         << "the resume path must recognize BOTH names";
@@ -3312,7 +3312,7 @@ TEST(Orchestrator, LdmMemberResolversConstructThroughBuildReadPipe) {
      * recovery writer, and the session-side LDM arm all use. The raw
      * member handoff (`(*guid_map)[g] = dev.get()`) is the defect this
      * pin forbids. */
-    const auto cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const auto cli = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(cli.empty());
     EXPECT_NE(std::string::npos,
               cli.find("ldm_member_pipes.push_back(\n                            "
@@ -3320,7 +3320,7 @@ TEST(Orchestrator, LdmMemberResolversConstructThroughBuildReadPipe) {
         << "the CLI LDM member resolver must wrap members through build_read_pipe";
     EXPECT_EQ(std::string::npos, cli.find("(*guid_map)[g] = dev.get();"))
         << "the raw member handoff must not return (M-148)";
-    const auto ui = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    const auto ui = cr_test::read_repo_text("src/ui/cr_ui.cpp");
     ASSERT_FALSE(ui.empty());
     EXPECT_NE(std::string::npos,
               ui.find("s->ldm_member_pipes.push_back(\n                "

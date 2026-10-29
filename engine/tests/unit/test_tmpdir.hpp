@@ -12,6 +12,7 @@
 #ifndef CR_TEST_TMPDIR_HPP_
 #define CR_TEST_TMPDIR_HPP_
 
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
@@ -59,6 +60,22 @@ inline std::string read_repo_file(const char* relpath) {
     std::ostringstream ss;
     ss << in.rdbuf();
     return ss.str();
+}
+
+/* N-235: the source-truth pins' reader - read_repo_file is byte-exact
+ * (binary fixtures ride it: junk-gate-fat16.raw carries a natural 0x0D
+ * byte; a CR strip there corrupts the image - first-hand at the v0.6.0
+ * close). The PINS match LF patterns, and the Windows runner's git
+ * checkout (autocrlf) materializes CRLF - so the pin sites read through
+ * THIS helper, which normalizes CRLF -> LF. An LF checkout has no CRs:
+ * byte-identical for it. First observed at the v0.6.0 release
+ * validation: M-148's pin (test_orchestrator.cpp:3319) never ran on
+ * Windows before (every post-v0.5.2 checks run died before ctest); the
+ * binary read saw \r\n and the \n pattern failed. */
+inline std::string read_repo_text(const char* relpath) {
+    std::string raw = read_repo_file(relpath);
+    raw.erase(std::remove(raw.begin(), raw.end(), '\r'), raw.end());
+    return raw;
 }
 
 } // namespace cr_test

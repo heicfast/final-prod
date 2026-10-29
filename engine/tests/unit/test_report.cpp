@@ -847,12 +847,12 @@ TEST(Writer, RecoveryEntryPointsConstructThroughBuildReadPipe) {
      * recovery_open) build the writer's source through the scan's own
      * seam with the scan's constants - grep pin, the M-058/test_cached
      * precedent for construction-site proofs */
-    const auto cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const auto cli = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(cli.empty());
     EXPECT_NE(std::string::npos,
               cli.find("build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024)"))
         << "the CLI recover verb must construct the writer's source through build_read_pipe";
-    const auto abi = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    const auto abi = cr_test::read_repo_text("src/ui/cr_ui.cpp");
     ASSERT_FALSE(abi.empty());
     EXPECT_NE(std::string::npos, abi.find("build_read_pipe(src, 8ull << 20, 256 * 1024)"))
         << "the ABI recovery_open must construct the writer's source through build_read_pipe";

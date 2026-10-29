@@ -1583,7 +1583,7 @@ TEST(CrUi, EnumerationRefreshContractPinned) {
      * the implementation must keep constructing a local list per call (a
      * future cache MUST come with a contract update - which this test
      * then fails loudly). */
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     const size_t at = hdr.find("cr_ui_enumerate_disks");
     ASSERT_NE(std::string::npos, at);
@@ -1594,7 +1594,7 @@ TEST(CrUi, EnumerationRefreshContractPinned) {
         << "the enumeration contract must deny caching explicitly";
     /* the implementation: a LOCAL PhysicalDiskList per invocation, no
      * static or member state in the enumerate path */
-    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    const std::string src = cr_test::read_repo_text("src/ui/cr_ui.cpp");
     ASSERT_FALSE(src.empty());
     const size_t impl = src.find("u32 enumerate_disks_impl(");
     ASSERT_NE(std::string::npos, impl);
@@ -1606,7 +1606,7 @@ TEST(CrUi, EnumerationRefreshContractPinned) {
     EXPECT_EQ(std::string::npos, body.find("static"))
         << "no static state may appear inside enumerate_disks_impl";
     /* the C++-only refresh IOCTL stays documented, not exported */
-    const std::string gap = cr_test::read_repo_file("docs/REFERENCE-API-GAP.md");
+    const std::string gap = cr_test::read_repo_text("docs/REFERENCE-API-GAP.md");
     ASSERT_FALSE(gap.empty());
     EXPECT_NE(std::string::npos, gap.find("calling again IS the refresh"))
         << "R-86's row must carry the pull-model equivalence statement";
@@ -1643,7 +1643,7 @@ TEST(CrUi, SessionListCliAndAbiOrderAgree) {
      * exe is Windows-only, so this pins the verb's source: the rows
      * re-sort by the ABI's time key after the path-sorted enumeration
      * (the enumeration sort stays - it is the deterministic input). */
-    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string src = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(src.empty());
     const size_t verb = src.find("int print_sessions(");
     ASSERT_NE(std::string::npos, verb);
@@ -2955,7 +2955,7 @@ TEST(CrUi, EventThreadContractPinned) {
      *      thread - deterministic; parallel scans tolerate (and in
      *      practice observe) worker-thread delivery - the callback
      *      records it without any host-side marshaling requirement. */
-    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    const std::string doc = cr_test::read_repo_text("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
     EXPECT_NE(doc.find("Fired on engine worker threads, the thread running `run()`, or the"),
               std::string::npos)
@@ -2963,7 +2963,7 @@ TEST(CrUi, EventThreadContractPinned) {
            "heartbeat watchdog is the third delivery thread)";
     EXPECT_EQ(doc.find("Fired on the thread running `run()` only"), std::string::npos)
         << "the false run()-thread-only claim must never return";
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(hdr.find("events may fire from ENGINE WORKER"), std::string::npos)
         << "the header contract block must keep the worker-thread truth";
@@ -3052,13 +3052,13 @@ TEST(CrUi, AbiVersionAnnotationsAreTruthful) {
      * macro read 1 until the deliberate v2 feature-batch bump, M-036).
      * Appended fields are labeled with their landing (change id + era)
      * per ABI-CONTRACT section 9. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_EQ(hdr.find("ABI-since 1.1"), std::string::npos)
         << "no v1.1 marker ever shipped - the label must not return";
     EXPECT_EQ(hdr.find("ABI-since 1.2"), std::string::npos)
         << "no v1.2 marker ever shipped - the label must not return";
-    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    const std::string doc = cr_test::read_repo_text("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
     EXPECT_NE(doc.find("no v1.1 or v1.2"), std::string::npos)
         << "section 9 must keep the truthful sub-version history";
@@ -3989,7 +3989,7 @@ TEST(CrUi, AbiHeaderNamesNoPhantomErrorMacros) {
      * query_apply_buckets comment - a macro that never existed (the
      * implementation returns ERR_BAD_PARAMETER, 0x50030003). No
      * phantom identifier may return to the header. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_EQ(hdr.find("CR_UI_ERR_INVALID_PARAM"), std::string::npos)
         << "the header must not name a macro that does not exist";
@@ -3999,7 +3999,7 @@ TEST(CrUi, TransportDocCarriesNoDirectValue) {
     /* api-fix: the cr_ui_device_transport comment once listed "direct"
      * as a third value - unreachable since PLAN-DRIVER-ONLY (the code
      * only ever sets "rda"/"image"). The stale value must not return. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     const size_t at = hdr.find("cr_ui_device_transport");
     ASSERT_NE(at, std::string::npos);
@@ -4015,7 +4015,7 @@ TEST(CrUi, AbiContractCarriesDriverEraTruth) {
      * the event block (section 6) must carry CR_EVT_FS_CHECK (type 10)
      * with the M-041 struct tail. The section 7e rewrite must not
      * resurrect the removed RDA->direct fallback story. */
-    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    const std::string doc = cr_test::read_repo_text("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
     EXPECT_NE(doc.find("ERR_DRIVER_ABSENT"), std::string::npos)
         << "section 4 must list the driver-prerequisite refusal family";
@@ -4072,7 +4072,7 @@ TEST(CrUi, BenchVerifyDriverIoctlCodesMatchContract) {
      * never reach the real handlers, so a bench carrying them verifies
      * nothing while reporting GET_INFO/GET_VERSION "rejected". The
      * fail-before state: both bench calls carried the extra zero digit. */
-    const std::string txt = cr_test::read_repo_file("bench/ours/verify-driver.ps1");
+    const std::string txt = cr_test::read_repo_text("bench/ours/verify-driver.ps1");
     ASSERT_FALSE(txt.empty()) << "bench/ours/verify-driver.ps1 unreadable";
     EXPECT_EQ(txt.find("0x60002440"), std::string::npos)
         << "phantom-zero GET_INFO literal in the bench (the contract code is 0x6002440)";
@@ -4092,19 +4092,19 @@ TEST(CrUi, OutOfScopeRowsCarryTruthfulRegistrations) {
      * pre-fix drift was exactly this: the citation pointed at a §3
      * that did not list the row. The registration + the D-137 delta
      * must both exist and name the line. */
-    const std::string inv = cr_test::read_repo_file("diff-to-fix/SURFACE-INVENTORY.md");
+    const std::string inv = cr_test::read_repo_text("diff-to-fix/SURFACE-INVENTORY.md");
     ASSERT_FALSE(inv.empty());
     /* the row itself must cite the REGISTERED state, not the audited-drift state */
     EXPECT_NE(inv.find("REGISTERED OUT OF SCOPE (S-050 disposition"), std::string::npos)
         << "the file-repair row cites the formal registration";
-    const std::string cap = cr_test::read_repo_file("docs/CAPABILITY-MATRIX.md");
+    const std::string cap = cr_test::read_repo_text("docs/CAPABILITY-MATRIX.md");
     ASSERT_FALSE(cap.empty());
     EXPECT_NE(cap.find("The file-repair product line (S-050's formal disposition"),
               std::string::npos)
         << "CAPABILITY-MATRIX §3 carries the exclusion row";
     EXPECT_NE(cap.find("Fixo"), std::string::npos)
         << "the exclusion row carries the provenance rationale";
-    const std::string deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    const std::string deltas = cr_test::read_repo_text("docs/PARITY-DELTAS.md");
     ASSERT_FALSE(deltas.empty());
     EXPECT_NE(deltas.find("D-137"), std::string::npos)
         << "the scope-exclusion delta with the future implementer's entry points";
@@ -4118,7 +4118,7 @@ TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
      * verb the dispatch accepts must appear in the usage block AND in
      * the header's verb table (the lock's fourth site, so the
      * three-site verb lock cannot drift again). */
-    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string src = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(src.empty());
 
     /* the dispatched set: every `if (cmd == L"<verb>")` after wmain */
@@ -4542,7 +4542,7 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
  * in test_session). The fill site, the --label override, the letter
  * capture, and the truthed config comment must all stay shipped. */
 TEST(CrUi, CliScanFillsAutoSaveVolumeLabel) {
-    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string rrecov = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(rrecov.empty());
     /* the fill site exists and rides the identity-card fill */
     EXPECT_NE(rrecov.find("fill_volume_label(target, cfg)"), std::string::npos)
@@ -4559,7 +4559,7 @@ TEST(CrUi, CliScanFillsAutoSaveVolumeLabel) {
     /* the config comment is truthful (the session-10 addendum's step 0:
      * the false 'the CLI/win layer reads it from the volume entry' claim
      * without the wiring - now the wiring exists, the comment names it) */
-    const std::string scan_h = cr_test::read_repo_file("include/cr/orchestrator/cr_scan.h");
+    const std::string scan_h = cr_test::read_repo_text("include/cr/orchestrator/cr_scan.h");
     ASSERT_FALSE(scan_h.empty());
     EXPECT_NE(scan_h.find("The CLI fills it at scan setup"), std::string::npos)
         << "the volume_label comment must describe the real wiring";
@@ -4598,7 +4598,7 @@ TEST(CrUi, ThumbnailHeaderMatchesContract) {
      * must equal ABI-CONTRACT 7i's - the "never returned" denial of the
      * DecodeFailed->ERR_TRUNCATED mapping is gone, the refusal mapping
      * is stated, and the caps note records the no-off-position design. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     const size_t gen = hdr.find("cr_ui_thumbnail_generate");
     ASSERT_NE(gen, std::string::npos);
@@ -4629,7 +4629,7 @@ TEST(DestArming, ProductionWiringCallsSpansApi) {
      * writer every span of the destination volume (the 1ebd1bcc class).
      * Source-level pin: the arming seam is Windows-gated (the live-path
      * assertion runs on the Windows lane; this pin guards both). */
-    const std::string cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string cli = cr_test::read_repo_text("src/app/rrecov.cpp");
     EXPECT_NE(std::string::npos, cli.find("destination_volume_letter"))
         << "the CLI recover path must resolve ANY resolvable destination "
            "path (the drive-letter gate misses junction/relative/UNC)";
@@ -4638,7 +4638,7 @@ TEST(DestArming, ProductionWiringCallsSpansApi) {
     EXPECT_NE(std::string::npos, cli.find("set_destination_spans"))
         << "the CLI recover path must arm the writer with every span";
 
-    const std::string ui = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    const std::string ui = cr_test::read_repo_text("src/ui/cr_ui.cpp");
     EXPECT_NE(std::string::npos, ui.find("destination_volume_letter"))
         << "the cr_ui destination path must resolve any resolvable path";
     EXPECT_NE(std::string::npos, ui.find("volume_extents"))
@@ -4652,7 +4652,7 @@ TEST(DestArming, HeaderContractStillClaimsAllSpans) {
      * ("destination arming must use volume_extents() (all spans)") must
      * stay in the header the integrators read - removing the contract
      * text to match broken code would be the N-135 doc-truth class. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_transport.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/win/cr_transport.h");
     EXPECT_NE(std::string::npos,
               hdr.find("destination arming must use volume_extents() (all spans)"));
 }
@@ -4977,7 +4977,7 @@ TEST(CrUi, CliResumeSinkNeverTruncatesTheSessionSource) {
      *     is gone;
      * The end-to-end round-trip (scan --out F; scan --resume F; tree
      * survives) rides the Windows CI junk-gate step (3b). */
-    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string src = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(src.empty());
 
     /* the atomic sink exists and is wired with ALL FOUR callbacks */
@@ -5083,7 +5083,7 @@ TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
      * extent is not expressible here, so the pin is the engine truth
      * already covered by the UnreadableSpan tests plus this ABI-level
      * guard: the promotion ONLY fires on read_ok, never on rc alone. */
-    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    const std::string src = cr_test::read_repo_text("src/ui/cr_ui.cpp");
     ASSERT_FALSE(src.empty());
     EXPECT_NE(src.find("if (thumb.read_ok && node->grade() != tree::Grade::High)"),
               std::string::npos)
@@ -5153,7 +5153,7 @@ TEST(CrUi, PauseStdinReaderMapsKeysOntoTheToken) {
      * SPACE pauses, 'r' or Enter resumes, Ctrl-C stays cancel, and the
      * reader terminates on the token's cancel (never a blocking read:
      * the process can always exit). */
-    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string src = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(src.empty());
     const size_t reader = src.find("DWORD WINAPI pause_stdin_reader(");
     ASSERT_NE(std::string::npos, reader) << "the pause reader must exist";
@@ -5416,7 +5416,7 @@ TEST(CrUi, SessionResumeLastLoadsPointedAutoAndRefusesTampered) {
  * established source-truth way (M-079/N-074/N-071 pattern); the create
  * flow itself is Windows-lane behavior (driver class (a)). */
 TEST(CrUi, CliImageCreateFlagParses) {
-    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string rrecov = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(rrecov.empty());
     /* the parser accepts the documented mode selector as a valueless flag */
     EXPECT_NE(rrecov.find("has_flag(argc, argv, i, L\"--create\")"), std::string::npos)
@@ -5439,7 +5439,7 @@ TEST(CrUi, CliImageCreateFlagParses) {
  * cancel-resume message at :1921). A hint that names a nonexistent
  * command is the user-facing wiring class this session hunts. */
 TEST(CrUi, CliDisconnectHintNamesRealVerb) {
-    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string rrecov = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(rrecov.empty());
     EXPECT_NE(rrecov.find("rrecov scan --resume %ls"), std::string::npos)
         << "the exit-5 disconnect hint must name the real resume form "
@@ -5455,7 +5455,7 @@ TEST(CrUi, CliDisconnectHintNamesRealVerb) {
  * every flag cmd_scan's parse loop accepts must appear in the -h usage
  * block. */
 TEST(CrUi, CliHelpListsEveryScanFlag) {
-    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    const std::string src = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(src.empty());
 
     /* the scan parse loop: from cmd_scan's opening to the refusal line */

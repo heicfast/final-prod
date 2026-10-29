@@ -1021,11 +1021,11 @@ TEST(Grading, RawCountSemanticsRegistered) {
      * carrying the og-parity population.
      * The pin: the register row + the header's mapping comment exist and
      * name the divergence. */
-    const std::string deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    const std::string deltas = cr_test::read_repo_text("docs/PARITY-DELTAS.md");
     ASSERT_FALSE(deltas.empty());
     EXPECT_NE(deltas.find("### D-146"), std::string::npos)
         << "the raw_count semantics divergence must carry its D-row";
-    const std::string hdr = cr_test::read_repo_file("include/cr/tree/cr_grading.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/tree/cr_grading.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(hdr.find("raw_count semantics (N-205"), std::string::npos)
         << "the header's counter-mapping block must state the registered divergence";

@@ -284,7 +284,7 @@ TEST(Storage, ParityDeltasListsNasExclusion) {
      * drifts: the D-88 row or the cr_device.h divergence block. Reopening
      * the row (a corpus decode of the EuMrx scan's deleted-file yield)
      * must update both in one commit. */
-    const auto deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    const auto deltas = cr_test::read_repo_text("docs/PARITY-DELTAS.md");
     ASSERT_FALSE(deltas.empty());
     EXPECT_NE(std::string::npos, deltas.find("D-88"))
         << "PARITY-DELTAS must keep the NAS-scope-exclusion row";
@@ -295,7 +295,7 @@ TEST(Storage, ParityDeltasListsNasExclusion) {
     EXPECT_NE(std::string::npos, deltas.find("EuMrx"))
         << "D-88 must cite the redirector (the M-034 evidence)";
 
-    const auto hdr = cr_test::read_repo_file("include/cr/storage/cr_device.h");
+    const auto hdr = cr_test::read_repo_text("include/cr/storage/cr_device.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(std::string::npos, hdr.find("REGISTERED DIVERGENCE (M-034, PARITY-DELTAS D-88)"))
         << "cr_device.h must carry the M-034 divergence block";

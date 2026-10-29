@@ -118,7 +118,7 @@ TEST(Cached, ScanCacheBudgetIsTheRegisteredDivergence) {
      *   3. the divergence block in cr_cached.h.
      * Changing the budget is allowed - as a benchmark-gated tuning
      * decision that updates all three (and this test) in one commit. */
-    const auto scan_src = cr_test::read_repo_file("src/core/orchestrator/cr_scan.cpp");
+    const auto scan_src = cr_test::read_repo_text("src/core/orchestrator/cr_scan.cpp");
     ASSERT_FALSE(scan_src.empty());
     /* M-058 moved the construction into build_read_pipe(); the budget
      * constants live at run()'s call site now - the pin follows the
@@ -128,7 +128,7 @@ TEST(Cached, ScanCacheBudgetIsTheRegisteredDivergence) {
     EXPECT_NE(std::string::npos, scan_src.find("PARITY-DELTAS D-72"))
         << "the cr_scan.cpp cache comment must cite the register row";
 
-    const auto deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    const auto deltas = cr_test::read_repo_text("docs/PARITY-DELTAS.md");
     ASSERT_FALSE(deltas.empty());
     EXPECT_NE(std::string::npos, deltas.find("D-72"))
         << "PARITY-DELTAS must keep the D-72 cache-budget row";
@@ -137,7 +137,7 @@ TEST(Cached, ScanCacheBudgetIsTheRegisteredDivergence) {
     EXPECT_NE(std::string::npos, deltas.find("8ull << 20"))
         << "D-72 must name the exact core constant it registers";
 
-    const auto hdr = cr_test::read_repo_file("include/cr/storage/cr_cached.h");
+    const auto hdr = cr_test::read_repo_text("include/cr/storage/cr_cached.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(std::string::npos, hdr.find("REGISTERED DIVERGENCE (N-045, PARITY-DELTAS D-72)"))
         << "cr_cached.h must carry the N-045 divergence block";

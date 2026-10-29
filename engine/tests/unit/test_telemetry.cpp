@@ -458,9 +458,24 @@ TEST(Telemetry, CountersMoveDuringStage) {
     }
     ASSERT_TRUE(hit);
     /* settle: the carve stage reaches the far park region after the
-     * early JPEGs carved (the windows scan in order) */
-    for (int i = 0; i < 500; ++i)
+     * early JPEGs carved (the windows scan in order). N-235: the settle
+     * is a CONDITION-WAIT, not a fixed sleep - the sampler's cadence
+     * (~2 s) vs. the runner's load raced the fixed 1 s window at the
+     * v0.6.0 release validation (the first Windows execution of this
+     * battery: every post-v0.5.2 checks run died before ctest); the
+     * park guarantees the scan STAYS mid-stage, so waiting for a
+     * carved-carrying sample tests the SAME property (the attach-time
+     * delta reaches mid-stage progress) without the cadence race. The
+     * read discipline is the observer's own (monotone fields only). */
+    for (int i = 0; i < 7500; ++i) {
+        bool delta_seen = false;
+        for (const auto& e : evts)
+            if (e.type == event::Type::ScanProgress && e.carved_found >= 1)
+                delta_seen = true;
+        if (delta_seen)
+            break;
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
     ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
 
     /* the last ScanProgress sample carries the carved delta */
