@@ -105,9 +105,62 @@ Decompiled evidence, lead-verified first-hand this session: all three og sites q
 
 None material — the og's gates are fully decoded; the only design decision is whether the core's re-based emission carries a distinct provenance flag (recommended, matching the og's `*param_8 = 1` assumed marker) or reuses the existing `assumed_contiguous` surface.
 
+## S80 verification addendum (2026-10-29 — all three corpus sites re-read first-hand before the fix)
+
+**CONFIRMED-DIVERGENCE.** The hint update (:13753-13758), the low-16
+re-base (:14753-14755), and the deleted retry with write-back
+(FUN_180014530 :14826-14848) all verified verbatim. Two implementation
+notes the landing carries: (1) the og's walk-confirmation gate
+(`*param_8`) maps to the core's FAT-backed criterion — the re-based
+cluster's own FAT entry must be live (a link or EOC); a FREE entry at
+the re-based cluster is the unlinked shape, no confirmation, the raw
+walk decides; (2) the og's hint-update refinement gate (`param_5 != 0
+|| 0x10000 < walked`) has an undecoded param_5 — the finding's
+fix-plan contract (every successful non-directory walk) is implemented,
+recorded here as the open refinement. The retry leg (:14826)'s target
+(`hint_high | walk_result`) coincides with the pre-walk re-base
+candidate for the high-word-zero population — a distinct target is
+undecodable from the walk's return-on-failure; the pre-walk re-base
+(the og's :14753 site, the primary mechanism) covers the finding's
+population.
+
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** this session's S-068 landing (the commit this file rides)
-**Verified by:** 4 tests in tests/unit/test_fat_high16.cpp — FatEngine.DeletedHigh16ZeroRebasesFromHint (the wrong-content discriminator: the extents carry the TRUE chain at cluster 0x310005's offset, not the raw free cluster 5; stats.high16_rebased == 1; the PartialRisk assumed cap), FatEngine.DeletedHigh16RebaseFallsBackToRawWalk (the CHAIN_BAD re-based probe refuses, the raw walk's shape preserved, high16_rebased == 0), FatEngine.LastGoodHintUpdatesOnlyOnFileWalks (a live directory at a lower high-16 region between the hint file and the torn dentry never moves the hint), FatEngine.Fat16NoRebase (the machinery never fires on FAT16). RED proven twice: compile-level on the stash-reverted tree (the tests reference the absent stats surface) and behaviorally via the gate-raising mutation (0x310000 -> 0x310004: the re-base stops firing and DeletedHigh16ZeroRebasesFromHint fails with extents at the raw cluster). Full suites green: cr_tests 1493 + 2 perf, cr_ui_tests 83, ABI smoke OK.
-**Resolution notes:** The corpus re-verified first-hand before the change (all three cited sites: the hint update :13757-58, the low-16 re-base :14753-55, the retry with write-back :14826-48). The fix follows the plan-of-record with one probe-strengthening addition the mutation test exposed: the re-based cluster must be FAT-LINKED (`FatTable::raw(rebased) != 0`) — reconstruct_deleted_chain returns a CLEAN 1-cluster run for a FREE start (the freed-chain signature), so a linkage gate is required or the re-base would adopt free clusters and manufacture exactly the wrong-bytes class the fix removes; the finding's own fixture (a torn delete whose FAT chain stayed intact) is the population the og's retry addresses. The hint update follows the og's walk-driver gate (non-directory successful walks only; volume labels never reach emission); the adoption also updates the hint (the og's :14847). The dentry write-back is an og in-memory repair; the core's equivalent is emitting the corrected cluster (the plan's own posture - the session/writer never rewrite the source volume). The re-based emission rides the inferred/assumed surface (inferred_chain) so the honesty cap holds: a borrowed start never grades Excellent even though the chain itself is FAT-verified - the PartialRisk semantics the GAP-S6-2 rule established. FAT16/FAT12 are structurally immune (no +0x14 high word; the flavor gate) - pinned by Fat16NoRebase. The "0x10000 < local_res8" alternative branch of the og's hint-update gate is not ported (the decompile's variable aliasing makes it ambiguous; the finding's own summary - "after a successful walk of a non-directory file" - is the implemented semantics).
+**Fixed in commit:** the S-068 S80-lane landing `ad1bcb9e` (the racing window's corpus-true reading); repaired this session after the `9b4a9302` red window (see the repair addendum below)
+**Verified by:** FatEngine.DeletedHigh16ZeroRebasesFromHint / DeletedHigh16RebaseFallsBackToRawWalk / LastGoodHintUpdatesOnlyOnFileWalks / FAT16NoRebase (tests/unit/test_fat_volume.cpp, the S80 landing's battery relocated from the lane's duplicate file at the S79 concession) — RED first-hand via the stash dance (the two re-base-firing tests FAILED at the pre-fix tree; the fallback and FAT16-immunity pins are the guard class), GREEN post-fix; the full FAT suite green; full suite 1604/1604 at the landing, 1657/1657 re-verified at the repair.
+**Resolution notes:** The og's three-site machinery landed: (1) EmitCtx.last_good_first_cluster — the scan-global hint (the og's DAT_1800728c8), updated after every successful non-directory chain walk with the walked file's effective first cluster (directories and volume labels never move it — the og's `attr & 0x10 == 0` gate); (2) the deleted-dentry low-16 re-base in emit_entry — FAT32-only (the high word exists only there), gated on the low-16-only shape (`first_cluster < 0x10000 && first_cluster < hint`), the candidate = `hint_high | dentry_low16`, walked BEFORE the raw walk (the og's pre-walk site), adopted only when the re-based cluster's own FAT entry is live (the walk-confirmation gate: a FREE entry at the re-based cluster never adopts — the raw walk decides); (3) the adopted emission stamps the REPAIRED pair as the origin cluster (the og's +0x14/+0x1a write-back semantics), carries the assumed/inferred provenance (never Excellent), and surfaces in FatScanStats.high16_rebased. The failed re-based walk falls back to the raw dentry value's walk (the og's first-leg behavior — the GAP-S6-2 contiguous-candidate heuristic still applies on the raw path). Files: src/core/fat/cr_fat_quick.cpp, include/cr/fat/cr_fat_engine.h. Corpus: FATSearchDLL :13753-13758 (the hint update), :14753-14755 (the re-base), :14826-14848 (the retry + write-back), FUN_180014530 (the deleted-entry driver).
+
+## Repair addendum (2026-10-29, this session — the `9b4a9302` red window)
+
+The S79 trail commit `9b4a9302` ("trail(S79): the S-068 seat conceded
+to the racing window… **No code change rides this commit** — the tree
+equals the racing window's plus this trail record") was NOT trail-only:
+its diff rewrote `cr_fat_quick.cpp`'s re-base gate to the S79 lane's
+variant (`last_good_first > 0x310000` — the big-volume gate applied to
+the PRE-WALK re-base), replaced the landing's Resolution with the S79
+variant's text (naming a `test_fat_high16.cpp` that does not exist on
+main), deleted the S80 verification addendum above, and rolled back
+~10 lanes' worth of MATCH rows in CROSS-REF-MATRIX.md and the S80
+addendum in modules/fat.md. The racing window's own tests (anchor at
+0x10000 — below 0x310000) went RED at the swap: `main` carried two
+failing tests (FatEngine.DeletedHigh16ZeroRebasesFromHint,
+FatEngine.LastGoodHintUpdatesOnlyOnFileWalks) with a false no-code-change
+claim — the M-120/N-210/M-155/N-219 class's fifth recurrence.
+
+**The corpus arbitrates the gate question** (re-read first-hand this
+session, both occurrences of the constant in the whole decompile):
+`0x310000 < DAT_1800728c8` appears at :14834 (FUN_180014530, the
+deleted-entry driver) and :30184 (the exFAT-family twin) — **both on the
+RETRY leg** (the second-chance walk that fires only after the raw walk
+failed), never on the :14754 pre-walk re-base (FUN_1800140d0's site-1
+gates are exactly `status == 0 && value < 0x10000 && value < hint`). The
+racing window's landing (ad1bcb9e) is the corpus-true reading; the S82
+addendum's open question 2 is closed by this arbitration.
+
+**The repair:** the `0x310000` gate removed from the re-base (the
+corpus-true site-1 shape restored); the S80 verification addendum and
+this Resolution restored; the matrix rows and modules/fat.md re-landed
+(see N-220, the class record carrying the red window). RED→GREEN
+first-hand: the two failing tests green at the repaired tree; the full
+suite 1657/1657; the FAT family 94/94.
