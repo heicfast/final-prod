@@ -469,3 +469,25 @@ resume). Verified-MATCH this lane: the auto-session naming (N-061 byte-parity
 against all three shipped samples), the trigger gates incl. the stop window
 (S-044/S-057), the name sanitizer (D-110 superset). Evidence:
 `evidence/s69-lane-sheets/S69-A-localdb.md` §B.6.
+
+## S80 addendum — M-150 FIXED: the count pre-allocation bomb gate (2026-10-29)
+
+**The load-path memory spike closed.** deserialize_tree's count field
+is now bounded by the wire length: each node consumes ≥ 10 wire bytes
+by the grammar (parent 4 + nflags 2 + marker 1 + origin 1 + deleted 1 +
+confidence 1), so a count beyond (len-4)/10 is refused instantly with
+ERR_SESSION_FORMAT — the container's resync layer recovers as it does
+for other record-level corruption. The old code value-initialized
+by_id(count) straight from the hostile u32 (up to 34.4 GB of touched
+pages at the u32 max: minutes of pagefile thrash on Windows before
+bad_alloc, an uncatchable OOM-kill on Linux overcommit). The og's
+record-4 reader allocates node-by-node through per-FS factories
+(rsf-record4--tree-node-grammar.md:16,26) — its allocation bounded by
+the bytes actually present; the gate restores that bound at the count
+field. Tests: Session.HostileCountBombRefused (count = 0xF4240000 over
+3 real nodes — RED first-hand: the pre-fix allocation threw) /
+CountAtWireBoundFailsCleanlyBeyondIt (the exact bound passes the gate
+and fails cleanly at the truncated tail; one beyond it: instant
+refusal) / TornTailGarbageCountStillFailsCleanly (the M-131-class
+producer: garbage count over real bytes, process survives). Session
+suite 29/29; full suite 1627/1627.

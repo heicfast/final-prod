@@ -64,3 +64,12 @@ Core-side verified first-hand at `3799dee2`: the `g32()` read with no cap (`:349
 ## Open questions
 
 None — the arithmetic and both reader shapes are directly established; the only choice is the gate vs lazy-growth form (the gate is the smaller change and matches the container's existing fail-and-resync discipline).
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** the M-150 S80-lane commit (this session; SHA in the commit footer)
+**Verified by:** Session.HostileCountBombRefused / Session.CountAtWireBoundFailsCleanlyBeyondIt / Session.TornTailGarbageCountStillFailsCleanly — RED first-hand via the stash dance (HostileCountBombRefused + TornTailGarbageCountStillFailsCleanly FAILED at the pre-fix tree: the count-scaled value-initialization threw before any node parse), GREEN post-fix; the full Session suite 29/29 (the truncated-tail and hostile-name guards stay green); full suite 1627/1627.
+**Resolution notes:** The wire-length bound landed (the fix plan's option 1, defense-in-depth per option 2 deemed unnecessary — the gate is exact): each node consumes ≥ 10 wire bytes by the grammar (parent 4 + nflags 2 + marker 1 + origin 1 + deleted 1 + confidence 1), so a count beyond (len-4)/10 cannot fit the record and is refused instantly with ERR_SESSION_FORMAT (0x50040001 — the corrupt-count class shares the truncated-count failure's semantic; the container's resync layer recovers as it does for other record-level corruption). The og's per-node factory reader shape (rsf-record4--tree-node-grammar.md:16,26 — allocation tracks the bytes actually parsed) is restored at the count field: no count-scaled allocation ever happens on the load path. Files: src/core/session/cr_records.cpp (the gate before by_id), tests/unit/test_session.cpp.

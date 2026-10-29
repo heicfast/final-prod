@@ -1971,3 +1971,79 @@ TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
     EXPECT_EQ(0, int(q2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the clean node never gains the bit";
 }
+
+/* ---- M-150: the count pre-allocation bomb gate ------------------------
+ * Each node consumes at least 10 wire bytes (parent 4 + nflags 2 +
+ * marker 1 + origin 1 + deleted 1 + confidence 1), so a count beyond
+ * (len-4)/10 cannot fit the record. The old code value-initialized
+ * by_id(count) straight from the hostile u32 - up to 34.4 GB of touched
+ * pages at the u32 max (minutes of pagefile thrash on Windows, an
+ * uncatchable OOM-kill on Linux overcommit) before any node parse. The
+ * og's record-4 reader allocates node-by-node through per-FS factories
+ * - bounded by the bytes actually present. */
+
+TEST(Session, HostileCountBombRefused) {
+    /* count = 0xF4240000 (~4.06e9) with 3 real nodes' bytes behind it:
+     * the wire bound for a ~230-byte blob is ~22 nodes - the gate fires
+     * instantly with the format error, no allocation spike. Pre-fix the
+     * vector value-initialized ~32 GB. */
+    WireNode a, b, c;
+    a.name = u"one.txt";
+    b.name = u"two.txt";
+    c.name = u"three.txt";
+    std::vector<u8> blob = blob_of_nodes({a, b, c});
+    ASSERT_GT(blob.size(), 40u);
+    /* patch the count field (the first 4 bytes) to the bomb */
+    const u32 bomb = 0xF4240000u;
+    for (int i = 0; i < 4; ++i)
+        blob[size_t(i)] = u8(bomb >> (8 * i));
+    tree::ResultTree t;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t), u32(0x50040001))
+        << "the wire-impossible count is refused before any allocation";
+}
+
+TEST(Session, CountAtWireBoundFailsCleanlyBeyondIt) {
+    /* the boundary: count == (len-4)/10 passes the gate (the parse then
+     * fails cleanly at the truncated tail - the count-lies class);
+     * count == (len-4)/10 + 1 is refused instantly. Both fail cleanly,
+     * the process survives - the M-131-class torn-write producer. */
+    WireNode w;
+    w.name = u"node.txt";
+    std::vector<u8> blob = blob_of_nodes({w});
+    const size_t len = blob.size();
+    const u32 at_bound = u32((len - 4) / 10);
+    ASSERT_GT(at_bound, 1u); /* a real node stream carries slack over the 10B floor */
+    {
+        std::vector<u8> b = blob;
+        for (int i = 0; i < 4; ++i)
+            b[size_t(i)] = u8(at_bound >> (8 * i));
+        tree::ResultTree t;
+        /* the gate passes; the parse reads 1 node then hits the honest
+         * truncated-tail failure (count lies about more nodes) */
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    {
+        std::vector<u8> b = blob;
+        const u32 beyond = at_bound + 1;
+        for (int i = 0; i < 4; ++i)
+            b[size_t(i)] = u8(beyond >> (8 * i));
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001))
+            << "one node beyond the wire bound: instant refusal";
+    }
+}
+
+TEST(Session, TornTailGarbageCountStillFailsCleanly) {
+    /* the M-131-class producer: a torn write lands a garbage count over
+     * real node bytes (the write-side repair's read-side complement).
+     * The load fails with the record-level format error and the process
+     * survives - never a count-scaled zero-fill. */
+    WireNode w;
+    w.name = u"survivor.txt";
+    std::vector<u8> blob = blob_of_nodes({w});
+    const u32 garbage = 0xDEADBEEFu;
+    for (int i = 0; i < 4; ++i)
+        blob[size_t(i)] = u8(garbage >> (8 * i));
+    tree::ResultTree t;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t), u32(0x50040001));
+}

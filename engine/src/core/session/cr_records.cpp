@@ -349,6 +349,22 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
     const u32 count = c.g32();
     if (c.fail)
         return 0x50040001;
+    /* M-150 (diff-to-fix): the count pre-allocation bomb gate. Each node
+     * consumes at least 10 wire bytes by the grammar (parent id 4 +
+     * nflags 2 + marker 1 + origin 1 + deleted 1 + confidence 1; the
+     * grade byte is optional), so a count beyond (len-4)/10 cannot fit
+     * the record - a torn write's garbage count (the M-131 class's
+     * read-side complement) or any hostile .crsf. The old code
+     * value-initialized by_id(count) straight from the u32: up to
+     * 34.4 GB of touched pages at the u32 max - minutes of pagefile
+     * thrash on Windows before bad_alloc, an uncatchable OOM-kill on
+     * Linux overcommit. The og's record-4 reader allocates node-by-node
+     * through per-FS factories (rsf-record4--tree-node-grammar.md:16,26)
+     * - its allocation is bounded by the bytes actually present; this
+     * gate restores that bound at the count field. */
+    constexpr size_t MIN_NODE_BYTES = 10;
+    if (u64(count) > (u64(len) - 4) / MIN_NODE_BYTES)
+        return 0x50040001; /* corrupt count: the container's resync layer recovers */
     /* N-077 (session 22 baseline repair): the caller-held FileProperties
      * reference leaked on every early break between the per-record
      * allocation and the successful attach (the N-058 bounds-gates and

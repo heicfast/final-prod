@@ -56,8 +56,8 @@
   findings/FIXED/M-149, matrix MATCH, modules/lost-partition.md S80
   addendum.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 16 MAJOR · 10 MINOR ·
-1 INFO active / 176 FIXED / 4 tracked-open.** Next free IDs:
+**Board after this landing: 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR ·
+1 INFO active / 177 FIXED / 4 tracked-open.** Next free IDs:
 S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
@@ -98,6 +98,19 @@ M-156+, N-218+, I-049+, A-016+, D-150+.
   `Carve.X3fExtentIsSecdPlusFixedTail` RED against the ed501caa body).
   The S78 test trio replaced by corpus-true pins. Suite **1578/1578**
   at the repair; N-210 lint clean.
+
+- **M-150 FIXED (MAJOR, session)** — the count pre-allocation bomb
+  gate: deserialize_tree's count field is bounded by the wire length
+  (count > (len-4)/10 refused instantly with ERR_SESSION_FORMAT — each
+  node consumes ≥ 10 wire bytes; the og's per-node factory reader is
+  bounded by the bytes present, rsf-record4:16,26). No count-scaled
+  allocation ever happens on the load path — the old value-initialized
+  by_id(count) touched up to 34.4 GB at the u32 max (the M-131-class
+  torn-write read-side complement: pagefile thrash on Windows,
+  OOM-kill on Linux overcommit). Tests RED first-hand (stash dance):
+  HostileCountBombRefused / CountAtWireBoundFailsCleanlyBeyondIt /
+  TornTailGarbageCountStillFailsCleanly; suite **1627/1627**. Trail:
+  findings/FIXED/M-150, matrix MATCH, modules/session.md S80 addendum.
 
 **Board after this landing: 0 ACUTE · 2 SEVERE · 18 MAJOR · 11 MINOR ·
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same

@@ -10543,8 +10543,7 @@ one push). Opening HEAD `1ec36d6c`, corpus `be0cfe9` throughout.
 class — the N-210 lint was RED at lane open on that one file). Repaired
 first per the stacked-history convention: both sides' prompt variants kept
 (S74's HEAD side + S75's), only the marker lines removed; the N-210 lint
-re-verified GREEN first-hand (`grep -rln '^<<<<<<< '` over every linted
-tree → 0 hits besides the sanctioned M-120 carrier).
+re-verified GREEN first-hand (`grep -rln '^tree → 0 hits besides the sanctioned M-120 carrier).
 
 **Board re-counted first-hand from the filesystem at open (correcting the
 `1ec36d6c` rebase message's own "10 N" — an off-by-one in that message's
@@ -11637,6 +11636,7 @@ RED first-hand (stash dance): ScoringTableMatchBonusIsNumeratorOnly
 ScoringZeroCountScoresZero / MatchesLogRows re-pin. Suite 1624/1624.
 Trail: findings/FIXED/M-149 + Resolution, matrix MATCH,
 modules/lost-partition.md S80 addendum, PARITY-DELTAS D-151.
+
 ---
 
 ---
@@ -11674,6 +11674,7 @@ session count bomb), M-152 (the ext4 orphan skip), M-151 (the NTFS run
 growth), M-154 (the autosave retention), M-107's remaining members (CRW
 next), then M-075/M-078/M-101/M-105/M-111/M-113/M-114, then the MINOR
 queue (N-216/N-145/N-178/N-181/N-182), then I-048's registers.
+
 **N-216 FIXED (MINOR, orchestrator/config) — fix #4 of the S81 ladder:**
 the finding's open question (the cap's consumer) DECODED this session —
 DRWUI:750172-175: the tree-builder hides nodes whose size exceeds the
@@ -11684,3 +11685,19 @@ max_file_size/set_max_file_size/size_exceeds_cap + apply() flags
 oversize nodes; set(0)=OFF registered as D-150. RED (compile-form) →
 suite 1621/1621. Trail: findings/FIXED/N-216 + Resolution, matrix row,
 modules/orchestrator.md addendum, PARITY-DELTAS D-150, ledger row.
+
+---
+
+## Session-80 S80 fix-lane — entry 6: M-150 (2026-10-29)
+
+**M-150 FIXED (MAJOR, session):** the count pre-allocation bomb gate —
+deserialize_tree refuses a count beyond (len-4)/10 instantly with
+ERR_SESSION_FORMAT (each node consumes ≥ 10 wire bytes; the og's
+per-node factory reader — rsf-record4:16,26 — is bounded by the bytes
+present). No count-scaled allocation on the load path (the old
+value-initialized by_id(count) touched up to 34.4 GB — the M-131-class
+torn-write read-side complement). Tests RED first-hand (stash dance):
+Session.HostileCountBombRefused / CountAtWireBoundFailsCleanlyBeyondIt /
+TornTailGarbageCountStillFailsCleanly. Session suite 29/29; full suite
+1627/1627. Trail: findings/FIXED/M-150 + Resolution, matrix MATCH,
+modules/session.md S80 addendum, SUMMARY board.
