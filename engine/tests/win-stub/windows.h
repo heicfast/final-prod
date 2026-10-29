@@ -229,10 +229,16 @@ inline BOOL DeleteFileW(const wchar_t*) {
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
 }
+<<<<<<< HEAD
 /* S-060 (the recovered-file timestamp/attribute restoration): the
  * destination finalize path sets both. SDK-faithful shapes
  * (SetFileAttributesW takes the attributes DWORD; SetFileTime takes the
  * three FILETIME* slots, NULL = leave unchanged). */
+=======
+/* S-060 (the recovered-file metadata restore tail): the writer's
+ * attribute/timestamp setters - declaration-only stubs per the gate's
+ * contract (a new SDK symbol in src/win grows the stub). */
+>>>>>>> 9b1e3f3d (repair(gates): the S-060/S-058 window residue closed - (1) win-stub grown for the S-060 metadata tail (SetFileAttributesW/SetFileTime declaration-only stubs per the gate's own contract; gate 10/10 ok again); (2) test_grading.cpp's two generations of hot-window markers collapsed to the single fixture-matches-assert form (the db82b5e6/81b4cdaf nested residue); (3) PreviewPaneNeverPromotes closes its preview (LSan red); suite 1410/1410)
 inline BOOL SetFileAttributesW(const wchar_t*, DWORD) {
     return 1;
 }
