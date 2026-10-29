@@ -4,8 +4,9 @@
  */
 
 #include "cr/exfat/cr_exfat_engine.h"
-#include "cr/fat/cr_fat_wire.h" /* shared FAT-family datetime core (W4 dedup) */
-#include "cr/cr_recycle.h"      /* M-052: shared $I/$R pairing model */
+#include "cr/fat/cr_fat_wire.h"     /* shared FAT-family datetime core (W4 dedup) */
+#include "cr/fat/cr_visited_runs.h" /* M-127: the run-coalescing cycle guard */
+#include "cr/cr_recycle.h"          /* M-052: shared $I/$R pairing model */
 #include <cstring>
 #include <map>
 #include <set>
@@ -91,7 +92,10 @@ struct ChainResult {
 ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
                                u32 cluster_count = 0) {
     ChainResult r;
-    std::vector<u64> visited;
+    /* M-127: the run-coalescing guard (the og's range-tree shape - the
+     * exFAT twin of follow_chain's fix; the FREE-continuation path can
+     * manufacture long contiguous runs, the run-tree's best case) */
+    cr::fat::VisitedRuns visited;
     u32 c = start;
     u32 guard = 0;
     while (c >= 2) {
@@ -99,12 +103,10 @@ ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
             r.cycle = true;
             break;
         }
-        for (u64 v : visited)
-            if (v == c) {
-                r.cycle = true;
-                return r;
-            }
-        visited.push_back(c);
+        if (visited.visit(c)) {
+            r.cycle = true;
+            return r;
+        }
         r.clusters.push_back(c);
         if (r.clusters.size() >= max_clusters)
             break;
@@ -1017,6 +1019,10 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         return rc;
     if (cancel && cancel->cancelled())
         return ERR_CANCELLED;
+    /* S-066: the recognition re-base is surfaced, never silent (the
+     * skip-honesty counter family) */
+    if (p.base_shift_sectors != 0)
+        ++stats.base_shifted;
 
     ScanCtx ctx;
     ctx.cancel = cancel; /* P2-8: cancellable walk */

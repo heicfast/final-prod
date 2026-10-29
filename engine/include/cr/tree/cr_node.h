@@ -433,22 +433,22 @@ public:
     size_t node_count() const { return nodes_.size(); }
     size_t file_count() const;
     u64 total_logical() const;
-    /* N-166 (diff-to-fix) — ONE canonical landing (the two lanes' identical
-     * live_files blocks were stacked by the hot-window merge; the comments
-     * folded): the LIVE node counters — total files attached and the
-     * raw/carved subset (fs_kind == FsKindCode::Raw at attach time — carve
-     * stamps it before add_file). Every add_file ticks them under the
-     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and a
-     * deserialized tree self-seeds through its own add_file calls). The
-     * telemetry layer samples at progress-event time so mid-stage counters
-     * MOVE (the og's results grid tracks the live tree at ~2 s cadence —
-     * the "Files Found" live-tracking parity; the core's stage-boundary
-     * stamps stay the authoritative close-of-stage sample). Lock-free read:
-     * relaxed atomic load, readable from ANY thread without the tree mutex.
-     * Hard links count per tree entry (per-parent attach), matching the
-     * structured engines' own per-link counting. Monotonic by design: a
-     * detached rejected-candidate subtree does NOT decrement (the boundary
-     * stamp re-truths at the stage close). */
+    /* N-166: the live attach counter - every add_file ticks it under the
+     * tree's own lock (O(1); detach_subtree subtracts, reset zeroes, and
+     * a deserialized tree self-seeds through its own add_file calls).
+     * The telemetry layer samples it at progress-event time so mid-stage
+     * counters MOVE (the og's results grid tracks the live tree at ~2 s
+     * cadence; the core's stage-boundary stamps stay the authoritative
+     * close-of-stage sample). Lock-free read: an atomic load. Hard links
+     * count per tree entry (per-parent attach), matching the structured
+     * engines' own per-link counting.
+     *
+     * The raw/carved subset (fs_kind == FsKindCode::Raw at attach time —
+     * carve stamps it before add_file) so carved_found refreshes live
+     * too. Relaxed atomics bumped inside add_file's existing lock;
+     * readable from ANY thread without the tree mutex. Monotonic by
+     * design: a detached rejected-candidate subtree does NOT decrement
+     * (the boundary stamp re-truths at the stage close). */
     u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
     u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
 
@@ -470,6 +470,10 @@ public:
      * recomputed by the next refresh_stats() call. Call on the scan thread
      * after the subtree's own emission finished (single-writer handoff). */
     void detach_subtree(FileNode* root);
+
+    /* N-166: the live counters (see the accessors above) */
+    mutable std::atomic<u64> live_files_{0};
+    std::atomic<u64> live_raw_{0};
 
     /* clear without destroying (engines may reuse) */
     void reset();
@@ -510,9 +514,6 @@ public:
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
-    /* N-166: the live counters (see the accessors above) */
-    mutable std::atomic<u64> live_files_{0};
-    mutable std::atomic<u64> live_raw_{0};
     void rebase_props_locked(FileNode* n, u64 base, std::unordered_set<FileProperties*>& visited);
     static u64 extent_len_class_(const FileProperties* p);
 

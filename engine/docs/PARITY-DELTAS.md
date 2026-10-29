@@ -4056,3 +4056,26 @@ that consumes the core's own scan results); the sample-file consent model
 (RawFixer's S1 pattern); the distinct repaired-output location; the
 per-format grammar artifacts in `artifacts/FileRepair/` (8 files, all
 first-cited by S-050).
+
+### D-137 — the EUUserData duplicate-key resolution: the core MERGES every block (N-169 registration, REGISTERED DELIBERATE POSTURE — the og's parse-side semantics remain an honest OQ)
+
+The og's own shipped EUUserData carries a GENUINE duplicate `asf` block (112
+members; offsets 4770/16766; the SAME sign `0,3026B2758E66CF11A6D900AA0062CE6C`
+with mimes `application/vnd.ms-asf` then `asf` — first-hand re-measured this
+session). Whether the og's JSON layer keeps first, last, or both members is
+NOT decodable from the corpus: the finding's decisive cite (FUN_140077dca0)
+does not exist in either decompile (citation erratum, recorded), and the
+member-iteration evidence (the child-chain walks + the per-child "signs"
+lookup, RAWSearchDLL :24295-24333) supports — but does not prove — the
+merge, since the parse-side member-append behavior was never attributed.
+
+The core's registered posture: the loader walks EVERY top-level member —
+duplicate keys never reject the file, every block's sign set installs, each
+block's mime backfills its own signs (the MERGE). The SHIPPED default set
+(data/userdata-defaults.json) is the DEDUPED 111/190 view keeping exactly
+one asf block with the LAST block's mime ("asf" — last-wins dedup at the
+asset level, matching the file's own trailing-block shape). Both censuses
+are true: raw = 112 members/asf×2; shipped = 111/190 — future sessions must
+stop reading them as census drift. Pinned by UserSigns.DuplicateKey
+Semantics + ShippedCensusDedupTruth; the og's parse-side semantics stay the
+recorded OQ (the follow-up needs the og's JSON member-append attribution).

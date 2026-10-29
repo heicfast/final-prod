@@ -40,3 +40,6 @@ priority order · T20 close-out: board docs, handoff.
 - The S45..S57 lanes pushed convergent landings for A-014/M-124/S-055/S-056/N-171/S-057/S-058/S-061/M-130/N-177/N-175/N-176/N-159/N-160/M-119/M-138(M-133)/N-158/M-115 while this lane worked. Three merge windows absorbed; all convergent seats resolved per SA-9 (remote code wins; this lane's records ride as convergence addenda).
 - This lane's unique repairs across the windows: the M-138-fixture polarity re-base + the stale-name-lookup SEGFAULT (TwinKeyExt4NtfsNeverShift dereferenced null), the double N-171 validated tick, the crossed S-058 fixture/assertion merge, the committed conflict markers in modules/lost-partition.md, and the user-sign default-set test leak (UsersignTeardown RAII guard - the lha '2,2D6C68' sign made LzhWrongDashByteRejects fail in suite order).
 - Lane rebranded S47 -> S58 (the MAJOR-first S47 and severe-first S51/S57 seats were taken by earlier pushes).
+
+- **[127077bd]** S-064 FIXED (SEVERE, THIS LANE'S OWN LANDING): the engine-open flavor selection is string-first (FUN_18002f970 re-read: no cluster term); 4 tests; the BitLocker fixture re-shaped off the disagreeing class.
+- Window 5 absorbed (S-050 registration, N-165, the triple-tick repair). Board re-survey next.

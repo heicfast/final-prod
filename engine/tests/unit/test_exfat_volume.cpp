@@ -12,6 +12,7 @@
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_slice.h"
 #include "test_fixtures.hpp"
 #include <algorithm>
 #include <cstring>
@@ -86,6 +87,110 @@ std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
 }
 
 } // namespace
+
+/* ---- S-066: the recognition re-base off the surviving backup boot ------ */
+
+TEST(ExfatEngine, LostAnchorBackupBootRebasedToTrueStart) {
+    /* The og's ladder (FUN_180001630 :341-420): a scan anchor whose +12
+     * backup FAILS the full structural gates is presumed to BE the
+     * backup boot (exFAT places it exactly 12 sectors after the
+     * primary); the FAT media words {FAT[0],FAT[1]} =
+     * {0xFFFFFFF8,0xFFFFFFFF} at (base-12)+fat_offset confirm the true
+     * base and the volume re-bases (base -= 12, :377-378). Fixture: the
+     * primary boot destroyed, the slice opens at LBA 12 - the pre-fix
+     * core read the FAT and heap 12 sectors off (garbage chains). */
+    auto img = build_exfat_image();
+    /* spec-correct FAT media words at the TRUE FAT (sector 24) */
+    testfixture::fx_put32v(img, 24 * 512 + 0, 0xFFFFFFF8u);
+    testfixture::fx_put32v(img, 24 * 512 + 4, 0xFFFFFFFFu);
+    /* destroy the primary boot (sector 0) - the damage class */
+    std::memset(img.data(), 0xFF, 512);
+
+    /* the lost-partition slice at the surviving backup boot (LBA 12) */
+    MemDevice disk(std::move(img));
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&disk, 12 * 512, disk.size() - 12 * 512, &err);
+    ASSERT_NE(nullptr, slice);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK,
+              scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+        << "the re-based volume opens and scans";
+    EXPECT_EQ(1u, stats.base_shifted) << "the shift is surfaced, never silent";
+    /* the full tree: the re-based offsets (fat 24-12, heap 25-12,
+     * slice-relative) land on the TRUE FAT/heap - the fixture's files
+     * all surface (the pre-fix 12-off read produced garbage chains) */
+    tree::FileNode* doc = nullptr;
+    for (auto* n : collect_all(tree))
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    ASSERT_NE(doc, nullptr) << "the re-based chain walk finds the fixture's files";
+    /* doc.txt spans clusters 20-22 (contiguous): the extent anchors at
+     * the TRUE heap position (slice-relative (25-12) + (20-2) sectors,
+     * i.e. disk sector 25+18 = 43) */
+    ASSERT_EQ(1u, doc->props()->extents.size());
+    EXPECT_EQ(doc->props()->extents[0].offset, u64(43 * 512 - 12 * 512))
+        << "slice-relative extent = the true position minus the slice base";
+}
+
+TEST(ExfatEngine, IntactPrimaryNotShifted) {
+    /* control: the backup at +12 validates -> no probe, no shift (the
+     * anchor is the primary; a damaged-backup volume keeps its base) */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted);
+}
+
+TEST(ExfatEngine, MediaWordsAbsentNoShift) {
+    /* both probes mismatch (no media words anywhere - the fixture's FAT
+     * [0]/[1] are zero) and the backup at +12 is damaged -> the base is
+     * kept, current behavior preserved (the og returns the same
+     * keep-base verdict: :366 mismatch, :377-381 mismatch) */
+    auto img = build_exfat_image();
+    std::memset(img.data() + 12 * 512, 0xFF, 512); /* destroy the backup */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    /* the gates passed on the main boot: the scan proceeds in place */
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted) << "no media-word confirmation: no shift";
+}
+
+TEST(ExfatEngine, ShiftedBaseBelowZeroRefused) {
+    /* the og's base >= 0xc gate (:371-373): a whole-device open (base 0)
+     * cannot re-base below the device start even when the probes would
+     * match. The anchor is the device start; the backup at +12 damaged;
+     * the in-place FAT mismatch would send the ladder to the shifted
+     * probe - which the base gate refuses. */
+    auto img = build_exfat_image();
+    testfixture::fx_put32v(img, 24 * 512 + 0, 0xFFFFFFF8u);
+    testfixture::fx_put32v(img, 24 * 512 + 4, 0xFFFFFFFFu);
+    std::memset(img.data() + 12 * 512, 0xFF, 512); /* destroy the backup */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted) << "base 0: the re-base is refused (og :371-373)";
+}
 
 /* ---- S-011: exFAT timestamps match the og's tz-ignored semantics ------- */
 

@@ -557,3 +557,19 @@ remote rows stand. **One distinct row the remote set does not carry:**
    0x80; the doc's figure is the slot COUNT field's size class, not the stride.
    (The S54 evidence sheet's ZFS section carries the derivation; core parity
    verified on the stride itself.)
+## Session-56 row (2026-10-29 — the S56 ACUTE-first lane; S-058's evidence-erratum leg)
+
+1. **The s5 grading-table dump's §5 item 4 polarity line is inverted** — the
+   core's own evidence tree (`evidence/decompiled-quotes/
+   s5-grading-extension-table-dump.md`), not the corpus repo, carries the
+   defect: item 4 read "**In-table (find != end)** → deep-validation
+   branch". First-hand comparator re-read (S-058 verification): the gate
+   test `FUN_1401bebe0` (DRWUI:324923-324930) is the INEQUALITY over
+   `FUN_1401bec20`'s node-pointer equality, so `if (cVar1 == '\0')` at
+   :605743 enters when **find == end** — the deep-validation branch runs
+   for **not-in-table** keys; in-table keys take the string-cleanup else
+   at :605804-605807 (nothing; grade stays 1). Calibrated by the control
+   case at :585885-585905 (the direct-equality whitelist idiom). §6.2's
+   `""` consequence corrected in the same edit (dot-less files SKIP, not
+   enter). The erratum note is now in the s5 file itself; the code fix
+   landed as S-058.

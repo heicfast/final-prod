@@ -48,3 +48,10 @@ OQ-S10-1 (thumbnail codecs — the render siblings), M-116 (archive entries ABI 
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-184 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `PreviewMeta.AviMetadataExtracted` (LIST/hdrl walk: avih 40ms × 100 frames → 4000 ms + the 2-strh stream count), `PreviewMeta.MkvMetadataExtracted` (the full EBML vint chain: Segment → Info/TimecodeScale/Duration float → 2500 ms + the 2-TrackEntry count), `PreviewMeta.FlacMetadataExtracted` (STREAMINFO: 44100 Hz, 2 channels, 441000 samples → 10000 ms), `PreviewMeta.Mp3DurationEstimated` (ID3v2 syncsafe skip + the 128 kbps frame → the size-based estimate), `PreviewMeta.M4aTypedAsMp4Family` (the M4A brand rides the ftyp branch — the pin that branch always carried it implicitly). RED pre-fix: 4 of 5 FAILED (kind "unsupported"); GREEN post-fix: 5/5. The two UTF-16-BOM text tests caught the MP3 frame-sync collision mid-RED (the BOM pair now excluded — the og's extension-driven agent never routes .txt to media). Suite 1341 ran / 1299 pass / 42 env-skips / 0 fail.
+**Resolution notes:** Four head-window extractors landed (avi_info/mkv_info/flac_info/mp3_info), each bounded by the existing Window budget — no full-file walks. The Matroska walk implements the minimal EBML vint grammar (id/size readers in an n184 namespace) for Info's TimecodeScale+Duration and the TrackEntry count; two real bugs were caught and fixed during the RED pass by the pin (the 4-byte EBML float was memcpy'd into a double — zero every time; the strict 8-byte element fetch refused the final partial TrackEntry of a short file — the reader now uses fetch_any with the prefix-length validation). The BOM exclusion on the MP3 magic is the one deliberate narrowing (a file starting FF FE is a UTF-16 text on the magic-first dispatch; the og's extension-driven agent produces the same net result). M4A/MOV needed no code — they are ISO-BMFF containers riding the ftyp branch; the M4A pin proves the family typing the finding asked for. `unsupported` remains the default for everything else.

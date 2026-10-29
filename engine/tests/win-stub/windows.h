@@ -229,10 +229,9 @@ inline BOOL DeleteFileW(const wchar_t*) {
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
 }
-/* S-060 (the recovered-file timestamp/attribute restoration): the
- * destination finalize path sets both. SDK-faithful shapes
- * (SetFileAttributesW takes the attributes DWORD; SetFileTime takes the
- * three FILETIME* slots, NULL = leave unchanged). */
+/* S-060 (the recovered-file metadata restore tail): the writer's
+ * attribute/timestamp setters - declaration-only stubs per the gate's
+ * contract (a new SDK symbol in src/win grows the stub). */
 inline BOOL SetFileAttributesW(const wchar_t*, DWORD) {
     return 1;
 }

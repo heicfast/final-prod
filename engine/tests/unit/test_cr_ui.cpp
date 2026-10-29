@@ -4665,6 +4665,7 @@ TEST(CrUi, PreviewPaneNeverPromotes) {
     uint32_t placed = 0;
     ASSERT_EQ(cr_ui_preview_read(pv, 0, buf.data(), 32, &placed), CR_UI_OK);
     EXPECT_EQ(32u, placed);
+    cr_ui_preview_close(pv); /* LSan: no leaked CrPreview/PreviewReader */
     EXPECT_EQ(g0, grade_of(u.sess, "#AD.JPG"))
         << "the preview surface never promotes - the pane doctrine";
 }
