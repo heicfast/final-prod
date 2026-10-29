@@ -52,3 +52,10 @@ M-042 (FIXED — the session-checkpoint adoption architecture this registers aga
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — register applied; deliberate divergence preserved)
+**Fixed in commit:** (this session's I-046 landing; SHA recorded in worklog.md)
+**Verified by:** the four lifecycle sites stand as decoded (all first-hand reads recorded in the finding body + evidence/s55-lane-sheets/S55-D1-localdb.md); the core side re-verified at HEAD: cr_scan.cpp:2468-2475 (no module-local .dat), :2666-2675 (REC_DISK_LAYOUT), :2646-2665 (REC_PARTITION_CONTEXT), :1085-1090 (revalidate_candidate). Doc acceptance: `grep -c "I-046" docs/PARITY-DELTAS.md` ≥ 1 post-landing (D-142).
+**Resolution notes:** Register-only finding, resolved by its own optional follow-up (1): the PARITY-DELTAS D-row for the resume-granularity delta. D-142 records the og's lifecycle semantics (per-process-generation cache, W1 delete latch, W3 marker-restore scan-position-granular resume) against the core's registered M-042 stage-granular checkpoint architecture. No code change — the divergence is deliberate and must be preserved; the decode inputs for any future scan-position-granular resume (the W3 marker shape + the :20748-20770 restore path) are preserved in D-142 and this finding.

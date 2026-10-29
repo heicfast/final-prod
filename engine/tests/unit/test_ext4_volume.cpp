@@ -685,6 +685,54 @@ TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
     EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
 }
 
+TEST(Ext4Engine, UnwrittenExtentLenDecodedKernelCorrect) {
+    /* I-045 / D-141 anti-down-fix pin (the og-defect non-adoption register,
+     * batch #3). The og multiplies the RAW ee_len word by the block size
+     * with no unwritten-bit handling anywhere in its extent decoder
+     * (EXT4SearchDLL FUN_180005670 :4044-4048 - the
+     * `CONCAT24(psVar5[-1],...) * (longlong)*(int *)(param_1 + 0x58)` and
+     * the `(ushort)psVar5[-2] * block_size` raw products), so an unwritten
+     * extent (ee_len bit 15 set - fallocate output, common on modern ext4)
+     * yields an overflow-class garbage run length. The core decodes the
+     * kernel form (cr_ext4_engine.cpp walk_extent_node :346-350: raw
+     * ee_len > 0x8000 -> raw & 0x7FFF) - an unwritten 5-block extent
+     * surfaces a 5-block content extent. Future sessions must not "fix"
+     * the core down to the og's garbage math. */
+    auto img = build_volume();
+    /* hello.txt's inline extent root: ee_len := 0x8005 (unwritten, 5 blocks) */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    /* fixture sanity: EXTENTS_FL (0x80000) set, extent magic 0xF30A at i_block */
+    ASSERT_EQ(0x80000u, u32(hello[0x20]) | u32(hello[0x21] << 8) | u32(hello[0x22] << 16) |
+                             u32(u32(hello[0x23]) << 24));
+    ASSERT_EQ(0xF30Au, u16(hello[0x28]) | u16(u16(hello[0x29]) << 8));
+    put16(hello + 0x28 + 16, 0x8005); /* ee_len @ extent+4 */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    const tree::FileNode* hello_node = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == std::u16string(u"hello.txt"))
+                hello_node = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_node) << "the unwritten-extent file must still surface";
+    ASSERT_EQ(size_t(1), hello_node->props()->extents.size());
+    /* kernel decode: 0x8005 -> 5 blocks (5120 bytes) at the extent's phys */
+    EXPECT_EQ(u64(B_HELLO_DATA * BS), hello_node->props()->extents[0].offset);
+    EXPECT_EQ(u64(5 * BS), hello_node->props()->extents[0].length);
+    /* NOT the og's raw product: 0x8005 * 1024 = 33,556,736 bytes of extent */
+    EXPECT_NE(u64(0x8005) * BS, hello_node->props()->extents[0].length);
+}
+
 TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {
     /* N-177 (diff-to-fix): the S53 lane's CONVERGENT landing (the
      * cb2abd42 convergence kept both lanes' bodies; the shared name

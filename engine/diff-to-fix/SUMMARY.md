@@ -1,3 +1,18 @@
+# SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
+
+## Closing-fix lane delta (2026-10-29 — the INFO-first diff-to-fix execution lane per the user's directive "priority to informational first"; opened at core `98a5b139`, corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
+
+**The two INFORMATIONAL registers closed first (the user's priority
+directive):** **I-045** landed as PARITY-DELTAS **D-141** (og-defect
+non-adoption batch #3 — the raw ee_len multiply re-verified first-hand at
+EXT4SearchDLL :4044-4048; the core stays kernel-correct) with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+(ee_len 0x8005 → one 5120-byte content extent, never the raw product);
+**I-046** landed as PARITY-DELTAS **D-142** (the lostpart.dat/partinfo.dat
+lifecycle + the stage-granular vs scan-position-granular resume delta,
+registered against the M-042 architecture). Both preserved as deliberate
+divergences in findings/FIXED/ — the audit trail keeps the full decode.
+
 # SUMMARY.md — executive summary (the S52-B severe-first convergence lane on top; the prior lanes below, newest-first)
 
 ## Session-52-B S52-B convergence-lane delta (2026-10-29 — the severe-first diff-to-fix execution lane; opened on `659f0f6c`, absorbed the S45..S59 hot windows at the rebase; corpus `be0cfe9`)

@@ -4087,3 +4087,66 @@ are true: raw = 112 members/asf×2; shipped = 111/190 — future sessions must
 stop reading them as census drift. Pinned by UserSigns.DuplicateKey
 Semantics + ShippedCensusDedupTruth; the og's parse-side semantics stay the
 recorded OQ (the follow-up needs the og's JSON member-append attribution).
+
+## Y. The diff-to-fix closing-fix lane (2026-10-29) — the two INFORMATIONAL registers
+
+### D-141 — og-defect non-adoption batch #3: ext4 unwritten-extent `ee_len` raw multiply (I-045 registration, REGISTERED IMPROVEMENT — the D-58/D-59/N-162 [D-119] class, batch #3 of the I-026/I-040/D-123 family)
+
+- **WHAT OG DOES:** the extent decoder multiplies the RAW ee_len word by
+  the block size with no unwritten-bit handling anywhere in the walk family
+  (EXT4SearchDLL FUN_180005670 region :4044-4048, re-read first-hand this
+  session: `local_58 = (ulonglong)CONCAT24(psVar5[-1], *(undefined4 *)
+  psVar5) * (longlong)*(int *)(param_1 + 0x58)` and the twin
+  `(uint)(ushort)psVar5[-2] * *(int *)(param_1 + 0x58)` product; no
+  0x8000/32768 test exists anywhere in the og's extent decoder). An
+  unwritten extent (ee_len bit 15 set — fallocate output, common on modern
+  ext4) therefore yields an overflow-class garbage run length
+  (e.g. ee_len 0x8005 at 1 KiB blocks → a "33,556,736-byte" extent).
+- **WHAT WE DO:** the kernel-correct decode (`src/core/ext4/
+  cr_ext4_engine.cpp` walk_extent_node :346-350): raw ee_len > 0x8000
+  (EXT_INIT_MAX_LEN) → the length is `raw & 0x7FFF` (the unwritten
+  marker stripped); raw == 0x8000 stays a WRITTEN 32768-block extent.
+  On images containing unwritten extents the og computes garbage lengths
+  and the core computes correct ones.
+- **WHY:** the og behavior is an arithmetic defect, not parity surface —
+  adopting it would corrupt recovered content extents.
+- **RISK:** none — the core's outputs are strictly more correct.
+- **VERDICT: ACCEPTED** (deliberate non-adoption, registered I-045;
+  anti-down-fix pin: `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+  (ee_len 0x8005 → a 5-block content extent, never the raw product) —
+  future sessions must not "fix" the core down to the og's garbage math).
+
+### D-142 — the lost-partition resume granularity: stage-granular checkpoints, not the og's scan-position-granular marker-restore (I-046 registration, REGISTERED DELIBERATE DIVERGENCE — the M-042 architecture this rides is FIXED and first-class)
+
+- **WHAT OG DOES:** the lostpart.dat/partinfo.dat pair is a
+  PER-PROCESS-GENERATION cache, not a cross-session knowledge base
+  (PartitionRecoveryD :23189-23211 — the first-search-per-process latch
+  deletes BOTH .dat files and rebuilds partinfo from the live table;
+  within a process, found candidates append per-hit mid-scan (:20154-20238,
+  the append at :20230), and a clone/search interrupt appends a
+  header-only progress-marker record (payload zeroed, kind flag 0 —
+  :20079-20082 → :23088-23121). At load, marker records max-merge their
+  counter (pool+0xe4) and RESTORE THE SCAN-POSITION LBA (pool+0xe8) at
+  sector granularity (:20748-20770) — cross-PROCESS restart resumes the
+  lost-partition search at the persisted scan position.
+- **WHAT WE DO:** the M-042 architecture (session-checkpoint persistence):
+  no module-local .dat files; REC_PARTITION_CONTEXT per candidate with
+  forced checkpoint on discovery (the per-hit append cadence equivalent),
+  REC_DISK_LAYOUT for the whole-disk snapshot (the partinfo comparator
+  equivalent), and resume revalidation through `revalidate_candidate`
+  (cr_scan.cpp:1085-1090). The core's resume is STAGE-granular (the
+  session's stage bits), not scan-position-granular.
+- **WHY:** the stage-granular model is the registered M-042 architecture —
+  deliberate, already landed and tested; the og's sector-granular restore
+  is a fidelity refinement on a resume path the core already covers at
+  stage granularity.
+- **RISK:** a resumed lost-partition scan re-walks the current stage's
+  sectors instead of resuming at the persisted LBA — bounded by the stage
+  caps (no stuck/freeze; every walker bounded); no recovery-result
+  divergence (candidates revalidate against the persisted records).
+- **VERDICT: ACCEPTED** (deliberate divergence, registered I-046). If a
+  future session wants scan-position-granular lost-partition resume, the
+  W3 marker shape (header-only, `min(cur,end)` LBA, kind flag 0) and the
+  :20748-20770 restore path are the decode inputs — cite I-046. Future
+  documentation must stop describing the og's .dat pair as a persistent
+  knowledge base (it is one process-generation old at most).

@@ -1,3 +1,40 @@
+## Closing-fix lane — the INFO-first pair lands (2026-10-29)
+
+**Session start record:** opened at core `98a5b139` (63 commits after the
+S55 filing pin `9633d94f`; the board re-counted from filesystem truth at
+open: 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4
+tracked-open, FIXED archive 136). Corpus pinned `be0cfe9` throughout.
+Prompt saved (token redacted) to `worklog/session-diff-fix-prompt.md`.
+The user's operative directive this session: fix everything with priority
+to INFORMATIONAL first, 20+ fixes, fixed findings into findings/FIXED/,
+all docs and counts updated.
+
+- **I-045 FIXED (INFORMATIONAL → ACKNOWLEDGED, ext4)** — the unwritten
+  ee_len og-defect non-adoption register, batch #3. Corpus re-verified
+  first-hand (EXT4SearchDLL FUN_180005670 :4044-4048: BOTH raw products —
+  the `CONCAT24(...) * (longlong)*(int *)(param_1 + 0x58)` and the
+  `(ushort)psVar5[-2] * block_size` twins; no 0x8000/32768 test anywhere
+  in the walk family). Landed as PARITY-DELTAS **D-141** + the
+  anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+  (ee_len 0x8005 → one 5120-byte content extent at the extent's phys,
+  never the og's raw 0x8005×1024 product). No code change — the core's
+  kernel-correct decode (walk_extent_node :346-350) stays; divergence
+  registered as deliberate. Finding moved to findings/FIXED/ with the
+  full Resolution.
+
+- **I-046 FIXED (INFORMATIONAL → ACKNOWLEDGED, lost-partition/session)** —
+  the lostpart.dat/partinfo.dat lifecycle register. Resolved by the
+  finding's own optional follow-up (1): PARITY-DELTAS **D-142** carries
+  the resume-granularity delta (og: scan-position-granular marker-restore
+  across process restarts, W3 header-only markers with min(cur,end) LBA;
+  core: the M-042 stage-granular checkpoint architecture — deliberate).
+  No code change; the W3 marker shape + :20748-20770 restore path
+  preserved in D-142 as the decode inputs for any future finer resume.
+  Finding moved to findings/FIXED/ with the full Resolution.
+
+Board after this push: 46 active — 1 SEVERE · 23 MAJOR · 22 MINOR ·
+0 INFO — + 4 tracked-open; FIXED archive 138.
+
 **Session-46 lane — N-169 lands (2026-10-29).**
 
 - **N-169 FIXED (MINOR, carve)** — the EUUserData duplicate-key semantics:

@@ -1,3 +1,12 @@
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the closing-fix lane on top — the INFO-first diff-to-fix execution per the user's directive; the prior lanes below)
+
+**Closing-fix lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `98a5b139`, corpus `be0cfe9` throughout):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| ext4 · unwritten-extent ee_len decode (Q68/B2) | **MATCH** (registered deliberate divergence — D-141; findings/FIXED/I-045) | **I-045 FIXED (ACKNOWLEDGED)** — the register landed: PARITY-DELTAS D-141 + the anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`; the core stays kernel-correct against the og's raw multiply (re-verified first-hand at EXT4SearchDLL :4044-4048) |
+| lost-partition/session · lostpart.dat lifecycle + resume granularity (#36/#34/#58) | **MATCH** (registered deliberate divergence — D-142; findings/FIXED/I-046) | **I-046 FIXED (ACKNOWLEDGED)** — the og-side lifecycle decoded and registered: per-process-generation cache (W1 delete latch), per-hit appends, W3 marker-restore scan-position resume; the core's M-042 stage-granular checkpoint architecture stays — D-142 carries the delta |
+
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
 
 **Session-54 S54 lane rows (2026-10-29 — the fifth continuation lane of the user's second-session mandate; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9, findings verified/filed at `34d6cf10`, corpus `be0cfe9`):**

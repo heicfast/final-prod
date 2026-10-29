@@ -49,3 +49,10 @@ Decompiled evidence: the raw multiply read first-hand; the absence of any 0x8000
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — register applied; deliberate divergence preserved)
+**Fixed in commit:** (this session's I-045 landing; SHA recorded in worklog.md)
+**Verified by:** corpus re-read first-hand this session: EXT4SearchDLL_decompiled.c FUN_180005670 region :4044-4048 — BOTH raw products confirmed on the decompile lines (`CONCAT24(psVar5[-1],*(undefined4 *)psVar5) * (longlong)*(int *)(param_1 + 0x58)` at :4044-4045 and the `(uint)(ushort)psVar5[-2] * *(int *)(param_1 + 0x58)` twin at :4047 — no 0x8000/32768 test anywhere in the walk family). Core side: walk_extent_node :346-350 kernel decode re-verified at HEAD. Doc acceptance: `grep -c "I-045" docs/PARITY-DELTAS.md` ≥ 1 post-landing (D-141). Pin test: `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect` green (ee_len 0x8005 → one 5120-byte content extent at B_HELLO_DATA — never the og's raw 0x8005×1024 product).
+**Resolution notes:** The register's fix plan executed in full (D-row + anti-down-fix pin; no code change — the finding's own verdict). D-141 lands as batch #3 of the I-026/I-040/D-123 og-defect non-adoption family: WHAT-OG-DOES carries the first-hand decompile quotes, WHAT-WE-DO carries the kernel decode cite, and the pin test locks the direction. The deliberate divergence is intentional and must be preserved in future work — a future parity pass must not "restore" the og's garbage math.
