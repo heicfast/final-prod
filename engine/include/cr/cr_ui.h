@@ -1018,8 +1018,8 @@ CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* r
  * last_scan.info sidecar in the autosave dir (the og's [Info] four
  * fields, PARITY-DELTAS-registered location difference). Returns OK
  * with the pointed session's UTF-8 path copied into out_path when the
- * pointer exists AND the pointed file is present; ERR_NOT_FOUND when
- * no live pointer names a present file (the host falls back to
+ * pointer exists AND the pointed file is present; ERR_RANGE_OUT_OF_BOUNDS
+ * when no live pointer names a present file (the host falls back to
  * cr_ui_session_list). The returned path is directly loadable by
  * cr_ui_session_load - the pointed-resume contract (FUN_140286390's
  * SavePath-restore equivalent). */
