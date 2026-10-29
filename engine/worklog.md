@@ -10561,3 +10561,24 @@ before the first change; every fix RED-proven pre-fix and GREEN post-fix.
   both re-pins' first-hand failures; suite 1515/1515. Trail: findings/FIXED/
   M-135 + Resolution, ledger row, matrix MATCH, modules/writer.md E35 → MATCH,
   SUMMARY (14 MAJOR / 159 FIXED), PARITY-DELTAS D-149, schema doc, this entry.
+
+## Session-72 S72 lane — the M-135 rebase reconciliation over the S71 convergent window (2026-10-29)
+
+- The racing S71 window's M-136 re-landing (d28244df — convergent with this
+  lane's 2fb0cb95 fix-of-record per SA-9) carried two unique supplements
+  absorbed here: the LDM basis pipes (session_arm_ldm_basis wraps each
+  member disk in its own chain, session-owned) + the
+  set_read_error_source seam. The seam's Salvaged-on-map-growth posture
+  (their "the truthfulness seam M-135 demanded") is superseded by this
+  lane's full M-135 landing (truncate-and-keep): unified on THEIR name
+  (set_read_error_source / retry_src_; this lane's set_error_map_source
+  dropped), their commit-time growth check KEPT as the compressed-path
+  safety net (a valid decode of zero-filled packed bytes must never
+  surface as a clean Done - the per-read intersection cannot see the
+  compressed path), and their two Salvaged-asserting tests re-pinned to
+  the M-135 semantics (HardFailureZeroFillsOnlyAfterRetriesSpent now
+  ReadError/cause-5/64-KiB-partial; BareDeviceLegacyShapeZeroFills
+  Transients now the ReadError contrast pin) - the M-140 re-pin
+  precedent over the convergent window. Their TransientFailureRetried
+  NotZeroFilled + ConstructionIsTheScanSubstrate pass unchanged. Merged
+  suite 1528/1528 green.
