@@ -9,12 +9,17 @@
 > This file inventories the surface as it EXISTS; historical/parity context lives in
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
 
-**Headline counts**: C++ public headers 82 under `include/cr/**`; C ABI **78 exports**
-(`grep -c CR_UI_API include/cr/cr_ui.h` = 86 minus 3 macro lines; 83
-`extern "C" CR_UI_API` definitions in src/ui/cr_ui.cpp); CLI **11 verbs**
-(rrecov.cpp:3043-3063 — list, list-carve-formats, sessions, scan, tree, recover,
-health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13**; ABI event types
-**10** (2 shim-side); core event types **8**.
+**Headline counts** (re-derived 2026-10-29, the S56 lane — the
+doc_truth_gate count invariants guard these in CI): C++ public headers 82
+under `include/cr/**`; C ABI **86 exports** (89 `CR_UI_API` lines minus 3
+`#define` macros in cr_ui.h = 86 `extern "C" CR_UI_API` definitions in
+src/ui/cr_ui.cpp, recount matches); CLI **12 verbs** (rrecov.cpp — list,
+list-carve-formats, sessions, scan, tree, recover, archive-list, health,
+fix, apply, bench, driver); error codes **45 + OK** (case-normalized census - six codes are
+spelled with uppercase hex digits; the doc_truth_gate derives this). errmod modules **13**
+(kNone sentinel + 12 attribution modules — the enum census re-derived with
+the other counts);
+ABI event types **12** (the CR_EVT_* census).
 
 >
 > **POST-EXPANSION STATE (driver-only session, commit e58bde1+):** this sheet
@@ -35,7 +40,8 @@ health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 85 exports / 12 verbs / 39+OK error codes.
+> counts: 86 exports / 12 verbs / 45+OK error codes / 12 ABI event types
+> (re-derived 2026-10-29, the S56 lane - the doc_truth_gate guards these).
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---

@@ -4022,3 +4022,37 @@ the complete label at the og's exact strncpy(…,99) width, with
 `label[32]` preserved as the legacy prefix view.
 **Registered by:** N-090's Resolution (the finding's fix-plan steps 1-4,
 the deliberate-superset option taken at every choice point).
+
+### D-137 — the file-repair product line: formal scope exclusion (S-050 disposition, REGISTERED SCOPE EXCLUSION — product boundary)
+
+**Class:** scope exclusion (product line, not an engine capability) ·
+**Findings:** S-050 (+ its three addenda: the video-engine build-order
+amendment, the UIUX/32 row-contract decode, the per-chunk feed wiring) ·
+**Date:** 2026-10-29
+
+**WHAT OG DOES:** bundles a complete file-repair product line (Fixo
+provenance; 9 binaries; photo/video/office/HWP/X3F/7z repair + enhancement),
+remote-config-flagged (enable_imgrepair/enable_docrepair), integrated into
+DRWUI's recovered-file flow via the CHK/CHKRepairFileSign eligibility chain
+and a dedicated UI spine (row controllers, the serialized repair queue, the
+TimeCritical thread fleet).
+
+**WHAT CORE DOES:** implements the recovery engine + the ADJACENT eligibility
+surface truthfully (the EUUserData user-signature channel, D-104, carries the
+same signature database the og's CHK chain reads; the M-021 post-processor is
+the per-candidate seam; the per-chunk feed is declined-and-registered in
+D-104's landing notes) and registers the repair line itself as OUT OF SCOPE
+in CAPABILITY-MATRIX §3 — a separate product line the og bundles, not a
+parity obligation of the recovery engine.
+
+**WHY:** the finding's own decision framework (fix-plan step 1: implement OR
+register truthfully). The corpus documents the line as a distinct product
+(the Fixo source tree, its own UI spine, its own output-location contract);
+faking an engine-side repair verb would be the silent-approximation class
+this register exists to prevent. A future implementation's decoded entry
+points are preserved here: cr/repair beside rawfixer; the video engine's
+datarun-selection seam (tree::FileNode::extents — the only repair engine
+that consumes the core's own scan results); the sample-file consent model
+(RawFixer's S1 pattern); the distinct repaired-output location; the
+per-format grammar artifacts in `artifacts/FileRepair/` (8 files, all
+first-cited by S-050).

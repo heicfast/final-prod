@@ -29,7 +29,10 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 81 exports as of the W1b load-progress landing
+`libcr_ui.so`): 86 exports (re-derived 2026-10-29, the S56 lane: 89
+CR_UI_API lines - 3 #defines; the doc_truth_gate count invariants hold
+these in CI now - the "as of <landing>" snapshot phrasing retired with
+the gate, it is how stale counts hid)
 (`CR_UI_ABI_VERSION = 3` — v2: M-036 appended cr_ui_smart_report fields; v3:
 M-067 the cr_ui_user_sign field resize; the audit-time counts were 61 exports
 @ ABI 2), opaque handles, `cr_error`
@@ -126,7 +129,7 @@ engine boundary — a C host composes it from existing exports).
 |---|---|---|---|
 | A-ABI-1 | **Versioning policy contradiction**: `cr_ui.h:40-42` says "new functions and appended struct fields bump [ABI version] too"; `docs/ABI-CONTRACT.md` §9 says adding exports = no bump. Header wins by ABI-CONTRACT's own preamble — but the header is the wrong side. | HIGH (blocks every future export decision, incl. §2.1 #7-#8) | adopt the ABI-CONTRACT §9 policy (append-only = compatible = no bump; remove/rename/re-semanticize = bump); correct the header comment. This matches the og's practice: the og added exports across versions without a versioned ABI at all |
 | A-ABI-2 | **SQLite session sidecar documented-but-absent**: ABI-CONTRACT §8 + §5 ("scan_save_session also writes the sidecar index") describe a feature with zero implementation (grep: no sqlite anywhere in src/). GAP-S6-12 register row says MISSING. | HIGH (a normative contract claim that is false) | **CUT the claim.** The reference has no sidecar index — .rsf records ARE the session store (corpus rsf-format §2-§5). Per mandate ("do not invent operations the reference does not have"; "removing an invented degradation path… is required"), the doc is corrected and GAP-S6-12 is closed as REJECTED-BY-REFERENCE with corpus cite |
-| A-ABI-3 | Export-count drift: docs say "57 exports" (UI-READINESS-PLAN.md:48, RELEASE-NOTES.md:17); actual 61 | LOW | refresh counts |
+| A-ABI-3 | RETIRED-EXECUTED (N-150, the S56 lane): the export count is now DERIVED from the header by the doc_truth_gate count invariants (86 at the 2026-10-29 re-derive) - drift of this class fails CI, the audit row's "refresh counts" action is automated | LOW | closed by automation |
 | A-ABI-4 | ABI-CONTRACT §5 names nonexistent functions (`session_disk_map`, `scan_disk_map`) | LOW | fix names to `cr_ui_disk_map` |
 | A-ABI-5 | ABI-CONTRACT §6 claims events fire "on the thread running run() only" vs. header truth (worker threads allowed) | MEDIUM (threading contract is load-bearing for hosts) | header wins; fix doc |
 | A-ABI-6 | `codeql` lane disabled (`if: false`) in ci.yml:174-175 while RELEASE-NOTES.md:71 claimed "CodeQL clean" | MEDIUM | **RESOLVED — api-exp S3-1 truth pass (this session, first-hand re-verified)**: the RELEASE-NOTES claim is GONE at this tree (grep: zero CodeQL hits anywhere in RELEASE-NOTES.md; line 71 is now the Win7 import-gate bullet) and the lane deferral IS the recorded decision (ci.yml:173-175 "recorded, not silent" + CI-CURRENT.md:115) — no false claim stands; re-enabling the lane stays an owner-lane option, recorded not silent |

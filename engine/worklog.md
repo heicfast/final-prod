@@ -1,3 +1,63 @@
+**Session-51 severe-first lane — S-050 landed (2026-10-29).**
+
+**S-050 FIXED (the repair-line registration, option (b) of the finding's own
+decision framework).** The file-repair line formally registered OUT OF SCOPE
+in CAPABILITY-MATRIX §3 as a separate product line (Fixo provenance, 9
+binaries, remote-config flags, the UI-layer handoff note). D-137 preserves
+the future implementer's decoded entry points — the video engine's
+datarun-selection seam (tree::FileNode::extents, the only repair engine that
+consumes the core's own scan results), the sample-file consent model, the
+output-location contract, the per-chunk feed decision. All three addenda
+folded in. The SURFACE-INVENTORY row re-truthed to cite the registration.
+The finding's own test idea executed: CrUi.OutOfScopeRowsCarryTruthfulRegistrations
+gates the OOS-citation drift class. The adjacent eligibility surface
+(CHKRepairFileSign/EUUserData) verified as the truthful D-104 channel.
+**S56 lane — N-150 landed (2026-10-29).**
+
+**N-150 FIXED (MINOR — the API doc-truth batch).** The count sites re-derived
+in BOTH directions and now CI-guarded (the doc_truth_gate's check_abi_count_
+claims — derivation from the tree itself: 86 exports / 45+OK error codes
+[case-normalized — six uppercase-hex spellings; the check caught this lane's
+own lowercase-only grep miss mid-landing] / 12 event types / errmod 13 / 12
+verbs): API.md 83->86 + the two thumbnail rows; CORE-API-CURRENT 78/34/10 ->
+86/45/12 (+ the :38 banner); API-SURFACE-AUDIT 81->86 + A-ABI-3 RETIRED-
+EXECUTED (the class is automated now). R-84 flipped PRESENT (the 6-facet
+status surface re-verified on disk), R-37 reshaped PARTIAL (M-116's pointer),
+the status line recounted by real awk census (45/10/27 — the first-draft
+guess redone against the count, recorded as the anti-example). The phantom
+macro CR_UI_ERR_FVE_LOCKED -> ERR_FVE_LOCKED x4; the dead duplicate --label
+handler removed (dead from birth, the divergent ASCII semantics annotated,
+the live N-016b rule pinned at the ABI seam by N-090's test; no CLI harness
+exists — registered honestly); §7i FIXED-ALREADY (200 MB on disk); testing.md
+1,404 macros; bench/README's runtime-artifact truth; the API-DELTA stale
+rows annotated (M-072/M-074/M-017/S-038/OQ-SA-1). RED->GREEN: the gate's
+first run = 5 named count violations -> green. Suites: cr_tests 1,289/0
+failed + cr_ui_tests 77/77 (linux-release, the sibling window's red-main
+repair tree — convergent with this lane's own superseded repair). Trail:
+findings/FIXED/N-150 + ledger row + this entry.
+
+**Session-51 severe-first lane — S-059 landed + two hot-window franken-tests repaired (2026-10-29).**
+
+**S-059 FIXED (the sparse-hole export).** Corpus re-verified first-hand
+(:875661-673 zero-then-skip-read; :875062-75 the type-2 zero chunk with NO
+read; :874877-889 the sparse chunk typing). Extent.logical + hole;
+RunList::extents emits sparse runs with their VCNs (the coalesce now requires
+logical contiguity); all four mftwalk emit sites stamp logical; the
+compressed expander emits hole extents for zero-header units AND mid-unit
+sparse tails; the writer's positioned mode (auto-detected; the legacy
+cumulative walk preserved byte-identical for old sessions/unstamped engines)
+zero-fills logical gaps and holes with no device read; session wire bit 2048.
+5 new tests + the CompressedDataRecoversRealContent re-pin (the old pin
+asserted the defect: "a hole unit emits no extents"), RED->GREEN both halves
+(emission-neutered: 2 tests; hole-branch-neutered: the 0xEE bogus-read pin).
+Suite 1287/1287 + cr_ui 77/77.
+
+**Franken-test repairs at the merge:** (1) the S-058 polarity test's
+assertion block crossed onto this lane's fixture block (the remote lane's
+mirrored variable naming) - the in-table/out-of-table pairs asserted each
+other's behavior; repaired to match the fixtures. (2) The hot-window's
+LzhWrongDashByteRejects comment blocks fused - cohered (clear() +
+disabled_formats as belt-and-suspenders).
 **Session-44 minors lane — N-167 landed + the hot-window repair set (2026-10-29).**
 
 - **N-167 FIXED** — the found-size aggregate: `ScanStats::bytes_found` stamped from
@@ -8439,3 +8499,15 @@ dual-ID precedent. This is the third manifestation of the ID-collision hazard
 this lane flagged in its battery (the FIXED/M-133 reuse, the N-142/N-186 renumber,
 now this) — a board-wide "one ID, one finding, forever" invariant is worth a
 ci-local gate (the N-160 doc-truth gate family is the natural home).
+
+## Session-46 minors lane — the N-165 convergence commit (2026-10-29)
+
+The S57/S60 windows' merges absorbed this lane's repairs (their own repair
+commits credit them); this commit lands the two S46 pieces the merges did not
+carry: (1) the `FatScanStats.overflow_chains` counter — additive observability
+for the D-136 deferred-failure class (any extent past the device end), no
+behavioral surface, neither pin grades on it; (2) the S46 convergence addendum
+in findings/FIXED/N-165 (this lane's independent gate re-reads + RED→GREEN
+proof; the scan-time cap declined to the winning chain-own-grade stance per
+SA-9). Suite green on the result: 1331 ran / 1289 pass / 42 env-skips / 0 fail
+(linux-release), clang-format clean.

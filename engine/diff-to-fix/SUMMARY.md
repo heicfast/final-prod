@@ -186,7 +186,7 @@ cite) recorded in the sweep sheet for the N-180-family doc-truth batch.
 **Board at this push (filesystem truth at the pushed tree, the S52 lane's
 M-134 landing absorbed mid-push — CONVERGENT with this lane's OQ-S42-3
 probe; the same decode fed both lanes): 45 active — 5 SEVERE
-(S-040/S-050/S-059/S-060/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
+(S-040/**S-050-disposition-landed**/**S-059-fixed**/**S-060-fixed**/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
 FIXED at `290e9c16`) · 21 MINOR (N-189..N-192 new, N-186 retired) · 0 INFO
 (the tier folded per convention) / 107 FIXED / 5 tracked-open (OQ-S42-3
 resolved this lane, its remaining scope narrowed to the +0x72/+0x74
@@ -761,7 +761,7 @@ directive, every one decompile-verified first-hand:**
   population, test-pinned to the wrong reading (`test_grading.cpp:166-187`), all
   inherited from the **s5 evidence's §5 polarity erratum**. The `""` quirk
   corroborates (both sides skip dot-less files — for opposite reasons).
-- **S-059 (SEVERE — file reconstruction)**: sparse/hole files are **left-shifted
+- **S-059 (FIXED session-51 — file reconstruction)**: sparse/hole files were **left-shifted
   or refused** — `RunList::extents()` drops sparse runs, `Extent` has no logical
   offset, the writer's cumulative walk corrupts interior-hole layout and fails
   `ERR_TRUNCATED` with no output; the og always writes full logical size

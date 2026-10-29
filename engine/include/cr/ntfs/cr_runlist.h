@@ -71,10 +71,16 @@ public:
     /* Map a VCN to (lcn, run index) - binary search. sparse_out tells hole. */
     bool vcn_to_lcn(u64 vcn, u64* lcn, bool* sparse_out) const;
 
-    /* Contiguous byte ranges of valid data (for recovery IO planning). */
+    /* Contiguous byte ranges of the $DATA allocation (recovery IO
+     * planning). S-059: sparse runs are EMITTED (lcn == 0, sparse ==
+     * true) instead of dropped - a mid-file hole must keep its logical
+     * position or the writer left-shifts every later extent over it.
+     * `vcn` is the run's logical cluster start. */
     struct Extent {
         u64 lcn;
         u64 clusters;
+        u64 vcn = 0;
+        bool sparse = false;
     };
     void extents(std::vector<Extent>& out) const;
 

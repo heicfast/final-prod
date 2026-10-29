@@ -435,6 +435,125 @@ TEST(WriterDirs, MetadatalessBackendReportsUnsupported) {
         rows[0].metadata);
 }
 
+TEST(WriterDirs, InteriorHoleZeroFilledFullSize) {
+    /* S-059 end-to-end: a 3 MiB file with a 1 MiB interior sparse hole
+     * recovers at FULL logical size - the hole is zeros, the tail data
+     * lands at its true offset (not left-shifted), no ERR_TRUNCATED.
+     * (Pre-fix: the writer dropped the hole extent and either failed
+     * the whole file or shifted the tail 1 MiB early - the finding's
+     * falsifiable case.) */
+    const u64 CL = 4096; /* one extent = one cluster for simplicity */
+    std::vector<u8> img(4ull << 20, 0);
+    /* a NONZERO device head (0xEE): a hole extent must NEVER read from
+     * the device (offset 0 would emit 0xEE into the hole region) - the
+     * og's type-2 chunk writes zeros with no read at all */
+    std::memset(img.data(), 0xEE, 1 << 20);
+    /* data run 1: [0, 1 MiB) at device 0x100000, pattern 0xAA */
+    for (u64 i = 0; i < (1 << 20); i += CL)
+        std::memset(img.data() + 0x100000 + i, 0xAA, CL);
+    /* data run 2: [2 MiB, 3 MiB) at device 0x200000, pattern 0xBB */
+    for (u64 i = 0; i < (1 << 20); i += CL)
+        std::memset(img.data() + 0x200000 + i, 0xBB, CL);
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    /* file_props(name, off, len) pre-populates ONE plain extent - clear
+     * it: this fixture builds its own positioned extent list */
+    tree::FileProperties* pr = file_props("holed.dat", 0, 3 << 20);
+    pr->extents.clear();
+    tree::FileProperties::Extent e1{};
+    e1.offset = 0x100000;
+    e1.length = 1 << 20;
+    e1.logical = 0;
+    pr->extents.push_back(e1);
+    tree::FileProperties::Extent eh{};
+    eh.offset = 0;
+    eh.length = 1 << 20;
+    eh.logical = 1 << 20;
+    eh.hole = true;
+    pr->extents.push_back(eh);
+    tree::FileProperties::Extent e2{};
+    e2.offset = 0x200000;
+    e2.length = 1 << 20;
+    e2.logical = 2 << 20;
+    pr->extents.push_back(e2);
+    tree::FileNode* n = tree.add_file(found, pr);
+    (void)n;
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats))
+        << "the interior hole must not fail the file";
+    ASSERT_EQ(u64(1), stats.done);
+    /* the full 3 MiB materialized */
+    std::error_code ec;
+    const fs::path out = tmp.p / "out" / "holed.dat";
+    ASSERT_TRUE(fs::exists(out, ec));
+    EXPECT_EQ(u64(3) << 20, u64(fs::file_size(out, ec))) << "the FULL logical size";
+    /* content: head 0xAA, middle zeros, tail 0xBB at the TRUE offsets */
+    std::ifstream f(out, std::ios::binary);
+    ASSERT_TRUE(f);
+    auto check_span = [&](u64 at, u64 len, u8 want, const char* what) {
+        std::vector<u8> buf(static_cast<size_t>(len), 0);
+        f.seekg(std::streamoff(at));
+        f.read(reinterpret_cast<char*>(buf.data()), std::streamsize(len));
+        for (size_t i = 0; i < len; ++i)
+            if (buf[i] != want) {
+                EXPECT_TRUE(false) << what << ": byte " << i << " is " << std::hex
+                                   << unsigned(buf[i]) << " want " << unsigned(want) << std::dec;
+                return;
+            }
+    };
+    check_span(0, 1 << 20, 0xAA, "the head data run");
+    check_span(1 << 20, 1 << 20, 0x00, "the interior hole (zeros)");
+    check_span(2 << 20, 1 << 20, 0xBB, "the tail data run at its TRUE offset");
+}
+
+TEST(WriterDirs, LegacyCumulativeExtentsUnchanged) {
+    /* S-059 back-compat pin: extents with NO logical stamps and NO
+     * holes (old sessions, unstamped engines) take the cumulative walk
+     * - byte-identical to the pre-S-059 writer. */
+    std::vector<u8> img(4096, 0);
+    std::memcpy(img.data(), "AB", 2);
+    std::memcpy(img.data() + 512, "CD", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("legacy.dat", 0, 1024);
+    tree::FileProperties::Extent a{};
+    a.offset = 0;
+    a.length = 512;
+    pr->extents.push_back(a);
+    tree::FileProperties::Extent b{};
+    b.offset = 512;
+    b.length = 512;
+    pr->extents.push_back(b);
+    tree::FileNode* n = tree.add_file(found, pr);
+    (void)n;
+    pr->release();
+    tree.refresh_stats();
+    MemDevice dev(img);
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, &dev, WriterConfig{});
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    std::ifstream f(tmp.p / "out" / "legacy.dat", std::ios::binary);
+    ASSERT_TRUE(f);
+    char head[3] = {};
+    f.read(head, 2);
+    EXPECT_EQ(std::string("AB"), std::string(head, 2)) << "extent 1 at logical 0";
+    f.seekg(512);
+    f.read(head, 2);
+    EXPECT_EQ(std::string("CD"), std::string(head, 2)) << "extent 2 at logical 512 (cumulative)";
+}
+
 TEST(WriterDirs, StructureReconstructionWithEmptyLeaves) {
     std::vector<u8> img(1024, 0);
     tree::ResultTree tree;
