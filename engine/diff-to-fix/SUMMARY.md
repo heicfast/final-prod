@@ -1,3 +1,31 @@
+# SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... Aim for at least 20+ fixes in this session"]; corpus `be0cfe9` throughout; three rebase windows absorbed)
+
+- **The minor-first trail landing:** both open MINORs (N-107, N-127)
+  are driver-repo-resident per the OQ-S10-3 boundary (re-affirmed with
+  this lane's first-hand core-side re-verifications); their status
+  lines brought to the consistent PUSHED-FORWARD posture with
+  per-finding disposition notes.
+- **The DWG member (M-107 member 3) — this lane's independent decode
+  CONCEDED to the racing S84/S85 seat per SA-9 (total convergence);
+  THREE riders landed:** (a) the tier-1 table is TEN pairs not nine
+  (the asm's tenth "09" entry + `cmp edx,0xa`; AC1009
+  gate-passed-but-un-walked, the decline og-true; the test renamed +
+  the third arm), (b) the gen-3 fall-through exposed and fixed (the
+  explicit "21" match restores the og's routing), (c) the WPD
+  duplicate-test red main — convergent with the window's N-230 (the
+  rename form conceded, recorded in N-230's Resolution).
+- **Verification:** the merged DWG+WPD battery 17/17 first-hand; the
+  full two-pass suite green at each push.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+4 MAJOR · 2 MINOR · 0 INFO active / 209+ FIXED / 3 tracked-open** —
+M-086/M-087/M-089 driver-repo-resident (out of grant), M-107 active
+for APE's frame walk + SWF-RECT (+ the DWG gen-3 remainder). Next
+free IDs: S-069+, M-158+, N-231+, I-049+, A-017+, D-163+.
+
+---
 # SUMMARY.md — executive summary (the S92 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-92 S92 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to minor first) ... Aim for atleast 20+ fixes in this session"]; opened at core `390069ab` pre-window, pulled through FIVE racing windows to the landing head; corpus `be0cfe9` throughout; seats S89/S90/S91 all born-collided — this lane renumbered to S92)

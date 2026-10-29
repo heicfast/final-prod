@@ -4596,13 +4596,23 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(v, "AC10", 4) != 0)
         return r;
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly these
-     * nine. The S-007 landing carried "30" (AC1030 - not a real DWG
-     * release) and lacked "13" (AC1013 = R13) - corrected here. The og
-     * has NO sentinel check (the version table is the whole gate). */
-    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32"};
+    /* the og's tier-1 table (FUN_18002fe30 @ 0x18002fe30, raw asm: the
+     * stack table writes run [rbp-0x50]..[rbp-0x18] - the tenth entry's
+     * suffix u16 "09" lives at rbp-0x16 (the 0x39303031 constant's high
+     * half) - with the loop bound `cmp edx,0xa; jl` at 0x18002fede):
+     * exactly these TEN pairs. The S-007 landing carried "30" (AC1030 -
+     * not a real DWG release) and lacked "13" (AC1013 = R13) - corrected
+     * by the first landing. "09" (AC1009 = R12) IS in the og's gate but
+     * in NO generation's walk table: the og stamps the id 0x18 and the
+     * size stays the ctor's 0, so the decline below IS the og-true
+     * outcome for it (the S86 convergence rider: the initial landing
+     * read nine pairs; the tenth entry re-verified first-hand from the
+     * asm this session). The og has NO sentinel check (the version
+     * table is the whole gate). */
+    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21",
+                                      "24", "27", "32", "09"};
     int ver = -1;
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < 10; ++i)
         if (v[4] == u8(kVersions[i][0]) && v[5] == u8(kVersions[i][1])) {
             ver = i;
             break;
@@ -4727,7 +4737,16 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     }
 
     /* ---- gen-3 (AC1021 = R2007): the undecoded de-interleave chain -
-     * the bounded extent stays, the finding's recorded remainder ---- */
+     * the bounded extent stays, the finding's recorded remainder. The
+     * og's gen-3 table matches "21" ONLY (0x18002f4eb-0x18002f505: the
+     * u16 0x3132 compare) - it is NOT a default: a gate-passed version
+     * in no generation's table ("09" = AC1009/R12) keeps the ctor's
+     * extent 0 and declines (the S86 rider: the first landing reached
+     * this branch by fall-through, which the nine-pair gate happened
+     * to mask - the ten-pair gate exposes it; the explicit "21" check
+     * restores the og's own routing) ---- */
+    if (std::memcmp(ver_str, "21", 2) != 0)
+        return r; /* gate-passed but un-walked: the og's size stays 0 */
     u64 end = hit + (64ull << 20);
     if (end > limit)
         end = limit;

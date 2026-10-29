@@ -3097,18 +3097,28 @@ TEST(Carve, DwgR2004GateFailDeclines) {
             << "the failed struct gate must decline";
 }
 
-TEST(Carve, DwgVersionGateIsTheOgsNine) {
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly
-     * {12,13,14,15,18,21,24,27,32}. The pre-fix core carried "30"
-     * (AC1030 - no such DWG release) and LACKED "13" (AC1013 = R13) -
-     * both directions pinned here. */
-    for (int k = 0; k < 2; ++k) {
+TEST(Carve, DwgVersionGateIsTheOgsTenPairs) {
+    /* the og's tier-1 table (FUN_18002fe30 @ 0x18002fe30, raw asm: the
+     * stack table runs [rbp-0x50]..[rbp-0x18], the tenth entry's suffix
+     * u16 "09" at rbp-0x16, the loop bound `cmp edx,0xa; jl` at
+     * 0x18002fede): exactly {32,27,24,21,18,15,14,13,12,09} - TEN
+     * pairs. The pre-fix core carried "30" (AC1030 - no such DWG
+     * release) and LACKED "13" (AC1013 = R13) - both directions
+     * pinned here. The S86 convergence rider: "09" (AC1009 = R12) is
+     * gate-PASSED by the og but walked by NO generation (the og's size
+     * stays the ctor's 0), so it must DECLINE - and specifically NOT
+     * take the gen-3 bounded fall-through (the explicit "21" check
+     * restores the og's own tables; this third arm was RED at the
+     * rider tree without it). */
+    for (int k = 0; k < 3; ++k) {
         std::vector<u8> img(128 * 1024, 0);
         const size_t at = 512;
         if (k == 0)
             plant_dwg_header(img, at, "13"); /* R13 - MUST carve */
-        else
+        else if (k == 1)
             plant_dwg_header(img, at, "30"); /* AC1030 - MUST NOT carve */
+        else
+            plant_dwg_header(img, at, "09"); /* AC1009 - gate-passed, un-walked */
         plant_dwg_locator(img, at, 1, {{0x100, 0x2000}});
         MemDevice dev(std::move(img));
         tree::ResultTree tree;
@@ -3124,8 +3134,11 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
                 dwg = c;
         if (k == 0)
             EXPECT_NE(dwg, nullptr) << "AC1013 (R13) is in the og's table - it must carve";
-        else
+        else if (k == 1)
             EXPECT_EQ(dwg, nullptr) << "AC1030 is NOT a DWG release - the og's table refuses";
+        else
+            EXPECT_EQ(dwg, nullptr)
+                << "AC1009 is gate-passed but un-walked - the og's size stays 0 (never the gen-3 bounded fall-through)";
     }
 }
 

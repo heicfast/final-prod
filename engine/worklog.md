@@ -14218,3 +14218,22 @@ The merged tree: full suite **1712/1712**, ci-local GREEN, doc_truth_gate
 green. Trail: the finding's Session-93 addendum (the concession + the
 riders), the matrix S93 row, modules/query.md's S93 fix row, the SUMMARY
 S93 block, this entry. Corpus: be0cfe9, read-only guarantee held.
+
+## Session-86 S86 fix-lane — entry 2: the DWG convergence (concession per SA-9 + riders a/b; the WPD repair conceded to N-230) (2026-10-30)
+
+**The seat conceded.** This lane's independent DWG three-generation
+decode (evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md)
+converged totally with the racing S84/S85 landings (every material point
+of the walk matched; the six duplicate tests dropped at the resolution).
+**Riders landed on the seat:** (a) the tier-1 gate is TEN pairs — the
+asm's [rbp-0x50]..[rbp-0x18] stack table, the tenth "09" suffix at
+rbp-0x16, `cmp edx,0xa; jl` at 0x18002fede — AC1009 gate-passed but
+un-walked → the decline og-true (DwgVersionGateIsTheOgsTenPairs renamed
++ the third arm); (b) the gen-3 FALL-THROUGH exposed by the ten-pair
+gate — the explicit "21" match (0x18002f4eb-0x18002f505) restores the
+og's routing, the arm RED first-hand without it; (c) the WPD
+duplicate-test red main — convergent with the window's N-230 (their
+delete keeps the seat; this lane's rename form conceded and recorded in
+N-230's Resolution). Merged DWG+WPD battery 17/17 first-hand. **Next:
+M-107's remaining members — APE's frame walk, SWF-RECT** (+ the DWG
+gen-3 remainder named), then the tracked-open items.

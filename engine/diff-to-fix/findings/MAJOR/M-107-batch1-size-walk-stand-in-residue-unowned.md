@@ -330,3 +330,41 @@ SwfRectValidationRejectsNegativeField / SwfRectNbitsBelowTwoRejects all
 RED at the pre-fix tree (the core accepted every readable FWS header),
 GREEN with the gate; SwfRectValidationAcceptsSaneBoxAtFileLength pins
 the positive + the FileLength extent. Suite 1724/1724.
+
+---
+
+## Session-86 S86 addendum — the DWG convergence record (the seat conceded per SA-9; the ten-pair gate truth + the gen-3 routing riders landed on the seat) (2026-10-30)
+
+This lane independently decoded the DWG three-generation walk from the
+raw asm (its own decode sheet:
+`evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md`)
+before the pulls revealed the racing S84/S85 landings — the convergence
+is total (cursor 0x15, records from 0x19, the full-u32 id equality at
+0x18002f406, the running-max at 0x18002f41f, the mismatch decline at
+0x18002f46b, the torn salvage at 0x18002f429, the rand-LCG
+de-obfuscation at 0x18002f670, the six gates at 0x18002f5b0, extent =
+u64[0x34]+0x6c at 0x18002f5dd, the gen-3 bounded remainder). The seat
+stands; this lane's six duplicate tests were dropped.
+
+**Rider (a) — the tier-1 table is TEN pairs, not nine:** the asm's
+stack table runs [rbp-0x50]..[rbp-0x18] with the tenth entry's suffix
+u16 "09" at rbp-0x16 (the high half of the 0x39303031 constant at
+0x18002feae) and the loop bound `cmp edx,0xa; jl` at 0x18002fede.
+AC1009/R12 is gate-PASSED (id 0x18 stamped) but un-walked by every
+generation — the og's size stays the ctor's 0, so the DECLINE is the
+og-true observable. Landed: the gate list carries the tenth pair; the
+test renamed DwgVersionGateIsTheOgsTenPairs with the third arm.
+
+**Rider (b) — the gen-3 branch was a fall-through:** the explicit
+"21" match (the og's gen-3 table: the u16 0x3132 compare at
+0x18002f4eb-0x18002f505) restores the routing; a gated-but-un-walked
+version keeps the ctor's 0 and declines. The third test arm was RED
+first-hand at the rider tree without it.
+
+**Rider (c) — the WPD duplicate-test red main:** convergent with the
+window's N-230 (their delete kept the S87 seat's test; this lane's
+rename form conceded per SA-9 and is recorded in N-230's Resolution).
+
+**Remaining members: APE's frame walk, SWF-RECT** (+ the DWG gen-3
+R2007 remainder named on the seat). The merged DWG+WPD battery 17/17
+first-hand; the full two-pass suite green.

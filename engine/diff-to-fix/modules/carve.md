@@ -1508,3 +1508,16 @@ SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
 three rejection tests RED at the pre-fix tree). Suite 1724/1724.
 **The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
 the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+
+## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
+
+This lane's independent three-generation decode (evidence/s86-lane-sheets/
+s86-dwg-three-generation-walk-decode.md) converged totally with the racing
+S84/S85 landings. Riders landed on the seat: (a) the tier-1 table is TEN
+pairs, not nine — the asm's tenth "09" entry + `cmp edx,0xa; jl` at
+0x18002fede; AC1009 gate-passed-but-un-walked → the decline og-true;
+DwgVersionGateIsTheOgsTenPairs renamed + the third arm; (b) the gen-3
+fall-through exposed and fixed — the explicit "21" match
+(0x18002f4eb-0x18002f505) restores the og's routing. The WPD duplicate
+red-main repair converged with N-230 (the delete form conceded). The
+remaining members: APE's frame walk, SWF-RECT.
