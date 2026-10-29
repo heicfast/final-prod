@@ -59,6 +59,11 @@ for i in range(1, attempts + 1):
             run(["git", "rebase", "--abort"])
             print(f"MANUAL_CONFLICT_NEEDED attempt={i}: {status}")
             sys.exit(2)
+    # rebase can leave us detached; re-align local main to HEAD before pushing
+    cur = run(["git", "branch", "--show-current"]).stdout.strip()
+    if cur != "main":
+        run(["git", "branch", "-f", "main", "HEAD"])
+        run(["git", "checkout", "main", "--quiet"])
     # push
     p = run(["git", "push", "origin", "main"])
     if p.returncode == 0:
