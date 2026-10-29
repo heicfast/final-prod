@@ -48,9 +48,10 @@
   std-header key, the PST !BDN key, the TTF-sfnt-vs-ICO/CUR conflation,
   the FCPEvt SQLite binding).
 
-- **Board at this lane's filings:** 0 ACUTE · 0 SEVERE · **16 MAJOR ·
-  12 MINOR active** / 157 FIXED / 4 tracked-open (M-144 landed by the
-  racing S69 fix lane; N-212 this lane's addition).
+- **Board at this lane's close (re-truthed post-push):** 0 ACUTE · 0
+  SEVERE · **15 MAJOR · 12 MINOR active** / **159 FIXED** / 4 tracked-open
+  (M-144 [ext4] + M-136 [writer] landed by the racing fix lanes during this
+  audit — both absorbed at the push-rebases; N-212 this lane's addition).
 
 
 ## Session-73 S73 lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-audit lane absorbed; baseline suite 1496/1496 green on Linux before the first change; the racing S69/S70 audit lanes conceded per SA-9 with a disjoint slice taken), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)

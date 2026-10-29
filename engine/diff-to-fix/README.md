@@ -1,5 +1,31 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+
+**Session-68 S68 lane (2026-10-29 — the EIGHTH continuation audit lane of the same
+user second-session mandate ["now you have go look for other things which session 1
+missed and continue working"]; opened at core `f3da99f1`, the filings verified and
+pushed at `bb87b406`, corpus `be0cfe9`):** the coverage-gap census (file-level:
+zero never-cited analytical artifacts — 8.7 MB of prior-session evidence covers
+every corpus doc; the gap is function-level) + the **RAWSearchDLL static-registry
+initializer fully decoded first-hand** (66 keys, the construct-then-insert pairing —
+every key maps to the correct core row: ALL MATCH, four formerly-ambiguous census
+chains resolved: 0x1cd = the CD01-compressed-SVG key, 0xd302020 = the DXF "  0\r"
+key, 0x4e444221 = the PST !BDN key, 0x694c5153 = the FCPEvt/SQLite chain) + the
+**tier-1 acceptance-gate audit** (all 15 long-magic core rows verified against the
+og's analyser tier-1 checks, raw-asm where Ghidra mis-decompiled — the ASF
+16-byte GUID compare, the FCPEvt 15-byte "SQLite format 3" memcmp, the MOBI
+BOOK@60/MOBI@64 pair, TAR ustar@257, 7Z, the LZH family, VCF, PNG, PDF, RAR4:
+ALL MATCH) + the **raw_signs.json content verification** (199 header + 62 tail
+signs byte-exact; the min/max KiB→byte ×1024 RESOLVED as the og's own scan-time
+`<<10`; the 0x7d000 absent-max default confirmed) + **one new finding: N-212**
+(MINOR — the ASF validator's acceptance band: the count/size gates the og never
+reads, the tier-1 raw-asm-verified 16-byte-compare-alone; and the extent source:
+the og's FileProperties-declared-size vs the core's walked end) + five
+census-doc label corrections (CORPUS-ERRATA rows 10-14). Evidence:
+`evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`. Board at close:
+0 A · 0 S · 15 MAJOR · 12 MINOR active / 159 FIXED / 4 tracked-open. Next free
+IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
+
 **Session-55 S55 lane (2026-10-29 — the SIXTH continuation audit lane of the same
 user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining,
 the user's named focus areas: sector numbers / scanning / accurate detection /

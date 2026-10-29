@@ -10188,3 +10188,44 @@ scan-time resolution), RawConfig coverage, and the u16-map layer's prior
 decode confirmation. Five census-doc corrections in CORPUS-ERRATA rows 10-14.
 One new finding (N-212) — the seam the prior sessions had genuinely not
 decoded end-to-end.
+
+## Session-68 S68 lane — close-out (2026-10-29)
+
+**Lane close record.** The eighth continuation audit lane closes at core
+`bb87b406` (the racing S69/S72/S75 fix lanes' M-144 + M-136 landings absorbed
+at the push-rebases — both sides' worklog entries kept, the committed-marker
+class resolved per the N-136/N-093 precedent), corpus `be0cfe9` throughout.
+
+**Deliverables:** (1) the coverage-gap census — the file-level answer is
+ZERO never-cited analytical artifacts (8.7 MB of prior-session evidence
+covers every corpus doc; the genuine gap was function-level, exactly where
+this lane dug); (2) the RAWSearchDLL registry initializer decode (66 keys,
+ALL MATCH, four ambiguous chains resolved, five census-doc errata rows);
+(3) the tier-1 acceptance-gate audit (15 long-magic rows, ALL MATCH, three
+near-divergences disproven by raw-asm decode); (4) the raw_signs content
+verification (199+62 signs byte-exact, the ×1024 and 0x7d000 semantics
+resolved); (5) **N-212** (MINOR, active) — the ASF acceptance band + extent
+source, the one genuine seam the prior sessions had not decoded end-to-end.
+
+**Board at close:** 0 ACUTE · 0 SEVERE · 15 MAJOR · 12 MINOR active /
+159 FIXED / 4 tracked-open (M-086/M-087/M-089/N-107/N-127 driver-repo-resident
+per OQ-S10-3). Next free IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
+
+**Read-only guarantee:** this lane's delta = diff-to-fix/ + worklog* +
+scripts/s68_*.py (the audit tooling) only. No source code, tests, headers,
+workflows, or build files modified. No fix applied.
+
+**Handoff recommendation (the next 20, priority order):** the racing fix
+lanes own the active MAJORs' queue (S75's announced: M-118 → M-113 → M-105 →
+M-111 → M-114 → M-107 → the MINOR ladder); for the next AUDIT lane, the
+uncovered seams this lane identified but did not exhaust: (a) the two
+N-212 open questions (the FileProperties +0x28 offset spec pin; the two
+11cf sub-GUIDs' names — informational only); (b) a per-analyser tier-2
+walk sweep for the remaining BruteForce family members (this lane covered
+ASF end-to-end; the same two-phase streaming shape exists for
+CADTS/APE/M2TS/MTS/DWG/DXF/EPS/FH11 — the M-107 eleven's walks are the
+fix lanes' decode targets, but the AUDIT side should independently decode
+the og's per-format extent semantics to validate each landing); (c) the
+og's per-analyser id-classification outcomes (ids 6/7/8 for ASF — the core
+does not emit classification ids; whether any consumer surface needs them
+is an open mapping question).
