@@ -45,8 +45,11 @@ platform transports (cr::win)               [Windows]
 ## 2. Pure core / platform split
 
 Everything under `src/core` compiles identically on gcc (Linux CI, ASan) and
-MSVC (/W4 /WX) - no OS headers. Everything Windows-specific lives in
-`src/win` and compiles only there. The engines are fed `IStorageDevice`
+MSVC (/W4 /WX) - no OS headers (one guarded exception: `src/core/session/
+cr_lastscan.cpp:12` includes `windows.h` under `#ifdef _WIN32` with a
+`unistd.h` else-branch — M-154's last-scan pointer sidecar needed the
+platform rename/clock calls; everything else in core stays OS-free).
+Everything Windows-specific lives in `src/win` and compiles only there. The engines are fed `IStorageDevice`
 views; a fake in-memory device (the tests) and the Windows transports are
 interchangeable - the same property that let the reference product ship its
 "CellTest" harness.
