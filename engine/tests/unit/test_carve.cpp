@@ -9378,18 +9378,6 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
      * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
-<<<<<<< HEAD
-     * red, repaired at the S54-window merge): the default user-sign set
-     * carries lha "2,2D6C68" ("-lh" at +2) - with a set installed by an
-     * earlier test, this fixture's prefix carves a device-end lha USER
-     * record (the D-104 out-of-box superset, by design). Two equivalent
-     * repairs raced in the window and their comment bodies spliced
-     * mid-comment at push (the remote's main was RED here): this repair
-     * keeps BOTH mechanisms - the registry reset (absence is a state to
-     * SET, not a default to assume) AND the surgical extension gate
-     * (S-056's disabled_formats gates the user layer; "lha" has no stock
-     * rows, the lzh grammar is a different extension). */
-=======
      * red, closed two ways by two lanes): the default user-sign set's
      * "lha" entry (2,2D6C68 - the og's own shipped sign) matches ANY
      * "-lh" anchor at +2, so with a set installed by an earlier test
@@ -9401,7 +9389,6 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * extension (S-056's disabled_formats - the surgical belt to the
      * clear()'s suspenders; either alone suffices, both document the
      * interaction). */
->>>>>>> origin/main
     ASSERT_EQ(OK, carve::usersigns::clear());
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
