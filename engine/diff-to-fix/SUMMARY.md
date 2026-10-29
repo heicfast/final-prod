@@ -55,16 +55,19 @@ Next free IDs: S-069+, M-160+, N-226+, I-049+, A-017+, D-166+.
 - **N-223 moved to findings/FIXED/** (the fixed-directory directive —
   its own Resolution was FIXED but the file sat in MINOR/).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 7
-MAJOR · 2 MINOR · 0 INFO active / 204 FIXED / 4 tracked-open.** (M-159
-and N-224 were filed AND fixed this session — they land on the FIXED side
-directly. Of the 7 active MAJORs, M-086/M-087/M-089 are driver-repo-resident
-per OQ-S10-3 — out of this grant's two-repo boundary; the 2 active MINORs,
-N-107/N-127, are the same driver-repo class. M-107 remains active for its
-EIGHT un-landed members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT —
-X3F, CRW, and DWG landed as members 1-3). The in-scope fix queue after
-this push: M-101 (the Versions / Tags Extracted branches), M-107's
-members, then M-078/M-105, then the tracked-open resolutions.)
+**Board after this landing (filesystem truth, recounted Session-84
+2026-10-30): 0 ACUTE · 0 SEVERE · 6 MAJOR · 3 MINOR · 0 INFO active /
+205 FIXED / 4 tracked-open.** (M-159 and N-224 were filed AND fixed —
+they land on the FIXED side directly; M-078 also landed FIXED since the
+prior board. Of the 6 active MAJORs, M-086/M-087/M-089 are
+driver-repo-resident per OQ-S10-3 — out of this grant's two-repo
+boundary; of the 3 active MINORs, N-107/N-127 are the same driver-repo
+class and N-225 is the win-stub triple-convergence record. M-107 remains
+active for its SEVEN un-landed members (WPG, WPD, SIT, APE, EPS, DXF,
+SWF-RECT — X3F, CRW, DWG, and PSP landed as members 1-4). The in-scope
+fix queue after this push: M-101 (the Versions / Tags Extracted
+branches), M-107's members, then M-105, then the tracked-open
+resolutions.)
 Next free IDs: S-069+, M-160+, N-225+, I-049+, A-017+, D-165+.
 
 ---
@@ -151,6 +154,17 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-101 FIXED (MAJOR, the two missing branches):** the Versions
+  node (the NTFS namespace-identity hash — two records for one
+  pathname = versions of one file, the torn-overwrite population;
+  persisted as nflags bit-14, queryable per-group and enumerable via
+  query::version_groups()) and Tags Extracted (the runtime flag the
+  host's preview pass stamps; NOT persisted — the og persists no tag
+  state either, the finding's own defer note). The three landed
+  branches regression-pinned unchanged. Honest trail note: the code
+  rode the gate-repair commit b7d05b12 through an add -A mishap; the
+  trail lands in its own commit.
+
 - **M-078 FIXED (MAJOR, the destructive consent twin):** the
   CBitlockerTurnOffOperation endpoint — `win::bitlocker::turn_off` (the
   dual Disable-BitLocker / manage-bde -off chain, unlock()'s own
@@ -183,8 +197,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after M-078 (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 6 MAJOR · 2 MINOR · 0 INFO active / 198 FIXED / 4
+**Board after M-101 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 5 MAJOR · 2 MINOR · 0 INFO active / 199 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3
