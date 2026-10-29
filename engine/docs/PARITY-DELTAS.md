@@ -4330,3 +4330,45 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   fallback, the log_bs cap isolated from the fdb rule, the journal_inum
   default, both desc_size combos). No behavior change — registration and
   pins are the deliverable.
+
+### D-146 — the recoverability rawCount semantics: provenance census vs the og's validated-recoverable count (N-205 registration, REGISTERED DELIBERATE DIVERGENCE — raw_tail_zero carries the og-parity population)
+
+- **WHAT OG DOES:** the assistant's rawCount (+0x1a0) is a
+  validated-recoverable count, ticked at quick-scan populate
+  (FUN_1401c7d80, DRWUI:331183-331311): the forced observe-only deep-read
+  probe (FUN_14038c470's param_3=1 form — the tail-zero signature on the
+  extent's final sector, no grade change) over grade-1 NTFS nodes with
+  0 < key < device-size, ANDed with the size rule (FUN_1401c76e0,
+  DRWUI:330974-330999: the vt+0x100 FS-code's 0x23 ctor default — the
+  value every SearchDLL node carries — selects the size <= 0x77fffff arm;
+  any other code selects size >= one cluster). Surfaced in the
+  recoverability log line (byte +0x1a0 read at DRWUI:330915-916).
+- **WHAT WE DO:** the core's `raw_count` (AssistantStats, the report's
+  scan_analysis field, both ABI copies) is the landed Origin::Carved
+  census — a provenance count over the carve population, documented in
+  the cr_grading.h counter-mapping block. The og's population is carried
+  by the NEW `raw_tail_zero` member (N-205's landing): the forced
+  observe-only probe over grade-1 NTFS nodes, 0 < key < device-size,
+  the 0x77fffff default arm — the exact population above, ticked in
+  grade_tree's pass 0 before the solo rules mutate grades (the
+  quick-scan-populate analog). Core-internal counter: the C ABI struct
+  keeps its shipped field set (an append-only exposure rides a future
+  ABI bump if a finding demands it).
+- **WHY:** re-pointing `raw_count` at the og's population (option (a))
+  would silently change the meaning of a shipped report field mid-stream
+  — every landed consumer (the report schema, both ABI surfaces, the
+  CLI's analysis print) reads it as the carve census. Keeping the census
+  and adding the og-parity counter preserves both semantics with zero
+  contract break; the divergence is now REGISTERED where the old header
+  comment silently asserted a mapping.
+- **RISK:** a host wanting the og's recoverability number reads
+  `raw_count` and gets the carve census — the divergence is visible in
+  every report that carves anything. Mitigated: the D-row + the header
+  mapping block state the split explicitly; the og-parity number exists
+  as raw_tail_zero for any surface that asks.
+- **VERDICT: ACCEPTED** (deliberate divergence, registered N-205; renumbered D-143→D-144→D-145→D-146 across three push-rebases — the racing windows' N-196, N-198, and N-202 registrations took the lower seats first per SA-9, the N-207 born-collided-seat class recurring twice). The
+  M-134 resolution's "raw_tail_zero in AssistantStats" sentence was
+  aspirational at its landing (the field did not exist — the N-205
+  phantom claim); the N-205 landing makes it true. Any future report/ABI
+  exposure of the recoverability count should carry raw_tail_zero, not
+  re-point raw_count.

@@ -9649,3 +9649,54 @@ findings/FIXED/M-147 + ledger row + D-52 correction + this entry.
   family (M-142 is theirs per their worklog): M-140, M-143, M-144, M-146,
   M-136, M-135, M-073, M-075, M-078, M-101, then the decision-class
   M-105/M-111/M-114, the remaining MINORs, and the tracked-open items.
+
+## Session-60 lane — N-205 landed (2026-10-29)
+
+**N-205 FIXED (MINOR — the rawCount population + the phantom member).**
+Corpus re-verified first-hand: FUN_1401c7d80's forced-probe walk
+(DRWUI:331183-311), the increment arms (:331278/:331289), the size rule
+(FUN_1401c76e0, 0x23 ctor default -> <= 0x77fffff), the +0x1a0 counter,
+the SearchDLL ctor-default census. Landing: (1) AssistantStats gains
+raw_tail_zero, ticked in grade_tree's NEW pass 0 (the quick-scan-populate
+analog, pre-solo-rules): NTFS-family, grade Average, 0 < extent-end <
+device-bytes, forced_tail_zero_probe (the observe-only port of
+FUN_14038c470's param_3=1 form — no grade mutation, no index gate) AND
+the 0x77fffff arm; (2) option (b): raw_count keeps the Origin::Carved
+census — REGISTERED deliberate divergence D-144 (renumbered at the push-rebase: the racing window's N-196 row keeps the D-143 seat per SA-9) + the header mapping
+block now states the split; (3) the M-134 Resolution's phantom
+"raw_tail_zero" sentence repaired by addendum in the FIXED file; (4) the
+C ABI untouched (the append hazard documented in the D-row). Proof:
+Grading.RawTailZeroTicksForcedProbePopulation + RawTailZeroSizeArmBoundary
++ RawCountSemanticsRegistered (the registration leg RED until the D-row
+landed; the counter legs could not compile pre-fix — the field's absence
+WAS the finding's phantom claim); Grading family 40/40. Trail: FIXED
+finding + Resolution, ledger row, matrix MATCH (row 1177 + S60 section),
+tree.md verdict, D-144, the M-134 addendum, SUMMARY block (board recount:
+42 active — the racing window's I-045/I-046 retirements absorbed), this
+entry.
+
+
+## Session-60 lane — the second hot-window renumber ride (2026-10-29)
+
+The push-rebase raced again: the window's N-197 (D-52 addendum) + N-198
+(D-144) + I-045 (D-141) landings arrived while this lane's N-205 merge
+was in flight — the born-collided D-144 seat resolved per SA-9 (their
+N-198 keeps it; this lane's N-205 registration renumbered
+D-143→D-144→D-145, every live citation swept: the cr_grading.h mapping
+comment, the RawCountSemanticsRegistered pin, matrix/SUMMARY/finding/
+M-134-addendum cites). Both sides' rows kept in PARITY-DELTAS, the
+ledger, and this file. Gate green at 140 unique D-rows; Grading family
+40/40 re-verified post-sweep.
+
+
+## Session-60 lane — the third hot-window renumber ride (2026-10-29)
+
+The window's N-202 (D-145) + M-147 corroboration landed while the second
+renumber merge was in flight — the third born-collided D-seat resolved
+per SA-9: this lane's N-205 registration now rides D-146 (the
+D-143→D-144→D-145→D-146 ride recorded at every citation: the cr_grading.h
+mapping comment, the RawCountSemanticsRegistered pin, the matrix/SUMMARY/
+finding/M-134-addendum cites). Gate green; the registration pin re-verified
+post-sweep. The racing lanes (their MINOR-first S60-B + a MAJOR-first
+lane) are converging on the same board — this lane's remaining queue is
+re-synced against their landings before each fix.

@@ -77,11 +77,12 @@ tracked-open; FIXED archive 140.
 
 **Fixes landed this push:**
 
+- **N-205 FIXED (MINOR)** — the recoverability rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's exact population (the forced observe-only tail-zero probe over grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default size arm — FUN_1401c7d80 :331183-311 re-read first-hand, ported as grade_tree's pass 0); `raw_count` keeps the Origin::Carved census as the REGISTERED deliberate divergence (**D-146** [renumbered D-143->D-144->D-145->D-146 across the push-rebases: the racing windows' N-196/N-198/N-202 registrations keep the lower seats per SA-9], header mapping block); the M-134 resolution's phantom `raw_tail_zero` sentence repaired by addendum. Tests: Grading.RawTailZeroTicksForcedProbePopulation / RawTailZeroSizeArmBoundary / RawCountSemanticsRegistered (the registration leg RED until the D-row landed); Grading family 40/40.
 - **N-195 FIXED (MINOR)** — the driver-verification bench's two phantom-zero extended-IOCTL constants righted to the contract codes (0x6002440 GET_INFO / 0x6002448 GET_VERSION, cr_rda.h CTL_CODE_RDA fn 0x910/0x912) — the bench can now actually exercise the GET_INFO/GET_VERSION paths it exists to verify. Pin test CrUi.BenchVerifyDriverIoctlCodesMatchContract (RED: both phantom literals present → GREEN: contract codes present, phantom absent); CrUi family 77/77.
 - **N-199 FIXED (MINOR)** — probe_family's ReFS branch now gates on BOTH boot signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759 re-read first-hand): a forged OEM no longer dispatches the ReFS family. Test Refs.RecognitionRequiresFsrsMarker RED (forged-OEM fixture dispatched Refs) → GREEN; Refs family 41/41; lost/ldm/probe neighborhood 153/153.
 - **N-192 FIXED (MINOR)** — FileProperties::clone() now copies `short_name` (the og's whole-block clone contract, part1 slot +0x08): the hard-link fan-out's cloned links keep the 8.3 name at the walk, through the session roundtrip (nflags bit 2), and at the UI preview clone. Test NtfsVolume.HardLinkFanOutClonesKeepShortName RED (cloned link's short_name empty, both axes) → GREEN; family 71/71.
 
-**Board at this push:** 45 active — 1 SEVERE · 23 MAJOR · 19 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 139 files.
+**Board at this push:** 42 active — 1 SEVERE · 23 MAJOR · 18 MINOR · 0 INFO (the racing S60 window retired I-045/I-046 — D-141/D-142, convergent with this lane's plan) — + 4 tracked-open, FIXED archive at 142 files.
 
 ---
 
