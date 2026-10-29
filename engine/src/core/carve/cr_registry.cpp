@@ -974,14 +974,20 @@ const Signature kTable[] = {
      750,
      validate_tar,
      "TAR Archive"},
-    {FMT_EPS, "eps", {'%', '!'}, 2, 0, 4, 64ull << 20, 620, validate_eps, "PostScript"},
+    /* M-107 members 7/8/6: the row maxes carry the og walks' own cap
+     * constants - EPS: the CZeroEnd child's singleton+0x70 x 100 (the
+     * ctor FUN_180032c50's [obj+0x110]); AI: the tier-1 formula's cap
+     * (the same singleton x 100); DXF: the RAW singleton field
+     * 0xbebc200 = 200 MB (FUN_1800379c0's cap check, no multiplier).
+     * The 64 MiB stand-in values are gone from these rows. */
+    {FMT_EPS, "eps", {'%', '!'}, 2, 0, 11, 0x4A817C800ull, 620, validate_eps, "PostScript"},
     {FMT_AI,
      "ai",
      {0xC5, 0xD0, 0xD3, 0xC6},
      4,
      0,
-     8,
-     64ull << 20, /* N-148: the M-107-verified 64 MiB stand-in (was 16) */
+     0x1c,
+     0x4A817C800ull,
      620,
      validate_ai,
      "Adobe Illustrator"},
@@ -991,7 +997,7 @@ const Signature kTable[] = {
      4,
      0,
      32,
-     64ull << 20,
+     0xbebc200ull,
      620,
      validate_dxf,
      "AutoCAD DXF",

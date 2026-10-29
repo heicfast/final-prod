@@ -2853,6 +2853,199 @@ TEST(Carve, DwgTornSalvagesTheWalkedPrefix) {
         << "the salvage is record 100's seeker+size (0x400+0x100)";
 }
 
+TEST(Carve, DxfEofTrailerWalkSetsExtent) {
+    /* the og's trailer scan (FUN_1800379c0 :42395-42432 + the backward
+     * search FUN_180042ab0): the line ending from byte[3]; the extent
+     * ends past the FIRST "  0\nEOF\n" / "  0\r\nEOF\r\n" marker -
+     * NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    /* the CRLF canonical header (N-208's gate) + a body + the trailer */
+    std::memcpy(img.data() + at, "  0\r\nSECTION\r\n  ", 16);
+    for (size_t i = 16; i < 0x2000; ++i)
+        img[at + i] = u8(0x20 + (i % 90)); /* body text, no NUL */
+    std::memcpy(img.data() + at + 0x2000, "  0\r\nEOF\r\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dxf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dxf = c;
+    ASSERT_NE(dxf, nullptr) << "the DXF must carve through the trailer walk";
+    EXPECT_EQ(dxf->props()->logical_size, size_t(0x2000 + 10))
+        << "extent = past the CRLF EOF trailer (0x2000 + 10)";
+}
+
+TEST(Carve, DxfLfFormUsesTheLfTrailer) {
+    /* the og's byte[3] line-ending detection: an LF-form file (the
+     * 999-comment entry) ends at its LF trailer "  0\nEOF\n" (8B). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "999\n", 4);
+    std::memcpy(img.data() + at + 4, "  0\nSECTION\n  ", 14);
+    for (size_t i = 18; i < 0x1000; ++i)
+        img[at + i] = u8(0x20 + (i % 90));
+    std::memcpy(img.data() + at + 0x1000, "  0\nEOF\n", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dxf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dxf = c;
+    ASSERT_NE(dxf, nullptr);
+    EXPECT_EQ(dxf->props()->logical_size, size_t(0x1000 + 8))
+        << "the LF form's extent = past the LF trailer";
+}
+
+TEST(Carve, DxfTornNoTrailerSalvagesTheWalkedBound) {
+    /* no trailer anywhere: the og's extent accumulation ends at the
+     * walked bound (the cap or the device end) - never a refusal. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "  0\r\nSECTION\r\n  ", 16);
+    for (size_t i = 16; i < 128 * 1024 - at; ++i)
+        img[at + i] = u8(0x20 + (i % 90)); /* body, no trailer */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dxf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dxf = c;
+    ASSERT_NE(dxf, nullptr) << "the torn DXF still carves (the salvage)";
+    EXPECT_EQ(dxf->props()->logical_size, size_t(128 * 1024 - at))
+        << "the walked bound at the device end";
+}
+
+TEST(Carve, EpsAdobeCovenantRequired) {
+    /* the og's tier-1 (FUN_180032b50 :38746-62) accepts ONLY
+     * "%!PS-Adobe-" headers - a bare "%!PS" file RETURNS 0 (the
+     * decline). The pre-fix core accepted it - the discovered
+     * divergence, pinned in both directions. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(128 * 1024, 0);
+        const size_t at = 512;
+        if (k == 0)
+            std::memcpy(img.data() + at, "%!PS-Adobe-3.0\n", 14);
+        else
+            std::memcpy(img.data() + at, "%!PS plain header\n", 18);
+        std::memcpy(img.data() + at + 0x800, "%%EOF", 5);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats),
+                  OK);
+        tree::FileNode* eps = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                eps = c;
+        if (k == 0)
+            EXPECT_NE(eps, nullptr) << "the Adobe covenant accepts";
+        else
+            EXPECT_EQ(eps, nullptr) << "a bare %!PS header is the og's decline";
+    }
+}
+
+TEST(Carve, EpsEofTrailerWalkSetsExtent) {
+    /* the og's child walk (the %%EOF backward search, the general-ctx
+     * arm :41446-49): the extent ends past "%%EOF" + 2 (the DSC
+     * trailer's EOL) - NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "%!PS-Adobe-3.0\n", 14);
+    for (size_t i = 14; i < 0x3000; ++i)
+        img[at + i] = u8(0x20 + (i % 90)); /* body text */
+    std::memcpy(img.data() + at + 0x3000, "%%EOF\r\n", 7);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* eps = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            eps = c;
+    ASSERT_NE(eps, nullptr) << "the EPS must carve through the trailer walk";
+    EXPECT_EQ(eps->props()->logical_size, size_t(0x3000 + 7))
+        << "extent = past %%EOF + the 2-byte EOL";
+}
+
+TEST(Carve, AiHeaderFormulaWalkSetsExtent) {
+    /* the og's AI arm (FUN_180032b50 :38765-38790): extent = max of
+     * the three (start + length) pairs - (dw@4+dw@8), (dw@0xC+dw@0x10),
+     * (dw@0x14+dw@0x18) - the tier-1's formula IS the size (the
+     * factory's non-Adobe path returns the plain base child, no walk).
+     * The pre-fix "version 1..64" gate was a stand-in invention. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "\xC5\xD0\xD3\xC6", 4);
+    put32v(img, at + 4, 0x100);   /* block A start */
+    put32v(img, at + 8, 0x2000);  /* block A length */
+    put32v(img, at + 0xC, 0x2800); /* block B start */
+    put32v(img, at + 0x10, 0x800); /* block B length */
+    put32v(img, at + 0x14, 0x40);  /* block C start */
+    put32v(img, at + 0x18, 0x100); /* block C length */
+    /* max(0x2100, 0x3000, 0x140) = 0x3000 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* ai = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            ai = c;
+    ASSERT_NE(ai, nullptr) << "the AI must carve through the header formula";
+    EXPECT_EQ(ai->props()->logical_size, size_t(0x3000))
+        << "extent = max(dw4+dw8, dwC+dw10, dw14+dw18) = 0x3000";
+}
+
+TEST(Carve, AiDegenerateZeroHeaderDeclines) {
+    /* the all-zero length fields: extent 0 - the decline (nothing to
+     * carve; the og's formula yields 0 and the emission carries it). */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "\xC5\xD0\xD3\xC6", 4);
+    /* all length/start fields stay zero */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the degenerate zero header declines";
+}
+
 TEST(Carve, DwgR2004RandStructWalkSetsExtent) {
     /* the og's gen-2 (FUN_18002f630's MSVC-rand XOR stream over the
      * 0x6c struct at +0x20; the six gates; extent = u64@0x34 + 0x6c).
@@ -3190,15 +3383,74 @@ size_t plant_wpg(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
-size_t plant_wpd(std::vector<u8>& img, size_t at) {
+size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared = 0x3000) {
+    /* M-107 member 6: the og's tier-1 pair table (FUN_180041f50's
+     * compare groups at 0x180041f8a-0x180041fd0): (u32@+8, u32@+0xE)
+     * = the known pair (0x01020a01, 0x00050200); the extent =
+     * u32@+0x14 (0x18004200c) - the declared document size */
     std::memcpy(img.data() + at,
                 "\xFF"
                 "WPC",
                 4);
-    put16(img, at + 4, 0x0200); /* nonzero product word */
-    for (size_t i = 6; i < 32; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 32;
+    put32v(img, at + 8, 0x01020a01);   /* the pair's first word */
+    put32v(img, at + 0xE, 0x00050200); /* the pair's second word */
+    put32v(img, at + 0x14, declared);  /* the og's size source */
+    return declared;
+}
+
+TEST(Carve, WpdPairTableDeclaredSizeSetsExtent) {
+    /* M-107 member 6 (WPD): the og's FileWPDAnalyser walk (the +0x10
+     * slot FUN_180041f50; the registry binding FF 'W' 'P' 'C' -> vtable
+     * 0x18006cff0 idx 0x44): the tier-1 pair table then extent =
+     * u32@+0x14 (0x18004200c) - the declared document size, NOT the
+     * blind 64 MiB stand-in. RED at the stand-in tree: the extent was
+     * the device-end-clamped 64 MiB. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const u32 declared = 0x5000;
+    plant_wpd(img, at, declared);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the WPD must carve through the pair table";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(declared))
+        << "the extent is the declared size at +0x14, not 64 MiB";
+}
+
+TEST(Carve, WpdUnknownPairDeclines) {
+    /* the og's tier-1 (0x180041ff0-0x180041ff5): an unknown
+     * (u32@+8, u32@+0xE) pair returns 0 - the DECLINE, no bounded-extent
+     * fallback. The old 'nonzero product word' gate is gone with it. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at,
+                "\xFF"
+                "WPC",
+                4);
+    put32v(img, at + 8, 0xDEADBEEF); /* an unknown pair */
+    put32v(img, at + 0xE, 0xFEEDFACE);
+    put32v(img, at + 0x14, 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            FAIL() << "an unknown pair must decline the carve";
+    SUCCEED();
 }
 
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
@@ -3982,9 +4234,13 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
                   (unsigned long long)12345);
     /* "%!" with no PS behind it @ 44032 */
     std::memcpy(img.data() + 44032, "%!XY", 4);
-    /* AI with version 999 @ 45056 */
+    /* AI with the degenerate all-zero length fields @ 45056 (the
+     * M-107 member-8 re-pin: the og's AI arm has NO version gate - the
+     * "version 999" form is an ACCEPT under the corpus-true formula
+     * (dw@4 is a block start, not a version); the degenerate zero
+     * header yields extent 0 = the og's decline class) */
     std::memcpy(img.data() + 45056, "\xC5\xD0\xD3\xC6", 4);
-    put32v(img, 45056 + 4, 999);
+    /* every length/start field stays zero */
     /* DXF key without the SECTION covenant @ 46080 */
     std::memcpy(img.data() + 46080, "  0\r\nXXXXXXX", 11);
     /* ftyp with an unknown 3gp brand @ 47104 */
