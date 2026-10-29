@@ -9423,3 +9423,17 @@ pattern), validate_boot_segment rewired through it, pinned by
 NtfsVolume.BootSpcShiftDecodeConventionPinned (eight-byte table). Behavior
 unchanged. Trail: findings/FIXED/N-197 + Resolution, ledger row, matrix
 MATCH, SUMMARY, this entry.
+
+## Session-60 lane — N-204 landed (2026-10-29)
+
+**N-204 FIXED (MINOR — the engine-layer carve geometry registration).** All
+five corpus sites re-verified first-hand (RAWSearchDLL :9271-9275 the
+0x400000/sector_size block + ×2 double buffer; :9434-9438 the half-offset
+read; :9505-9526 the analyser base with the 0x200 fallback; :9616-9622 the
+memmove slide; :9494-9502 the sector-stride first-u32 probe) before the
+registration landed. SCAN-ENGINE-DELTA F6's og-side cell now carries the
+full decoded constant set with every cite, the engine-layer-vs-device-layer
+4 MiB separation (M-030/OQ-S4-3) drawn explicitly inside the cell, and the
+OQ-S4-3 acceptance-criterion cross-link. Registration-only per the finding's
+own fix plan — no code change, no new tests (nothing behavioral). Trail:
+findings/FIXED/N-204 + matrix MATCH + carve.md + this entry.
