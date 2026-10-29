@@ -73,3 +73,24 @@ None — the arithmetic and both reader shapes are directly established; the onl
 **Fixed in commit:** the M-150 S80-lane commit (this session; SHA in the commit footer)
 **Verified by:** Session.HostileCountBombRefused / Session.CountAtWireBoundFailsCleanlyBeyondIt / Session.TornTailGarbageCountStillFailsCleanly — RED first-hand via the stash dance (HostileCountBombRefused + TornTailGarbageCountStillFailsCleanly FAILED at the pre-fix tree: the count-scaled value-initialization threw before any node parse), GREEN post-fix; the full Session suite 29/29 (the truncated-tail and hostile-name guards stay green); full suite 1627/1627.
 **Resolution notes:** The wire-length bound landed (the fix plan's option 1, defense-in-depth per option 2 deemed unnecessary — the gate is exact): each node consumes ≥ 10 wire bytes by the grammar (parent 4 + nflags 2 + marker 1 + origin 1 + deleted 1 + confidence 1), so a count beyond (len-4)/10 cannot fit the record and is refused instantly with ERR_SESSION_FORMAT (0x50040001 — the corrupt-count class shares the truncated-count failure's semantic; the container's resync layer recovers as it does for other record-level corruption). The og's per-node factory reader shape (rsf-record4--tree-node-grammar.md:16,26 — allocation tracks the bytes actually parsed) is restored at the count field: no count-scaled allocation ever happens on the load path. Files: src/core/session/cr_records.cpp (the gate before by_id), tests/unit/test_session.cpp.
+
+---
+
+## S82 convergence addendum (2026-10-29 — a second independent gate, conceded per SA-9; the stronger bound recorded)
+
+A third lane (S82) implemented the gate independently before pulling:
+the same wire-bound shape, but with the grammar's TRUE mandatory prefix
+(78 bytes: parent 4 + nflags 2 + marker 1 + origin 1 + deleted 1 +
+confidence 1 + record_ref 8 + fs_kind 4 + logical 8 + allocated 8 + the
+four times 32 + attributes 4 + flags 2 + name_len 2 — the serialize and
+deserialize field walks agree) instead of the finding's conservative
+10-byte floor, and the distinct 0x50040002 corrupt-count code. Withdrawn
+pre-push per SA-9 (the racing `f7432fb4` keeps the seat; the two gates
+are functionally equivalent for the finding's population — both refuse
+any wire-impossible count before the allocation). The 78-byte
+derivation is recorded here as the tighter bound the next audit may
+adopt when the 10-byte floor's residual zone (counts in ((len-4)/78,
+(len-4)/10] — still record-bounded, at most 8×len/10 bytes of index)
+wants closing; the error-code split (0x50040001 shared vs 0x50040002
+distinct) is a registry-taste question both codes' uses in cr_crsf.cpp
+support.
