@@ -589,3 +589,35 @@ remote rows stand. **One distinct row the remote set does not carry:**
    on the extents), driven by FUN_18000d030 over all five forks — no compares
    in that family. The core carried the same misreading until M-142 (fixed
    this session); AUDIT-LINUX-FS.md §2.1 row 1 corrected in the same push.
+
+---
+
+## Session-68 rows (2026-10-29 — the registry-initializer first-hand decode; core pin `f3da99f1` + the S68 lane's filings, corpus `be0cfe9`)
+
+The S68 lane decoded the RAWSearchDLL static registry initializer end-to-end
+(`RAWSearchDLL_decompiled.c` :1440–:2520, construct-then-insert pairing; evidence:
+`evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`). Five census-doc labels
+corrected — the CORE matches the BINARY in all five (verified row-by-row):
+
+10. **`rawsearchdll--analyser-registry-census.md` §3, key 0xd302020** — labeled
+    "MPEG audio frame sync variant"; actually the **DXF header key `"  0\r"`**
+    (bytes 20 20 30 0D) binding `BruteForce::CDXFAnalyser` (id 0x19). The MPEG
+    audio sync keys are the separate MPGA_F*/E* inserts.
+11. **§3, key 0x90001** — labeled "Windows thumbnail cache"; actually the
+    **standard WMF header** (01 00 09 00 = type 1, header size 9) binding
+    `FileWMFAnalyser` (id 0x46). The core's FMT_WMF row is correct.
+12. **§3, key 0x4e444221** — labeled "Bentley/BDN document"; actually the
+    **Outlook PST magic `!BDN`** binding `FilePSTAnalyser` (id 0x38).
+13. **§3, key 0x100 row ("ICO/CUR 01/02 + count")** — conflated; **0x100
+    (00 01 00 00) is the TrueType sfnt key** binding `FileTTFAnalyser`
+    (id 0x41); ICO is 0x10000, CUR is 0x20000 (both `FileICOAnalyser`,
+    id 0x22).
+14. **§3, key 0x694c5153 "SQLite → DB chain"** — the bound analyser is
+    `BruteForce::CFCPEvtAnalyser` (id 0x73): FCPX event files ARE SQLite
+    databases ("SQLite format 3" + "FCPEVENT" strings both in the binary).
+    The core's FMT_SQLITE + N-089 FCP-event relabel is the faithful port.
+
+Also resolved first-hand: the raw_signs.json min/max **KiB→byte ×1024 at og scan
+time** (`FUN_1800205b0` :25020+ `max << 10`, `min << 10`, the `0x7d000` KiB
+absent-max default) — the core's generated table and its documented 500 MiB
+default are the exact og behavior. No divergence.
