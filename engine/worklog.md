@@ -13110,3 +13110,22 @@ noise plant re-pinned to the degenerate all-zero form.
 stand-in tree, GREEN with the walks. The carve suite 193/193. Trail:
 M-107's S85 addendum 4, the three matrix rows, modules/carve.md's S85
 addendum 4, this entry.
+
+## Session-89 S89 fix-lane — entry 1: the open (2026-10-30)
+
+Opened at core `fc4ffdf4` (pulled from `7953c5e8` — the racing window's
+M-107 members 6/7/8 [DXF/EPS/AI] landed mid-pull; conceded per SA-9
+before any local work started, so no collision). Corpus `be0cfe9`
+(read-only guarantee held). Baseline suite green first-hand at the open:
+**1692/1692 (129.0 s)** on this 2-core lane VM; cmake 4.4.4 + ninja
+(pip-installed, the CI-pinned version). The prompt saved token-redacted
+at `worklog/session-diff-fix-s89-prompt.md`.
+
+Board at open (filesystem truth): 6 MAJOR (M-086/M-087/M-089 driver-repo
+[OQ-S10-3 boundary], M-101, M-105, M-107 [SIT/APE/SWF-RECT + the DWG
+gen-3 remainder remain after the racing window's members 6/7/8]) · 3
+MINOR (N-107/N-127 driver-repo, N-225 [FIXED by the S87 merge; needs the
+move to findings/FIXED/ + live verification]) · 206 FIXED · 4
+tracked-open. Fix queue (MAJOR first, contention-aware): M-101 (the
+Versions + Tags Extracted branches — untouched by any lane), M-105
+(option (a)), M-107's remainder, N-225, then the tracked-open probes.
