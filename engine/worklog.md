@@ -12166,3 +12166,26 @@ module's win-lane tests as the Linux-runnable core trio.
 PARITY-DELTAS D-155..D-159; CORPUS-ERRATA E-9; the matrix rows; the
 ledger rows; modules/{session}.md addendum; this entry.
 >>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-161 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-162 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)
+
+---
+
+## Session-80 S80 fix-lane — the A-ABI-3 count repair (round 2, landed) (2026-10-29)
+
+**The A-ABI-3 repair:** two racing export appends in one window (M-154's
+`cr_ui_session_last_autosave_path` + the newer append) left the five
+doc_truth_gate count claims at 89 while the tree derives 91 — the gate was
+RED at origin/main for the second time this window (lanes appending exports
+without running the gate before push). The five sites refreshed
+(API.md:95, CORE-API-CURRENT.md:14/15/43, API-SURFACE-AUDIT.md:32 — the
+92→94 CR_UI_API-line derivation corrected too); the gate is GREEN at the
+repaired tree (exports=91, error codes=45, event types=12).
+
+**The window's final convergence record:** this lane's seven independent
+implementations (M-155 the conflict repair, S-068 the high-16 re-base,
+M-150 the count gate, M-151 the run-growth probe, M-154 the auto-session
+retention, I-048's registration, the CRW decode) each converged with racing
+landings inside the same window — all conceded per SA-9, the corroboration
+recorded in the racing lanes' convergence addenda. The S83 CRW landing
+(0cf6142d) completed this lane's decode path (the vtable slot census, the
+three 07-28-{A8,B2,E4} needles, the {70,60,50} map — all carried into the
+landing's own evidence sheet).
