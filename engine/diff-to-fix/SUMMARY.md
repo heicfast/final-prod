@@ -1,4 +1,25 @@
-# SUMMARY.md — executive summary (the S60 MINOR-first execution lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
+
+## Closing-fix lane delta (2026-10-29 — the INFO-first diff-to-fix execution lane per the user's directive "priority to informational first"; opened at core `98a5b139`, corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; absorbed the S60 MINOR-first window at the merge)
+
+**The two INFORMATIONAL registers closed first (the user's priority
+directive):** **I-045** landed as PARITY-DELTAS **D-141** (og-defect
+non-adoption batch #3 — the raw ee_len multiply re-verified first-hand at
+EXT4SearchDLL :4044-4048; the core stays kernel-correct) with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+(ee_len 0x8005 → one 5120-byte content extent, never the raw product);
+**I-046** landed as PARITY-DELTAS **D-142** (the lostpart.dat/partinfo.dat
+lifecycle + the stage-granular vs scan-position-granular resume delta,
+registered against the M-042 architecture). Both preserved as deliberate
+divergences in findings/FIXED/ — the audit trail keeps the full decode.
+
+**Merge note (the S60 window absorbed):** the parallel S60 MINOR-first
+lane pushed first with N-199 + N-192 (both FIXED, both RED→GREEN proven);
+this lane's I-045/I-046 pair rides on top. Combined board after both
+pushes: 46 active — 1 SEVERE · 23 MAJOR · 20 MINOR · 0 INFO — + 4
+tracked-open; FIXED archive 140.
+
+# SUMMARY.md — executive summary (the S60 MINOR-first execution lane (prior); the prior lanes below, newest-first)
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
@@ -13,6 +34,8 @@
 **Board at this push:** 45 active — 1 SEVERE · 23 MAJOR · 19 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 139 files.
 
 ---
+
+# SUMMARY.md — executive summary (the S52-B severe-first convergence lane (prior); the prior lanes below, newest-first)
 
 ## Session-52-B S52-B convergence-lane delta (2026-10-29 — the severe-first diff-to-fix execution lane; opened on `659f0f6c`, absorbed the S45..S59 hot windows at the rebase; corpus `be0cfe9`)
 

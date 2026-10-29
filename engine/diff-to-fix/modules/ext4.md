@@ -216,3 +216,14 @@ unwritten ee_len og-defect non-adoption register, batch #3). Verified-MATCH this
 session: the size-bounded indirect walk's og form (FUN_180005490), the journal
 dir-block classifier's '.'/'..' test, the GDT allocation math, and the
 extents-path budget (the S-065 gap is the non-extents path only — now closed).
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**I-045 FIXED (ACKNOWLEDGED)** — the unwritten ee_len register landed as
+PARITY-DELTAS **D-141** (batch #3 of the I-026/I-040/D-123 family) with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`: an
+unwritten extent (ee_len 0x8005) surfaces a 5-block content extent, never
+the og's raw product — the core's kernel-correct decode
+(walk_extent_node :346-350) stays; the divergence is deliberate and must
+be preserved in future work. The module's B7 row (unwritten-extent
+semantics) is now backed by both the D-141 register and the pin.

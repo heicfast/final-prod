@@ -356,3 +356,17 @@ registered architecture). New first-hand decode evidence:
 `../evidence/s55-lane-sheets/S55-D1-localdb.md` (both record layouts with
 offset tables; the shipped samples hex-verified — the lostpart end-LBA
 validates arithmetically against the partinfo live entry).
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**I-046 FIXED (ACKNOWLEDGED)** — the lifecycle register landed as
+PARITY-DELTAS **D-142**: the og's lostpart.dat/partinfo.dat pair is
+registered as a per-process-generation cache (W1 delete latch, per-hit
+mid-scan appends, W3 header-only interrupt markers with the
+scan-position-granular marker-restore resume), and the core's M-042
+stage-granular checkpoint architecture is registered as the deliberate
+divergence. The resume-granularity delta is now on the record (D-142);
+the W3 marker shape + the :20748-20770 restore path are the preserved
+decode inputs for any future scan-position-granular resume. The module's
+persistence-semantics row above (M-042's landing) is the architecture
+D-142 registers against.
