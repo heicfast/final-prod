@@ -1117,7 +1117,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         std::vector<lost::Candidate> confirmed;
         confirmed.reserve(stats.lost_candidates.size());
         stats.revalidated_candidates = stats.lost_candidates.size();
-        for (const auto& c : stats.lost_candidates) {
+        for (auto& c : stats.lost_candidates) {
             if (lost::revalidate_candidate(slice, c))
                 confirmed.push_back(c);
             else
@@ -2690,6 +2690,12 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
         for (int k = 0; k < 12; ++k)
             pc.volume_label[k] = c.volume_label[k];
         pc.volume_label[11] = 0;
+        /* N-203 v4: the data-area extent rides the record (the og's
+         * CSearchedPartitionInfo replays with the full extent identity —
+         * the dedup/containment/leader consumers keep their inputs
+         * across the round-trip). */
+        pc.data_start_lba = c.data_start_lba;
+        pc.data_sector_count = c.data_sector_count;
         if (session::serialize_partition_context(pc, blob) == OK)
             if (u32 rc =
                     w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
@@ -2906,6 +2912,12 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 for (int k = 0; k < 12; ++k)
                     c.volume_label[k] = pc.volume_label[k];
                 c.volume_label[11] = 0;
+                /* N-203 v4: the data-area extent restores into the
+                 * candidate (v1..v3 sessions deserialize with zeros —
+                 * the re-validation scratch copy-back repairs them on
+                 * the first resume). */
+                c.data_start_lba = pc.data_start_lba;
+                c.data_sector_count = pc.data_sector_count;
                 /* M-042: the og re-reads every persisted record at search
                  * start and DROPS the ones the current disk no longer
                  * confirms (PRD:20748-20842). Two execution points: here

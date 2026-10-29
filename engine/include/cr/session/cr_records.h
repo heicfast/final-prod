@@ -189,6 +189,18 @@ struct PartitionContext {
     u32 disk_layout = 0;
     u32 disk_flags = 0;
     char volume_label[12] = {0};
+    /* v4 (N-203): the candidate's data-area extent. The og's record is a
+     * full CSearchedPartitionInfo image whose replay key is {start, end,
+     * disk} with EndSec anchored at the data-area boundary (PRD:20154-
+     * 20238, :20748-20842, :20825-20831 — the dedup key read first-hand),
+     * so the data-area identity survives the og's round-trip by
+     * construction. The core's fresh-run consumers (dedup window,
+     * known-partition containment, leader size tie-break) consume the
+     * N-035 anchored extents; v1..v3 sessions deserialize with zeros (the
+     * skip-unknown rule) and the resume re-validation enriches them from
+     * the live probe (revalidate_candidate's scratch copy-back). */
+    u64 data_start_lba = 0;
+    u64 data_sector_count = 0;
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
 

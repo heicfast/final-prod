@@ -958,6 +958,11 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.disk_flags);
     for (int k = 0; k < 12; ++k)
         out.push_back(u8(pc.volume_label[k]));
+    /* v4 tail (N-203): the data-area extent (77 bytes = v4; the og's
+     * CSearchedPartitionInfo replays with the full extent identity —
+     * EndSec anchored at the data-area boundary). */
+    put64(out, pc.data_start_lba);
+    put64(out, pc.data_sector_count);
     return OK;
 }
 
@@ -984,6 +989,13 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
         for (int k = 0; k < 12; ++k)
             pc.volume_label[k] = char(c.g8());
         pc.volume_label[11] = 0; /* NUL-floor the wire slot */
+    }
+    /* v4 (77 bytes, N-203): the data-area extent; v1..v3 payloads keep
+     * the v4 extras zeroed — a zero extent routes the resume into the
+     * revalidate scratch copy-back (the first-resume repair). */
+    if (!c.fail && len >= 77) {
+        pc.data_start_lba = c.g64();
+        pc.data_sector_count = c.g64();
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }

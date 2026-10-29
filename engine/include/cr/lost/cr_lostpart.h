@@ -177,7 +177,12 @@ std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidat
  * record's start as the persisted family — the caller drops the record.
  * The CURRENT disk is the arbiter, exactly like the og: a session resumed
  * against any other disk gets that disk's verdict. */
-bool revalidate_candidate(IStorageDevice* disk, const Candidate& c);
+/* N-203: the candidate is passed MUTABLE — a successful probe of a record
+ * that carried no data-area extent (v1..v3 sessions) copies the scratch's
+ * re-derived data-area fields back into the candidate (the og's record
+ * replays with the full extent identity; the copy-back is the core's
+ * first-resume repair for pre-v4 records). */
+bool revalidate_candidate(IStorageDevice* disk, Candidate& c);
 
 } // namespace lost
 } // namespace cr

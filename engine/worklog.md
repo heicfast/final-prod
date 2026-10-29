@@ -9874,3 +9874,31 @@ board recount, this entry.
   N-182, N-181, N-178, N-145, N-201, N-200, N-140, N-203, N-131), then
   the still-open MAJORs and the 4 tracked-open items. Pull before every
   push; SA-9 convergence discipline on any raced landing.
+
+
+
+## Session-66 S66 lane — N-203 landed (2026-10-29)
+
+**N-203 FIXED (MINOR — the resume round-trip's data-area extent).** Corpus
+re-verified first-hand at the fix: the replay dedup key {start @+0x28, end
+@+0x30, disk @+0x08} read directly at PRD:20825-20831 (the three-field
+match), the record builder :20154-20238 and the flattener :976-994 as filed.
+Landing: (1) the PartitionContext v4 tail (data_start_lba /
+data_sector_count — 77 bytes; v1..v3 sessions deserialize zeroed per the
+skip-unknown rule); (2) the save-path pc fill; (3) the load-path restore;
+(4) revalidate_candidate's const dropped — a successful probe of a
+zero-extent record copies the scratch's re-derived data area back (the
+og's record replays with the extent by construction; the copy-back is the
+core's first-resume repair, idempotent once re-saved). Architectural note:
+the finding's third falsifiable case (dedup between a restored candidate
+and a fresh hit) is unreachable in the current flow — a deep-rerun resume
+REPLACES the restored list (cr_scan.cpp `stats.lost_candidates =
+dr.candidates`); the RestoredWindowMatchesFreshDiscovery pin holds the
+equivalent invariant. Proof: RoundTripKeepsDataAreaExtent /
+V3SessionResumeReDerivesDataArea / RestoredWindowMatchesFreshDiscovery /
+EnrichedExtentIsIdempotentAcrossReSave — RED (load fill + enrichment
+surgically disabled, wire fields kept): 3×FAILED → GREEN;
+ResumeRevalidation 11/11; Session/LostDiscovery/Crsf 101/101;
+win_syntax_check green; clang-format 18.1.8 clean. Trail: FIXED finding +
+Resolution, matrix row 1179 MATCH, session.md + lost-partition.md S66
+sections, SUMMARY board (18 MAJOR / 11 MINOR active), this entry.

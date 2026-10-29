@@ -399,3 +399,18 @@ parity tables (per-process-generation cache, not a knowledge base). The
 battery re-confirmed the standing session-family findings (N-090, N-131, the
 I-041/42/43 registers) at the `1fccb0a4` pin — all convergent with the S54
 lane's own battery.
+
+
+## S66 lane (2026-10-29): N-203 landed
+
+**N-203 FIXED** — the partition-context record's v4 tail: `data_start_lba` /
+`data_sector_count` ride the session round-trip (77-byte record; v1..v3
+sessions deserialize zeroed per the skip-unknown rule). The load path restores
+both; `revalidate_candidate` drops its const — a successful probe of a
+zero-extent record copies the scratch's re-derived data area back into the
+candidate (the og's 0x448 CSearchedPartitionInfo image replays with the full
+extent identity — the {start,end,disk} dedup key re-verified first-hand at
+PRD:20825-20831; the copy-back is the core's first-resume repair, idempotent
+once re-saved). Pins: RoundTripKeepsDataAreaExtent / V3SessionResumeReDerivesDataArea
+/ RestoredWindowMatchesFreshDiscovery / EnrichedExtentIsIdempotentAcrossReSave
+(RED: load-fill + enrichment surgically disabled, 3×FAILED → GREEN 11/11).

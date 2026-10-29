@@ -2,6 +2,18 @@
 
 ## Session-66 S66 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `24e480c4` (the S60-B/S63 windows absorbed; baseline suite 1485/1485 green on Linux before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the S64/S65 racing seats absorbed at the rebase — their committed-conflict-marker SUMMARY repaired in the same push, the M-120 class)
 
+- **N-203 FIXED (MINOR)** — the resume round-trip keeps the candidate's
+  data-area extent: PartitionContext v4 (data_start_lba/data_sector_count,
+  77-byte record, v1..v3 load zeroed), the load-path restore, and
+  revalidate_candidate's scratch copy-back (the first-resume repair for
+  pre-v4 records — the og's 0x448 image replays with the extent by
+  construction; the {start,end,disk} dedup key re-verified first-hand at
+  PRD:20825-20831). RED: the load fill + enrichment surgically disabled —
+  3×FAILED; GREEN: ResumeRevalidation 11/11, Session/LostDiscovery/Crsf
+  101/101. The finding's dedup-consumer case is architecturally unreachable
+  as stated (deep-rerun resumes REPLACE the restored list) — the
+  RestoredWindowMatchesFreshDiscovery pin holds the equivalent invariant.
+
 - **N-194 FIXED (MINOR)** — the og's two byte-size display formatters landed:
   `query::display_size_log` (FUN_140163580/650, DRWUI:264525-264583 — KB/MB/GB
   only, `%.2f`, 1024-tier divisors, +1 flip boundaries, <1-writes-nothing) and
@@ -12,9 +24,9 @@
   verified). RED: link-failure Not-Run with the implementation stashed; GREEN:
   Display pins + Query/Display/Error/CrUi 110/110 + win_syntax_check green.
 
-**Board after this landing (M-142 + M-140 + N-194 absorbed): 0 ACUTE · 0 SEVERE ·
-18 MAJOR · 12 MINOR · 0 INFO active / 154 FIXED / 4 tracked-open.** Next free
-IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-148+.
+**Board after this landing (M-142 + M-140 + N-194 + N-203 absorbed): 0 ACUTE ·
+0 SEVERE · 18 MAJOR · 11 MINOR · 0 INFO active / 155 FIXED / 4 tracked-open.**
+Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-148+.
 
 # SUMMARY.md — executive summary (the S65 diff-to-fix execution lane on top; the prior lanes below, newest-first)
 

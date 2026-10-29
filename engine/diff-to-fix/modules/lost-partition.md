@@ -370,3 +370,16 @@ the W3 marker shape + the :20748-20770 restore path are the preserved
 decode inputs for any future scan-position-granular resume. The module's
 persistence-semantics row above (M-042's landing) is the architecture
 D-142 registers against.
+
+
+## S66 lane (2026-10-29): N-203 landed
+
+**N-203 FIXED** (joint with modules/session.md) — the lost candidate's
+data-area extent survives the session round-trip: the v4 PartitionContext
+tail carries `data_start_lba`/`data_sector_count`, the resume re-validation
+enriches pre-v4 records from the live probe's scratch (the og's record
+replays with the extent by construction — the core's equivalent repair).
+The finding's dedup-consumer scenario is architecturally unreachable as
+literally stated (a deep-rerun resume REPLACES the restored list; the fresh
+pass self-dedups on its own anchored extents); the RestoredWindowMatchesFreshDiscovery
+pin holds the restored window to the fresh-derived equivalent.

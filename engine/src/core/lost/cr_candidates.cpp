@@ -538,7 +538,7 @@ std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidat
     return PartitionSlice::create(disk, c.start_lba * ls, bytes, &err);
 }
 
-bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
+bool revalidate_candidate(IStorageDevice* disk, Candidate& c) {
     /* M-042: the og's resume re-validation (PRD:20748-20842) — at search
      * start, every persisted lostpart record is re-read at its start LBA
      * through the device and re-validated through the scan-loop classifier
@@ -549,7 +549,16 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
      * check rides the device size — a shrunken/re-grown disk re-derives
      * sizes from the live probes). Unknown-family records cannot be
      * re-probed (no classifier to contradict them): kept, matching the
-     * og's applied-flag skip for unprobeable records. */
+     * og's applied-flag skip for unprobeable records.
+     *
+     * N-203: the candidate is MUTABLE — on a successful probe of a record
+     * that carried no data-area extent (a v1..v3 session, or a probe
+     * family that never sets one), the scratch's re-derived data-area
+     * fields copy back into the candidate. The og's record replays with
+     * the full extent identity by construction (the 0x448 image is
+     * flattened and re-applied whole); the copy-back is the core's
+     * equivalent repair for records saved before the v4 tail existed —
+     * once enriched, a re-save persists the extent (idempotent). */
     if (disk == nullptr || disk->geometry().logical_sector == 0)
         return true; /* no arbiter: never drop on our own absence */
     const u64 ls = disk->geometry().logical_sector;
@@ -605,6 +614,14 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
                          payload check — a re-formatted region with the
                          same OEM at the same LBA is still a different
                          volume) */
+    if (c.data_sector_count == 0 && scratch.data_sector_count != 0) {
+        /* N-203: the record predates the v4 tail (or its probe family
+         * never anchored a data area) — the live probe re-derived one;
+         * adopt it so the dedup/containment/leader consumers see the
+         * same window a fresh run would have produced. */
+        c.data_start_lba = scratch.data_start_lba;
+        c.data_sector_count = scratch.data_sector_count;
+    }
     return true;
 }
 /* ---------------------------------------------------------------- */
