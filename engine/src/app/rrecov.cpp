@@ -2989,7 +2989,10 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         wchar_t label[13] = L"";
         for (int m = 0; m < 12 && c.volume_label[m]; ++m)
             label[m] = wchar_t(u8(c.volume_label[m]));
-        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s\n", k + 1,
+        /* (the hot-window merge dropped a %s from this format - MSVC's
+         * C4474 too-many-arguments red; the 11 args need 5 %s after
+         * "table": tok, label-open, label, label-close, selected) */
+        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s%s\n", k + 1,
                 static_cast<unsigned long long>(c.start_lba),
                 static_cast<unsigned long long>(c.sector_count), c.score, layout, dyn, tok,
                 label[0] ? L", label \"" : L"", label[0] ? label : L"", label[0] ? L"\"" : L"",

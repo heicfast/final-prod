@@ -418,12 +418,15 @@ TEST(Thumbnail, EmbeddedFastPathOnByteOversize) {
     img.push_back(0xFF);
     img.push_back(0xC0);
     img.push_back(0);
-    img.push_back(11); /* segment length */
-    img.push_back(8);  /* precision */
-    img.push_back(u8(3000 >> 8));
-    img.push_back(u8(3000));
-    img.push_back(u8(4000 >> 8));
-    img.push_back(u8(4000));
+    img.push_back(11);                     /* segment length */
+    img.push_back(8);                      /* precision */
+    img.push_back(u8((3000 >> 8) & 0xFF)); /* the explicit mask silences
+                                            * MSVC's C4310 constant-truncation
+                                            * warning; the value is the intent
+                                            * (the 16-bit BE split's low byte) */
+    img.push_back(u8(3000 & 0xFF));
+    img.push_back(u8((4000 >> 8) & 0xFF));
+    img.push_back(u8(4000 & 0xFF));
     img.push_back(1); /* 1 component */
     img.push_back(1);
     img.push_back(0x11);

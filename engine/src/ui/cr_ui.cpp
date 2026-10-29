@@ -2071,6 +2071,8 @@ static u32 node_basis_id(const tree::FileNode* n) {
  * elsewhere `src` (the caller keeps it alive - the same borrowed-device
  * contract every preview/recovery already carries). */
 static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
+    (void)src; /* the Windows arm borrows through the session's own members;
+                * src is the non-Windows resolver's source (MSVC C4100) */
     if (!s || s->ldm_armed || s->ldm_layouts.empty())
         return;
     s->ldm_armed = true;
