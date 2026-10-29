@@ -610,7 +610,12 @@ int main(int argc, char** argv) {
             for (sk = 0; sk < dot_cap; ++sk) {
                 if (strchr(dot_rows[sk].path, '/') != NULL ||
                     strchr(dot_rows[sk].path, '\\') != NULL) {
-                    CHECK(0 && "N-128: the CWD dir lists bare names");
+                    /* direct report (the progress_cb convention, lines above):
+                     * CHECK(0 && "...") is a constant conditional - MSVC /W4
+                     * C4127 - while the failure contract is identical (message
+                     * + g_failed -> exit 1) */
+                    printf("FAIL %s:%d: N-128: the CWD dir lists bare names\n", __FILE__, __LINE__);
+                    g_failed = 1;
                 }
                 if (dot_cap && strcmp(dot_rows[sk].path, "cr_ui_abi_check.img.crsf") == 0)
                     dot_found = 1;

@@ -72,3 +72,28 @@ half, per the S48 note). The next concrete step stands unchanged and precise:
 one driver-repo lane takes all five in the recorded order (M-087 → M-089 →
 N-107/N-127 prose sweeps → M-086's version-stamping decision + the two-version
 coexistence drill), each with fail-before/pass-after proof per the house SOPs.
+
+## Session-86 disposition note (2026-10-30, the S86 fix lane — the boundary re-affirmed; core-side halves re-verified)
+
+Boundary re-affirmed for the seventh recorded time: this session's grant
+covers exactly core_recovery (modified) + easeus-drw-research (read-only
+corpus) — the five findings' fix surfaces (M-086/M-087/M-089 + the
+N-107/N-127 halves) remain in heicfast/rda-driver and stay untouchable
+(heicfast/rda-driver is out of the two-repo grant; zero clone/reference/
+look this session). The core-side halves re-verified first-hand at this
+session's HEAD: release.yml's `-FloorVersion v0.2.4` consumption of the
+rda-driver release assets (M-086's core half sound); the corpus's correct
+regdrv.reg contrast (M-087's); docs/DRIVER-CONTRACT.md §4.2's
+extended-IOCTL wire rows 0x910-0x912 + the identity/global-handle gating
+(M-089/N-107's core-side citations); the driver-service-only content of
+the install scripts (`.github/scripts/Install-ReleaseDriver.ps1` +
+`installer/core-recovery.iss` — both RDA-only, re-grepped this session).
+The next concrete step stands: one driver-repo lane takes all five in
+the recorded order (M-087's one-line hex(7) fix + the .reg parse gate,
+then M-089's probe derivation + the static dispatch-coverage gate, then
+the N-107/N-127 prose sweeps, then M-086's version-stamping decision +
+the two-version coexistence drill on a Windows runner), each with
+fail-before/pass-after proof per the house SOPs. NOTE: the racing
+window's board shows M-086/M-087/M-089 + N-107/N-127 still active in
+findings/ — consistent with this boundary (no driver-repo lane has
+landed them yet).

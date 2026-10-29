@@ -3129,16 +3129,16 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
     }
 }
 
-/* ---- the S86 convergence riders over the racing DWG landing ---- */
+/* ---- the S86 convergence riders over the racing DWG landing (this lane renumbered from the
+ * born-collided S86 seat) ---- */
 
 TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
-    /* the S86 rider A: the og's registered row floor is 0x15 = 21 (the
-     * CDWGRawInfo factory FUN_18002ff20's qword write at +0x110 -
-     * puVar1[0x22] = 0x15, the PNG/ONE ctor pattern [0x22]=min). A
-     * one-record walk ending at exactly 21 bytes emits at 21: RED at
-     * the first landing's tree (the residual 512-byte floor refused it
-     * AND the min-64 row rejected it at the emit gate); GREEN with the
-     * rider (the 512 floor gone from gen-1, the row min re-pinned). */
+    /* the S86 rider A: the og's registered row floor
+     * is 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword write at +0x110 - puVar1[0x22] =
+     * 0x15, the PNG/ONE ctor pattern [0x22]=min). A one-record walk ending at exactly 21 bytes
+     * emits at 21: RED at the first landing's tree (the residual 512-byte floor refused it AND the
+     * min-64 row rejected it at the emit gate); GREEN with the rider (the 512 floor gone from
+     * gen-1, the row min re-pinned). */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     plant_dwg_header(img, at, "12");          /* R13 - a gen-1 member */
@@ -3160,13 +3160,12 @@ TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
 }
 
 TEST(Carve, DwgWalkSelfLimitsAt256Records) {
-    /* the S86 rider B: the og's id-sequence gate compares the id byte
-     * against the FULL 32-bit running counter (raw-asm 0x18002f40a:
-     * movzbl the id, `cmp %ecx,%eax` with ecx the counter) - no byte can
-     * match a counter >= 256, so the walk SELF-LIMITS at 256 records. A
-     * count>256 fixture with wrapped ids (record 256 carrying id 0) is
-     * accepted by the u8(i) truncation and refused by the og. RED at the
-     * first landing's tree (the fixture carved); GREEN with the rider. */
+    /* the S86 rider B: the og's id-sequence gate
+     * compares the id byte against the FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
+     * id, `cmp %ecx,%eax` with ecx the counter) - no byte can match a counter >= 256, so the walk
+     * SELF-LIMITS at 256 records. A count>256 fixture with wrapped ids (record 256 carrying id 0)
+     * is accepted by the u8(i) truncation and refused by the og. RED at the first landing's tree
+     * (the fixture carved); GREEN with the rider. */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     plant_dwg_header(img, at, "15");
@@ -3604,6 +3603,54 @@ TEST(Carve, WpdUnknownPairDeclines) {
         if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
             FAIL() << "an unknown pair must decline the carve";
     SUCCEED();
+}
+
+/* The S91 lane's convergent riders (the concession per SA-9: the racing
+ * WPD landing keeps the seat; this lane's independent decode —
+ * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
+ * confirms it and adds the two directions its battery lacks). */
+TEST(Carve, WpdZeroSizeFieldDeclines) {
+    /* the zero declared size routes to the generic pending child whose
+     * walk declines (0x18000b760: xor al,al; ret) - no carve at all,
+     * never the blind cap. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            FAIL() << "a zero declared size declines (the generic child's walk)";
+    SUCCEED();
+}
+
+TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
+    /* the og's chain never reads the product word at +4 - the old core's
+     * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
+     * with a zero product word carves at the declared size. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0x8000); /* the plant leaves +4/+5 zero */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the og never gates on the product word";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000));
 }
 
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature

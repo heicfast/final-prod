@@ -277,3 +277,29 @@ TTFR comparison then needs the new first-found probe in `bench/og/og-driver.ps1`
 first-found capture exists) or an owner's scoped-closure decision, exactly as the S11
 addendum recorded. No new engineering prerequisite; Linux-infeasibility re-confirmed (the
 measurement is real-volume I/O through the RDA driver on Windows).
+
+## Session-86 disposition note (2026-10-30, the S86 fix lane — pushed forward; the registered docs fix verified FIXED-ALREADY)
+
+Still OPEN for the TTFR half; the transport-chunking half stays
+MEASURED-and-closed (run 40315255368's verdict, standing). This
+session's verification:
+
+1. **The S37 addendum's two stale references: both FIXED-ALREADY,
+   verified first-hand this session** — bench/README.md:8-11 now carries
+   the `test-benchmark.yml` pointer (the 8943993 consolidation; the
+   comparative-bench.yml text remains only as the historical note of the
+   replacement, which is the truthful form), and NO cron reference
+   exists anywhere under .github/workflows/ (grep clean) — the "05:30
+   daily cron" lane is fully gone. The registered docs fix is closed
+   with this verification; no edit was owed.
+2. **The TTFR half: pushed forward, unchanged and precise.** The
+   measurement is real-volume I/O through the RDA kernel driver on
+   Windows (Linux-infeasibility per the standing session-14/37 rulings,
+   re-confirmed this session — the container answers a different
+   question). The next concrete step stands exactly as the session-47
+   note recorded: one green Test & Benchmark execution transcribing
+   `ttfr_ms`/`ttfr_first_files` from the `$cleanPerf.scans[]` JSON into
+   this file + M-030's Resolution + SUMMARY's performance section; the
+   og-side TTFR comparison then needs the first-found probe in
+   `bench/og/og-driver.ps1` (no first-found capture exists) or an
+   owner's scoped-closure decision.

@@ -1260,7 +1260,7 @@ CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
 
 
-## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 first) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
 **The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
 ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
@@ -1375,7 +1375,7 @@ invented "version 1..64" gate dropped (dw@4 is a block start, not a
 version). Seven new tests (five RED at the stand-in); the carve suite
 193/193. Remaining members: WPD, SIT, APE + the DWG gen-3 remainder.
 
-### The S86 riders landed (the rider commit, this session)
+### The riders landed (the rider commit, this session)
 
 Both convergence riders over the racing DWG landing: (A) the row floor
 0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed
@@ -1388,6 +1388,7 @@ tree for the wrong reason (the 512 floor) - the fixture now carries
 2304-byte per-record ends so the counter gate is the only refusal under
 test.
 
+<<<<<<< HEAD
 ## Session-89 fix lane (2026-10-30 — the M-107 SIT member: the entry-marker walk + the acceptance-window repair)
 
 - **M-107 member 10 (SIT) LANDED**: the acceptance is now the og's processor
@@ -1409,3 +1410,32 @@ test.
   SitClassicSpaceFormKeepsTheRegisteredStandIn (5/7 RED at the stand-in
   tree via the stash dance); the S-007 SIT plant re-pinned; the full suite
   1711/1711. Remaining members: APE, SWF-RECT.
+=======
+---
+
+## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
+
+**The racing S84/S86 window's WPD landing keeps the seat** (the same
+decode arrived at independently); this lane's riders (the two extra
+test directions) and the census-erratum record are what it adds. The og's "\xFFWPC" tier-1 (FUN_180041f50, raw-asm decoded
+first-hand; evidence: `../evidence/s88-lane-sheets/
+s88-l1-wpd-version-table-decode.md`): the version-pair table at
+(+8, +0xe) — exactly three pairs, ids 0x44/0x45/0x3d — gates the file;
+the extent is the header-declared u32@0x14 verbatim; zero size → the
+generic child's walk declines (no carve). The og never walks the
+object chain for this family and never reads the product word at +4
+(the finding's premise corrected; the S-007-era core's product-word
+gate was an invention — dropped).
+
+The same decode corrected a census erratum: the 0x90001/0x9ac6cdd7
+keys serve the WMF node (idx 0x46, the S-042 grammar — re-verified
+byte-exact against FUN_1800264d0), not "WordPerfect" and not "Windows
+thumbnail cache".
+
+Row verdict: A25/A27/A47 for WPD **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: WpdVersionTableSetsExtentFromTheDeclared
+Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
+WpdZeroProductWordWithGoodPairCarves (the first, second and the
+re-pinned S-007 batch plant RED at the stand-in via the stash dance).
+The carve suite 190/190.
+>>>>>>> origin/main
