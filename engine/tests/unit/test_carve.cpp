@@ -9330,20 +9330,17 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
      * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
-     * red): the default user-sign set carries lha "2,2D6C68" ("-lh" at
-     * +2) - with a set installed by an earlier test, this fixture's
-     * prefix carves a device-end lha USER record (the D-104 out-of-box
-     * superset, by design). The no-carve assertion pins the
-     * no-user-sign world, so this test resets the registry explicitly
-     * (the suite's per-process registry makes absence a state to SET,
-     * not a default to assume). */
+     * red, repaired at the S54-window merge): the default user-sign set
+     * carries lha "2,2D6C68" ("-lh" at +2) - with a set installed by an
+     * earlier test, this fixture's prefix carves a device-end lha USER
+     * record (the D-104 out-of-box superset, by design). Two equivalent
+     * repairs raced in the window and their comment bodies spliced
+     * mid-comment at push (the remote's main was RED here): this repair
+     * keeps BOTH mechanisms - the registry reset (absence is a state to
+     * SET, not a default to assume) AND the surgical extension gate
+     * (S-056's disabled_formats gates the user layer; "lha" has no stock
+     * rows, the lzh grammar is a different extension). */
     ASSERT_EQ(OK, carve::usersigns::clear());
-     * never matches any row). The default user-sign set's "lha" entry
-     * (2,2D6C68 - the og's own shipped sign) matches ANY "-lh" anchor at
-     * +2, so the test that pins the GRAMMAR's dash gate disables that
-     * orthogonal channel by extension (S-056's disabled_formats gates
-     * the user layer; "lha" has no stock rows, the lzh grammar is a
-     * different extension - the gate is surgical). */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
