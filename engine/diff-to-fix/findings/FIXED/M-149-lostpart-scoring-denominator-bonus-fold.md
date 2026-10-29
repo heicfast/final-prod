@@ -141,3 +141,27 @@ The >1.0 representation choice (raw double vs the 4000-permille clamp the droppe
 **Fixed in commit:** the M-149 S80-lane commit (this session; SHA in the commit footer)
 **Verified by:** LostDiscovery.ScoringTableMatchBonusIsNumeratorOnly + LostScoring.MatchesLogRows — RED first-hand via the stash dance (2/2 FAILED at the pre-fix tree: the matched leader exactly 1000, the runner-up deflated, the zero edge 1.0), GREEN post-fix; LostDiscovery.ScoringZeroCountScoresZero (the og's 0.0 floor + the ordering discriminator); the full LostDiscovery/LostScoring suite 27/27; full suite 1624/1624.
 **Resolution notes:** The two-pass og-exact form restored: pass 1 computes count = weighted + fs_bonus for every candidate and takes max_count with NO +500 walk (FUN_14050fda0 :842210-842240); pass 2 stores content_count = count + (table_match ? 500 : 0) — the bonus lands in the NUMERATOR only (:842258-842266). score_ratio's numerator edge restored to `count > 1 ? ln(count) : (double)count` — count==0 scores 0.0 (the og's own CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000' row), count==1 keeps the identity quirk. The >1.0 representation: the int-permille field carries values above 1000 legitimately (the og's raw double >1.0 at +0x70); registered in PARITY-DELTAS D-151 (the dropped 48a6c099 clamp NOT adopted — no realistic maximum approaches it and the unclamped field is the honest representation). Seven stale pins re-truthed to the og's zero floor (the empty-candidate inflation class the finding itself describes: exFAT 244→0, HFS+/Btrfs/ZFS/ReFS/BitLocker ≥N→0 with the structural evidence re-pinned on structural_points — the fields the evidence actually lives in). Files: src/core/lost/cr_candidates.cpp (score_ratio + the two-pass loop), tests/unit/test_lostpart.cpp.
+
+---
+
+## Convergence addendum (this lane, the S80 parity-fix lane's concession record)
+
+This lane independently implemented the identical fix in the same window (the
+two-pass split, the zero-edge numerator, the same discriminating fixture with
+the same numbers: the matched leader ln(2520)/ln(2020) = 1029, the runner-up
+ln(60)/ln(2020) = 537, the 0/1 tie discriminator; RED 10 → 27/27 via the stash
+dance, suite 1497/0) before the push met the racing landing — the seat
+conceded per SA-9; the racing implementation re-verified first-hand
+post-concession (27/27, build clean). One corpus delta was analyzed and
+deliberately NOT ported: the og's `if (lVar8 != 0)` gate on the +500 walk
+(:842253) — the bonus is added only when the pre-bonus count is nonzero. The
+core's unpinned families (HFS+/Btrfs/ZFS/BitLocker/ReFS/ext — the OQ-S2M-2
+undecoded 0x68 values) model the bonus as ZERO, so porting the gate would
+block the +500 for exactly those families' table-matched candidates —
+INCREASING divergence from the og's actual behavior (the og's own 0x68 for
+anchored candidates is presumably nonzero, so its gate never fires there and
+its matched candidates DO get the +500). The racing lane's ungated form is
+the closer model under the core's zero-bonus posture; the gate becomes the
+correct port only when OQ-S2M-2's setter decode lands the real per-FS values.
+This lane's independent first-hand re-verification of both og loops
+(:842210-842274) stands as corroborating evidence.
