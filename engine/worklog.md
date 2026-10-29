@@ -13082,3 +13082,19 @@ the matrix S88 rows, the SUMMARY S88 block (board: 7 MAJOR / 2 MINOR /
 (token redacted), this entry. Corpus: be0cfe9, read-only guarantee
 held. Next: M-101 (the Versions / Tags Extracted branches), then
 M-107's eight members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT).
+
+---
+
+## Session-S89 (2026-10-30) — the MINOR-first fix lane over the remaining board (opened at `7953c5e8`; corpus `be0cfe9`; prompt archived token-redacted at worklog/session-diff-fix-s89-prompt.md)
+
+Lane opened with the S88-close tree (`7953c5e8`, the style sweep over the S87 racing
+window). Board at open (filesystem truth): **6 MAJOR (M-086 M-087 M-089 M-101 M-105
+M-107) · 3 MINOR (N-107 N-127 N-225) · 0 INFO active / 206 FIXED / 4 tracked-open.**
+Of those, M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3 (the
+two-repo grant excludes heicfast/rda-driver) — this lane's in-scope queue: **N-225
+(the fixed-directory move), M-107's six remaining members (SIT APE EPS AI DXF
+SWF-RECT), M-101 (the Versions / Tags Extracted branches), M-105 (the DRWService
+lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench leg), OQ-S10-1
++ OQ-S10-3 (the disposition re-affirmations), plus whatever the verification sweep
+discovers (the §8 new-finding protocol). Target ≥ 20 fixes. Baseline before any
+change: fresh build + full ctest green.
