@@ -4609,8 +4609,7 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
      * read nine pairs; the tenth entry re-verified first-hand from the
      * asm this session). The og has NO sentinel check (the version
      * table is the whole gate). */
-    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21",
-                                      "24", "27", "32", "09"};
+    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32", "09"};
     int ver = -1;
     for (int i = 0; i < 10; ++i)
         if (v[4] == u8(kVersions[i][0]) && v[5] == u8(kVersions[i][1])) {

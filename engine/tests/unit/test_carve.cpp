@@ -3137,8 +3137,8 @@ TEST(Carve, DwgVersionGateIsTheOgsTenPairs) {
         else if (k == 1)
             EXPECT_EQ(dwg, nullptr) << "AC1030 is NOT a DWG release - the og's table refuses";
         else
-            EXPECT_EQ(dwg, nullptr)
-                << "AC1009 is gate-passed but un-walked - the og's size stays 0 (never the gen-3 bounded fall-through)";
+            EXPECT_EQ(dwg, nullptr) << "AC1009 is gate-passed but un-walked - the og's size stays "
+                                       "0 (never the gen-3 bounded fall-through)";
     }
 }
 
