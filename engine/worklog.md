@@ -10361,3 +10361,47 @@ BareDeviceLegacyShapeZeroFillsTransients (the pre-fix shape pinned). Suite
 1507/1507; clang-format clean; win_syntax_check green. Trail: FIXED finding
 + Resolution, matrix MATCH row, modules/writer.md E35/R51 verdict, SUMMARY
 S71 delta, this entry.
+
+## Session-76 S76 lane — the MINOR-first diff-to-fix execution lane opens (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-diff-fix-s76-prompt.md` (seat S76 per the earlier-push-wins
+convention — the racing windows took S68-S75). The user's fix mandate
+("priority to minor first", 20+ fixes, one finding / one verified fix /
+one push). Opening HEAD `1ec36d6c`, corpus `be0cfe9` throughout.
+
+**Pre-lane trail repair:** the S75 prompt file was committed at the
+`1ec36d6c` rebase-continue with live conflict markers (the M-120/N-210
+class — the N-210 lint was RED at lane open on that one file). Repaired
+first per the stacked-history convention: both sides' prompt variants kept
+(S74's HEAD side + S75's), only the marker lines removed; the N-210 lint
+re-verified GREEN first-hand (`grep -rln '^<<<<<<< '` over every linted
+tree → 0 hits besides the sanctioned M-120 carrier).
+
+**Board re-counted first-hand from the filesystem at open (correcting the
+`1ec36d6c` rebase message's own "10 N" — an off-by-one in that message's
+board line; the SUMMARY S70 block carries the same 10): 0 ACUTE · 0 SEVERE
+· 15 MAJOR · 11 MINOR · 0 INFO active / 160 FIXED / 4 tracked-open.**
+(M-086/M-087/M-089 + N-107/N-127 driver-repo-resident per OQ-S10-3's
+two-repo grant boundary — PUSHED-FORWARD, counted active-open, not fixable
+in core this session.) In-scope fixable set: 12 MAJOR + 9 MINOR + 3
+tracked-open items.
+
+**Lane plan (MINOR-first per the user's directive, collision-aware — the
+disjoint FORWARD end of the MINOR board vs the racing S72/S74/S75 lanes'
+announced reverse-order queues [N-201 first there]):** N-131 → N-140 →
+N-144 → N-145 → N-178 → N-181 → N-182 → N-201 → N-212, conceding any seat
+a racing lane lands first (earlier-push-wins; rebase + re-verify at every
+pull). After the MINOR ladder: the MAJOR board's unlanded seats, then the
+tracked-open set. Baseline suite running green-first before the first
+change (linux-release build in flight at lane open; the full ctest count
+recorded at the first fix's entry).
+
+**Rebase note (the racing S71/S73 windows absorbed at the lane-open push):**
+M-136's convergent re-landing (d28244df, the S71 lane - the M-135
+truthfulness seam `set_read_error_source` rode it) + M-143 (84784c63, the
+S73 lane's ext4 journal inode-image harvest) both absorbed; both sides'
+worklog blocks kept stacked per the convention. The board at the rebased
+tree re-truthed in the first fix's entry (M-136/M-143's trail moves
+re-verified first-hand - the two FIXED-folder arrivals counted, the two
+MAJOR departures confirmed).
