@@ -1297,9 +1297,6 @@ DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
 
 ---
 
-
----
-
 The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
 remainder named): the section-locator walk (count u32@0x15, 9-byte records
 {number==index, seeker, size} from 0x19, extent = max(seeker+size), the
@@ -1538,10 +1535,6 @@ WPD slice stay MATCH — now with the sub-format ids faithful.**
 
 ---
 
->>>>>>> origin/main
-
----
-
 ## Session-87 addendum 4 — M-107 member 11: the SWF-RECT validation gate landed
 
 The SWF rows (FWS and CWS) move to **MATCH** on the gate axis: the
@@ -1609,10 +1602,9 @@ SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
 three rejection tests RED at the pre-fix tree). Suite 1724/1724.
 **The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
 the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
->>>>>>> origin/main
----
 
 ---
+
 ## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
 
 This lane's independent three-generation decode (evidence/s86-lane-sheets/
@@ -1651,4 +1643,3 @@ FIXED/.
 
 ---
 
->>>>>>> origin/main
