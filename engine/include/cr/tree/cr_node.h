@@ -441,19 +441,14 @@ public:
      * cadence; the core's stage-boundary stamps stay the authoritative
      * close-of-stage sample). Lock-free read: an atomic load. Hard links
      * count per tree entry (per-parent attach), matching the structured
-     * engines' own per-link counting. */
-    u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
-
-    /* N-166 (diff-to-fix): the LIVE node counters — total files attached
-     * and the raw/carved subset (fs_kind == FsKindCode::Raw at attach
-     * time — carve stamps it before add_file). Relaxed atomics bumped
-     * inside add_file's existing lock; readable from ANY thread without
-     * the tree mutex so the scan telemetry can refresh its progress
-     * events mid-stage (the og's "Files Found" live-tracking parity;
-     * the boundary stamps stay the authoritative close-of-stage values).
-     * Monotonic by design: a detached rejected-candidate subtree does
-     * NOT decrement (the boundary stamp re-truths at the stage close).
-     */
+     * engines' own per-link counting.
+     *
+     * The raw/carved subset (fs_kind == FsKindCode::Raw at attach time —
+     * carve stamps it before add_file) so carved_found refreshes live
+     * too. Relaxed atomics bumped inside add_file's existing lock;
+     * readable from ANY thread without the tree mutex. Monotonic by
+     * design: a detached rejected-candidate subtree does NOT decrement
+     * (the boundary stamp re-truths at the stage close). */
     u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
     u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
 
@@ -477,7 +472,7 @@ public:
     void detach_subtree(FileNode* root);
 
     /* N-166: the live counters (see the accessors above) */
-    std::atomic<u64> live_files_{0};
+    mutable std::atomic<u64> live_files_{0};
     std::atomic<u64> live_raw_{0};
 
     /* clear without destroying (engines may reuse) */
@@ -519,8 +514,6 @@ public:
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
-    /* N-166: see live_files() */
-    mutable std::atomic<u64> live_files_{0};
     void rebase_props_locked(FileNode* n, u64 base, std::unordered_set<FileProperties*>& visited);
     static u64 extent_len_class_(const FileProperties* p);
 
