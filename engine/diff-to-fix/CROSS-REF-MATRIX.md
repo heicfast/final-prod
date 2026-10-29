@@ -1,12 +1,3 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the closing-fix lane on top — the INFO-first diff-to-fix execution per the user's directive; the prior lanes below)
-
-**Closing-fix lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `98a5b139`, corpus `be0cfe9` throughout):**
-
-| Parameter (module · surface) | Verdict | Evidence / finding |
-|---|---|---|
-| ext4 · unwritten-extent ee_len decode (Q68/B2) | **MATCH** (registered deliberate divergence — D-141; findings/FIXED/I-045) | **I-045 FIXED (ACKNOWLEDGED)** — the register landed: PARITY-DELTAS D-141 + the anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`; the core stays kernel-correct against the og's raw multiply (re-verified first-hand at EXT4SearchDLL :4044-4048) |
-| lost-partition/session · lostpart.dat lifecycle + resume granularity (#36/#34/#58) | **MATCH** (registered deliberate divergence — D-142; findings/FIXED/I-046) | **I-046 FIXED (ACKNOWLEDGED)** — the og-side lifecycle decoded and registered: per-process-generation cache (W1 delete latch), per-hit appends, W3 marker-restore scan-position resume; the core's M-042 stage-granular checkpoint architecture stays — D-142 carries the delta |
-
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
 
 **Session-54 S54 lane rows (2026-10-29 — the fifth continuation lane of the user's second-session mandate; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9, findings verified/filed at `34d6cf10`, corpus `be0cfe9`):**
@@ -26,13 +17,13 @@
 | ext4 · large-volume capability caps (B1/X52/X49) | **DIVERGENCE-MAJOR** | **M-144** — the 8 MiB GDT cap refuses >16 TiB 64BIT volumes; MAX_GROUPS refuses >128 TiB; the og allocates unbounded (FUN_1800047c0 :3404-3408) |
 | lost-partition · NTFS candidate acceptance (A30/B3/A26) | **DIVERGENCE-MINOR** | **N-187** — the og requires boot-pair OR 4-record-MFT (mirror retry); the core scores-but-never-rejects |
 | fat · quick-open media-word flavor refinement (B1/A25) | **DIVERGENCE-MINOR** | **N-188** — FAT1/FAT2 shape tests re-flavor (FUN_180021000); absent in core; lands with S-064 |
-| ntfs · walk-entry record-geometry gate (B1/A26/Q68) | **DIVERGENCE-MINOR** | **N-196** (renumbered from N-189 per SA-9) — the og refuses odd/>16-device-sector records (0x610016); the core scans — the accept-direction superset registered |
+| ntfs · walk-entry record-geometry gate (B1/A26/Q68) | **MATCH (registered deliberate superset, D-143)** (the S60-B lane: PARITY-DELTAS D-143 + the two stance pins — findings/FIXED/N-196) | **N-196 FIXED** — the og refuses odd/>16-device-sector records (:31620-31621/:31599-31600); the core's wider acceptance registered deliberate with the per-record-validation safety rationale, pinned by OddSectorRecordWalkScans + OversizePositiveRecordOpensAndWalks |
 | ntfs · spc shift-decode threshold (C20/Q68) | **DIVERGENCE-MINOR** | **N-197** (renumbered from N-190 per SA-9) — og-internal inconsistency (0xF0 vs 0x80/0x81 vs raw); the core picked one side unregistered |
 | exfat · boot-gate numeric bounds (B3/Q68) | **DIVERGENCE-MINOR** | **N-198** (renumbered from N-191 per SA-9) — core-only volume_length≥2048 / cluster_count≤0xFFFFFFF5 / fat_offset≥24; register the hardening stance |
 | orchestrator/refs · recognition second signature (B3/C19) | **MATCH** | **N-199 — FIXED (S60 lane)**: probe_family's ReFS branch now gates on BOTH signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759); test Refs.RecognitionRequiresFsrsMarker RED->GREEN — findings/FIXED/N-199-refs-second-signature-fsrs-absent.md |
 | ext4 · superblock acceptance bands (B3/C20/Q68) | **DIVERGENCE-MINOR** | **N-193** — four band deltas consolidated (inode_size=0, log_bs 7..20, journal_inum gating, desc_size combos) |
 | query · size display formatters (B10/D13/Q68) | **DIVERGENCE-MINOR** | **N-194** — the og's two binary-tier formatters (log-side KB/MB/GB; UI-side B..TB) have no core counterpart |
-| bench · driver-verification IOCTL codes (Q65/C22) | **MATCH** | **N-195 — FIXED (S60 lane)**: both bench constants righted to the contract codes (0x6002440/0x6002448, cr_rda.h CTL_CODE_RDA) + the CrUi.BenchVerifyDriverIoctlCodesMatchContract pin (absence of the phantom forms + presence of the contract codes) — findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md |
+| bench · driver-verification IOCTL codes (Q65/C22) | **MATCH** (the S60-B lane: both constants corrected + the gate check — findings/FIXED/N-195) | **N-195 FIXED** — the bench's two extended codes byte-match cr_rda.h (0x6002440/0x6002448) and doc_truth_gate check 7 pins every bench CTL literal against the header (the phantom-zero class can never re-enter silently) |
 | ext4 · unwritten-extent ee_len decode (Q68/B2) | **DIVERGENCE-INFORMATIONAL** | **I-045** — og-defect non-adoption register batch #3: the og multiplies raw; the core is kernel-correct — register |
 | session · ETA budget seed (O39) | **ADDENDUM** | **M-126 +S54** — `total_bytes/60 MiB + 60 s` at DRWUI:315150 decoded; the fix gains the seed |
 | session/orchestration · engine-pause type gate (S33) | **ADDENDUM** | **N-178 +S54** — the og skips engine pause for scan-type-1 runs (+0xD8 gate, :314405/:314476); the core pauses all stages |
@@ -1187,4 +1178,4 @@ their M-112).
 
 - **bench · driver-verification IOCTL codes (Q65/C22)**: **MATCH** — **N-195 FIXED**: the phantom-zero 0x6000244x pair righted to the contract's 0x6002440/0x6002448 (cr_rda.h fn 0x910/0x912); CrUi.BenchVerifyDriverIoctlCodesMatchContract RED->GREEN (the pin rides the same read_repo_file gate family as DriverWireCodesFreeOfPhantomZeroInDocs); `findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md`.
 
-- **grading · P15/P13/P65 (rawCount population + phantom resolution field)**: **MATCH** — **N-205 FIXED**: `raw_tail_zero` landed (the forced observe-only probe, pass 0 of grade_tree — the quick-scan-populate analog) + the raw_count census REGISTERED as D-143 + the M-134 phantom sentence repaired by addendum; `findings/FIXED/N-205-rawcount-population-semantics-og-validated-vs-core-carved-plus-phantom-raw-tail-zero.md`.
+- **grading · P15/P13/P65 (rawCount population + phantom resolution field)**: **MATCH** — **N-205 FIXED**: `raw_tail_zero` landed (the forced observe-only probe, pass 0 of grade_tree — the quick-scan-populate analog) + the raw_count census REGISTERED as D-144 [renumbered from the born-collided D-143 seat - the racing window's N-196 row keeps it per SA-9] + the M-134 phantom sentence repaired by addendum; `findings/FIXED/N-205-rawcount-population-semantics-og-validated-vs-core-carved-plus-phantom-raw-tail-zero.md`.

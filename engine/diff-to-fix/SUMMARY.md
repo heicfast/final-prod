@@ -1,3 +1,4 @@
+
 # SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
 
 ## Closing-fix lane delta (2026-10-29 — the INFO-first diff-to-fix execution lane per the user's directive "priority to informational first"; opened at core `98a5b139`, corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; absorbed the S60 MINOR-first window at the merge)
@@ -21,13 +22,25 @@ tracked-open; FIXED archive 140.
 
 # SUMMARY.md — executive summary (the S60 MINOR-first execution lane (prior); the prior lanes below, newest-first)
 
+# SUMMARY.md — executive summary (the S60-B MINOR-first execution lane on top of the closing-fix + S60 window lanes; the prior lanes below, newest-first)
+
+## Session-60-B S60-B lane delta (2026-10-29 — the second MINOR-first diff-to-fix execution lane of the same user fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139`, corpus `be0cfe9`; every finding re-verified at the current tree before fixing; the racing lanes' landings absorbed per SA-9)
+
+**N-195 convergence record:** this lane independently verified and fixed N-195 in the same window the S60 lane did (their 3fae0791 landing is the fix of record per SA-9 — both constants corrected identically, the pin test in the CrUi read_repo_file family). This lane's UNIQUE supplement rides its own push: **doc_truth_gate check 7** (`check_bench_ioctl_codes`, CI-wired at checks.yml:173) — every 0x6xxxxxxx-form CTL literal in bench/**/*.{ps1,cs,cpp} must byte-match a constant in include/cr/win/cr_rda.h, making the phantom-zero class a permanently-gated defect rather than a one-shot pinned one. RED exit-1 pre-fix (both violations named) → GREEN post-fix, first-hand.
+
+**Fixes landed by this lane:**
+
+- **N-196 FIXED (MINOR)** — the NTFS walk-entry record-geometry stance registered and pinned (option (a), the finding's recommendation): PARITY-DELTAS **D-143** carries the accept-direction superset (both og gate sites re-read first-hand — odd/>16-device-sector records refused 0x610016 at FUN_1800272b0 :31620-31621/:31599-31600; the core walks them, per-record validation carrying the safety). Pins: `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture surfaces its user file) + `OversizePositiveRecordOpensAndWalks` (the 17-sector stride); NtfsVolume family 73/73.
+
+**Board at this push (filesystem truth):** 45 active — 1 SEVERE · 23 MAJOR · 18 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 142 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196).
+
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
 **Board at lane open (re-counted first-hand; corrected in the N-195 push — the lane's first block overstated MINOR at 24):** 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4 tracked-open, findings/FIXED/ at 136 files. N-107/N-127 (with M-086/M-087/M-089) are driver-repo-resident (OQ-S10-3's two-repo grant boundary) — not fixable in this lane, counted as active-open.
 
 **Fixes landed this push:**
 
-- **N-205 FIXED (MINOR)** — the recoverability rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's exact population (the forced observe-only tail-zero probe over grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default size arm — FUN_1401c7d80 :331183-311 re-read first-hand, ported as grade_tree's pass 0); `raw_count` keeps the Origin::Carved census as the REGISTERED deliberate divergence (**D-143**, header mapping block); the M-134 resolution's phantom `raw_tail_zero` sentence repaired by addendum. Tests: Grading.RawTailZeroTicksForcedProbePopulation / RawTailZeroSizeArmBoundary / RawCountSemanticsRegistered (the registration leg RED until the D-row landed); Grading family 40/40.
+- **N-205 FIXED (MINOR)** — the recoverability rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's exact population (the forced observe-only tail-zero probe over grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default size arm — FUN_1401c7d80 :331183-311 re-read first-hand, ported as grade_tree's pass 0); `raw_count` keeps the Origin::Carved census as the REGISTERED deliberate divergence (**D-144** [renumbered from the born-collided D-143 seat - the racing window's N-196 registration keeps D-143 per SA-9], header mapping block); the M-134 resolution's phantom `raw_tail_zero` sentence repaired by addendum. Tests: Grading.RawTailZeroTicksForcedProbePopulation / RawTailZeroSizeArmBoundary / RawCountSemanticsRegistered (the registration leg RED until the D-row landed); Grading family 40/40.
 - **N-195 FIXED (MINOR)** — the driver-verification bench's two phantom-zero extended-IOCTL constants righted to the contract codes (0x6002440 GET_INFO / 0x6002448 GET_VERSION, cr_rda.h CTL_CODE_RDA fn 0x910/0x912) — the bench can now actually exercise the GET_INFO/GET_VERSION paths it exists to verify. Pin test CrUi.BenchVerifyDriverIoctlCodesMatchContract (RED: both phantom literals present → GREEN: contract codes present, phantom absent); CrUi family 77/77.
 - **N-199 FIXED (MINOR)** — probe_family's ReFS branch now gates on BOTH boot signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759 re-read first-hand): a forged OEM no longer dispatches the ReFS family. Test Refs.RecognitionRequiresFsrsMarker RED (forged-OEM fixture dispatched Refs) → GREEN; Refs family 41/41; lost/ldm/probe neighborhood 153/153.
 - **N-192 FIXED (MINOR)** — FileProperties::clone() now copies `short_name` (the og's whole-block clone contract, part1 slot +0x08): the hard-link fan-out's cloned links keep the 8.3 name at the walk, through the session roundtrip (nflags bit 2), and at the UI preview clone. Test NtfsVolume.HardLinkFanOutClonesKeepShortName RED (cloned link's short_name empty, both axes) → GREEN; family 71/71.

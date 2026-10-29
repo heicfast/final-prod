@@ -9298,7 +9298,114 @@ block, this entry.
 block overstated MINOR at 24; the first-hand recount is 22 (the two
 driver-repo-resident N-107/N-127 are counted active-open). SUMMARY
 corrected in this push.
+## Session-61 lane open — the seventh continuation audit lane (2026-10-29)
 
+Lane open. The continuation audit lane of the user's second-session mandate
+(lane 7): remove-the-fixed + go-deeper + mark-all-remaining, focus areas sector
+numbers / scanning / accurate detection / calculation / mathematics / no stuck or
+freeze / local database as og-codebase / state management. Repos pinned: core
+`e40b8a86` (pulled first — the racing S60 window's N-199 retirement absorbed),
+corpus `be0cfe9`. Prompt saved token-redacted at
+worklog/session-61-continuation-audit-prompt.md (read twice before starting).
+Board re-counted first-hand at open: **47 active — 1 SEVERE (S-040) · 23 MAJOR ·
+21 MINOR · 2 INFO — + 4 tracked-open; findings/FIXED/ at 137 files.**
+N-107/N-127 driver-repo-resident (OQ-S10-3 boundary) — active-open.
+Plan: (W1) liveness battery over all 47; (W2) four parallel deep-dive agents —
+og local-data/config inventory (beyond lostpart/partinfo), DRWUI scan state
+machine + progress math + stuck-watchdog decode, per-engine detection validators
++ sector/LBA arithmetic fresh eyes, core-side counterpart read; (W3) lead
+first-hand verification + filing (next free IDs: S-067+, M-149+, N-210+, I-048+,
+A-015+); (W4) board re-truth + push + handoff.
+
+## Session-60-B lane — N-195 landed (2026-10-29)
+
+**N-195 FIXED (MINOR — bench phantom-zero IOCTLs).** Verified at the current
+tree: bench/ours/verify-driver.ps1:47/:55 carried 0x60002440/0x60002448 vs
+cr_rda.h's 0x6002440/0x6002448 (kIoctlGetInfo/kIoctlGetVersion). Fix: both
+constants corrected + the in-place header-pin comment. Proof: the new
+doc_truth_gate check 7 (check_bench_ioctl_codes) — RED exit-1 pre-fix with both
+violations named, GREEN exit-0 post-fix; wired into CI at checks.yml:173 (the
+same gate invocation). Census: the two literals were the only 0x6xxxxxxx forms
+in the bench family. Trail: finding retired to findings/FIXED/N-195 +
+Resolution, ledger row, matrix MATCH cell, SUMMARY S60-B block, this entry.
+## Session-60-B lane — the N-195 hot-window convergence absorbed (2026-10-29)
+
+The rebase over the S60/closing-fix window showed the S60 lane had landed
+their own N-195 (3fae0791) in the same window — identical two-constant fix +
+their CrUi read_repo_file pin. Per SA-9 their landing is the fix of record;
+this lane's rebase commit (1b4b2aa5) carries the convergence record: the
+ledger's second row, the finding's Addendum II, and this lane's UNIQUE
+supplement — doc_truth_gate check 7 (check_bench_ioctl_codes, CI-wired):
+every bench CTL literal must byte-match a cr_rda.h constant, making the
+phantom-zero class permanently gated. Gate green (137 D-rows, bench check
+green). Board after the window: 19 MINOR · 23 MAJOR · 1 SEVERE active,
+141 FIXED files, 0 INFO active (the closing-fix lane took I-045/I-046).
+
+
+## Session-60 diff-fix lane — opened (2026-10-29)
+
+**Setup:** both repos pulled clean. Core HEAD at lane open: `98a5b139`
+(audited-commit lineage: the S55 filings verified at `9633d94f`; corpus pinned
+`be0cfe95`). Session prompt saved (token redacted) at
+`worklog/session-diff-fix-prompt.md`. Board at open (filesystem truth):
+1 SEVERE (S-040) · 23 MAJOR · 22 MINOR · 2 INFO active + 4 tracked-open,
+FIXED archive at 136. Baseline build+suite: linux-release 1338 passed /
+1380 run / 0 failed (2 CPUs, ASan off on this preset).
+
+**Driver-repo-resident findings (M-086, M-087, M-089, N-107, N-127) are out of
+this session's two-repo grant** — each already carries a PUSHED-FORWARD
+Resolution pointing at tracked-open OQ-S10-3; verified standing, no core-side
+change honest.
+
+**Lane plan:** acceptance-band family first (M-147 → M-145 → M-141 → M-142 →
+M-140 → M-146), then ext4 (M-143, M-144), writer family (M-136, M-135), the
+quick minors (N-192, N-195, N-199, N-194, N-204, N-205), the SEVERE S-040
+feature build, then the remaining MAJOR features and registrations by impact.
+
+**Post-rebase convergence note (the S60/S60-B/S61 window):** the racing lanes
+landed N-192, N-199, N-195 (their 3fae0791 is the fix of record; this lane's
+board at open already reflects those retirements), I-045 and I-046 (the
+closing-fix lane). This lane's open census above predates the window; the
+current board is read live before each fix. The lane plan drops the already-
+landed minors and proceeds: acceptance-band family (M-147 → M-145 → M-141 →
+M-142 → M-140 → M-146) first.
+
+---
+
+## Session-60 convergence record — N-199 (the racing-lane arbitration) (2026-10-29)
+
+This lane (opened at `98a5b139`, suite 1460/1460 baseline, mandate saved
+token-redacted at worklog/session-60-diff-fix-prompt.md) independently
+verified N-199 and built the identical OEM+FSRS gate at the same
+probe_family branch — the same corpus re-read (FUN_180003900, both
+compares verbatim) and its own RED proof (the stash-revert rebuild: the
+forged OEM dispatched Refs at the pre-fix tree; the duplicate test pair
+dropped per the superset rule — the winner's
+Refs.RecognitionRequiresFsrsMarker covers both legs). Per SA-9
+earlier-push-wins the remote lane's 36c34557 is the fix of record. This
+lane's unique supplements riding this push: the lost-partition comment
+re-truth at cr_candidates.cpp (the probe_family gate citation updated to
+the second signature, with the lost-side page-signature probe named the
+deeper proof) + this convergence record. Suite re-verified green after
+each rebase resolution.
+
+---
+
+## Session-60-B lane — N-196 landed (2026-10-29)
+
+**N-196 FIXED (MINOR — NTFS walk-entry record-geometry stance).** Corpus
+re-verified first-hand: FUN_1800272b0's primary gate (odd/>16 device-sector
+records bail to the fallback, :31620-31621) + the fallback's 512-rounded
+even/≤16 form (:31599-31600), both failing = 0x610016. Core re-verified: no
+geometry gate between open and walk (P1-4 shift-UB cap is the only record-size
+bound on the negative-exponent form; positive cpr decodes uncapped). Fix per
+the finding's recommended option (a): PARITY-DELTAS D-143 (accept-direction
+superset, both og sites cited, per-record-validation safety rationale) + two
+stance pins: NtfsVolume.OddSectorRecordWalkScans (1536-byte odd-stride
+fixture walks and surfaces oddrec.txt) and OversizePositiveRecordOpensAndWalks
+(17-sector stride opens and walks). NtfsVolume family 73/73. Trail: finding
+retired to findings/FIXED/N-196 + Resolution, ledger row, matrix MATCH (D-143),
+SUMMARY S60-B block, this entry.
 
 ## Session-60 lane — N-205 landed (2026-10-29)
 
@@ -9312,15 +9419,15 @@ analog, pre-solo-rules): NTFS-family, grade Average, 0 < extent-end <
 device-bytes, forced_tail_zero_probe (the observe-only port of
 FUN_14038c470's param_3=1 form — no grade mutation, no index gate) AND
 the 0x77fffff arm; (2) option (b): raw_count keeps the Origin::Carved
-census — REGISTERED deliberate divergence D-143 + the header mapping
+census — REGISTERED deliberate divergence D-144 (renumbered at the push-rebase: the racing window's N-196 row keeps the D-143 seat per SA-9) + the header mapping
 block now states the split; (3) the M-134 Resolution's phantom
 "raw_tail_zero" sentence repaired by addendum in the FIXED file; (4) the
 C ABI untouched (the append hazard documented in the D-row). Proof:
 Grading.RawTailZeroTicksForcedProbePopulation + RawTailZeroSizeArmBoundary
-+ RawCountSemanticsRegistered (the registration leg RED until D-143
++ RawCountSemanticsRegistered (the registration leg RED until the D-row
 landed; the counter legs could not compile pre-fix — the field's absence
 WAS the finding's phantom claim); Grading family 40/40. Trail: FIXED
 finding + Resolution, ledger row, matrix MATCH (row 1177 + S60 section),
-tree.md verdict, D-143, the M-134 addendum, SUMMARY block (board recount:
+tree.md verdict, D-144, the M-134 addendum, SUMMARY block (board recount:
 42 active — the racing window's I-045/I-046 retirements absorbed), this
 entry.

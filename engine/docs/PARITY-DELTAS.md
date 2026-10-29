@@ -4151,7 +4151,43 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   documentation must stop describing the og's .dat pair as a persistent
   knowledge base (it is one process-generation old at most).
 
-### D-143 — the recoverability rawCount semantics: provenance census vs the og's validated-recoverable count (N-205 registration, REGISTERED DELIBERATE DIVERGENCE — raw_tail_zero carries the og-parity population)
+### D-143 — the NTFS walk-entry record-geometry gate declined: the core's wider acceptance band is deliberate (N-196 registration, REGISTERED DELIBERATE DIVERGENCE — accept-direction superset)
+
+- **WHAT OG DOES:** the MFT walk entry refuses records whose device-sector
+  count is odd or exceeds 16, in two layers (NTFSSearchDLL
+  FUN_1800272b0): the primary branch computes `record_bytes /
+  device_sector` and bails on `(count & 1) != 0 || (byte)count > 0x10`
+  (:31620-31621); the mirror-fallback branch recomputes the 512-byte-
+  rounded size and requires `(rounded & 1) == 0 && (byte)rounded < 0x11`
+  to proceed (:31599-31600); both failing sets the walk's refusal code
+  0x610016. A 3-sector 1536-byte record and a 17-sector 8704-byte record
+  are both refused at the walk entry (odd and >16 respectively), even
+  though the og ACCEPTS non-pow2 even sizes (3072/5120/6144 pass).
+- **WHAT WE DO:** no walk-entry geometry gate exists between open and
+  walk (`cr_bootstrap.cpp` — the P1-4 shift-UB guard caps the negative-
+  exponent decode form at 1 MiB and the sub-sector/0-result rules reject
+  degenerate sizes, but positive cpr decodes uncapped and no even/≤16
+  device-sector rule applies). The core opens and walks volumes in the
+  og's refusal band; per-record validation (magic + fixup + USA) is the
+  safety mechanism on every stride.
+- **WHY DELIBERATE:** refusing recoverable volumes is the worse direction
+  per the board's calibration history (the D-119 numeric-hygiene family):
+  a real formatter never emits an odd/>16-sector record size the way a
+  corrupt DBR does, but a torn volume whose DBR survived with an unusual
+  cpr still has recoverable records behind it — the core's per-record
+  validation rejects garbage strides individually while keeping the
+  volume walkable. The wider band is accept-direction only: no wrong-
+  content risk (every record is still validated before decode).
+- **EVIDENCE:** og gates re-read first-hand at the decompile lines above
+  (the S-063 verification trail's own sites); core stance pinned by
+  `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture
+  opens, walks, and surfaces its user file — the og's 0x610016 class)
+  and `NtfsVolume.OversizePositiveRecordOpensAndWalks` (the 17-sector
+  8704-byte stride opens and walks, per-record validation carrying the
+  safety) beside the adjacent P1-4 pin
+  (`NtfsVolume.BootNegativeExponentOverflowRejected`).
+
+### D-144 — the recoverability rawCount semantics: provenance census vs the og's validated-recoverable count (N-205 registration, REGISTERED DELIBERATE DIVERGENCE — raw_tail_zero carries the og-parity population)
 
 - **WHAT OG DOES:** the assistant's rawCount (+0x1a0) is a
   validated-recoverable count, ticked at quick-scan populate
@@ -4186,7 +4222,7 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   every report that carves anything. Mitigated: the D-row + the header
   mapping block state the split explicitly; the og-parity number exists
   as raw_tail_zero for any surface that asks.
-- **VERDICT: ACCEPTED** (deliberate divergence, registered N-205). The
+- **VERDICT: ACCEPTED** (deliberate divergence, registered N-205; renumbered D-143→D-144 at the push-rebase — the racing S60 window's N-196 registration took the D-143 seat first per SA-9, the N-207 born-collided-seat class). The
   M-134 resolution's "raw_tail_zero in AssistantStats" sentence was
   aspirational at its landing (the field did not exist — the N-205
   phantom claim); the N-205 landing makes it true. Any future report/ABI

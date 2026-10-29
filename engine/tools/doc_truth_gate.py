@@ -414,6 +414,47 @@ def check_filed_as_citations():
 
 
 
+def check_bench_ioctl_codes():
+    """N-195: every CTL literal used by bench/ scripts exists in cr_rda.h.
+
+    The phantom-zero class (0x60002440 vs the contract's 0x6002440): a bench
+    that calls an extended IOCTL with an extra zero digit can never exercise
+    the path it exists to verify, and a green-looking run is impossible. The
+    contract header (include/cr/win/cr_rda.h) is the single source of truth
+    for every IOCTL code this repo may issue; any 0x6xxxxxxx-form literal in
+    the bench family must byte-match one of its constants.
+    """
+    header = (ROOT / "include" / "cr" / "win" / "cr_rda.h").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    contract = {m.lower() for m in re.findall(r"0x6[0-9A-Fa-f]{6,}", header)}
+    ok = True
+    n_literals = 0
+    for pat in ("bench/**/*.ps1", "bench/**/*.cs", "bench/**/*.cpp"):
+        for src in sorted(ROOT.glob(pat)):
+            text = src.read_text(encoding="utf-8", errors="replace")
+            for i, line in enumerate(text.splitlines(), 1):
+                # Skip comment lines that document the phantom class itself.
+                if re.match(r"\s*(#|//|\*)", line):
+                    continue
+                for m in re.finditer(r"0x6[0-9A-Fa-f]{6,}", line):
+                    n_literals += 1
+                    if m.group(0).lower() not in contract:
+                        print(
+                            f"doc_truth_gate: FAIL: {src.relative_to(ROOT)}:{i} "
+                            f"issues IOCTL {m.group(0)} which no constant in "
+                            f"include/cr/win/cr_rda.h defines (the phantom-zero "
+                            f"class, N-195)"
+                        )
+                        ok = False
+    if ok:
+        print(
+            f"doc_truth_gate: bench IOCTL literals match the contract "
+            f"({n_literals} literal(s), all in cr_rda.h)"
+        )
+    return ok
+
+
 def check_parity_delta_numbering():
     """N-191/N-207: every PARITY-DELTAS D-row heading is unique."""
     rows = []
@@ -452,6 +493,7 @@ def main():
     ok = check_filed_as_citations() and ok
     ok = check_abi_count_claims() and ok
     ok = check_parity_delta_numbering() and ok
+    ok = check_bench_ioctl_codes() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

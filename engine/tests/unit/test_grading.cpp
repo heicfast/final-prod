@@ -982,12 +982,12 @@ TEST(Grading, RawCountSemanticsRegistered) {
     /* N-205 option (b): raw_count keeps the landed Origin::Carved census
      * (the report field's shipped meaning); the deliberate divergence
      * from the og's validated-recoverable rawCount is REGISTERED (the
-     * D-143 row) with raw_tail_zero carrying the og-parity population.
+     * D-144 row [renumbered from the born-collided D-143 seat - the racing window's N-196 keeps it]) with raw_tail_zero carrying the og-parity population.
      * The pin: the register row + the header's mapping comment exist and
      * name the divergence. */
     const std::string deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
     ASSERT_FALSE(deltas.empty());
-    EXPECT_NE(deltas.find("### D-143"), std::string::npos)
+    EXPECT_NE(deltas.find("### D-144"), std::string::npos)
         << "the raw_count semantics divergence must carry its D-row";
     const std::string hdr = cr_test::read_repo_file("include/cr/tree/cr_grading.h");
     ASSERT_FALSE(hdr.empty());
