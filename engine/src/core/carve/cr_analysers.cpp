@@ -6673,42 +6673,6 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* SWF: list-only FWS/CWS (:3058-3086) -> FileSWFAnalyser id 0x3e. The
-<<<<<<< HEAD
- * og validator (FUN_1800268a0 :29970-29996 + the deep gates
- * FUN_180026940/FUN_180026b80, first-hand): FWS/CWS only - ZWS is NOT
- * accepted; FileLength u32@4 > 8 -> size = FileLength (both paths,
- * the caller's stamp). */
-/* SWF: "FWS"/"CWS" keys (:26801/:26805) -> idx 0x3e 62. The M-107
- * SWF-RECT member landing (the finding's open question 3 answered
- * first-hand: the RECT parse is VALIDATION-ONLY — the extent is the
- * FileLength u32@4 in both paths, the caller's stamp at :29987-88;
- * the walk never contributes to the extent).
- *
- *  - FWS (FUN_180026940, raw-asm decoded): version byte@3 in [3,20]
- *    (0x18002695b `sub $0x3; cmp $0x11`), FileLength >= 9 (0x180026969
- *    `cmpl $0x9`), then the RECT walk: nbits = byte[8] >> 3 must be
- *    >= 2 (0x18002697d); the four fields (Xmin Xmax Ymin Ymax) each
- *    read sign-bit-first then (nbits-1) magnitude bits MSB-first
- *    (the sign checked from the field's own first bit — byte[8]&4 for
- *    Xmin, the cursor bit for the rest); value = sign ? -magnitude :
- *    magnitude; the geometry gate (0x180026b3e-0x180026b5b): both
- *    axes 0 <= min < max (min >= 0, max > 0, min < max — any
- *    violation declines).
- *
- *  - CWS (FUN_180026b80, raw-asm decoded): the version window is
- *    [6,20] (0x180026bb2 `sub $0x6; cmp $0xe` — CWS exists only from
- *    SWF 6; the pre-fix core accepted [3,20] for both sigils), the
- *    zlib CMF low nibble must be 8 (0x180026bc4 `and $0xf; cmp $0x8`
- *    — the deflate method; byte 8 is the zlib stream's first byte in
- *    a CWS file), FileLength >= 9. The og then INFLATES the body and
- *    runs the RECT walk on the decompressed stream (the zlib calls at
- *    0x180054a90/0x180054c10) — the core keeps the GZ no-inflate
- *    precedent (the registered follow-up; the CMF + version gates are
- *    the honest header-validation floor). */
-CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
-    CarveResult r;
-    u8 h[9];
-=======
  * og validator (FUN_1800268a0 :29970-29996 + the deep gate
  * FUN_180026940 :30001-30130, decoded first-hand from the raw asm):
  * FWS/CWS only - ZWS is NOT accepted; version byte@3 in [3,20]
@@ -6762,72 +6726,33 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
      * for the window declines (the og's 512-byte buffer read is the
      * streaming model's artifact - the registered divergence class) */
     u8 h[25];
->>>>>>> origin/main
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
         return r; /* FWS | CWS only (the registry keys, re-checked) */
     const u32 len = u32_from_bytes_le(h + 4);
     if (len <= 8)
-<<<<<<< HEAD
-        return r; /* the og's FileLength gate (both paths) */
-    if (h[0] == 'C') {
-        if (h[3] < 6)
-            return r; /* the CWS window [6,20] — the compressed form exists only from SWF 6 */
-        if ((h[8] & 0xF) != 8)
-            return r; /* the zlib CMF low nibble: the deflate method */
-    } else {
-        if (h[3] < 3 || h[3] > 20)
-            return r; /* the FWS version gate */
-        /* the RECT walk: nbits >= 2, four sign-magnitude fields, the
-         * geometry gate 0 <= min < max on both axes */
-        const u32 nbits = h[8] >> 3;
-        if (nbits < 2)
-            return r;
-        u64 bitpos = 5; /* past the 5-bit nbits field, MSB-first from byte 8 */
-        auto read_bit = [&](u64 file_off) -> int {
-            u8 b = 0;
-            if (!rd(s, file_off + (bitpos >> 3), &b, 1))
-                return -1;
-            const int bit = (b >> (7 - (bitpos & 7))) & 1;
-            ++bitpos;
-            return bit;
-        };
-        i32 fields[4] = {0, 0, 0, 0};
-        for (int f = 0; f < 4; ++f) {
-            const int sign = read_bit(hit + 8);
-            if (sign < 0)
-                return r; /* the RECT ran past the readable window */
-            u32 mag = 0;
-            for (u32 i = 0; i + 1 < nbits; ++i) {
-                const int bit = read_bit(hit + 8);
-                if (bit < 0)
-                    return r;
-                mag = (mag << 1) | u32(bit);
-            }
-            fields[f] = sign ? -i32(mag) : i32(mag);
-        }
-        /* the geometry gate: Xmin/Xmax and Ymin/Ymax both 0 <= min < max */
-        if (fields[0] < 0 || fields[2] < 0)
-            return r;
-        if (fields[1] <= 0 || fields[3] <= 0)
-            return r;
-        if (fields[0] >= fields[1] || fields[2] >= fields[3])
-            return r;
-    }
-    r.ok = true;
-    r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
-    r.confidence = 700;
-    r.note = h[0] == 'C' ? "swf-cws-version+cmf,filelength" : "swf-rect-geometry+filelength";
-=======
         return r; /* the og's FileLength gate */
+    if (h[0] == 'C') {
+        /* the CWS gates (FUN_180026b80's own, raw-asm 0x180026bb2/0x180026bc4,
+         * the S89 lane's decode): the version window [6,20] - the compressed
+         * form exists only from SWF 6 - and the zlib CMF low nibble == 8 (the
+         * deflate method; byte 8 is the zlib stream's first byte in a CWS
+         * file). The og's inflate-then-RECT validation of the decompressed
+         * body is the recorded follow-up (the GZ no-inflate precedent). */
+        if (h[3] < 6)
+            return r;
+        if ((h[8] & 0xF) != 8)
+            return r;
+    } else if (h[3] < 3 || h[3] > 20) {
+        return r; /* the FWS version gate (0x180026953-0x180026963) */
+    }
     if (h[0] == 'F' && !swf_rect_valid(h))
         return r; /* the FWS deep gate: the RECT bounding-box validation */
     r.ok = true;
     r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
     r.confidence = 700;
     r.note = "swf-sig+version+filelength+rect";
->>>>>>> origin/main
     return r;
 }
 

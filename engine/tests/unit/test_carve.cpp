@@ -3348,64 +3348,6 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
             << "the all-zero window is the og's extent-0 decline";
 }
 
-/* ---- M-160: the APE version gate (the u16 LE [1000, 9999] window) -- */
-
-size_t plant_ape(std::vector<u8>& img, size_t at);
-
-TEST(Carve, ApeRealFormVersionGateCarves) {
-    /* The og's gate (FUN_180033180): the u16 LE at +4 in [1000, 9999].
-     * The old core's u32-BE [300, 5000] read rejected EVERY real APE
-     * file (the version field is the u16 LE; the BE read of a real
-     * header is ~0x820F0000) - the whole-family absence this finding
-     * filed. RED at the old gate: this exact plant was rejected. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_ape(img, at);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* ape = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->extents.front().offset == at)
-            ape = c;
-    ASSERT_NE(ape, nullptr) << "a real-form APE (u16 LE version 3980) must carve";
-    EXPECT_EQ(ape->props()->carve_format, FMT_APE);
-}
-
-TEST(Carve, ApeVersionWindowIsTheOgsThousandWindow) {
-    /* The window's both edges and both outsides: 1000 and 9999 carve;
-     * 999 and 10000 decline - the og's exact bounds. */
-    for (int k = 0; k < 4; ++k) {
-        std::vector<u8> img(64 * 1024, 0);
-        const size_t at = 512;
-        std::memcpy(img.data() + at, "MAC ", 4);
-        const u16 ver = (k == 0) ? 1000 : (k == 1) ? 9999 : (k == 2) ? 999 : 10000;
-        put16(img, at + 4, ver);
-        MemDevice dev(std::move(img));
-        tree::ResultTree tree;
-        auto* root = tree.add_root(u"L");
-        CarveFlags flags;
-        CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              stats),
-                  OK);
-        tree::FileNode* ape = nullptr;
-        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-            if (c->props() && c->props()->extents.front().offset == at)
-                ape = c;
-        if (k < 2)
-            EXPECT_NE(ape, nullptr) << "version " << ver << " is inside [1000, 9999] - must carve";
-        else
-            EXPECT_EQ(ape, nullptr)
-                << "version " << ver << " is outside [1000, 9999] - the og declines";
-    }
-}
-
 /* ---- M-107 member 6 (WPD): the version-table walk
  * (FUN_180041f50) ------------------------------------------ */
 
@@ -3493,7 +3435,6 @@ TEST(Carve, WpdVersionTableGateDeclinesUnknownVersion) {
             << "an unmatched version pair must decline (the og's table gate)";
 }
 
-<<<<<<< HEAD
 TEST(Carve, WpdZeroSizeFieldDeclines) {
     /* The engine's acceptance gate (0x18000d7e1): extent==0 -> no
      * carve. A valid version record with a zero size field declines —
@@ -3501,18 +3442,6 @@ TEST(Carve, WpdZeroSizeFieldDeclines) {
      * walk declines (0x18000b760: xor al,al; ret), no carve at all,
      * never the blind cap (the S91 lane's convergent rationale merged
      * with the S87 original here). */
-=======
-TEST(Carve, WpdSecondAndThirdRecordsCarve) {
-    /* The table's other two records - the WPG-family WPC variant
-     * (0x00021601, 0x00030000) and the third variant (0x00010f0f,
-     * 0x00030000) - carve through the same walk at their own declared
-     * sizes, and carry their OWN sub-format ids: the og's engine (not
-     * the report layer) assigns the name - the CRawFileInfo child's
-     * +0x28 processor (0x18000b7a0) indexes the 9-byte-stride name
-     * table at 0x18008f070 by the tier-1's stamped id (the S91
-     * sub-format rider; the racing S87 'report-layer routing' framing
-     * corrected by the processor decode). */
->>>>>>> origin/main
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     plant_wpd(img, at, 0);
@@ -3524,7 +3453,6 @@ TEST(Carve, WpdSecondAndThirdRecordsCarve) {
     ASSERT_EQ(
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
         OK);
-<<<<<<< HEAD
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
             << "a zero size field must decline (the extent!=0 engine gate)";
@@ -3547,26 +3475,6 @@ size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared) {
     put32v(img, at + 0xE, 0x00050200); /* the pair's second word */
     put32v(img, at + 0x14, declared);  /* the og's size source */
     return declared;
-=======
-    tree::FileNode* v2 = nullptr;
-    tree::FileNode* v3 = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
-        if (!c->props() || c->props()->extents.empty())
-            continue;
-        if (c->props()->extents.front().offset == at2)
-            v2 = c;
-        if (c->props()->extents.front().offset == at3)
-            v3 = c;
-    }
-    ASSERT_NE(v2, nullptr) << "record 2 (the WPG-family WPC variant) must carve";
-    EXPECT_EQ(v2->props()->logical_size, size_t(0x3000));
-    EXPECT_EQ(v2->props()->carve_format, u32(FMT_WPG))
-        << "the engine's name table stamps id 0x45 (WPG) for record 2";
-    ASSERT_NE(v3, nullptr) << "record 3 (the third WPC variant) must carve";
-    EXPECT_EQ(v3->props()->logical_size, size_t(0x5000));
-    EXPECT_EQ(v3->props()->carve_format, u32(FMT_SHW))
-        << "the engine's name table stamps id 0x3d (SHW) for record 3";
->>>>>>> origin/main
 }
 
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
@@ -3603,117 +3511,6 @@ size_t plant_wpg(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
-<<<<<<< HEAD
-=======
-size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared = 0x3000) {
-    /* M-107 member 6: the og's tier-1 pair table (FUN_180041f50's
-     * compare groups at 0x180041f8a-0x180041fd0): (u32@+8, u32@+0xE)
-     * = the known pair (0x01020a01, 0x00050200); the extent =
-     * u32@+0x14 (0x18004200c) - the declared document size. The
-     * S87-continuation lane's convergent decode: the FULL three-record
-     * table {(0x01020a01,0x00050200)->0x44, (0x00021601,0x00030000)
-     * ->0x45, (0x00010f0f,0x00030000)->0x3d} - corroborated by the
-     * .rdata dump at 0x18006ef40. */
-    std::memcpy(img.data() + at,
-                "\xFF"
-                "WPC",
-                4);
-    put32v(img, at + 8, 0x01020a01);   /* the pair's first word */
-    put32v(img, at + 0xE, 0x00050200); /* the pair's second word */
-    put32v(img, at + 0x14, declared);  /* the og's size source */
-    return declared;
-}
-
-TEST(Carve, WpdPairTableDeclaredSizeSetsExtent) {
-    /* M-107 member 6 (WPD): the og's FileWPDAnalyser walk (the +0x10
-     * slot FUN_180041f50; the registry binding FF 'W' 'P' 'C' -> vtable
-     * 0x18006cff0 idx 0x44): the tier-1 pair table then extent =
-     * u32@+0x14 (0x18004200c) - the declared document size, NOT the
-     * blind 64 MiB stand-in. RED at the stand-in tree: the extent was
-     * the device-end-clamped 64 MiB. */
-    std::vector<u8> img(256 * 1024, 0);
-    const size_t at = 512;
-    const u32 declared = 0x5000;
-    plant_wpd(img, at, declared);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    tree::FileNode* wpd = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            wpd = c;
-    ASSERT_NE(wpd, nullptr) << "the WPD must carve through the pair table";
-    EXPECT_EQ(wpd->props()->logical_size, size_t(declared))
-        << "the extent is the declared size at +0x14, not 64 MiB";
-}
-
-TEST(Carve, WpdUnknownPairDeclines) {
-    /* the og's tier-1 (0x180041ff0-0x180041ff5): an unknown
-     * (u32@+8, u32@+0xE) pair returns 0 - the DECLINE, no bounded-extent
-     * fallback. The old 'nonzero product word' gate is gone with it. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    std::memcpy(img.data() + at,
-                "\xFF"
-                "WPC",
-                4);
-    put32v(img, at + 8, 0xDEADBEEF); /* an unknown pair */
-    put32v(img, at + 0xE, 0xFEEDFACE);
-    put32v(img, at + 0x14, 0x4000);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            FAIL() << "an unknown pair must decline the carve";
-    SUCCEED();
-}
-
-/* The S91 lane's convergent riders (the concession per SA-9: the racing
- * WPD landing keeps the seat; this lane's independent decode —
- * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
- * confirms it and adds the two directions its battery lacks). */
-
-TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
-    /* the og's chain never reads the product word at +4 - the old core's
-     * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
-     * with a zero product word carves at the declared size. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_wpd(img, at, 0x8000); /* the plant leaves +4/+5 zero */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    tree::FileNode* wpd = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            wpd = c;
-    ASSERT_NE(wpd, nullptr) << "the og never gates on the product word";
-    EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000));
-}
-
-/* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
- * (FUN_180016390 :17347-17368: "Paint Shop Pro Image File" + 0x0a + 0x1a
- * + 5 NULs, memcmp 0x20) - the old 26-byte plant lacked the 0x0a 0x1a.
- * The walk: the ~BK block chain from 0x24 (FUN_180016510 :17410-17482):
- * each block {u32 magic 0x004b427e, u32 length @ +6}, advance 10+length;
- * the extent = the walked end. */
->>>>>>> origin/main
 size_t plant_psp(std::vector<u8>& img, size_t at) {
     static const char kSig[] = "Paint Shop Pro Image File\x0a\x1a";
     std::memcpy(img.data() + at, kSig, 25);
@@ -3783,15 +3580,12 @@ size_t plant_gz(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_ape(std::vector<u8>& img, size_t at) {
-    /* M-160: the real APE form - the version is the u16 LE at +4 (the
-     * Monkey's Audio header: "MAC " + u16 version, 3980 = 0x0F8C ->
-     * bytes 8C 0F). The old plant wrote the version as a u32 BE (00 00
-     * 0F 8C) - the byte order no real APE file carries, and one the
-     * og's own gate rejects (its u16 LE read of 00 00 is 0). */
     std::memcpy(img.data() + at, "MAC ", 4);
-    put16(img, at + 4, 3980); /* the u16 LE release integer */
-    put16(img, at + 6, 2000); /* compression level (the old form's field) */
-    put16(img, at + 8, 2000); /* old-form compression level placement */
+    /* M-160: the og's version gate is the u16 LE at +4 (FUN_180033180:
+     * [1000, 9999], the release integers; the walk's branches split at
+     * 3980 and 3801) - the old putbe32 form matched no real APE file */
+    put16(img, at + 4, 3980); /* the SIT5-era version, u16 LE */
+    putbe16(img, at + 8, 2000); /* compression level */
     for (size_t i = 10; i < 64; ++i)
         img[at + i] = u8(i & 0xFF);
     return 64;
@@ -4126,13 +3920,11 @@ size_t plant_emf(std::vector<u8>& img, size_t at) {
     return 0x800;
 }
 
-/* M-107's SWF member: the RECT writer (the og's layout, decoded
- * first-hand from FUN_180026940's raw asm): the 5-bit Nbits field
- * occupies bits 7..3 of byte 8 (MSB-first), then four fields of
- * [1 sign bit + (Nbits-1) magnitude bits], sign-magnitude. */
 static void swf_write_rect(std::vector<u8>& img, size_t at, i32 xmin, i32 xmax, i32 ymin, i32 ymax,
                            u32 nbits = 9) {
-    u32 bitpos = 0; /* absolute bit index from byte 8's MSB */
+    /* the racing M-160/S92 window's helper (ported for the positive-path
+     * pins): writes the RECT bit-stream MSB-first from byte 8. */
+    u32 bitpos = 0;
     auto wr = [&](u32 val, u32 count) {
         for (i32 i = i32(count) - 1; i >= 0; --i) {
             const u32 bit = (val >> u32(i)) & 1u;
@@ -4155,7 +3947,6 @@ size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
     std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
     img[at + 3] = 6;            /* version inside the og's [3,20]/[6,20] gates */
     put32v(img, at + 4, 0x400); /* FileLength > 8 */
-<<<<<<< HEAD
     if (cws) {
         /* the M-107 CWS path: byte 8 is the zlib stream's CMF — the og
          * gates the low nibble to 8 (the deflate method); the body is
@@ -4172,14 +3963,6 @@ size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
         for (size_t i = 8 + sizeof(rect); i < 0x400; ++i)
             img[at + i] = u8((i * 7) & 0xFF);
     }
-=======
-    for (size_t i = 8; i < 0x400; ++i)
-        img[at + i] = u8((i * 7) & 0xFF);
-    /* M-107's SWF member: the plant carries a VALID RECT (the og's deep
-     * gate, FUN_180026940 - Xmin<Xmax, Ymin<Ymax, all four >= 0) so the
-     * FWS form carves through the validation */
-    swf_write_rect(img, at, 0, 200, 0, 150);
->>>>>>> origin/main
     return 0x400;
 }
 
@@ -4508,11 +4291,12 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     std::memcpy(img.data() + 49152 + 4, "\x00\x00HEAP\x00\x00", 8);
     std::memcpy(img.data() + 49152 + 0xA, "CCDR", 4);
     img[49152 + 0xE] = 3; /* wrong version */
-    /* MAC with an out-of-window version @ 18432 (M-160: the u16 LE form
-     * - 500 < 1000, the og's decline; the old BE-999999 plant read as
-     * u16 LE = 3840, INSIDE the og's window) */
+    /* MAC with an out-of-band version @ 18432 (M-160: the u16-LE gate
+     * [1000, 9999] - the old BE-u32 999999 form read as u16-LE 0x0F42 =
+     * 3906, inside the window; the re-pinned form carries a real
+     * out-of-band value) */
     std::memcpy(img.data() + 18432, "MAC ", 4);
-    put16(img, 18432 + 4, 500);
+    put16(img, 18432 + 4, 34463); /* 0x86DF - out of the [1000, 9999] window */
     /* .snd with encoding 99 @ 20480 */
     std::memcpy(img.data() + 20480, ".snd", 4);
     putbe32(img, 20480 + 4, 24);
@@ -5061,130 +4845,6 @@ TEST(Carve, S007NicheBatch2School1RejectsNoise) {
         EXPECT_FALSE(off == 20480 && fmt == FMT_3DS_NCSD) << "wrong-field NCSD rejected";
     }
     EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
-}
-
-/* ---- M-107's SWF member (the FWS RECT deep gate, decoded first-hand
- * from FUN_180026940's raw asm) --------------------------------------- */
-
-TEST(Carve, SwfRectValidationRejectsInvertedBox) {
-    /* the og's deep gate (0x180026b3e-0x180026b5b): Xmin < Xmax must
-     * hold - an inverted box never finalizes. The pre-fix core accepted
-     * every readable FWS header (the RECT walk was the recorded
-     * follow-up). */
-    std::vector<u8> img(64 * 1024, 0);
-    const size_t at = 512;
-    plant_swf(img, at);
-    swf_write_rect(img, at, 100, 50, 0, 150); /* Xmin > Xmax: inverted */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
-                     c->props()->extents.front().offset == at)
-            << "an inverted RECT (Xmin > Xmax) must not carve";
-}
-
-TEST(Carve, SwfRectValidationRejectsNegativeField) {
-    /* the og's gate requires all four fields >= 0 (the js/cmovns pairs
-     * at 0x180026b4f-0x180026b5b): a negative Xmin (the sign bit set)
-     * never finalizes */
-    std::vector<u8> img(64 * 1024, 0);
-    const size_t at = 512;
-    plant_swf(img, at);
-    swf_write_rect(img, at, -5, 200, 0, 150);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
-                     c->props()->extents.front().offset == at)
-            << "a negative RECT field must not carve";
-}
-
-TEST(Carve, SwfRectNbitsBelowTwoRejects) {
-    /* the og's first deep gate (0x180026980: cmp $0x1,%eax; jbe reject):
-     * Nbits = byte8 >> 3 must be >= 2 */
-    std::vector<u8> img(64 * 1024, 0);
-    const size_t at = 512;
-    plant_swf(img, at);
-    swf_write_rect(img, at, 0, 200, 0, 150, 1); /* Nbits = 1 */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
-                     c->props()->extents.front().offset == at)
-            << "Nbits < 2 must not carve";
-}
-
-TEST(Carve, SwfRectValidationAcceptsSaneBoxAtFileLength) {
-    /* the positive pin: a sane box (Xmin=0 < Xmax=200, Ymin=0 <
-     * Ymax=150, all >= 0) carves - and the extent is the FileLength
-     * (the og's caller stamps it unconditionally on acceptance:
-     * FUN_1800268a0's *(uint*)(param_2 + 2) - the RECT walk NEVER
-     * changes the extent; M-107's open question 3 answered) */
-    std::vector<u8> img(64 * 1024, 0);
-    const size_t at = 512;
-    plant_swf(img, at); /* the default plant: the sane box */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* swf = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            swf = c;
-    ASSERT_NE(swf, nullptr) << "the sane-box FWS must carve";
-    EXPECT_EQ(swf->props()->logical_size, size_t(0x400))
-        << "the extent is the FileLength - the RECT walk is validation-only";
-}
-
-TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
-    /* the CWS deep gate (FUN_180026b80) inflates the compressed body
-     * before validating - the finding's explicit recorded remainder.
-     * The pin locks the CURRENT contract: the CWS row keeps the shallow
-     * gates + the FileLength extent (which the og's caller also stamps
-     * for CWS), so a CWS header with a broken RECT still carves until
-     * the inflate-validation landing flips this pin deliberately. */
-    std::vector<u8> img(64 * 1024, 0);
-    const size_t at = 512;
-    plant_swf(img, at, true);
-    swf_write_rect(img, at, 100, 50, 0, 150); /* the inverted box */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        OK);
-    tree::FileNode* cws = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            cws = c;
-    ASSERT_NE(cws, nullptr) << "the CWS shallow gates stay (the deep gate is the recorded "
-                               "follow-up)";
-    EXPECT_EQ(cws->props()->carve_format, u32(FMT_SWF_CWS));
-    EXPECT_EQ(cws->props()->logical_size, size_t(0x400));
 }
 
 TEST(Carve, WmfPlaceableOgGrammarCarves) {
@@ -11340,6 +11000,63 @@ tree::FileNode* find_carved_at(tree::ResultTree& tree, u64 at) {
     return n;
 }
 } // namespace
+
+
+TEST(Carve, SwfRectValidationAcceptsSaneBoxAtFileLength) {
+    /* the racing window's positive-path pin: a sane RECT carves at the
+     * FileLength (the extent is the caller's stamp in both paths). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at);
+    swf_write_rect(img, at, 0, 200, 0, 150);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* swf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            swf = c;
+    ASSERT_NE(swf, nullptr) << "the sane RECT must carve";
+    EXPECT_EQ(swf->props()->logical_size, size_t(0x400));
+}
+
+TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
+    /* the racing window's contract pin: the CWS deep gate (the og's
+     * inflate-then-RECT, FUN_180026b80) is the recorded follow-up - the
+     * CWS row keeps the shallow gates (the version window + the CMF
+     * nibble + the FileLength extent), so a CWS header with a broken
+     * RECT still carves until the inflate-validation landing flips this
+     * pin deliberately. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at, true);
+    /* the inverted box (Xmin 8 > Xmax 4), chosen so byte 8 keeps the zlib
+     * CMF low nibble 8 (nbits=9, Xmin's sign+first-two-mag-bits = 000 ->
+     * byte 8 = 0x48): the RECT write and the CMF byte coincide in a CWS
+     * file's first body byte, and the shallow-gates contract keeps both */
+    swf_write_rect(img, at, 8, 4, 0, 150);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* cws = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            cws = c;
+    ASSERT_NE(cws, nullptr) << "the CWS shallow gates stay (the deep gate is the recorded "
+                               "follow-up)";
+    EXPECT_EQ(cws->props()->carve_format, u32(FMT_SWF_CWS));
+    EXPECT_EQ(cws->props()->logical_size, size_t(0x400));
+}
 
 TEST(Carve, Jp2BrandMap) {
     /* N-111: the three brand forms stamp their respective ids - the og's

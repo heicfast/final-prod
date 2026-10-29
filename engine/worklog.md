@@ -14288,3 +14288,29 @@ concession to "the File*Analyser authority" predates this lane's +0x40 stub
 proof; their own five-test battery encodes the primary's semantics and
 passes 11/11 against the reconciled implementation — the architecture
 decides, both records stand.
+**Fix #7 — the M-160 window merge repair (the fourth racing-window red
+tree this session, the N-210 class's ELEVENTH occurrence).** The window's
+own push and this lane's merge left main unbuildable three ways
+(first-hand): (1) live conflict markers committed in cr_analysers.cpp (the
+SWF collision: their swf_rect_valid refactor vs this lane's inline walk) —
+resolved to the UNION (their pure-helper shape + the 25-byte window — the
+better engineering, no per-bit device reads — PLUS this lane's CWS gates:
+the [6,20] version window and the zlib CMF low-nibble, both raw-asm-proven,
+which their landing lacked); (2) the mangled test_carve.cpp (the malformed
+conflict regions the layered merges left — the plant heads eaten, the
+plant_3ds signature truncated) — reconstructed from the last good tree
+(b5c6c6b2) + their unique deltas ported (the swf_write_rect helper + the
+two positive-path pins: SwfRectValidationAcceptsSaneBoxAtFileLength +
+SwfCwsDeepGateIsTheRecordedFollowUp, the latter's fixture adjusted for the
+CMF/RECT byte-8 coincidence — an inverted box whose Xmin keeps the low
+nibble 8); (3) the M-160 APE gate change left the S-007 batch plants stale
+(the putbe32 3980 form reads u16-LE 0x8C0F — outside the window; the
+batch's "APE must carve" RED, the noise fixture's BE-u32 999999 reading
+u16-LE 3906 — INSIDE the window, the "bad-version APE rejected" pin RED) —
+both re-pinned to the u16-LE form (3980 / 34463). The full suite
+**1723/1723** (the count grew with the ported pins). The M-160 APE
+version-gate landing itself verified against this lane's independent decode
+of FUN_180033180: the u16-LE [1000, 9999] window matches (both lanes'
+raw-asm reads agree); the walk itself (the seek-table max + the APETAGEX
+tail scan + the singleton×10 cap) remains the standing M-107 remainder —
+this lane's decode targets it next.
