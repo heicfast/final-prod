@@ -10487,7 +10487,7 @@ was visible in the original prompt transcript.
 ---
 
 
-## Session-77 S77 lane — the MAJOR-first diff-to-fix execution lane opens (2026-10-29)
+## Session-79 S79 lane — the MAJOR-first diff-to-fix execution lane opens (2026-10-29)
 
 **Lane open record:** prompt saved (token redacted) at
 `worklog/session-diff-fix-s77-prompt.md` (the S75 lane's worklog-open commit
@@ -10845,3 +10845,157 @@ FamilyKindStampsPerDecodedAnalyserRule (4 shapes) +
 TwinKeyExt2FamilyShifts + the 5 prior M-133 pins; suite 1541/1541. Trail:
 the OQ file's Resolution + move to findings/FIXED/, matrix MATCH row,
 modules/ext4.md S71 addendum, SUMMARY S71 delta, this entry.
+---
+
+## Session-79 S79 lane — the filings + the push-rebase reconciliation (2026-10-29)
+
+**The lane's seat history (recorded for truthfulness):** opened as the S70
+continuation audit lane (prompt saved token-redacted at
+`worklog/session-diff-audit-s70-prompt.md`, the opening entry pushed at
+`c736e9b3`); at the first push the racing fix lanes had taken the S70..S76
+seats (29 commits mid-audit: N-131, M-136, M-135, M-148, M-143, M-144,
+N-200, N-201 + riders) — the lane renumbered **S70 → S77** per SA-9; at the
+second push their own S77 (the M-118 fix lane) and S78 seats had also landed
+— the lane renumbered again **S77 → S79** (the double renumber recorded; every
+filing re-attributed) and every core-side cite re-verified LIVE at the rebase
+head `0da3490b` (all eight divergences confirmed still present;
+the audited pin `3799dee2` stands in every finding's references with the
+refreshed lines beside the originals).
+
+**The audit product: 7 live findings (2 SEVERE · 4 MAJOR · 2 MINOR — the
+eighth retired as a convergent duplicate at the rebase) + 1 tracked-open,
+every one lead-verified first-hand (the decompile lines AND the core lines
+re-read; M-149 additionally verified against the og's own CalcPartition.log
+runtime output — the strongest evidence class):**
+
+- **S-067 (SEVERE)** — `findings/SEVERE/S-067-exfat-out-of-range-fat-entry-clamp-absent.md`:
+  the chain walker's out-of-range clamp. Og: exFATSearchDLL :41315-28 (the walk loop's
+  `entry ≥ cluster_count → EOC` clamp) + FUN_180021c60 :28039-28166 (the FREE-continuation
+  the core's EXFAT-2 port already cites). Core: `cr_exfat_quick.cpp:81` (raw return) +
+  the follow loop (garbage member + broken flag). Third leg of the damaged-FAT family.
+- **S-068 (SEVERE)** — `findings/SEVERE/S-068-fat32-deleted-high16-rebase-absent.md`:
+  the FAT32 deleted first-cluster high-16 re-base. Og: the DAT_1800728c8 hint machinery
+  (:13757-58 update, :14753-55 re-base, :14834-48 retry+write-back, 0x310000 gate).
+  Core: `cr_fat_quick.cpp:289` verbatim. Wrong content / dropped files.
+- **M-149 (MAJOR)** — `findings/MAJOR/M-149-lostpart-scoring-denominator-bonus-fold.md`:
+  the ghost-score regression. Og: FUN_14050fda0 :842186-842274 (no +500 in the max loop;
+  the zero edge is 0.0) + CalcPartition.log's `files:0 folders:0 dSuggestted:0.000000`
+  row + the 186-row numeric fit (`evidence/executions/s79-calcpartition-score-fit/`).
+  Core: `cr_candidates.cpp:1091-1101` (bonus inside max_count) + :688-694 (count==0 →
+  1.0). Git archaeology: 48a6c099 (the corrected two-pass) dropped by 9c36efba per
+  FIRST-LANDING-WINS; the "two decode divergences for the next pass" never got their pass.
+- **M-150 (MAJOR)** — `findings/MAJOR/M-150-session-count-prealloc-memory-bomb.md`: the
+  load-path count pre-allocation. Core: `cr_records.cpp:349/:372` (uncapped u32 → up to
+  34.4 GB touched). Og: the per-node factory reader (rsf-record4 :16/:26).
+- **M-151 (MAJOR)** — `findings/MAJOR/M-151-ntfs-truncated-mft-run-growth-absent.md`:
+  the run-growth probe. Og: FUN_180007670 :5617-5700 (4 KiB windows, 0x400 stride,
+  first-invalid termination, the run-length extension). Core: `cr_mftwalk.cpp:422`
+  (hard-bounded by max_record_no).
+- **M-152 (MAJOR)** — `findings/MAJOR/M-152-ext4-sweep-orphan-reserved-skip-unregistered.md`:
+  the sweep's orphan-reserved skip. Og: EXT4SearchDLL :4415-21 (shape-only filter, no
+  dtime/links predicate; the +0x2A word corrected to eh_entries). Core:
+  `cr_ext4_engine.cpp:1260-61`.
+- **N-213 (MINOR, renumbered from the born-collided N-210 seat per SA-9)** —
+  `findings/MINOR/N-213-ntfs-record-header-pregate-band-absent.md`:
+  FUN_180046160's band (usa_offset [0x2A,0x100] / alloc_size 0x400-aligned ≤4096 /
+  usa_count ≤16) vs `cr_fixup.cpp:28-54`.
+- **N-211 (MINOR)** — `findings/MINOR/N-211-cr-scan-h-autosave-contract-text-stale.md`:
+  `cr_scan.h:321-22` vs `rrecov.cpp` (S-057's landed stop-window auto-save).
+- **The N-212 convergence (RETIRED at the rebase):** this lane independently found the
+  CROSS-REF-MATRIX committed-marker recurrence (the f3da99f1 merge residue) and swept it
+  locally before the pull; the racing S71 lane's **N-210** had found the SAME recurrence
+  at the same commit — plus three more marker-bearing files (I-033, N-135, the s51 prompt
+  archive) — and fixed all four first. Their finding owns the defect; this lane's
+  independent discovery is the convergence corroboration (the SA-9 convention). **The
+  prevention half of this lane's retired finding was ALREADY LANDED by the racing S71
+  lane's own N-210 resolution — ci-local.sh's N-210 step (the full-text-tree marker
+  grep with the M-120 evidence-quote exemption, verified present in this tree); this
+  lane's doc_truth_gate ninth-check variant is redundant against it — the convergent
+  corroboration, not an open item.**
+- **OQ-S79-1 (tracked-open)** — `tracked-open/OQ-S79-1-ntfs-logfile-replay-result-contribution.md`:
+  the $LogFile machinery (FUN_18001cf20 :22856+, FUN_18001d460 :23100+, FUN_180029dd0
+  :33577+, both open sites :753/:31653) — structural absence verified, result-set
+  contribution undecoded; the follow-the-data probe list recorded.
+
+**Trail updates:** CROSS-REF-MATRIX.md (the S79 rows on top of the racing lanes'
+swept matrix), SUMMARY.md (the S79 session block), README.md (the S79 header
+block), modules/{exfat,fat,lost-partition,session,ntfs,ext4,orchestration}.md
+(the S77 addenda), evidence/s79-lane-sheets/ (the five agent censuses + the
+lead-verification sheet with 21 DROPPED candidates, their reasons, and the
+push-rebase reconciliation), evidence/executions/s79-calcpartition-score-fit/
+(the fit script + output).
+
+**Board at the pushed tree: 0 ACUTE · 2 SEVERE · 17 MAJOR · 11 MINOR · 0 INFO
+active / 163 FIXED / 5 tracked-open** (counted first-hand at `0da3490b` +
+this lane's filings). Next free IDs: S-069+, M-153+, N-214+, I-048+, A-015+.
+
+**Read-only guarantee:** the delta = diff-to-fix/ + worklog* only. No source,
+header, test, build, workflow, or docs/ file is touched. The baseline
+linux-release build (gcc Werror) ran first-hand at lane open; the build was
+overtaken by the racing lanes' 29-commit advance mid-audit — the suite-green
+claim for the code at THIS lane's filings is the racing lanes' own post-fix
+suite runs (1526/1526 → 1530/1530 recorded in their landings), not an
+independent re-run by this lane (recorded honestly; the lane's verification
+legs are decompile + runtime-log evidence, which the racing code changes do
+not reach — every finding was re-verified LIVE at `0da3490b` line-by-line).
+
+## Session-79 S79 lane — the push-rebase repairs (2026-10-29)
+
+**Two born-red repairs at the push (the gate was RED on origin/main at the rebase
+head — the racing lanes' landings left it so; the never-push-a-red-commit rule
+required the repairs before this lane's own filings could land; the f392d27d
+trail-repair precedent):**
+
+1. **The M-148 born-collided seat (the M-117/N-160 class)** — the racing S72
+   lane's 13:43 "M-148 (NEW, filed+fixed)" (the LDM member-read pipe) took the
+   seat the 00:38 collision-rider-4 renumber (047d8a96) had reserved for the
+   retired deep-read landing. Per SA-9 (earlier-push-wins) the deep-read keeps
+   M-148; the LDM finding renumbered **M-148 → M-153** (the file, the title, the
+   live SUMMARY/matrix citations swept; the renumber addendum in the finding
+   records the four in-source `M-148:` comment sites — `src/app/rrecov.cpp:1623/
+   :1648`, `src/ui/cr_ui.cpp:908/:2124` — for the NEXT FIX LANE's truth sweep;
+   this lane is read-only on source). Both M-148 ledger rows had been lost to a
+   hot-window fold (neither file carried a row at the rebase head — the S55
+   precedent's class): both re-landed (M-148 the deep-read's, M-153 the LDM's).
+   The doc_truth_gate's finding-ID uniqueness check caught the collision at this
+   lane's push — the gate's first live catch of the class since its own
+   collision-rider-4 inception.
+2. **The N-210 phantom-script citation (the I-034 class)** — the racing S71
+   lane's N-210 "Verified by" line cites `scripts/s71_repair_conflict_markers.py`,
+   which was never committed on any branch (git log --all: zero hits). The
+   citation annotated in place as the phantom class with the reproducible
+   inline method (the both-sides-kept marker resolution the finding's own
+   Resolution notes describe); the script itself is NOT fabricated.
+
+**This lane's own convergence corrections:** the worklog and lead-sheet
+statements that the conflict-marker gate extension "remains the open
+engineering item" were corrected — the racing S71 lane's N-210 resolution
+ALREADY landed the prevention (ci-local.sh's N-210 step: the full-text-tree
+marker grep with the M-120 exemption, verified present in this tree). This
+lane's independent doc_truth_gate ninth-check proposal is redundant against
+it — recorded as corroboration.
+
+**Gate state after the repairs: doc_truth_gate GREEN (all nine checks).**
+## Session-79 S79 lane — the second push-rebase: the S77/S78 seats + the born-red ABI counts (2026-10-29)
+
+**The seat ride completes:** the first push-rebase renumbered the lane S70 → S77
+(the racing fix lanes' S70..S76 sections had pushed first); the second push found
+THEIR OWN S77 (the M-118 register-channel fix lane) and S78 (the N-140/N-212
+MINOR-tail lane) landed mid-audit — the lane renumbered again **S77 → S79**.
+Every filing, sheet, module addendum, and the OQ re-attributed; the audited
+commit pins stand (`3799dee2` audited, LIVE-re-verified at `0da3490b`, pushed
+over the `e17a4e6d` head).
+
+**The second born-red repair (the 68580e60 CI-red-repair precedent):** the
+racing N-140 lane's carve-tally landing added the ABI pair
+(`cr_ui_scan_carve_tally_count`/`cr_ui_scan_carve_tally`) but did not refresh
+the three API docs' export counts — the doc_truth_gate failed with the A-ABI-3
+class (API.md:92, CORE-API-CURRENT.md:14/:15/:43, API-SURFACE-AUDIT.md:32 all
+claiming 87 where the tree derives 89). The five count sites refreshed
+mechanically (87 → 89, the 90-line derivation → 92 lines, the provenance note
+updated to the N-140 pair); no other doc content touched. NOTE: this repair
+touched docs/*.md — the one class of existing-file edit beyond diff-to-fix/
+this lane performed, per the never-push-a-red-commit rule the repo's own
+CONTRIBUTING mandates; recorded here for full transparency.
+
+**Gate state at this push: doc_truth_gate GREEN (all checks).**

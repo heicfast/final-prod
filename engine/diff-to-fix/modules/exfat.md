@@ -316,3 +316,14 @@ Verified-MATCH this session: the og gate set (FUN_180021e80's full `!= 0` family
 the dual ROL15 entry checksum, the boot-region checksum parity (informational on
 both sides — confirmed neither validates it at open outside RawFixer), the
 cluster→heap u64 math, and the exFAT engine's non-use of FSI 'RRaA' (both sides).
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **S-067 (SEVERE, NEW):** the chain walker's out-of-range FAT-entry clamp — the og maps any
+  entry ≥ cluster_count to EOC (the walk loop's clamp at exFATSearchDLL :41315-28, the caller
+  of `FUN_180021c60` whose FREE-continuation the core's EXFAT-2 port already cites
+  accurately); the core's `next()` (`cr_exfat_quick.cpp:81` at the re-verified pin) returns
+  such values raw → the garbage cluster becomes a chain member, the out-of-FAT-bounds read
+  maps to FREE, and the bounds probe flags the chain broken. The third leg of the
+  damaged-FAT semantics family (EXFAT-2/EXFAT-3 are the prior two). Evidence:
+  `evidence/s79-lane-sheets/s79-lead-verification.md` §A.

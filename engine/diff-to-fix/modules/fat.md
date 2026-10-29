@@ -365,3 +365,14 @@ F8 mask) registered as an I-045-family defect NOT adopted — adoption requires
 the indicated flavor's own spf field usable (nonzero). B1/A25 rows now MATCH.
 RED→GREEN: HybridStringFat16MediaFat32ReflavorsToFat32; pins:
 Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **S-068 (SEVERE, NEW):** the FAT32 deleted first-cluster high-16 re-base — the og's
+  `DAT_1800728c8` last-good-hint machinery (the update at :13757-58, the low-16-only re-base
+  at :14753-55 under `uVar5 < 0x10000 && uVar5 < hint`, the retry walk + the dentry
+  write-back at :14834-48 under the `0x310000 < hint` big-volume gate); the core takes the
+  dentry's high word verbatim (`cr_fat_quick.cpp:289` at the re-verified pin) — wrong content
+  or dropped files on the torn-high-word deleted population. Distinct from N-172 (the
+  first-CHAR naming) and M-130 (the dentry shape validator); N-201's landing (the media-word
+  re-flavor) does not touch this seam. Evidence: `s79-lead-verification.md` §A.

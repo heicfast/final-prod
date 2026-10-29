@@ -11,9 +11,9 @@
 
 **Headline counts** (re-derived 2026-10-29, the S56 lane — the
 doc_truth_gate count invariants guard these in CI): C++ public headers 82
-under `include/cr/**`; C ABI **87 exports** (90 `CR_UI_API` lines minus 3
-`#define` macros in cr_ui.h = 87 `extern "C" CR_UI_API` definitions in
-src/ui/cr_ui.cpp, recount matches); CLI **13 verbs** (rrecov.cpp — list,
+under `include/cr/**`; C ABI **89 exports** (92 `CR_UI_API` lines minus 3
+`#define` macros in cr_ui.h = 89 `extern "C" CR_UI_API` definitions in
+src/ui/cr_ui.cpp, recount matches; +2 from the N-140 lane's carve-tally pair); CLI **13 verbs** (rrecov.cpp — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
 fix, apply, image, bench, driver); error codes **45 + OK** (case-normalized census - six codes are
 spelled with uppercase hex digits; the doc_truth_gate derives this). errmod modules **13**
@@ -40,8 +40,9 @@ ABI event types **12** (the CR_EVT_* census).
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 87 exports / 13 verbs / 45+OK error codes / 12 ABI event types
-> (re-derived 2026-10-29, the S56 lane - the doc_truth_gate guards these).
+> counts: 89 exports / 13 verbs / 45+OK error codes / 12 ABI event types
+> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
+> doc_truth_gate guards these).
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---

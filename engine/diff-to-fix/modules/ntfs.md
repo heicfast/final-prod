@@ -601,3 +601,31 @@ first-hand before the fix):**
 
 Suite after the three landings: 1465/1465. The remaining module rows:
 **M-146** (probe_family gate family) and **N-196/N-197** stay active.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-151 (MAJOR, NEW):** the truncated-$MFT run-growth probe — FUN_180007670 :5617-5700
+  (first-hand): after loading the $DATA runlist, the og reads 4 KiB windows at each run's
+  declared end and extends the run by the count of fixup-valid records
+  (`FUN_180041bb0` at the 0x400 stride, first-invalid termination). The core's walk is
+  hard-bounded by `max_record_no()` (`cr_mftwalk.cpp:422`) — records beyond a
+  stale/truncated runlist (the recently-created files at the MFT tail) are invisible.
+  Distinct from S-063 (the cannot-load mirror bootstrap) and the M-043/M-141 load-failure
+  ladder — this is the loads-but-short case.
+- **N-213 (MINOR, NEW; renumbered from the born-collided N-210 seat per SA-9 — the remote
+  S71 repair lane's marker-recurrence finding keeps N-210):** the record-header pre-gate
+  band — FUN_180046160 :55187-55220: `usa_offset ∈ [0x2A, 0x100]`, `alloc_size ∈ {1024,
+  2048, 3072, 4096}` (0x400-aligned), `usa_count ≤ 16`; `cr_fixup.cpp:28-54` checks only
+  nonzero/even offset + the fit arithmetic. The unregistered half of the record-validation
+  family — the >4 KiB/odd-stride half is D-143 (N-196's deliberate superset).
+- **OQ-S79-1 (tracked-open, NEW):** the $LogFile transaction-journal machinery — the loader
+  FUN_18001cf20 (:22856+), the walk driver FUN_18001d460 (:23100+, the RCDR check at
+  :23132), the record walker FUN_180029dd0 (:33577+), wired at BOTH volume-open sites
+  (:753-755, :31653-655) — has zero core counterpart (grep-verified). The structural
+  absence is first-hand; the walk's result-set contribution is the OQ's decode list
+  (`tracked-open/OQ-S79-1-ntfs-logfile-replay-result-contribution.md`).
+- **Dropped after coverage check (the s77 sheet §B):** the viability probe granularity and
+  the claim-map provenance (S-012's landed pass-2), the USN same-name content (the phase E
+  merge exists at `cr_mftwalk.cpp` — FUN_18001d690's call sites are the MFT-emission path,
+  not the USN path), the USN harvest bounds (N-039), the INDX first-class walk (the
+  documented scope refusal).

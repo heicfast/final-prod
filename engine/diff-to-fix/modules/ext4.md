@@ -294,3 +294,15 @@ shapes keep the unshifted Ext4 stamp (no og behavior exists for them). Proof:
 `Ext4Engine.FamilyKindStampsPerDecodedAnalyserRule` (the four shapes) +
 `Grading.TwinKeyExt2FamilyShifts` (the previously-unexpressible shift leg) +
 the 5 prior M-133 pins. Suite 1541/1541.
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-152 (MAJOR, NEW):** the sweep's orphan-reserved skip — the og's inode-table harvest
+  filter (FUN_180005e50 :4415-21, first-hand, corrected decode: skip iff `i_size_lo==0 ∨
+  ¬EXTENTS_FL ∨ magic≠0xF30A ∨ eh_entries==0` — the +0x2A word is eh_entries, NOT the
+  depth) applies NO dtime/links predicate; the core's `dtime==0 && links!=0` skip
+  (`cr_ext4_engine.cpp:1260-61` at the re-verified pin) drops the orphan-active population
+  (links>0, dtime==0, unreachable from the dir tree — the lost-file population a deep scan
+  exists for), unregistered. The og-side emission chain for unclaimed harvest was traced to
+  the filter, the +0x4a8 map, and the finalize pattern — the fix plan's first test
+  falsifies it end-to-end. Distinct from M-143's journal-inode harvest (the image branch).
+  Evidence: `s79-lead-verification.md` §A.

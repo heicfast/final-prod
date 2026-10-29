@@ -429,3 +429,17 @@ DRWUI mirror's 0xc2/0xc6 selector picks the volume-LABEL offset, never a size).
 **B1 verdict: MATCH** (the three-source assembly is complete: the table channel
 = the +500 table_match feed, the filesystem channel = the sweep, the register
 channel = this landing). Suite 1541/1541.
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-149 (MAJOR, NEW):** the ghost-score math regressed from the M-017 landing — the +500
+  table-match bonus is folded into the denominator (`cr_candidates.cpp:1091-1101` at the
+  re-verified pin: `count += 500` precedes the `max_count` accumulation) where the og's max
+  loop has no bonus walk (FUN_14050fda0 :842186-842240, first-hand); and `score_ratio`'s
+  `count > 1 ? log : 1.0` maps count==0 to 1.0 where the og's own CalcPartition.log prints
+  `0.000000` for the `files:0 folders:0` shape (row 6 of the last round; the 186-row numeric
+  fit in `evidence/executions/s79-calcpartition-score-fit/`). Git archaeology: the corrected
+  two-pass implementation (48a6c099) was dropped by the 9c36efba convergence merge per
+  FIRST-LANDING-WINS — "the two decode divergences for the next pass" never got their pass.
+  The standing "0.1/0.3 gap keeps … no core counterpart" note (M-017's known remainder)
+  stays a separate open gap — not re-filed. N-200's landing (the mirror-retry probe gates)
+  does not touch the scoring seam.

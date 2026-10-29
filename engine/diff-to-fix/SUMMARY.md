@@ -21,7 +21,85 @@
 windows' N-131 + N-140 + M-118 + M-148 landings): 0 ACUTE · 0 SEVERE ·
 12 MAJOR · 8 MINOR · 0 INFO active / 167 FIXED / 4 tracked-open.**
 Next free IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-150+.
+# SUMMARY.md — executive summary (the S79 continuation audit lane on top; the prior lanes below, newest-first)
 
+## Session-79 S79 lane delta (2026-10-29 — the eleventh continuation audit lane of the user's second-session mandate [remove-the-fixed + go-deeper + mark-all-remaining + the named focus: sector numbers / scanning / accurate detection / calculation / mathematics / no stuck or freeze / local database / state management]; renumbered TWICE at the push-rebases per SA-9 (S70 → S77 → S79 — the racing fix lanes took S70..S76, then their own S77 [the M-118 lane] and S78 seats landed mid-audit); opened at core `3799dee2` (via `c736e9b3`), findings verified at `3799dee2` and re-verified LIVE at the rebase head `0da3490b` (all eight divergences confirmed present; the line cites refreshed with the audited-pin originals preserved), corpus `be0cfe9` throughout; every candidate cross-checked against the trail before verification, every filing lead-verified first-hand — the decompile lines AND the core lines re-read, plus the og's own CalcPartition.log as executed evidence)
+
+**Seven live filings (2 SEVERE · 4 MAJOR · 2 MINOR — the eighth, the marker-recurrence N-212, retired at the rebase as a convergent duplicate of the racing S71 lane's N-210) + 1 tracked-open:**
+
+- **S-067 (SEVERE)** — the exFAT chain walker's out-of-range FAT-entry clamp
+  (entry ≥ cluster_count → EOC, the walk loop at exFATSearchDLL :41315-28) is
+  absent: the core follows garbage entries as raw cluster numbers → wild
+  out-of-volume extent members + the broken-chain confidence downgrade where
+  the og ends the chain cleanly. The third leg of the damaged-FAT semantics
+  family (after EXFAT-2/EXFAT-3).
+- **S-068 (SEVERE)** — the FAT32 deleted first-cluster high-16 re-base (the
+  `DAT_1800728c8` last-good-hint machinery: the low-16-only re-base :14753-55,
+  the retry+write-back under the 0x310000 big-volume gate :14834-48) is
+  absent: the core takes the dentry's high word verbatim (`cr_fat_quick.cpp:289`)
+  and walks the wrong cluster — wrong content under the deleted file's name or
+  the file dropped, on the torn-high-word population.
+- **M-149 (MAJOR)** — the lost-partition ghost-score math regression: the +500
+  table-match bonus is folded into the DENOMINATOR (the og's max loop has no
+  bonus walk — first-hand at FUN_14050fda0 :842186-842274) and count==0 maps
+  to the numerator 1.0 where the og's own CalcPartition.log prints 0.000000
+  for exactly that shape (`files:0 folders:0 dSuggestted:0.000000`; the 186-row
+  numeric fit in `evidence/executions/s79-calcpartition-score-fit/`). Git
+  archaeology: the corrected two-pass implementation (48a6c099) was dropped by
+  the 9c36efba convergence merge per FIRST-LANDING-WINS with "the two decode
+  divergences recorded for the next pass" — and the next pass never ran.
+- **M-150 (MAJOR)** — the session-load count pre-allocation:
+  `cr_records.cpp:372` pre-allocates 8×count from an uncapped hostile u32
+  (up to 34.4 GB touched) before any node parse; the og's per-node factory
+  reader is bounded by buffer exhaustion — the torn-session READ-side
+  freeze/OOM complement to M-131's write-side repair.
+- **M-151 (MAJOR)** — the truncated-$MFT run-growth probe absent:
+  FUN_180007670 extends each run past its declared end by counting
+  fixup-valid records (4 KiB windows, 0x400 stride, first-invalid
+  termination); the core's walk is hard-bounded by `max_record_no()` —
+  records beyond a stale/truncated runlist (the recently-created files at
+  the MFT tail) are invisible.
+- **M-152 (MAJOR)** — the ext4 sweep's orphan-reserved skip: the og's harvest
+  filter is shape-only (size ∧ EXTENTS_FL ∧ magic 0xF30A ∧ eh_entries≠0 —
+  EXT4SearchDLL :4415-21, no dtime/links predicate); the core's
+  `dtime==0 && links!=0` skip drops the orphan-active population (files whose
+  parent-dir metadata is damaged but whose inodes/extents are fully live) —
+  unregistered.
+- **N-213 (MINOR, renumbered from the born-collided N-210 seat)** — the NTFS
+  record-header pre-gate band (usa_offset ∈ [0x2A,0x100], alloc_size ∈
+  {1024..4096} 0x400-aligned, usa_count ≤ 16 — FUN_180046160) — the
+  unregistered half of the record-validation family (the >4 KiB half is
+  D-143).
+- **N-211 (MINOR)** — the `cr_scan.h` autosave_dir contract text still says
+  "a cancelled run never auto-saves," contradicting S-057's landed
+  stop-window auto-save — the header-contract drift class no gate covers.
+- **The N-212 convergence (retired at the rebase):** this lane independently
+  found the CROSS-REF-MATRIX committed-marker recurrence and swept it
+  locally; the racing S71 lane's N-210 found the SAME recurrence at the same
+  commit — plus three more marker-bearing files (I-033, N-135, the s51
+  prompt archive) — and fixed all four first. Their finding owns the defect;
+  this lane's corroboration + the gate's-ninth-check proposal are recorded in
+  the worklog (the SA-9 convergence-note convention).
+- **OQ-S79-1 (tracked-open)** — the og's $LogFile transaction-journal
+  machinery (FUN_18001cf20 loader :22856+, FUN_18001d460 walk :23100+,
+  FUN_180029dd0 record walker :33577+, both open sites :753/:31653) has ZERO
+  core counterpart — the structural absence is verified first-hand, but the
+  walk's result-set contribution is undecoded; the OQ carries the
+  follow-the-data probe list.
+
+**The lane's method** (the evidence): five parallel-agent context sheets
+(`evidence/s79-lane-sheets/agentA..E` — the RAWSearchDLL/NTFS/FAT-exFAT-ext4-
+HFS+-Btrfs pipeline censuses, the core stage-and-bounds map, the math-constants
+census) + the lead-verification sheet (`s79-lead-verification.md` — every
+candidate's coverage check and first-hand verification record, 21 DROPPED
+candidates with reasons, and the push-rebase reconciliation) + the
+CalcPartition fit (executed evidence).
+
+**Board after this lane: 0 ACUTE · 2 SEVERE · 17 MAJOR · 11 MINOR · 0 INFO
+active / 163 FIXED / 5 tracked-open.** Next free IDs: S-069+, M-154+,
+N-214+, I-048+, A-015+ (M-153 = the renumbered LDM seat from the born-collided repair).
+
+---
 # SUMMARY.md — executive summary (the S76 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-76 S76 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `1ec36d6c` (the racing S71/S73 lanes' M-136 convergent re-landing + M-143 absorbed at the push-rebase), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the racing lanes' own push gates held the moved tree green (M-143's 1507+ landing suite, M-136's convergent re-landing suite), this lane's first full-suite run was post-fix at 1526/1526 — the baseline at open was the build-started tree, not an independently re-run suite; honesty recorded)
@@ -174,7 +252,7 @@ driver-repo-resident per OQ-S10-3).
   link-failure with the implementation stashed + both re-pinned tests'
   first-hand failures; GREEN: 8 new/re-pinned tests; suite **1515/1515**.
 
-- **M-148 FIXED (MAJOR, NEW — filed and fixed the same session per §8)** — the
+- **M-153 FIXED (MAJOR, NEW — filed and fixed the same session per §8; RENUMBERED M-148→M-153 at the S79 lane's born-collided-seat repair per SA-9 — the deep-read M-148 [047d8a96, 00:38] keeps the seat; the doc_truth_gate caught the collision)** — the
   read-substrate census during this lane's M-135 verification found the one bare
   scan read path: the cross-disk LDM platform resolvers (the CLI's scan-arm block
   + the UI's arm_ldm_resolver) handed RAW `win::open_disk` members to the LDM
@@ -190,7 +268,7 @@ driver-repo-resident per OQ-S10-3).
   ONE transient fault (0 files, the silent loss), the pipe retries and finds
   DOC.TXT; suite **1530/1530**.
 
-**Board after this landing (M-136 + M-135 + M-148 this lane; M-144 + M-143 the racing S73 lane's; N-200 the S70 lane's): 0 ACUTE · 0 SEVERE · 13 MAJOR · 11 MINOR · 0 INFO active / 163 FIXED / 4 tracked-open (filesystem truth at this push).** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-077+, M-149+, N-213+, I-049+, A-017+, D-150+.
+**Board after this landing (M-136 + M-135 + M-153 [renumbered from the born-collided M-148 at the S79 repair] this lane; M-144 + M-143 the racing S73 lane's; N-200 the S70 lane's): 0 ACUTE · 0 SEVERE · 13 MAJOR · 11 MINOR · 0 INFO active / 163 FIXED / 4 tracked-open (filesystem truth at this push).** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-077+, M-149+, N-213+, I-049+, A-017+, D-150+.
 
 
 # SUMMARY.md — executive summary (the S73 MAJOR-first continuation fix lane on top; the prior lanes below, newest-first)

@@ -388,3 +388,18 @@ counts), GREEN post; suite 1312.
   twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg
   registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair),
   M-134 (the deep-read  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **N-211 (MINOR, NEW):** the `cr_scan.h` autosave_dir contract comment ("a cancelled run
+  never auto-saves - the og's flow is the completion window", `include/cr/orchestrator/
+  cr_scan.h:321-22` at the re-verified pin) contradicts S-057's landed stop-window
+  auto-save (`src/app/rrecov.cpp`: "the stopped scan's partial results land in the auto
+  session exactly like a finished run's"). The header-contract drift class — the
+  doc_truth_gate covers docs/*.md + README, not headers. Evidence:
+  `s79-lead-verification.md` §A.
+- **Lane-sheet notes (not filed):** the CachedReader mutex-across-I/O
+  (`cr_cached.cpp` — the lock held across the inner read) and the absence of any explicit
+  read deadline — the og's deadline/watchdog is host-layer (the DRWUI watchdog decode);
+  the OS-level disk timeout bounds both engines. The deserialize count bomb is filed under
+  session.md (M-150). The stage/loop-bounds census (55+ loops: 50 BOUNDED, 0 UNBOUNDED,
+  5 assumption-laden) is in `evidence/s79-lane-sheets/agentD-core-map.md`.

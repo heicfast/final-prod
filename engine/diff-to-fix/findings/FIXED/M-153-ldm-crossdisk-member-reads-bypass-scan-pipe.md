@@ -1,4 +1,4 @@
-# MAJOR M-148 — cross-disk LDM member reads bypass the retry/cache substrate during scans: the platform resolvers hand raw `win::open_disk` devices to the LDM volume engine walk, where every other scan read rides the pipe (single-disk LDM included) and the og's engines always read through CStorageDeviceWithCache
+# MAJOR M-153 — cross-disk LDM member reads bypass the retry/cache substrate during scans: the platform resolvers hand raw `win::open_disk` devices to the LDM volume engine walk, where every other scan read rides the pipe (single-disk LDM included) and the og's engines always read through CStorageDeviceWithCache
 
 **Severity:** MAJOR (the M-058/M-136 class on the scan side: transient-error robustness during LDM volume scans — the exact damaged-disk population retries exist for; plus a core-internal inconsistency: single-disk LDM scans ARE cached, multi-disk are not, and the recovery side pipes the same members)
 **Module:** orchestrator (the LDM engine-pass block) / storage (the platform LDM resolvers) / cli / abi
@@ -63,3 +63,21 @@ None — the corpus contract (engines read cached devices) and the core gap (raw
 **Fixed in commit:** (this push — the S72 lane's third landing, filed and fixed in the same session per §8)
 **Verified by:** `Orchestrator.LdmMemberResolversConstructThroughBuildReadPipe` (RED at the stash-revert state: all three grep pins fire — no build_read_pipe at either resolver-arm site and the raw `(*guid_map)[g] = dev.get()` handoff present; GREEN post-fix), `Orchestrator.SpannedLdmTransientMemberFaultScans` (the two-disk reversed-concat fixture with a one-shot transient fault on the volume's FIRST member: the raw-member leg — the pre-fix production shape — loses the whole volume to ONE transient fault [0 files, the silent loss]; the piped-member leg — the post-fix shape — retries the boot-sector read and surfaces DOC.TXT); full suite **1530/1530**.
 **Resolution notes:** CONFIRMED-DIVERGENCE, discovered during this lane's M-136/M-135 verification work (the read-substrate census across every scan read path). Corpus verified first-hand: the engines' device contract (ntfs-engine--deep-dive §8 — "the volume reads go through the device abstraction (CStorageDeviceWithCache → IStorageDevice)"), the scan driver's cache construction (DRWUI:919095), and the engine's RTTI assertion of the cached class (NTFSSearchDLL:7167 → FUN_18000fae0). Core-side census: the primary volume, the partition-table targets (S-051's slices wrap the pipe), the lost-partition candidates (lost::materialize over the piped slice), the carve stage, and single-disk LDM members (the local fallback resolver returns the pipe itself) ALL ride the substrate — the cross-disk platform resolvers were the one bare path, and the recovery side already pipes the same members (the d28244df landing's session_arm_ldm_basis shape), making the scan the outlier on its own reads. The fix wraps each platform-resolved member in its own build_read_pipe chain at BOTH resolver-arm sites (the CLI's scan-arm block and the UI's arm_ldm_resolver — `ldm_member_pipes` owned beside the members, the exact shape the session-side arm uses), with the resolver indirection carrying the pipes transparently into the LdmVolumeDevice's member reads. The internal-consistency note registered: single-disk LDM was already piped via the local fallback; multi-disk now matches, and scan/export agree on member readability (both piped). No safety hardening was near this site; the resolver's driver-only posture (a member that will not open through RDA does not resolve) is unchanged — the pipe wraps only successfully-opened members.
+
+
+## Renumber addendum (the S77 lane's born-collided-seat repair, per SA-9)
+
+This finding was born-collided with the deep-read M-148 (the 047d8a96
+collision-rider renumber reserved the seat at 00:38 for the retired deep-read
+landing; this lane's 13:43 filing took the same seat without the
+FIXED-LEDGER/in-flight allocation check — the N-160 ID-allocation class). Per
+SA-9 (earlier-push-wins) the deep-read keeps M-148; this finding renumbers
+**M-148 → M-153** (the next free seat after the S77 lane's M-149..M-152
+filings). The doc_truth_gate's check_finding_id_uniqueness caught the
+collision at the S77 lane's push (the gate's first catch of this class since
+the collision-rider-4 repair). The ledger row (lost in a hot-window fold per
+the S55 precedent — neither M-148 file carried a row at the rebase head) is
+re-landed under M-153. The four in-source `M-148:` comments
+(`src/app/rrecov.cpp:1623/:1648`, `src/ui/cr_ui.cpp:908/:2124`) reference
+this finding's landing; the S77 lane is READ-ONLY on source and records them
+here for the next fix lane's truth sweep.

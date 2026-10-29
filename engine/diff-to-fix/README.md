@@ -1,5 +1,44 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-79 S79 lane (2026-10-29 — the ELEVENTH continuation audit lane of the
+same user second-session mandate, remove-the-fixed + go-deeper +
+mark-all-remaining, the user's named focus areas: sector numbers / scanning /
+accurate detection / calculation / mathematics / no stuck or freeze / local
+database / state management; renumbered from the born-collided S70 seat at the
+push-rebase per SA-9 — the racing fix lanes' S70..S76 sections pushed first
+mid-audit; a DISJOINT slice from them: the function-level engine pipeline
+census, the calculation/grading/scoring math sweep, and lead verification +
+filing; findings verified at core `3799dee2`, re-verified LIVE at the rebase
+head `0da3490b` — all eight divergences still present, line cites refreshed
+with the audited-pin originals preserved; corpus `be0cfe9`):** seven live
+filings (2 SEVERE · 4 MAJOR · 2 MINOR) + 1 tracked-open — **S-067** the exFAT
+out-of-range FAT-entry clamp (entry ≥ cluster_count → EOC — garbage entries
+followed raw: wild extents + broken-chain downgrade); **S-068** the FAT32
+deleted first-cluster high-16 re-base (the last-good-hint machinery — wrong
+cluster walked on the torn-high-word population); **M-149** the lost-partition
+ghost-score regression (the +500 folded into the denominator + count==0 → 1.0
+vs the og's log-proven 0.000000 — the 9c36efba convergence merge dropped the
+corrected implementation and the recorded "next pass" never ran); **M-150**
+the session-load count pre-allocation (34.4 GB hostile-u32 memory bomb / the
+torn-session read-side freeze); **M-151** the truncated-$MFT run-growth probe
+(FUN_180007670 — records beyond a stale runlist invisible); **M-152** the ext4
+sweep's orphan-reserved skip (the og's filter has no dtime/links predicate —
+the lost-file population dropped, unregistered); **N-213** (renumbered from
+the born-collided N-210 seat) the NTFS record-header pre-gate band; **N-211**
+the cr_scan.h autosave contract drift; the marker-recurrence N-212 RETIRED at
+the rebase as a convergent duplicate of the racing S71 lane's N-210 (their
+sweep covered four files; this lane's gate's-ninth-check proposal rides the
+worklog); and **OQ-S79-1** the $LogFile machinery's result-contribution
+(tracked-open with the follow-the-data probe list). Evidence:
+`evidence/s79-lane-sheets/` (the five agent censuses + the lead-verification
+sheet with 21 dropped candidates and their reasons) +
+`evidence/executions/s79-calcpartition-score-fit/` (the 186-row numeric fit
+against the og's own runtime log). Board at filing: **30 active — 2 SEVERE ·
+17 MAJOR · 11 MINOR · 0 INFO / 163 FIXED / 5 tracked-open.** Next free IDs:
+S-069+, M-153+, N-214+, I-048+, A-015+.
+
+# diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
+
 
 **Session-68 S68 lane (2026-10-29 — the EIGHTH continuation audit lane of the same
 user second-session mandate ["now you have go look for other things which session 1

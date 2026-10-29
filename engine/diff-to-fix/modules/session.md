@@ -443,3 +443,13 @@ NtfsVolume.ParentAnchorIsMaskedFileNameParentRecord (the walk-level stamps +
 session survival); suite 1526/1526. The s10 field-parity table's rows 1-2
 (now-carried) and the exFAT row (resolved dead-slot) are superseded by this
 landing.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-150 (MAJOR, NEW):** the load-path count pre-allocation — `cr_records.cpp:372`
+  (re-verified pin; the N-131 parent-anchor landing shifted the file) pre-allocates
+  8×count from the uncapped hostile u32 (up to 34.4 GB of touched memory) before any node
+  parse; the og's record-4 reader is per-node-factory (bounded by buffer exhaustion,
+  rsf-record4 :16/:26). The container's 64 MiB record cap and the P1-7 amplification
+  budget do not reach the in-record count field. The torn-session READ-side freeze/OOM
+  complement to M-131's write-side repair. Evidence: `s79-lead-verification.md` §A.
