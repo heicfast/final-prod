@@ -5621,20 +5621,118 @@ CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* SIT: "Stuf" key 0x66757453 (:5840) -> SIT chain idx 93 (index-first
- * archive family). The 7-byte "StuffIt" covenant is the strong form of
- * the key; bounded extent stands in for the undecoded index walk. */
+/* SIT: "Stuf" key 0x66757453 (:5840) -> the SIT chain idx 93 (0x5d, the
+ * index-first archive family). M-107 member 9 (SIT): the SIT5 magic
+ * walk decoded first-hand from the raw asm this session (the processor
+ * FUN_180015d70, asm 0x180015d70-0x180015f5e, the vtable pointer at
+ * .data 0x180067848; the tier-1 FUN_180015a20 = the 7-byte "StuffIt"
+ * covenant; the child ctor FUN_180015a90: min 0x5000 = 20480, max
+ * 200,000,000; the search FUN_180015b60, asm 0x180015b60-0x180015d5b):
+ *
+ * - byte@+7 == ' ' (the pre-SIT5 old form) or any non-'!' byte: NO
+ *   size stamp, no search flag - the og's processor keeps feeding
+ *   (return 2) until a LATER chunk's head is another full SIT-family
+ *   header ("Stuf"+"fI"+byte6 't'+byte7 in {' ','!'} - the else
+ *   branch's re-validation at 0x180015df3-0x180015e67 - or the
+ *   "WEBB AIKE 66 66 EB B4 A3 74 BD 7B" form, the u64 0xB4EB6666454B
+ *   4941 + u32 0x7bbd74a3) or the walk cap; the extent = that chunk's
+ *   end (the next archive's boundary).
+ * - byte@+7 == '!' (the SIT5 form): the search flag is set (+0x110);
+ *   each chunk is scanned for the THREE 8-byte LE end-magics - the
+ *   .data constants at 0x180067858/0x180067868/0x180067878, first-hand
+ *   dumps: 02 D7 0A 19 98 F6 42 88 / 02 D7 0A 3B 98 F6 42 88 /
+ *   02 D7 0A 10 98 F6 42 88 (u64 LE 0x8842f698190ad702 /
+ *   0x8842f6983b0ad702 / 0x8842f698100ad702 - the three archive-
+ *   flavor variants of the SIT5 end magic; the search's skip-3-on-
+ *   zero-dword stride at 0x180015bd1-0x180015bdd is the og's own
+ *   padding-skip optimization). A magic found -> the extent = the
+ *   containing chunk's end. The next-header terminator applies to
+ *   this form too (the else branch runs for every later chunk).
+ * - The walk's own cap: max*10 = 2,000,000,000 (the asm's
+ *   lea (%rax,%rax,4)+add at 0x180015e77-0x180015e7b - the child's
+ *   200,000,000 max scaled by ten); crossing it force-stamps the
+ *   current chunk's end - never a refusal once the key held.
+ * - The model translation (the registered model-divergence class -
+ *   the CRW/X3F stance): the og's chunk-granular extent stamps become
+ *   the exact structural positions - the magic's END for the SIT5
+ *   form, the next header's position for the terminator arm; the
+ *   stream-end drop (a candidate whose walk never completes before
+ *   the device ends) becomes the decline; the 2 GB force-stamp stays
+ *   the salvage. The row max carries the walk's own cap
+ *   (2,000,000,000 - the 64 MiB stand-in gone); the min stays the
+ *   ctor's 20480 floor (N-093's registered stance). */
 CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[7];
+    u8 h[8];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "Stuf", 4) != 0 || std::memcmp(h + 4, "fIt", 3) != 0)
         return r;
-    r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 620;
-    r.note = "sit-magic+bounded-extent";
+    const bool sit5 = h[7] == '!';
+    /* ' ' (the old form) and every other byte: the next-header-only
+     * walk (the og's flag is unset - the magic search never runs) */
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit > hit ? limit - hit : 0;
+    constexpr u64 SIT_WALK_CAP = 200000000ull * 10; /* the og's max*10 force-stamp bound */
+    const u64 bound = std::min<u64>(rel_limit, SIT_WALK_CAP);
+    static const u64 kMagics[3] = {0x8842f698190ad702ull, 0x8842f6983b0ad702ull,
+                                   0x8842f698100ad702ull};
+    u64 found = 0; /* the walk end (the magic's end or the header's position) */
+    bool by_magic = false;
+    {
+        std::vector<u8> win(64 * 1024);
+        u64 pos = 8; /* past the "StuffIt!" header - the magic never overlaps it */
+        while (pos < bound) {
+            const u64 chunk = std::min<u64>(win.size(), bound - pos);
+            if (chunk < 16)
+                break;
+            if (!rd(s, hit + pos, win.data(), u32(chunk)))
+                break; /* torn feed: the walked bound below is the salvage */
+            for (u64 i = 0; i + 8 <= chunk; ++i) {
+                const u8* p = win.data() + i;
+                if (sit5) {
+                    const u64 v = u64_from_bytes_le(p);
+                    if (v == kMagics[0] || v == kMagics[1] || v == kMagics[2]) {
+                        found = pos + i + 8; /* the magic's END */
+                        by_magic = true;
+                        break;
+                    }
+                }
+                /* the next-header terminator: a full "StuffIt "/"StuffIt!"
+                 * or the WEBB AIKE form ends the walk at its position */
+                if (std::memcmp(p, "Stuf", 4) == 0 && u16_from_bytes_le(p + 4) == 0x4966 &&
+                    p[6] == 't' && (p[7] == ' ' || p[7] == '!')) {
+                    found = pos + i;
+                    break;
+                }
+                if (i + 16 <= chunk && u32_from_bytes_le(p) == 0x42424557u &&
+                    u64_from_bytes_le(p + 4) == 0xb4eb6666454b4941ull &&
+                    u32_from_bytes_le(p + 12) == 0x7bbd74a3u) {
+                    found = pos + i;
+                    break;
+                }
+            }
+            if (found)
+                break;
+            if (chunk < win.size())
+                break;        /* short final read: the window is exhausted */
+            pos += chunk - 8; /* the 8-byte straddle overlap (the magic width) */
+        }
+    }
+    if (found) {
+        r.ok = true;
+        r.end = hit + found;
+        r.confidence = by_magic ? 650 : 620;
+        r.note = by_magic ? "sit5-end-magic-walk" : "sit-next-header-walk";
+    } else if (rel_limit >= SIT_WALK_CAP) {
+        /* the og's force-stamp: the walk crossed the 2 GB boundary */
+        r.ok = true;
+        r.end = hit + SIT_WALK_CAP;
+        r.confidence = 550;
+        r.note = "sit-force-stamp-walk-cap";
+    }
+    /* else: the stream ended before the walk completed - the og's
+     * pending candidate drops; the core declines */
     return r;
 }
 

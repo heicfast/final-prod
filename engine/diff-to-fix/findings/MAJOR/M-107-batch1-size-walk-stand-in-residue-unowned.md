@@ -517,3 +517,67 @@ WpdSecondAndThirdRecordsCarve (the records-2/3 variants carve through
 the same walk). The member count after both windows: members 1-8 of
 11 landed (X3F, CRW, DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI);
 remaining: SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder.
+
+---
+
+## Session-87 addendum 2 — the SIT member LANDED (member 9 of 11: the SIT5 end-magic walk)
+
+**SIT FIXED (this session; two members remain: APE, SWF-RECT + the DWG
+gen-3 R2007 remainder).** The walk decoded first-hand from the raw asm
+this session (objdump over RAWSearchDLL.dll):
+
+- **The processor FUN_180015d70** (asm 0x180015d70-0x180041f5e — hmm,
+  0x180015d70-0x180015f5e; the vtable pointer at .data 0x180067848
+  confirmed first-hand): the FIRST chunk stamps type 0x5d and branches
+  on byte@+7 — ' ' (the pre-SIT5 old form) or any non-'!' byte leaves
+  the size at 0 with the search flag UNSET; '!' (the SIT5 form) sets
+  the flag at +0x110. The heuristic gate at 0x180015e69-0x180015e81:
+  `len × rel < max × 10` (the asm's `lea (%rax,%rax,4)+add` — the
+  child's 200,000,000 max scaled to 2,000,000,000) AND (ctx+0x14 < 5
+  OR the search found no magic) → return 2 (keep feeding); crossing
+  the 2 GB boundary OR a found magic → the extent stamp
+  `(rel_chunk_idx + 1) × chunk_len` + return 1 (done).
+- **The search FUN_180015b60** (asm 0x180015b60-0x180015d5b): requires
+  len ≥ 0x200 and the flag; scans for THREE 8-byte LE end-magics —
+  the .data constants at 0x180067858/0x180067868/0x180067878, dumped
+  first-hand: **02 D7 0A 19 98 F6 42 88 / 02 D7 0A 3B 98 F6 42 88 /
+  02 D7 0A 10 98 F6 42 88** (u64 LE 0x8842f698190ad702 /
+  0x8842f6983b0ad702 / 0x8842f698100ad702 — the three archive-flavor
+  variants); the skip-3-ints-on-zero-dword stride is the og's own
+  padding-skip optimization.
+- **The else-branch re-validation** (0x180015df3-0x180015e67): a LATER
+  chunk whose head is another full SIT-family header — "Stuf"+"fI"+
+  byte6 't' + byte7 ∈ {' ','!'}, or the **WEBB AIKE 66 66 EB B4 A3 74
+  BD 7B** form (u64 0xB4EB6666454B4941 at +4, u32 0x7bbd74a3 at +0xC)
+  — ends the walk at that chunk (the next archive's boundary). This
+  terminator applies to BOTH forms (the ' ' old form has NO magic
+  search — the next header is its only terminator).
+
+**The model translation (the registered model-divergence class — the
+CRW/X3F stance):** the og's chunk-granular extent stamps become the
+exact structural positions — the magic's END for the SIT5 form, the
+next header's position for the terminator arm; the stream-end drop
+(a candidate whose walk never completes before the device ends)
+becomes the decline; the 2 GB force-stamp stays the salvage (a device
+that reaches the boundary carves at 2 GB — the arm is implemented and
+cited; a unit-scale pin would need a 2 GB device, out of the suite's
+memory budget — recorded here as the honest residue). The row max
+carries the walk's own cap **2,000,000,000** (the "row max carries the
+og walk's own cap constant" convention — the CRW/DWG precedent; the
+64 MiB stand-in gone); the min stays the ctor's 20480 floor (N-093's
+registered stance).
+
+RED→GREEN first-hand via the stash dance: five tests RED at the
+stand-in tree (Sit5MagicWalkSetsExtent / Sit5AllThreeMagicVariantsCarve
+— the blind device-clamped extent; Sit5NoMagicNoHeaderDeclines — the
+stand-in accepted it; SitNextHeaderTerminatesTheWalk /
+SitWebbHeaderTerminatesTheWalk — the stand-in's blind extent), GREEN
+with the walk. The S-007 batch's SIT plant re-pinned (the SIT5 form
+"StuffIt!" + the filler body + the end-magic at the plant's end; the
+old filler plant's byte 7 was neither ' ' nor '!' — the stand-in era's
+blind acceptance). The N-093 floor pin (SitMinimumIsTheOgFloor) holds
+unchanged — the magic-end extent at the floor equals the old expected
+value. The Batch1OgCapsAreTheRegistryRows pin updated to the walk's
+own cap (2 GB, the og's max×10 — the asm citation in the pin). The
+207-test carve suite green; the full suite green (the two known
+parallel-load perf flakes pass serially).

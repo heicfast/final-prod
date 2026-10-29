@@ -3349,6 +3349,189 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
             << "the all-zero window is the og's extent-0 decline";
 }
 
+size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480, u32 flavor = 0x19);
+
+/* ---- M-107 member 9 (SIT): the SIT5 end-magic walk
+ * (FUN_180015d70 + FUN_180015b60) ------------------------------ */
+
+TEST(Carve, Sit5MagicWalkSetsExtent) {
+    /* The og's SIT5 walk (FUN_180015b60's search + FUN_180015d70's
+     * stamp): the extent is the END of the found 8-byte magic (the
+     * 02 D7 0A 19 98 F6 42 88 family), NOT the blind 64 MiB stand-in.
+     * The plant declares 0x8000 bytes with the magic at the end. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_sit(img, at, 0x8000);
+    EXPECT_EQ(expect, size_t(0x8000));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr) << "the SIT5 archive must carve through the magic walk";
+    EXPECT_EQ(sit->props()->logical_size, size_t(0x8000))
+        << "extent = the end-magic's END (the og's chunk-granular stamp "
+           "translated to the exact structural position)";
+}
+
+TEST(Carve, Sit5AllThreeMagicVariantsCarve) {
+    /* The og's three .data constants (0x180067858/68/78, first-hand):
+     * flavors 0x19 / 0x3B / 0x10 - each variant walks to its own magic
+     * end. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at1 = 512, at2 = 65536, at3 = 131072;
+    plant_sit(img, at1, 0x6000, 0x19);
+    plant_sit(img, at2, 0x5000, 0x3B);
+    plant_sit(img, at3, 0x7000, 0x10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* n1 = nullptr;
+    tree::FileNode* n2 = nullptr;
+    tree::FileNode* n3 = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props() || c->props()->extents.empty())
+            continue;
+        if (c->props()->extents.front().offset == at1)
+            n1 = c;
+        if (c->props()->extents.front().offset == at2)
+            n2 = c;
+        if (c->props()->extents.front().offset == at3)
+            n3 = c;
+    }
+    ASSERT_NE(n1, nullptr) << "flavor 0x19 must carve";
+    EXPECT_EQ(n1->props()->logical_size, size_t(0x6000));
+    ASSERT_NE(n2, nullptr) << "flavor 0x3B must carve";
+    EXPECT_EQ(n2->props()->logical_size, size_t(0x5000));
+    ASSERT_NE(n3, nullptr) << "flavor 0x10 must carve";
+    EXPECT_EQ(n3->props()->logical_size, size_t(0x7000));
+}
+
+TEST(Carve, Sit5NoMagicNoHeaderDeclines) {
+    /* The og's stream-end drop: a SIT5 form whose walk finds no magic
+     * and no next header before the device ends never stamps - the
+     * pending candidate drops. The stand-in accepted it at 64 MiB. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    img[at] = 'S';
+    img[at + 1] = 't';
+    img[at + 2] = 'u';
+    img[at + 3] = 'f';
+    img[at + 4] = 'f';
+    img[at + 5] = 'I';
+    img[at + 6] = 't';
+    img[at + 7] = '!';
+    for (size_t i = 8; i < 20480; ++i)
+        img[at + i] = u8((i * 5) & 0xFF); /* no magic, no Stuf/WEBB inside */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "a walk that finds neither magic nor next header must decline";
+}
+
+TEST(Carve, SitNextHeaderTerminatesTheWalk) {
+    /* The og's else-branch re-validation: a LATER chunk whose head is
+     * another full SIT-family header ("StuffIt "/"StuffIt!") ends the
+     * walk - the extent is the next archive's boundary. The old ' '
+     * form has no magic search (the flag is unset); the next header is
+     * its ONLY terminator. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t next_at = 512 + 0x6000;
+    img[at] = 'S';
+    img[at + 1] = 't';
+    img[at + 2] = 'u';
+    img[at + 3] = 'f';
+    img[at + 4] = 'f';
+    img[at + 5] = 'I';
+    img[at + 6] = 't';
+    img[at + 7] = ' '; /* the pre-SIT5 old form */
+    for (size_t i = 8; i < 0x6000; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    /* the next archive's header - itself the SIT5 form with no magic
+     * behind it (it declines; the old-form archive ends at its edge) */
+    img[next_at] = 'S';
+    img[next_at + 1] = 't';
+    img[next_at + 2] = 'u';
+    img[next_at + 3] = 'f';
+    img[next_at + 4] = 'f';
+    img[next_at + 5] = 'I';
+    img[next_at + 6] = 't';
+    img[next_at + 7] = '!';
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* old_form = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            old_form = c;
+    ASSERT_NE(old_form, nullptr) << "the old-form archive must carve to the next header";
+    EXPECT_EQ(old_form->props()->logical_size, size_t(0x6000))
+        << "the extent ends where the next SIT-family header begins";
+}
+
+TEST(Carve, SitWebbHeaderTerminatesTheWalk) {
+    /* The og's second accepted family form: "WEBB" + "AIKE" +
+     * 66 66 EB B4 + A3 74 BD 7B (the u64 0xB4EB6666454B4941 at +4, the
+     * u32 0x7bbd74a3 at +0xC) - a later occurrence ends the walk at its
+     * position, the same terminator arm as the StuffIt-header form. */
+    std::vector<u8> img2(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t webb_at = 512 + 0x5000;
+    img2[at] = 'S';
+    img2[at + 1] = 't';
+    img2[at + 2] = 'u';
+    img2[at + 3] = 'f';
+    img2[at + 4] = 'f';
+    img2[at + 5] = 'I';
+    img2[at + 6] = 't';
+    img2[at + 7] = '!';
+    for (size_t i = 8; i < 0x5000; ++i)
+        img2[at + i] = u8((i * 11) & 0xFF);
+    const u8 webb[16] = {0x57, 0x45, 0x42, 0x42, 0x41, 0x49, 0x4B, 0x45,
+                         0x66, 0x66, 0xEB, 0xB4, 0xA3, 0x74, 0xBD, 0x7B};
+    std::memcpy(img2.data() + webb_at, webb, 16);
+    MemDevice dev(std::move(img2));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr) << "the SIT5 archive must carve to the WEBB terminator";
+    EXPECT_EQ(sit->props()->logical_size, size_t(0x5000))
+        << "the WEBB AIKE form ends the walk at its position";
+}
+
 /* ---- M-107 member 6 (WPD): the version-table walk
  * (FUN_180041f50) ------------------------------------------ */
 
@@ -3633,12 +3816,17 @@ size_t plant_psp(std::vector<u8>& img, size_t at) {
     return 0x1B8;
 }
 
-size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {
+size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes, u32 flavor) {
     /* N-093: the og's SIT floor is 20,480 bytes (SITRawFileInfo :16886-92) -
      * the plant grew from the 32-byte magic stub to the real minimum so the
-     * fixture exercises the og's own acceptance boundary. */
-    if (bytes < 7)
-        bytes = 7; /* the magic itself is 7 bytes; every real call far exceeds it */
+     * fixture exercises the og's own acceptance boundary.
+     * M-107 member 9 (SIT): the plant is the og's SIT5 form - "StuffIt!"
+     * (byte 7 = '!') + the filler body + the 8-byte end-magic at the end
+     * (the .data constant family 02 D7 0A <flavor> 98 F6 42 88; the default
+     * flavor 0x19 is the first variant). The walked extent = the magic's
+     * END = bytes. */
+    if (bytes < 0x10)
+        bytes = 0x10; /* the header + a minimum body */
     img[at] = 'S';
     img[at + 1] = 't';
     img[at + 2] = 'u';
@@ -3646,9 +3834,19 @@ size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {
     img[at + 4] = 'f';
     img[at + 5] = 'I';
     img[at + 6] = 't';
-    for (size_t i = 7; i < bytes; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return bytes;
+    img[at + 7] = '!'; /* the SIT5 form - the og's search flag */
+    for (size_t i = 8; i < bytes - 8; ++i)
+        img[at + i] = u8((i * 3) & 0xFF);
+    const size_t m = at + bytes - 8;
+    img[m] = 0x02;
+    img[m + 1] = 0xD7;
+    img[m + 2] = 0x0A;
+    img[m + 3] = u8(flavor); /* 0x19 / 0x3B / 0x10 - the three variants */
+    img[m + 4] = 0x98;
+    img[m + 5] = 0xF6;
+    img[m + 6] = 0x42;
+    img[m + 7] = 0x88;
+    return bytes; /* the walked extent IS the magic's end */
 }
 
 size_t plant_gz(std::vector<u8>& img, size_t at) {
@@ -10454,7 +10652,10 @@ TEST(Carve, Batch1OgCapsAreTheRegistryRows) {
     EXPECT_EQ(psp->min_size, 36u);
     EXPECT_EQ(psp->max_size, 20000000ull) << "the og's PSP cap (20 MB), not 128 MiB";
     EXPECT_EQ(sit->min_size, 20480u) << "the og's StuffIt floor (20,480 B), not 16";
-    EXPECT_EQ(sit->max_size, 200000000ull) << "the og's StuffIt cap (200 MB), not 512 MiB";
+    EXPECT_EQ(sit->max_size, 2000000000ull)
+        << "M-107 member 9: the og walk's OWN cap - the child's 200,000,000 max "
+           "scaled by ten (the force-stamp boundary, asm 0x180015e77-7b), "
+           "not the 64 MiB stand-in";
 }
 
 /* -------------------------------------------------------------------- */

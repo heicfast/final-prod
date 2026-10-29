@@ -1387,3 +1387,21 @@ note: rider B's first fixture (320-byte extent) passed at the pre-rider
 tree for the wrong reason (the 512 floor) - the fixture now carries
 2304-byte per-record ends so the counter gate is the only refusal under
 test.
+
+---
+
+## Session-87 addendum 2 — M-107 member 9: the SIT5 end-magic walk landed
+
+The SIT row moves to **MATCH**: the gate keeps the 7-byte "StuffIt"
+covenant; byte@+7 routes the walk — '!' (the SIT5 form) scans forward
+for the three 8-byte LE end-magics (02 D7 0A 19/3B/10 98 F6 42 88,
+the .data constants at 0x180067858/68/78) with the extent at the
+magic's end; ' ' (the old form) and other bytes run the next-header-
+only walk — a later full "StuffIt "/"StuffIt!" or the WEBB AIKE form
+ends the extent at its position. The walk's own cap (max×10 =
+2,000,000,000, the force-stamp boundary) is the row max; the min
+keeps N-093's 20480 floor. The stream-end drop is the decline; the
+2 GB force-stamp is the salvage (the unit-scale pin residue recorded
+in the finding). Tests: the five Sit* pins + the updated caps pin
+(all RED at the stand-in via the stash dance, except the N-093 floor
+pin which holds unchanged). The carve suite 207/207.

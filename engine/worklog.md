@@ -1,3 +1,30 @@
+
+## Session-87 S87 fix lane (continuation) — entry 2: M-107 member 9 (SIT) lands (2026-10-30)
+
+- **M-107 member 9 (SIT) FIXED** — the SIT5 end-magic walk, decoded
+  first-hand from the raw asm: the processor FUN_180015d70 (byte@+7
+  routing: '!' = the SIT5 search flag; ' ' = the old form, next-header
+  only), the search FUN_180015b60 (the three 8-byte LE end-magics —
+  the .data constants at 0x180067858/68/78, dumped first-hand: 02 D7
+  0A 19/3B/10 98 F6 42 88), the else-branch terminator (another full
+  "StuffIt "/"StuffIt!" or the WEBB AIKE form ends the walk), and the
+  walk's own cap max×10 = 2 GB (the asm's lea/add at 0x180015e77-7b)
+  — the row max carries it; the min keeps N-093's 20480 floor. The
+  model-divergence registration: the chunk-granular stamps become the
+  exact structural positions; the stream-end drop becomes the
+  decline; the force-stamp arm's unit-scale pin is the recorded
+  residue (a 2 GB device is out of the suite's budget). Five
+  RED→GREEN tests via the stash dance; the S-007 plant re-pinned to
+  the SIT5 form; the caps pin updated to the walk's own cap; the
+  N-093 floor pin holds unchanged. The carve suite 207/207; the full
+  suite green (the two known parallel-load perf flakes pass
+  serially). M-107 now at members 1-9 of 11 (remaining: APE,
+  SWF-RECT + the DWG gen-3 remainder). Also absorbed at this entry's
+  pull: the racing S89 window's M-101 (Versions/Tags) + DXF/EPS/AI
+  member landings + the N-226 renumber — the WPD convergence resolved
+  to the racing seat (the three-pair decode agrees on every material
+  point; this lane's five-test battery rides as convergent
+  verification).
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).

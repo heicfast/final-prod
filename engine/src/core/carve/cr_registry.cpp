@@ -867,7 +867,11 @@ const Signature kTable[] = {
      4,
      0,
      20480,
-     200000000,
+     2000000000ull, /* M-107 member 9 (SIT): the og walk's OWN cap - the
+                       child's 200,000,000 max scaled by ten (the asm's
+                       lea (%rax,%rax,4)+add at 0x180015e77-7b, the
+                       force-stamp boundary); the 64 MiB stand-in gone.
+                       The min keeps the ctor's 20480 floor (N-093). */
      620,
      validate_sit,
      "StuffIt Archive"},
