@@ -52,10 +52,17 @@ TEST(WinDestIo, M074DestinationCodesDifferentiated) {
         const u32 rc = io.create_temp(1, u16_from("\\\\no-such-server\\share\\file.bin"), u".tmp");
         EXPECT_EQ(u32(ERR_DEST_NETWORK), rc) << "the UNC shape is the network branch";
     }
-    /* path-too-long: a >MAX_PATH destination under a real temp root */
+    /* path-too-long: a >MAX_PATH destination under a real temp root.
+     * The parent directory is created first so the length is the ONLY
+     * failure axis - on the runner, a missing parent makes CreateFileW
+     * fail with ERROR_PATH_NOT_FOUND before the length check, and the
+     * classification (correctly) reports ERR_DEST_UNWRITABLE (the
+     * release-27 validation catch; the test had never completed a
+     * Windows run). */
     {
         WinDestIo io;
         std::u16string base = u16_from(cr_test::tmp_path("destio", "m074"));
+        std::filesystem::create_directories(cr_test::tmp_path("destio", "m074"));
         std::u16string long_name(300, u'x');
         const u32 rc = io.create_temp(2, base + u"\\" + long_name, u".tmp");
         EXPECT_EQ(u32(ERR_DEST_PATH_TOO_LONG), rc) << "ERROR_FILENAME_EXCED_RANGE classifies";

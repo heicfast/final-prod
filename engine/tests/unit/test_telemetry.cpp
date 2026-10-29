@@ -423,14 +423,26 @@ TEST(Telemetry, CountersMoveDuringStage) {
      * must carry carved_found >= 1 (pre-fix: the frozen stage-boundary
      * snapshot shows 0 for the whole stage). */
     std::vector<u8> img = build_fat16_wide(200);
-    /* three carvable JPEGs in the early data region (carved before the
-     * far park point) */
+    /* three carvable JPEGs in the early data region (sectors 100-140,
+     * inside the FIRST 1 MiB carve window, before the dead spot) */
     plant_jpeg(img, 100 * 512);
     plant_jpeg(img, 120 * 512);
     plant_jpeg(img, 140 * 512);
-    /* dead spot mid-image (hits during the structured pass), park on the
-     * far tail reads (the carve stage's late windows) */
-    BadRegionDevice dev(img, 30 * 512, 512);
+    /* the dead spot at sector 1800 (the WINDOW-0 tail, PAST the JPEGs):
+     * the 1 MiB windowing (cr_carve.cpp WINDOW) makes the geometry
+     * deterministic - window 0 [0,1M) contains the JPEGs and the dead
+     * spot; its read-failure split carves the JPEGs from the good
+     * sub-ranges (every sub-read stays below the park threshold, so no
+     * split ordering can freeze the window before the attach), window 1
+     * [1M,2M) is clean, and window 2 [2M,2.43M) starts BEYOND the park
+     * threshold (bad+len+1MiB = ~1.88 MiB) - its read parks the scan.
+     * The structured pass never reads sector 1800 (all 200 root files
+     * point at cluster 2), so no structured-stage retries delay the
+     * carve. The original shape (dead spot at sector 30, in the FAT)
+     * made the structured pass retry with backoff - under load the
+     * assertions fired before the carve stage even began (release-27:
+     * last_carved=0 on the Windows runner; the same red at local -j4). */
+    BadRegionDevice dev(img, 1800 * 512, 512);
     dev.park_on_hit();
 
     std::mutex m;
@@ -481,12 +493,21 @@ TEST(Telemetry, CountersMoveDuringStage) {
     /* the last ScanProgress sample carries the carved delta */
     u64 last_carved = 0;
     bool saw_progress = false;
-    for (const auto& e : evts) {
-        if (e.type == event::Type::ScanProgress) {
-            saw_progress = true;
-            last_carved = e.carved_found; /* last-wins per sample */
+    for (int i = 0; i < 5000 && !settled; ++i) { /* <= 10 s budget */
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        last_carved = 0;
+        saw_progress = false;
+        for (const auto& e : evts) {
+            if (e.type == event::Type::ScanProgress) {
+                saw_progress = true;
+                last_carved = e.carved_found; /* last-wins per sample */
+            }
         }
+        settled = saw_progress && last_carved >= 1;
     }
+    ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
+    ASSERT_TRUE(settled) << "a mid-stage progress sample must carry the carved count "
+                            "(the attach-time delta, not the frozen snapshot)";
     EXPECT_TRUE(saw_progress) << "the carve stage emitted progress samples";
     EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count "
                                   "(the attach-time delta, not the frozen snapshot)";
