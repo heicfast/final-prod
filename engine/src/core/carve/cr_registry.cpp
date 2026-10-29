@@ -439,7 +439,20 @@ const Signature kTable[] = {
      600,
      validate_mpeges,
      "MPEG video (elementary)"},
-    {FMT_DWG, "dwg", {'A', 'C', '1', '0'}, 4, 0, 64, 64ull << 20, 620, validate_dwg, "AutoCAD DWG"},
+    /* M-107 member 3 (DWG): the row max carries the og walk's own cap
+     * constant - the child walk's cap check at raw-asm 0x18002f5ee
+     * (`imul $0x64,0x70(%rax)`): singleton+0x70 (0xbebc200 = 200 MB)
+     * x 100 = 0x4A817C800 (20 GB). The 64 MiB stand-in value is gone. */
+    {FMT_DWG,
+     "dwg",
+     {'A', 'C', '1', '0'},
+     4,
+     0,
+     64,
+     0x4A817C800ull,
+     620,
+     validate_dwg,
+     "AutoCAD DWG"},
     {FMT_AAC,
      "aac",
      {0xFF, 0xF1},

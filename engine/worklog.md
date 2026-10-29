@@ -12930,3 +12930,39 @@ missing struct-layout static pins.
 
 **Marker state at this entry:** only M-120's sanctioned evidence quotes
 remain (3 lines) — the C-1 opening finding is closed.
+
+---
+
+---
+
+## Session-85 S85 fix-lane — entry 1: M-107 member 3, the DWG walk lands (2026-10-30)
+
+**The decode (first-hand, raw asm):** the "AC10" chain — the binding at
+0x1800036bf → the node (vtable 0x18006bc00, idx 0x18) → the tier-1
+NINE-version gate FUN_18002fe30 {12,13,14,15,18,21,24,27,32} → the factory
+FUN_18002ff20 (the 0x508 CDWGRawInfo child; **cursor = 0x15** at
+0x18002ff59; extent 0) → the +0x20 walk FUN_18002f320, NO secondary (the
+node's +0x40 is the `xor eax,eax; ret` stub). THREE generations: gen-1
+(AC1012-15) the section-locator walk (count u32@0x15; 9-byte records
+{number==index, seeker u32@+1, size u32@+5} from 0x19; number mismatch →
+extent 0; extent = max(seeker+size); torn → the walked-prefix salvage);
+gen-2 (AC1018/24/27/32) the 0x6c struct at +0x20 XOR the MSVC rand LCG
+stream seed 1, six gates, extent = u64@0x34 + 0x6c; gen-3 (AC1021 = R2007)
+the de-interleave record chain — undecoded, the bounded extent stays (the
+finding's own 1(c) split). The walk cap: singleton+0x70 (0xbebc200) × 100
+= 0x4A817C800 (raw-asm 0x18002f5ee `imul $0x64`) — the row max carries it.
+Evidence: `diff-to-fix/evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+
+**Two defects discovered during verification, fixed in the landing:** the
+tier-1 table's phantom "30" (AC1030 — not a real DWG release) and its
+missing "13" (AC1013 = R13); the non-og sentinel check dropped.
+
+**RED→GREEN:** six tests RED at the stand-in tree
+(DwgSectionLocatorWalkSetsExtent / DwgSectionNumberMismatchDeclines /
+DwgTornSalvagesTheWalkedPrefix / DwgR2004RandStructWalkSetsExtent /
+DwgR2004GateFailDeclines / DwgVersionGateIsTheOgsNine), GREEN with the
+walk. The gen-2 stream pinned against the well-known MSVC rand seed-1
+sequence (41, 18467, 6334, 26500 — the first four low bytes). The S-007
+batch's DWG plant re-pinned the CRW way (a real locator map). The carve
+suite 180/180; the full suite **1666/1666**. Trail: M-107's S85 addendum,
+the matrix row, modules/carve.md's S85 addendum 1, this entry.

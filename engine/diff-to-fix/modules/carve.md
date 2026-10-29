@@ -1258,3 +1258,22 @@ Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree, GREEN
 with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
 CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
+
+---
+
+## Session-85 addendum 1 — M-107 member 3: the DWG three-generation walk landed
+
+The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
+remainder named): the section-locator walk (count u32@0x15, 9-byte records
+{number==index, seeker, size} from 0x19, extent = max(seeker+size), the
+number-mismatch decline, the torn walked-prefix salvage) and the R2004+
+rand-XOR struct walk (the MSVC rand seed-1 stream over the 0x6c struct at
++0x20, six gates, extent = u64@0x34 + 0x6c). The registry row max carries
+the og walk's own cap constant (0x4A817C800 = the singleton's 200 MB ×
+100). Two defects discovered and fixed with the landing: the tier-1
+version table's phantom "30" / missing "13" (the og's nine exact —
+AC1013 = R13 carves again, AC1030 no longer does), and the non-og sentinel
+check (dropped — the og's tier-1 is the version table only). Evidence:
+`../evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+Tests: the six Dwg* pins (all RED at the stand-in tree). The carve suite
+180/180.
