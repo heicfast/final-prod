@@ -80,6 +80,16 @@ if MARKERS=$(grep -rln '^<<<<<<< ' --include='*.md' --include='*.cpp' --include=
 else
   ok "conflict-marker lint clean (M-120/N-210 class)"
 fi
+# N-231: duplicate gtest names - the class's build-red shape that the
+# marker lint cannot see and the formatter silently reformats (two
+# same-named TEST() macros = the gtest redefinition error; the ninth
+# occurrence reached main red at 98bd30d6). Deterministic, sub-second,
+# BEFORE the Werror build so the cheapest gate catches it first.
+if python3 scripts/verify/verify_test_names.py; then
+  :
+else
+  fail "duplicate gtest names (the M-120/N-230 class - N-231): see the pairs above"
+fi
 # No static analyzer (cppcheck) is configured in this repo's toolchain yet:
 # reported honestly, never as a silent pass (docs/CI-LOCAL.md section 4).
 info "static analysis: not configured in this repo yet (no cppcheck/clang-tidy config) - tracked, not silenced"

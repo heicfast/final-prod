@@ -1,5 +1,40 @@
 # SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
 
+## Session-86 S86 fix-lane delta 2 (2026-10-30 — the DWG convergence riders + the N-231 root-cause gate)
+
+- **N-231 FIXED (MINOR, NEW — filed+fixed this session, §8's
+  discovered-divergence rule):** the recurring build-red class's OTHER
+  shape — duplicate gtest names (the gtest redefinition error; 3 of 9
+  occurrences shipped main red, N-230 the latest) — had NO gate: the
+  N-210 marker lint cannot see it, the formatter reformats both
+  copies, only the Werror build catches it and the racing lanes skip
+  that. The gate landed: scripts/verify/verify_test_names.py
+  (full-tree, sub-second) + ci-local.sh stage-2 wiring + the
+  pre-commit FULL-TREE form (a staged-only draft was proven
+  insufficient by the two-file RED — the class's real shape is a
+  staged file colliding with a COMMITTED file — and replaced) + the
+  ctest entry (Python3 REQUIRED). RED first-hand at the historical
+  98bd30d6 tree (N-230's exact pair) and via the staged-collision
+  hook test; GREEN 1745 registrations / 0 collisions.
+
+- **The DWG convergence riders (carried on the racing seat):** the
+  ten-pair gate truth (the asm's tenth "09" entry + `cmp edx,0xa` —
+  AC1009 gate-passed-but-un-walked, the decline og-true), the gen-3
+  fall-through fix (the explicit "21" match restores the og's
+  routing), and the WPD duplicate repair (conceded to the window's
+  N-230 delete form, both framings recorded there).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3 tracked-open** —
+M-086/M-087/M-089 + N-107/N-127 driver-repo-resident (out of grant);
+M-107 down to the DWG gen-3 R2007 remainder only (every other member
+landed across the racing windows: X3F CRW DWG WPG WPD PSP SIT APE DXF
+EPS AI SWF-RECT). Next free IDs: S-069+, M-158+, N-232+, I-049+,
+A-017+, D-163+.
+
+---
+# SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
+
 ## Session-86 S86 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... Aim for at least 20+ fixes in this session"]; corpus `be0cfe9` throughout; three rebase windows absorbed)
 
 - **The minor-first trail landing:** both open MINORs (N-107, N-127)
