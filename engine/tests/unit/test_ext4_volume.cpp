@@ -481,8 +481,8 @@ TEST(Ext4Engine, SbBandsPinned) {
         Img img(BPG);
         write_sb(img, 8);
         put32(img.block(1) + 0x14, 0); /* fdb = 0: isolate the log_bs cap
-                                         * (fdb=1 would trip the kernel
-                                         * fdb x log_bs rule first) */
+                                        * (fdb=1 would trip the kernel
+                                        * fdb x log_bs rule first) */
         put32(img.block(1) + 0x18, 7); /* s_log_block_size = 7 */
         memcpy(raw, img.block(1), 1024);
         EXPECT_FALSE(validate_superblock(raw, sb))
@@ -497,8 +497,7 @@ TEST(Ext4Engine, SbBandsPinned) {
         put32(img.block(1) + 0xE0, 0); /* s_journal_inum = 0, no HAS_JOURNAL */
         memcpy(raw, img.block(1), 1024);
         EXPECT_TRUE(validate_superblock(raw, sb));
-        EXPECT_EQ(8u, sb.journal_inum)
-            << "the unconditional-read stance: 0 -> the default inode 8";
+        EXPECT_EQ(8u, sb.journal_inum) << "the unconditional-read stance: 0 -> the default inode 8";
     }
     /* (4a) 64BIT + desc_size = 32: the core forces 64 (the og's clamp
      * would keep 32); (4b) non-64BIT + desc_size = 64: the core keeps 32 */
@@ -506,7 +505,7 @@ TEST(Ext4Engine, SbBandsPinned) {
         Img img(BPG);
         write_sb(img, 8);
         put32(img.block(1) + 0x60, 0x0002 | 0x80); /* FILETYPE | 64BIT */
-        put16(img.block(1) + 0xFE, 32);             /* s_desc_size = 32 */
+        put16(img.block(1) + 0xFE, 32);            /* s_desc_size = 32 */
         memcpy(raw, img.block(1), 1024);
         EXPECT_TRUE(validate_superblock(raw, sb));
         EXPECT_EQ(64u, sb.desc_size) << "64BIT forces the 64-byte descriptor";
@@ -781,7 +780,7 @@ TEST(Ext4Engine, UnwrittenExtentLenDecodedKernelCorrect) {
     u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
     /* fixture sanity: EXTENTS_FL (0x80000) set, extent magic 0xF30A at i_block */
     ASSERT_EQ(0x80000u, u32(hello[0x20]) | u32(hello[0x21] << 8) | u32(hello[0x22] << 16) |
-                             u32(u32(hello[0x23]) << 24));
+                            u32(u32(hello[0x23]) << 24));
     ASSERT_EQ(0xF30Au, u16(hello[0x28]) | u16(u16(hello[0x29]) << 8));
     put16(hello + 0x28 + 16, 0x8005); /* ee_len @ extent+4 */
 
@@ -1050,6 +1049,61 @@ TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
             saw = true;
     }
     EXPECT_TRUE(saw) << "uncommitted-tail dir block must surface (og parity)";
+}
+
+TEST(Ext4Engine, FamilyKindStampsPerDecodedAnalyserRule) {
+    /* OQ-S52-1 (resolved): the og's ext-family classification - the
+     * analyser's verdict rule decoded first-hand (ExtFileSystemAnalyser
+     * :3616-3680): the strict ext4 shape (incompat EXTENTS|64BIT|FLEX_BG
+     * == 0x2c0) is kind 9; the pre-ext4 family (incompat within
+     * {FILETYPE, HAS_JOURNAL, META_BG}, ro_compat within {SPARSE_SUPER,
+     * LARGE_FILE, DIR_INDEX}) is the family code 4 - ext2 and ext3 BOTH
+     * (the engine space collapses the analyser's verdicts 5/6); shapes
+     * the og's analyser refuses keep the ext4 stamp (no og behavior). */
+    SuperBlock sb;
+    u8 raw[1024];
+
+    /* the family shape: journal set (ext3-class), no extents */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0004); /* s_feature_incompat: HAS_JOURNAL */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext2), u32(ext_family_kind(sb)))
+            << "a journaled family shape stamps the family code (ext3 -> kind 4)";
+    }
+    /* the family shape: journal clear (ext2-class) */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0002); /* s_feature_incompat: FILETYPE only */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext2), u32(ext_family_kind(sb)))
+            << "a journal-less family shape stamps the family code (ext2 -> kind 4)";
+    }
+    /* the strict ext4 shape: all three of EXTENTS|64BIT|FLEX_BG */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x02c0); /* EXTENTS|64BIT|FLEX_BG */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext4), u32(ext_family_kind(sb)))
+            << "the 0x2c0 shape stays kind 9 (unshifted)";
+    }
+    /* a shape the og's analyser refuses (EXTENTS set, 64BIT clear):
+     * keeps the ext4 stamp - no og shift behavior exists for it */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0042); /* EXTENTS+FILETYPE, no 64BIT/FLEX_BG */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext4), u32(ext_family_kind(sb)))
+            << "the og-refused shape keeps the unshifted stamp";
+    }
 }
 
 } // namespace

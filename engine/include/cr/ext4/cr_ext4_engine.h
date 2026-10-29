@@ -88,6 +88,13 @@ struct SuperBlock {
 /* The decompile-verified sanity gate (FUN_180004710) + canonical fields. */
 bool validate_superblock(const u8 sb[1024], SuperBlock& out);
 
+/* OQ-S52-1 (resolved): the family kind per the og's decoded analyser rule
+ * (ExtFileSystemAnalyser :3616-3680): the 0x2c0 EXTENTS|64BIT|FLEX_BG
+ * shape -> FsKindCode::Ext4 (9); the pre-ext4 compat-mask family shapes
+ * -> FsKindCode::Ext2 (the og's engine kind 4, M-133's shift member);
+ * og-analyser-refused shapes keep Ext4 (no og behavior exists). */
+FsKindCode ext_family_kind(const SuperBlock& sb);
+
 /* One resolved file extent in slice-relative BYTES. */
 struct Extent {
     u64 offset; /* slice byte offset */

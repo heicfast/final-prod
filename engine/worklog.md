@@ -10822,3 +10822,26 @@ ThirtyByteSalvage / AsfFilePropsDeclaredSizeDrivesExtent RED first-hand
 regression-guarded; Carve+RawSigns 246/246. Trail: FIXED finding +
 Resolution, ledger row, carve.md N-212 FIXED, SUMMARY board (12 MAJOR /
 8 MINOR active at the rebase point), this entry.
+
+## Session-71 S71 lane — OQ-S52-1 resolved (2026-10-29)
+
+**OQ-S52-1 FIXED (tracked-open closed — the ext-family kind
+classification).** The decode completed on every load-bearing half: (1) the
+analyser's rule (the S47 probe confirmed + extended by this lane's read of
+the verdict function :3616-3680): the 0x2c0 EXTENTS|64BIT|FLEX_BG gate (all
+three, with the desc_size==0x40 companion) = ext4; the pre-ext4 family masks
+(incompat ⊆ {FILETYPE, HAS_JOURNAL, META_BG}, ro_compat ⊆ {SPARSE_SUPER,
+LARGE_FILE, DIR_INDEX}) with HAS_JOURNAL splitting ext3/ext2 in the VERDICT
+space {5, 6}; (2) the display layer consumes the verdict space directly (the
+20-code table at DRWUI:1432740-1432815 decoded: 5=(EXT2), 6=(EXT3),
+0x18=(EXT4), 4=(NTFS), 9=(SWAP), 0xd=(REFS)); (3) the ENGINE kind space
+collapses the family to code 4 (M-133's proven shift member; the factory
+creates the EXT2 searcher for 4 AND 5) — the verdict→engine renumbering site
+is cross-DLL and not load-bearing. Landing: FsKindCode::Ext2 = 4 (the family
+code); ext_family_kind(sb) stamps every engine site per the decoded rule
+(family masks → 4; the 0x2c0 shape → 9; og-refused shapes keep 9);
+twin_key_of's shift set extends to {Fat16, Ext2} = the og's {1, 4}. Proof:
+FamilyKindStampsPerDecodedAnalyserRule (4 shapes) +
+TwinKeyExt2FamilyShifts + the 5 prior M-133 pins; suite 1541/1541. Trail:
+the OQ file's Resolution + move to findings/FIXED/, matrix MATCH row,
+modules/ext4.md S71 addendum, SUMMARY S71 delta, this entry.

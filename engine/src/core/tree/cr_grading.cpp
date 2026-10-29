@@ -139,15 +139,13 @@ u64 twin_key_of(const tree::FileNode* n, const GradeContext& ctx) {
      * and kind 4 = the EXT2/3 family code. FAT12 (0), FAT32 (2), exFAT
      * (7), NTFS (3), HFS+ (8), EXT4 (9), ReFS (10), ZFS (13) all keep
      * their ordinals unshifted. The pre-fix core shifted the whole FAT
-     * family {0,1,2,7} - four of five members wrong. The EXT2/3 leg
-     * (kind 4) is not expressible in the core's FsKindCode today: the
-     * ext engine stamps the whole family Ext4 (9), which the og does
-     * NOT shift - the kind-reporting gap is tracked as OQ-S52-1 (the
-     * og's ext2/3-vs-ext4 classification rule is undecoded in the
-     * corpus; adding a guessed classifier would be hallucinated
-     * parity). */
+     * family {0,1,2,7} - four of five members wrong. OQ-S52-1 RESOLVED:
+     * the ext engine now stamps the family per the og's decoded analyser
+     * rule (the pre-ext4 compat-mask shapes -> FsKindCode::Ext2, the
+     * 0x2c0 EXTENTS|64BIT|FLEX_BG shape -> Ext4), so the kind-4 leg is
+     * expressible and shifts exactly like the og's. */
     const u32 fs = ctx.fs_kind_of(n);
-    const bool shifted = fs == u32(FsKindCode::Fat16);
+    const bool shifted = fs == u32(FsKindCode::Fat16) || fs == u32(FsKindCode::Ext2);
     const i64 index = i64(ctx.disk_ordinal_of(n)) - (shifted ? 2 : 0);
     return u64(i64(base + len) + index * i64(kDeviceUnit));
 }

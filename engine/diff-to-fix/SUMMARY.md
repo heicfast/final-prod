@@ -142,6 +142,17 @@ driver-repo-resident per OQ-S10-3).
 
 - **M-136 FIXED (MAJOR, writer/orchestrator)** — the recovery pass reads through the scan's own pipe: both entry points (the CLI recover verb + the ABI recovery_open) construct the writer's source via `build_read_pipe(src, 8 MiB, 256 KiB)` — the M-058 single construction seam with the scan's exact constants (SliceShim identity → RetryingDevice ×3 Skip-mode → CachedReader), the chain owned by the entry context and provably outliving the writer (local-before-writer in the CLI; a `read_pipe` member declared before `writer` in CrRecovery). The og's export reads are stream-mediated (arch/04 §7.5 + FUN_140540670's props+0x30 → vt+0x78 GetStream dispatch at DRWUI:873629-873671, re-read first-hand) — never a bare device handle; a transient read error the scan retried past no longer zero-fills the same span at export. RED: the wiring pin at the stash-revert state (both grep pins npos); GREEN: 4/4 Writer tests + the negative control pinning the removed bare-device behavior; full suite **1507/1507**. The LDM basis devices keep raw member reads on BOTH sides (scan + export — no disagreement; the og's candidate-side cache is the scan's own posture).
 
+- **OQ-S52-1 RESOLVED (tracked-open closed)** — the ext-family kind
+  classification: the analyser's rule decoded first-hand (the 0x2c0
+  EXTENTS|64BIT|FLEX_BG ext4 gate with the desc_size companion; the
+  pre-ext4 family masks with the HAS_JOURNAL split), the display-layer
+  verdict table decoded (DRWUI:1432740-1432815), and the engine-space
+  family collapse confirmed (kind 4 = the EXT2/3 family, M-133's shift
+  member). FsKindCode::Ext2 lands; the ext engine stamps per the rule;
+  the twin-key shift set extends to {Fat16, Ext2} = the og's {1, 4}.
+  2 tests (FamilyKindStampsPerDecodedAnalyserRule,
+  TwinKeyExt2FamilyShifts); suite 1541/1541.
+
 - **M-135 FIXED (MAJOR, writer)** — the og's error-9 family landed: a hard read
   failure (post-retry via the M-136 pipe's live error map — Skip-mode reads
   return OK with zero-filled bad sectors, the map is the only hard-failure

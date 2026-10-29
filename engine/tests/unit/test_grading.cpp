@@ -1048,3 +1048,19 @@ TEST(Grading, RawCountSemanticsRegistered) {
     EXPECT_EQ(u64(1), st.raw_tail_zero)
         << "the two counters count disjoint populations (provenance vs validated)";
 }
+
+TEST(Grading, TwinKeyExt2FamilyShifts) {
+    /* OQ-S52-1 (resolved): the og's kind 4 = the EXT2/3 family - the
+     * second member of M-133's shift set {1, 4}, unexpressible until the
+     * family stamp landed. A family-kind (Ext2) device's files shift -2
+     * like the og; the ext4 stamp (9) stays unshifted (the neighbor pin
+     * above). */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Ext2));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Ext2)), st);
+    EXPECT_TRUE(x->overlap()) << "the EXT2/3 family keeps the og's -2 shift (kind 4)";
+    EXPECT_TRUE(y->overlap());
+}

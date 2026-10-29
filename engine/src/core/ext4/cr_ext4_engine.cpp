@@ -50,6 +50,22 @@ constexpr u32 INCOMPAT_META_BG = 0x0010;
 constexpr u32 MAX_META_DESC_READS = 4096; /* lazy meta-group block-read budget
                                            * (bounded; one read per
                                            * meta-group, cached) */
+/* OQ-S52-1 (resolved): the og's ext-family classification constants -
+ * ExtFileSystemAnalyser's verdict function (:3616-3680, decoded
+ * first-hand + the S47 probe): the strict ext4 gate is incompat carrying
+ * ALL THREE of EXTENTS|64BIT|FLEX_BG (0x2c0) with the desc_size==0x40
+ * companion; the pre-ext4 family masks are incompat within {FILETYPE,
+ * HAS_JOURNAL, META_BG/EXT_ATTR} and ro_compat within {SPARSE_SUPER,
+ * LARGE_FILE, DIR_INDEX}; HAS_JOURNAL set (with the journal inode
+ * companion) splits ext3 from ext2 INSIDE the analyser's verdict space
+ * {5, 6} - the ENGINE kind space collapses both to the family code 4
+ * (M-133's shift member; DRWUI's factory creates the EXT2 searcher for
+ * 4 AND 5). */
+constexpr u32 INCOMPAT_HAS_JOURNAL = 0x0004;
+constexpr u32 INCOMPAT_FLEX_BG = 0x0200;
+constexpr u32 FAMILY_INCOMPAT_MASK = INCOMPAT_FILETYPE | INCOMPAT_HAS_JOURNAL | INCOMPAT_META_BG;
+constexpr u32 RO_SPARSE_SUPER = 0x0001, RO_LARGE_FILE = 0x0002, RO_DIR_INDEX = 0x0004;
+constexpr u32 FAMILY_RO_MASK = RO_SPARSE_SUPER | RO_LARGE_FILE | RO_DIR_INDEX;
 
 /* S-027 backup-SB rescue bounds. Canonical ext4 group byte-size is
  * 8 * block_size^2 (bpg = 8*bs blocks): 8 MiB (1KiB blocks), 32 MiB (2KiB),
@@ -81,17 +97,17 @@ constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
 constexpr u64 MAX_GROUPS = 1ull << 26;  /* M-144: 64M groups = ~1 PiB @ 128 MiB/group
-                                          * (4K blocks, 64-B desc). The og is
-                                          * unbounded (FUN_1800047c0 :3404-3408
-                                          * allocates round_up(groups*desc_size,
-                                          * block_size) with no test); we keep a
-                                          * generous corrupt-SB guard that no real
-                                          * volume hits while the og's unbounded
-                                          * stance is documented as a deliberate
-                                          * hardening divergence in PARITY-DELTAS.
-                                          * GDT read is now chunked (8 MiB pieces)
-                                          * so the per-read length stays u32-safe
-                                          * for any legitimate volume. */
+                                         * (4K blocks, 64-B desc). The og is
+                                         * unbounded (FUN_1800047c0 :3404-3408
+                                         * allocates round_up(groups*desc_size,
+                                         * block_size) with no test); we keep a
+                                         * generous corrupt-SB guard that no real
+                                         * volume hits while the og's unbounded
+                                         * stance is documented as a deliberate
+                                         * hardening divergence in PARITY-DELTAS.
+                                         * GDT read is now chunked (8 MiB pieces)
+                                         * so the per-read length stays u32-safe
+                                         * for any legitimate volume. */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -210,6 +226,24 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     out.volume_name[16] = 0;
     out.valid = true;
     return true;
+}
+
+/* OQ-S52-1 (resolved): the family stamp per the og's decoded analyser
+ * rule. The 0x2c0 shape is ext4 (kind 9); the pre-ext4 family shapes
+ * (the og's compat-mask gates) stamp the family code 4 - which the og's
+ * twin-key set SHIFTS (M-133's {1, 4}); shapes the og's analyser would
+ * refuse (neither the family masks nor the 0x2c0 gate) keep the ext4
+ * stamp - no og behavior exists for them (the analyser refuses before
+ * any searcher runs), so the conservative unshifted pre-fix stamp stays.
+ */
+FsKindCode ext_family_kind(const SuperBlock& sb) {
+    if ((sb.feature_incompat & (INCOMPAT_EXTENTS | INCOMPAT_64BIT | INCOMPAT_FLEX_BG)) ==
+        (INCOMPAT_EXTENTS | INCOMPAT_64BIT | INCOMPAT_FLEX_BG))
+        return FsKindCode::Ext4; /* the strict modern-mkfs shape */
+    if ((sb.feature_incompat & ~FAMILY_INCOMPAT_MASK) == 0 &&
+        (sb.feature_ro_compat & ~FAMILY_RO_MASK) == 0)
+        return FsKindCode::Ext2; /* the EXT2/3 family code (the og's kind 4) */
+    return FsKindCode::Ext4;     /* og-analyser-refused shape: unshifted */
 }
 
 namespace {
@@ -802,7 +836,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
          * its span (the dead-front behavior the prior single-shot read
          * applied to the whole table). */
         v.gdt.resize(size_t(gdt_bytes));
-        constexpr u64 GDT_CHUNK = 8ull << 20;  /* 8 MiB per read */
+        constexpr u64 GDT_CHUNK = 8ull << 20; /* 8 MiB per read */
         bool any_read_ok = false;
         for (u64 off = 0; off < gdt_bytes; off += GDT_CHUNK) {
             const u32 take = u32(std::min(GDT_CHUNK, gdt_bytes - off));
@@ -889,14 +923,14 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
      * so it cannot collide with real inode numbers; the og's exact inode#
      * derivation is the finding's open question, preserved. */
     struct JournalInodeImage {
-        u32 synthetic_inum = 0;  /* journal-positional, never a real inode# */
-        u16 mode = 0;            /* 0x4000 dir or 0x8000 regular */
+        u32 synthetic_inum = 0; /* journal-positional, never a real inode# */
+        u16 mode = 0;           /* 0x4000 dir or 0x8000 regular */
         u64 size = 0;
         u32 flags = 0;
         u32 blocks_512 = 0;
         i64 atime = 0, ctime = 0, mtime = 0;
         u32 atime_nsec = 0, ctime_nsec = 0, mtime_nsec = 0;
-        std::vector<Extent> extents;  /* decoded from the inline extent root */
+        std::vector<Extent> extents; /* decoded from the inline extent root */
         bool extents_ok = true;
     };
     std::vector<JournalInodeImage> journal_inode_images;
@@ -918,8 +952,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             const u32 iflags = le32(p + I_FLAGS);
             const u16 ext_magic = le16(p + I_BLOCK);
             const u16 eh_entries = le16(p + I_BLOCK + 2);
-            if (size_lo == 0 || (iflags & EXTENTS_FL) == 0 ||
-                ext_magic != EXT4_EXT_MAGIC || eh_entries == 0)
+            if (size_lo == 0 || (iflags & EXTENTS_FL) == 0 || ext_magic != EXT4_EXT_MAGIC ||
+                eh_entries == 0)
                 continue;
             JournalInodeImage img;
             img.synthetic_inum = u32(0x10000000u + (jb << 10) + slot);
@@ -1156,8 +1190,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return ERR_NO_MEMORY;
             props->name = de.name;
-            props->name_raw = de.name_raw;          /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->logical_size = child.size;
             /* N-177 (diff-to-fix): the og's truncation-damage marker
              * (EXT4SearchDLL :6300-6303 - FUN_180007510's
@@ -1205,7 +1239,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     tree::FileProperties* root_props = new (std::nothrow) tree::FileProperties();
     if (root_props) {
         root_props->name = u"/";
-        root_props->fs_kind = u32(FsKindCode::Ext4);
+        root_props->fs_kind = u32(ext_family_kind(v.sb)); /* OQ-S52-1 */
         root_props->attributes = 0x10;
         root_props->record_ref = ROOT_INODE; /* S-025: the record index
                                               * answers the root chain */
@@ -1276,7 +1310,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             for (const char* p = buf; *p; ++p)
                 nm.push_back(u16(u8(*p)));
             props->name = nm;
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->logical_size = iv.size;
             /* N-177: same damaged-marker compute on the deleted path. */
             if (!is_dir && u64(iv.blocks_512) * 512 < iv.size)
@@ -1365,8 +1399,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return;
             props->name = de.name;
-            props->name_raw = de.name_raw; /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;
             tree::FileNode* n = tree.add_file(attach, props);
@@ -1418,8 +1452,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 break;
             props->name = de.name;
-            props->name_raw = de.name_raw; /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;
             tree::FileNode* n = tree.add_file(root_lost, props);
@@ -1454,12 +1488,11 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             for (const char* p = buf; *p; ++p)
                 nm.push_back(u16(u8(*p)));
             props->name = nm;
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->record_ref = img.synthetic_inum;
             props->logical_size = img.size;
             props->attributes = ifmt(img.mode) == 0x4000 ? 0x10 : 0;
-            props->times.created = unix_to_filetime_ns(img.ctime ? img.ctime : 0,
-                                                       img.ctime_nsec);
+            props->times.created = unix_to_filetime_ns(img.ctime ? img.ctime : 0, img.ctime_nsec);
             props->times.modified = unix_to_filetime_ns(img.mtime, img.mtime_nsec);
             props->times.changed = unix_to_filetime_ns(img.ctime, img.ctime_nsec);
             props->times.accessed = unix_to_filetime_ns(img.atime, img.atime_nsec);

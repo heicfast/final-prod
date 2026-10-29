@@ -272,3 +272,25 @@ order. 6 RED→GREEN tests in
 B2/A26/A25 journal-salvage rows are now MATCH (the inode-image surface
 joins the directory-block surface as the og's two-branch journal
 classifier).
+
+## Session-71 addendum — OQ-S52-1 resolved (2026-10-29)
+
+**The ext-family kind classification (the tracked-open item closed).** The
+analyser's verdict rule decoded first-hand (ExtFileSystemAnalyser :3616-3680,
+confirming and extending the S47 probe): the strict ext4 gate is
+feature_incompat == EXTENTS|64BIT|FLEX_BG (0x2c0, all three) with the
+desc_size==0x40 companion; the pre-ext4 family requires incompat within
+{FILETYPE, HAS_JOURNAL, META_BG} and ro_compat within {SPARSE_SUPER,
+LARGE_FILE, DIR_INDEX}, HAS_JOURNAL splitting ext3/ext2 inside the analyser's
+verdict space — which the ENGINE space collapses to the single family code 4
+(M-133's twin-key shift member; the DRWUI factory creates the EXT2 searcher
+for cases 4 AND 5 — the collapse is proven, the verdict→engine renumbering
+site itself is cross-DLL and not load-bearing). The display layer's verdict
+table decoded at DRWUI:1432740-1432815 (5=(EXT2), 6=(EXT3), 0x18=(EXT4),
+4=(NTFS), 9=(SWAP), 0xd=(REFS)...). Landing: `FsKindCode::Ext2 = 4`; the
+engine stamps `ext_family_kind(sb)` at every node/root site; twin_key_of's
+shift set extends to {Fat16, Ext2} = the og's {1, 4}; og-analyser-refused
+shapes keep the unshifted Ext4 stamp (no og behavior exists for them). Proof:
+`Ext4Engine.FamilyKindStampsPerDecodedAnalyserRule` (the four shapes) +
+`Grading.TwinKeyExt2FamilyShifts` (the previously-unexpressible shift leg) +
+the 5 prior M-133 pins. Suite 1541/1541.
