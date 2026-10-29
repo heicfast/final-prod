@@ -1027,11 +1027,16 @@ quotes: `evidence/decompiled-quotes/s50-landing-divergences.md`):
   — the M-098 landing's transcription error (the finding title itself
   wrong). Genuine HIK files lost the HIK id/name/extent (generic MPEG-PS
   grammar catches most content); BD-led streams falsely HIK-stamped.
-- **M-140 (MAJOR — NEW)** — the CSL/CD01 latch: the og's per-candidate
-  +0x120 latch permanently binds CD01-key candidates to the 0x44c sizing
-  and a declined read drops them (FUN_180041950 :49766-49798); the core's
-  decline fall-through carves via the `</svg>` walk / the bounded fallback —
-  the landed "retries other sizing" claim refuted by the decompile.
+- **M-140 (MAJOR — FIXED, the S65 lane)** — the CSL/CD01 latch: the og's
+  per-candidate +0x120 latch permanently binds CD01-key candidates to the
+  0x44c sizing and a declined read drops them (FUN_180041950 :49766-49798,
+  re-read first-hand at the fix); the core's decline fall-through REMOVED —
+  declined CD01 candidates return not-ok (no end-tag walk, no bounded
+  fallback; those serve the non-CD01 legs only). The M-112 "retries other
+  sizing" claim refuted by the decompile and corrected by erratum in the
+  M-112 Resolution + the re-truthed in-code comment. Tests:
+  CslCd01OutOfCapDeclinedIsDropped / CslShortCd01DeclinedIsDropped (both
+  RED pre-fix) with the success path + plain-SVG legs guarded green.
 - **N-189 (MINOR — NEW)** — the DXF canonical gate is 8 bytes
   ("  0\r\nSECTION") where the og requires the full 16-byte
   "  0\r\nSECTION\r\n  " two-qword pattern (:42258-42275); the N-152

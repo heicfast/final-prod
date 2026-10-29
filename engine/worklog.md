@@ -1,4 +1,25 @@
 
+## Session-65 S65 lane — M-140 lands (2026-10-29)
+
+- **M-140 FIXED (MAJOR, carve)** — the CSL/CD01 walker's decline
+  fall-through removed. Corpus re-verified first-hand: FUN_180041950
+  (RAWSearchDLL_decompiled.c:49749-49828) — the +0x120 latch fires on the
+  first CD01-key window (`goto LAB_1800419b2`), and every decline arm
+  (short-file `lVar6 < lVar5 + 0x450`, the +0x118 cap compare, zero
+  result) `goto LAB_180041b1c` (EXIT) with the size slot +0x10 unset —
+  the pending model drops the unsized candidate; the end-tag branch is
+  dead code once the latch fires. Fix: the CD01 branch in
+  validate_xmlsvg returns the not-ok result on decline (no fall-through);
+  the end-tag walk + bounded fallback serve the non-CD01 legs only; the
+  in-code comment re-truthed; the M-112 Resolution gained the erratum
+  note. Tests: CslCd01OutOfCapDeclinedIsDropped +
+  CslShortCd01DeclinedIsDropped (both RED pre-fix — re-pins of the two
+  M-112 decline tests that had asserted the fall-through),
+  CslSizeFieldExtendsPastCap + SvgLegUnaffectedByCslBranch guarded
+  unchanged-green; Carve family 156/156. Trail: finding + Resolution
+  moved to findings/FIXED/, ledger row, matrix cell, modules/carve.md,
+  SUMMARY block, this entry.
+
 ## Session-65 S65 lane — opens; M-142 lands (2026-10-29) (lane renamed S64->S65 at the rebase: the racing window took the S64 seat)
 
 - **Baseline:** core `24e480c4` at open (clean tree), corpus `be0cfe9`;

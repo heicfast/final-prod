@@ -48,8 +48,17 @@ the MINOR/MAJOR ladders (the SEVERE/ACUTE tiers are empty).
   corrected; CORPUS-ERRATA Session-64 row records the corpus deep-dive's
   misreading. RED 4/5 → GREEN 29/29 (HfsPlus family).
 
-**Board after this landing:** 0 ACUTE · 0 SEVERE · 19 MAJOR · 13 MINOR · 0 INFO
-active / 152 FIXED / 4 tracked-open. (Lane name S65 — the racing window took
+- **M-140 FIXED (MAJOR, carve)** — the CSL/CD01 decline fall-through removed:
+  the og's +0x120 latch (FUN_180041950, re-read first-hand) permanently binds
+  CD01-key candidates to the 0x44c sizing and drops declined reads (no
+  end-tag retry exists for latched candidates — the M-112 landing's
+  "retries other sizing" claim refuted and corrected by erratum). The two
+  M-112 decline tests re-pinned to the drop semantics (both RED pre-fix);
+  the success path and the non-CD01 legs guarded green; Carve family
+  156/156.
+
+**Board after this landing:** 0 ACUTE · 0 SEVERE · 18 MAJOR · 13 MINOR · 0 INFO
+active / 153 FIXED / 4 tracked-open. (Lane name S65 — the racing window took
 the S64 seat with its own worklog open; both lanes ride the same mandate.) (M-086/M-087/M-089/N-107/N-127 remain
 driver-repo-resident per OQ-S10-3's two-repo grant boundary.)
 

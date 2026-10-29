@@ -157,3 +157,10 @@ get names, so the FP is confined to results that should not exist).
 
 None — the latch decode is unambiguous (the `goto LAB_1800419b2` makes the
 control flow explicit in the decompile).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push — the S65 lane's second landing)
+**Verified by:** `Carve.CslCd01OutOfCapDeclinedIsDropped` (RED pre-fix: carved at the marker, GREEN: dropped), `Carve.CslShortCd01DeclinedIsDropped` (RED pre-fix: carved by the walk, GREEN: dropped) — both re-pins of the M-112 decline tests that had asserted the wrong fall-through; `Carve.CslSizeFieldExtendsPastCap` + `Carve.SvgLegUnaffectedByCslBranch` unchanged-green (the success path and the non-CD01 legs guarded); Carve family 156/156 green post-fix.
+**Resolution notes:** CONFIRMED-DIVERGENCE. The corpus re-verified first-hand: FUN_180041950 (RAWSearchDLL_decompiled.c:49749-49828) — the +0x120 latch fires on the first CD01-key window and `goto LAB_1800419b2` routes every subsequent call to the 0x44c branch; the decline arms (`lVar6 < lVar5 + 0x450` short-file, the +0x118 cap compare, `uVar4 == 0` zero) all `goto LAB_180041b1c` (EXIT) with the size slot +0x10 unset — the pending model drops the unsized candidate; no end-tag retry exists for latched candidates. The fix is the plan's stateless equivalent: inside the CD01-key branch, a declined 0x44c read returns the not-ok result (no fall-through); the end-tag walk and bounded fallback now serve only the non-CD01 legs (decl0/decl3 SVG, the csl-content leg, the "<svg " direct path). The in-code comment re-truthed (the "retries other sizing" claim replaced with the latch semantics); the M-112 Resolution gains the erratum note. No safety hardening was near this site.

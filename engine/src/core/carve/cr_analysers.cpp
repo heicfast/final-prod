@@ -3821,9 +3821,14 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
      * the PROBE stamps 0x5b (DAT_180093940 = 0x1CD, the same dword) -
      * NOT to the "csl"-content strstr leg (id 0x13, whose first dword
      * is "<?xm" and never fires the walker's latch). The override keeps
-     * the probe's stamp. Declination (short file / out-of-cap / zero
-     * result) falls to the end-tag walk exactly as the og's pending
-     * model retries other sizing. */
+     * the probe's stamp. M-140: Declination (short file / out-of-cap /
+     * zero result) DROPS the candidate - the og's +0x120 latch
+     * (FUN_180041950 :49766-49771, re-read first-hand) permanently binds
+     * CD01-key candidates to the 0x44c sizing; every decline arm goto
+     * EXIT with the size slot (+0x10) unset and NO retry through the
+     * end-tag branch (which serves the OTHER SVG legs only). The M-112
+     * landing's "falls to the end-tag walk" claim is corrected here and
+     * in the M-112 Resolution's erratum note. */
     if (n >= 4 && u32_from_bytes_le(win) == 0x000001cdu) {
         const u64 avail = s->size() > hit ? s->size() - hit : 0;
         if (avail >= 0x450) {
@@ -3841,6 +3846,10 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
                 }
             }
         }
+        /* M-140: the declined read ends the candidate - no end-tag walk,
+         * no bounded fallback (the og's latch semantics: unsized
+         * candidates are dropped by the pending model). */
+        return r;
     }
     const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
     const u64 marker_end = scan_tag_two_case(s, hit, limit, "</svg>");

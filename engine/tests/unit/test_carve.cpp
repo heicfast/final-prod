@@ -10777,9 +10777,14 @@ TEST(Carve, CslSizeFieldExtendsPastCap) {
         << "the probe's stamp for the CD01 key is 0x5b";
 }
 
-TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
-    /* dword + 0x480 > the 1 MiB cap: the branch declines, the end-tag
-     * walk sizes the file (the marker at a known offset) */
+TEST(Carve, CslCd01OutOfCapDeclinedIsDropped) {
+    /* M-140 re-pin: dword + 0x480 > the 1 MiB cap declines the branch and
+     * the og DROPS the candidate - the +0x120 latch (FUN_180041950
+     * :49766-49771, re-read first-hand) permanently binds CD01-key
+     * candidates to the 0x44c sizing; the declined read goto EXIT with
+     * the size slot (+0x10) unset and NO retry through the end-tag
+     * branch. The old "falls to the end-tag walk" claim was the M-112
+     * landing's misread of the control flow. */
     std::vector<u8> img(2 * 1024 * 1024, 0);
     const size_t at = 4096;
     img[at + 0] = 0xCD;
@@ -10787,7 +10792,7 @@ TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
     img[at + 2] = 0x00;
     img[at + 3] = 0x00;
     put32v(img, at + 0x44C, 0x200000);         /* + 0x480 > 0x100000: out of cap */
-    const char body[] = "<svg>yyyyyyyy</svg>"; /* the walk's marker */
+    const char body[] = "<svg>yyyyyyyy</svg>"; /* a marker the og NEVER consults for a latched CD01 candidate */
     std::memcpy(img.data() + at + 0x20, body, sizeof(body) - 1);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -10799,19 +10804,20 @@ TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
         u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
-    tree::FileNode* n = nullptr;
-    for (tree::FileNode* c : all)
-        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            n = c;
-    ASSERT_NE(n, nullptr);
-    EXPECT_EQ(n->props()->logical_size, 0x20 + sizeof(body) - 1)
-        << "declination falls to the end-tag walk";
+    for (tree::FileNode* c : all) {
+        ASSERT_TRUE(c->props()->extents.empty() ||
+                    c->props()->extents.front().offset != at)
+            << "a declined out-of-cap CD01 candidate must be DROPPED (the og's latch binds it to the 0x44c sizing - no end-tag retry)";
+    }
 }
 
-TEST(Carve, CslShortFileFallsToWalk) {
-    /* a candidate whose readable span is SHORTER than 0x450 never reads
-     * the field: place the CD01 magic < 0x450 from the DEVICE END so the
-     * field read cannot succeed - the end-tag walk sizes the file */
+TEST(Carve, CslShortCd01DeclinedIsDropped) {
+    /* M-140 re-pin: a candidate whose readable span is SHORTER than 0x450
+     * never reads the field - the declined read DROPS the candidate (the
+     * og's +0x120 latch binds CD01 candidates to the 0x44c sizing; the
+     * FUN_180041950 short-file arm is `lVar6 < lVar5 + 0x450 -> EXIT`, no
+     * size, no retry). Place the CD01 magic < 0x450 from the DEVICE END
+     * with a </svg> marker present - the og never consults it. */
     std::vector<u8> img(512 * 1024, 0);
     const size_t at = img.size() - 0x300; /* 0x300 < 0x450: no field read */
     img[at + 0] = 0xCD;
@@ -10830,13 +10836,11 @@ TEST(Carve, CslShortFileFallsToWalk) {
         u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
-    tree::FileNode* n = nullptr;
-    for (tree::FileNode* c : all)
-        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            n = c;
-    ASSERT_NE(n, nullptr);
-    EXPECT_EQ(n->props()->logical_size, 0x8 + sizeof(body) - 1)
-        << "the unreadable field declines; the walk owns the extent";
+    for (tree::FileNode* c : all) {
+        ASSERT_TRUE(c->props()->extents.empty() ||
+                    c->props()->extents.front().offset != at)
+            << "a short-file declined CD01 candidate must be DROPPED (no end-tag retry)";
+    }
 }
 
 TEST(Carve, SvgLegUnaffectedByCslBranch) {

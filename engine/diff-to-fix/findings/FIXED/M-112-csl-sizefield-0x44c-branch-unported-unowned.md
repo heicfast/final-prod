@@ -93,3 +93,15 @@ header ("stays unported") rewritten to record the landing. Corpus citations:
 RAWSearchDLL_decompiled.c :49749-49828 (the walker), :17291-17306 (the ctor);
 the .data constants DAT_180093918/180093940/180093968 binary-dumped from
 og-codebase/RAWSearchDLL.dll. No safety hardening was touched.
+
+**ERRATUM (M-140, the S65 fix lane):** the sentence above — "declination
+(short file / out-of-cap / zero result) falls to the existing
+walk/fallback exactly as the og's pending model retries other sizing" —
+is REFUTED by the decompile: FUN_180041950's +0x120 latch permanently
+binds CD01-key candidates to the 0x44c branch, and every decline arm
+`goto LAB_180041b1c` (EXIT) with the size slot (+0x10) unset — no
+end-tag retry exists for latched candidates (the end-tag branch is dead
+code once the latch fires). The correct behavior — decline DROPS the
+candidate — landed as M-140 (the fall-through removed; the two decline
+tests re-pinned to the drop semantics). The 0x44c success path and the
+ctor cap decode in this Resolution stand unchanged.
