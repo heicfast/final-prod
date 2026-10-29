@@ -2936,6 +2936,73 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
     }
 }
 
+/* ---- the S86 convergence riders over the racing DWG landing ---- */
+
+TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
+    /* the S86 rider A: the og's registered row floor is 0x15 = 21 (the
+     * CDWGRawInfo factory FUN_18002ff20's qword write at +0x110 -
+     * puVar1[0x22] = 0x15, the PNG/ONE ctor pattern [0x22]=min). A
+     * one-record walk ending at exactly 21 bytes emits at 21: RED at
+     * the first landing's tree (the residual 512-byte floor refused it
+     * AND the min-64 row rejected it at the emit gate); GREEN with the
+     * rider (the 512 floor gone from gen-1, the row min re-pinned). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "12");          /* R13 - a gen-1 member */
+    plant_dwg_locator(img, at, 1, {{5, 16}}); /* off 5 + size 16 = 21 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the 21-byte walked extent must clear the og's own floor";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(21)) << "off 5 + size 16";
+}
+
+TEST(Carve, DwgWalkSelfLimitsAt256Records) {
+    /* the S86 rider B: the og's id-sequence gate compares the id byte
+     * against the FULL 32-bit running counter (raw-asm 0x18002f40a:
+     * movzbl the id, `cmp %ecx,%eax` with ecx the counter) - no byte can
+     * match a counter >= 256, so the walk SELF-LIMITS at 256 records. A
+     * count>256 fixture with wrapped ids (record 256 carrying id 0) is
+     * accepted by the u8(i) truncation and refused by the og. RED at the
+     * first landing's tree (the fixture carved); GREEN with the rider. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "15");
+    /* 300 records: the plant stamps id=u8(i) per record - records 0..255
+     * carry their true ids, records 256..299 carry the wrapped ids
+     * (u8(256)=0 ... u8(299)=43) - exactly the shape the u8(i)
+     * truncation accepts and the og's full-counter gate refuses */
+    const u32 count = 300;
+    std::vector<std::array<u32, 2>> seeker_size;
+    /* each record's end = 0x100 + 0x800 = 2304 >= 512 so the residual
+     * 512 floor never refuses the fixture - the counter gate is the
+     * ONLY thing under test (rider A's floor is proven separately) */
+    for (u32 i = 0; i < count; ++i)
+        seeker_size.push_back({0x100, 0x800});
+    plant_dwg_locator(img, at, count, seeker_size);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ASSERT_TRUE(!(c->props() && c->props()->extents.front().offset == at))
+            << "a count>256 fixture with wrapped ids must refuse (the og's "
+               "full-counter gate self-limits the walk)";
+}
+
 size_t plant_psp(std::vector<u8>& img, size_t at);
 
 TEST(Carve, PspBkBlockChainWalkSetsExtent) {

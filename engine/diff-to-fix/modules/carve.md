@@ -1278,3 +1278,16 @@ with wrapped ids that the og refuses). RED→GREEN for both riders at the
 racing tree: DwgRowCarriesTheOgsRegisteredFloor (the 21-byte walked
 extent refused by the 512 floor AND the min-64 row) and
 DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
+
+### The S86 riders landed (the rider commit, this session)
+
+Both convergence riders over the racing DWG landing: (A) the row floor
+0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed
+from the gen-1 walk) and (B) the id-sequence gate against the FULL
+32-bit counter (u32(rec[0]) != i - the walk self-limits at 256 records).
+RED→GREEN at the pre-rider tree via the stash dance; the racing landing's
+own six DWG tests stay green (8/8 at the landed tree). The de-confound
+note: rider B's first fixture (320-byte extent) passed at the pre-rider
+tree for the wrong reason (the 512 floor) - the fixture now carries
+2304-byte per-record ends so the counter gate is the only refusal under
+test.

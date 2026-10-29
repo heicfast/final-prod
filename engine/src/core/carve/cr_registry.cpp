@@ -443,12 +443,18 @@ const Signature kTable[] = {
      * constant - the child walk's cap check at raw-asm 0x18002f5ee
      * (`imul $0x64,0x70(%rax)`): singleton+0x70 (0xbebc200 = 200 MB)
      * x 100 = 0x4A817C800 (20 GB). The 64 MiB stand-in value is gone. */
+    /* the S86 convergence rider: the row floor re-pinned to the og's
+     * registered 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword
+     * write at +0x110 - puVar1[0x22] = 0x15, the PNG/ONE ctor pattern
+     * [0x22]=min/[0x23]=max; the SAME write seeds the gen-1 walk cursor).
+     * The max stays the first landing's 0x4A817C800 (100 x the engine
+     * default 200 MB, the LAB_18002f5e9 sanity). */
     {FMT_DWG,
      "dwg",
      {'A', 'C', '1', '0'},
      4,
      0,
-     64,
+     0x15,
      0x4A817C800ull,
      620,
      validate_dwg,

@@ -44,6 +44,20 @@ zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
 
+**The two riders LANDED (the rider commit, this session):** (A) the row
+floor 0x15 = 21 (the gen-1 walk's residual 512-byte floor removed +
+cr_registry's min re-pinned to 0x15) and (B) the id gate
+`u32(rec[0]) != i` (the full 32-bit counter; the walk self-limits at 256
+records). RED→GREEN at the pre-rider tree, the stash dance, for both:
+rider A's DwgRowCarriesTheOgsRegisteredFloor RED (the 21-byte extent
+refused by the 512 floor AND the min-64 row); rider B's
+DwgWalkSelfLimitsAt256Records RED with the de-confounded fixture (300
+records at 0x900 per-record ends - the first attempt's 320-byte extent
+tripped the 512 floor at the pre-rider tree and PASSED for the wrong
+reason; recorded so the fixture evolution stays truthful). The racing
+landing's own six DWG tests stay green under the riders: 8/8 at the
+landed tree.
+
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
