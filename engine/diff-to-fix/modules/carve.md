@@ -1439,6 +1439,32 @@ WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
 
+## S91 addendum 2 — M-107 member 9: the SIT next-entry walk (2026-10-30)
+
+**SIT LANDED** (three members remain: APE, SWF-RECT + the DWG gen-3
+R2007 remainder). The og's walk (raw-asm decoded first-hand; evidence:
+`../evidence/s91-lane-sheets/s91-l2-sit-entry-walk-decode.md`): the
+tier-1 (FUN_180015a20) is the 7-byte "StuffIt" gate stamping ONLY the
+id — the extent comes from the child processor (FUN_180015d70, fed per
+512-byte chunk): the walk gates the terminator at each sector-aligned
+position — the classic 8-byte "StuffIt "/"StuffIt!" next-archive
+header or the {Stuf/WEBB + "AIKE" + checksum 0x7bbd74a3} wrapper
+family — with the walk cap 10 × max = 2 GB and **size = (chunk − hit +
+1) × 512** on finalize (the end of the sector containing the
+terminator). A no-terminator SIT does not carve in the og (the 2 GB
+cap extent row-rejects); the device-end torn case salvages the walked
+bound.
+
+Row verdict: A25/A27/A47 for SIT **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: SitNextEntryWalkSetsExtent /
+SitUnalignedNextEntryDoesNotStopTheWalk /
+SitWebbAikeTerminatorStopsTheWalk (all RED at the stand-in via the
+stash dance) / SitTornAtDeviceEndSalvagesTheWalkedBound (the
+regression pin) / SitMinimumIsTheOgFloor (unchanged, green). The carve
+suite 206/206.
+
+---
+
 
 ---
 
@@ -1492,6 +1518,10 @@ override-target pattern). RED→GREEN via the validator-only stash
 dance (the strengthened WpdSecondAndThirdRecordsCarve); the WPD
 battery 7/7; the full suite 1705/1705. **The A25/A27/A47 rows for the
 WPD slice stay MATCH — now with the sub-format ids faithful.**
+---
+
+---
+
 >>>>>>> origin/main
 
 ---
@@ -1511,7 +1541,45 @@ The plants re-pinned both arms (the real RECT + the real compress2
 stream). Five RED→GREEN tests + the happy-path pin; the carve suite
 216/216. The member enumeration closes: 11 of 11 landed (the APE
 walk and the DWG gen-3 remainder are the recorded remainders).
-## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
+
+---
+
+## Session-89 fix lane, entry 2 (2026-10-30 — the M-107 SWF-RECT member: the validation-only walk)
+
+- **M-107 member 11 (SWF-RECT) LANDED**: the finding's open question 3
+  answered first-hand — the RECT parse is VALIDATION-ONLY (the extent is
+  the FileLength in both paths, the caller's stamp). The FWS walk: the
+  RECT geometry gate (nbits >= 2, the four sign-magnitude fields, both
+  axes 0 <= min < max — raw-asm 0x180026b3e-0x180026b5b). The CWS
+  gates: the version window [6,20] (the compressed form exists only from
+  SWF 6 — the pre-fix core accepted [3,20], the discovered divergence)
+  + the zlib CMF low-nibble == 8 (the deflate method); the og's
+  inflate-then-RECT validation is the registered follow-up (the GZ
+  no-inflate precedent). Tests: SwfRectGeometryGateRejectsDegenerateRect
+  / SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo /
+  SwfCwsVersionGateIsSix / SwfCwsZlibCmfNibbleRequired (5/5 RED at the
+  pre-fix tree via the stash dance); the SWF plants re-pinned; the full
+  suite 1721/1721. Rider: the S91 window's duplicate
+  WpdZeroSizeFieldDeclines definition merged (the N-210 class, NINTH
+  occurrence). Remaining members: APE only.
+## Session-89 fix lane, entry 3 (2026-10-30 — the SIT RECONCILIATION: the architecture decides)
+
+- **The SIT member re-landed per the corpus-true arbitration**: the SIT
+  node's wrapper vtable (0x180067890) carries the +0x40 STUB — the
+  secondary-first consult never fires for a "Stuf" candidate, so the
+  PRIMARY processor (FUN_180015d70 + the search FUN_180015b60) is the
+  scan-path authority. The racing lane's semantics land: the three full
+  8-byte end magics (the extent = the magic's END), the stream-end drop
+  (no magic + no next header → NO carve), the ' '-form next-header-only
+  walk (the stand-in retired), the 2 GB cap (max × 10). The S89 lane's
+  surviving repairs: the byte[7] ∈ {' ', '!'} acceptance window + the
+  512-aligned next-header translation. The FileSITAnalyser's stride
+  table and corrupt-entry terminal are the secondary's own semantics —
+  preserved in M-107's record, withdrawn from the scan path. The
+  corrupted merge artifact (the mangled plant body) rewritten as the
+  flavor-aware plant. 11/11 SIT tests green (both batteries); the full
+  suite 1729/1729. Rider: the racing window's duplicate
+  WpdZeroSizeFieldDeclines merged (the N-210 class, NINTH occurrence).## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
 
 The open question answered: the RECT walk NEVER changes the extent —
 the og's caller stamps FileLength unconditionally on the deep gate's
@@ -1525,7 +1593,10 @@ SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
 three rejection tests RED at the pre-fix tree). Suite 1724/1724.
 **The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
 the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+>>>>>>> origin/main
+---
 
+---
 ## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
 
 This lane's independent three-generation decode (evidence/s86-lane-sheets/
@@ -1561,3 +1632,7 @@ tests + this lane's four CWS tests + the flipped pin. **The
 eleven-member enumeration closes** (the DWG gen-3 R2007 remainder
 is the finding's precisely-scoped recorded residue). M-107 moves to
 FIXED/.
+
+---
+
+>>>>>>> origin/main

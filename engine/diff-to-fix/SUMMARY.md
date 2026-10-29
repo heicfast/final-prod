@@ -24,7 +24,7 @@
   routing), and the WPD duplicate repair (conceded to the window's
   N-230 delete form, both framings recorded there).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+**Board at the S86 close (filesystem truth): 0 ACUTE · 0 SEVERE ·
 4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3 tracked-open** —
 M-086/M-087/M-089 + N-107/N-127 driver-repo-resident (out of grant);
 M-107 down to the DWG gen-3 R2007 remainder only (every other member
@@ -216,6 +216,19 @@ TTFR dispatch attempt.
   `e3f34b67` behind the v0.6.0 notes' "1700+ tests" claim) — deduped
   to the S87-continuation form, no coverage lost. **M-107 now has ONE
   member remaining: SWF-RECT** (+ the DWG gen-3 recorded remainder).
+
+- **N-232 FIXED (MINOR, NEW — the gate false-red at the post-landing
+  verification; renumbered from the born-collided N-231 at the collision
+  repair — b4bb09f6's earlier push holds N-231):** the win_syntax_check gate's N-228 test-file section
+  discovered the gtest include only under the preset layout
+  (`build/*/_deps/...`); a direct `cmake -B build` configure (this
+  lane's own layout) drops FetchContent at `build/_deps/...` — the
+  gate FAILed on a healthy tree whose 13 src/win files all parse.
+  The flat-layout candidate added to the discovery loop (one line);
+  the not-found-is-failure posture unchanged; 18/18 ok on the flat
+  tree (the section's 5 test files now actually run). Lesson: a gate
+  that assumes one layout convention makes every other layout a false
+  red — and false reds teach lanes to bypass gates.
 
 - **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
   follow-the-data decode executed in full — the walk driver FUN_18001d460
