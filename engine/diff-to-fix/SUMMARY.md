@@ -491,6 +491,14 @@ first-hand; every fix RED-test-first.
   worklog's session-42 false-green claim dated per the 1233b4a0 precedent; the
   code was already green at HEAD — record-truth only).
 
+- **N-184 FIXED** — the preview media metadata families (four bounded head-window
+  extractors: AVI avih/LIST walk, Matroska EBML vint grammar, FLAC STREAMINFO, MP3
+  ID3-skip + bitrate estimate; the M4A/MOV ftyp-branch pin; the UTF-16-BOM/MP3-sync
+  collision caught by the two BOM text tests and excluded; 5 RED→GREEN tests, two
+  real bugs caught by the pin during the RED pass; suite 1341/1299/42/0).
+
+- **N-165 FIXED (S46/S57 convergent — the S57 stance stands)**
+
 **Board (filesystem truth, running): 61 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 25 MINOR · 0 INFO / 77 FIXED files / 5 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
