@@ -9024,4 +9024,45 @@ designed). Suite 1403/1403.
 
 
 
+## Session-52-B convergence lane — the A-014 convergence + the committed-red window repair (2026-10-29)
 
+**Lane identity:** opened as the session-45 severe-first diff-to-fix lane at core
+`659f0f6c` (mandate saved token-redacted at `worklog/session-52b-diff-fix-prompt.md`);
+renumbered session-52-B at the hot-window reconciliations per SA-9.
+
+**A-014 — CONVERGENT with four prior landings (S45 `862d79ef` / S51 / S47 / S56).**
+This lane re-read the three zero-on-fail `DosDateTimeToFileTime` slots first-hand
+(FATSearchDLL:32135-32154), built the byte-equivalent gate, and proved it
+RED→GREEN by the stashed-header rebuild (6/6 FAILED pre-fix, the boundary guard's
+expected value corrected 1738852798 → 1738886398 pre-commit). The five redundant
+unit pins dropped per SA-9 at the first reconciliation (the merged S45+S51 battery
+is the superset). **Three unique supplements ride this push as addendum IV in
+findings/FIXED/A-014:** (1) the exFAT twin's own three zero-on-fail slots quoted
+directly (exFATSearchDLL:45174-94; the citation corrected: the exFAT access call
+passes a REAL time word — the time-0 form is the FAT twin's alone); (2)
+`FatEngine.AccessSlotStampsDateAtMidnightWhenTimeWordInvalid` — the third slot's
+independence pin; (3) the 0x5A46 decode erratum extended to the live fixture
+comment (test_fat_volume.cpp:169, 2022-01-06 → 2025-02-06). The ASan
+sentinel-walk discovery (TsM2TsCap/TsStreamClampedAt200MB walking kTable with no
+terminator) was independently made here BEFORE the pull and converged with the
+earlier `f8f01513` repair.
+
+**The 625a1e59 committed-red window repair (4th M-133/N-157 instance).** Main was
+RED at the merge head (5 red tests + compile-red; executed proof at the full-suite
+run): the ext4 duplicate TEST definition (two N-177 lanes' same-name test), the
+M-134 grading e1/e2 unused rows, the S-058 re-pin's crossed fixtures (a.zzqx
+asserted "in-table (DOC)" — the engine gate verified at
+cr_grading.cpp:extension_in_grading_table → continue, the fixtures un-crossed to
+a.doc/c.zzqx), the N-171 validated double-tick (carved_found double-counted every
+user-sign record; the erratum addendum in findings/FIXED/N-171), and the twelve
+user-sign registry leaks (the decisive leak: the default set's lha sign 2,2D6C68
+re-matched the LZH wrong-dash fixture; the polluter isolated by binary search over
+the ordered Carve list; reproduced at ff5b96ad — the window's green claims ran
+sub-filters). The 82-commit window's own repair lanes converged on items 1-4 +
+eleven teardowns — their landing is the fix of record per SA-9; THIS push carries
+the three remaining teardowns (CarveStats.UserSignFilesCountInCarvedFound /
+UserSigns.RegistrationRoundTripProceedsToScan / UserSigns.ShortFragmentMatchesInCore),
+the access-slot pin, and the A-014/N-171 addenda. Board re-counted at the merged
+tree: 55 active (0 ACUTE · 3 SEVERE · 24 MAJOR · 26 MINOR · 2 INFO) / 128 FIXED /
+4 tracked-open. Next for the continuation lanes: S-040, S-063, S-065 — the
+remaining SEVERE tier.

@@ -166,7 +166,7 @@ std::vector<u8> build_fat16_image() {
     u8 chk = lfn_checksum(name11);
     make_lfn_slot(root + 0 * 32, 0x42, chk, u"ment_v1.txt"); /* seq2|last */
     make_lfn_slot(root + 1 * 32, 0x01, chk, u"readme_docu"); /* seq1 */
-    make_dentry(root + 2 * 32, "README~1TXT", 0x20, 10, 1200, 0x5A46 /*2022-01-06*/, 0x6000, false);
+    make_dentry(root + 2 * 32, "README~1TXT", 0x20, 10, 1200, 0x5A46 /*2025-02-06*/, 0x6000, false);
     make_dentry(root + 3 * 32, "DEL     TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
     make_dentry(root + 4 * 32, "GONE    TXT", 0x20, 30, 500, 0x5A46, 0x6000, true);
     make_dentry(root + 5 * 32, "SUBDIR     ", ATTR_DIRECTORY, 5, 0, 0x5A46, 0x6000, false);
@@ -2961,6 +2961,49 @@ TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
     ASSERT_NE(z, nullptr) << "the 2107-dated dentry must be a result";
     EXPECT_EQ(z->props()->times.modified, 4354776000ULL * 10000000ULL + 116444736000000000ULL)
         << "the 2107 date converts fully (the og has no cutoff)";
+}
+
+/* A-014 convergence note (S52-B severe-first lane): this lane's five unit
+ * boundary tests were DROPPED at the hot-window reconciliation - the
+ * earlier S45/S51 pushes landed the byte-equivalent gate and the same
+ * boundary pins (TimeWordHour24YieldsZeroFileTime &c. above); per SA-9
+ * the merged battery is the superset. The unique supplement survives
+ * below: the third-slot access-date pin. */
+
+TEST(FatEngine, AccessSlotStampsDateAtMidnightWhenTimeWordInvalid) {
+    /* A-014 convergence supplement (the S52-B severe-first lane): the og's
+     * THIRD DosDateTimeToFileTime call (FATSearchDLL_decompiled.c
+     * :32151-32154, re-verified raw at 0x180028a51) converts the ACCESS
+     * date with time 0 - so an invalid WRITE-time word zeroes the
+     * create/write slots but NEVER the access slot, which keeps the real
+     * date-at-midnight. The merged battery (the S45/S51 pins) covers the
+     * create/write zeroing with distinct times; this pin holds the third
+     * slot's independence so a future "gate the whole timestamp set"
+     * regression cannot pass unnoticed. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* cluster 15 carries an EOC chain in the fixture; reuse it. Slot 6 =
+     * the first free root slot, contiguous with the base dentries (the
+     * scan stops at the first 0x00 slot, FAT end-of-directory). */
+    make_dentry(root + 6 * 32, "BADTIME TXT", 0x20, 15, 100, 0x5A46, 0xC000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* b = find_node(tree, "BADTIME.TXT");
+    ASSERT_NE(b, nullptr) << "the bad-time dentry is still a result (N-021: "
+                             "invalid dates never delete the entry)";
+    EXPECT_EQ(b->props()->times.created, 0ULL)
+        << "hour 24 zeroes the create slot (DosDateTimeToFileTime failure)";
+    EXPECT_EQ(b->props()->times.modified, 0ULL)
+        << "hour 24 zeroes the write slot";
+    EXPECT_EQ(b->props()->times.accessed,
+              1738800000ULL * 10000000ULL + 116444736000000000ULL)
+        << "the access slot passes time 0 and keeps the real date";
 }
 
 /* ===================================================================== */

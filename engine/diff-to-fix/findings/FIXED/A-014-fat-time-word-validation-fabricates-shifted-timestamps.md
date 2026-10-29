@@ -147,7 +147,6 @@ invalid date (the N-021 class; the og zeroes that slot regardless of the time wo
 so the example never isolated the time-word class; the clean word for the intended
 example is 0x58CC (2024-06-12) or the S45 tests' 0x5A46 (2022-01-06).
 
-<<<<<<< HEAD
 ### Convergence addendum #2 (session-52 lane, 2026-10-29)
 
 A third independent verification (this lane opened at core `fa654673` before the window's
@@ -169,7 +168,6 @@ datetime-fields predicate (the exact 0x1f0000/month/0xf800/0x7e0/0x1f checks the
 `fat_datetime_fields_ok` mirrors, exFATSearchDLL:1756-1775), with `FUN_180002f90` the
 file-dentry wrapper calling it per timestamp — the S51 record's `FUN_180002f40` cite and
 the repo's own cr_exfat_quick.cpp:318 wrapper cite are both confirmed correct.
-=======
 ### Convergence addendum II (session-47 severe-first lane, 2026-10-29)
 
 Third independent verification, by a DIFFERENT method: raw disassembly of the corpus
@@ -190,9 +188,6 @@ per-slot-zeroing shape with distinct create-vs-write times - is the superset). T
 exFAT sibling's FUN_180002f40 boundary-set cross-check (hour<0xB801 / min<0x761 /
 2s<0x1E) performed from the in-tree decode confirms the shared helper's reject set
 matches the og's own field gate exactly.
-<<<<<<< HEAD
->>>>>>> b1b5eba0590fec0a8aca858737462cb41db29e03
-=======
 
 ### Convergence addendum III (this lane, 2026-10-29)
 
@@ -206,4 +201,44 @@ observation (the M-014 gate only rejects the all-three-invalid class, so single-
 overflows previously leaked through the shared helper on exFAT too) was this lane's
 independent catch — the S45/S51 resolutions' "verified unaffected" claim holds only
 for the all-three class; the tightened shared helper is a strict improvement there.
->>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
+
+### Convergence addendum IV (session-52-B severe-first lane, 2026-10-29 — renumbered at the 82-commit-window reconciliation; the S56 lane's addendum III pushed first)
+
+Fifth independent verification (the exFAT TWIN's dentry-converter slots are this
+lane's unique contribution beyond the four FAT-side verifications); this lane's
+contributions, surviving on the merged tree per SA-9:
+
+1. **The exFAT TWIN's zero-on-fail slots, quoted directly** (a citation the prior
+   addenda reached only via the FUN_180002f40 structural gate):
+   `exFATSearchDLL_decompiled.c:45174-45194` carries the same three
+   `DosDateTimeToFileTime` dentry conversions (the create stamp :45174-45180
+   -> node+0x34, the modify stamp :45181-45187 -> node+0x3c, the access
+   stamp :45188-45194 -> node+0x44), each with the identical
+   `if (BVar2 == 0) DAT_180064e30 = 0;` zero-on-fail — the direct first-hand
+   proof that the og's exFAT engine zeroes each slot on its own conversion
+   failure exactly like the FAT engine (not merely at the dentry-acceptance
+   gate). The tightened shared helper is therefore parity-positive on both
+   engines. (Citation correction, recorded at merge time: the exFAT access
+   call passes a REAL time word — `(WORD)param_2[3]` — unlike the FAT twin's
+   third call, which passes time 0; the time-0 form belongs to the FAT
+   engine alone, FATSearchDLL :32151.)
+2. **The third-slot access pin** `FatEngine.AccessSlotStampsDateAtMidnightWhenTimeWordInvalid`
+   (test_fat_volume.cpp, riding this lane's push): the merged battery pinned
+   create/write zeroing and per-slot independence between create and write;
+   this pin holds the ACCESS slot's independence — the og's third call passes
+   time 0 (raw-confirmed at 0x180028a51), so an invalid write-time word can
+   never zero the access slot, which keeps the real date-at-midnight. Closes
+   the last unpinned slot of the three.
+3. **The 0x5A46 decode erratum, extended to the live fixture comment:** the
+   finding's own "0x65C4" example was corrected by addendum I, but the SAME
+   mistranslation lived in the live fixture comment at test_fat_volume.cpp:169
+   (`0x5A46 /*2022-01-06*/`) and was REPEATED by addendum I's first push
+   ("the S45 tests' 0x5A46 (2022-01-06)"). The correct decode is **2025-02-06**
+   (year bits 45 -> 1980+45 = 2025, month bits 2, day 6) — as the S45 tests'
+   own comments correctly state at :304/:1766/:1785 and as
+   `ValidTimeWordBoundaryUnchanged` numerically proves (0x5A46@12:00 = unix
+   1738843200 = 2025-02-06). The fixture comment is re-truthed this lane.
+4. This lane's fail-before proof was executed by the stashed-header rebuild (the
+   six-test battery 6/6 FAILED pre-fix, including the boundary guard with the
+   corrected expected value 1738886398) before the hot-window reconciliation
+   dropped the redundant five unit pins in favor of the merged superset battery.

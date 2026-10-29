@@ -86,3 +86,19 @@ separate N-140-adjacent question (its counter is `sign_validated`) — not touch
 this lane touched it — filed as **N-193** (renumbered from its N-188 draft seat at the S56 collision repair — the §8 discovery) and fixed in the same
 landing (the emission-site tick + `CarveStats.StockRawSignFilesCountInCarvedFound`,
 RED via the executed probe sign_hits=1/validated=0).
+
+### Erratum addendum (session-52-B lane, 2026-10-29 — the hot-window double-tick regression, caught and repaired; convergent with the 82-commit window's own canonical repair)
+
+The S45..S57 window's merge (`676b2785`, "N-171's validated tick RE-LANDED on the
+merged user-sign arm") landed the tick a SECOND time in cr_carve.cpp's user-sign
+emission block — two `ctx.validated.fetch_add(1)` calls back-to-back, each with its
+own N-171 comment. On committed main every user-sign record therefore double-counted
+`validated` (and the carved_found headline read from it): the engine test
+`CarveEngine.UserSignFilesCountInCarvedFound` was red on main (validated == 2 for one
+record). Executed proof: full-suite run at the merge — 5 red tests; the carve half
+traced to the duplicated increment. This lane's repair removed the duplicate
+independently; the 82-commit window's repair lanes converged on the same single-tick
+canonical form (their block carries the four-lane convergence comment) and their
+landing is the fix of record per SA-9. The regression class is the M-133/N-157
+hot-window collision family (fourth instance this session); both sides' records
+kept.
