@@ -1084,27 +1084,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                          * (GetRawUserInfoMap, FUN_18000ed00
                          * insert-or-increment). */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
-                        /* N-171 (re-landed on the merged S-055/S-056
-                         * shape; the hot-window merge had kept BOTH
-                         * tick blocks - the F-A3-6 double-count class,
-                         * repaired): the record IS validated (the sign
-                         * matched); carved_found is assigned from
-                         * cs.validated (cr_scan.cpp), so the headline
-                         * carved count now includes the user-sign
-                         * channel instead of silently omitting the
-                         * whole default-on set. */
+                        /* N-171 (re-landed on the merged S-055/S-056 shape;
+                         * the SECOND hot-window merge re-duplicated the tick
+                         * blocks - the F-A3-6 double-count class, repaired
+                         * again): the record IS validated (the sign matched);
+                         * carved_found is assigned from cs.validated
+                         * (cr_scan.cpp), so the headline carved count includes
+                         * the user-sign channel instead of silently omitting
+                         * the whole default-on set. The og's own counting
+                         * surface counts analyser detections the same way
+                         * (GetRawUserInfoMap, FUN_18000ed00
+                         * insert-or-increment). */
                         ctx.validated.fetch_add(1, std::memory_order_relaxed);
-                        /* N-171 (convergent landing, session-55 + session-44):
-                         * the emission ticks `validated` too - the counter the
-                         * orchestrator's carved_found headline reads
-                         * (cr_scan.cpp: stats.carved_found = cs.validated);
-                         * the entire default-on user-sign channel was
-                         * invisible in the carved count when only sign_hits
-                         * ticked. The og's own counting surface counts
-                         * analyser detections the same way (GetRawUserInfoMap,
-                         * FUN_18000ed00 insert-or-increment). */
-                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
-                        ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
                         continue;
                     }
