@@ -10481,3 +10481,49 @@ is **never** written to disk, never logged, never committed. The push
 used `CR_TOKEN=<redacted>` inline env var on the `git push` command.
 **The user must revoke the exposed token at
 was visible in the original prompt transcript.
+
+---
+
+---
+
+
+## Session-77 S77 lane — the MAJOR-first diff-to-fix execution lane opens (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-diff-fix-s77-prompt.md` (the S75 lane's worklog-open commit
+rebased over the racing windows — no S75 finding landed before this lane's
+seat; the S75 plan's queue is inherited). **The S76 seat conceded to the
+racing MINOR-first lane per SA-9** (their `88b1e8d4` open record: the MINOR
+ladder in FORWARD order N-131 → N-140 → N-144 → N-145 → N-178 → N-181 →
+N-182 → N-201 → N-212 — DISJOINT from this lane's MAJOR-first queue; the two
+lanes together cover the full in-scope board; this lane concedes any MINOR
+seat they land first and announces the MAJOR queue below). The user's fix mandate ("priority
+to major first", 20+ fixes, one finding / one verified fix / one push, fixed
+findings placed in findings/FIXED/). **The racing S73 lane's M-143 landing
+(`84784c63`) absorbed at this lane's open** — conceded per SA-9, convergent
+with the inherited queue's own tail. Corpus `be0cfe9` throughout.
+Audited-commit pins carried per finding — every finding re-verified against
+the corpus and the current tree before any change.
+
+**The racing S71 lane's M-136 re-landing (`d28244df`, convergent with the
+S72 lineage's `2fb0cb95` — the rebase window's earlier-push-wins resolution)
+absorbed at this lane's open, including its M-135 truthfulness seam
+(`SafeWriter::set_read_error_source`). Board re-counted first-hand from
+the filesystem at open, post-M-143 + post-M-136-relanding (correcting the
+1ec36d6c commit message's "10 N" miscount):** 0 ACUTE · 0
+SEVERE · **13 MAJOR · 11 MINOR · 0 INFO active / 161 FIXED / 4 tracked-open**
+(M-086/M-087/M-089 + N-107/N-127 driver-repo-resident per OQ-S10-3's
+two-repo grant boundary — counted active-open, not fixable in core;
+**10 MAJOR + 9 MINOR in-scope** + 4 tracked-open). Next free IDs: S-068+,
+M-149+, N-213+, I-048+, A-016+, D-149+.
+
+**Lane plan (MAJOR-first per the user's directive, inheriting the S75
+announced queue minus the conceded seats; the racing S76 lane owns the MINOR
+ladder):** M-118 (lostpart register
+channel) → M-113 (recovered-OS boot surgery) → M-105 (DRWService install
+lifecycle) → M-111 (Explorer partition browse) → M-114 (System-Restore
+purge decision) → M-107 (per-format size-walk) → M-135 (recovery
+read-failure semantics — re-scoped against the S71 landing's
+set_read_error_source seam) → M-073/M-075/M-078/M-101 (the driver/launcher/UI
+tail) → the 9 in-scope MINORs → the tracked-open set. Baseline suite green
+before the first change; every fix RED-proven pre-fix and GREEN post-fix.
