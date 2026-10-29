@@ -5145,6 +5145,28 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
  * CIFF header `II/MM 1A 00 00 00 HEAP CCDR/TIFP/ARCH 02`. The og's CIFF heap
  * size-walk (FUN_180052160) is the recorded follow-up; the DWG-pattern
  * bounded extent stands in. */
+/* M-107 (the CRW member, the finding's decode-then-land order, member 2
+ * of 11): the og's CIFF heap size walk, decoded first-hand from the raw
+ * asm this session (objdump over RAWSearchDLL.dll; the walk = the CRW
+ * child's vtable 0x18006e008 slot +0x08 = FUN_180052150 -> the body
+ * FUN_180052160): sector-stepped from the file start with the walker's
+ * OWN cap 0x3200000 = 50 MiB (raw-asm 0x18005219d `mov r15d,0x3200000`);
+ * non-zero-tailed sectors are skipped (the streaming chunk-tail gate -
+ * the registered model divergence, same stance as X3F), zero-tailed
+ * sectors are searched for CIFF directory entries of the shape
+ * {u16 type == 0x2807, u32 length in {0xa8, 0xb2, 0xe4}} (the three
+ * 6-byte signatures built at 0x1800521a3-0x1800521c4: 07 28 XX 00 00
+ * 00); a hit stamps extent = entry_position + the length's tail
+ * constant from the walker's own table ({0xa8 -> 0x46, 0xb2 -> 0x3c,
+ * 0xe4 -> 0x32} - the map built at 0x1800521dc-0x18005234b, the values
+ * written at 0x18005224f/0x1800522cb/0x18005234b); no entry anywhere in
+ * range -> the loop-exit stamps the CAP itself (the 50 MiB walked bound
+ * - raw-asm 0x180052641's r15 reset and the exit at 0x1800526d7). The
+ * og's backup-80 re-probe (0x18005264d: the prefix parse at pos-0x50 ->
+ * extent = pos + sector_size) is the streaming model's straddle
+ * artifact - the unconditional windowed search subsumes it (the same
+ * registered divergence class). The old blind 64 MiB stand-in and its
+ * comment are GONE. */
 CarveResult validate_crw(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[0xF];
@@ -5163,9 +5185,66 @@ CarveResult validate_crw(IStorageDevice* s, u64 hit, u64 cap) {
     if (h[0xe] != 2)
         return r; /* version byte 2 */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 650;
-    r.note = "crw-heap-grammar+bounded-extent";
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    /* the og walker's own cap constant (raw-asm 0x18005219d) */
+    constexpr u64 CRW_WALK_CAP = 0x3200000;
+    const u64 bound = std::min<u64>(rel_limit, CRW_WALK_CAP);
+    /* the CIFF directory-entry search: {u16 0x2807, u32 len} with the
+     * og's own three known lengths and their tail constants (the map
+     * built at 0x1800521dc-0x18005234b). Windowed with the straddle
+     * overlap; the search covers from the file start. */
+    struct CrwTail {
+        u32 len;
+        u64 tail;
+    };
+    constexpr CrwTail CRW_TAILS[] = {{0xa8, 0x46}, {0xb2, 0x3c}, {0xe4, 0x32}};
+    std::vector<u8> win(kProbeBlock);
+    u64 entry_at = 0;
+    u64 entry_tail = 0;
+    bool found = false;
+    u64 pos = 0;
+    while (pos + 6 <= bound) {
+        const u64 chunk = std::min<u64>(win.size(), bound - pos);
+        if (chunk < 6)
+            break;
+        if (!rd(s, hit + pos, win.data(), u32(chunk)))
+            break; /* unreadable window: the walked prefix ends here */
+        for (u64 i = 0; i + 6 <= chunk; ++i) {
+            if (u16_from_bytes_le(win.data() + i) != 0x2807)
+                continue;
+            const u32 len = u32_from_bytes_le(win.data() + i + 2);
+            for (const CrwTail& t : CRW_TAILS) {
+                if (len == t.len) {
+                    entry_at = pos + i;
+                    entry_tail = t.tail;
+                    found = true;
+                    break;
+                }
+            }
+            if (found)
+                break;
+        }
+        if (found)
+            break;
+        if (chunk < win.size())
+            break;        /* short final read: the window is exhausted */
+        pos += chunk - 5; /* straddle overlap */
+    }
+    if (found) {
+        u64 end = hit + entry_at + entry_tail;
+        if (end > limit)
+            end = limit;
+        r.end = end;
+        r.confidence = 650;
+        r.note = "crw-ciff-directory-walk";
+    } else {
+        /* torn: the og's loop-exit stamps the walked bound (the cap or
+         * the device end, whichever clamps) - never a refusal */
+        r.end = hit + bound;
+        r.confidence = 550;
+        r.note = "crw-torn-no-directory";
+    }
     return r;
 }
 

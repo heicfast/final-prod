@@ -1233,3 +1233,28 @@ and `X3fRealSigmaBinaryVersionCarves` — RED at the open tree where the
 ASCII gate refused the binary form). **The rows: A25/A27/B1-adjacent
 MATCH — the CHAIN, router included; the finding stays active for its
 remaining ten members (CRW's CIFF heap chain next).**
+
+## Session-83 addendum 2 — M-107's CRW member LANDED (member 2 of 11: the CIFF heap size walk) (2026-10-29)
+
+**The blind 64 MiB stand-in replaced.** The walk decoded first-hand from
+the raw asm (evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md):
+the CRW child walker (vtable 0x18006e008 slot +0x08 = FUN_180052150 →
+FUN_180052160 — both the table-builder and the walk) runs sector-stepped
+from the file start with the walker's OWN cap 0x3200000 = 50 MiB
+(raw-asm 0x18005219d); non-zero-tailed sectors are skipped (the
+registered streaming-artifact divergence); zero-tailed sectors are
+searched for CIFF directory entries {u16 type 0x2807, u32 length ∈
+{0xa8, 0xb2, 0xe4}} (the three 6-byte signatures 07 28 XX 00 00 00); a
+hit stamps extent = entry_position + the walker's own tail constant
+({0xa8 → 0x46, 0xb2 → 0x3c, 0xe4 → 0x32}); no entry anywhere → the
+loop-exit stamps the cap (never a refusal — the X3F-legacy salvage
+class).
+
+The landing: validate_crw keeps the M-081 grammar gates (byte-exact
+against FUN_180052000) + the windowed entry search + the torn salvage;
+both registry rows (II and MM) carry the og walker's own cap constant
+(0x3200000). RED→GREEN via the stash dance: CrwDirectoryEntryWalkSets
+Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree, GREEN
+with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
+CRW slice) MATCH; the finding stays active for its remaining nine
+members (DWG's section-locator map next).**

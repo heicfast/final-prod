@@ -775,13 +775,18 @@ const Signature kTable[] = {
      * MRW" with an invented PRD gate that rejected every real CRW
      * file. MRW is the \x00MRM key only (id 0x66, og size formula
      * FUN_180012100 :14233-14258). */
+    /* M-107/S83 (the CRW member): the row bound carries the og walker's
+     * OWN cap constant - the CRW child walker's r15 = 0x3200000 (50 MiB),
+     * raw-asm at 0x18005219d (evidence:
+     * diff-to-fix/evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md).
+     * The 64 MiB DWG-pattern stand-in value is gone from these rows. */
     {FMT_CRW,
      "crw",
      {'I', 'I', 0x1A, 0x00},
      4,
      0,
      512,
-     64ull << 20,
+     0x3200000ull,
      650,
      validate_crw,
      "Canon CRW (CIFF)"},
@@ -791,7 +796,7 @@ const Signature kTable[] = {
      4,
      0,
      512,
-     64ull << 20,
+     0x3200000ull,
      650,
      validate_crw,
      "Canon CRW (CIFF, BE)"},

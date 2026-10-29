@@ -98,10 +98,20 @@ Next free IDs: S-069+, M-156+, N-219+, I-049+, A-017+, D-151+.
   (PARITY-DELTAS D-152). RED→GREEN first-hand via the skip-line
   reintroduction. Suite 49/49 ext4 + full suite green.
 
+- **M-107's CRW member LANDED (member 2 of 11 — this lane's third
+  landing):** the CIFF heap size walk, raw-asm decoded first-hand
+  (evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md): the CRW
+  child walker searches zero-tailed sectors for CIFF directory entries
+  {u16 0x2807, u32 len ∈ {0xa8→+0x46, 0xb2→+0x3c, 0xe4→+0x32}} with the
+  walker's OWN 50 MiB cap; no entry → the cap salvage. validate_crw
+  replaces the blind 64 MiB stand-in; both registry rows carry the og's
+  cap constant. RED→GREEN via the stash dance; the carve suite 174/174.
+
 **Board after this landing: 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR ·
-1 INFO active / 177 FIXED (M-156 + M-152 this lane; the racing window's
-S-067/S-068/M-073/M-113/M-149/M-150/N-211/N-213/N-214/N-215/N-216/N-182/
-A-016/N-218 absorbed) / 4 tracked-open.** Next free IDs: S-069+, M-157+,
+1 INFO active / 177 FIXED (M-156 + M-152 [convergent, conceded] + M-107's
+X3F and CRW members this lane; the racing window's S-067/S-068/M-073/
+M-113/M-149/M-150/N-211/N-213/N-214/N-215/N-216/N-182/A-016/N-218/M-151/
+N-178 absorbed) / 4 tracked-open.** Next free IDs: S-069+, M-157+,
 N-219+, I-049+, A-017+, D-151+.
 
 # SUMMARY.md — executive summary (the S80 parity fix lane on top; the prior lanes below, newest-first)

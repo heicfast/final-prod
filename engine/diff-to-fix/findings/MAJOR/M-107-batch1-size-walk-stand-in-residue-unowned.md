@@ -234,3 +234,42 @@ count-walk (this landing), three convergent prior lanes favor the
 constant (the prior). The disagreement is recorded, not papered over.
 **X3F's member status: LANDED (the chain, fourth landing); the remaining
 ten members (CRW's CIFF heap chain next) stay with this finding.**
+
+---
+
+## Session-83 addendum 2 — the CRW member LANDED (member 2 of 11: the CIFF heap size walk)
+
+**CRW FIXED (this session; the remaining nine members stay with the
+finding).** The walk decoded first-hand from the raw asm
+(objdump over RAWSearchDLL.dll; evidence:
+`evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md`): the CRW
+child's vtable 0x18006e008 slot +0x08 = FUN_180052150 → FUN_180052160
+(BOTH the walker's table-builder AND the walk — the prior lanes' cite
+pointed here). The walk: sector-stepped from the file start with the
+walker's OWN cap **0x3200000 = 50 MiB** (raw-asm 0x18005219d);
+non-zero-tailed sectors skipped (the streaming chunk-tail gate — the
+registered model-divergence class); zero-tailed sectors searched for CIFF
+directory entries **{u16 type == 0x2807, u32 length ∈ {0xa8, 0xb2,
+0xe4}}** (the three 6-byte signatures 07 28 XX 00 00 00); a hit stamps
+**extent = entry_position + TAIL[length]** with the walker's own table
+**{0xa8 → 0x46, 0xb2 → 0x3c, 0xe4 → 0x32}** (the map built at
+0x1800521dc-0x18005234b); no entry anywhere → the loop-exit stamps the
+CAP itself (never a refusal — the same salvage class as X3F's legacy
+walk).
+
+The landing: `validate_crw` keeps the M-081 grammar gates (verified
+byte-exact against FUN_180052000) and replaces the blind 64 MiB
+stand-in with the walk (the windowed entry search with the straddle
+overlap; the hit stamps entry + TAIL; torn → the walked bound at reduced
+confidence). Both registry rows (II and MM) carry the og walker's OWN
+cap constant (0x3200000 — the 64 MiB stand-in value gone). RED→GREEN
+first-hand via the stash dance: `CrwDirectoryEntryWalkSetsExtent` and
+`CrwWalkCapIsTheOgsOwnConstant` both RED at the stand-in tree (the
+stand-in carved 64 MiB / the entry walk did not exist), GREEN with the
+walk; the 174-test carve suite green. Tests: CrwDirectoryEntry-
+WalkSetsExtent (all three tail constants pinned) /
+CrwTornSalvagesTheWalkedBound / CrwWalkCapIsTheOgsOwnConstant. The
+S-007 batch's CRW plant (header-only) exercises the torn-salvage path —
+its ≥ assertion holds unchanged. Remaining members: DWG (the
+section-locator map) next per the fix plan's order, then
+WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.

@@ -2594,6 +2594,107 @@ size_t plant_crw(std::vector<u8>& img, size_t at, const char* type4 = "CCDR", bo
     return 0x40;
 }
 
+/* M-107/S83 (the CRW member): plant a CIFF directory entry of the og's
+ * known shape {u16 type 0x2807, u32 len} at `at` - the walk's target. */
+void plant_crw_dir_entry(std::vector<u8>& img, size_t at, u32 len) {
+    img[at] = u8(0x07);
+    img[at + 1] = u8(0x28); /* the u16 type 0x2807 the signature filter matches */
+    img[at + 2] = u8(len & 0xFF);
+    img[at + 3] = u8((len >> 8) & 0xFF);
+    img[at + 4] = 0;
+    img[at + 5] = 0; /* the u32 length: 0xa8 / 0xb2 / 0xe4 */
+}
+
+/* ---- M-107/S83: the CRW CIFF heap size walk (member 2 of 11) ---- */
+
+TEST(Carve, CrwDirectoryEntryWalkSetsExtent) {
+    /* the og's walk (FUN_180052160's walk section, raw-asm
+     * 0x1800524e4-0x1800526d7; evidence/s83-lane-sheets/
+     * s83-l2-crw-ciff-walk-decode.md): the extent is the CIFF directory
+     * entry's position + the length's tail constant from the walker's
+     * own table ({0xa8 -> 0x46, 0xb2 -> 0x3c, 0xe4 -> 0x32}) - not the
+     * blind 64 MiB stand-in. */
+    for (int k = 0; k < 3; ++k) {
+        const u32 lens[3] = {0xa8, 0xb2, 0xe4};
+        const u64 tails[3] = {0x46, 0x3c, 0x32};
+        std::vector<u8> img(256 * 1024, 0);
+        const size_t at = 512;
+        plant_crw(img, at);
+        const size_t entry_at = at + 0x1000; /* past the heap header */
+        plant_crw_dir_entry(img, entry_at, lens[k]);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* crw = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                crw = c;
+        ASSERT_NE(crw, nullptr) << "the CRW must carve through the walk";
+        EXPECT_EQ(crw->props()->logical_size, size_t(entry_at + tails[k]) - at)
+            << "extent = the directory entry + the tail constant (len " << lens[k] << " -> +"
+            << tails[k] << ")";
+    }
+}
+
+TEST(Carve, CrwTornSalvagesTheWalkedBound) {
+    /* the og's loop-exit (raw-asm 0x180052641's r15 reset + the exit at
+     * 0x1800526d7): no directory entry anywhere in range -> the walked
+     * bound (the walker's own 50 MiB cap, clamped by the device end) -
+     * never a refusal. RED at the pre-fix tree on a >64 MiB device (the
+     * old stand-in carved exactly 64 MiB); here the device end clamps
+     * the small image. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_crw(img, at);
+    for (size_t i = 0x40; i < 0x2000; ++i)
+        img[at + i] = u8((i * 5) & 0xFF); /* payload, NO dir entry */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* crw = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            crw = c;
+    ASSERT_NE(crw, nullptr) << "the torn CRW still carves (the salvage)";
+    EXPECT_EQ(crw->props()->logical_size, size_t(256 * 1024 - at))
+        << "the walked prefix at the device end - the og's loop-exit salvage";
+}
+
+TEST(Carve, CrwWalkCapIsTheOgsOwnConstant) {
+    /* the og walker's own cap: 0x3200000 = 50 MiB (raw-asm 0x18005219d
+     * `mov r15d,0x3200000`). On a 100 MiB device with no directory
+     * entry, the torn salvage stops at 50 MiB - NOT the old stand-in's
+     * 64 MiB and NOT the device end. */
+    std::vector<u8> img(100ull << 20, 0);
+    const u64 at = 512;
+    plant_crw(img, size_t(at));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* crw = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            crw = c;
+    ASSERT_NE(crw, nullptr);
+    EXPECT_EQ(crw->props()->logical_size, size_t(0x3200000))
+        << "the og walker's own 50 MiB cap constant - the walked bound";
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */

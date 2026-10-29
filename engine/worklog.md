@@ -12106,3 +12106,28 @@ the matrix block resolved both-sides. Suite 1647/1647 at the repaired
 tree (the one parallel-run flake re-run clean). The syntax error in the
 racing N-145 CLI wiring (marks].identity — the dropped subscript) also
 repaired.
+
+---
+
+## Session-83 entry 3 — M-107's CRW member LANDED (member 2 of 11: the CIFF heap size walk) (2026-10-29)
+
+**The decode (first-hand, raw asm):** the CRW registry chain (the
+'II\x1A\x00'/'MM\x1A\x00' bindings at 0x18000308b/0x1800030c4 → the
+factory FUN_18003c9f0 → the 0x18-byte node with idx 0x12 + the 0x418-byte
+child, vtable 0x18006e008). The child's +0x08 = FUN_180052150 →
+FUN_180052160 — BOTH the walker's type-table builder AND the walk. The
+walk: cap 0x3200000 (50 MiB, raw-asm 0x18005219d); the sector-tail gate;
+the search for CIFF directory entries {u16 0x2807, u32 len ∈ {0xa8,
+0xb2, 0xe4}} (the three 6-byte signatures); the hit stamps entry_pos +
+the walker's tail table {0xa8→0x46, 0xb2→0x3c, 0xe4→0x32}; no entry →
+the loop-exit stamps the cap. Evidence:
+`diff-to-fix/evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md`.
+
+**The landing:** validate_crw keeps the M-081 grammar gates (byte-exact
+vs FUN_180052000) + the windowed entry search + the torn salvage at the
+walked bound; both registry rows carry the og walker's own cap constant
+(0x3200000). RED→GREEN via the stash dance (CrwDirectoryEntryWalkSets
+Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree — the
+stand-in carved 64 MiB and the entry walk did not exist). The 174-test
+carve suite green. Trail: M-107's S83 addendum 2, the matrix row, the
+carve module addendum, SUMMARY, this entry.
