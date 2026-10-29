@@ -236,3 +236,56 @@ that survives: the sub-format split the seat's own message saw
 ("-> type 0x44 / 0x45 / 0x3d") but routed away on the mistaken
 report-layer framing. The divergence registration the S87 message
 promised is thereby MOOT — the split is implemented, not diverged.
+
+---
+
+## Session-87 addendum 5 — the SWF-RECT member LANDED (member 11 of 11: the RECT validation gate; the open question 3 resolved)
+
+**SWF-RECT FIXED (this session — the last enumerated member; the APE
+walk and the DWG gen-3 R2007 remainder stay as the finding's recorded
+remainders).** The walk decoded first-hand (the FileSWFAnalyser chain):
+**FUN_1800268a0** (:29970-29996, the analyser): the key gate accepts
+"FWS" (u16 0x5746 + 'S') or "CWS" (u16 0x5743 + 'S') — ZWS is NOT
+accepted; on the deep gate's success it stamps type 0x3e and **extent
+= u32@+4 (the FileLength) VERBATIM** — the finding's open question 3
+RESOLVED: the RECT walk is VALIDATION-ONLY, the extent never comes
+from it (the old core's FileLength source was already right).
+
+- **FUN_180026940** (the FWS deep gate, raw asm 0x180026940+): version
+  byte@+3 ∈ [3,20]; FileLength > 8; the RECT at +8: Nbits = byte@8 >>
+  3 with the Nbits > 1 gate; four signed fields (a sign bit +
+  Nbits-1 magnitude bits, MSB-first — the og's sign-magnitude read of
+  the two's-complement fields); the acceptance: ALL FOUR coordinates
+  non-negative, both maxes strictly positive, Xmin < Xmax AND Ymin <
+  Ymax — a sane positive rectangle.
+- **FUN_180026b80** (the CWS deep gate): version ∈ [6,20] ((v-6) <
+  0xf — TIGHTER than the FWS arm); the deflate CMF nibble (byte@+8 &
+  0xF) == 8; the zlib inflate from +8 into a 512-byte window; ≥ 16
+  inflated bytes; the SAME RECT gate on the inflated bytes.
+
+The landing: the shared `swf_rect_is_sane` bit-walk helper + the
+per-arm version windows + the CWS deflate-nibble/stream/inflated-RECT
+gates (a partial-tolerant streaming inflate — only Z_DATA_ERROR/
+Z_MEM_ERROR decline; the truncated-but-valid prefix yields partial
+output, the og's own streaming shape). The extent = FileLength
+verbatim (the RECT never sizes); the row max carries the u32 field's
+own ceiling 0xFFFFFFFF (the WPD precedent — the 64 MiB stand-in
+gone); both rows (FWS and CWS) updated. The plants re-pinned: the FWS
+plant writes a REAL sane RECT (Nbits=9, 0/100/0/100 — the MSB-first
+bit packer, byte-verified 48 00 C8 00 32 00); the CWS plant writes a
+REAL zlib stream (compress2 of the RECT payload — the og validates
+the INFLATED RECT).
+
+RED→GREEN first-hand via the stash dance: five tests RED at the
+pre-RECT validator (SwfRectGateRequiresSaneRectangle — the inverted
+and negative-coordinate RECTs accepted; SwfNbitsUnderTwoDeclines —
+Nbits=1 accepted; SwfCwsVersionWindowStartsAtSix — the CWS arm's
+version-4 accepted under the shared [3,20] window;
+SwfCwsDeflateNibbleAndCorruptStreamDecline — a non-deflate nibble and
+a garbage stream accepted; SwfCwsInflatedRectIsGated — an inflated
+Nbits=1 RECT accepted), GREEN with the gates; the sixth
+(SwfCwsRealStreamCarvesAtFileLength) is the happy-path pin (the
+FileLength extent, both arms' unchanged semantics). The 216-test
+carve suite green. **The member enumeration closes: 11 of 11 landed
+(the APE walk and the DWG gen-3 remainder are the finding's recorded
+remainders, each with its decode progress).**

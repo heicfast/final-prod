@@ -11,6 +11,7 @@
 #include "cr/cr_text.h"
 #include <array>
 #include <cstring>
+#include <zlib.h>
 #include <ctime>
 #include <fstream>
 #include <functional>
@@ -4101,13 +4102,264 @@ size_t plant_emf(std::vector<u8>& img, size_t at) {
     return 0x800;
 }
 
+/* M-107 member 11 (SWF-RECT): the og's RECT gate (FUN_180026940) - a
+ * sane positive rectangle: Nbits (the top 5 bits of byte@8) > 1, four
+ * signed fields (sign + Nbits-1 magnitude bits, MSB-first), all coords
+ * non-negative, both maxes positive, min < max both axes. The plant
+ * writes Nbits=9 with Xmin=0, Xmax=100, Ymin=0, Ymax=100. */
+void plant_swf_rect(std::vector<u8>& img, size_t rect_at) {
+    /* MSB-first bit list: 5 Nbits bits, then 4 x (sign + magnitude) */
+    const u32 nbits = 9;
+    const u32 fields[4] = {0, 100, 0, 100};
+    std::vector<u32> bits;
+    for (int i = 4; i >= 0; --i)
+        bits.push_back((nbits >> i) & 1);
+    for (int k = 0; k < 4; ++k) {
+        bits.push_back(0); /* the sign bit: positive */
+        for (u32 b = 1; b < nbits; ++b)
+            bits.push_back((fields[k] >> (nbits - 1 - b)) & 1);
+    }
+    u8 out[6] = {0, 0, 0, 0, 0, 0}; /* 5 + 4*9 = 41 bits -> 6 bytes */
+    for (size_t i = 0; i < bits.size() && i < 48; ++i)
+        if (bits[i])
+            out[i >> 3] |= u8(1u << (7 - (i & 7)));
+    std::memcpy(img.data() + rect_at, out, 6);
+}
+
 size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
     std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
-    img[at + 3] = 6;            /* version inside the og's [3,20] gate */
+    img[at + 3] = 6;            /* version: FWS [3,20] and CWS [6,20] both hold */
     put32v(img, at + 4, 0x400); /* FileLength > 8 */
-    for (size_t i = 8; i < 0x400; ++i)
-        img[at + i] = u8((i * 7) & 0xFF);
+    if (!cws) {
+        plant_swf_rect(img, at + 8); /* the raw RECT */
+        for (size_t i = 14; i < 0x400; ++i)
+            img[at + i] = u8((i * 7) & 0xFF);
+    } else {
+        /* the compressed form: the zlib stream from +8 inflates to the
+         * RECT bytes (the og's FUN_180026b80 validates the inflated RECT) */
+        u8 rect[32];
+        std::memset(rect, 0, sizeof(rect));
+        std::vector<u8> scratch(64, 0);
+        plant_swf_rect(scratch, 0);
+        std::memcpy(rect, scratch.data(), 6);
+        uLongf cl = compressBound(sizeof(rect));
+        std::vector<u8> comp(cl);
+        if (compress2(comp.data(), &cl, rect, sizeof(rect), Z_DEFAULT_COMPRESSION) != Z_OK)
+            return 0;
+        std::memcpy(img.data() + at + 8, comp.data(), cl);
+        for (size_t i = 8 + cl; i < 0x400; ++i)
+            img[at + i] = u8((i * 7) & 0xFF);
+    }
     return 0x400;
+}
+
+/* ---- M-107 member 11 (SWF-RECT): the RECT validation gate ------ */
+
+TEST(Carve, SwfRectGateRequiresSaneRectangle) {
+    /* The og's four-field bit-walk (FUN_180026940): all four coords
+     * non-negative, both maxes positive, min < max both axes. An
+     * inverted RECT (Xmin > Xmax) and a negative Y both decline - the
+     * pre-fix core accepted any header bytes past +8. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        std::memcpy(img.data() + at, "FWS", 3);
+        img[at + 3] = 6;
+        put32v(img, at + 4, 0x400);
+        /* Nbits=9, the fields: k=0 inverted (Xmin=100 > Xmax=0);
+         * k=1 Ymax negative (the sign bit set) */
+        std::vector<u8> scratch(64, 0);
+        u64 acc = u64(9) << 59;
+        const u32 fields[4] = {k == 0 ? 100u : 0u, k == 0 ? 0u : 100u, 0,
+                               k == 1 ? 0x80000000u : 100u}; /* hmm: sign via
+            the field packer below instead */
+        (void)fields;
+        /* pack by hand: k=0 -> Xmin=100, Xmax=0 (inverted);
+         * k=1 -> Ymax's sign bit set (negative) */
+        auto push_field = [&acc](u32 sign, u32 mag) {
+            for (u32 b = 0; b < 9; ++b) {
+                u32 bit = 0;
+                if (b == 0)
+                    bit = sign;
+                else
+                    bit = (mag >> (8 - b)) & 1;
+                acc = (acc << 1) | bit;
+            }
+        };
+        acc = u64(9) << 59;
+        if (k == 0) {
+            push_field(0, 100);
+            push_field(0, 0);
+            push_field(0, 0);
+            push_field(0, 100);
+        } else {
+            push_field(0, 0);
+            push_field(0, 100);
+            push_field(0, 0);
+            push_field(1, 100); /* Ymax negative: the sign bit set */
+        }
+        acc <<= 64 - 41;
+        for (int i = 0; i < 6; ++i)
+            img[at + 8 + i] = u8((acc >> (56 - 8 * i)) & 0xFF);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+                << (k == 0 ? "an inverted RECT (Xmin > Xmax) must decline"
+                           : "a negative Ymax must decline");
+    }
+}
+
+TEST(Carve, SwfNbitsUnderTwoDeclines) {
+    /* The og's Nbits gate (1 < uVar4): Nbits <= 1 declines. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "FWS", 3);
+    img[at + 3] = 6;
+    put32v(img, at + 4, 0x400);
+    img[at + 8] = 0x08; /* Nbits = 0x08 >> 3 = 1 - under the gate */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "Nbits=1 must decline (the og's 1 < Nbits gate)";
+}
+
+TEST(Carve, SwfCwsVersionWindowStartsAtSix) {
+    /* The og's per-arm windows: FWS [3,20], CWS [6,20] (the (v-6) < 0xf
+     * gate at FUN_180026b80's head). A CWS with version 4 - inside the
+     * FWS window, under the CWS floor - declines. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        if (k == 0) {
+            std::memcpy(img.data() + at, "CWS", 3);
+            img[at + 3] = 4; /* under the CWS floor */
+        } else {
+            std::memcpy(img.data() + at, "FWS", 3);
+            img[at + 3] = 4; /* inside the FWS window - must carve */
+            plant_swf_rect(img, at + 8);
+        }
+        put32v(img, at + 4, 0x400);
+        if (k == 1)
+            for (size_t i = 14; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* swf = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                swf = c;
+        if (k == 0)
+            EXPECT_EQ(swf, nullptr) << "CWS version 4 must decline (the [6,20] window)";
+        else
+            EXPECT_NE(swf, nullptr) << "FWS version 4 must carve (the [3,20] window)";
+    }
+}
+
+TEST(Carve, SwfCwsDeflateNibbleAndCorruptStreamDecline) {
+    /* The CWS arm's zlib gates: the deflate CMF nibble (byte@8 & 0xF)
+     * must be 8, and a corrupt stream (a failed inflate) declines. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        std::memcpy(img.data() + at, "CWS", 3);
+        img[at + 3] = 6;
+        put32v(img, at + 4, 0x400);
+        if (k == 0) {
+            img[at + 8] = 0x79; /* CM nibble 9 - not deflate */
+            for (size_t i = 9; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+        } else {
+            img[at + 8] = 0x78; /* the nibble holds... */
+            img[at + 9] = 0xDA; /* ...but the stream behind it is garbage */
+            for (size_t i = 10; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+        }
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+                << (k == 0 ? "a non-deflate CM nibble must decline"
+                           : "a corrupt zlib stream must decline");
+    }
+}
+
+TEST(Carve, SwfCwsInflatedRectIsGated) {
+    /* The og validates the INFLATED RECT (FUN_180026b80's tail): a CWS
+     * stream that inflates to an insane RECT declines - a valid zlib
+     * wrapper is not enough. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "CWS", 3);
+    img[at + 3] = 6;
+    put32v(img, at + 4, 0x400);
+    u8 payload[32];
+    std::memset(payload, 0, sizeof(payload));
+    payload[0] = 0x08; /* Nbits=1 - under the og's gate, post-inflate */
+    uLongf cl = compressBound(sizeof(payload));
+    std::vector<u8> comp(cl);
+    ASSERT_EQ(compress2(comp.data(), &cl, payload, sizeof(payload), Z_DEFAULT_COMPRESSION), Z_OK);
+    std::memcpy(img.data() + at + 8, comp.data(), cl);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "an inflated RECT with Nbits=1 must decline";
+}
+
+TEST(Carve, SwfCwsRealStreamCarvesAtFileLength) {
+    /* The happy path both arms share: the extent is the FileLength
+     * u32@+4 verbatim (the RECT is validation-only - the finding's
+     * open question 3 resolved). */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* swf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            swf = c;
+    ASSERT_NE(swf, nullptr) << "the real CWS stream must carve";
+    EXPECT_EQ(swf->props()->logical_size, size_t(0x400)) << "the extent is the FileLength verbatim";
+    EXPECT_EQ(swf->props()->carve_format, FMT_SWF_CWS);
 }
 
 size_t plant_3ds(std::vector<u8>& img, size_t at, bool ncsd = false) {

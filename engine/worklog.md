@@ -1,3 +1,25 @@
+
+## Session-87 S87 fix lane (continuation) — entry 5: M-107 member 11 (SWF-RECT) lands — the enumeration closes (2026-10-30)
+
+- **M-107 member 11 (SWF-RECT) FIXED** — the RECT validation gate,
+  decoded first-hand: FUN_1800268a0 (the key gate: FWS/CWS only, ZWS
+  refused; **the extent = FileLength u32@+4 verbatim — the finding's
+  open question 3 RESOLVED: the RECT walk is validation-only**);
+  FUN_180026940 (the FWS deep gate: version [3,20], Nbits > 1, four
+  sign-magnitude fields MSB-first, the sane-positive-rectangle
+  acceptance); FUN_180026b80 (the CWS deep gate: version [6,20] —
+  TIGHTER than the FWS arm, the deflate CMF nibble == 8, the zlib
+  inflate into the 512-byte window, >= 16 inflated bytes, the same
+  RECT gate on the inflated bytes). The landing: the shared
+  swf_rect_is_sane bit-walk + the per-arm windows + the
+  partial-tolerant streaming inflate; the row max carries the u32's
+  own ceiling 0xFFFFFFFF (both rows, the 64 MiB stand-in gone); the
+  plants re-pinned (the FWS real RECT 48 00 C8 00 32 00 byte-verified;
+  the CWS real compress2 stream). Five RED->GREEN tests via the stash
+  dance + the happy-path FileLength pin; the carve suite 216/216.
+  **The member enumeration closes: 11 of 11 landed** (the APE walk
+  and the DWG gen-3 R2007 remainder are the finding's recorded
+  remainders, each with its decode progress registered).
 ## Session-92 S92 fix lane (renumbered from the born-collided S89/S91 — the racing windows took each seat) — opens (2026-10-30, the MINOR-first 20+ mandate)
 
 ---

@@ -6677,26 +6677,114 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* SWF: list-only FWS/CWS (:3058-3086) -> FileSWFAnalyser id 0x3e. The
- * og validator (FUN_1800268a0 :29970-29996 + the deep gate
- * FUN_180026940 :30029-30031, first-hand): FWS/CWS only - ZWS is NOT
- * accepted; version byte@3 in [3,20]; FileLength u32@4 > 8 -> size =
- * FileLength. The RECT bit-walk past byte 8 is the recorded follow-up. */
+ * og validator (FUN_1800268a0 :29970-29996 + the deep gates
+ * FUN_180026940/:30001-30133 and FUN_180026b80/:30135+, first-hand
+ * this session): FWS/CWS only - ZWS is NOT accepted; the FWS arm's
+ * version byte@3 in [3,20], the CWS arm's in [6,20] ((v-6) < 0xf);
+ * FileLength u32@4 > 8 -> size = FileLength VERBATIM (the RECT walk
+ * is VALIDATION-ONLY - the finding's open question 3 resolved: the
+ * extent never comes from the RECT).
+ *
+ * M-107 member 11 (SWF-RECT): the RECT gate decoded first-hand
+ * (FUN_180026940's four-field bit-walk, raw asm 0x180026940+): the
+ * RECT's first byte at +8 (the FWS form: raw; the CWS form: the
+ * INFLATED stream - FUN_180026b80 zlib-inflates from +8 into a
+ * 512-byte window and gates on the inflated bytes); Nbits = byte@8 >>
+ * 3 (the top 5 bits), the og's Nbits > 1 gate; then four signed
+ * fields (sign bit + Nbits-1 magnitude bits, MSB-first - the og's
+ * sign-magnitude read of the two's-complement fields): Xmin, Xmax,
+ * Ymin, Ymax. The acceptance: ALL FOUR non-negative, both maxes
+ * strictly positive, Xmin < Xmax AND Ymin < Ymax - a sane positive
+ * rectangle. The CWS arm additionally requires the deflate CMF nibble
+ * (byte@8 & 0xF) == 8 and >= 16 inflated bytes. A corrupt stream, a
+ * failed inflate, an insane RECT, or Nbits <= 1 -> the decline. */
+namespace {
+/* the og's RECT bit-walk (FUN_180026940): p points at the RECT (the
+ * raw +8 window or the inflated one). MSB-first bit order. */
+bool swf_rect_is_sane(const u8* p, size_t avail) {
+    if (avail < 1)
+        return false;
+    const u32 nbits = u32(p[0]) >> 3;
+    if (nbits <= 1)
+        return false; /* the og's Nbits>1 gate (1 < uVar4) */
+    const u64 total_bits = 5 + u64(nbits) * 4;
+    if ((total_bits + 7) / 8 > avail)
+        return false; /* the RECT straddles the readable window */
+    auto bit_at = [&](u64 i) -> u32 { return (u32(p[i >> 3]) >> (7 - (i & 7))) & 1; };
+    int fields[4] = {0, 0, 0, 0}; /* Xmin, Xmax, Ymin, Ymax */
+    for (int k = 0; k < 4; ++k) {
+        const u64 base = 5 + u64(k) * nbits;
+        const u32 sign = bit_at(base);
+        u32 mag = 0;
+        for (u32 b = 1; b < nbits; ++b)
+            mag = (mag << 1) | bit_at(base + b);
+        fields[k] = sign ? -int(mag) : int(mag); /* the og's sign-magnitude form */
+    }
+    const int xmin = fields[0], xmax = fields[1], ymin = fields[2], ymax = fields[3];
+    return xmin >= 0 && ymin >= 0 && xmax > 0 && ymax > 0 && xmin < xmax && ymin < ymax;
+}
+} // namespace
+
 CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[9];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
+    const bool cws = h[0] == 'C';
+    if ((!cws && h[0] != 'F') || h[1] != 'W' || h[2] != 'S')
         return r; /* FWS | CWS only (the registry keys, re-checked) */
-    if (h[3] < 3 || h[3] > 20)
-        return r; /* the og's version gate */
+    const u32 ver = h[3];
+    if (cws ? (ver < 6 || ver > 20) : (ver < 3 || ver > 20))
+        return r; /* the og's per-arm version windows: FWS [3,20], CWS [6,20] */
     const u32 len = u32_from_bytes_le(h + 4);
     if (len <= 8)
         return r; /* the og's FileLength gate */
+    if (!cws) {
+        /* the FWS arm: the raw RECT at +8 */
+        u8 win[18]; /* 5 + 4*31 bits = 129 -> 17 bytes; 18 with slack */
+        const u64 avail = std::min<u64>(sizeof(win), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
+        if (avail < 1 || !rd(s, hit + 8, win, u32(avail)))
+            return r;
+        if (!swf_rect_is_sane(win, size_t(avail)))
+            return r; /* the og's RECT decline */
+    } else {
+        /* the CWS arm: the deflate CMF nibble + the inflated RECT */
+        if ((h[8] & 0xF) != 8)
+            return r; /* the zlib CM nibble must be 8 (deflate) */
+        u8 src[512];
+        const u64 avail = std::min<u64>(sizeof(src), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
+        if (avail < 2 || !rd(s, hit + 8, src, u32(avail)))
+            return r;
+        u8 dst[512];
+        uLongf dst_len = 0;
+        {
+            /* the streaming inflate the og runs (FUN_180026b80's
+             * FUN_180056280/FUN_180054a90 pair): a truncated-but-valid
+             * prefix yields partial output; only a CORRUPT stream
+             * (Z_DATA_ERROR) declines here - the >= 16-byte gate and
+             * the RECT check below carry the validation */
+            z_stream zs = {};
+            if (inflateInit(&zs) != Z_OK)
+                return r;
+            zs.next_in = src;
+            zs.avail_in = uInt(avail);
+            zs.next_out = dst;
+            zs.avail_out = uInt(sizeof(dst));
+            const int rc = inflate(&zs, Z_FINISH);
+            dst_len = uLongf(zs.total_out);
+            inflateEnd(&zs);
+            if (rc == Z_DATA_ERROR || rc == Z_MEM_ERROR)
+                return r; /* a corrupt stream declines */
+        }
+        if (dst_len < 16)
+            return r; /* the og's inflated-size gate (0xf < size) */
+        if (!swf_rect_is_sane(dst, size_t(dst_len)))
+            return r; /* the inflated RECT's decline */
+    }
     r.ok = true;
     r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
     r.confidence = 700;
-    r.note = "swf-sig+version+filelength";
+    r.note = "swf-sig+version+rect+filelength";
     return r;
 }
 

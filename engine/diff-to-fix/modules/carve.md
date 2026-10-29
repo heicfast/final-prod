@@ -1493,3 +1493,21 @@ dance (the strengthened WpdSecondAndThirdRecordsCarve); the WPD
 battery 7/7; the full suite 1705/1705. **The A25/A27/A47 rows for the
 WPD slice stay MATCH — now with the sub-format ids faithful.**
 >>>>>>> origin/main
+
+---
+
+## Session-87 addendum 4 — M-107 member 11: the SWF-RECT validation gate landed
+
+The SWF rows (FWS and CWS) move to **MATCH** on the gate axis: the
+og's deep gates decoded first-hand — the FWS arm (FUN_180026940):
+version [3,20], the RECT's Nbits > 1, four sign-magnitude fields
+MSB-first, the sane-positive-rectangle acceptance; the CWS arm
+(FUN_180026b80): version [6,20] (tighter than FWS), the deflate CMF
+nibble == 8, the zlib inflate into the 512-byte window, >= 16
+inflated bytes, the SAME RECT gate on the inflated bytes. The extent
+is the FileLength u32@+4 VERBATIM (the open question 3 resolved —
+the RECT never sizes); the row max carries the u32's own ceiling.
+The plants re-pinned both arms (the real RECT + the real compress2
+stream). Five RED→GREEN tests + the happy-path pin; the carve suite
+216/216. The member enumeration closes: 11 of 11 landed (the APE
+walk and the DWG gen-3 remainder are the recorded remainders).
