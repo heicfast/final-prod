@@ -1254,8 +1254,21 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     if (progress)
         (void)progress(v.sb.groups, v.sb.groups, progress_user);
 
-    /* 4. deleted-inode sweep: every table entry with dtime set that the
-     * live walk did not emit (graded via group block bitmaps). */
+    /* 4. inode-table sweep: the deleted population (dtime set) AND the
+     * orphan-active population (M-152: dtime==0 && links!=0, unreachable
+     * from any directory - torn parents, unlinks without link decrements).
+     * The og's harvest filter is four CONTENT gates only - size_lo != 0,
+     * EXTENTS_FL, the 0xF30A extent magic, eh_entries != 0
+     * (FUN_180005e50, raw-asm 0x180005f5d-0x180005f87: NO dtime test, NO
+     * links test anywhere in the sweep path) - the harvested set resolved
+     * against the live tree so unclaimed orphans surface (the
+     * orphan-finalize pattern the journal pass below ports). The core's
+     * old `dtime==0 && links!=0` skip dropped exactly the orphan-active
+     * population; it is gone. The visited_inodes guard stays (the live
+     * tree's claim wins - the dedup the og resolves the same way), and
+     * the regular/dir mode gate stays as the REGISTERED hardening (the
+     * og's shape-only filter would admit a FIFO/socket with a forged
+     * extent header; PARITY-DELTAS carries the row). */
     if (flags.scan_deleted_inodes && flags.keep_deleted && root_deleted) {
         /* group block-bitmap cache (one read per group) */
         std::map<u64, std::vector<u8>> bitmaps;
@@ -1281,46 +1294,40 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         };
 
         const u64 sweep = v.sb.inodes_count < MAX_INODES ? v.sb.inodes_count : MAX_INODES;
-        /* M-152: the journal inode is ENGINE STATE, not a result - claim it
-         * before the sweep (the og's claim-resolution shape: the harvested
-         * map is resolved against the engines' claims before the orphan
-         * finalize) so the now-unfiltered sweep does not surface the
-         * volume's own journal as a recoverable orphan. */
-        ctx.visited_inodes.insert(v.sb.journal_inum);
         for (u32 ino = 1; ino <= sweep; ++ino) {
             if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             if ((ino & 0xFFF) == 0 && progress)
                 (void)progress(ino, sweep, progress_user);
             if (ctx.visited_inodes.count(ino))
-                continue; /* emitted in the live tree (M-152: the claim
-                           * resolution - a live-tree-reachable inode never
-                           * double-emits, whatever its dtime/links shape) */
+                continue; /* emitted in the live tree: the live claim wins */
+            if (flags.salvage_journal && ino == v.sb.journal_inum)
+                continue; /* M-152's registered divergence: the journal
+                           * machinery claims the journal inode (the
+                           * orphan admission would otherwise surface the
+                           * filesystem's own journal as a lost "InodeN"
+                           * entry - FS-internal circular metadata, not
+                           * user content). The og's finalize disposition
+                           * of its own journal inode is undecoded (the
+                           * filter provably ADMITS it; the claim path was
+                           * never traced end-to-end); PARITY-DELTAS
+                           * carries the row. */
             InodeView iv;
             if (!read_inode(v, ino, iv) || iv.mode == 0)
                 continue;
-            /* M-152 (diff-to-fix): the og's sweep filter has NO
-             * deleted-state predicate - EXT4SearchDLL :4415-4421 gates on
-             * the content shape alone (i_size_lo != 0, the EXTENTS flag,
-             * the 0xF30A extent magic, eh_entries != 0) and the harvested
-             * set is resolved against the live tree, so orphan-actives
-             * (dtime == 0 && links != 0 - files whose parent metadata was
-             * damaged or whose dirent was lost without the link
-             * decrement) surface as recoverable entries. The old skip
-             * here dropped exactly that population. The mode gate below
-             * stays as the REGISTERED hardening (the og's filter is
-             * shape-only and would admit a FIFO/socket with a forged
-             * extent header; PARITY-DELTAS row M-152). */
             if (ifmt(iv.mode) != 0x8000 && ifmt(iv.mode) != 0x4000)
-                continue; /* the REGISTERED hardening (PARITY-DELTAS
-                           * M-152): the og's shape-only filter would
-                           * admit a FIFO/socket with a forged extent
-                           * header; the core keeps the mode gate */
-            if (iv.dtime == 0 && iv.links != 0)
-                ++stats.orphan_admitted; /* the countable new population -
-                                          * admissions only (post-gate) */
+                continue; /* the registered mode-gate hardening (M-152) */
 
-            ++stats.deleted_inodes;
+            /* M-152: the population split - dtime set (or links 0) is the
+             * deleted population the sweep always harvested; dtime==0 with
+             * links!=0 is the ORPHAN-ACTIVE population the og's predicate-
+             * free filter admits and the old skip dropped. Both surface
+             * under the deleted root with the same grading. */
+            const bool orphan_active = (iv.dtime == 0 && iv.links != 0);
+            if (orphan_active)
+                ++stats.orphan_inodes;
+            else
+                ++stats.deleted_inodes;
             const bool is_dir = ifmt(iv.mode) == 0x4000;
             auto* props = new (std::nothrow) tree::FileProperties();
             if (!props)
@@ -1352,7 +1359,12 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->release();
             if (!n)
                 return ERR_NO_MEMORY;
-            n->set_deleted_state(tree::DeletedState::Deleted);
+            /* M-152: the orphan-active population carries no deletion
+             * evidence (dtime==0) - the state stays honest to the inode;
+             * the emission shape (branch, origin, grading) is the
+             * sweep's own. */
+            n->set_deleted_state(orphan_active ? tree::DeletedState::Active
+                                               : tree::DeletedState::Deleted);
             n->set_origin(tree::Origin::Structured);
             /* bitmap grading: extents still free = likely intact */
             bool all_free = !iv.extents.empty();

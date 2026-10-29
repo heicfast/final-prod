@@ -34,12 +34,15 @@ struct Ext4ScanStats {
     u64 files = 0;
     u64 dirs = 0;
     u64 deleted_inodes = 0;
-    u64 damaged_inodes = 0;  /* unparseable extents / truncated records */
-    u64 orphan_admitted = 0; /* M-152 (diff-to-fix): sweep admissions with
-                              * dtime == 0 && links != 0 - the orphan-active
-                              * population the og's shape-only filter harvests
-                              * (no deleted-state predicate, EXT4SearchDLL
-                              * :4415-4421) */
+    /* M-152: the orphan-active admissions - dtime==0 && links!=0 inodes
+     * the live tree never claimed (unreachable-but-intact: torn parents,
+     * unlinks without link decrements). The og's sweep filter has NO
+     * dtime/links predicate (FUN_180005e50 :4415-4421, raw-asm re-verified
+     * at 0x180005f5d-0x180005f87: size_lo, EXTENTS_FL, the 0xF30A magic,
+     * eh_entries - four CONTENT gates only); the core's old
+     * "orphan-reserved" skip dropped exactly this population. */
+    u64 orphan_inodes = 0;
+    u64 damaged_inodes = 0; /* unparseable extents / truncated records */
     u64 journal_blocks = 0;
     u64 journal_salvaged = 0; /* names recovered from journal dir blocks */
     u64 block_groups = 0;

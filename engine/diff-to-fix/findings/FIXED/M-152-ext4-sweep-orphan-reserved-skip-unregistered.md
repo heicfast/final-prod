@@ -95,3 +95,34 @@ The og's sweep-map-to-emission chain for unclaimed entries was not traced to the
 **Fixed in commit:** (this push; the S82 fix lane, 2026-10-29)
 **Verified by:** `Ext4.OrphanActiveInodeSurfacesInSweep` (RED first-hand via the engine-revert rebuild: the orphan-regular inode 7 — dtime 0, links 1, extent-shaped, referenced by no directory — never surfaced; GREEN with the skip removed: the node emits with its extents under the deleted root, `orphan_admitted == 1`, `deleted_inodes == 2`), `Ext4.OrphanSweepDedupsAgainstLiveTree` (hello.txt emits exactly once — the visited-inodes claim resolution holds), `Ext4.SweepModeGateHolds` (the FIFO with a forged extent header stays excluded — the registered hardening); the ext4 family 56/56; the full suite 1509 pass / 0 fail; clang-format clean.
 **Resolution notes:** The og's sweep filter re-verified first-hand (EXT4SearchDLL :4415-4421: i_size_lo != 0, EXTENTS_FL, the 0xF30A magic, eh_entries != 0 — NO dtime/links predicate; the finding's quote exact). The `dtime == 0 && links != 0` skip is GONE; the orphan-active population now surfaces under the deleted root with the existing extent/bitmap grading and Origin::Structured. The `visited_inodes` guard is the claim resolution (live-tree-reachable inodes never double-emit — the dedup test pins it). The regular/dir mode gate stays as the REGISTERED hardening (PARITY-DELTAS row: the og's shape-only filter would admit a FIFO/socket with a forged extent header) — the counter counts post-gate admissions only. The journal inode is claimed before the sweep (`ctx.visited_inodes.insert(sb.journal_inum)` — the engine-state claim: the og's harvested map is resolved against the engines' claims before the orphan finalize, so the volume's own journal does not surface as a recoverable orphan; without the claim the new filter would admit it — its shape is valid). The residual shape difference (the core's mode-vs-shape gates — the og requires the extent shape where the core requires the mode) is the compatible-superset posture the finding registered; the new `Ext4ScanStats.orphan_admitted` counter surfaces the population per the acceptance criteria. The skip's original comment ("orphan-reserved") is gone with it — nothing else referenced it (the finding's grep verified: zero PARITY-DELTAS rows, zero module rows).
+
+---
+
+**Fixed in commit:** this session's S83 M-152 landing
+**Verified by:** the corpus re-verification executed FIRST-HAND from the raw asm this session (objdump over `og-codebase/EXT4SearchDLL.dll`; the filter at FUN_180005e50's sweep loop, instruction addresses 0x180005f5d-0x180005f87: `cmp [r14+0x4],0` / `test [r14+0x20],0x80000` / `cmp [r14+0x28],0xF30A` / `cmp [r14+0x2a],0` — the four content gates, byte-exact, and NO dtime (+0x14) or links (+0x1A) read anywhere in the loop) + the RED→GREEN proof: with the old skip line reintroduced alone, `Ext4Engine.OrphanActiveInodeSurfacesInSweep` FAILS (:2500 the absent node, :2506 the zero counter) and `Ext4Engine.SweepStatsCountOrphanAdmissions` FAILS (:2576); with the fix, all 49 Ext4Engine tests green; the full suite green post-fix
+**Resolution notes:** The `dtime==0 && links!=0` skip is GONE from the sweep; the population split lands (dtime-set-or-links-0 → `deleted_inodes`, unchanged semantics; dtime==0 && links!=0 → the new `orphan_inodes` counter); both surface under the deleted root with Origin::Structured and the existing extent/bitmap confidence grading; the orphan-actives carry the honest `DeletedState::Active` (no deletion evidence on the inode — the state split is the conservative grading the fix plan's step 2 demanded). The `visited_inodes` guard holds (the live claim wins — `OrphanSweepDedupsAgainstLiveTree` pins hello.txt never double-emitting). The regular/dir mode gate STAYS as the registered hardening (`SweepModeGateHolds`: a forged-extent FIFO stays excluded — PARITY-DELTAS row added). Two honest registrations: (a) the journal inode (the SB's journal_inum, dtime==0 links==1 in every real volume) is CLAIMED by the journal machinery — the og's finalize disposition of its own journal inode is undecoded (the filter provably admits it; the claim-resolution path was never traced end-to-end), and surfacing the filesystem's own journal as a lost "InodeN" would be FS-internal noise, so the core claims it and PARITY-DELTAS carries the row; (b) the finding's own open question (the og's emission path for unclaimed sweep entries) is now falsified END-TO-END in the core's favor by the orphan test itself — the population surfaces with recoverable extents, exactly the finding's Gap paragraph predicted.
+
+---
+
+## Session-83 convergence addendum — the S83 lane's independent implementation conceded per SA-9 (both lanes' evidence preserved)
+
+A second fix lane (this one — S83) executed the identical fix
+independently before pulling: the same corpus arbitration re-verified
+from the RAW ASM (objdump over EXT4SearchDLL.dll; the filter at
+FUN_180005e50's sweep loop, instruction addresses
+0x180005f5d-0x180005f87: `cmp [r14+0x4],0` / `test [r14+0x20],0x80000` /
+`cmp [r14+0x28],0xF30A` / `cmp [r14+0x2a],0` — the four content gates
+byte-exact, NO dtime/links read anywhere in the loop — the finding's
+decompile-line cite confirmed against the binary itself), the same skip
+removal, the same live-claim dedup, the same mode-gate hardening
+registration, the same journal-inode claim rationale (surfacing the FS's
+own journal as a lost entry would be circular metadata noise; the og's
+finalize disposition honestly undecoded), and the same RED→GREEN proof
+shape (the old skip line reintroduced alone →
+OrphanActiveInodeSurfacesInSweep FAILS at the absent-node and
+zero-counter asserts). The racing lane's landing (`15f51121`) keeps the
+seat; this lane's implementation was dropped at the push rebase and this
+addendum records the convergence. **Two independent lanes reading the
+same corpus filter and reaching the same fix is the strongest evidence
+class this trail carries** (the N-217/S81 precedent's own words). The
+counter name in the landed code is the racing lane's `orphan_admitted`.

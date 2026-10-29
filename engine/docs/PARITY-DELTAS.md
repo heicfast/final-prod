@@ -4629,3 +4629,26 @@ step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 - **VERDICT: ACCEPTED** (the registered open modeling difference,
   N-178's leg 2 — revisit if a future decode surfaces the engine-side
   consumer).
+
+---
+
+## D-152 — the ext4 sweep's two registered guards (M-152's residue)
+
+**(a) The mode gate.** The og's inode-table sweep filter is shape-only
+(FUN_180005e50, raw-asm 0x180005f5d-0x180005f87: size_lo != 0, EXTENTS_FL,
+the 0xF30A extent magic, eh_entries != 0 — no dtime, no links, and no
+mode check either). The core keeps the regular/dir mode gate on the sweep
+admissions: a FIFO/socket with a forged extent header would pass the og's
+filter and surface as recoverable content; the core refuses it. Registered
+as the deliberate hardening — pinned by `Ext4Engine.SweepModeGateHolds`.
+
+**(b) The journal-inode claim.** The journal inode (the SB's
+s_journal_inum, dtime==0 && links!=0 on every real volume) passes the og's
+four-gate filter and lands in the harvest map; the og's finalize
+disposition of its own journal inode is UNDECODED (the claim-resolution
+path was never traced end-to-end — the finding's own honest limit). The
+core's journal machinery CLAIMS the inode (the sweep skips it when
+journal salvage is on): surfacing the filesystem's own journal as a lost
+"InodeN" entry would be FS-internal circular metadata noise, not user
+content. If a future audit traces the og's finalize and finds the journal
+inode surfaces there, this row flips and the claim comes out.

@@ -87,11 +87,22 @@ Next free IDs: S-069+, M-156+, N-219+, I-049+, A-017+, D-151+.
   extent (count-walk vs legacy constant) disagreement is RECORDED with
   its decisive next probe, not papered over.
 
-**Board after this landing: 0 ACUTE · 1 SEVERE (S-068) · 17 MAJOR ·
-10 MINOR · 1 INFO active / 175 FIXED (M-156 new+fixed; M-107's X3F
-member landed — the finding stays active for its remaining ten members)
-/ 4 tracked-open.** Next free IDs: S-069+, M-157+, N-218+, I-049+,
-A-016+, D-150+.
+- **M-152 FIXED (MAJOR, ext4 — this lane's second landing):** the
+  orphan-reserved skip is GONE. Corpus re-verified first-hand from the
+  raw asm (the filter at 0x180005f5d-0x180005f87: four content gates,
+  NO dtime/links read); the orphan-active population (unreachable-but-
+  intact inodes — torn parents, unlinks without link decrements) now
+  surfaces under the deleted root with its extents, the honest Active
+  state, and the new orphan_inodes counter. The live-claim dedup and the
+  mode-gate hardening pinned; the journal-inode claim registered
+  (PARITY-DELTAS D-152). RED→GREEN first-hand via the skip-line
+  reintroduction. Suite 49/49 ext4 + full suite green.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR ·
+1 INFO active / 177 FIXED (M-156 + M-152 this lane; the racing window's
+S-067/S-068/M-073/M-113/M-149/M-150/N-211/N-213/N-214/N-215/N-216/N-182/
+A-016/N-218 absorbed) / 4 tracked-open.** Next free IDs: S-069+, M-157+,
+N-219+, I-049+, A-017+, D-151+.
 
 # SUMMARY.md — executive summary (the S80 parity fix lane on top; the prior lanes below, newest-first)
 

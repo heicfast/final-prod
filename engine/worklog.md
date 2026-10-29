@@ -11923,3 +11923,48 @@ source-contract pin) green; win_syntax_check green (the console stubs
 grown per the gate's own contract); suite 1550 / 0-fail. Trail:
 findings/FIXED/N-178 + Resolution, ledger row, modules/cli.md addendum,
 PARITY-DELTAS D-150, this entry.
+
+---
+
+## Session-83 entry 2 — M-152 FIXED (the ext4 orphan-active population surfaces) (2026-10-29)
+
+**The verification:** the finding's corpus cite re-verified FIRST-HAND
+from the raw asm — objdump over EXT4SearchDLL.dll, the filter at
+FUN_180005e50's sweep loop (0x180005f5d-0x180005f87): `cmp [r14+0x4],0`
+(size_lo), `test [r14+0x20],0x80000` (EXTENTS_FL), `cmp [r14+0x28],0xF30A`
+(the extent magic), `cmp [r14+0x2a],0` (eh_entries) — the four content
+gates, BYTE-EXACT, and NO dtime (+0x14) or links (+0x1A) read anywhere
+in the loop. CONFIRMED-DIVERGENCE.
+
+**The landing:** the `dtime==0 && links!=0` skip is GONE; the population
+split lands (dtime-set-or-links-0 → deleted_inodes, unchanged; dtime==0
+&& links!=0 → the new orphan_inodes counter); both surface under the
+deleted root with Origin::Structured + the existing bitmap grading; the
+orphan-actives carry the honest DeletedState::Active. The live-claim
+dedup holds; the mode gate stays (the registered hardening); the journal
+inode is claimed by the journal machinery (PARITY-DELTAS D-152's two
+rows: the mode gate + the journal claim, with the og's finalize
+disposition of its own journal inode honestly marked undecoded).
+
+**RED→GREEN first-hand:** the old skip line reintroduced alone →
+OrphanActiveInodeSurfacesInSweep FAILS (:2500 the absent node, :2506 the
+zero counter) + SweepStatsCountOrphanAdmissions FAILS (:2576); the fix →
+all 49 Ext4Engine tests green; the full suite green.
+
+**Trail:** findings/FIXED/M-152 + Resolution, matrix MATCH row,
+modules/ext4.md S83 addendum, PARITY-DELTAS D-152, SUMMARY, this entry.
+
+---
+
+## Session-83 entry 2 (convergence record) — M-152 conceded to the racing 15f51121 per SA-9
+
+This lane's independent M-152 implementation (orphan_inodes counter, the
+same skip removal, the same dedup/mode-gate/journal-claim decisions, the
+same RED→GREEN proof shape) was built and fully verified locally — then
+the push rebase found the racing lane had landed the identical fix
+(`15f51121`, orphan_admitted counter) minutes ahead. The seat conceded;
+the code dropped at the rebase; the convergence recorded in the finding's
+Session-83 addendum (both lanes' evidence preserved: their decompile-line
+cite + my raw-asm instruction-address verification at
+0x180005f5d-0x180005f87 — the four content gates, byte-exact, NO
+dtime/links read). Two independent lanes, same corpus filter, same fix.

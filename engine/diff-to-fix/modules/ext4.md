@@ -325,3 +325,30 @@ regular/dir mode gate stays as the registered D-150 hardening.
 OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds (RED->GREEN);
 the new orphan_admitted counter surfaces the population; ext4 family
 56/56.
+
+---
+
+## Session-83 addendum — M-152 FIXED: the orphan-active population surfaces (2026-10-29)
+
+**The skip is gone.** The core's `dtime==0 && links!=0` "orphan-reserved"
+skip dropped exactly the population the og's predicate-free filter
+admits. Corpus re-verified FIRST-HAND from the raw asm this session
+(objdump over EXT4SearchDLL.dll; the filter at FUN_180005e50's sweep loop
+0x180005f5d-0x180005f87: `cmp [r14+0x4],0` / `test [r14+0x20],0x80000` /
+`cmp [r14+0x28],0xF30A` / `cmp [r14+0x2a],0` — the four content gates,
+byte-exact, NO dtime (+0x14) or links (+0x1A) read anywhere in the loop).
+
+The landing: the population split (dtime-set-or-links-0 → deleted_inodes,
+unchanged; dtime==0 && links!=0 → the new orphan_inodes counter); both
+surface under the deleted root with Origin::Structured and the existing
+extent/bitmap confidence grading; the orphan-actives carry the honest
+DeletedState::Active (no deletion evidence on the inode). The live-claim
+dedup holds (visited_inodes — the og resolves claims the same way); the
+mode gate stays as the registered hardening; the journal inode is claimed
+by the journal machinery (PARITY-DELTAS D-152's two rows). RED→GREEN
+first-hand: the old skip line reintroduced alone fails
+OrphanActiveInodeSurfacesInSweep (:2500/:2506) and
+SweepStatsCountOrphanAdmissions (:2576); the fix lands all 49 Ext4Engine
+tests green. Tests: OrphanActiveInodeSurfacesInSweep /
+OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds /
+SweepStatsCountOrphanAdmissions.
