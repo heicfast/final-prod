@@ -132,3 +132,27 @@ population.
 **Fixed in commit:** the S-068 S80-lane commit (this session; SHA in the commit footer)
 **Verified by:** FatEngine.DeletedHigh16ZeroRebasesFromHint / DeletedHigh16RebaseFallsBackToRawWalk / LastGoodHintUpdatesOnlyOnFileWalks / FAT16NoRebase — RED first-hand via the stash dance (the two re-base-firing tests FAILED at the pre-fix tree; the fallback and FAT16-immunity pins are the guard class), GREEN post-fix; the full FAT suite green; full suite 1604/1604.
 **Resolution notes:** The og's three-site machinery landed: (1) EmitCtx.last_good_first_cluster — the scan-global hint (the og's DAT_1800728c8), updated after every successful non-directory chain walk with the walked file's effective first cluster (directories and volume labels never move it — the og's `attr & 0x10 == 0` gate); (2) the deleted-dentry low-16 re-base in emit_entry — FAT32-only (the high word exists only there), gated on the low-16-only shape (`first_cluster < 0x10000 && first_cluster < hint`), the candidate = `hint_high | dentry_low16`, walked BEFORE the raw walk (the og's pre-walk site), adopted only when the re-based cluster's own FAT entry is live (the walk-confirmation gate: a FREE entry at the re-based cluster never adopts — the raw walk decides); (3) the adopted emission stamps the REPAIRED pair as the origin cluster (the og's +0x14/+0x1a write-back semantics), carries the assumed/inferred provenance (never Excellent), and surfaces in FatScanStats.high16_rebased. The failed re-based walk falls back to the raw dentry value's walk (the og's first-leg behavior — the GAP-S6-2 contiguous-candidate heuristic still applies on the raw path). Files: src/core/fat/cr_fat_quick.cpp, include/cr/fat/cr_fat_engine.h. Corpus: FATSearchDLL :13753-13758 (the hint update), :14753-14755 (the re-base), :14826-14848 (the retry + write-back), FUN_180014530 (the deleted-entry driver).
+
+---
+
+## Convergence addendum (this lane, the S80 parity-fix lane's concession record)
+
+This lane independently implemented and verified the same fix in the same
+window (the identical four-test plan from the finding, the identical
+three-site corpus decode, RED→GREEN via the stash dance, full suite 1502/0)
+before pulling — the push-rebase met the racing landing (`ad1bcb9e`) and the
+seat was conceded per SA-9. The racing implementation re-verified first-hand
+post-concession: the four S-068 tests 4/4 green, the FAT suite 92/92, the
+build clean. The two implementations are semantic twins independently derived
+from the finding's fix plan — the same hint field with the same update gate
+(non-directory, non-empty chain, the walked start), the same low-16 re-base
+gates, the same FAT-linked adoption requirement (`raw(rebased) != 0` — the
+freed-chain signature rejects the borrow), the same assumed-provenance cap,
+and the same repaired-pair origin stamp. Two minor deltas, both immaterial:
+(a) the stat's name (`high16_rebased` vs this lane's `rebased_high16` — the
+racing name stands); (b) this lane's explicit `hint >= 0x10000` requirement
+is not present in the racing version, but is a no-op difference (a hint below
+0x10000 has zero high bits, making the re-based candidate identical to the
+raw value). This lane's independent corpus re-verification of all three og
+sites (:13756-13759, :14753-14755, :14826-14848) stands as corroborating
+evidence for the racing landing's citations.
