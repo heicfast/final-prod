@@ -273,3 +273,86 @@ S-007 batch's CRW plant (header-only) exercises the torn-salvage path —
 its ≥ assertion holds unchanged. Remaining members: DWG (the
 section-locator map) next per the fix plan's order, then
 WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
+
+---
+
+## Session-85 addendum — the DWG member LANDED (member 3 of 11: the three-generation walk)
+
+**DWG FIXED for gen-1 + gen-2 (this session; the gen-3 R2007-only member and
+the remaining seven members stay with the finding).** The walk decoded
+first-hand from the raw asm (objdump over RAWSearchDLL.dll; evidence:
+`evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`): the
+"AC10" registry binding (0x1800036bf) → the node (vtable 0x18006bc00, idx
+0x18) → the tier-1 NINE-version gate FUN_18002fe30 → the factory
+FUN_18002ff20 (the 0x508 CDWGRawInfo child, **cursor 0x15** at raw-asm
+0x18002ff59) → the child's +0x20 walk FUN_18002f320, **no secondary** (the
+node's +0x40 is the return-0 stub — the CRW/M-090 pattern). THREE
+generations, routed by version string:
+
+- **Gen-1 (AC1012/13/14/15)**: the section-locator walk — count = u32
+  @ 0x15; 9-byte records from 0x19 {number:u8 == index, seeker:u32 @+1,
+  size:u32 @+5}; a number mismatch zeroes the extent (the decline,
+  :36379-83); **extent = max(seeker + size)** (the running max); the feed
+  stopping at the device end keeps the running max (the walked-prefix
+  salvage, reduced confidence).
+- **Gen-2 (AC1018/24/27/32 = R2004-R2018)**: FUN_18002f630 XORs the 0x6c
+  struct at +0x20 with the **MSVC rand() LCG stream, seed 1** (state =
+  state*0x343fd + 0x269ec3, byte = state>>16); six gates on the decoded
+  struct (u32@0x0b==0, @0x10==0x6c, @0x14==4, @0x44==0x20, @0x48==0x80,
+  @0x4c==0x40); all pass → **extent = u64@0x34 + 0x6c**; any fail → the
+  ctor's 0 (the decline).
+- **Gen-3 (AC1021 = R2007)**: the 0x3d8 accumulate + the 3×239 stride-3
+  de-interleave + FUN_18002ef50's record chain — the record chain NOT
+  decoded to landing quality; the bounded extent stays for this
+  generation, the finding's recorded remainder (the fix plan's own
+  point 1(c) split).
+
+The walk cap: singleton+0x70 (0xbebc200 = 200 MB) × 100 = 0x4A817C800
+(raw-asm 0x18002f5ee `imul $0x64`) — the registry row max now carries it
+(the 64 MiB stand-in value is gone from the row).
+
+**TWO defects discovered during verification, fixed in the same landing:**
+(1) the core's tier-1 table carried **"30" (AC1030 — not a real DWG
+release)** and **lacked "13" (AC1013 = R13)** — the og's table is exactly
+{12,13,14,15,18,21,24,27,32}; (2) the core's extra sentinel check (0D 0A
+0D 0A 00) exists nowhere in the og's chain — dropped.
+
+RED→GREEN first-hand: all six tests RED at the stand-in tree
+(DwgSectionLocatorWalkSetsExtent / DwgSectionNumberMismatchDeclines /
+DwgTornSalvagesTheWalkedPrefix / DwgR2004RandStructWalkSetsExtent /
+DwgR2004GateFailDeclines / DwgVersionGateIsTheOgsNine), GREEN with the
+walk. The gen-2 stream's independent oracle: the well-known MSVC rand
+seed-1 sequence (41, 18467, 6334, 26500, ...) — the first four low bytes
+pinned in the test. The S-007 batch's DWG plant re-pinned the CRW way (a
+real locator map; the header-only plant exercised the stand-in era's
+blind acceptance — the walk declines noise by design). The 180-test carve
+suite green; the full suite 1666/1666. Remaining members: WPG, WPD, PSP,
+SIT, APE, EPS, DXF, SWF-RECT (eight) + the gen-3 R2007 remainder.
+
+---
+
+## Session-85 addendum 2 — the PSP member LANDED (member 4 of 11: the ~BK block chain)
+
+**PSP FIXED (this session; seven members remain).** The chain decoded
+first-hand (RAWSearchDLL FUN_180016390 :17347-17368 = the tier-1, the
+ctor FUN_180016430 :17366-17384 = the PSPRawFileInfo child {min 0x24,
+max 20000000, the walked position starts 0x24}, FUN_180016510
+:17410-17482 = the walk):
+
+- **The tier-1 is the EXACT 32-byte signature** (memcmp 0x20):
+  "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the core's old
+  16-byte prefix accepted files the og refuses (a discovered defect,
+  pinned by PspExactSignatureRequired).
+- **The walk**: from 0x24, each block is {u32 magic 0x004b427e
+  ("~BK\0"), u32 length @ +6}; the position advances 10 + length; the
+  extent = the walked END — the first non-~BK block, the 20 MB row
+  bound, or the device end all stop the walk there (never a refusal
+  once the signature held; the torn straddle salvages the walked end).
+
+RED→GREEN via the stash dance: PspBkBlockChainWalkSetsExtent +
+PspExactSignatureRequired both RED at the stand-in validator (the blind
+extent; the short-signature acceptance), GREEN with the walk. The
+S-007 batch-1 PSP plant re-pinned (the og's exact 32-byte signature +
+a real two-block chain; the old 26-byte plant lacked the 0x0a/0x1a).
+The carve suite 183/183. Remaining members: WPG, WPD, SIT, APE, EPS,
+DXF, SWF-RECT (seven) + the DWG gen-3 remainder.

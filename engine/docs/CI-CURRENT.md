@@ -51,7 +51,7 @@ Benchmark (automatic dispatch against the fresh tag)**.
     that asserts a non-zero exit ends with the script's own explicit
     verdict (three dispatches historically died to a missing `exit 0`).
 11. CLI junk-gate probes (M-018/M-071): over the generated
-    `fat16-junk.img` fixture (tools/gen_fat16_junk_fixture.py), the
+    `junk-gate-fat16.raw` fixture (tools/gen_junk_gate_fixture.py), the
     `scan --image` tree print and `tree --in` never list the og's
     FilterFolder hidden set (DESKTOP.INI et al.) while the negative
     controls stay; `recover --all` never writes the hidden set.
@@ -150,7 +150,8 @@ SHA256SUMS + MANIFEST; never builds, never falls back). Sequence:
 - `.github/scripts/Teardown-Benchmark.ps1` — the always-run teardown
 - `.github/scripts/api_harness.c` — the API-lane driver (cr_ui C ABI)
 - `.github/scenarios/benchmark-matrix.json` — the versioned truth
-- `tools/gen_fat16_junk_fixture.py` — the M-071 CLI junk-gate fixture
+- `tools/gen_junk_gate_fixture.py` — the M-071 CLI junk-gate fixture
+  (generates `tests/data/images/junk-gate-fat16.raw`)
 - `bench/` — the seed/scenario/metrics tooling (unchanged; now wired into
   CI through the orchestrator instead of the wiped comparative lanes)
 

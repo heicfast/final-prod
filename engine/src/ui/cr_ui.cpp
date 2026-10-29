@@ -49,6 +49,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_image_create.h" /* S-040 */
+#include "cr/win/cr_fsck.h"         /* M-075: the chkdsk escalation endpoint */
 #include "cr/win/cr_winenv.h"       /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
@@ -5030,4 +5031,30 @@ extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_si
 extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                                  cr_ui_recovery_progress_fn progress, void* user) {
     return guarded(image_create_impl, disk, utf8_path, progress, user);
+}
+
+/* ---- M-075: the chkdsk escalation endpoint (the ladder's fix rung) ----
+ * The narrow-ASCII letter form; the win layer's wide seam carries the
+ * spawn. The internal synchronous bound is 15 minutes (900,000 ms) — a
+ * documented engineering default, not a corpus-decoded constant (the
+ * og's WinChkdsk monitoring loop has no decoded bound); on timeout the
+ * process is left running and exit_code reports STILL_ACTIVE (259). */
+static u32 fsck_volume_impl(char letter, uint32_t flags, int32_t* exit_code) {
+#ifdef _WIN32
+    if (exit_code)
+        *exit_code = -1;
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    return win::fsck::fsck_volume(wchar_t(lc), flags, 900000u, exit_code);
+#else
+    (void)letter;
+    (void)flags;
+    (void)exit_code;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_fsck_volume requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code) {
+    return guarded(fsck_volume_impl, letter, flags, exit_code);
 }

@@ -4552,33 +4552,154 @@ CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap) {
                               "m2ts-packet-walk-192+null");
 }
 
+/* M-107 member 3 (DWG): the og's THREE-GENERATION size walk, decoded
+ * first-hand from the raw asm this session (objdump over RAWSearchDLL.dll;
+ * evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md):
+ * the "AC10" registry binding at 0x1800036bf -> the node (vtable
+ * 0x18006bc00, idx 0x18) -> the tier-1 nine-version gate FUN_18002fe30
+ * {12,13,14,15,18,21,24,27,32} -> the factory FUN_18002ff20 (the 0x508
+ * CDWGRawInfo child, cursor 0x15, extent 0) -> the child's +0x20 walk
+ * FUN_18002f320, with NO secondary (node+0x40 = the return-0 stub).
+ *
+ * Gen-1 (AC1012/13/14/15 = R13/R14/R2000): the section-locator walk -
+ * count = u32 @ 0x15 (the ctor's cursor, raw-asm 0x18002ff59), then
+ * 9-byte records from 0x19 {number:u8 == index, seeker:u32 @+1, size:u32
+ * @+5}; a number mismatch zeroes the extent (the decline, :36379-83);
+ * extent = max(seeker + size) (the running max, :36384-86); the feed
+ * stopping at the device end keeps the running max (the walked-prefix
+ * salvage class). Gen-2 (AC1018/24/27/32 = R2004/R2010/R2013/R2018):
+ * FUN_18002f630 XORs the 0x6c struct at +0x20 with the MSVC rand() LCG
+ * stream (seed 1: state = state*0x343fd + 0x269ec3, byte = state>>16);
+ * the gates on the DECODED struct (u32@0x0b==0, u32@0x10==0x6c,
+ * u32@0x14==4, u32@0x44==0x20, u32@0x48==0x80, u32@0x4c==0x40); all
+ * pass -> extent = u64@0x34 + 0x6c; any fail -> extent stays 0 (the
+ * decline). Gen-3 (AC1021 = R2007): the 0x3d8-byte accumulate + the
+ * 3x239 stride-3 de-interleave + FUN_18002ef50's record chain - NOT
+ * decoded to landing quality; the bounded extent stays for that
+ * generation, recorded as the finding's honest remainder (the fix
+ * plan's own point 1(c) split). The walk cap: singleton+0x70
+ * (0xbebc200 = 200 MB) * 100 = 0x4A817C800 (raw-asm 0x18002f5ee
+ * `imul $0x64`) - the row max carries it. */
 CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
-    /* AutoCAD DWG: "AC10xx" version gate over the known release set
-     * (r13..R2018), then the bounded extent (the finding's sanctioned
-     * heuristic: the R13-R2000 section-locator map is version-dependent
-     * and the R2004+ map is compressed - a full section walk is a
-     * follow-up; the version gate + bounded extent is the honest floor). */
     CarveResult r;
     u8 v[6];
     if (!rd(s, hit, v, 6))
         return r;
     if (std::memcmp(v, "AC10", 4) != 0)
         return r;
-    static const char* kVersions[] = {"12", "14", "15", "18", "21", "24", "27", "30", "32"};
-    bool known = false;
-    for (const char* ver : kVersions)
-        if (v[4] == ver[0] && v[5] == ver[1])
-            known = true;
-    if (!known)
+    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly these
+     * nine. The S-007 landing carried "30" (AC1030 - not a real DWG
+     * release) and lacked "13" (AC1013 = R13) - corrected here. The og
+     * has NO sentinel check (the version table is the whole gate). */
+    static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32"};
+    int ver = -1;
+    for (int i = 0; i < 9; ++i)
+        if (v[4] == u8(kVersions[i][0]) && v[5] == u8(kVersions[i][1])) {
+            ver = i;
+            break;
+        }
+    if (ver < 0)
         return r;
-    /* the R13-R2000 sentinel follows the version string: 0D 0A 0D 0A 00 */
-    u8 sent[5];
-    if (rd(s, hit + 6, sent, 5) && sent[0] == 0x0D && sent[1] == 0x0A && sent[2] == 0x0D &&
-        sent[3] == 0x0A && sent[4] == 0x00) {
-        known = true; /* strengthens the classification */
-    }
+    /* the generation routing (the og's own three tables): gen-1 =
+     * {12,13,14,15} (:36331-46), gen-2 = {18,24,27,32} (:36394-408),
+     * gen-3 = {21} (:36408-17) - routed by VERSION STRING, not table
+     * index (the og's tables are not index-contiguous) */
+    const char ver_str[3] = {char(v[4]), char(v[5]), 0};
+    const bool gen1 = std::memcmp(ver_str, "12", 2) == 0 || std::memcmp(ver_str, "13", 2) == 0 ||
+                      std::memcmp(ver_str, "14", 2) == 0 || std::memcmp(ver_str, "15", 2) == 0;
+    const bool gen2 = std::memcmp(ver_str, "18", 2) == 0 || std::memcmp(ver_str, "24", 2) == 0 ||
+                      std::memcmp(ver_str, "27", 2) == 0 || std::memcmp(ver_str, "32", 2) == 0;
+    (void)ver;
     const u64 limit = probe_limit(s, hit, cap);
-    u64 end = hit + (64ull << 20); /* the finding's 64 MiB cap */
+    const u64 rel_limit = limit - hit;
+
+    if (gen1) {
+        /* ---- gen-1: the section-locator walk (R13/R14/R2000) ---- */
+        u8 hdr[0x19];
+        if (!rd(s, hit, hdr, sizeof(hdr)))
+            return r;
+        const u32 count = u32_from_bytes_le(hdr + 0x15);
+        u64 extent = 0; /* the base ctor's zero */
+        bool walked = false;
+        bool torn = false;
+        /* the records: 9 bytes each from 0x19, walked through 64 KiB
+         * windows (the og's chunk feed steps sector-sized windows; the
+         * model divergence is the registered class - the semantics, the
+         * record gates and the running max, are the og's own) */
+        std::vector<u8> win(64 * 1024);
+        u64 rec_off = 0x19; /* relative to the hit */
+        u64 win_base = ~u64(0);
+        u64 win_len = 0; /* the FILLED length (never win.size()) */
+        for (u32 i = 0; i < count; ++i) {
+            if (rec_off < win_base || rec_off + 9 > win_base + win_len) {
+                if (rec_off + 9 > rel_limit) {
+                    torn = true; /* the feed ran out mid-walk */
+                    break;
+                }
+                win_base = rec_off;
+                win_len = std::min<u64>(win.size(), rel_limit - win_base);
+                if (win_len < 9 || !rd(s, hit + win_base, win.data(), u32(win_len))) {
+                    torn = true;
+                    break;
+                }
+            }
+            const u8* rec = win.data() + (rec_off - win_base);
+            if (rec[0] != u8(i)) {
+                /* the og's only structural gate: number != index ->
+                 * extent 0 (the decline, :36379-83) */
+                return r;
+            }
+            const u32 seeker = u32_from_bytes_le(rec + 1);
+            const u32 size = u32_from_bytes_le(rec + 5);
+            const u64 rec_end = u64(seeker) + u64(size);
+            if (rec_end > extent)
+                extent = rec_end; /* the running max, :36384-86 */
+            walked = true;
+            rec_off += 9;
+        }
+        if (!walked)
+            return r; /* nothing walked: the ctor's extent 0 */
+        u64 end = hit + extent;
+        if (end > limit)
+            end = limit;
+        if (end - hit < 512)
+            return r;
+        r.ok = true;
+        r.end = end;
+        r.confidence = torn ? 550 : 650; /* the torn salvage: reduced */
+        r.note = torn ? "dwg-locator-walk,torn-salvage" : "dwg-locator-walk";
+        return r;
+    }
+
+    if (gen2) {
+        /* ---- gen-2: the rand-XOR struct walk (R2004+) ---- */
+        u8 enc[0x6c];
+        if (!rd(s, hit + 0x20, enc, sizeof(enc)))
+            return r; /* the struct never completes: the extent stays 0 */
+        u8 dec[0x6c];
+        u32 st = 1; /* the MSVC rand() LCG, seed 1 (FUN_18002f630) */
+        for (size_t i = 0; i < sizeof(dec); ++i) {
+            st = st * 0x343fd + 0x269ec3;
+            dec[i] = u8(enc[i] ^ u8(st >> 16));
+        }
+        if (u32_from_bytes_le(dec + 0x0b) != 0 || u32_from_bytes_le(dec + 0x10) != 0x6c ||
+            u32_from_bytes_le(dec + 0x14) != 4 || u32_from_bytes_le(dec + 0x44) != 0x20 ||
+            u32_from_bytes_le(dec + 0x48) != 0x80 || u32_from_bytes_le(dec + 0x4c) != 0x40)
+            return r; /* a failed gate leaves the extent at the ctor's 0 */
+        const u64 extent = u64_from_bytes_le(dec + 0x34) + 0x6c;
+        u64 end = hit + extent;
+        if (end > limit)
+            end = limit;
+        r.ok = true;
+        r.end = end;
+        r.confidence = 650;
+        r.note = "dwg-r2004-rand-struct-walk";
+        return r;
+    }
+
+    /* ---- gen-3 (AC1021 = R2007): the undecoded de-interleave chain -
+     * the bounded extent stays, the finding's recorded remainder ---- */
+    u64 end = hit + (64ull << 20);
     if (end > limit)
         end = limit;
     if (end - hit < 512)
@@ -4586,7 +4707,7 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     r.end = end;
     r.confidence = 620; /* bounded-extent honesty: raw-sign class */
-    r.note = "dwg-version-gate,bounded-extent";
+    r.note = "dwg-r2007-bounded-extent";
     return r;
 }
 
@@ -5348,20 +5469,50 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* PSP: "Pain" key 0x6e696150 (:5802) -> PSPAnalyser chain idx 55. The
- * files carry "Paint Shop Pro Image File" as the header string - the
- * 19-byte prefix is the real discriminator; bounded extent stands in. */
+/* M-107 member 4 (PSP): the og's tier-1 + the ~BK block-chain walk,
+ * decoded first-hand this session (RAWSearchDLL FUN_180016390
+ * :17347-17368 + the child FUN_180016510 :17410-17482, the ctor
+ * FUN_180016430 :17366-17384: min 0x24, max 20000000, the walked
+ * position starts at 0x24). The tier-1 is the EXACT 32-byte signature
+ * (memcmp 0x20): "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs.
+ * The walk: from 0x24, each block is {u32 magic 0x004b427e ("~BK\\0"),
+ * u32 length @ +6}; the position advances 10 + length; the extent is
+ * the walked END - the first non-~BK block, the 20 MB row bound, or
+ * the device end all stop the walk there (never a refusal once the
+ * signature held). */
 CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[19];
+    u8 h[32];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "Paint Shop Pro I", 16) != 0)
+    /* the og's exact 32-byte compare (FUN_180016390's seven locals) */
+    static const u8 kSig[32] = {'P', 'a', 'i', 'n', 't', ' ', 'S', 'h', 'o', 'p', ' ', 'P',
+                                'r', 'o', ' ', 'I', 'm', 'a', 'g', 'e', ' ', 'F', 'i', 'l',
+                                'e', 0x0a, 0x1a, 0, 0, 0, 0, 0};
+    if (std::memcmp(h, kSig, sizeof(kSig)) != 0)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    /* the ~BK chain from 0x24 (the ctor's walked-position start) */
+    u64 pos = 0x24;
+    bool torn = false;
+    std::vector<u8> blk(10);
+    while (pos + 10 <= rel_limit) {
+        if (!rd(s, hit + pos, blk.data(), 10)) {
+            torn = true; /* the straddling header: the walked end salvages */
+            break;
+        }
+        if (u32_from_bytes_le(blk.data()) != 0x004b427eu) /* "~BK\\0" */
+            break; /* the non-~BK terminator: the extent is the walked end */
+        const u32 len = u32_from_bytes_le(blk.data() + 6);
+        pos += 10 + u64(len);
+    }
+    if (pos > rel_limit)
+        pos = rel_limit; /* the 20 MB row bound / the device end clamp */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 650;
-    r.note = "psp-header-string+bounded-extent";
+    r.end = hit + pos;
+    r.confidence = torn ? 550 : 650;
+    r.note = torn ? "psp-bk-chain-walk,torn-salvage" : "psp-bk-chain-walk";
     return r;
 }
 

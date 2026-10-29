@@ -607,21 +607,25 @@ void plant_compact_fat12(std::vector<u8>& img, u64 lba) {
     b[1] = 0x3C;
     b[2] = 0x90;
     std::memcpy(b + 3, "MSDOS5.0", 8);
-    *(u16*)(b + 0x0B) = u16(512);
-    b[0x0D] = 1;                 /* spc */
-    *(u16*)(b + 0x0E) = u16(1);  /* reserved */
-    b[0x10] = 1;                 /* one FAT */
-    *(u16*)(b + 0x11) = u16(16); /* root entries */
-    *(u16*)(b + 0x16) = u16(8);  /* SPF 8 -> FAT12 flavor */
+    /* put16 everywhere: the raw *(u16*) stores were misaligned UBSan
+     * violations on odd LBA bases (caught by this session's local
+     * --san lane; CI is windows-only by the documented decision, so the
+     * local sanitizer lanes are the only place this runs) */
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = 1;                      /* spc */
+    put16(img, lba * 512 + 0x0E, 1);  /* reserved */
+    b[0x10] = 1;                      /* one FAT */
+    put16(img, lba * 512 + 0x11, 16); /* root entries */
+    put16(img, lba * 512 + 0x16, 8);  /* SPF 8 -> FAT12 flavor */
     b[0x15] = 0xF8;
-    *(u16*)(b + 0x20) = u16(113); /* total16 */
+    put16(img, lba * 512 + 0x20, 113); /* total16 */
     std::memcpy(b + 0x36, "FAT12   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
     /* the FAT head: media + two EOC markers (a plausible empty FAT) */
-    *(u16*)(img.data() + (lba + 1) * 512 + 0) = 0xFFF8;
-    *(u16*)(img.data() + (lba + 1) * 512 + 2) = 0xFFFF;
-    *(u16*)(img.data() + (lba + 1) * 512 + 4) = 0xFFFF;
+    put16(img, (lba + 1) * 512 + 0, 0xFFF8);
+    put16(img, (lba + 1) * 512 + 2, 0xFFFF);
+    put16(img, (lba + 1) * 512 + 4, 0xFFFF);
 }
 } // namespace
 

@@ -1,71 +1,126 @@
-# worklog/api-findings.md — ABI-level findings for the next behavior session (Session-84, T4)
+# API findings — Session-84 (behavior-adjacent, filed not fixed)
 
-As of `78c60e89` (2026-10-30). Everything here is **verified and filed, not fixed** — each
-item requires a runtime-observable change or a test-surface addition beyond this session's
-no-behavior-change mandate (wiring completions with proving tests excepted, per §7).
-Scope notes are written for the next session's planner.
+Findings that CANNOT be fixed in a coherence session without a behavior
+change. Each carries exact evidence and the precise scope for the next
+behavior session. (The phantom-export finding F1 was valid at the Phase-0
+baseline `e8dcaba8` and was closed by the racing `a47419c7` landing
+mid-session — recorded here for the history because the Phase-0 sheets
+describe the baseline state.)
 
-## AF-1 — CLI exit-code taxonomy inconsistencies (HIGH, user-visible)
+## F1 — phantom export `cr_ui_session_resume_last` [CLOSED mid-session]
 
-- `recover` exits 1 on source-open failure; `bench`/`fix`/`apply` exit 2 on the same
-  class (api-cli-mismatches.md B-1). Scripts keyed on exit codes misclassify recover's
-  open failures as usage errors.
-- The `-h` usage block omits 7 parsed scan flags and exit code 5 (B-3); the disconnect
-  hint references a nonexistent `rrecov resume` subcommand (B-2, rrecov.cpp:2090).
-- **Scope:** one behavior session decides the canonical exit map (the header docstring at
-  rrecov.cpp:49-60 is now the documented truth for 0-5), fixes the three string surfaces
-  (`-h` block, hint, any per-verb inconsistencies), and lands pin tests per verb asserting
-  the map. The docstring fix (`78c60e89`) already documents 5; the code strings still
-  disagree with it in the `-h` block only.
+- Baseline state: declared include/cr/cr_ui.h:927 with the full M-154
+  pointed-resume contract (BAD_PARAMETER nulls; ERR_OPEN_FAILED for no
+  sidecar / dead pointer / non-auto target; no shared state; any thread);
+  ZERO references anywhere in src/**, tests/**, tools/**; never
+  implemented on any remote branch (`git log --all -S` shows only the
+  declaration commit b2bc1970 and this session's sheets). The DLL shipped
+  90 exports while the header declared 91 and the docs counted 91.
+- Closure: a47419c7 implemented it (src/ui/cr_ui.cpp:3699,
+  `guarded(session_resume_last_impl, ...)` with the pointer-field
+  disagreement guard at :3690-3694); cr_ui.cpp now carries 91
+  `extern "C" CR_UI_API` definitions; tests pin the contract
+  (test_cr_ui.cpp:5180-5222).
+- Residual for the next session: nothing. Verified here post-landing.
 
-## AF-2 — Two ABI exports have zero consumer coverage (MEDIUM, gate-5 gap)
+## F2 — `enumerate_volumes` return code dropped in `print_disks`
 
-`cr_ui_open_volume_with_key` and `cr_ui_unlock_volume_with_dictionary` (the BitLocker
-unlock pair, declared in cr_ui.h, implemented in cr_ui.cpp) are called by NO consumer:
-not `tests/ui_abi_check.c` (76/91), not `.github/scripts/api_harness.c` (47/91), not
-`cr_ui_tests` (84/91). Union coverage 89/91 — computed at `78c60e89` by intersecting the
-declared export list with call sites across all three consumers.
-**Scope:** two consumer tests (ui_abi_check.c or cr_ui_tests) exercising both functions'
-success and refusal arms; this is test-surface addition, no product change — it may be
-landed by a coherence session, but it needs fixture design (an encrypted-volume image or
-a unit-shaped refusal harness), so it is filed rather than rushed here.
+- Evidence: src/app/rrecov.cpp:819 (`win::enumerate_volumes(vols);` —
+  rc ignored) while the sibling `enumerate_disks` call at :811-815 IS
+  checked (`!= OK` → "enumeration failed" + return 1, citing FB-K01:
+  "enumeration failure is never exit-0 - scripts must not mistake total
+  failure for 'no disks'").
+- Why filed, not fixed: handling the rc changes observable output on the
+  failure path (a new error line + exit 1 where today it prints
+  "N disk(s), 0 volume(s)" and exits 0). That is a behavior change.
+- Scope for next session: check `enumerate_volumes` rc in `print_disks`;
+  decide the exit code (1 per FB-K01's own principle); add the
+  Linux-runnable source pin; update docs/API.md's list-verb failure
+  semantics if it documents them.
 
-## AF-3 — The doc-truth oracle's error-code regex has phantom matches (MEDIUM, tooling)
+## F3 — the N-145 "every startup" journal probe does not exist
 
-`tools/doc_truth_gate.py` counts 45 error codes; the enum carries 43 nonzero + OK. The
-regex also matches the two og-facility literals quoted in the cr_error.h:6-7 comment.
-Five doc sites repeat the 45 figure. Fixing the regex changes what "green" means, and the
-doc count corrections must land in the same commit — a coordinated doc+tooling change
-that belongs in the T17 batch with the recount (api-cli-mismatches.md D-4), not a silent
-mid-session oracle edit.
+- Evidence: docs/PARITY-DELTAS.md:4226 ("probed at [every startup]"),
+  diff-to-fix/modules/apply.md:107, diff-to-fix/CROSS-REF-MATRIX.md:21
+  ("the every-startup warning naming the recovery path") vs the code:
+  `apply::inflight_probe` is called ONLY inside the apply flow
+  (src/app/rrecov.cpp:3368, within `apply --apply`) and the undo-apply
+  path (:3612-3618). No main() startup probe exists. The journal's
+  default filename is `rrecov-apply-inflight.jrn` (rrecov.cpp:3361) or
+  `<in-path>.inflight` — none of the three doc sites' `rrecov-apply.ifj`.
+- The landing commit d7856484's message claims "probes it at EVERY
+  startup (the warning names the disk ordinal + the undo-apply recovery
+  path)". The claim is not in the code.
+- Why filed: adding a startup probe changes CLI startup behavior for
+  every invocation (new file read + potential warning output).
+- Scope for next session: either implement the startup probe per the
+  N-145 finding's contract (the og's pendingMarkedDisk semantics — the
+  warning at next start), or correct the finding/trail to the
+  apply-scoped reality. The filename must be reconciled in the same
+  decision (rrecov-apply.ifj vs rrecov-apply-inflight.jrn vs `<in>.inflight`).
 
-## AF-4 — ABI event-type emission split (LOW, informational)
+## F4 — fuzz campaign drift (fuzz/Makefile)
 
-The core-side event enum emits only 8 of the 12 `CR_EVT_*` types; types 8, 9, 11, 12 are
-raised shim-side (api-surface sheet §4/§8). This is by design (the shim synthesizes
-host-level events the core does not know about) but the split is documented nowhere in
-ABI-CONTRACT.md's event section. **Scope:** a two-line contract clarification in the T17
-doc pass; no code change.
+- Evidence (build-surface.md §fuzz): `fuzz_reghive` is in the build set
+  but no run target executes it; `run-long` omits `fuzz_image` from the
+  campaign; the corpus bootstrap mkdir misses `corpus/thumbnail`.
+- Why filed: changing the Makefile changes what the fuzz campaign
+  verifies (a coverage/verification-policy decision, not a defect repair
+  — each of the three may be deliberate).
+- Scope: decide per target whether it belongs in `smoke`/`run-long`;
+  align the corpus dirs; re-run the fuzz smoke campaign and record the
+  verdict.
 
-## AF-5 — Struct-layout drift detection has no static pin (LOW)
+## F5 — `cr_ui_session_last_autosave_path`'s documented error code does not exist
 
-The 30 ABI structs carry no packing pragmas and no size/version fields (api-surface
-§3 — gcc -std=c11 size probes at Phase 0). Layout is C11-natural on the x64 ABI; the
-prompt's §2 offset-assertion consumer does not exist. A `static_assert` battery in
-ui_abi_check.c (offsetof/sizeof for every struct field) would pin the layout against
-future field-type edits at zero runtime cost. **Scope:** test-surface addition, next
-session; harmless to add but out of this session's minimal-fix discipline.
+- Evidence: include/cr/cr_ui.h:1021-1023 documents "ERR_NOT_FOUND when
+  no live pointer names a present file" — the error enum
+  (include/cr/cr_error.h) HAS NO ERR_NOT_FOUND member; the implementation
+  returns ERR_RANGE_OUT_OF_BOUNDS (src/ui/cr_ui.cpp:3647) and the ABI
+  test pins 0x50020004 (tests/ui_abi_check.c:592 region,
+  test_cr_ui.cpp:5195-5222).
+- The header COMMENT is the wrong side (doc-in-code drift); fixing the
+  comment is a Phase 5 doc correction (no behavior), tracked as D3 in
+  api-cli-mismatches.md. Filed here too because the underlying question —
+  whether the pointer-absence class deserves its own error code rather
+  than recycling RANGE_OUT_OF_BOUNDS — is a behavior-session decision.
+- Scope: rename/correct the comment now (Phase 5); the error-code-family
+  question (a dedicated pointer-absence code vs the current overload) is
+  the next session's call, with the ABI version implications spelled out.
 
-## AF-6 — Deferred from the sheets (cross-referenced, not re-derived here)
+## F6 — D-52 "collision" in PARITY-DELTAS.md — NOT a defect (verified false)
 
-The api-surface sheet's A2-A5 doc-drift items (CORE-API-CURRENT "(b) drift", the 92/94
-line counts) are consolidated into api-cli-mismatches.md D-4/D-5 and the T17 batch. No
-additional ABI-level behavior gap was found by this lane beyond the above.
+- The Phase-0 census flagged D-52 as double-claimed; first-hand read
+  shows :1684 `### D-52` and :4340 `### D-52 ADDENDUM` — an addendum to
+  the SAME seat, not a second claimant. No action. (Recorded so the next
+  session doesn't re-chase it; the census regex `^#{2,3} D-[0-9]+`
+  over-matches addendum headings.)
 
-## Verification trail for this file
+## F7 — doc_truth_gate's D-uniqueness check is blind to `##`-level rows
 
-- Coverage computation: declared-list vs consumer call-site intersection (script output
-  preserved in the session transcript; re-derivable with
-  `grep -o 'CR_UI_API\s\+[^;]*cr_ui_\w*' include/cr/cr_ui.h` intersected with
-  `grep -o 'cr_ui_[a-z_0-9]*\s*('` over the three consumers).
-- All file:line citations re-read at `78c60e89`.
+- Evidence: tools/doc_truth_gate.py's D-row regex matches
+  `^(?:###|\*\*)`-anchored rows only; the former `## D-152` rows at
+  PARITY-DELTAS.md:4656/:4678 were invisible to it (the gate reported
+  "D-numbering unique (153 rows)" while three rows claimed D-152).
+- The D-152 collision was repaired by the racing window; the REGEX is
+  still blind — the next `##`-level seat collision will pass the gate
+  the same way.
+- Scope: widen the gate's row regex to `^#{2,3}` (one-line change +
+  re-derive; the count changes, so the gate's row-count output and any
+  docs citing it must be refreshed together). This changes the gate's
+  derivation semantics → deliberately filed rather than slipped into a
+  doc commit; recommend the next coherence window takes it with the
+  D-52 repair (F6) so one gate change covers both.
+
+## Deferred from the Phase-0 agents (verified accurate, no action this session)
+
+- CI action refs are unpinned mutable tags across all 4 workflows
+  (build-surface.md §CI); pinning is mandated hygiene but every workflow
+  is currently green for the right reason and the pin set (tags→SHAs)
+  must be resolved via the API at pin time — a deliberate, reviewable
+  change for the next window with CI time to re-verify. Not slipped into
+  this session's repair stream while the racing cadence is hot.
+- The ASan preset (linux-gcc) is run by no CI gate and no ci-local lane
+  (build-surface.md §sanitizers) — a coverage decision, not a defect.
+- GTest dual-sourcing (vcpkg + unpinned FetchContent) — packaging
+  decision, filed in build-surface.md.

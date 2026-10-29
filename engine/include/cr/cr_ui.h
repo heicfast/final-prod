@@ -1018,8 +1018,16 @@ CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* r
  * last_scan.info sidecar in the autosave dir (the og's [Info] four
  * fields, PARITY-DELTAS-registered location difference). Returns OK
  * with the pointed session's UTF-8 path copied into out_path when the
+<<<<<<< HEAD
  * pointer exists AND the pointed file is present; ERR_RANGE_OUT_OF_BOUNDS
  * when no live pointer names a present file (the host falls back to
+=======
+ * pointer exists AND the pointed file is present;
+ * ERR_RANGE_OUT_OF_BOUNDS (0x50020004) when no live pointer names a
+ * present file (the impl's actual code, pinned by the ABI tests; the
+ * enum carries no ERR_NOT_FOUND - Session-84 corrected this comment
+ * from its pre-repair claim) (the host falls back to
+>>>>>>> origin/main
  * cr_ui_session_list). The returned path is directly loadable by
  * cr_ui_session_load - the pointed-resume contract (FUN_140286390's
  * SavePath-restore equivalent). */
@@ -1592,6 +1600,26 @@ CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
  * platform answer). */
 CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                       cr_ui_recovery_progress_fn progress, void* user);
+
+/* M-075 (diff-to-fix): the check-phase escalation endpoint — launch
+ * Windows chkdsk on the volume mounted at `letter` ('A'..'Z'; the
+ * narrow ASCII form of the win layer's wide seam).
+ *   flags: 0 = check posture (chkdsk X:), 1 = fix posture (chkdsk X: /f)
+ *     — the guidance string's two halves (FileSystemCheck.mo
+ *     strings_ascii.txt:126); other bits are ignored for forward
+ *     compatibility.
+ *   exit_code (may be NULL): the RAW chkdsk exit code — 0 no errors, 1
+ *     errors fixed, 2 cleanup/scheduled, 3 errors remain (rerun /f), or
+ *     -1 when the spawn itself failed, 259 when the internal timeout
+ *     (15 min, the documented synchronous bound) left the process
+ *     running.
+ * Returns OK when chkdsk ran (its own verdict is in exit_code),
+ * ERR_BAD_PARAMETER for a non-letter, ERR_OPEN_FAILED when no volume is
+ * mounted at the letter (the loud refusal — never a silent skip),
+ * ERR_UNSUPPORTED when not elevated or on non-Windows lanes.
+ * The escalation ladder: in-engine check (this header's scan-side
+ * pre_scan_check) -> this endpoint -> the host's raw-carve fallback. */
+CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code);
 
 #ifdef __cplusplus
 } /* extern "C" */

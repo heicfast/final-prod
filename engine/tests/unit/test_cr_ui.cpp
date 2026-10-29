@@ -5249,3 +5249,18 @@ TEST(CrUi, CliImageCreateFlagParses) {
     EXPECT_NE(rrecov.find("image needs --disk N and --out file.img"), std::string::npos)
         << "the missing-args refusal must stay (the parser still demands both)";
 }
+
+/* Session-84 (coherence): the disconnect hint must name a real verb - the
+ * N-125 exit-5 message at rrecov.cpp:2092 said `rrecov resume %ls`, but no
+ * `resume` verb exists in the dispatch (the 13-verb table has no such
+ * entry; the real reattach path is `scan --resume <file> --disk N |
+ * --volume C:`, parsed at rrecov.cpp:1559 and stated by the sibling
+ * cancel-resume message at :1921). A hint that names a nonexistent
+ * command is the user-facing wiring class this session hunts. */
+TEST(CrUi, CliDisconnectHintNamesRealVerb) {
+    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(rrecov.empty());
+    EXPECT_NE(rrecov.find("rrecov scan --resume %ls"), std::string::npos)
+        << "the exit-5 disconnect hint must name the real resume form "
+           "(scan --resume), never a phantom `rrecov resume` verb";
+}

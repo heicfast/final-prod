@@ -89,3 +89,24 @@ deterministic seeds) is follow-up work — recorded here as the matrix's
 documented boundary, not a silent gap. The S-IMG-CREATE scenario (image
 verb) is blocked on PLAN-API-EXPANSION Wave 4 and enters the matrix when
 the verb lands.
+
+## The chkdsk escalation scenario (M-075, Windows runner)
+
+The check-ladder's fix rung end-to-end (`fix --chkdsk C:` on the runner's
+staged volume):
+
+1. Stage a small FAT32 volume (the matrix's existing S-1 class) with a
+   seeded FAT copy mismatch (the M-041 taxonomy's 0x1005 shape — two
+   entries' worth of divergence planted between the FAT copies).
+2. `rrecov fix --chkdsk C:` — expects exit 0, stdout `chkdsk C: exit code 1`
+   (errors found and fixed; chkdsk's own documented class).
+3. Re-run the M-041 audit (`cr_ui_scan` with `pre_scan_check`) on the
+   repaired volume — expects the 0x1005 row GONE from the report
+   (the ladder's full round trip: detect → escalate → re-detect clean).
+
+The scenario exercises the real spawn (elevation, the synchronous wait,
+the WoW64-native System32 resolution); the wiring contracts are the
+`FsckWin.*` seam battery (no spawn) and the grammar is `FsckVolume.*`
+(both lanes). A busy-volume refusal row is NOT staged — chkdsk cannot
+be safely run concurrently with the runner's own staging, and the refusal
+paths are already seam-pinned.

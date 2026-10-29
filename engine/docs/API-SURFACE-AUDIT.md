@@ -29,7 +29,7 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 91 exports (re-derived 2026-10-29, the N-140 lane's carve-tally pair: 92
+`libcr_ui.so`): 92 exports (re-derived 2026-10-30, the M-075 lane: 95
 CR_UI_API lines - 3 #defines; the doc_truth_gate count invariants hold
 these in CI now - the "as of <landing>" snapshot phrasing retired with
 the gate, it is how stale counts hid)

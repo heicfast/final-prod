@@ -1,3 +1,27 @@
+# SUMMARY.md — executive summary (the S86 MINOR-first 20+ fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes]; opened at core `e17a4e6d` [clean tree, ctest 1566/1566 green first-hand], corpus `be0cfe9` throughout; re-homed S79 → S86 per SA-9 [the racing windows took S68-S85]; prompt saved token-redacted at worklog/session-diff-fix-s86-prompt.md)
+
+- **N-181 CONCEDED to the racing S76 lane's `033c5d7c`** (earlier-push-wins):
+  this lane built and PROVED the og-faithful concurrent shape (the carve
+  worker at the loop-1 position, the stage-begin on the scan thread, the
+  carve-stage engine/finish split with disjoint ScanStats ownership, the
+  new locked snapshot_dfs/collect_structured_extents tree APIs, per-stage
+  telemetry clocks, 3 RED→GREEN tests, suite 1569/1569, TSan/UBSan clean)
+  but the racing window landed its sequential carve-before-deep reorder
+  first. Their landing keeps the seat; the interleaved-feeds residual (and
+  the reorder's flip of the deep population's time-to-first-result behind
+  the whole carve sweep) stays O37-registered — the full implementation
+  record + proof set is preserved in worklog.md's S86 concession entry for
+  the future lane that closes it. No board change (their landing already
+  counted).
+- **Riders landed:** the pre-existing UBSan violation in
+  test_orchestrator.cpp's plant_compact_fat12 fixed (unaligned u16 stores →
+  put16 — caught by this lane's local --san run; CI is windows-only by the
+  documented decision) + the CR_SANITIZER_LANE define on the ubsan preset
+  and ci-local's tsan lane (the honest scoping pattern for
+  timing-sensitive assertions under detector slowdown).
+
 # SUMMARY.md — executive summary (the S84 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-84 S84 fix-lane delta (2026-10-29/30 — the user's fix mandate continuation ["fix all the audit findings (priority to major/informational first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `842a587e` (the S83-close tree), corpus `be0cfe9` throughout)
@@ -56,6 +80,18 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-075 FIXED (MAJOR, the escalation endpoint):** the check ladder's
+  fix rung landed — the pure grammar (the two postures of the guidance
+  string, cross-platform/Linux-tested), the win-layer launch (elevated,
+  synchronous with the documented 15-minute bound, WoW64-native via the
+  redirection disable that realizes the og's IsWow64Process branch, the
+  loud refusal on absent volumes), the `cr_ui_fsck_volume` ABI export
+  #92 (all five count sites refreshed — the A-ABI-3 class swept in the
+  same change), the `fix --chkdsk C:` CLI leg (the three-site lock),
+  D-90 rewritten to the superseded posture, R-65 closed to PRESENT. The
+  og's exact 5 arguments to WinChkdsk.exe stay undecoded (honestly
+  registered; the direct chkdsk.exe form is the corpus-grounded base).
+
 - **The racing window's same-window closures absorbed at the rebase:**
   M-111 (D-158 scope decision), M-114 (D-159 posture decision), M-154
   (the lifecycle + the hardening rider), I-048 (ACKNOWLEDGED, D-155
@@ -64,8 +100,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after this landing (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 8 MAJOR · 2 MINOR · 0 INFO active / 196 FIXED / 4
+**Board after M-075 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 7 MAJOR · 2 MINOR · 0 INFO active / 197 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3
