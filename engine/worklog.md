@@ -13625,3 +13625,74 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+---
+
+# Session-84 — the final entry (T20 handoff, this lane) (2026-10-30)
+
+**What this session was:** the post-remediation coherence pass over the
+300+-fix tree — build clean, wiring real, docs truthful, CI green for the
+right reasons. Multi-lane throughout: the S84–S92 fix lanes landed
+behavior-side fixes while this lane owned the coherence repairs; every
+racing seat conceded per SA-9 with corroboration recorded.
+
+**The gate evidence (§8, item by item):**
+
+1. Clean builds: Linux Debug + Release clean at
+   `-Wall -Wextra -Wpedantic -Werror -Wshadow` (gcc 14.2, logs in
+   worklog/builds/); clang 18.1.8 fuzz lane clean (16 binaries, ASan+UBSan);
+   MSVC /W4 /WX = the checks.yml build job — see item 4.
+2. Tests: 1,529/0/42-skip first-hand chunked (worklog entry 7); cr_ui_tests
+   89/89; the racing lanes' own runs corroborate (1,529–1,676/0 across the
+   window's trees).
+3. Fuzz smoke: all 16 targets, 45 s each, ~140M executions, zero crashes.
+4. CI: **lint green, proven on the lineage** (run 40935768718 on 7a45da32:
+   "Lint + parse gates completed/success" — the wall that was red all
+   session, broken by five root causes this lane fixed or verified: the
+   N-219/N-221 ledger collisions, the format drifts x2, the D-163 seat,
+   the N-223 triple, the dangling test reference). The BUILD job: the
+   first surviving MSVC compile (374c54cb) exposed the win-only
+   test_fsck_win.cpp u32 breakage — fixed (337b0492, `using namespace cr;`,
+   the sibling pattern); every subsequent run has been CANCELLED by the
+   racing lanes' 2–5-minute push cadence against the
+   `cancel-in-progress: true` concurrency group (runs 40938536202,
+   40938802144, 40938979231, 40939375626, ... — the structural finding
+   below). The build's correctness rests on: the local -fsyntax-only
+   proofs for each exposed failure class, the Release build at the same
+   -Werror strictness, and the completed run whenever the window quiets.
+5. ABI: 93 exports, 93 implementations (the phantom
+   cr_ui_session_resume_last landed with a six-arm pin — a47419c7; the
+   M-075/M-078 endpoints landed by the racing lanes with their batteries);
+   error codes 43+OK, truthfully counted at last (the phantom-match
+   artifact eliminated); consumer coverage 91/93 (AF-2 filed for the
+   BitLocker-unlock pair).
+6. CLI wiring: the registers (worklog/api-cli-mismatches.md) — the
+   architecture truth recorded, the image --create and exit-5 doc gaps
+   closed, the string-level items filed for the behavior session.
+7. Docs: worklog/doc-audit.md — every doc accurate, corrected
+   (commit-cited), or archival-by-design.
+8. diff-to-fix: the board recounted (6/3/0/205/4), four born-collisions
+   resolved, the trail preserved throughout.
+
+**The structural finding (for the owner):** the concurrency group
+`checks-${{ event }}-${{ ref }}` with `cancel-in-progress: true` plus the
+racing lanes' push cadence means NO Windows build (~20+ min) can complete
+while the window is active — every run since 19:02 was cancelled by the
+next push. Recommendation: either a `workflow_dispatch`-triggered
+nightly/quiet-window full run, or the lanes adopt a push-freeze protocol
+while a build is in flight.
+
+**Deferred to the next behavior session (worklog/api-findings.md):**
+AF-1 the exit-code taxonomy + the `rrecov resume` hint + the -h omissions
+(B-1..B-3); AF-2 the two zero-coverage exports; AF-4 the event-split
+contract note; AF-5 the struct-layout static pins.
+
+**This lane's full commit trail:** 10a6ec29, a47419c7, 24edbb04,
+78c60e89, 43a7bb26, (PARAMETERS + ABI-contract pair), bfda625c, (D-165 +
+format), 56d27d86, adf91248, (M-107 format sweep), (dangling-ref repair),
+053534c9, 337b0492 — plus six integration merges; two red pushes
+(eb1b4e35, f5cb2a60) recorded with honesty notes and repaired in-window.
+
+**Recommended next-session start:** watch the checks.yml run to
+completion on a quiet window (the tree is verified locally to the full
+Linux strictness); then AF-1 (the exit-code map) as the first behavior
+item — the docstring truth at rrecov.cpp:49-60 is now the spec.
