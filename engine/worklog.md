@@ -9277,7 +9277,6 @@ findings first (the user's explicit priority), then INFO acks, then MAJOR-tier a
 time permits; N-107/N-127's fix surfaces live in the driver repo (out of the
 two-repo grant) — disposition notes to be recorded honestly rather than fake-fixed.
 
-<<<<<<< HEAD
 ## Session-60 lane — N-195 landed + the lane-open count correction (2026-10-29)
 
 **Hot-window note:** a racing lane pushed a format repair (468ce7a8)
@@ -9317,7 +9316,7 @@ machine + progress math + stuck-watchdog decode, per-engine detection validators
 + sector/LBA arithmetic fresh eyes, core-side counterpart read; (W3) lead
 first-hand verification + filing (next free IDs: S-067+, M-149+, N-210+, I-048+,
 A-015+); (W4) board re-truth + push + handoff.
-=======
+
 ## Session-60-B lane — N-195 landed (2026-10-29)
 
 **N-195 FIXED (MINOR — bench phantom-zero IOCTLs).** Verified at the current
@@ -9329,8 +9328,6 @@ violations named, GREEN exit-0 post-fix; wired into CI at checks.yml:173 (the
 same gate invocation). Census: the two literals were the only 0x6xxxxxxx forms
 in the bench family. Trail: finding retired to findings/FIXED/N-195 +
 Resolution, ledger row, matrix MATCH cell, SUMMARY S60-B block, this entry.
->>>>>>> b9e040a0 (fix(bench): N-195 - the driver-verification bench's phantom-zero extended IOCTL codes righted (0x60002440/48 -> the contract's 0x6002440/0x6002448, byte-matching cr_rda.h kIoctlGetInfo/kIoctlGetVersion [fn 0x910/0x912]) - both calls could never reach the real handlers (unknown-IOCTL against any correct driver, the bench dead weight); the class guard the finding prescribed landed as doc_truth_gate check 7 check_bench_ioctl_codes [every bench CTL literal must byte-match a cr_rda.h constant; CI-wired] - RED exit-1 pre-fix with both violations named -> GREEN post-fix; the repo sweep found no third site; the OQ-S10-3 boundary keeps the driver-repo half of M-089's class; trail: findings/FIXED/N-195 + ledger row + matrix MATCH + SUMMARY S60-B block + worklog)
-
 ## Session-60-B lane — the N-195 hot-window convergence absorbed (2026-10-29)
 
 The rebase over the S60/closing-fix window showed the S60 lane had landed
@@ -9343,3 +9340,31 @@ every bench CTL literal must byte-match a cr_rda.h constant, making the
 phantom-zero class permanently gated. Gate green (137 D-rows, bench check
 green). Board after the window: 19 MINOR · 23 MAJOR · 1 SEVERE active,
 141 FIXED files, 0 INFO active (the closing-fix lane took I-045/I-046).
+
+## Session-60 diff-fix lane — opened (2026-10-29)
+
+**Setup:** both repos pulled clean. Core HEAD at lane open: `98a5b139`
+(audited-commit lineage: the S55 filings verified at `9633d94f`; corpus pinned
+`be0cfe95`). Session prompt saved (token redacted) at
+`worklog/session-diff-fix-prompt.md`. Board at open (filesystem truth):
+1 SEVERE (S-040) · 23 MAJOR · 22 MINOR · 2 INFO active + 4 tracked-open,
+FIXED archive at 136. Baseline build+suite: linux-release 1338 passed /
+1380 run / 0 failed (2 CPUs, ASan off on this preset).
+
+**Driver-repo-resident findings (M-086, M-087, M-089, N-107, N-127) are out of
+this session's two-repo grant** — each already carries a PUSHED-FORWARD
+Resolution pointing at tracked-open OQ-S10-3; verified standing, no core-side
+change honest.
+
+**Lane plan:** acceptance-band family first (M-147 → M-145 → M-141 → M-142 →
+M-140 → M-146), then ext4 (M-143, M-144), writer family (M-136, M-135), the
+quick minors (N-192, N-195, N-199, N-194, N-204, N-205), the SEVERE S-040
+feature build, then the remaining MAJOR features and registrations by impact.
+
+**Post-rebase convergence note (the S60/S60-B/S61 window):** the racing lanes
+landed N-192, N-199, N-195 (their 3fae0791 is the fix of record; this lane's
+board at open already reflects those retirements), I-045 and I-046 (the
+closing-fix lane). This lane's open census above predates the window; the
+current board is read live before each fix. The lane plan drops the already-
+landed minors and proceeds: acceptance-band family (M-147 → M-145 → M-141 →
+M-142 → M-140 → M-146) first.
