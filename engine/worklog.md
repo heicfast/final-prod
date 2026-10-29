@@ -12394,3 +12394,25 @@ precedent); the ledger's two rows rebuilt to describe their own files
 contributions); the gate GREEN post-repair. The N-221 finding's own
 lesson line now reads both ways: the exit code is the truth, and the
 gate list is not optional.
+
+---
+
+## Session-84 — Phase 3 opens: the three CI root causes (2026-10-29)
+
+**9b921ef8 (style):** the checks.yml run-281 lint failure — 10 clang-format
+violations in cr_ui.cpp / cr_health.cpp / win-stub windows.h (comment-block
+re-indent + one macro spacing; whitespace-only). The racing 8fe3542f format
+sweep had covered 14 files but missed these three. Verified locally at the
+CI-pinned clang-format 18.1.8: 0 violations across all 263 sources.
+
+**8daf75dc (fix, bench):** test-benchmark run-6 root causes — the `$profile`
+ValidateSet collision (PowerShell case-insensitive names make the seed loop's
+local collide with the validated `$Profile` param; CRBIG's
+`follow-run-profile` sentinel threw MetadataError, the run profile silently
+stuck at the previous volume's value) fixed by the `$seedProfile` rename at
+both sites. **Honesty note:** the carve-parity `-join` fix (array-LHS -match
+never populates `$Matches` on the 240-line `list-carve-formats` output →
+"CLI= API=239" parity failure) rode the same commit through a staging
+misfire; the message describes only the profile half. Both fixes are real,
+both evidenced in `worklog/ci-failures/test-benchmark-6.txt`; recorded here
+so the history stays truthful (no rewrite of pushed main).
