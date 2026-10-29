@@ -459,6 +459,22 @@ trail update, push. One finding, one push. This block grows as the lane lands.
   + convergence addendum #2 in findings/FIXED/A-014 (incl. the FUN_180002f40/f90
   exFAT-gate cite cross-check, verified first-hand at exFATSearchDLL:1756-1794).
 
+**Landings this lane (unique fixes):**
+
+- **N-206 FIXED (MINOR — the sector-count ceil).** The og's geometry-EX form
+  (Device_decompiled.c:56536-56538, re-read first-hand: (L-1+ss)/ss overwriting
+  the 0x74004 floor) lands across the geometry surface: Geometry::sector_count
+  is the documented CEIL with the validity invariant as the ceil window;
+  FlatImageDevice serves the driver-padded tail (zero-filled reads past EOF
+  within the padded sector); both cr_transport.cpp divisions ceiled; the
+  discovery tail bound + WindowScanner ride the ceiled count. RED→GREEN:
+  Image.TruncatedFlatImageCeilsSectorCount / FlatGeometryValidOnOddSizedImage /
+  LostDiscovery.TailBoundUsesCeiledSectorCount (all three RED pre-fix). Full
+  suite 1447/1447. The test-design truth recorded in the Resolution: a
+  55AA-gated VBR cannot anchor inside a partial tail on either side (the
+  signature bytes are driver-pad zeros) - the bound math is the honest
+  divergence surface.
+
 **Board after this merge (filesystem truth, re-censed): 69 active — 0 ACUTE · 9 SEVERE ·
 24 MAJOR · 29 MINOR · 0 INFO / 79 FIXED / 7 tracked-open** (the window's A-014 + M-124 +
 M-123 + M-132 + M-133 + N-161 + N-158 + N-174 + I-036 + I-040..I-044 retirements + the

@@ -162,12 +162,27 @@ public:
         geom_.logical_sector = logical_sector;
         geom_.physical_sector = logical_sector;
         geom_.total_bytes = file_.bytes;
-        geom_.sector_count = logical_sector ? file_.bytes / logical_sector : 0;
+        /* N-206: the og's geometry-EX CEIL (Device_decompiled.c:56536-
+         * 56538: (L-1+ss)/ss) - a truncated image's final partial sector
+         * is addressable, driver-padded; the pre-fix floor made the tail
+         * structurally invisible (a signature at the tail was unreachable). */
+        geom_.sector_count =
+            logical_sector ? (file_.bytes + logical_sector - 1) / logical_sector : 0;
     }
     u32 read_at(u64 off, void* buf, u32 len) override {
-        if (off > file_.bytes || len > file_.bytes - off)
+        /* N-206: reads inside the padded tail ([file_.bytes,
+         * sector_count*ss)) succeed with a zero-filled tail - the og's
+         * driver-padded final-sector semantics; the bound past the padded
+         * sector still refuses honestly. */
+        const u64 readable = geom_.sector_count * geom_.logical_sector;
+        if (off > readable || len > readable - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        return io_read_exact(*file_.io, file_.handle, off, buf, len);
+        const u64 file_part = off >= file_.bytes ? 0 : std::min<u64>(file_.bytes - off, len);
+        if (len - file_part)
+            std::memset(static_cast<u8*>(buf) + file_part, 0, size_t(len - file_part));
+        if (file_part == 0)
+            return OK;
+        return io_read_exact(*file_.io, file_.handle, off, buf, u32(file_part));
     }
     const Geometry& geometry() const override { return geom_; }
 

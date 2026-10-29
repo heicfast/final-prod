@@ -131,13 +131,20 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
             g.physical_sector = g.logical_sector;
         }
         g.total_bytes = have_exact ? exact : u64(dg.DiskSize.QuadPart);
-        g.sector_count = g.total_bytes / (g.logical_sector ? g.logical_sector : 512);
+        /* N-206: the og's geometry-EX CEIL (Device_decompiled.c:56536-
+         * 56538: (L-1+ss)/ss - the 0x7405C result overwriting the
+         * 0x74004 floor): the final partial sector of an odd-sized source
+         * is addressable, driver-padded. */
+        const u32 ss = g.logical_sector ? g.logical_sector : 512;
+        g.sector_count = (g.total_bytes + ss - 1) / ss;
     } else if (have_exact) {
         /* volume handles on some stacks: geometry IOCTL not forwarded */
         g.logical_sector = 512;
         g.physical_sector = 512;
         g.total_bytes = exact;
-        g.sector_count = exact / 512;
+        /* N-206: the ceil form here too (the og's shipped behavior is
+         * the geometry-EX overwrite; this fallback mirrors it) */
+        g.sector_count = (exact + 511) / 512;
     }
     if (out_size)
         *out_size = g.total_bytes;

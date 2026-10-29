@@ -159,6 +159,58 @@ TEST(Image, FlatRejectsEmptyAndMissing) {
     EXPECT_EQ(err, ERR_OPEN_FAILED);
 }
 
+TEST(Image, TruncatedFlatImageCeilsSectorCount) {
+    /* N-206: the og's geometry-EX form CEILS the sector count
+     * (Device_decompiled.c:56536-56538: (L-1+ss)/ss, the 0x7405C path
+     * overwriting the 0x74004 floor) - a 1028-byte flat image (2 full
+     * sectors + 4 real tail bytes) addresses THREE 512-byte sectors, the
+     * final partial sector readable with a driver-padded zero tail. The
+     * pre-fix core floored to 2 sectors: the last 508 bytes were
+     * structurally invisible (reads refused). */
+    MemImageIo io;
+    std::vector<u8> disk(1028, 0);              /* 2 full sectors + 4 real tail bytes */
+    std::memcpy(disk.data() + 1024, "MSCF", 4); /* a signature in the tail sector */
+    io.add(p("odd.img"), std::move(disk));
+    u32 err = 0;
+    auto dev = open_image(io, p("odd.img"), &err);
+    ASSERT_NE(dev, nullptr);
+    EXPECT_EQ(err, OK);
+    EXPECT_EQ(dev->size(), 1028u);               /* total_bytes stays the honest file size */
+    EXPECT_EQ(dev->geometry().sector_count, 3u); /* RED pre-fix: the floor's 2 */
+    /* the final partial sector reads: the real byte + the zero-padded tail */
+    u8 buf[512] = {0};
+    EXPECT_EQ(dev->read_at(1024, buf, 512), OK); /* RED pre-fix: refused */
+    EXPECT_EQ(buf[0], 'M');
+    EXPECT_EQ(buf[1], 'S');
+    EXPECT_EQ(buf[2], 'C');
+    EXPECT_EQ(buf[3], 'F');
+    EXPECT_EQ(buf[4], 0) << "the padded tail reads zero";
+    EXPECT_EQ(buf[511], 0) << "the padded tail reads zero";
+    /* a straddling read: the last real byte plus the pad */
+    u8 one[1] = {0};
+    EXPECT_EQ(dev->read_at(1024, one, 1), OK);
+    EXPECT_EQ(one[0], 'M');
+    EXPECT_EQ(dev->read_at(1028, one, 1), OK);
+    EXPECT_EQ(one[0], 0) << "the byte past EOF is the padded zero";
+    /* past the padded bound still refuses honestly */
+    EXPECT_EQ(dev->read_at(1536, one, 1), ERR_RANGE_OUT_OF_BOUNDS);
+}
+
+TEST(Image, FlatGeometryValidOnOddSizedImage) {
+    /* N-206: the Geometry invariant moves from the exact-multiple
+     * equality to the ceil range (total_bytes <= count*ss and
+     * > (count-1)*ss) - an odd-sized device is a VALID device. */
+    MemImageIo io;
+    std::vector<u8> disk(1025, 0);
+    io.add(p("odd2.img"), std::move(disk));
+    u32 err = 0;
+    auto dev = open_image(io, p("odd2.img"), &err);
+    ASSERT_NE(dev, nullptr);
+    EXPECT_TRUE(dev->geometry().valid()) << "the ceiled geometry is valid";
+    /* the sector-multiple case stays exact (the common world) */
+    EXPECT_EQ(dev->geometry().sector_count * dev->geometry().logical_sector % 512, 0u);
+}
+
 TEST(Image, ImageRejectsTruncatedFile) {
     MemImageIo io;
     io.add(p("tiny.vhdx"), std::vector<u8>(1000, 0xAB)); /* < 1 MiB: no room for the header */

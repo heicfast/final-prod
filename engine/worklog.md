@@ -9025,3 +9025,20 @@ designed). Suite 1403/1403.
 
 
 
+
+## Session-57 lane — N-206 landed (the sector-count ceil) (2026-10-29)
+
+**N-206 FIXED (MINOR — the disk sector-count rounding).** Classification:
+CONFIRMED-DIVERGENCE — the corpus re-read first-hand (Device_decompiled.c:56523-56545:
+the 0x7405C geometry-EX `(L-1+ss)/ss` CEIL overwriting the 0x74004 floor, the 0x200
+zero-sector fallback - verbatim) and the current tree re-verified (cr_transport.cpp:134/:139
+floor, FlatImageDevice floor, the discovery tail bound + WindowScanner clipping to raw
+size). The landing: Geometry::sector_count documented CEIL + the valid() invariant as the
+ceil window; FlatImageDevice ceils and serves the driver-padded tail (zero-filled reads
+in [bytes, count*ss), honest refusal past the padded bound); both transport divisions
+ceiled; the discovery device-tail bound and the WindowScanner window fill ride the
+ceiled count. Tests (all RED pre-fix, GREEN post): Image.TruncatedFlatImageCeilsSectorCount
+(the 1028-byte image = 3 sectors, MSCF at the tail readable, pad zeroed),
+Image.FlatGeometryValidOnOddSizedImage, LostDiscovery.TailBoundUsesCeiledSectorCount (the
+last-full-sector FVE candidate's fallback size covers the partial tail: 2 not 1). Full
+suite 1447/1447. Trail: findings/FIXED/N-206 + SUMMARY S57 block + this entry.

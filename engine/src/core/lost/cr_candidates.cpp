@@ -42,8 +42,15 @@ public:
     bool fetch(u64 byte_off) {
         const u64 win = buf_.size();
         win_base_ = byte_off / win * win;
-        u64 avail = dev_->size() - win_base_;
+        /* N-206: the addressable bound is the CEILED sector_count*ss (the
+         * og's driver-padded final partial sector) - clipping to the raw
+         * byte size shrank the tail window below one probeable sector,
+         * so a signature anchored in the partial tail was never probed. */
+        const u64 bound = geom_.sector_count * geom_.logical_sector;
+        u64 avail = bound > win_base_ ? bound - win_base_ : 0;
         u64 take = avail < win ? avail : win;
+        if (take == 0)
+            return false;
         if (dev_->read_at(win_base_, buf_.data(), u32(take)) != OK)
             return false;
         win_len_ = take;
@@ -923,14 +930,20 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 /* no probe set a size: bound by the device tail (audit row
                  * 31b - the old fabricated 2048 hid real geometry).
                  * GAP-S6-6: tail fallback - marked, never containment
-                 * evidence */
-                c.sector_count =
-                    disk->size() / ls > c.start_lba ? disk->size() / ls - c.start_lba : 1;
+                 * evidence. N-206: the tail bound rides the CEILED sector
+                 * count (the og's geometry-EX form) so a candidate anchored
+                 * in the final partial sector keeps its size. */
+                const u64 dev_sectors = disk->geometry().sector_count
+                                            ? disk->geometry().sector_count
+                                            : disk->size() / ls;
+                c.sector_count = dev_sectors > c.start_lba ? u32(dev_sectors - c.start_lba) : 1;
                 c.size_from_device_end = true;
             }
-            /* bound by device tail */
-            if (c.start_lba + c.sector_count > disk->size() / ls)
-                c.sector_count = disk->size() / ls - c.start_lba;
+            /* bound by device tail (N-206: the ceiled count) */
+            const u64 dev_tail =
+                disk->geometry().sector_count ? disk->geometry().sector_count : disk->size() / ls;
+            if (c.start_lba + c.sector_count > dev_tail)
+                c.sector_count = u32(dev_tail > c.start_lba ? dev_tail - c.start_lba : 0);
             /* N-035: probes that do not set a data-area extent are the
              * DataAreaStart == StartSec shape (NTFS/exFAT/others per the
              * corpus log); the tail fallback inherits the same

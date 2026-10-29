@@ -411,6 +411,70 @@ TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
     EXPECT_TRUE(z->size_from_device_end); /* flagged fallback (honest) */
 }
 
+TEST(LostDiscovery, TailBoundUsesCeiledSectorCount) {
+    /* N-206: the device-tail bound rides the CEILED sector count (the
+     * og's geometry-EX form, Device_decompiled.c:56536-56538). A device
+     * of 6144 full sectors + 129 real bytes of a 6145th PARTIAL sector
+     * carries 6145 ADDRESSABLE sectors (the tail driver-padded); an FVE
+     * VBR anchored at the last FULL sector (6143) gets the tail-fallback
+     * size 2 = 6145 - 6143 - covering the partial sector. The pre-fix
+     * floor bound (disk->size()/512 = 6144) gave the candidate 1 sector:
+     * the addressable tail was structurally unreachable from the bound.
+     * (A 55AA-gated VBR cannot anchor IN the partial sector itself - its
+     * +510/+511 signature bytes are driver-pad zeros on both sides; the
+     * bound math is the honest divergence surface.) */
+    class OddTailDevice final : public IStorageDevice {
+    public:
+        explicit OddTailDevice(std::vector<u8> padded, u64 true_bytes)
+            : data_(std::move(padded)), bytes_(true_bytes) {
+            geom_.logical_sector = 512;
+            geom_.physical_sector = 512;
+            geom_.total_bytes = bytes_;
+            geom_.sector_count = (bytes_ + 511) / 512; /* N-206: the og's ceil */
+        }
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            /* the driver-padded semantics: the whole ceiled range reads,
+             * the bytes past the file's true end are zero */
+            const u64 bound = geom_.sector_count * 512;
+            if (off > bound || len > bound - off)
+                return ERR_RANGE_OUT_OF_BOUNDS;
+            std::memcpy(buf, data_.data() + off, len);
+            return OK;
+        }
+        const Geometry& geometry() const override { return geom_; }
+
+    private:
+        std::vector<u8> data_; /* padded to the ceiled bound */
+        u64 bytes_;
+        Geometry geom_;
+    };
+    /* 6144 full sectors + 129 real bytes of a partial 6145th */
+    const u64 true_bytes = 6144 * 512 + 129;
+    std::vector<u8> img(6145 * 512, 0);
+    /* the FVE VBR at LBA 6143 - the last FULL sector (its 55AA is real) */
+    u8* b = img.data() + 6143 * 512;
+    b[0] = 0xEB;
+    b[1] = 0x52;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "-FVE-FS-", 8);
+    std::memcpy(b + 0x0B, "2013.0.0", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    OddTailDevice dev(std::move(img), true_bytes);
+    EXPECT_EQ(dev.geometry().sector_count, 6145u);
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fve = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6143)
+            fve = &c;
+    ASSERT_NE(fve, nullptr) << "the last-full-sector VBR must surface";
+    EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
+    EXPECT_GE(fve->score, 15);
+    EXPECT_EQ(fve->sector_count, 2u) << "RED pre-fix: the floor bound gave 1";
+    EXPECT_TRUE(fve->size_from_device_end);
+}
+
 TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
     /* the ReFS DBR (OEM "ReFS" + 55AA) used to fall into the FAT catch-all
      * and get dropped as noise; the page-signature window probe now takes
