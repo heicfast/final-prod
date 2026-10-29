@@ -8510,7 +8510,6 @@ the two new control-flow constraints). Tests (8): the 4 RED behavior tests
 + the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
 1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
 cell + orchestration.md row + the OQ-S42-3 update + this entry.
-<<<<<<< HEAD
 
 ## Session-59 parity-fix lane — N-190 landed (2026-10-29)
 
@@ -8535,7 +8534,8 @@ suite reds). Trail: findings/FIXED/N-190 + ledger row + this entry. Root
 cause recorded for the process: the N-135 step-4 discipline (re-run the full
 gate after EVERY rebase) extends to MERGES — each hot-window fold shipped a
 red tree while both parent lanes were individually green.
-=======
+---
+
 ## Session-50 continuation audit lane — close record (2026-10-29)
 
 **Lane:** S50 (renumbered from the S49 draft per SA-9 — the remote's S49
@@ -8932,4 +8932,3 @@ case-sensitive set lookup missing every uppercase extension; the score pin's
 own small-result floor). The NtfsDeviceIndexRuleUpgrades pin re-pinned to the
 two-counter truth. Suite 1361/1319/42/0. Trail: findings/FIXED/N-183 + ledger
 row + matrix row + the schema doc + this entry.
->>>>>>> origin/main
