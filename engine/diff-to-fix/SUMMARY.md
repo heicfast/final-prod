@@ -1,3 +1,52 @@
+# SUMMARY.md — executive summary (the S80 parity fix lane on top; the prior lanes below, newest-first)
+
+## Session-80 S80 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `04fb5e88` — main was RED at open; the racing M-155 lane `6d74ec2c` + the S81 lane `9508b90b`/`567694e7`/`3dfb2a5a`/`59a431d3` landed mid-session and were absorbed at the rebases; corpus `be0cfe9` throughout)
+
+- **N-217 FIXED (the red-main repair, convergent with M-155)** — the ed501caa
+  push's committed conflict markers (the M-120/N-210 class's third recurrence,
+  plus a false "suite 1570/1570" claim). This lane's decisive contribution: the
+  SCAN-DISPATCHER decode (RAWSearchDLL :9850-9876, :9900-9935) — the secondary
+  (File*Analyser) is called FIRST with the result object, the Brance primary
+  is the 2-arg second-chance; M-155's X3F resolution (the S71 FileX3FAnalyser
+  walk, SECd + 0x4C, the count never read) confirmed by dispatch evidence
+  rather than precedent. The registry census's "modern first" prose recorded
+  as an erratum (the M-107 Session-80 addendum). This lane's own initial
+  "unified chain" hypothesis was corrected by the decode before any code
+  seesaw.
+
+- **S-067 FIXED (SEVERE — the exFAT chain walker's out-of-range FAT-entry
+  clamp)** — `ExfatFat::next()` clamps every entry ≥ cluster_count to EOC
+  (the og's walk-loop clamp at exFATSearchDLL:41348-41351; the count's
+  provenance: volume-context +0x18 = the boot +0x5C field verbatim,
+  RAWSearchDLL:36750 — both re-verified first-hand); the loop gains the og's
+  `c < 0xFFFFFFF6` bound (:41315). Tests: the finding's 3-cluster mid-chain
+  fixture shape, RED 3/3 → GREEN 3/3 via the stash dance
+  (OutOfRangeFatEntryEndsChainCleanly / ExactClusterCountEntryClampsToEoc /
+  ReservedFFF6EntryEndsChainCleanly); the EXFAT-2/EXFAT-3 families re-pinned;
+  exFAT suite 44/44. The damaged-FAT semantics family is now three-for-three.
+
+**Board after this landing (filesystem truth, post-rebase over the S81
+lane's N-211/N-215 landings): 0 ACUTE · 1 SEVERE (S-068) · 17 MAJOR ·
+10 MINOR · 1 INFO active / 174 FIXED / 4 tracked-open.** Next free IDs:
+S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
+
+# SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-81 S81 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes, fixed findings into findings/FIXED/]; opened at core `04fb5e88`, corpus `be0cfe9` throughout; the S81 lane executed the identical M-155 repair independently before pulling — the convergence addendum in the M-155 finding records it; the seat conceded to the racing `6d74ec2c` per SA-9; this block re-landed after the N-217 lane's rebase dropped the S80-parallel blocks)
+
+- **N-211 FIXED (MINOR, orchestrator/api-docs):** the `autosave_dir`
+  contract comments re-truthed at BOTH headers — `cr_scan.h`'s "a
+  cancelled run never auto-saves" and the twin at `cr_ui.h:636` the new
+  gate caught (the shim's own comment, whose code has stop-window-saved
+  since S-057). The og truth now stated: the field fires on completion
+  AND on the stop window (DRWUI :1549399-421 → FUN_140395e50, gates
+  :612571-587 no stopped-check — corpus re-verified this session). The
+  guard: `doc_truth_gate.py`'s `check_header_contract_phrases()` — RED
+  pre-fix (the cr_ui.h catch), GREEN post-fix.
+
+**Board (filesystem truth at this push): 0 ACUTE · 2 SEVERE · 17 MAJOR ·
+10 MINOR · 1 INFO active / 173 FIXED / 4 tracked-open.** Next free IDs:
+M-156+, N-218+, I-049+, A-016+, D-150+.
 # SUMMARY.md — executive summary (the S80 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-80 S80 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to severe first, one by one, 20+ fixes"; opened at core `04fb5e88` — RED at open, see M-155; corpus `be0cfe9` throughout])
@@ -24,23 +73,6 @@
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same
 session; the +1 MAJOR is M-155 itself, closed on filing).
 
-# SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
-
-## Session-81 S81 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes, fixed findings into findings/FIXED/]; opened at core `04fb5e88`, corpus `be0cfe9` throughout; the S81 lane executed the identical M-155 repair independently before pulling — the convergence addendum in the M-155 finding records it; the seat conceded to the racing `6d74ec2c` per SA-9; this block re-landed after the N-217 lane's rebase dropped the S80-parallel blocks)
-
-- **N-211 FIXED (MINOR, orchestrator/api-docs):** the `autosave_dir`
-  contract comments re-truthed at BOTH headers — `cr_scan.h`'s "a
-  cancelled run never auto-saves" and the twin at `cr_ui.h:636` the new
-  gate caught (the shim's own comment, whose code has stop-window-saved
-  since S-057). The og truth now stated: the field fires on completion
-  AND on the stop window (DRWUI :1549399-421 → FUN_140395e50, gates
-  :612571-587 no stopped-check — corpus re-verified this session). The
-  guard: `doc_truth_gate.py`'s `check_header_contract_phrases()` — RED
-  pre-fix (the cr_ui.h catch), GREEN post-fix.
-
-**Board (filesystem truth at this push): 0 ACUTE · 2 SEVERE · 17 MAJOR ·
-10 MINOR · 1 INFO active / 173 FIXED / 4 tracked-open.** Next free IDs:
-M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S69 continuation audit lane on top; the prior lanes below, newest-first)
 

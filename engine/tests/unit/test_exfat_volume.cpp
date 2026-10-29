@@ -914,6 +914,132 @@ TEST(ExfatEngine, FreeEntryContiguousSalvage) {
     EXPECT_EQ(z->confidence(), tree::Confidence::PartialRisk);
 }
 
+/* ---- S-067: the out-of-range FAT-entry clamp (the damaged-FAT family's
+ * third leg - og exFATSearchDLL:41348-41351: `if (*(uint *)(param_2 + 0x18)
+ * <= uVar15) uVar15 = 0xffffffff;` - an entry at or above the volume's
+ * cluster count is EOC, the chain ends cleanly; the walk loop's own bound
+ * is `uVar30 < 0xfffffff6` at :41315) ------------------------------------ */
+
+TEST(ExfatEngine, OutOfRangeFatEntryEndsChainCleanly) {
+    /* S-067: a garbage/stale FAT entry in [cluster_count, 0xFFFFFFF7] is
+     * clamped to EOC (the og's walk loop at exFATSearchDLL:41348-41351) -
+     * the chain ends cleanly at the previous cluster: no wild
+     * out-of-volume extent member, no broken flag, no assumed-contiguous
+     * downgrade. The fixture (the finding's own shape): cluster_count is
+     * 100; a 3-cluster file's MID-CHAIN entry (cluster 91's) carries
+     * cluster_count + 0x1000. Before the clamp: the garbage value was
+     * followed as a raw cluster number (a wild member ~2 MiB past the
+     * 1 MiB volume - the walk's expect-bound caps the chain at 3 members,
+     * so the wild member IS the third). */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 100u + 0x1000u); /* stale garbage, not EOC-family */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 7, 90, 1536); /* 3 clusters expected */
+    sb.name_entry(u"oor.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* oor = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "oor.dat")
+            oor = n;
+    ASSERT_NE(oor, nullptr);
+    /* exactly the valid prefix [90,91]: ONE contiguous extent, nothing wild */
+    ASSERT_EQ(oor->props()->extents.size(), 1u)
+        << "the clamped entry must not become a chain member";
+    EXPECT_EQ(oor->props()->extents[0].offset, u64(25 + 88) * 512); /* cluster 90 */
+    EXPECT_EQ(oor->props()->extents[0].length, 1024u);              /* 2 valid clusters */
+    /* the clean end is neither the FREE-continuation salvage nor a break */
+    EXPECT_EQ(stats.assumed_contiguous, 0u);
+    EXPECT_EQ(stats.chains_broken, 0u);
+}
+
+TEST(ExfatEngine, ExactClusterCountEntryClampsToEoc) {
+    /* S-067 boundary: the mid-chain entry equals the boot's cluster count
+     * field itself (100) - the og's `<=` comparison clamps it; the chain
+     * ends at the previous cluster. (Valid clusters are 2..cluster_count+1;
+     * the og deliberately clamps at the raw field - belt-and-braces on the
+     * reserved family AND every out-of-range value.) */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 100u); /* == cluster_count: the boundary */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 9, 90, 1536);
+    sb.name_entry(u"bound.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* b = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "bound.dat")
+            b = n;
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->props()->extents.size(), 1u);
+    EXPECT_EQ(b->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(b->props()->extents[0].length, 1024u);
+}
+
+TEST(ExfatEngine, ReservedFFF6EntryEndsChainCleanly) {
+    /* S-067: 0xFFFFFFF6 sits BELOW the spec EOC family (0xFFFFFFF8+) and
+     * above BAD (0xFFFFFFF7 is the BAD marker itself) - the og's loop
+     * bound `uVar30 < 0xfffffff6` (:41315) never walks it, and the clamp
+     * folds it to EOC. Before the fix the raw value was followed as a
+     * cluster number -> a wild extent + the broken downgrade. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 0xFFFFFFF6u);
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 8, 90, 1536);
+    sb.name_entry(u"fff6.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* f = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "fff6.dat")
+            f = n;
+    ASSERT_NE(f, nullptr);
+    ASSERT_EQ(f->props()->extents.size(), 1u);
+    EXPECT_EQ(f->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(f->props()->extents[0].length, 1024u);
+    EXPECT_EQ(stats.assumed_contiguous, 0u);
+    EXPECT_EQ(stats.chains_broken, 0u);
+}
+
 TEST(ExfatEngine, BootGatesMatchOg) {
     /* EXFAT-4: the four og boot gates we lacked (FUN_180021e80) */
     auto reject = [](std::vector<u8> img) {

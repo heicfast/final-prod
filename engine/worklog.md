@@ -1,4 +1,39 @@
 
+## Session-80 S80 lane — opens; N-217 + S-067 land (2026-10-29)
+
+Opened at core `04fb5e88` with **main RED** (the ed501caa push's committed
+conflict markers — the M-120/N-210 class's third recurrence, plus a false
+"suite 1570/1570" claim on a tree that cannot compile). The racing M-155 lane
+(`6d74ec2c`) resolved the build convergently in the same window; this lane's
+contribution: **the scan-dispatcher decode** (RAWSearchDLL :9850-9876,
+:9900-9935) that settles the X3F authority dispute M-155 had decided only by
+precedent — the dispatcher calls the SECONDARY (File*Analyser) FIRST with the
+result object; the Brance primary is a 2-arg second-chance; since
+FileX3FAnalyser never declines, the Brance count-walk never contributes to a
+carved X3F extent. Filed as **N-217** (`findings/FIXED/N-217-...md`), the
+M-107 Session-80 addendum carries the decode + the census-erratum note (the
+registry census's "modern first" prose is contradicted by the actual
+dispatch). This lane's own initial "unified chain" hypothesis was corrected
+by the dispatcher decode BEFORE any code seesaw — the corpus-first discipline
+held. Suite at the landing: build clean, X3F battery 5/5.
+
+**S-067 FIXED** (SEVERE — the exFAT chain walker's out-of-range FAT-entry
+clamp): `ExfatFat::next()` now clamps every FAT entry ≥ cluster_count to EOC
+(the og's walk-loop clamp at exFATSearchDLL:41348-41351, re-verified
+first-hand together with the volume-context +0x18 = boot +0x5C provenance at
+RAWSearchDLL:36750 and FUN_180021c60's FREE-continuation at :28158-28163);
+`follow_exfat_chain` gains the og's `c < 0xFFFFFFF6` loop bound (:41315).
+Tests RED 3/3 → GREEN 3/3 via the stash dance (the finding's 3-cluster
+mid-chain shape — a 1-cluster plant never reaches the mid-chain entry, the
+walk's expect-bound caps members; the fixture correction is recorded in the
+Resolution); the EXFAT-2/3 families re-pinned; exFAT suite 44/44. The
+damaged-FAT semantics family is now three-for-three (EXFAT-2/EXFAT-3/S-067).
+
+Board after this landing (post-rebase over the S81 lane's N-211/N-215
+landings): **1 SEVERE (S-068) · 17 MAJOR · 10 MINOR · 1 INFO active /
+174 FIXED / 4 tracked-open** (N-217 + S-067 add two FIXED; N-211/N-215
+landed by the racing S81 lane).
+
 ## Session-65 S65 lane — M-146 lands (2026-10-29)
 
 - **M-146 FIXED (MAJOR, orchestrator/ntfs)** — probe_family's NTFS gate

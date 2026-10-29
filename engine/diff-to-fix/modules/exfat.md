@@ -319,11 +319,15 @@ cluster→heap u64 math, and the exFAT engine's non-use of FSI 'RRaA' (both side
 
 ## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
 
-- **S-067 (SEVERE, NEW):** the chain walker's out-of-range FAT-entry clamp — the og maps any
-  entry ≥ cluster_count to EOC (the walk loop's clamp at exFATSearchDLL :41315-28, the caller
-  of `FUN_180021c60` whose FREE-continuation the core's EXFAT-2 port already cites
-  accurately); the core's `next()` (`cr_exfat_quick.cpp:81` at the re-verified pin) returns
-  such values raw → the garbage cluster becomes a chain member, the out-of-FAT-bounds read
-  maps to FREE, and the bounds probe flags the chain broken. The third leg of the
-  damaged-FAT semantics family (EXFAT-2/EXFAT-3 are the prior two). Evidence:
+- **S-067 (SEVERE — FIXED, the S80 parity fix lane):** the chain walker's out-of-range
+  FAT-entry clamp — the og maps any entry ≥ cluster_count to EOC (the walk loop's clamp at
+  exFATSearchDLL :41315/:41348-41351, re-verified first-hand at the fix; the volume-context
+  +0x18 bound is the boot +0x5C field verbatim, RAWSearchDLL:36750). LANDED:
+  `ExfatFat::next()` clamps every entry ≥ cluster_count to EOC (the count threaded from
+  `p.cluster_count` at scan setup) + the loop's `c < 0xFFFFFFF6` belt-and-braces
+  (`follow_exfat_chain`). Tests: OutOfRangeFatEntryEndsChainCleanly /
+  ExactClusterCountEntryClampsToEoc / ReservedFFF6EntryEndsChainCleanly — RED 3/3 via the
+  stash dance, GREEN 3/3 post-fix; the EXFAT-2/3 families re-pinned; the exFAT suite
+  44/44. The damaged-FAT semantics family is now three-for-three
+  (EXFAT-2/EXFAT-3/S-067). Resolution: `findings/FIXED/S-067-...md`. Evidence:
   `evidence/s79-lane-sheets/s79-lead-verification.md` §A.

@@ -38,6 +38,19 @@ struct ExfatFat {
     mutable std::vector<u8> win;    /* 1 MiB window cache (og: 0x100000) */
     mutable u64 win_first_byte = 0; /* FAT-relative start of the loaded window */
     mutable u32 refills = 0;        /* drained into stats at scan end */
+    /* S-067: the volume's cluster count (the og's volume-context +0x18,
+     * a verbatim copy of the boot +0x5C field - RAWSearchDLL:36750
+     * `*(undefined4 *)(puVar14 + 0x18) = *(undefined4 *)(param_3 + 0x5c)`).
+     * The og's walk loop clamps every FAT entry against it
+     * (exFATSearchDLL:41348-41351: `if (*(uint *)(param_2 + 0x18) <=
+     * uVar15) uVar15 = 0xffffffff;` - an entry at or above the cluster
+     * count is EOC, the chain ends CLEANLY at the previous cluster).
+     * Garbage/stale entries in [cluster_count, 0xFFFFFFF7] must not be
+     * followed as raw cluster numbers - the third leg of the damaged-FAT
+     * semantics family (after EXFAT-2 FREE-continuation and EXFAT-3
+     * EOC-family). Zero = unknown (no clamp; boot gates guarantee
+     * nonzero on every validated volume). */
+    u32 cluster_count = 0;
 
     bool windowed() const { return win_dev != nullptr; }
     bool load_window(u64 widx) const {
@@ -78,6 +91,15 @@ struct ExfatFat {
          * numbers -> bounds failure -> broken chains on spec-legal volumes. */
         if (v >= EXFAT_EOC_MIN)
             return EXFAT_EOC;
+        /* S-067: the og's out-of-range clamp (exFATSearchDLL:41348-41351:
+         * entry >= the volume's cluster count -> EOC). A garbage or stale
+         * entry in [cluster_count, 0xFFFFFFF7] ends the chain cleanly at
+         * the previous cluster instead of being followed as a raw cluster
+         * number (out-of-volume member + broken-chain downgrade). The
+         * EOC-family check above stays for clarity - it is a subset of
+         * this clamp once cluster_count is known. */
+        if (cluster_count != 0 && v >= cluster_count)
+            return EXFAT_EOC;
         return v;
     }
 };
@@ -98,7 +120,12 @@ ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
     cr::fat::VisitedRuns visited;
     u32 c = start;
     u32 guard = 0;
-    while (c >= 2) {
+    /* S-067 belt-and-braces: the og's loop bound (exFATSearchDLL:41315
+     * `while (uVar30 < 0xfffffff6)`) - the current cluster itself must
+     * stay below the reserved family's floor. Redundant with the clamp
+     * in next() (cluster_count <= 0xFFFFFFF5 by the boot gate) but pins
+     * the og's shape. */
+    while (c >= 2 && c < 0xFFFFFFF6) {
         if (++guard > max_clusters) {
             r.cycle = true;
             break;
@@ -1036,6 +1063,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     ctx.root_deleted = root_deleted;
     ctx.root_lost = root_lost;
     ctx.stats = &stats;
+    ctx.fat.cluster_count = p.cluster_count; /* S-067: the og's +0x18 clamp bound */
 
     /* FAT load (if the volume has one). S-013: the whole-FAT fast path
      * covers small volumes; EVERY other case (FAT over 32 MiB, FAT
