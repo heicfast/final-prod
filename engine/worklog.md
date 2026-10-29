@@ -1,3 +1,62 @@
+**Session-62 S62 lane — the MAJOR-first fix lane opens; the NTFS open-ladder
+acceptance-band family lands (M-141+M-145+M-147, 2026-10-29).**
+
+- **Baseline:** core `98a5b139` at open (clean tree), corpus `be0cfe9`;
+  linux-release build clean; suite **1460/1460** (91s). The prompt saved
+  token-redacted at `worklog/session-diff-fix-s60-prompt.md`; board at open:
+  1 SEVERE [S-040] · 23 MAJOR · 22 MINOR · 2 INFO active / 136 FIXED /
+  4 tracked-open. (Lane name: S62 — a prior hot-window lane had taken the
+  S59 seat per its own rebrand note.)
+- **M-147 FIXED (MAJOR, ntfs)** — cpr==0/cib==0 are the og's four-site
+  scan-path DEFAULTS, not rejections. Corpus re-verified first-hand at the
+  exact lines: FUN_180004830 :3427-3440 (`if (bVar1 == 0) return 0x400;`),
+  FUN_180004870 :3443-3456 (`return 0x1000;`), plus the NTFSSearchDLL /
+  PartitionRecoveryD twins. Fix: `record_size_from_dbr` returns the 0x400
+  default on the zero byte; the cib==0 refusal dropped (the decoded value
+  feeds no core walk — INDX extents ride $INDEX_ALLOCATION runs); P1-4
+  exponent guard + sub-sector refusal kept (registered hardening). D-52's
+  WHAT-OG-DOES premise corrected in the same push (the NTFSLib store-guard
+  misread — both paths share one exit; `extraout_EAX` unresolvable). Tests:
+  `BootRecordSizeZeroDefaultsTo1024` (the re-pinned seat),
+  `BootCibZeroDefaultsTo4096IndexBlocks`,
+  `BootCprZeroWithValidPrimaryDoesNotConsultBackup` (the D-99 precedence).
+- **M-141 FIXED (MAJOR, ntfs)** — the mft_lcn bound moved to the og's
+  product form (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301
+  re-read), evaluated overflow-free as `mft_lcn > (total-1)/spc`
+  (floor-tolerant at non-integral totals; the wrapped-huge refusal kept —
+  registered hardening, the og's own signed-wrap defect class). The
+  core-only mftmirr bound is GONE: a torn mirror LCN sets the report-only
+  `VolumeParams::mirror_invalid`, skipping BOTH mirror reads (the S-063
+  fallback and the best-effort stream) + the Info diagnostic line. The
+  M-043 backup fallback gains an MFT-load-failure retry rung (a primary
+  whose BPB gates pass but whose record-0 read fails retries from the
+  backup's geometry — preserves the torn-geometry fallback class).
+  Tests: `TornMftmirrLcnScansWithMirrorSkipped` (full tree, mirror
+  skipped, flag set), `MftLcnProductFormBoundaryAndHardening` (floor
+  boundary opens; +1 past refused; wrapped-huge refused).
+- **M-145 FIXED (MAJOR, ntfs)** — no 0x55AA gate on the NTFS open ladder.
+  Corpus re-verified: the analyser conjunction (:3568-3577) and
+  LoadNtfsVolume (:19292-19310) read in full — no +0x1FE access in either
+  (the only 0x1fe touches in NTFSLib are the USA fixup walkers at
+  :14000/:14071/:14433); the FAT contrast (:38056-38057) proves the
+  omission is NTFS-specific. The gate is dropped on the primary AND the
+  D-99 backup fallback (the fallback's BPB content gates are its proof);
+  the fallback now triggers on CONTENT failure only. Tests:
+  `TornPrimaryBackupBootScans` re-pinned (torn signature + NO backup →
+  opens from the primary, full tree),
+  `TornSignatureWithIntactBackupStillFallsBack` (the D-99 interplay),
+  `BackupBadFallsBackToRefusal` re-pinned to an OEM tear.
+- **RED proof:** the stash-revert rebuild (the fix stashed, the
+  `mirror_invalid` field kept so the tests compile) — **7/7 FAILED
+  pre-fix**; restored: NTFS+RawFixer **108/108 GREEN**, full suite
+  **1465/1465** (87s). Audit trail: 3 finding files moved to
+  findings/FIXED/ with Resolutions; CROSS-REF-MATRIX 3 rows → MATCH;
+  modules/ntfs.md S62 addendum; SUMMARY counts; FIXED-LEDGER 3 rows; this
+  entry.
+- **Corpus side-effects:** the M-142 probe (FUN_18000cf90 read in full —
+  a byte-swap helper, NO fork re-gates downstream) pre-discharges the
+  HFS+ finding's open question for its landing next.
+
 ## Closing-fix lane — the INFO-first pair lands (2026-10-29)
 
 **Session start record:** opened at core `98a5b139` (63 commits after the
@@ -9407,6 +9466,93 @@ fixture walks and surfaces oddrec.txt) and OversizePositiveRecordOpensAndWalks
 retired to findings/FIXED/N-196 + Resolution, ledger row, matrix MATCH (D-143),
 SUMMARY S60-B block, this entry.
 
+## Session-60-B lane — N-197 landed (2026-10-29)
+
+**N-197 FIXED (MINOR — spc shift-decode registration).** All four og sites
+re-read first-hand: NTFSSearchDLL FUN_18003f5d0 :51038-51049 (the 0xF0-nibble
+controller form — 0x85 decodes 133 raw), NTFSLib :19307 (< 0x81 shift),
+analyser FUN_1800048c0 (0x80 < shift), PartitionRecoveryD :2323-2329 (raw
+byte). Per the fix plan: D-52's ADDENDUM registers the og-internal
+three-form inconsistency + the core's signed-byte choice (the NTFSLib/
+analyser majority) + the 0x80 boundary nuance (every og layer raw 128; the
+signed form shifts to 1 — nonsense byte either way, registered not
+silenced). The decode extracted to the pure wire helper
+sectors_per_cluster_from_dbr (cr_ntfs_wire.h — the record_size_from_dbr
+pattern), validate_boot_segment rewired through it, pinned by
+NtfsVolume.BootSpcShiftDecodeConventionPinned (eight-byte table). Behavior
+unchanged. Trail: findings/FIXED/N-197 + Resolution, ledger row, matrix
+MATCH, SUMMARY, this entry.
+
+## Session-60 lane — N-204 landed (2026-10-29)
+
+**N-204 FIXED (MINOR — the engine-layer carve geometry registration).** All
+five corpus sites re-verified first-hand (RAWSearchDLL :9271-9275 the
+0x400000/sector_size block + ×2 double buffer; :9434-9438 the half-offset
+read; :9505-9526 the analyser base with the 0x200 fallback; :9616-9622 the
+memmove slide; :9494-9502 the sector-stride first-u32 probe) before the
+registration landed. SCAN-ENGINE-DELTA F6's og-side cell now carries the
+full decoded constant set with every cite, the engine-layer-vs-device-layer
+4 MiB separation (M-030/OQ-S4-3) drawn explicitly inside the cell, and the
+OQ-S4-3 acceptance-criterion cross-link. Registration-only per the finding's
+own fix plan — no code change, no new tests (nothing behavioral). Trail:
+findings/FIXED/N-204 + matrix MATCH + carve.md + this entry.
+
+---
+
+## Session-60-B lane — N-198 landed (2026-10-29)
+
+**N-198 FIXED (MINOR — exFAT hardening bounds registered).** Corpus
+re-verified first-hand: FUN_180021e80 :28180-28210 — the og's complete
+conjunction is nonzero-forms + ordering/fit, no numeric floors. Core's three
+bounds re-verified (volume_length :211, cluster_count :155, fat_offset :229).
+Per the fix plan: PARITY-DELTAS D-144 (D-70 precedent form) +
+ExfatEngine.HardeningBoundsPinned (volume_length/fat_offset edges isolated on
+og-ACCEPTING ordering-consistent garbage — the og-side acceptance proven by
+walking the conjunction field-by-field; the cluster_count boundary pinned with
+the > 2 TiB reachability analysis; S-066's re-base ladder verified inert under
+dual-boot patching). No behavior change. ExfatEngine 41/41. Trail:
+findings/FIXED/N-198 + Resolution, ledger row, matrix MATCH, SUMMARY, this
+entry.
+## Session-58 lane — the diff-to-fix execution lane opened (2026-10-29)
+
+**T1 record.** Lane opened at core `98a5b139` (main), corpus `be0cfe9`. The
+mandate: execute the diff-to-fix roadmap — every finding independently
+re-verified against the corpus and the running code before any change, every
+fix proven with a RED-before/GREEN-after test, one finding one push, the
+audit trail (Resolution sections, CROSS-REF-MATRIX MATCH cells, modules/*.md
+verdict tables, SUMMARY counts, FIXED-LEDGER rows, this worklog) updated per
+fix, fixed findings moved to findings/FIXED/. The user's ordering override
+for this lane: INFORMATIONAL first. Prompt saved (token redacted) at
+`worklog/session-58-diff-fix-prompt.md`.
+
+**T2/T3 record.** diff-to-fix/ read in full (README, SUMMARY, SEVERITY-SCALE,
+PARAMETERS, CROSS-REF-MATRIX, every active finding in all five severity
+folders, the tracked-open quartet, module docs as touched); core repo read at
+HEAD (src/win, src/app, src/ui, src/core layout, tests/unit census, CI
+scripts); local baseline built and run: **1380 tests, 1338 passed, 0 failed,
+85 skipped (environment-conditional)** — the never-push-a-red-commit
+baseline. Board at lane start: 48 active (1 SEVERE · 23 MAJOR · 22 MINOR ·
+2 INFO) / 136 FIXED / 4 tracked-open.
+
+
+## Session-58 lane — I-045 landed (the INFORMATIONAL-first pass) (2026-10-29)
+
+**I-045 FIXED (ACKNOWLEDGED).** The ext4 unwritten-extent `ee_len` non-adoption
+register (batch #3). Independently verified both sides before the change: the
+og's raw multiply re-read first-hand at EXT4SearchDLL
+`EXT4SearchDLL_decompiled.c:4044-4048` (both forms: the CONCAT24 product and the
+`(ushort)psVar5[-2] * block_size` product — zero unwritten-bit tests in the
+walk family), and the core's kernel-exact decode confirmed at
+`cr_ext4_engine.cpp:346-350` (`raw_len > 0x8000 ? (raw_len & 0x7FFF) :
+raw_len`). The landing: PARITY-DELTAS **D-141** (next-free after D-140, gate
+check 5 green — 136 unique D-rows) + the anti-down-fix pin
+`Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect` (ee_len 0x8005 → exactly 5
+blocks, 0x8001 → exactly 1 block, offsets pinned) — **RED-proven load-bearing**
+(the og's raw form substituted temporarily: the pin FAILS; restored: PASSES).
+No production code change (the core is the registered deliberate non-adoption).
+Trail: findings/FIXED/I-045 (Resolution + moved) + FIXED-LEDGER row +
+modules/ext4.md ACKNOWLEDGED + SUMMARY S58 block + this entry.
+
 ## Session-60 lane — N-205 landed (2026-10-29)
 
 **N-205 FIXED (MINOR — the rawCount population + the phantom member).**
@@ -9431,3 +9577,16 @@ finding + Resolution, ledger row, matrix MATCH (row 1177 + S60 section),
 tree.md verdict, D-144, the M-134 addendum, SUMMARY block (board recount:
 42 active — the racing window's I-045/I-046 retirements absorbed), this
 entry.
+
+
+## Session-60 lane — the second hot-window renumber ride (2026-10-29)
+
+The push-rebase raced again: the window's N-197 (D-52 addendum) + N-198
+(D-144) + I-045 (D-141) landings arrived while this lane's N-205 merge
+was in flight — the born-collided D-144 seat resolved per SA-9 (their
+N-198 keeps it; this lane's N-205 registration renumbered
+D-143→D-144→D-145, every live citation swept: the cr_grading.h mapping
+comment, the RawCountSemanticsRegistered pin, matrix/SUMMARY/finding/
+M-134-addendum cites). Both sides' rows kept in PARITY-DELTAS, the
+ledger, and this file. Gate green at 140 unique D-rows; Grading family
+40/40 re-verified post-sweep.

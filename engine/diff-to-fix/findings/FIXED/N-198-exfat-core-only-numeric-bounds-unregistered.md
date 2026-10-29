@@ -49,3 +49,10 @@ Decompiled evidence (the complete gate set re-read first-hand); core side quoted
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (registered + pinned — the finding's prescribed no-behavior-change disposition)
+**Fixed in commit:** (this push; S60-B lane)
+**Verified by:** `ExfatEngine.HardeningBoundsPinned` — the volume_length < 2048 and fat_offset < 24 edges isolated on ordering-consistent garbage boots the og's full conjunction ACCEPTS (the og-side acceptance proven by walking FUN_180021e80's conjunction field-by-field on the patched values), the cluster_count > 0xFFFFFFF5 edge pinned at the boundary value with the > 2 TiB reachability analysis in the comment; the ExfatEngine family 41/41 after the pin.
+**Resolution notes:** Corpus re-verified first-hand: FUN_180021e80 :28180-28210 — the complete conjunction is the `!= 0` forms plus ordering/fit, exactly as filed (no numeric floors anywhere). Core re-verified: the three bounds at cr_exfat_dentry.cpp (:211 volume_length, :155 cluster_count, :229 fat_offset). Per the fix plan: PARITY-DELTAS **D-144** registers the deliberate hardening stance (the D-70 precedent form: core-stricter bounds, og sites acknowledged, the no-real-formatter population rationale, the cluster_count reachability analysis); the pin test asserts the three refusal edges as deliberate — any future bound-drop forces the register to be re-truthed first. No behavior change; S-066's re-base ladder verified inert under the pin's dual-boot patching.

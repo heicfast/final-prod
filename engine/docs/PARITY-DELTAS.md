@@ -1647,13 +1647,30 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 - **Boot ladder (N-011b):** volume open now mirrors NTFSLib
   `CNtfsVolume::LoadNtfsVolume` :19292-19344 exactly: bps 512-multiple
   (pow2 dropped; 256 now rejected like the og), spc signed-byte decode
-  (direct < 0x81 including non-pow2, shift form above), cpr==0 / 0-result /
-  sub-sector record REJECTED (the M-001 fallback ladder belongs to the walk
-  function), index-block byte 0 rejected, no 0x400 clamp at open, no 0xAA55
-  check. **Registered core hardening kept** (the og lacks all four): the
-  4096 bps cap (spec max), the P1-4 shift-UB exponent guard (1 MiB record
-  cap — the og computes a 1 GiB record for cpr=-30), the P1-3 declared-size
-  sanity, and the bps-vs-device-sector match with the 512e escape.
+  (direct < 0x81 including non-pow2, shift form above). **M-147
+  correction (2026-10-29):** cpr == 0 and cib == 0 are the og's
+  scan-path DEFAULTS (1024-byte records / 4096-byte index blocks) at four
+  independent sites (the analyser getters FUN_180004830 :3427-3440 /
+  FUN_180004870 :3443-3456, NTFSSearchDLL FUN_18003f630,
+  PartitionRecoveryD FUN_180011a10/FUN_180011a90) - the volume OPENS on
+  the zero byte; the earlier "0 rejects" premise was a misread of
+  NTFSLib's store-guards (both guarded and unguarded paths share one
+  exit; `extraout_EAX` was unresolvable). **M-141 (2026-10-29):** the
+  mft_lcn bound moved to the og's product form `spc x mft_lcn <
+  total_sectors` (sector space, floor-tolerant) evaluated overflow-free
+  as `mft_lcn > (total-1)/spc`; the mftmirr_lcn bound is DROPPED
+  entirely (no og layer bounds the mirror - a torn mirror LCN demotes to
+  mirror-invalid, the mirror reads skipped). **M-145 (2026-10-29):** no
+  0xAA55 check anywhere on the NTFS open ladder (the og's NTFS path
+  never reads +0x1FE; its FAT/exFAT paths do - the omission is
+  NTFS-specific). **Registered core hardening kept** (the og lacks all
+  of these): the 4096 bps cap (spec max), the P1-4 shift-UB exponent
+  guard (1 MiB record cap — the og computes a 1 GiB record for cpr=-30),
+  the P1-3 declared-size sanity, the bps-vs-device-sector match with the
+  512e escape, the sub-sector-record refusal, and the NON-WRAPPING
+  mft_lcn product evaluation (the og's signed i64 product wraps negative
+  and passes for huge corrupt LCNs - the core refuses; the og's own
+  defect class).
 - **Attributes source (N-012):** serialized from `$STANDARD_INFORMATION`
   dos_flags (:5351-5368, per-bit RO/hidden/system/archive + 0x400 OFFLINE),
   `$FILE_NAME` fallback when `$SI` is absent, mask widened 0xFF → 0x7FF.
@@ -1677,7 +1694,13 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 
 **Pin tests:** `NtfsVolume.AttributesFromSIWhenAvailable`,
 `AttributesFallBackToFileNameWhenSIAbsent`, `AttributesPreserveOfflineBit`,
-`ShortNameFieldRoundtrips` (incl. session roundtrip), `BootRecordSizeZeroRejected`,
+`ShortNameFieldRoundtrips` (incl. session roundtrip),
+`BootRecordSizeZeroDefaultsTo1024` (re-pinned from
+`BootRecordSizeZeroRejected` by M-147), `BootCibZeroDefaultsTo4096IndexBlocks`,
+`BootCprZeroWithValidPrimaryDoesNotConsultBackup`,
+`MftLcnProductFormBoundaryAndHardening`, `TornMftmirrLcnScansWithMirrorSkipped`,
+`TornPrimaryBackupBootScans` (re-pinned by M-145),
+`TornSignatureWithIntactBackupStillFallsBack`,
 `BootNoPow2RecordSizeAcceptedAtDecodedValue`, `BootNegativeExponentOverflowRejected`,
 `AdsDroppedInParityMode`, `AdsEmittedByDefaultSuperset`,
 `UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,
@@ -4187,7 +4210,68 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   safety) beside the adjacent P1-4 pin
   (`NtfsVolume.BootNegativeExponentOverflowRejected`).
 
-### D-144 — the recoverability rawCount semantics: provenance census vs the og's validated-recoverable count (N-205 registration, REGISTERED DELIBERATE DIVERGENCE — raw_tail_zero carries the og-parity population)
+### D-52 ADDENDUM — the spc shift-decode threshold: the og is internally inconsistent; the core's signed-byte form is the registered choice (N-197)
+
+- **THE OGRE'S OWN THREE FORMS (all four sites re-read first-hand):**
+  NTFSSearchDLL FUN_18003f5d0 (:51038-51049) shifts only when the high
+  nibble is 0xF — bytes 0x80..0xEF are taken as DIRECT sector counts
+  (0x85 -> 133 sectors/cluster), 0xF0 -> 1<<16, 0xFF -> 2. NTFSLib
+  (:19307, `bVar2 < 0x81 -> raw else 1 << (-bVar2 & 0x1f)`) and
+  NTFSFileSystemAnalyser FUN_1800048c0 (`0x80 < bVar1 -> shift`) shift
+  at >= 0x81 — the majority form the corpus artifacts document.
+  PartitionRecoveryD (:2323-2329) uses the RAW byte with no decode at
+  all (the lost-scan's 4-record MFT read computes MFT positions from the
+  raw count). The parent row's "spc signed-byte decode" wording cited
+  LoadNtfsVolume as *the* og form — an overclaim this addendum corrects.
+- **THE CORE'S REGISTERED CHOICE:** the signed-byte convention (the
+  NTFSLib/analyser majority): positive -> direct count, negative ->
+  `1 << ((-spc) & 31)`, extracted as the pure wire helper
+  `sectors_per_cluster_from_dbr` (cr_ntfs_wire.h) and pinned by
+  `NtfsVolume.BootSpcShiftDecodeConventionPinned` (0x01/0x40/0x7F direct;
+  0xF6 -> 1024 the canonical real-world shift form; 0xFF -> 2; 0x85 ->
+  2^27 under the chosen convention where the scan controller takes 133
+  raw). On a 0x80..0xEF spc byte with positive cpr, the og's own scan
+  controller computes different MFT addresses than the core — deep-edge
+  (shift-form spc implies >= 256-sector clusters; rare even in synthetic
+  images), wrong MFT addressing only on that geometry.
+- **THE 0x80 BOUNDARY NUANCE:** every og layer takes byte 0x80 raw (128);
+  the signed form shifts (exponent 128 & 31 = 0 -> 1). A nonsense byte
+  either way (no formatter emits it); registered here rather than
+  silently diverging.
+
+### D-144 — the exFAT boot-gate numeric bounds: core-only hardening the og's nonzero-form gates lack (N-198 registration, REGISTERED DELIBERATE DIVERGENCE — FP-suppression direction)
+
+- **WHAT OG DOES:** the complete exFAT boot gate conjunction
+  (exFATSearchDLL FUN_180021e80 :28180-28210) requires the four size
+  fields to be merely NONZERO — `fat_length(+0x54) != 0`,
+  `heap_offset(+0x58) != 0`, `fat_offset(+0x50) != 0`,
+  `volume_length(+0x48) != 0`, `cluster_count(+0x5c) != 0` — plus the
+  shift band, the numFATs ∈ {1,2} form, root-cluster > 1, and the
+  ordering/fit inequalities. NO numeric floors or ceilings on any size
+  field: a garbage boot with `fat_offset = 10` or `volume_length = 100`
+  (ordering-consistent) enters the og's engine, which then fails on the
+  FAT read.
+- **WHAT WE DO:** the core adds three bounds the og does not have
+  (`cr_exfat_dentry.cpp`): `volume_length >= 2048` sectors (+ device
+  fit), `cluster_count <= 0xFFFFFFF5`, `fat_offset >= 24` (the boot
+  region). Each refuses the nonsense-BPB noise earlier and cheaper than
+  the og's engine-level failure.
+- **WHY DELIBERATE:** core-stricter-in-the-FP-direction with zero real
+  population cost — no real formatter emits `fat_offset < 24` (the boot
+  region is 24 sectors by spec), `volume_length < 2048` (the spec
+  minimum volume), or `cluster_count > 0xFFFFFFF5` (the spec max,
+  2^32-11; the og's own ordering conjunction only admits counts that
+  large on devices past 2 TiB at 512 B clusters). The D-70 precedent
+  (core-stricter bounds with the og sites acknowledged and the
+  no-real-formatter rationale).
+- **EVIDENCE:** the og gate set re-read first-hand at the decompile
+  lines above; the three core bounds pinned as deliberate by
+  `ExfatEngine.HardeningBoundsPinned` (the volume_length and fat_offset
+  edges isolated on ordering-consistent garbage the og's full
+  conjunction ACCEPTS; the cluster_count edge pinned at the boundary
+  value with the reachability analysis in the test comment).
+
+### D-145 — the recoverability rawCount semantics: provenance census vs the og's validated-recoverable count (N-205 registration, REGISTERED DELIBERATE DIVERGENCE — raw_tail_zero carries the og-parity population)
 
 - **WHAT OG DOES:** the assistant's rawCount (+0x1a0) is a
   validated-recoverable count, ticked at quick-scan populate
@@ -4222,7 +4306,7 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   every report that carves anything. Mitigated: the D-row + the header
   mapping block state the split explicitly; the og-parity number exists
   as raw_tail_zero for any surface that asks.
-- **VERDICT: ACCEPTED** (deliberate divergence, registered N-205; renumbered D-143→D-144 at the push-rebase — the racing S60 window's N-196 registration took the D-143 seat first per SA-9, the N-207 born-collided-seat class). The
+- **VERDICT: ACCEPTED** (deliberate divergence, registered N-205; renumbered D-143→D-144→D-145 across two push-rebases — the racing windows' N-196 and N-198 registrations took the D-143/D-144 seats first per SA-9, the N-207 born-collided-seat class recurring). The
   M-134 resolution's "raw_tail_zero in AssistantStats" sentence was
   aspirational at its landing (the field did not exist — the N-205
   phantom claim); the N-205 landing makes it true. Any future report/ABI

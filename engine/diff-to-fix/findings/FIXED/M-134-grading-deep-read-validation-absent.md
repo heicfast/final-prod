@@ -94,6 +94,6 @@ grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default
 size arm — FUN_1401c7d80 :331183-311 re-read first-hand), proven by
 Grading.RawTailZeroTicksForcedProbePopulation /
 Grading.RawTailZeroSizeArmBoundary. The raw_count semantics split is
-registered at docs/PARITY-DELTAS.md D-144 (the D-143 seat belongs to the racing window's N-196 registration per SA-9 — the renumber swept every live citation). This addendum is the
+registered at docs/PARITY-DELTAS.md D-145 (the lower seats belong to the racing windows' N-196/N-198 registrations per SA-9 — the renumber swept every live citation). This addendum is the
 correction the N-205 fix plan demanded — the audit trail now matches
 the tree.

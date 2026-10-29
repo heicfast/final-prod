@@ -123,7 +123,7 @@ struct GradeContext {
  *                               dump, size-0 rescue, freed-node sweeps)
  *   quick_scan_delete_extend  = the NTFS device-index rule's tick (exact)
  *
- * raw_count semantics (N-205, registered deliberate divergence D-144 [renumbered from the born-collided D-143 seat at the push-rebase - the racing window's N-196 registration keeps D-143 per SA-9]):
+ * raw_count semantics (N-205, registered deliberate divergence D-145 [renumbered D-143->D-144->D-145 across two push-rebases: the racing windows' N-196/N-198 registrations keep the lower seats per SA-9]):
  * the og's rawCount (+0x1a0) is a VALIDATED-RECOVERABLE count - the
  * forced observe-only deep-read probe over the grade-1 NTFS population,
  * ANDed with the size rule (FUN_1401c76e0: the 0x23 ctor-default arm ->

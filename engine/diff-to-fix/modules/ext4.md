@@ -211,8 +211,8 @@ lane: the ladder bounded by ceil(i_size/bs) + the contiguous merge + the
 findings/FIXED/S-065, 4 RED->GREEN read-count/cancel/merge pins), **M-143** (the journal inode-image
 harvest branch absent — the S-004 sibling surface), **M-144** (the 8 MiB GDT cap
 refusing >16 TiB 64BIT volumes + MAX_GROUPS >128 TiB; the og unbounded),
-**N-193** (four SB acceptance-band deltas consolidated — register), **I-045** (the
-unwritten ee_len og-defect non-adoption register, batch #3). Verified-MATCH this
+**N-193** (four SB acceptance-band deltas consolidated — register; RENUMBERED **N-202** at the S56 lane's collision repair, seat 202), **I-045** (the
+unwritten ee_len og-defect non-adoption register, batch #3) **— I-045 ACKNOWLEDGED-RETIRED (the S58 diff-to-fix execution lane: PARITY-DELTAS D-141 registered + the `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect` anti-down-fix pin RED-proven — findings/FIXED/I-045)**. Verified-MATCH this
 session: the size-bounded indirect walk's og form (FUN_180005490), the journal
 dir-block classifier's '.'/'..' test, the GDT allocation math, and the
 extents-path budget (the S-065 gap is the non-extents path only — now closed).

@@ -731,6 +731,35 @@ TEST(Ext4Engine, UnwrittenExtentLenDecodedKernelCorrect) {
     EXPECT_EQ(u64(5 * BS), hello_node->props()->extents[0].length);
     /* NOT the og's raw product: 0x8005 * 1024 = 33,556,736 bytes of extent */
     EXPECT_NE(u64(0x8005) * BS, hello_node->props()->extents[0].length);
+
+    /* the S58 convergence lane's unique supplement: the DELETED path decodes
+     * the same kernel form - the dtime-marked Inode6's extent re-stamped
+     * ee_len 0x8001 (unwritten, 1 block) surfaces a 1-block content extent,
+     * never the og's 0x8001 * 1024 raw product. */
+    u8* gone6 = img.block(B_INODE_TABLE) + size_t((6 - 1) * INO_SZ);
+    put16(gone6 + 0x28 + 16, 0x8001); /* ee_len @ extent+4 */
+    MemDevice dev2(img.raw());
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    Ext4ScanFlags fl2;
+    Ext4ScanStats st2;
+    ASSERT_EQ(OK, scan_ext4(&dev2, fl2, nullptr, nullptr, nullptr, tree2, ra2, rd2, nullptr, st2))
+        << err_text(0);
+    const tree::FileNode* gone_node = nullptr;
+    std::function<void(const tree::FileNode*)> find2 = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "Inode6")
+                gone_node = c;
+            find2(c);
+        }
+    };
+    find2(ra2);
+    find2(rd2);
+    ASSERT_NE(nullptr, gone_node);
+    ASSERT_EQ(size_t(1), gone_node->props()->extents.size());
+    EXPECT_EQ(u64(1 * BS), gone_node->props()->extents[0].length)
+        << "unwritten ee_len 0x8001 decodes to 1 block, not 0x8001*1024";
 }
 
 TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {

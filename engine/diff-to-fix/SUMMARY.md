@@ -1,3 +1,34 @@
+# SUMMARY.md — executive summary (the S62 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-62 S62 fix-lane delta (2026-10-29 — the user's MAJOR-first directive; core `98a5b139` at open, corpus `be0cfe9`; baseline suite 1460/1460)
+
+**The NTFS open-ladder acceptance-band family closed (M-141 + M-145 + M-147
+— one coherent pass over `validate_boot_sector`/`open()`, corpus re-verified
+first-hand at every cited line before the fix):**
+
+- **M-147 FIXED** — cpr==0/cib==0 are the og's four-site scan-path DEFAULTS
+  (1024/4096; the analyser getters, NTFSSearchDLL, PartitionRecoveryD twice —
+  each re-read at the exact lines). A single zeroed boot byte no longer
+  refuses the volume; D-52's store-guard misread corrected in the same push.
+- **M-141 FIXED** — the mft_lcn bound moved to the og's product form
+  (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301) evaluated
+  overflow-free (the wrap-passing refusal kept as registered hardening); the
+  core-only mftmirr bound is GONE — a torn mirror LCN demotes to the
+  report-only `mirror_invalid` flag (both mirror reads skipped + the Info
+  diagnostic); the M-043 backup fallback gains an MFT-load-failure retry rung.
+- **M-145 FIXED** — no 0x55AA gate anywhere on the NTFS open ladder (the og's
+  NTFS path never reads +0x1FE; its FAT/exFAT paths do — NTFS-specific
+  omission). Content gates are the proof on the primary AND the backup
+  fallback. TornPrimaryBackupBootScans re-pinned (opens from the primary).
+- RED proof: the stash-revert rebuild (fix stashed, the VolumeParams field
+  kept so the tests compile) — 7/7 FAILED pre-fix, 108/108 NTFS+RawFixer
+  GREEN post-fix, full suite **1465/1465**.
+
+**Board after this landing: 0 ACUTE · 1 SEVERE [S-040] · 20 MAJOR · 22
+MINOR · 2 INFO active / 139 FIXED / 4 tracked-open.** Next free IDs:
+S-067+, M-148+, N-210+, I-048+, A-015+.
+
+# SUMMARY.md — executive summary (the S52-B severe-first convergence lane on top; the prior lanes below, newest-first)
 
 # SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
 
@@ -32,7 +63,11 @@ tracked-open; FIXED archive 140.
 
 - **N-196 FIXED (MINOR)** — the NTFS walk-entry record-geometry stance registered and pinned (option (a), the finding's recommendation): PARITY-DELTAS **D-143** carries the accept-direction superset (both og gate sites re-read first-hand — odd/>16-device-sector records refused 0x610016 at FUN_1800272b0 :31620-31621/:31599-31600; the core walks them, per-record validation carrying the safety). Pins: `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture surfaces its user file) + `OversizePositiveRecordOpensAndWalks` (the 17-sector stride); NtfsVolume family 73/73.
 
-**Board at this push (filesystem truth):** 45 active — 1 SEVERE · 23 MAJOR · 18 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 142 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196).
+- **N-197 FIXED (MINOR)** — the spc shift-decode threshold registered: D-52's ADDENDUM documents the og's three internal forms (0xF0-nibble controller / >= 0x81 NTFSLib+analyser / raw PartitionRecoveryD — all four sites re-read first-hand) + the core's registered signed-byte choice + the 0x80 boundary nuance; the decode extracted to the pure wire helper `sectors_per_cluster_from_dbr` and pinned by `BootSpcShiftDecodeConventionPinned` (the eight-byte table). Behavior unchanged on every real-volume population.
+
+- **N-198 FIXED (MINOR)** — the exFAT boot-gate numeric bounds registered as deliberate hardening: PARITY-DELTAS **D-144** (the og's nonzero-form conjunction re-read first-hand at :28180-28210; the no-real-formatter rationale; the > 2 TiB cluster_count reachability analysis) + `ExfatEngine.HardeningBoundsPinned` (the volume_length/fat_offset edges isolated on og-ACCEPTING ordering-consistent garbage, the cluster_count boundary pinned). ExfatEngine family 41/41; no behavior change.
+
+**Board at this push (filesystem truth):** 43 active — 1 SEVERE · 23 MAJOR · 16 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 144 files.
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
@@ -40,7 +75,7 @@ tracked-open; FIXED archive 140.
 
 **Fixes landed this push:**
 
-- **N-205 FIXED (MINOR)** — the recoverability rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's exact population (the forced observe-only tail-zero probe over grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default size arm — FUN_1401c7d80 :331183-311 re-read first-hand, ported as grade_tree's pass 0); `raw_count` keeps the Origin::Carved census as the REGISTERED deliberate divergence (**D-144** [renumbered from the born-collided D-143 seat - the racing window's N-196 registration keeps D-143 per SA-9], header mapping block); the M-134 resolution's phantom `raw_tail_zero` sentence repaired by addendum. Tests: Grading.RawTailZeroTicksForcedProbePopulation / RawTailZeroSizeArmBoundary / RawCountSemanticsRegistered (the registration leg RED until the D-row landed); Grading family 40/40.
+- **N-205 FIXED (MINOR)** — the recoverability rawCount population split: `AssistantStats::raw_tail_zero` now ticks the og's exact population (the forced observe-only tail-zero probe over grade-1 NTFS nodes with 0 < key < device-size, the 0x77fffff default size arm — FUN_1401c7d80 :331183-311 re-read first-hand, ported as grade_tree's pass 0); `raw_count` keeps the Origin::Carved census as the REGISTERED deliberate divergence (**D-145** [renumbered D-143->D-144->D-145 across the push-rebases: the racing windows' N-196/N-198 registrations keep the lower seats per SA-9], header mapping block); the M-134 resolution's phantom `raw_tail_zero` sentence repaired by addendum. Tests: Grading.RawTailZeroTicksForcedProbePopulation / RawTailZeroSizeArmBoundary / RawCountSemanticsRegistered (the registration leg RED until the D-row landed); Grading family 40/40.
 - **N-195 FIXED (MINOR)** — the driver-verification bench's two phantom-zero extended-IOCTL constants righted to the contract codes (0x6002440 GET_INFO / 0x6002448 GET_VERSION, cr_rda.h CTL_CODE_RDA fn 0x910/0x912) — the bench can now actually exercise the GET_INFO/GET_VERSION paths it exists to verify. Pin test CrUi.BenchVerifyDriverIoctlCodesMatchContract (RED: both phantom literals present → GREEN: contract codes present, phantom absent); CrUi family 77/77.
 - **N-199 FIXED (MINOR)** — probe_family's ReFS branch now gates on BOTH boot signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759 re-read first-hand): a forged OEM no longer dispatches the ReFS family. Test Refs.RecognitionRequiresFsrsMarker RED (forged-OEM fixture dispatched Refs) → GREEN; Refs family 41/41; lost/ldm/probe neighborhood 153/153.
 - **N-192 FIXED (MINOR)** — FileProperties::clone() now copies `short_name` (the og's whole-block clone contract, part1 slot +0x08): the hard-link fan-out's cloned links keep the 8.3 name at the walk, through the session roundtrip (nflags bit 2), and at the UI preview clone. Test NtfsVolume.HardLinkFanOutClonesKeepShortName RED (cloned link's short_name empty, both axes) → GREEN; family 71/71.
@@ -50,6 +85,19 @@ tracked-open; FIXED archive 140.
 ---
 
 # SUMMARY.md — executive summary (the S52-B severe-first convergence lane (prior); the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S52-B severe-first convergence lane on top; the prior lanes below, newest-first)
+## Session-58 S58 lane delta (2026-10-29 — the diff-to-fix execution lane; opened on `98a5b139`, corpus `be0cfe9`; the user's ordering override: INFORMATIONAL first, one finding one push)
+
+**I-045 FIXED (ACKNOWLEDGED — the INFORMATIONAL-first pass's first landing):** the
+ext4 unwritten-extent `ee_len` og-defect non-adoption register (batch #3, the
+I-026/I-040/D-123 family) landed as PARITY-DELTAS **D-141** with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`
+(**RED-proven**: temporarily adopting the og's raw-multiply form —
+EXT4SearchDLL FUN_180005670 :4044-4048, both multiply forms re-read first-hand —
+fails the pin; the kernel-correct decode `raw_len > 0x8000 ? (raw_len & 0x7FFF)
+: raw_len` passes). No production code change — the core's decode is the
+registered deliberate non-adoption. findings/FIXED/I-045 + the ledger row +
+modules/ext4.md ACKNOWLEDGED.
 
 ## Session-52-B S52-B convergence-lane delta (2026-10-29 — the severe-first diff-to-fix execution lane; opened on `659f0f6c`, absorbed the S45..S59 hot windows at the rebase; corpus `be0cfe9`)
 

@@ -75,3 +75,32 @@ Decompiled evidence, lead-verified first-hand this session: both analyser getter
 ## Open questions
 
 The NTFSLib return value on the zero paths (`extraout_EAX` register escape) — resolvable only by dynamic RE (a debugger on LoadNtfsVolume with a zeroed +0x40) or by accepting the four-scan-path-site evidence as the behavioral ground truth (recommended: the scan path is what recovery behavior follows).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S59 MAJOR-first fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on
+`NtfsVolume.BootRecordSizeZeroDefaultsTo1024` (RED pre-fix: the volume
+refused; GREEN post: opens at the 1024-byte default stride and the MFT
+walk finds the fixture's files),
+`NtfsVolume.BootCibZeroDefaultsTo4096IndexBlocks` (RED pre-fix:
+ERR_BAD_PARAMETER; GREEN post: opens), and
+`NtfsVolume.BootCprZeroWithValidPrimaryDoesNotConsultBackup` (RED
+pre-fix: the cpr=0 primary failed validate and the backup took over;
+GREEN post: the primary opens at the default, `boot_from_backup` false —
+the D-99 precedence pinned). `BootRecordSizeZeroRejected` is re-pinned to
+`BootRecordSizeZeroDefaultsTo1024`. Full suite 1465/1465.
+**Resolution notes:** CONFIRMED-DIVERGENCE. Both og getters re-verified
+first-hand at the exact cited lines this session (FUN_180004830
+:3427-3440 `if (bVar1 == 0) return 0x400;` and FUN_180004870 :3443-3456
+`if (bVar1 == 0) return 0x1000;`). The fix (option (a) of the finding's
+plan): `record_size_from_dbr` returns the 0x400 default on cpr == 0; the
+`clusters_per_index_block == 0` refusal is dropped (the decoded value
+feeds no core walk — INDX extents ride $INDEX_ALLOCATION runs; the og's
+0x1000 default is therefore behaviorally identical here). The P1-4
+exponent guard and the sub-sector-record refusal are kept (registered
+hardening). D-52's WHAT-OG-DOES premise is corrected in the same push:
+the four-site default map is recorded (analyser getters,
+NTFSSearchDLL FUN_18003f630, PartitionRecoveryD FUN_180011a10/a90) and
+the NTFSLib store-guard misread (the shared-exit structure) is documented.

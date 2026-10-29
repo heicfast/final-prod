@@ -221,7 +221,16 @@ inline u64 mft_reference_record(u64 ref) {
     return ref & 0x0000FFFFFFFFFFFFULL;
 }
 
-/* Record size from DBR: clusters_per_record sign convention. */
+/* Record size from DBR: clusters_per_record sign convention.
+ * M-147 (diff-to-fix): cpr == 0 decodes to the DEFAULT 1024 bytes at
+ * every og scan-path site (the analyser getter FUN_180004830 :3427-3440
+ * `if (bVar1 == 0) return 0x400;`, NTFSSearchDLL FUN_18003f630, and
+ * PartitionRecoveryD's parser pair FUN_180011a10/FUN_180011a90 - four
+ * independent defaults; re-verified first-hand). The old core rejected
+ * the volume on the zero byte - a single-byte tear refusing the whole
+ * volume. The negative form keeps the P1-4 shift-UB guard (exponent cap
+ * 20 -> 1 MiB; the og computes 2^(-cpr) unbounded - registered core
+ * hardening in PARITY-DELTAS D-52). */
 inline u64 record_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
     if (bs.clusters_per_record > 0)
         return static_cast<u64>(bs.clusters_per_record) * bs.sectors_per_cluster * bytes_per_sector;
@@ -230,6 +239,29 @@ inline u64 record_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
             return 0;
         return 1ULL << (-bs.clusters_per_record);
     }
+    return 0x400; /* the og's four-site zero default: 1024-byte records */
+}
+
+/* Sectors-per-cluster from DBR: the signed-byte convention (N-197 pin).
+ *
+ * The og decodes this byte THREE different ways across its own layers:
+ *   - NTFSSearchDLL FUN_18003f5d0 (:51038-51049): shift only when the
+ *     high nibble is 0xF — bytes 0x80..0xEF are DIRECT sector counts
+ *     (0x85 -> 133), 0xF0 -> 1<<16, 0xFF -> 2.
+ *   - NTFSLib :19307 / NTFSFileSystemAnalyser FUN_1800048c0: shift at
+ *     >= 0x81 (the majority form; the corpus artifacts document it).
+ *   - PartitionRecoveryD :2323-2329: the raw byte, no decode at all.
+ * The core keeps the signed-byte form (the NTFSLib/analyser majority):
+ * positive -> direct count, negative -> 1 << ((-spc) & 31). The single
+ * byte 0x80 is the boundary nuance: every og layer takes it raw (128),
+ * the signed form shifts (exponent 128 & 31 = 0 -> 1) — a nonsense byte
+ * either way, registered in PARITY-DELTAS D-52's addendum. */
+inline u64 sectors_per_cluster_from_dbr(const BootSector& bs) {
+    const i8 spc_raw = static_cast<i8>(bs.sectors_per_cluster);
+    if (spc_raw > 0)
+        return static_cast<u64>(spc_raw);
+    if (spc_raw < 0)
+        return 1ULL << (static_cast<u64>(-spc_raw) & 31);
     return 0;
 }
 
