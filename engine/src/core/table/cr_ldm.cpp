@@ -1570,8 +1570,10 @@ std::vector<LdmVolumeDevice::PhysicalSpan> LdmVolumeDevice::physical_spans(u64 o
         /* striped: only the data column is read (exact). raid5: the data
          * column OR - on member failure - every surviving column of the
          * row (reconstruction), so ALL columns are conservative-safe. */
-        const u32 first = raid5 ? 0 : col;
-        const u32 last = raid5 ? cols - 1 : col;
+        /* the explicit u32 casts keep MSVC /W4 clean (C4244: the u64
+         * ternary arms narrow; the values are column indices, bounded) */
+        const u32 first = raid5 ? 0 : u32(col);
+        const u32 last = raid5 ? u32(cols - 1) : u32(col);
         for (u32 c2 = first; c2 <= last; ++c2) {
             const LdmMember& m2 = members[size_t(c2)];
             IStorageDevice* dev2 = resolver_ ? resolver_(m2.disk_guid) : nullptr;

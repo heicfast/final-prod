@@ -1421,7 +1421,7 @@ static bool xmind_content_probe(IStorageDevice* s, u64 pos, u16 nlen, u64 limit)
     u8 win[300];
     const u64 avail64 = limit - base;
     const size_t avail = avail64 < sizeof(win) ? size_t(avail64) : sizeof(win);
-    if (avail == 0 || !rd(s, base, win, avail))
+    if (avail == 0 || !rd(s, base, win, u32(avail))) /* u32: rd's length param (MSVC C4267) */
         return false;
     for (size_t i = 0; i + sizeof(kNeedleXmlns) - 1 <= avail; ++i)
         if (std::memcmp(win + i, kNeedleXmlns, sizeof(kNeedleXmlns) - 1) == 0)
