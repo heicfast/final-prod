@@ -1086,6 +1086,14 @@ hardening is the D-14 family). Evidence:
 
 **New on this module:**
 
+- **M-107 X3F leg (S78 lane) — the section-directory walk landed**: the
+  X3F stand-in (the blind 64 MiB cap) is replaced by the og's walk
+  (FUN_1800404a0 + FUN_18003ffc0, first-hand this session): search the
+  window for "SECd", count at magic+8, extent = magic+16+count×12
+  clamped by the row max + device end; no directory = the og's decline.
+  3 tests RED→GREEN + the S-007 batch re-pin. The remaining ten
+  stand-in sites (CRW next) tracked in the finding's per-format record.
+
 - **N-212 — FIXED (S77 lane → MATCH)** — the ASF validator's acceptance
   band and extent source now match the decoded og family: tier-1 is the
   16-byte GUID compare alone (the count gate and the header-size floor

@@ -2280,12 +2280,119 @@ size_t plant_dmg_koly(std::vector<u8>& img, size_t at, size_t koly_rel, bool ali
     return koly_rel + 0x200;
 }
 
-size_t plant_x3f(std::vector<u8>& img, size_t at) {
+/* M-107: the X3F plant now carries the section directory (the og's
+ * walk target - FUN_1800404a0 :48851-48910): header(16) + payload +
+ * the directory at a variable position after the data: "SECd" + size +
+ * count + pad, then count 12-byte entries {offset, length, name}.
+ * Sigma writes the directory after the section data - the og SEARCHES
+ * for it (the magic finder FUN_18003ffc0), so the plant places it at
+ * the true end. */
+size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800,
+                 u32 dir_entries = 3, u64 dir_offset_override = 0) {
     std::memcpy(img.data() + at, "FOVb", 4);
     std::memcpy(img.data() + at + 4, "2.1\x00", 4);
-    for (size_t i = 8; i < 128; ++i)
+    for (size_t i = 8; i < 16; ++i)
         img[at + i] = u8(i & 0xFF);
-    return 128;
+    /* benign payload fill: a constant that forms no 4-byte registry
+     * signature (the stride patterns cycle all 256 values and collide
+     * with other rows' keys inside the shared batch image) */
+    for (size_t i = 0; i < payload_len; ++i)
+        img[at + 16 + i] = 0x44;
+    const size_t d = dir_offset_override ? size_t(dir_offset_override) : at + 16 + payload_len;
+    std::memcpy(img.data() + d, "SECd", 4);
+    const u32 table_bytes = 16 + dir_entries * 12;
+    for (int i = 0; i < 4; ++i) {
+        img[d + 4 + size_t(i)] = u8(table_bytes >> (8 * i)); /* size */
+        img[d + 8 + size_t(i)] = u8(dir_entries >> (8 * i)); /* count */
+        img[d + 12 + size_t(i)] = 0;                          /* pad */
+    }
+    for (u32 e = 0; e < dir_entries; ++e) {
+        const size_t ep = d + 16 + size_t(e) * 12;
+        const u32 sec_off = u32(16 + e * 0x100);
+        const u32 sec_len = 0x100;
+        for (int i = 0; i < 4; ++i) {
+            img[ep + size_t(i)] = u8(sec_off >> (8 * i)); /* entry offset */
+            img[ep + 4 + size_t(i)] = u8(sec_len >> (8 * i)); /* entry length */
+        }
+        std::memcpy(img.data() + ep + 8, "SECi", 4); /* entry name */
+    }
+    return d + 16 + size_t(dir_entries) * 12 - at; /* the directory's end */
+}
+
+/* ---- M-107: the X3F section-directory size walk ---- */
+
+TEST(Carve, X3fSectionDirectoryWalkSetsExtent) {
+    /* the og's walk: the extent is the section directory's END (magic +
+     * 16 + count*12), not a blind 64 MiB cap - FUN_1800404a0's extent
+     * math (:48900-48906) + the caller's clamp (:48745-48750). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_x3f(img, at, 0x800, 3);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr) << "the X3F must carve through the directory walk";
+    EXPECT_EQ(x3f->props()->logical_size, expect)
+        << "extent = the directory end (16 + payload + 16 + count*12), og-exact";
+}
+
+TEST(Carve, X3fNoSectionDirectoryDeclines) {
+    /* the og's analyser declines when no directory is found in the
+     * window (FUN_1800404a0's return-1 family) - the old blind 64 MiB
+     * stand-in carved header-only fragments with no directory at all. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "FOVb", 4);
+    std::memcpy(img.data() + at + 4, "2.1\x00", 4);
+    for (size_t i = 8; i < 4096; ++i)
+        img[at + i] = u8((i * 3) & 0xFF); /* payload, NO "SECd" anywhere */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            FAIL() << "a header with no section directory must NOT carve (the og declines)";
+}
+
+TEST(Carve, X3fGarbageHugeCountClampsToWindow) {
+    /* a torn directory whose count field is garbage-huge: the og clamps
+     * the extent to its window total (:48904-48906: min(walk extent,
+     * +0x118)); the core's stand-ins are the row max + the device end. */
+    std::vector<u8> img(1 * 1024 * 1024, 0);
+    const size_t at = 512;
+    (void)plant_x3f(img, at, 0x800, 3);
+    /* tear the count: 0xFFFFFF entries -> extent clamps to the device end */
+    for (int i = 0; i < 4; ++i)
+        img[at + 16 + 0x800 + 8 + size_t(i)] = u8(0xFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* x3f = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            x3f = c;
+    ASSERT_NE(x3f, nullptr);
+    EXPECT_EQ(x3f->props()->logical_size, size_t(1 * 1024 * 1024 - at))
+        << "the garbage count clamps to the window end";
 }
 
 /* M-081/SCAN-4: Canon CRW (CIFF) - the II/MM 1A 00 keys with the og
@@ -2932,7 +3039,11 @@ TEST(Carve, S007NicheBatch1Carve) {
     const size_t rm_len = plant_rm(img, rm_at);
     const size_t mxf_len = plant_mxf(img, mxf_at);
     const size_t dmg_len = plant_dmg(img, dmg_at);
-    const size_t x3f_len = plant_x3f(img, x3f_at);
+    /* M-107: the X3F plant now carries the section directory (the walk's
+     * target); the compact payload keeps the region inside its batch slot
+     * (the next plant, CRW, sits at 12288 - the old blind stand-in had no
+     * true extent, the walk's must not swallow the neighbor) */
+    const size_t x3f_len = plant_x3f(img, x3f_at, 0x40);
     const size_t crw_len = plant_crw(img, crw_at);
     const size_t wpg_len = plant_wpg(img, wpg_at);
     const size_t wpd_len = plant_wpd(img, wpd_at);

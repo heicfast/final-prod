@@ -100,3 +100,33 @@ salvage posture, not the batch-1 64 MiB DWG pattern). The constant is PINNED
 device; the pin's fail-before proven by mutation: 32→16 MiB goes RED). The site's
 disposition: stand-in stays (the D-101 decline covers it); the registration gap that
 was N-146's actual defect is closed.
+
+
+---
+
+## Session-78 fix-lane addendum (2026-10-29 — the per-format landings begin; X3F landed)
+
+**Per-format status (the fix plan's landing-order record):**
+1. **X3F — LANDED (this push, S78 lane):** the section-directory walk
+   (Brance::X3FAnalyser, RAWSearchDLL FUN_1800404a0 :48851-48910 + the
+   magic finder FUN_18003ffc0 :48624-48638, both re-read first-hand this
+   session): the directory is SEARCHED for ("SECd" = 0x64434553, the same
+   literal the walk's chunk-tail probe compares — Sigma writes the
+   directory at a variable position after the section data); the entry
+   count at magic+8; the extent = magic + 16 + count×12 (the end of the
+   12-byte-stride entry table behind the 16-byte directory header; the
+   caller's entry[0] reach-through at :48741/:48770 corroborates the
+   layout), clamped by the row max + device end (the og's own clamp at
+   :48904-48906/:48745-48750). No directory in the window = the og's
+   decline (the return-1 family) — the blind 64 MiB stand-in is gone.
+   The og's streaming chunk-tail gate is its chunked-feeding model's
+   artifact (documented divergence of model, not semantics). Tests:
+   X3fSectionDirectoryWalkSetsExtent / X3fNoSectionDirectoryDeclines /
+   X3fGarbageHugeCountClampsToWindow — RED first-hand via the stash
+   dance (2/3 FAILED pre-fix: the stand-in's blind extent + blind
+   carve); the S-007 batch re-pinned (the plant now carries the real
+   directory; the compact payload keeps the batch slot). The FileRepair
+   artifact's directory-first grammar corroborated
+   (x3f-repair--section-checkers-walk.md §2).
+2. **CRW — NEXT** (FUN_180052160, the CIFF heap chain).
+3. DWG, then WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT — pending.
