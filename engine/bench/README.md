@@ -50,7 +50,15 @@ responsiveness, driver presence/absence behavior.
 
 ## Reports
 
-`docs/COMPARATIVE-BENCHMARK.md` + `docs/benchmark-summary.json` are generated
-by `bench/metrics/compare.py` from real run artifacts only, with per-metric
-verdicts `MATCH / EXCEEDS / BELOW / NOT-COMPARABLE` and root-cause notes for
-every BELOW. Unfavorable results are findings, not suppressions.
+**[N-150 truth repair]** the two report files named above are RUNTIME
+OUTPUTS of `bench/metrics/compare.py` (which IS on disk) — they appear
+under `docs/` only when a comparative run actually executes, and are not
+committed by design (generated artifacts do not ship). The earlier
+present-tense phrasing read as standing files, which sent the S42 lane's
+OQ-S4-3 registration looking for committed reports. The report contract,
+when a run produces one: per-metric verdicts
+`MATCH / EXCEEDS / BELOW / NOT-COMPARABLE` with root-cause notes for
+every BELOW, from real run artifacts only; unfavorable results are
+findings, not suppressions. The standing benchmark evidence of record is
+`docs/BENCHMARK-REPORT.md` + `docs/PERFORMANCE-BASELINE.md` (both
+committed) plus the per-landing numbers in each finding's Resolution.

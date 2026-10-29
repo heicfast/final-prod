@@ -70,7 +70,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 
 | # | Corpus surface | Core equivalent | Status | Evidence |
 |---|---|---|---|---|
-| 22 | Lost-partition: insert-as-scan-target; `CPartitionVirtualVolumeDevice`; partition engine modules | `whole_disk` + `CR_EVT_LOST_CANDIDATE` + lostpart engine + `cr_ui_apply_lost_partition/_undo_last/_save_undo` | **MATCH (API surface complete; scoring parity M-017 engine scope)** | audit #35 |
+| 22 | Lost-partition: insert-as-scan-target; `CPartitionVirtualVolumeDevice`; partition engine modules | `whole_disk` + `CR_EVT_LOST_CANDIDATE` + lostpart engine + `cr_ui_apply_lost_partition/_undo_last/_save_undo` | **MATCH (API surface complete; scoring parity — the M-017 caveat RETIRED: M-017 FIXED, FIXED-LEDGER :120; the N-150 annotation)** | audit #35 |
 | 23 | `IBuildVolumeBitmap` | `cr_ui_disk_map` (4 overlays) | **MATCH+ (GAP-S6-11)** | audit §2.5 |
 | 24 | DiskHealth companion app (SMART SAT/CSMI/NVMe) | `cr_ui_health_read` (SMART+NVMe+SSD heuristic+TRIM; ABI v2 NVMe tail) | **MATCH+** | audit §2.5 |
 | 25 | BitLocker: FVEAutoUnlock registry + `\\.\Pipe\DRWBitlocker` (0x138-stride, ≤100 records, one-shot push); manage-bde fallback | `cr_ui_open_volume_with_key` (FVEK XTS-AES) + `cr_ui_unlock_volume_with_dictionary` (228-entry Dict) | **MATCH+ (documented divergences: explicit-consent unlock vs service pipe — the pipe contract is corpus ground truth for the SERVICE shape, not required in-core)** | corpus-api-context §1.14 |
@@ -137,7 +137,7 @@ docs/PARITY-DELTAS.md lineage.
   remains).
 - **N-089** FCP-event subtype relabel (MINOR, labeling-only — carve lane).
 - **I-026** unsigned-by-design posture (INFO, deliberate).
-- **OQ-SA-1** anchor-datum fields probe (tracked-open, engine scope).
+- **OQ-SA-1** anchor-datum fields probe — **LANDED (the fat_origin_cluster/ntfs_origin_lcn dwords at cr_node.h:188/:216; the N-150 annotation)**.
 - **OQ-S4-3** chunking perf probe (tracked-open, engine scope).
 - **A-ABI-6** codeql lane `if: false` vs RELEASE-NOTES claim (policy decision
   for the repo owner, flagged in the audit).
@@ -181,7 +181,7 @@ FileSystemCheck error set 0x1001..0x100e (finding
 
 API-surface code and its normative docs are now consistent at
 `c899998`+this session. Remaining items are all OUTSIDE the core API
-surface: S-038 steps 2-4 (packaging lane, pending the owner's two
+surface: S-038 steps 2-4 — **LANDED (installer/core-recovery.iss + run-gates.ps1; the N-150 annotation; the packaging-lane caveat retired)**. Legacy text (pending the owner's two
 PACKAGING.md decisions), M-064 CLOSED upstream at rda-driver v0.2.4,
 A-ABI-6 (owner policy), OQ-SA-1/OQ-S4-3 (engine-scope probes), I-026
 (deliberate posture). N-089 FIXED at `c899998`; A-011/N-089 convergence
@@ -249,9 +249,9 @@ HEALTH facet, NOT the enumeration-row facet R-63 wants):
 | S3-W1a | session list + summary export (R-56 PARTIAL) | SaveScan/rsf-format--scan-session.md:11; UIUX/07-home-phase-deep-dive.md:21 (LastScanRecordView + Continue-last banner) | **FIXED this session** — core half `78a6552` (the v5 save_unix tail + `Reader::peek_record` + `ScanController::read_summary` + the missing crsf-format VOLUME_INFO grammar section; 4 unit tests) + surface half `eb16335` (`cr_ui_session_list` cr_ui.h:808-850 + the `rrecov sessions [--dir D] [--json]` verb + the three-site lock + ABI-CONTRACT §7f + all count sites 79→80/10→11 + 39 cite re-pins + 2 ABI tests + the C-gate block + the parse-gate stub growth); suite 1009/1009 green locally | **DONE** |
 | S3-W1b | session load progress + cancel (R-54 PARTIAL) | SaveScan/rsf-format--scan-session.md:344-376 (load progress 40-65% + per-child cancel via IUIProgressInfo) | **FIXED this session** — `ce6bcb0`: `session::DeserializeProgress` (per-node, ERR_CANCELLED propagates - never flattened into SESSION_FORMAT) threaded through deserialize_tree/load_session/load_session_summary/resume; `cr_ui_session_load_with_events` + `CR_EVT_SESSION_LOAD_PROGRESS` (type 11) + the caller-owned cancel flag (the IsCancelled mirror, polled per node even silent); docs ABI-CONTRACT S7g + S6 row + 81-export counts + the cite re-mechanization; 3 tests; suite 1012/1012 | **DONE** |
 | S3-W1c | auto-save-on-completion (R-52 PARTIAL) | SaveScan/rsf-format--scan-session.md:443-451 + section 5.5 (auto_<vol>_<ts> naming); UIUX/30:64-67 | **FIXED this session** — `c95335f`: ScanConfig.autosave_dir + write_session_atomic (the shared N-014 atomic write; the explicit N-060 save rerouted through it, zero behavior change) + the completion leg (cancelled runs never auto-save) + ABI appends (config/stats/event type 12 + autosave_rc; no export added, 81 stands) + CLI `scan --autosave-dir D` + the three-site lock + ABI-CONTRACT S7h; test CrUi.AutoSaveOnCompletion (off-default / exactly-one-valid-auto-file the W1a list reads back / cancelled-never); suite 1016/1016 | **DONE** |
-| S3-W2a | query axes path_substring + state_mask (R-22 PARTIAL) | UIUX/31-filterbar-family-decode.md:55-125 (AdvanceFilterCondition 7 groups) | `path_prefix` landed (the path axis, M-029); substring/state axes ABSENT; tag axis = carve tag surface (D-53 registered) | this session |
+| S3-W2a | query axes path_substring + state_mask (R-22 PARTIAL) | UIUX/31-filterbar-family-decode.md:55-125 (AdvanceFilterCondition 7 groups) | `path_prefix` landed (the path axis, M-029); **LANDED (M-072: cr_ui.h path_substring + state_mask — the N-150 annotation, the stale-ABSENT repaired)**; tag axis = carve tag surface (D-53 registered) | this session; re-annotated 2026-10-29 |
 | S3-W2b | scan-time folder filter (R-14 GAP) | UIUX/31-filterbar-family-decode.md:140-143 (PushFolderFilter) | `ScanConfig` has no filter input (grep ABSENT) | this session |
-| S3-W3a | destination validation codes (R-41 PARTIAL) | architecture/04-recovery-workflow.md:136-141 | `ERR_DEST_*` family has no path-too-long / invalid-path / network-classification codes (cr_error.h 0x5005 family) | this session |
+| S3-W3a | destination validation codes (R-41 PARTIAL) | architecture/04-recovery-workflow.md:136-141 | **LANDED (M-074: ERR_DEST_PATH_TOO_LONG/_PATH_INVALID/_NETWORK at cr_error.h — the N-150 annotation, the stale-missing repaired)** | this session; re-annotated 2026-10-29 |
 | S3-W3b | chkdsk launch (R-65 PARTIAL) | MOM-modules/mom-module-system--architecture.md:65 (FileSystemCheck.mo + WinChkdsk) | `cr_ui_fsck_volume` ABSENT; `check::run_fscheck` is the in-engine checker, not the og's chkdsk launch | this session (win-layer) |
 | S3-W3c | enumeration refresh export (R-86 PARTIAL) | UIUX/13-ui-core-wiring-state.md:14 | behavior already always-fresh; the plan's remaining half is the header contract sentence | this session (doc) |
 | S3-W3d | TRIM facet in enumeration rows (R-63 PARTIAL) | UIUX/07-home-phase-deep-dive.md:17 (TRIM chip per row) | `cr_ui_disk_info` rows lack trim fields; health report has them (cr_ui.h:1189); opt-in flag + the plan's DEFERRED-if-slow measurement still open | this session |

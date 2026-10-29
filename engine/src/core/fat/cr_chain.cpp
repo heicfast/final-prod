@@ -609,7 +609,23 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     if (p.cluster_count >= 0xFFFFFF0u)
         return ERR_BAD_PARAMETER;
 
-    p.flavor = flavor_from_clusters(p.cluster_count);
+    /* S-064: the flavor is STRING-FIRST when an FS-name string matches -
+     * the og's engine-open validator (FUN_18002f970 :38044/:38061)
+     * assigns flavor 1/2 purely by "FAT16   " at +0x36 / "FAT32   " at
+     * +0x52 plus BPB shape gates; NO cluster-count term exists in that
+     * function (the bracket machinery FUN_180004610 is the lost/Calc
+     * side). Re-read first-hand. A "FAT16   "-string volume under 4085
+     * clusters is flavor 1 in the og (16-bit entries, full stop); the
+     * pre-fix core bracketed it to Fat12 and decoded 12-bit entries -
+     * different chains, different recovered bytes. String-less volumes
+     * keep the cluster bracket (the D-94/I-002 deliberate superset:
+     * structural FAT12 recovery the og declines; unchanged). */
+    if (fs_name_matches(sector512 + 0x36, "fat16   "))
+        p.flavor = Flavor::Fat16;
+    else if (fs_name_matches(sector512 + 0x52, "fat32   "))
+        p.flavor = Flavor::Fat32;
+    else
+        p.flavor = flavor_from_clusters(p.cluster_count);
     p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;
     p.total_bytes = u64(total) * p.bytes_per_sector;
     if (p.total_bytes > device_bytes) {

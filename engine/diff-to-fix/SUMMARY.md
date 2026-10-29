@@ -186,7 +186,7 @@ cite) recorded in the sweep sheet for the N-180-family doc-truth batch.
 **Board at this push (filesystem truth at the pushed tree, the S52 lane's
 M-134 landing absorbed mid-push — CONVERGENT with this lane's OQ-S42-3
 probe; the same decode fed both lanes): 45 active — 5 SEVERE
-(S-040/S-050/S-059/S-060/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
+(S-040/**S-050-disposition-landed**/**S-059-fixed**/**S-060-fixed**/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
 FIXED at `290e9c16`) · 21 MINOR (N-189..N-192 new, N-186 retired) · 0 INFO
 (the tier folded per convention) / 107 FIXED / 5 tracked-open (OQ-S42-3
 resolved this lane, its remaining scope narrowed to the +0x72/+0x74
@@ -298,6 +298,8 @@ filed at its §5 item 4. The session-57 lane's independent RED battery (both
 halves of the polarity pin) and convergence addendum ride in the finding file;
 its redundant code/tests were dropped per the superset rule (the winning 23/23
 battery incl. S-061's ReFS/Btrfs insert-time pins stands).
+
+**Session-46 lane — wave 2 (2026-10-29):** the hot-window RED MAIN repaired before the landing (the N-177 convergence duplicate-TEST redefinition [build-breaking], the N-171 validated double-count, the 4d450da2 crossed grading assertions, and the S-055/S-056 battery's user-sign test-hygiene leak [the 190-sign default install never torn down — the og's weak "lha" '-lh' sign carved the wrong-dash LZH fixture; bisected first-hand; per-test teardowns]); **N-166 FIXED** (the live file-count telemetry: the tree-atomic attach counters + the emit-time monotonic refresh; deleted_found boundary-only [the post-attach truth]; the header contract re-truthed; TelemetryCountersMoveDuringCarveStage RED pre-fix; suite 1312 green).
 
 **Session-46 lane landings (the other MINOR-first seat, 2026-10-29):** **N-158 FIXED** (`78b9b7aa` — the OfficeTagFromXML five-branch typing tail: XMIND/MMAP/EDDX/WFP/DRP, the disassembly-decoded XMIND probe + the no-stop chain walk + D-134), **N-159 FIXED** (`035508fa` — the failed-files report's tree_class axis + failed_bytes split + the three register repairs), **N-163 FIXED** (`142a7f40` — the NTFS runlist truncate-and-keep tolerance + the torn flag + PartialRisk grading + D-135), **N-165 FIXED** (`7f4f30d4` — the FAT out-of-volume stance registered D-136 + the stance pin). Suites green at each push; the full Resolutions ride the finding files + ledger rows.
 

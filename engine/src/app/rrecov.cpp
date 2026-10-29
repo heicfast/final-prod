@@ -146,8 +146,7 @@ struct ProgressDisplay {
             const std::string m126 = query::eta_format_m_s(em.eta_seconds);
             std::mbstowcs(eta, m126.c_str(), 31);
         }
-        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct,
-                static_cast<long long>(ms) / 1000,
+        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct, static_cast<long long>(ms) / 1000,
                 em.eta_seconds > 0 ? eta : L"3m00s");
         return true;
     }
@@ -1485,16 +1484,16 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
-        if (get_opt(argc, argv, i, L"--label", &v)) {
-            /* M-079: the explicit volume-label override (the auto-save
-             * name's <vol> half + the session record); empty = derive from
-             * the target (volume letter / image stem) */
-            size_t k = 0;
-            for (; k + 1 < sizeof(cfg.volume_label) && k < v.size() && v[k] < 0x80; ++k)
-                cfg.volume_label[k] = char(v[k]);
-            cfg.volume_label[k] = 0;
-            continue;
-        }
+        /* [N-150] a second, ASCII-truncating --label handler lived here -
+         * dead from birth (the live handler above matched first and
+         * `continue`d), a rebase leftover whose semantics DIVERGED from
+         * the live one (ASCII truncation vs the N-016b U+FFFD rule). It
+         * is removed so a future reorder cannot silently flip the CLI
+         * contract; the live handler's semantics are pinned at the ABI
+         * seam (cfg.volume_label_utf8 -> the session card) by
+         * CrUi.SessionListVolumeLabelFullWidthRoundTrips (the N-090
+         * landing). No CLI-process harness exists - the app is a
+         * standalone executable, not linked into the test binary. */
         if (get_opt(argc, argv, i, L"--filter", &v)) {
             print_flags.filter = text::wide_to_utf8(v); /* N-009c: UTF-8, not '?' */
             continue;

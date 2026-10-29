@@ -2442,6 +2442,181 @@ TEST(FatEngine, Date2107ConvertsFullyNoClamp) {
     EXPECT_EQ(fat_date_to_unix(0x0020, 0x6000, 0), 0u); /* day 0 */
 }
 
+TEST(FatEngine, StringFat16LowClusterCountScansAsFat16) {
+    /* S-064: the og's engine-open flavor validator is STRING-DRIVEN
+     * (FUN_18002f970 :38044: "FAT16   " at +0x36 + BPB shape gates ->
+     * flavor 1; NO cluster-count term exists in the function - the
+     * bracket machinery FUN_180004610 is the lost/Calc side). A
+     * "FAT16   "-stringed volume with 2926 data clusters (< 4085, the
+     * FAT12 bracket) is flavor 1 in the og: 16-bit entries, chains
+     * terminate at 0xFFF8-0xFFFF. The pre-fix core bracketed it to
+     * Fat12 and decoded 12-bit entries - different chains, different
+     * recovered bytes. The string wins; the bracket survives only for
+     * string-less volumes (the D-94/I-002 superset). */
+    std::vector<u8> img(u64(3000) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x13, 3000); /* total sectors: 2926 data clusters */
+
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512, DATA = 74 * 512;
+    auto link = [&](u32 c, u16 v) {
+        set_fat16_entry(img, FAT1, c, v);
+        set_fat16_entry(img, FAT2, c, v);
+    };
+    set_fat16_entry(img, FAT1, 0, 0xFFF8);
+    set_fat16_entry(img, FAT1, 1, 0xFFFF);
+    set_fat16_entry(img, FAT2, 0, 0xFFF8);
+    set_fat16_entry(img, FAT2, 1, 0xFFFF);
+    /* the chain under test: 10 -> 11 -> 12 -> EOC, with data at each */
+    link(10, 11);
+    link(11, 12);
+    link(12, 0xFFFF);
+    for (u32 c : {10u, 11u, 12u})
+        std::memcpy(img.data() + DATA + (c - 2) * 512, "SIXTEENBITCLUSTER", 17);
+    u8* root = img.data() + ROOT;
+    make_dentry(root + 0 * 32, "STRFMT16TXT", 0x20, 10, 1500, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRFMT16.TXT");
+    ASSERT_NE(n, nullptr) << "the string-gated volume opens and scans";
+    /* the flavor the engine actually used rides the record: 1 = Fat16
+     * (corpus codes) - never the 0 the pre-fix bracket produced */
+    EXPECT_EQ(n->props()->fs_kind, 1u) << "the string drives the flavor, not the bracket";
+    /* and the chain decoded at 16-bit width: clusters 10-12 are
+     * contiguous and coalesce into ONE 1536-byte extent (the 12-bit
+     * decode of the same bytes breaks the chain - the pre-fix core
+     * read entry 10 from the packed offsets and got FREE) */
+    ASSERT_EQ(n->props()->extents.size(), 1u) << "the contiguous chain coalesces";
+    EXPECT_EQ(n->props()->extents[0].offset, u64(DATA + 8 * 512)) << "cluster 10's position";
+    EXPECT_EQ(n->props()->extents[0].length, u64(3 * 512)) << "three 16-bit-walked clusters";
+}
+
+TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
+    /* S-064's FAT32 twin: "FAT32   " at +0x52 with a cluster count in
+     * the FAT16 bracket - the og's string branch (FUN_18002f970
+     * :38061-:38090) assigns flavor 2 (the spf32 gate, no cluster
+     * term). The pre-fix core bracketed it to Fat16. */
+    /* spf32 = 256: the M-011 Fat32 window floor ([0x100, 0x96000]);
+     * total = 2 + 512 + 5000 -> 5000 data clusters (FAT16 bracket) */
+    std::vector<u8> img(u64(5514) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSWIN4.1", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;              /* spc 1: 5000 data clusters (FAT16 bracket) */
+    put16(img, 0x0E, 2);      /* reserved */
+    b[0x10] = 2;              /* FAT count */
+    put16(img, 0x11, 0);      /* root entries 0 (FAT32 shape) */
+    put16(img, 0x13, 0);      /* total16 unused */
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);      /* spf16 unused */
+    put32v(img, 0x20, 5514);  /* total32 */
+    put32v(img, 0x24, 256);   /* spf32 - the string branch's gate + the window floor */
+    put32v(img, 0x2C, 2);     /* root cluster 2 */
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 2 * 512, FAT2 = 258 * 512, DATA = 514 * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    put32v(img, FAT1, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFF8);
+    put32v(img, FAT2, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT2 + 4, 0x0FFFFFF8);
+    link32(2, 3);
+    link32(3, 0x0FFFFFFF);
+    link32(100, 0x0FFFFFFF);
+    std::memcpy(img.data() + DATA + 8, "BIGFAT32DATA", 12);
+    u8* d = img.data() + DATA; /* root dir cluster 2 */
+    std::memcpy(d, "STRFMT32TXT", 11);
+    d[0x0B] = 0x20;
+    d[0x1A] = 100;
+    d[0x1C] = 12;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRFMT32.TXT");
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->fs_kind, 2u) << "the FAT32 string drives flavor 2 under the FAT16 bracket";
+}
+
+TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
+    /* S-064 control: the D-94/I-002 deliberate superset SURVIVES the
+     * string-first rule - a string-less volume in the FAT12 bracket
+     * still brackets to Fat12 (the og declines it; the core recovers
+     * it structurally). */
+    std::vector<u8> img(u64(3000) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x13, 3000);
+    put16(img, 0x16, 12); /* spf 12: inside the Fat12 window [1,12] */
+    std::memset(img.data() + 0x36, 0x20, 8); /* blank the FAT16 string */
+    /* FAT12-shaped media words (family-tolerant validator); layout:
+     * reserved 2 + 2x12 FAT + 32 root -> FAT2 at 14, root at 26, data 58 */
+    const size_t FAT1 = 2 * 512, FAT2 = 14 * 512, ROOT = 26 * 512, DATA = 58 * 512;
+    set_fat16_entry(img, FAT1, 0, 0xFFF8);
+    set_fat16_entry(img, FAT1, 1, 0xFFFF);
+    set_fat16_entry(img, FAT2, 0, 0xFFF8);
+    set_fat16_entry(img, FAT2, 1, 0xFFFF);
+    /* a FAT12-readable chain: 10 -> 11 -> EOC (12-bit entries at
+     * odd/even offsets - written via the packed form) */
+    /* FAT12 packing: entry 10 (even, byte 15): b15 | (b16&0xF)<<8 =
+     * 0x00B; entry 11 (odd, byte 16): (b16>>4) | (b17<<4) = 0xFFF EOC */
+    img[FAT1 + 15] = 0x0B;
+    img[FAT1 + 16] = 0xF0;
+    img[FAT1 + 17] = 0xFF;
+    img[FAT2 + 15] = 0x0B;
+    img[FAT2 + 16] = 0xF0;
+    img[FAT2 + 17] = 0xFF;
+    for (u32 c : {10u, 11u})
+        std::memcpy(img.data() + DATA + (c - 2) * 512, "TWELVEBITDATA!", 14);
+    u8* root = img.data() + ROOT;
+    make_dentry(root + 0 * 32, "STRLESS TXT", 0x20, 10, 700, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRLESS.TXT");
+    ASSERT_NE(n, nullptr) << "the string-less superset still opens";
+    EXPECT_EQ(n->props()->fs_kind, 0u) << "the bracket owns string-less volumes (Fat12)";
+}
+
+TEST(FatEngine, StringGateRejectsShapelessVolume) {
+    /* S-064 guard: the og's shape gates still gate the string path -
+     * "FAT16   " with root_entries < 224 (FUN_18002f970 :38054's
+     * 0xdf < root) declines at engine open even when the string and
+     * the bracket agree. */
+    std::vector<u8> img(u64(5074) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x11, 32); /* root entries below the 224 floor */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    const u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    EXPECT_EQ(rc, u32(ERR_BAD_PARAMETER)) << "the shape gates gate the string branch";
+}
+
 TEST(FatEngine, TimeWordOutOfRangeYieldsZeroTimestamp) {
     /* A-014: the og's DosDateTimeToFileTime (FATSearchDLL
      * :32135-32154, three zero-on-fail slots) rejects hour >= 24,

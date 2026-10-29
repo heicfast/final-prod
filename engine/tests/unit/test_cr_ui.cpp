@@ -3628,6 +3628,32 @@ TEST(CrUi, DriverWireCodesFreeOfPhantomZeroInDocs) {
     }
 }
 
+TEST(CrUi, OutOfScopeRowsCarryTruthfulRegistrations) {
+    /* S-050's disposition pin (the finding's own test idea: "a docs
+     * test that every SURFACE-INVENTORY OOS row's cited registration
+     * exists and contains the row - this drift class is systematic").
+     * The file-repair line's row cites CAPABILITY-MATRIX §3; the
+     * pre-fix drift was exactly this: the citation pointed at a §3
+     * that did not list the row. The registration + the D-137 delta
+     * must both exist and name the line. */
+    const std::string inv = cr_test::read_repo_file("diff-to-fix/SURFACE-INVENTORY.md");
+    ASSERT_FALSE(inv.empty());
+    /* the row itself must cite the REGISTERED state, not the audited-drift state */
+    EXPECT_NE(inv.find("REGISTERED OUT OF SCOPE (S-050 disposition"), std::string::npos)
+        << "the file-repair row cites the formal registration";
+    const std::string cap = cr_test::read_repo_file("docs/CAPABILITY-MATRIX.md");
+    ASSERT_FALSE(cap.empty());
+    EXPECT_NE(cap.find("The file-repair product line (S-050's formal disposition"),
+              std::string::npos)
+        << "CAPABILITY-MATRIX §3 carries the exclusion row";
+    EXPECT_NE(cap.find("Fixo"), std::string::npos)
+        << "the exclusion row carries the provenance rationale";
+    const std::string deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    ASSERT_FALSE(deltas.empty());
+    EXPECT_NE(deltas.find("D-137"), std::string::npos)
+        << "the scope-exclusion delta with the future implementer's entry points";
+}
+
 TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
     /* N-094: the -h usage text omitted the sessions verb while wmain
      * dispatched it (10 lines listed vs 11 verbs reachable) - a verb
