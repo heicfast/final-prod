@@ -2085,9 +2085,8 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
          * a zeroed declared size fails the fit form (0 < usa_count - 1)
          * exactly like the og. */
         const u32 us_cnt = rh.update_sequence_size;
-        const bool alloc_size_ok =
-            (rh.bytes_allocated % 0x400) == 0 && us_cnt >= 2 &&
-            (rh.bytes_allocated / 0x200) >= (us_cnt - 1u);
+        const bool alloc_size_ok = (rh.bytes_allocated % 0x400) == 0 && us_cnt >= 2 &&
+                                   (rh.bytes_allocated / 0x200) >= (us_cnt - 1u);
         /* every parse failure below falls through to the shifted-header
          * salvage (og behavior: the probe runs on the failed record) */
         if (rh.magic == RECORD_MAGIC_FILE && alloc_size_ok &&

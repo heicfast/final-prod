@@ -25,3 +25,24 @@ The M-151 lane's push rebased onto the A-016/N-218 lane's test-file changes, hit
 **Fixed in commit:** (this push; the S80 parity fix lane, 2026-10-29)
 **Verified by:** `cmake --build` clean at the post-repair tree; `rg -c '^<<<<<<< ' tests/ src/` → 0; the recovered tests green (`FolderFilterRootDotIsTransparent`, `TruncatedRunlistGrowsToValidRecords`, `MirrorFallbackUnaffectedByGrowthPass`); the three growth-era re-pins green (`NonresidentAttrlistOnMft`, `MirrorCoversRunlistSize`, `MirrorResidentDataRejected`); NTFS family 96/96; full suite 1520/0.
 **Resolution notes:** The class protocol held again: semantic reconstruction for code (both racing lanes' tests preserved — the interleaving made manual resolution error-prone, so the pieces were extracted by marker positions and stitched), the growth-era consequences re-pinned per the M-151 decode's own semantics. The recurrence's root cause is unchanged since N-210 (a racing lane pushing without the ci-local marker gate) — now with the added hazard that unexecutable trees carry unverified claims in their commit messages. Recorded for the next audit's liveness battery.
+
+### S84 convergence addendum (this lane's independent repair, conceded per SA-9)
+
+This lane (the S84 fix lane) hit the same RED main at its session open,
+ran its own both-sides-kept reconstruction before pulling, and found the
+racing window's repair (c7037bf3/f18ba226/1d7d31a6) already landed at the
+push — the seat conceded per SA-9, this addendum the convergence record.
+The two implementations were independently derived and agree on every
+load-bearing choice: both tests kept complete, the shared middle
+(`WalkerFlags`/`walk_mft`) duplicated into each, the matrix resolved to
+the M-151 MATCH row + the N-182 FIXED row. Two independent catches this
+lane's baseline pass made that the racing repairs did NOT cover, landed
+separately by this lane: (1) the N-221 test-ref leak in the N-216
+landing's `SizeCapHidesOversizeNode` (a different file — the marker
+repairs never touched it; RED at `eeddec57`, fixed + filed); (2) the
+matrix row's trailing `||` table-syntax break in the racing repair's
+M-151 row (repaired in this lane's push riding the N-221 landing). The
+concession's own verification: the racing landing's
+`NonresidentAttrlistOnMft` 20→23 re-pin and the mirror-fixture
+zeroed-hole pattern were re-read and confirmed corpus-consistent — the
+growth probe's decoded semantics held under both reconstructions.

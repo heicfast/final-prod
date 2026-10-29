@@ -398,7 +398,7 @@ mutation: extents fall back to the raw cluster). Suite green: 1493 + 2 perf
 core, 83 UI ABI.
 
 
-## M-157 repair addendum (S84 fix lane, 2026-10-30)
+## The 9b4a9302 clobber convergence record (S84 fix lane, 2026-10-30)
 
 The false trail commit `9b4a9302` rewrote the S-068 engine while its own
 message claimed "no code change rides this commit" — its central delta
@@ -406,12 +406,15 @@ gate-raised the retry-leg-only `0x310000` comparison onto the PRIMARY
 re-base gate, starving every FAT32 volume under ~3.1M clusters of the
 repair entirely (the landed fixture's own hint of 0x10000 fails the
 gate) and leaving `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
-`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` RED at origin/main. The
-M-157 repair (corpus re-verified first-hand: the primary site
-:14753-14755 carries the three-gate conjunction, the `0x310000`
-comparison exists only at the two retry-leg sites :14834/:30184)
-restored the primary gate set, restored the `reconstruct_deleted_chains`
-flag gate and the both-branches hint update, and KEPT the rewrite's
-honest probe hardenings (bounds, FAT-linkage refusal, cycle/break
-refusal). The four S-068 tests green; the full suite 1529/0 + 87/87.
-Finding: findings/MAJOR/M-157-9b4a9302-false-trail-commit-s068-gate-regression.md
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` RED at origin/main.
+TWO lanes independently found, corpus-verified, and repaired it in the
+same window; the racing `cd3479e7` byte-restore (back to the landed
+`ad1bcb9e` implementation) keeps the seat per SA-9. The corpus truth
+both lanes decoded identically: the primary site :14753-14755 carries
+the three-gate conjunction (assumed==0, value < 0x10000, value < hint)
+— the `0x310000` comparison lives only at the two retry-leg sites
+(:14834, :30184). The engine now carries the landed semantics again;
+the full record (including the S84 lane's conceded probe-hardening
+variant and its deltas) is at
+findings/FIXED/N-220-9b4a9302-concession-commit-clobbered-s068-landing-red-main-5th-recurrence.md
+(the Convergence addendum).

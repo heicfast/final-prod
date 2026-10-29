@@ -523,7 +523,6 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
     return v;
 }
 
-
 void NtfsVolume::grow_mft_runs_to_valid_records() {
     /* M-151: the og's growth loop, decoded first-hand (FUN_180007670
      * :5617-5700): per run node, probe 4 KiB windows at the run's

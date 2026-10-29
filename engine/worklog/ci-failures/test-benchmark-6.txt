@@ -1,0 +1,684 @@
+﻿2026-10-29T08:59:38.6288168Z Current runner version: '2.338.0'
+2026-10-29T08:59:38.6348919Z ##[group]Runner Image Provisioner
+2026-10-29T08:59:38.6349701Z Hosted Compute Agent
+2026-10-29T08:59:38.6350229Z Version: 20261021.618
+2026-10-29T08:59:38.6350818Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-29T08:59:38.6351466Z Build Date: 2026-10-21T00:45:21Z
+2026-10-29T08:59:38.6352084Z Worker ID: {97148853-f978-42c2-ae87-f07dbf8c1e79}
+2026-10-29T08:59:38.6352755Z Region: eastus
+2026-10-29T08:59:38.6353227Z Cloud: Azure
+2026-10-29T08:59:38.6353740Z ##[endgroup]
+2026-10-29T08:59:38.6355046Z ##[group]Operating System
+2026-10-29T08:59:38.6355656Z Microsoft Windows Server 2022
+2026-10-29T08:59:38.6356223Z 10.0.20348
+2026-10-29T08:59:38.6356657Z Datacenter
+2026-10-29T08:59:38.6357123Z ##[endgroup]
+2026-10-29T08:59:38.6357622Z ##[group]Runner Image
+2026-10-29T08:59:38.6358174Z Image: windows-2022
+2026-10-29T08:59:38.6358673Z Version: 20261025.346.1
+2026-10-29T08:59:38.6359975Z Included Software: https://github.com/actions/runner-images/blob/win22/20261025.346/images/windows/Windows2022-Readme.md
+2026-10-29T08:59:38.6361429Z Image Release: https://github.com/actions/runner-images/releases/tag/win22%2F20261025.346
+2026-10-29T08:59:38.6362353Z ##[endgroup]
+2026-10-29T08:59:38.6363365Z ##[group]GITHUB_TOKEN Permissions
+2026-10-29T08:59:38.6365387Z Contents: read
+2026-10-29T08:59:38.6365934Z Metadata: read
+2026-10-29T08:59:38.6366443Z ##[endgroup]
+2026-10-29T08:59:38.6368515Z Secret source: Actions
+2026-10-29T08:59:38.6369360Z Cache mode: write
+2026-10-29T08:59:38.6370012Z Prepare workflow directory
+2026-10-29T08:59:38.6897237Z Prepare all required actions
+2026-10-29T08:59:38.6946160Z Getting action download info
+2026-10-29T08:59:38.8536237Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-29T08:59:38.9767841Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-29T08:59:39.3007947Z Complete job name: test-and-benchmark
+2026-10-29T08:59:39.4543427Z ##[group]Run actions/checkout@v4
+2026-10-29T08:59:39.4544496Z with:
+2026-10-29T08:59:39.4544914Z   repository: heicfast/core_recovery
+2026-10-29T08:59:39.4549916Z   token: ***
+2026-10-29T08:59:39.4550406Z   ssh-strict: true
+2026-10-29T08:59:39.4550898Z   ssh-user: git
+2026-10-29T08:59:39.4551397Z   persist-credentials: true
+2026-10-29T08:59:39.4551939Z   clean: true
+2026-10-29T08:59:39.4552447Z   sparse-checkout-cone-mode: true
+2026-10-29T08:59:39.4553040Z   fetch-depth: 1
+2026-10-29T08:59:39.4553522Z   fetch-tags: false
+2026-10-29T08:59:39.4554015Z   show-progress: true
+2026-10-29T08:59:39.4554508Z   lfs: false
+2026-10-29T08:59:39.4554949Z   submodules: false
+2026-10-29T08:59:39.4555354Z   set-safe-directory: true
+2026-10-29T08:59:39.4555818Z   allow-unsafe-pr-checkout: false
+2026-10-29T08:59:39.4556488Z env:
+2026-10-29T08:59:39.4560337Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:39.4560824Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:39.4561445Z ##[endgroup]
+2026-10-29T08:59:39.5984482Z Syncing repository: heicfast/core_recovery
+2026-10-29T08:59:39.5986286Z ##[group]Getting Git version info
+2026-10-29T08:59:39.5986949Z Working directory is 'D:\a\core_recovery\core_recovery'
+2026-10-29T08:59:39.7254879Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T08:59:40.0717769Z git version 2.56.0.windows.3
+2026-10-29T08:59:40.0764206Z ##[endgroup]
+2026-10-29T08:59:40.0784639Z Temporarily overriding HOME='D:\a\_temp\1b330899-1bf1-49ce-ba76-7d9904afc7ba' before making global git config changes
+2026-10-29T08:59:40.0787145Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T08:59:40.0797753Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-29T08:59:40.1442176Z Deleting the contents of 'D:\a\core_recovery\core_recovery'
+2026-10-29T08:59:40.1447568Z ##[group]Initializing the repository
+2026-10-29T08:59:40.1456991Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\core_recovery\core_recovery
+2026-10-29T08:59:40.2179615Z Initialized empty Git repository in D:/a/core_recovery/core_recovery/.git/
+2026-10-29T08:59:40.2219852Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/heicfast/core_recovery
+2026-10-29T08:59:40.2929348Z ##[endgroup]
+2026-10-29T08:59:40.2930529Z ##[group]Disabling automatic garbage collection
+2026-10-29T08:59:40.2937625Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-29T08:59:40.3231732Z ##[endgroup]
+2026-10-29T08:59:40.3232915Z ##[group]Setting up auth
+2026-10-29T08:59:40.3244026Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T08:59:40.3547124Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T08:59:41.7159927Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T08:59:41.7464762Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T08:59:42.2115115Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T08:59:42.2407440Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T08:59:42.7085556Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-29T08:59:42.7403354Z ##[endgroup]
+2026-10-29T08:59:42.7403964Z ##[group]Fetching the repository
+2026-10-29T08:59:42.7425891Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +468ce7a8ce331303526cd497d33e2d2090e23c5e:refs/remotes/origin/main
+2026-10-29T08:59:44.6388612Z From https://github.com/heicfast/core_recovery
+2026-10-29T08:59:44.6389930Z  * [new ref]         468ce7a8ce331303526cd497d33e2d2090e23c5e -> origin/main
+2026-10-29T08:59:44.6420944Z ##[endgroup]
+2026-10-29T08:59:44.6421586Z ##[group]Determining the checkout info
+2026-10-29T08:59:44.6424676Z ##[endgroup]
+2026-10-29T08:59:44.6434505Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-29T08:59:44.6897387Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-29T08:59:44.7207651Z ##[group]Checking out the ref
+2026-10-29T08:59:44.7208611Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+2026-10-29T08:59:45.1693546Z Switched to a new branch 'main'
+2026-10-29T08:59:45.1756102Z branch 'main' set up to track 'origin/main'.
+2026-10-29T08:59:45.1804742Z ##[endgroup]
+2026-10-29T08:59:45.2261029Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-29T08:59:45.2536313Z 468ce7a8ce331303526cd497d33e2d2090e23c5e
+2026-10-29T08:59:45.2888493Z ##[group]Run git config --system core.longpaths true
+2026-10-29T08:59:45.2889015Z [36;1mgit config --system core.longpaths true[0m
+2026-10-29T08:59:45.3019014Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:45.3019398Z env:
+2026-10-29T08:59:45.3022713Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:45.3022980Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:45.3023297Z ##[endgroup]
+2026-10-29T08:59:45.7436875Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T08:59:45.7437348Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T08:59:45.7437856Z [36;1mNew-Item -ItemType Directory -Force -Path "$env:EVIDENCE\00-environment" | Out-Null[0m
+2026-10-29T08:59:45.7439049Z [36;1m[0m
+2026-10-29T08:59:45.7439347Z [36;1m# elevation assertion: the whole lane is administrative by design[0m
+2026-10-29T08:59:45.7440023Z [36;1m$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())[0m
+2026-10-29T08:59:45.7440792Z [36;1mif (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {[0m
+2026-10-29T08:59:45.7441506Z [36;1m  Write-Host '::error::runner is NOT elevated - diskpart/cert-store/service operations would fail; aborting'[0m
+2026-10-29T08:59:45.7441992Z [36;1m  exit 1[0m
+2026-10-29T08:59:45.7442170Z [36;1m}[0m
+2026-10-29T08:59:45.7442555Z [36;1mWrite-Host "elevated as $([Security.Principal.WindowsIdentity]::GetCurrent().Name)"[0m
+2026-10-29T08:59:45.7442983Z [36;1m[0m
+2026-10-29T08:59:45.7443239Z [36;1m# work drive: pick the drive with the most free space (C: vs D:[0m
+2026-10-29T08:59:45.7443681Z [36;1m# layouts differ across runner generations; the recorded failure[0m
+2026-10-29T08:59:45.7444120Z [36;1m# was a dynamic-VHDX growth death on the WRONG drive)[0m
+2026-10-29T08:59:45.7444625Z [36;1m$drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 0 }[0m
+2026-10-29T08:59:45.7445148Z [36;1m$best = $drives | Sort-Object Free -Descending | Select-Object -First 1[0m
+2026-10-29T08:59:45.7445533Z [36;1m$workRoot = "$($best.Name):\cr-bench"[0m
+2026-10-29T08:59:45.7445900Z [36;1mNew-Item -ItemType Directory -Force -Path $workRoot | Out-Null[0m
+2026-10-29T08:59:45.7446286Z [36;1m"WORKROOT=$workRoot" >> $env:GITHUB_ENV[0m
+2026-10-29T08:59:45.7446693Z [36;1mWrite-Host "work root: $workRoot ($([math]::Round($best.Free / 1GB, 1)) GiB free)"[0m
+2026-10-29T08:59:45.7447277Z [36;1mforeach ($d in $drives) { Write-Host ("  drive {0}: {1:N1} GiB free" -f $d.Name, ($d.Free / 1GB)) }[0m
+2026-10-29T08:59:45.7447699Z [36;1m[0m
+2026-10-29T08:59:45.7447963Z [36;1m# environment manifest (the env-manifest acceptance pattern)[0m
+2026-10-29T08:59:45.7448316Z [36;1m$env = [ordered]@{[0m
+2026-10-29T08:59:45.7448615Z [36;1m  captured_utc   = (Get-Date).ToUniversalTime().ToString('o')[0m
+2026-10-29T08:59:45.7448955Z [36;1m  reason         = 'manual'[0m
+2026-10-29T08:59:45.7449219Z [36;1m  runner         = 'GitHub Actions 1000007379'[0m
+2026-10-29T08:59:45.7449500Z [36;1m  image_os       = $env:ImageOS[0m
+2026-10-29T08:59:45.7449742Z [36;1m  runner_os      = 'Windows'[0m
+2026-10-29T08:59:45.7450032Z [36;1m  runner_arch    = 'X64'[0m
+2026-10-29T08:59:45.7450304Z [36;1m  elevation      = 'administrator (asserted)'[0m
+2026-10-29T08:59:45.7450625Z [36;1m  workspace      = $env:GITHUB_WORKSPACE[0m
+2026-10-29T08:59:45.7450959Z [36;1m  work_root      = $workRoot[0m
+2026-10-29T08:59:45.7451249Z [36;1m  python         = (python --version 2>&1)[0m
+2026-10-29T08:59:45.7451778Z [36;1m  drives_free_gb = @($drives | ForEach-Object { [ordered]@{ drive = $_.Name; free_gb = [math]::Round($_.Free / 1GB, 2) } })[0m
+2026-10-29T08:59:45.7452485Z [36;1m  requested      = [ordered]@{ core_tag = ''; profile = 'smoke'; scan_modes = 'quick,deep,deepcarve' }[0m
+2026-10-29T08:59:45.7452913Z [36;1m}[0m
+2026-10-29T08:59:45.7453338Z [36;1m$env | ConvertTo-Json -Depth 5 | Set-Content "$env:EVIDENCE\00-environment\env-manifest.json" -Encoding utf8[0m
+2026-10-29T08:59:45.7454086Z [36;1mGet-ComputerInfo | Select-Object WindowsProductName, OsVersion, CsProcessors, CsTotalPhysicalMemory |[0m
+2026-10-29T08:59:45.7454789Z [36;1m  ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\machine.json" -Encoding utf8[0m
+2026-10-29T08:59:45.7496570Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:45.7496924Z env:
+2026-10-29T08:59:45.7501577Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:45.7501903Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:45.7502200Z ##[endgroup]
+2026-10-29T08:59:46.1012750Z elevated as runnervmnjgfq\runneradmin
+2026-10-29T08:59:46.2621502Z work root: D:\cr-bench (147 GiB free)
+2026-10-29T08:59:46.2634397Z   drive C: 81.3 GiB free
+2026-10-29T08:59:46.2642760Z   drive D: 147.0 GiB free
+2026-10-29T08:59:46.2650639Z   drive Temp: 81.3 GiB free
+2026-10-29T08:59:49.3681286Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T08:59:49.3681726Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T08:59:49.3682083Z [36;1m$headers = @{ Authorization = "token $env:GITHUB_TOKEN" }[0m
+2026-10-29T08:59:49.3682419Z [36;1m$tag = ''[0m
+2026-10-29T08:59:49.3682604Z [36;1mif ($tag) {[0m
+2026-10-29T08:59:49.3683129Z [36;1m  $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/tags/$tag" -Headers $headers[0m
+2026-10-29T08:59:49.3683681Z [36;1m} else {[0m
+2026-10-29T08:59:49.3684176Z [36;1m  $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/heicfast/core_recovery/releases/latest' -Headers $headers[0m
+2026-10-29T08:59:49.3684720Z [36;1m}[0m
+2026-10-29T08:59:49.3685025Z [36;1m$zip = @($rel.assets | Where-Object { $_.name -like 'core-recovery-*.zip' })[0][0m
+2026-10-29T08:59:49.3685694Z [36;1mif (-not $zip) { Write-Host "::error::release $($rel.tag_name) carries no core-recovery-*.zip asset"; exit 1 }[0m
+2026-10-29T08:59:49.3686288Z [36;1mWrite-Host "resolved release: $($rel.tag_name) ($($rel.name))"[0m
+2026-10-29T08:59:49.3686624Z [36;1m[0m
+2026-10-29T08:59:49.3686912Z [36;1m# the new-pipeline asset set; rda-test-sign.cer REQUIRED - releases[0m
+2026-10-29T08:59:49.3687375Z [36;1m# from the old pipeline lack it and the signed-driver trust story[0m
+2026-10-29T08:59:49.3687804Z [36;1m# does not exist for them (fail loud with the remediation)[0m
+2026-10-29T08:59:49.3688410Z [36;1m$req = "$($zip.name),MANIFEST.json,SHA256SUMS,rda.sys,rda.inf,install.ps1,uninstall.ps1,rda-test-sign.cer"[0m
+2026-10-29T08:59:49.3689145Z [36;1m$p = @{ Repo = 'heicfast/core_recovery'; OutDir = "$env:WORKROOT\release"; Required = $req }[0m
+2026-10-29T08:59:49.3689573Z [36;1mif ($tag) { $p.Tag = $tag }[0m
+2026-10-29T08:59:49.3689883Z [36;1m& .github/scripts/fetch-release.ps1 @p[0m
+2026-10-29T08:59:49.3690190Z [36;1mif ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-29T08:59:49.3690514Z [36;1m"CORE_TAG=$($rel.tag_name)" >> $env:GITHUB_ENV[0m
+2026-10-29T08:59:49.3691044Z [36;1mCopy-Item "$env:WORKROOT\release\resolved-release.json" "$env:EVIDENCE\00-environment\" -Force[0m
+2026-10-29T08:59:49.3730610Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:49.3730960Z env:
+2026-10-29T08:59:49.3733796Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:49.3734060Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:49.3734349Z   WORKROOT: D:\cr-bench
+2026-10-29T08:59:49.3734597Z ##[endgroup]
+2026-10-29T08:59:50.1412403Z resolved release: v0.5.2 (v0.5.2)
+2026-10-29T08:59:50.4010292Z resolved release: heicfast/core_recovery @ v0.5.2 (latest)
+2026-10-29T08:59:51.7022272Z manifest cross-check: 6 artifact(s) verified
+2026-10-29T08:59:51.7197500Z PREBUILT-ARTIFACTS: heicfast/core_recovery @ v0.5.2 verified (6 hash-checked asset(s)) -> D:\cr-bench\release
+2026-10-29T08:59:51.8028515Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T08:59:51.8028979Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T08:59:51.8029285Z [36;1m$staged = "$env:WORKROOT\core-staged"[0m
+2026-10-29T08:59:51.8029810Z [36;1m$zip = Get-ChildItem "$env:WORKROOT\release" -Filter 'core-recovery-*.zip' | Select-Object -First 1[0m
+2026-10-29T08:59:51.8030460Z [36;1mExpand-Archive -LiteralPath $zip.FullName -DestinationPath $staged -Force[0m
+2026-10-29T08:59:51.8030981Z [36;1m# app-local runtime on PATH (the 0xc0000135 / LoadLibrary lesson)[0m
+2026-10-29T08:59:51.8031362Z [36;1m$env:PATH = "$staged\bin;$env:PATH"[0m
+2026-10-29T08:59:51.8031649Z [36;1m"STAGED=$staged" >> $env:GITHUB_ENV[0m
+2026-10-29T08:59:51.8031893Z [36;1m[0m
+2026-10-29T08:59:51.8032079Z [36;1m$rrecov = "$staged\bin\rrecov.exe"[0m
+2026-10-29T08:59:51.8032332Z [36;1m$failed = $false[0m
+2026-10-29T08:59:51.8032747Z [36;1m& $rrecov 2>&1 | Out-Null[0m
+2026-10-29T08:59:51.8033251Z [36;1mif ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov usage exited $LASTEXITCODE"; $failed = $true }[0m
+2026-10-29T08:59:51.8033732Z [36;1m$listOut = & $rrecov list 2>&1[0m
+2026-10-29T08:59:51.8034187Z [36;1mif ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov list exited $LASTEXITCODE"; $failed = $true }[0m
+2026-10-29T08:59:51.8034707Z [36;1m$carveOut = & $rrecov list-carve-formats 2>&1[0m
+2026-10-29T08:59:51.8035265Z [36;1mif ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov list-carve-formats exited $LASTEXITCODE"; $failed = $true }[0m
+2026-10-29T08:59:51.8035782Z [36;1mif ($failed) { exit 1 }[0m
+2026-10-29T08:59:51.8036208Z [36;1m$listOut | Set-Content "$env:EVIDENCE\00-environment\disk-list-before.txt" -Encoding utf8[0m
+2026-10-29T08:59:51.8036829Z [36;1m$carveOut | Set-Content "$env:EVIDENCE\00-environment\carve-formats.txt" -Encoding utf8[0m
+2026-10-29T08:59:51.8037253Z [36;1m[0m
+2026-10-29T08:59:51.8037411Z [36;1m[ordered]@{[0m
+2026-10-29T08:59:51.8037616Z [36;1m  core_tag = $env:CORE_TAG[0m
+2026-10-29T08:59:51.8037947Z [36;1m  rrecov_sha256 = (Get-FileHash $rrecov -Algorithm SHA256).Hash[0m
+2026-10-29T08:59:51.8038425Z [36;1m  cr_ui_sha256 = (Get-FileHash "$staged\bin\cr_ui.dll" -Algorithm SHA256).Hash[0m
+2026-10-29T08:59:51.8039113Z [36;1m  staged_files = @(Get-ChildItem $staged -Recurse -File | ForEach-Object { $_.FullName.Substring($staged.Length + 1) })[0m
+2026-10-29T08:59:51.8039900Z [36;1m} | ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\staged-core.json" -Encoding utf8[0m
+2026-10-29T08:59:51.8040528Z [36;1mWrite-Host "core staged + CLI smoke green (PATH: $staged\bin prepended)"[0m
+2026-10-29T08:59:51.8077835Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:51.8078193Z env:
+2026-10-29T08:59:51.8081103Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:51.8081358Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:51.8081675Z   WORKROOT: D:\cr-bench
+2026-10-29T08:59:51.8081882Z   CORE_TAG: v0.5.2
+2026-10-29T08:59:51.8082065Z ##[endgroup]
+2026-10-29T08:59:52.9720110Z core staged + CLI smoke green (PATH: D:\cr-bench\core-staged\bin prepended)
+2026-10-29T08:59:53.0358952Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T08:59:53.0359382Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T08:59:53.0359652Z [36;1m$p = @{[0m
+2026-10-29T08:59:53.0359882Z [36;1m  ReleaseDir  = "$env:WORKROOT\release"[0m
+2026-10-29T08:59:53.0360169Z [36;1m  ServiceName = 'rda'[0m
+2026-10-29T08:59:53.0360438Z [36;1m  RrecovExe   = "$env:STAGED\bin\rrecov.exe"[0m
+2026-10-29T08:59:53.0360757Z [36;1m  EvidenceDir = "$env:EVIDENCE\01-driver"[0m
+2026-10-29T08:59:53.0361024Z [36;1m}[0m
+2026-10-29T08:59:53.0361280Z [36;1m& .github/scripts/Install-ReleaseDriver.ps1 @p[0m
+2026-10-29T08:59:53.0361610Z [36;1mif ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-29T08:59:53.0398493Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:53.0398838Z env:
+2026-10-29T08:59:53.0401640Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:53.0401900Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:53.0402240Z   WORKROOT: D:\cr-bench
+2026-10-29T08:59:53.0402444Z   CORE_TAG: v0.5.2
+2026-10-29T08:59:53.0402635Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T08:59:53.0402859Z ##[endgroup]
+2026-10-29T08:59:53.4236067Z elevated as: runnervmnjgfq\runneradmin
+2026-10-29T08:59:53.4603629Z dev certificate: CN=RRECOV-DEV-SIGN (thumbprint 6D242BD73DBE69751F3D392E22F9FA9D933E17E5, valid 2026-10-28 14:35:22Z -> 2029-10-27 14:35:22Z)
+2026-10-29T08:59:53.7427498Z certificate trusted: LocalMachine\Root + LocalMachine\TrustedPublisher (imported: Root, TrustedPublisher)
+2026-10-29T08:59:53.8074608Z signature VALID (signer: CN=RRECOV-DEV-SIGN)
+2026-10-29T08:59:53.8210452Z install.ps1 + uninstall.ps1 parse clean (PS AST gate)
+2026-10-29T08:59:59.2070975Z install.ps1 exit: 0
+2026-10-29T08:59:59.2319142Z [33;1mWARNING: Resulting JSON is truncated as serialization has exceeded the set depth of 2.[0m
+2026-10-29T08:59:59.2455547Z service config verified: group 'Boot File System', IoctlBase=0 MaxDisks=200 DebugLevel=1 SessionsEnabled=1
+2026-10-29T08:59:59.2572697Z service 'rda' already RUNNING (the v0.2.4 installer starts it) - start step skipped (M-068 idempotent-start contract)
+2026-10-29T08:59:59.2683441Z rrecov driver --json exit: 0
+2026-10-29T08:59:59.2708887Z driver status: {"service":"RDA","state":"ready","present":"yes","loaded":"yes","started":"yes","authorized":"yes","healthy":"yes","major":1,"minor":0,"required_major":1,"flags":2,"max_disks":200,"ioctl_base":0,"last_gle":0,"error":"OK","error_code":0}
+2026-10-29T08:59:59.2863566Z DRIVER READY: state=ready, present/loaded/started/authorized/healthy all yes
+2026-10-29T08:59:59.3228564Z driver install complete + verified
+2026-10-29T08:59:59.3919284Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T08:59:59.3919770Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T08:59:59.3920168Z [36;1m# locate MSVC via vswhere (never a hardcoded VS path - the layout[0m
+2026-10-29T08:59:59.3920631Z [36;1m# drift lesson), then compile in a vcvars64 environment[0m
+2026-10-29T08:59:59.3921140Z [36;1m$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"[0m
+2026-10-29T08:59:59.3921735Z [36;1mif (-not (Test-Path $vswhere)) { Write-Host '::error::vswhere not found'; exit 1 }[0m
+2026-10-29T08:59:59.3922531Z [36;1m$vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath[0m
+2026-10-29T08:59:59.3923289Z [36;1mif (-not $vsPath) { Write-Host '::error::no VS C++ toolchain located'; exit 1 }[0m
+2026-10-29T08:59:59.3923785Z [36;1m$vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'[0m
+2026-10-29T08:59:59.3924194Z [36;1mWrite-Host "MSVC: $vsPath"[0m
+2026-10-29T08:59:59.3924441Z [36;1m[0m
+2026-10-29T08:59:59.3924844Z [36;1m$harnessSrc = Copy-Item '.github\scripts\api_harness.c' "$env:WORKROOT\api_harness.c" -PassThru[0m
+2026-10-29T08:59:59.3925422Z [36;1m# build via a GENERATED .cmd script (a file is deterministic; a[0m
+2026-10-29T08:59:59.3925855Z [36;1m# nested-quote cmd /c command line is a quoting minefield)[0m
+2026-10-29T08:59:59.3926195Z [36;1m$buildCmd = "@echo off`r`n" +[0m
+2026-10-29T08:59:59.3926451Z [36;1m  "call `"$vcvars`"`r`n" +[0m
+2026-10-29T08:59:59.3926697Z [36;1m  "if errorlevel 1 exit /b 1`r`n" +[0m
+2026-10-29T08:59:59.3927118Z [36;1m  "cl.exe /nologo /W4 /WX /utf-8 /D_CRT_SECURE_NO_WARNINGS `"$($harnessSrc.FullName)`"" +[0m
+2026-10-29T08:59:59.3927831Z [36;1m  " /I `"$env:STAGED\include`" /Fe:`"$env:STAGED\bin\api_harness.exe`" /Fo:`"$env:WORKROOT\api_harness.obj`"" +[0m
+2026-10-29T08:59:59.3928377Z [36;1m  " /link /LIBPATH:`"$env:STAGED\lib`" cr_ui.lib`r`n"[0m
+2026-10-29T08:59:59.3928749Z [36;1m$buildCmdPath = "$env:WORKROOT\build-harness.cmd"[0m
+2026-10-29T08:59:59.3929154Z [36;1m$buildCmd | Set-Content -Path $buildCmdPath -Encoding ascii[0m
+2026-10-29T08:59:59.3929526Z [36;1m$out = cmd /d /s /c $buildCmdPath 2>&1[0m
+2026-10-29T08:59:59.3929938Z [36;1m# this step writes evidence BEFORE Run-Benchmark.ps1 creates the[0m
+2026-10-29T08:59:59.3930339Z [36;1m# full tree (run 40710818026: Tee-Object under[0m
+2026-10-29T08:59:59.3930719Z [36;1m# $ErrorActionPreference='Stop' is fatal when the parent is[0m
+2026-10-29T08:59:59.3931153Z [36;1m# missing) - create this step's own subdir, never rely on the[0m
+2026-10-29T08:59:59.3931511Z [36;1m# later matrix step to have made it[0m
+2026-10-29T08:59:59.3931969Z [36;1mNew-Item -ItemType Directory -Force -Path "$env:EVIDENCE\05-feature-probes" | Out-Null[0m
+2026-10-29T08:59:59.3932568Z [36;1m$out | Tee-Object -FilePath "$env:EVIDENCE\05-feature-probes\harness-build.log"[0m
+2026-10-29T08:59:59.3933148Z [36;1mif ($LASTEXITCODE -ne 0 -or -not (Test-Path "$env:STAGED\bin\api_harness.exe")) {[0m
+2026-10-29T08:59:59.3933875Z [36;1m  Write-Host '::error::api_harness compile failed (log above)'[0m
+2026-10-29T08:59:59.3934212Z [36;1m  exit 1[0m
+2026-10-29T08:59:59.3934382Z [36;1m}[0m
+2026-10-29T08:59:59.3934739Z [36;1mCopy-Item $harnessSrc.FullName "$env:EVIDENCE\05-feature-probes\api_harness.c" -Force[0m
+2026-10-29T08:59:59.3935411Z [36;1mWrite-Host "api_harness.exe built against the release SDK (cr_ui.lib + cr_ui.dll adjacency in bin\)"[0m
+2026-10-29T08:59:59.3974744Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T08:59:59.3975095Z env:
+2026-10-29T08:59:59.3978272Z   GITHUB_TOKEN: ***
+2026-10-29T08:59:59.3978539Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T08:59:59.3978924Z   WORKROOT: D:\cr-bench
+2026-10-29T08:59:59.3979126Z   CORE_TAG: v0.5.2
+2026-10-29T08:59:59.3979328Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T08:59:59.3981634Z ##[endgroup]
+2026-10-29T09:00:00.1829937Z MSVC: C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+2026-10-29T09:00:07.7948522Z **********************************************************************
+2026-10-29T09:00:07.7951928Z ** Visual Studio 2022 Developer Command Prompt v17.14.43
+2026-10-29T09:00:07.7954256Z ** Copyright (c) 2025 Microsoft Corporation
+2026-10-29T09:00:07.7956447Z **********************************************************************
+2026-10-29T09:00:07.7958701Z [vcvarsall.bat] Environment initialized for: 'x64'
+2026-10-29T09:00:07.7960880Z api_harness.c
+2026-10-29T09:00:07.7996559Z api_harness.exe built against the release SDK (cr_ui.lib + cr_ui.dll adjacency in bin\)
+2026-10-29T09:00:07.8577329Z ##[group]Run $failed = $false
+2026-10-29T09:00:07.8577677Z [36;1m$failed = $false[0m
+2026-10-29T09:00:07.8577933Z [36;1m$h = "$env:STAGED\bin\api_harness.exe"[0m
+2026-10-29T09:00:07.8578200Z [36;1m[0m
+2026-10-29T09:00:07.8578383Z [36;1m$abi = & $h --abi-version 2>&1[0m
+2026-10-29T09:00:07.8578878Z [36;1mif ($LASTEXITCODE -eq 0) { Write-Host "PASS ABI: $abi" } else { Write-Host "::error::$abi"; $failed = $true }[0m
+2026-10-29T09:00:07.8579367Z [36;1m[0m
+2026-10-29T09:00:07.8579544Z [36;1m$drv = & $h --driver-status 2>&1[0m
+2026-10-29T09:00:07.8579805Z [36;1mif ($LASTEXITCODE -eq 0) {[0m
+2026-10-29T09:00:07.8580102Z [36;1m  Write-Host "PASS driver status (API): $drv"[0m
+2026-10-29T09:00:07.8580390Z [36;1m} else {[0m
+2026-10-29T09:00:07.8580771Z [36;1m  Write-Host "::error::API driver-status not ready: $drv (exit $LASTEXITCODE)"; $failed = $true[0m
+2026-10-29T09:00:07.8581208Z [36;1m}[0m
+2026-10-29T09:00:07.8581587Z [36;1m$drv | Set-Content "$env:EVIDENCE\01-driver\api-driver-status.json" -Encoding utf8[0m
+2026-10-29T09:00:07.8582016Z [36;1mif ($failed) { exit 1 }[0m
+2026-10-29T09:00:07.8582399Z [36;1mexit 0   # explicit: never inherit a probe's $LASTEXITCODE (the 40684826829 lesson)[0m
+2026-10-29T09:00:07.8620682Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T09:00:07.8621034Z env:
+2026-10-29T09:00:07.8624076Z   GITHUB_TOKEN: ***
+2026-10-29T09:00:07.8624337Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T09:00:07.8624630Z   WORKROOT: D:\cr-bench
+2026-10-29T09:00:07.8624836Z   CORE_TAG: v0.5.2
+2026-10-29T09:00:07.8625033Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T09:00:07.8625260Z ##[endgroup]
+2026-10-29T09:00:08.1857219Z PASS ABI: {"harness":"abi-version","abi_version":3,"expected":3,"match":true}
+2026-10-29T09:00:08.1948873Z PASS driver status (API): {"harness":"driver-status","state":"ready","service_present":1,"service_running":1,"device_openable":1,"authorized":1,"info_valid":1,"major":1,"minor":0,"required_major":1,"flags":2,"max_disks":200,"ioctl_base":0,"last_gle":0}
+2026-10-29T09:00:08.2750473Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-29T09:00:08.2750958Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-29T09:00:08.2751472Z [36;1m$scanModes = @('quick,deep,deepcarve' -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })[0m
+2026-10-29T09:00:08.2752385Z [36;1mif (-not $scanModes -or $scanModes.Count -eq 0) { $scanModes = @('quick', 'deep', 'deepcarve') }[0m
+2026-10-29T09:00:08.2752828Z [36;1m$p = @{[0m
+2026-10-29T09:00:08.2753098Z [36;1m  MatrixPath   = '.github\scenarios\benchmark-matrix.json'[0m
+2026-10-29T09:00:08.2753457Z [36;1m  RepoRoot     = $env:GITHUB_WORKSPACE[0m
+2026-10-29T09:00:08.2753731Z [36;1m  CoreStaged   = $env:STAGED[0m
+2026-10-29T09:00:08.2754031Z [36;1m  ApiHarness   = "$env:STAGED\bin\api_harness.exe"[0m
+2026-10-29T09:00:08.2754339Z [36;1m  WorkRoot     = $env:WORKROOT[0m
+2026-10-29T09:00:08.2754601Z [36;1m  EvidenceRoot = $env:EVIDENCE[0m
+2026-10-29T09:00:08.2754900Z [36;1m  Profile      = 'smoke'[0m
+2026-10-29T09:00:08.2755146Z [36;1m  ScanModes    = $scanModes[0m
+2026-10-29T09:00:08.2755375Z [36;1m}[0m
+2026-10-29T09:00:08.2755582Z [36;1m& .github\scripts\Run-Benchmark.ps1 @p[0m
+2026-10-29T09:00:08.2755866Z [36;1mexit $LASTEXITCODE[0m
+2026-10-29T09:00:08.2795836Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T09:00:08.2796198Z env:
+2026-10-29T09:00:08.2799002Z   GITHUB_TOKEN: ***
+2026-10-29T09:00:08.2799258Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T09:00:08.2799546Z   WORKROOT: D:\cr-bench
+2026-10-29T09:00:08.2799740Z   CORE_TAG: v0.5.2
+2026-10-29T09:00:08.2799929Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T09:00:08.2800157Z ##[endgroup]
+2026-10-29T09:00:08.7356615Z === phase 0: simulated disk environment ===
+2026-10-29T09:00:08.8630771Z work drive: D: (146.9 GiB free, need ~35.0 GiB)
+2026-10-29T09:00:08.8704348Z == disk 'small-fat32': 2048 MiB MBR ==
+2026-10-29T09:00:17.6441813Z   attached as disk 2
+2026-10-29T09:00:20.7623975Z   volume X:: FAT32 CRFAT (2,039 MiB, partition 1)
+2026-10-29T09:00:20.7649624Z == disk 'multi-gpt': 5120 MiB GPT ==
+2026-10-29T09:00:35.0498677Z   attached as disk 3
+2026-10-29T09:00:37.9878768Z   volume Y:: NTFS CRNTFS (3,062 MiB, partition 2)
+2026-10-29T09:00:40.7621660Z   volume Z:: exFAT CREXFAT (2,041 MiB, partition 3)
+2026-10-29T09:00:40.7628843Z == disk 'large-ntfs': 8192 MiB GPT ==
+2026-10-29T09:01:02.7926838Z   attached as disk 4
+2026-10-29T09:01:05.7105414Z   volume W:: NTFS CRBIG (8,175 MiB, partition 2)
+2026-10-29T09:01:05.7217170Z disk-state.json -> D:\cr-bench\disk-state.json
+2026-10-29T09:01:05.7229570Z {
+2026-10-29T09:01:05.7233861Z   "work_root": "D:\\cr-bench",
+2026-10-29T09:01:05.7238350Z   "created_utc": "2026-10-29T09:00:08.8651812Z",
+2026-10-29T09:01:05.7243284Z   "method": "diskpart create vdisk type=fixed",
+2026-10-29T09:01:05.7247753Z   "disks": [
+2026-10-29T09:01:05.7251833Z     {
+2026-10-29T09:01:05.7256240Z       "id": "small-fat32",
+2026-10-29T09:01:05.7260206Z       "vhd": "D:\\cr-bench\\disks\\small-fat32.vhdx",
+2026-10-29T09:01:05.7264507Z       "disk_number": 2,
+2026-10-29T09:01:05.7268423Z       "partition_style": "MBR",
+2026-10-29T09:01:05.7272985Z       "size_mb": 2048,
+2026-10-29T09:01:05.7277605Z       "volumes": [
+2026-10-29T09:01:05.7281521Z         {
+2026-10-29T09:01:05.7285651Z           "label": "CRFAT",
+2026-10-29T09:01:05.7289757Z           "fs": "FAT32",
+2026-10-29T09:01:05.7293805Z           "letter": "X",
+2026-10-29T09:01:05.7297836Z           "partition": 1,
+2026-10-29T09:01:05.7302401Z           "bytes": 2137980928
+2026-10-29T09:01:05.7306278Z         }
+2026-10-29T09:01:05.7310645Z       ]
+2026-10-29T09:01:05.7314733Z     },
+2026-10-29T09:01:05.7318860Z     {
+2026-10-29T09:01:05.7322892Z       "id": "multi-gpt",
+2026-10-29T09:01:05.7327992Z       "vhd": "D:\\cr-bench\\disks\\multi-gpt.vhdx",
+2026-10-29T09:01:05.7332247Z       "disk_number": 3,
+2026-10-29T09:01:05.7336718Z       "partition_style": "GPT",
+2026-10-29T09:01:05.7343731Z       "size_mb": 5120,
+2026-10-29T09:01:05.7346282Z       "volumes": [
+2026-10-29T09:01:05.7350881Z         {
+2026-10-29T09:01:05.7354948Z           "label": "CRNTFS",
+2026-10-29T09:01:05.7359150Z           "fs": "NTFS",
+2026-10-29T09:01:05.7363302Z           "letter": "Y",
+2026-10-29T09:01:05.7367597Z           "partition": 2,
+2026-10-29T09:01:05.7371705Z           "bytes": 3210735616
+2026-10-29T09:01:05.7375934Z         },
+2026-10-29T09:01:05.7379690Z         {
+2026-10-29T09:01:05.7383706Z           "label": "CREXFAT",
+2026-10-29T09:01:05.7387745Z           "fs": "exFAT",
+2026-10-29T09:01:05.7391988Z           "letter": "Z",
+2026-10-29T09:01:05.7396149Z           "partition": 3,
+2026-10-29T09:01:05.7400879Z           "bytes": 2139815936
+2026-10-29T09:01:05.7404950Z         }
+2026-10-29T09:01:05.7409415Z       ]
+2026-10-29T09:01:05.7413518Z     },
+2026-10-29T09:01:05.7417544Z     {
+2026-10-29T09:01:05.7421724Z       "id": "large-ntfs",
+2026-10-29T09:01:05.7426065Z       "vhd": "D:\\cr-bench\\disks\\large-ntfs.vhdx",
+2026-10-29T09:01:05.7430459Z       "disk_number": 4,
+2026-10-29T09:01:05.7434884Z       "partition_style": "GPT",
+2026-10-29T09:01:05.7438975Z       "size_mb": 8192,
+2026-10-29T09:01:05.7443022Z       "volumes": [
+2026-10-29T09:01:05.7447083Z         {
+2026-10-29T09:01:05.7451139Z           "label": "CRBIG",
+2026-10-29T09:01:05.7455637Z           "fs": "NTFS",
+2026-10-29T09:01:05.7459464Z           "letter": "W",
+2026-10-29T09:01:05.7463962Z           "partition": 2,
+2026-10-29T09:01:05.7468204Z           "bytes": 8572104704
+2026-10-29T09:01:05.7472487Z         }
+2026-10-29T09:01:05.7476328Z       ]
+2026-10-29T09:01:05.7480396Z     }
+2026-10-29T09:01:05.7484829Z   ]
+2026-10-29T09:01:05.7488888Z }
+2026-10-29T09:02:41.8768142Z seeded 579 files (535.5 MiB), profile=smoke fs=FAT32
+2026-10-29T09:02:41.8772724Z manifest: D:\cr-bench\work\seed-manifest-CRFAT.jsonl
+2026-10-29T09:02:41.9301435Z   seeded CRFAT: smoke (580 files)
+2026-10-29T09:05:36.7081759Z seeded 10228 files (1347.6 MiB), profile=full fs=NTFS
+2026-10-29T09:05:36.7086274Z manifest: D:\cr-bench\work\seed-manifest-CRNTFS.jsonl
+2026-10-29T09:05:37.2296405Z   seeded CRNTFS: full (10228 files)
+2026-10-29T09:07:07.6654551Z seeded 582 files (535.9 MiB), profile=smoke fs=exFAT
+2026-10-29T09:07:07.6658696Z manifest: D:\cr-bench\work\seed-manifest-CREXFAT.jsonl
+2026-10-29T09:07:07.7004640Z   seeded CREXFAT: smoke (583 files)
+2026-10-29T09:07:07.7911866Z [31;1mMetadataError: [0mD:\a\core_recovery\core_recovery\.github\scripts\Run-Benchmark.ps1:152[0m
+2026-10-29T09:07:07.7913140Z [31;1m[0m[36;1mLine |[0m
+2026-10-29T09:07:07.7914410Z [31;1m[0m[36;1m[36;1m 152 | [0m         [36;1m$profile = [string]$mv.seed_profile[0m
+2026-10-29T09:07:07.7915328Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-10-29T09:07:07.7916520Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe variable cannot be validated because the value follow-run-profile is not a valid value for the Profile[0m
+2026-10-29T09:07:07.7917612Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mvariable.[0m
+2026-10-29T09:08:52.6153659Z seeded 592 files (585.7 MiB), profile=smoke fs=NTFS
+2026-10-29T09:08:52.6158304Z manifest: D:\cr-bench\work\seed-manifest-CRBIG.jsonl
+2026-10-29T09:08:52.6447398Z   seeded CRBIG: smoke (593 files)
+2026-10-29T09:08:52.6452967Z === phase 1: feature probes ===
+2026-10-29T09:08:52.6834730Z PASS health --disk 3: exit 3 (0 = sources available, 3 = every source unavailable - both honest)
+2026-10-29T09:08:53.0083884Z PASS fix (dry-run): exit 0 (REFUSED/clean-volume is the expected verdict on an undamaged disk)
+2026-10-29T09:08:53.0179717Z PASS user-signs (API): {"harness":"user-signs","register_rc":0,"registered":190}
+2026-10-29T09:08:53.0334373Z [31;1mInvalidOperation: [0mD:\a\core_recovery\core_recovery\.github\scripts\Run-Benchmark.ps1:203[0m
+2026-10-29T09:08:53.0336715Z [31;1m[0m[36;1mLine |[0m
+2026-10-29T09:08:53.0337502Z [31;1m[0m[36;1m[36;1m 203 | [0m … liCarve -match '(\d+) carve format') { [36;1m$cliCount = [int]$Matches[1][0m }[0m
+2026-10-29T09:08:53.0338313Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-10-29T09:08:53.0339725Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot index into a null array.[0m
+2026-10-29T09:08:53.0464882Z ##[error]carve-registry parity failed: CLI= API=239
+2026-10-29T09:08:56.5385975Z api-lane complete: exit=0 queued=636 done=0 errors=0 hash_mismatch=0 (result: D:\cr-bench\work\probes\cancel-resume\api-result.json)
+2026-10-29T09:10:29.3350840Z api-lane complete: exit=0 queued=636 done=0 errors=0 hash_mismatch=0 (result: D:\cr-bench\work\probes\cancel-resume\api-result.json)
+2026-10-29T09:10:29.3535123Z PASS cancel+resume: cancelled mid-scan, session saved, resumed to completion (580 files)
+2026-10-29T09:10:29.3539161Z === phase 2: clean-volume benchmark ===
+2026-10-29T09:10:29.4614543Z   scan quick: TTFR 0 ms (first 671 file(s))
+2026-10-29T09:10:29.4644579Z   scan quick: 82 ms (exit 0)
+2026-10-29T09:10:51.6343944Z   scan deep: TTFR 0 ms (first 671 file(s))
+2026-10-29T09:10:51.6398600Z   scan deep: 22162 ms (exit 0)
+2026-10-29T09:21:28.7335496Z   scan deepcarve: TTFR 0 ms (first 671 file(s))
+2026-10-29T09:21:28.7391399Z   scan deepcarve: 637070 ms (exit 0)
+2026-10-29T09:21:28.7522033Z   bench info : {"mode":"info","disk":4,"transport":"rda","bytes":8589934592,"logical_sector":512,"physical_sector":4096,"is_4kn":false}
+2026-10-29T09:21:29.1371721Z   bench seq : {"mode":"seq","transport":"rda","block":1048576,"bytes":268435456,"mib_per_s":681.68}
+2026-10-29T09:21:31.8437592Z   bench rand : {"mode":"rand","transport":"rda","block":1048576,"iterations":1000,"hits":1000,"mean_us":2696.72,"iops":371}
+2026-10-29T09:21:31.8766202Z   bench open : {"mode":"open","transport":"rda","iterations":1000,"mean_ns":22714,"ops":44025}
+2026-10-29T09:30:43.7583036Z api-lane complete: exit=2 queued=1334 done=71 errors=3 hash_mismatch=0 (result: D:\cr-bench\work\clean-benchmark\api\api-result.json)
+2026-10-29T09:30:43.7982636Z === phase 3: scenario matrix (profile=smoke) ===
+2026-10-29T09:30:43.8011756Z 
+2026-10-29T09:30:43.8025250Z --- scenario S-DEL-NTFS (permanent_delete) ---
+2026-10-29T09:30:52.8082284Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-DEL-NTFS\state\hashmap-pre.csv
+2026-10-29T09:31:06.0272731Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-DEL-NTFS\state\hashmap-post.csv
+2026-10-29T09:31:06.0837318Z scenario permanent_delete applied: failures=0 notes=Remove-Item -Force (bypasses the recycle bin)
+2026-10-29T09:31:06.1164235Z === ours scan mode: quick ===
+2026-10-29T09:31:07.5492385Z === ours scan mode: deep ===
+2026-10-29T09:31:17.2063711Z === ours scan mode: deepcarve ===
+2026-10-29T09:33:56.3749690Z ours run complete: 3 mode(s)
+2026-10-29T09:36:14.1655912Z api-lane complete: exit=2 queued=20656 done=87 errors=6 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-DEL-NTFS\api\api-result.json)
+2026-10-29T09:36:15.4103444Z inventory[cli-S-DEL-NTFS]: files=87 matched=4 (path=0 namesize=0 name=4 hash-only=0) hash_ok=0 fp=83
+2026-10-29T09:36:15.6225905Z inventory[api-S-DEL-NTFS]: files=87 matched=4 (path=0 namesize=0 name=4 hash-only=0) hash_ok=0 fp=83
+2026-10-29T09:36:15.9259932Z metrics[ours/permanent_delete]: recall=0.0 precision=0.0 f1=0.0 fp=83 -> D:\cr-bench\work\scenarios\S-DEL-NTFS\cli\metrics.json
+2026-10-29T09:36:17.8205727Z ##[error]scenario S-DEL-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.8 | cli: hash-recall 0 below floor 0.8
+2026-10-29T09:36:17.9114334Z 
+2026-10-29T09:36:17.9120032Z --- scenario S-DEL-EXFAT (permanent_delete) ---
+2026-10-29T09:36:23.0540468Z hash map: 156091 bytes -> D:\cr-bench\work\scenarios\S-DEL-EXFAT\state\hashmap-pre.csv
+2026-10-29T09:36:28.3567716Z hash map: 156091 bytes -> D:\cr-bench\work\scenarios\S-DEL-EXFAT\state\hashmap-post.csv
+2026-10-29T09:36:28.3895929Z scenario permanent_delete applied: failures=0 notes=Remove-Item -Force (bypasses the recycle bin)
+2026-10-29T09:36:28.3983337Z === ours scan mode: quick ===
+2026-10-29T09:36:29.4384520Z === ours scan mode: deep ===
+2026-10-29T09:36:30.4788934Z === ours scan mode: deepcarve ===
+2026-10-29T09:39:12.7206180Z ours run complete: 3 mode(s)
+2026-10-29T09:41:34.3647568Z api-lane complete: exit=2 queued=684 done=0 errors=3 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-DEL-EXFAT\api\api-result.json)
+2026-10-29T09:41:34.4252156Z inventory[cli-S-DEL-EXFAT]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T09:41:34.4917287Z inventory[api-S-DEL-EXFAT]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T09:41:34.5881460Z metrics[ours/permanent_delete]: recall=0.0 precision=None f1=0.0 fp=0 -> D:\cr-bench\work\scenarios\S-DEL-EXFAT\cli\metrics.json
+2026-10-29T09:41:34.6827846Z ##[error]scenario S-DEL-EXFAT FAILED the 'floor' gate - api: hash-recall 0 below floor 0.9 | cli: hash-recall 0 below floor 0.9
+2026-10-29T09:41:34.7483594Z 
+2026-10-29T09:41:34.7489508Z --- scenario S-DEL-FAT32 (permanent_delete) ---
+2026-10-29T09:41:39.8664824Z hash map: 155937 bytes -> D:\cr-bench\work\scenarios\S-DEL-FAT32\state\hashmap-pre.csv
+2026-10-29T09:41:45.1993890Z hash map: 155937 bytes -> D:\cr-bench\work\scenarios\S-DEL-FAT32\state\hashmap-post.csv
+2026-10-29T09:41:45.2371640Z scenario permanent_delete applied: failures=0 notes=Remove-Item -Force (bypasses the recycle bin)
+2026-10-29T09:41:45.2462368Z === ours scan mode: deepcarve ===
+2026-10-29T09:44:19.6311426Z ours run complete: 1 mode(s)
+2026-10-29T09:46:34.3043713Z api-lane complete: exit=0 queued=654 done=0 errors=0 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-DEL-FAT32\api\api-result.json)
+2026-10-29T09:46:34.3680382Z inventory[cli-S-DEL-FAT32]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T09:46:34.4373265Z inventory[api-S-DEL-FAT32]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T09:46:34.5325812Z metrics[ours/permanent_delete]: recall=0.0 precision=None f1=0.0 fp=0 -> D:\cr-bench\work\scenarios\S-DEL-FAT32\cli\metrics.json
+2026-10-29T09:46:34.6253794Z PASS S-DEL-FAT32: cli hash-recall 0, api hash-recall 0
+2026-10-29T09:46:34.6807071Z 
+2026-10-29T09:46:34.6814096Z --- scenario S-RECYCLE-NTFS (recycle_bin) ---
+2026-10-29T09:46:34.6833527Z   reseeding CRNTFS (deterministic corpus restore)
+2026-10-29T09:49:32.6709492Z seeded 10228 files (1347.6 MiB), profile=full fs=NTFS
+2026-10-29T09:49:32.6714012Z manifest: D:\cr-bench\work\seed-manifest-CRNTFS.jsonl
+2026-10-29T09:49:33.1698828Z   seeded CRNTFS: full (10229 files)
+2026-10-29T09:49:42.2053073Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-RECYCLE-NTFS\state\hashmap-pre.csv
+2026-10-29T09:51:28.1650860Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-RECYCLE-NTFS\state\hashmap-post.csv
+2026-10-29T09:51:28.2199212Z scenario recycle_bin applied: failures=6 notes=shell delete via VB SendToRecycleBin; bin NOT emptied; readonly-cleared-before-delete: 0
+2026-10-29T09:51:28.2316943Z === ours scan mode: deepcarve ===
+2026-10-29T09:55:22.5865177Z ours run complete: 1 mode(s)
+2026-10-29T09:58:46.5530492Z api-lane complete: exit=2 queued=14996 done=88 errors=6 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-RECYCLE-NTFS\api\api-result.json)
+2026-10-29T09:58:46.7578616Z inventory[cli-S-RECYCLE-NTFS]: files=88 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=88
+2026-10-29T09:58:46.9662306Z inventory[api-S-RECYCLE-NTFS]: files=88 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=88
+2026-10-29T09:58:47.2251737Z metrics[ours/recycle_bin]: recall=0.0 precision=0.0 f1=0.0 fp=88 -> D:\cr-bench\work\scenarios\S-RECYCLE-NTFS\cli\metrics.json
+2026-10-29T09:58:49.1120304Z ##[error]scenario S-RECYCLE-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.9 | cli: hash-recall 0 below floor 0.9
+2026-10-29T09:58:49.1733379Z 
+2026-10-29T09:58:49.1738885Z --- scenario S-BINEMPTY-NTFS (folder_delete) ---
+2026-10-29T09:58:49.1757917Z   reseeding CRNTFS (deterministic corpus restore)
+2026-10-29T10:02:13.2029699Z seeded 10228 files (1347.6 MiB), profile=full fs=NTFS
+2026-10-29T10:02:13.2034741Z manifest: D:\cr-bench\work\seed-manifest-CRNTFS.jsonl
+2026-10-29T10:02:13.7466039Z   seeded CRNTFS: full (10229 files)
+2026-10-29T10:02:22.5685630Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-BINEMPTY-NTFS\state\hashmap-pre.csv
+2026-10-29T10:02:34.9173849Z hash map: 234708 bytes -> D:\cr-bench\work\scenarios\S-BINEMPTY-NTFS\state\hashmap-post.csv
+2026-10-29T10:02:34.9717203Z scenario folder_delete applied: failures=0 notes=whole seed tree shell-deleted to the bin (VB DeleteDirectory), then Clear-RecycleBin -Force; keep root untouched
+2026-10-29T10:02:34.9808529Z === ours scan mode: deepcarve ===
+2026-10-29T10:05:20.8635714Z ours run complete: 1 mode(s)
+2026-10-29T10:07:45.1733607Z api-lane complete: exit=2 queued=20716 done=89 errors=6 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-BINEMPTY-NTFS\api\api-result.json)
+2026-10-29T10:07:45.3812740Z inventory[cli-S-BINEMPTY-NTFS]: files=89 matched=1 (path=0 namesize=0 name=1 hash-only=0) hash_ok=0 fp=88
+2026-10-29T10:07:45.5931894Z inventory[api-S-BINEMPTY-NTFS]: files=89 matched=1 (path=0 namesize=0 name=1 hash-only=0) hash_ok=0 fp=88
+2026-10-29T10:07:45.8635134Z metrics[ours/folder_delete]: recall=0.0 precision=0.0 f1=0.0 fp=88 -> D:\cr-bench\work\scenarios\S-BINEMPTY-NTFS\cli\metrics.json
+2026-10-29T10:07:47.6545310Z ##[error]scenario S-BINEMPTY-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.8 | cli: hash-recall 0 below floor 0.8
+2026-10-29T10:07:47.7172105Z 
+2026-10-29T10:07:47.7177450Z --- scenario S-FMT-FAT32 (quick_format) ---
+2026-10-29T10:07:47.7195026Z   reseeding CRFAT (deterministic corpus restore)
+2026-10-29T10:09:20.7004109Z seeded 579 files (535.5 MiB), profile=smoke fs=FAT32
+2026-10-29T10:09:20.7008707Z manifest: D:\cr-bench\work\seed-manifest-CRFAT.jsonl
+2026-10-29T10:09:20.7299924Z   seeded CRFAT: smoke (581 files)
+2026-10-29T10:09:26.0041383Z hash map: 155937 bytes -> D:\cr-bench\work\scenarios\S-FMT-FAT32\state\hashmap-pre.csv
+2026-10-29T10:09:33.6074223Z hash map: 155937 bytes -> D:\cr-bench\work\scenarios\S-FMT-FAT32\state\hashmap-post.csv
+2026-10-29T10:09:33.6385559Z scenario quick_format applied: failures=0 notes=Format-Volume quick format (metadata reinit, no zero-fill)
+2026-10-29T10:09:33.6473539Z === ours scan mode: deepcarve ===
+2026-10-29T10:12:20.0832584Z ours run complete: 1 mode(s)
+2026-10-29T10:14:40.6534324Z api-lane complete: exit=0 queued=0 done=0 errors=0 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-FMT-FAT32\api\api-result.json)
+2026-10-29T10:14:40.7201070Z inventory[cli-S-FMT-FAT32]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T10:14:40.7882414Z inventory[api-S-FMT-FAT32]: files=0 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=0
+2026-10-29T10:14:40.8703568Z metrics[ours/quick_format]: recall=0.0 precision=None f1=0.0 fp=0 -> D:\cr-bench\work\scenarios\S-FMT-FAT32\cli\metrics.json
+2026-10-29T10:14:40.9640765Z PASS S-FMT-FAT32: cli hash-recall 0, api hash-recall 0
+2026-10-29T10:14:40.9970399Z 
+2026-10-29T10:14:40.9975712Z --- scenario S-PART-DELETE (delete_partition) ---
+2026-10-29T10:14:40.9998527Z   reseeding CREXFAT (deterministic corpus restore)
+2026-10-29T10:16:13.7409619Z seeded 582 files (535.9 MiB), profile=smoke fs=exFAT
+2026-10-29T10:16:13.7414650Z manifest: D:\cr-bench\work\seed-manifest-CREXFAT.jsonl
+2026-10-29T10:16:13.7740320Z   seeded CREXFAT: smoke (584 files)
+2026-10-29T10:16:19.0201599Z hash map: 156091 bytes -> D:\cr-bench\work\scenarios\S-PART-DELETE\state\hashmap-pre.csv
+2026-10-29T10:16:32.1737667Z disk hash map: 393174 bytes -> D:\cr-bench\work\scenarios\S-PART-DELETE\state\hashmap-post-disk.csv
+2026-10-29T10:16:32.2191021Z scenario delete_partition applied: failures=0 notes=GPT entries removed on disk 3: partitions 3 (Remove-Partition; data sectors untouched); disk left unallocated | post-state captured at DISK level (volume no longer exists)
+2026-10-29T10:16:32.2273619Z === ours scan mode: deepcarve ===
+2026-10-29T10:21:39.4705557Z ours run complete: 1 mode(s)
+2026-10-29T10:26:11.2448540Z api-lane complete: exit=2 queued=25111 done=5 errors=9 hash_mismatch=0 (result: D:\cr-bench\work\scenarios\S-PART-DELETE\api\api-result.json)
+2026-10-29T10:26:11.3081523Z inventory[cli-S-PART-DELETE]: files=5 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=5
+2026-10-29T10:26:11.3768895Z inventory[api-S-PART-DELETE]: files=5 matched=0 (path=0 namesize=0 name=0 hash-only=0) hash_ok=0 fp=5
+2026-10-29T10:26:11.5117308Z metrics[ours/delete_partition]: recall=0.0 precision=0.0 f1=0.0 fp=5 -> D:\cr-bench\work\scenarios\S-PART-DELETE\cli\metrics.json
+2026-10-29T10:26:11.6144461Z PASS S-PART-DELETE: cli hash-recall 0, api hash-recall 0
+2026-10-29T10:26:11.6156002Z   post-action: lost-partition APPLY probe
+2026-10-29T10:26:11.7498699Z [note] apply probe: planner REFUSED (recorded - an honest refusal is a valid capability state)
+2026-10-29T10:26:11.8031113Z === phase 4: summaries ===
+2026-10-29T10:26:11.8143458Z # Gate summary
+2026-10-29T10:26:11.8146938Z 
+2026-10-29T10:26:11.8150945Z | scenario | gate | cli | api | verdict |
+2026-10-29T10:26:11.8155757Z |---|---|---|---|---|
+2026-10-29T10:26:11.8159288Z | S-DEL-NTFS | floor | recall 0 | recall 0 | FAIL |
+2026-10-29T10:26:11.8162993Z | S-DEL-EXFAT | floor | recall 0 | recall 0 | FAIL |
+2026-10-29T10:26:11.8167031Z | S-DEL-FAT32 | observe | recall 0 | recall 0 | PASS |
+2026-10-29T10:26:11.8171379Z | S-RECYCLE-NTFS | floor | recall 0 | recall 0 | FAIL |
+2026-10-29T10:26:11.8175175Z | S-BINEMPTY-NTFS | floor | recall 0 | recall 0 | FAIL |
+2026-10-29T10:26:11.8179238Z | S-FMT-FAT32 | observe | recall 0 | recall 0 | PASS |
+2026-10-29T10:26:11.8183315Z | S-PART-DELETE | discovery | recall 0 | recall 0 | PASS |
+2026-10-29T10:26:11.8186611Z 
+2026-10-29T10:26:11.8190289Z ## Failures
+2026-10-29T10:26:11.8194215Z - carve-registry parity failed: CLI= API=239
+2026-10-29T10:26:11.8217373Z - scenario S-DEL-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.8 | cli: hash-recall 0 below floor 0.8
+2026-10-29T10:26:11.8219415Z - scenario S-DEL-EXFAT FAILED the 'floor' gate - api: hash-recall 0 below floor 0.9 | cli: hash-recall 0 below floor 0.9
+2026-10-29T10:26:11.8220870Z - scenario S-RECYCLE-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.9 | cli: hash-recall 0 below floor 0.9
+2026-10-29T10:26:11.8222308Z - scenario S-BINEMPTY-NTFS FAILED the 'floor' gate - api: hash-recall 0 below floor 0.8 | cli: hash-recall 0 below floor 0.8
+2026-10-29T10:26:11.8405007Z perf summary -> D:\a\core_recovery\core_recovery\evidence\07-performance\perf-summary.json
+2026-10-29T10:26:11.8413181Z ##[error]5 hard gate failure(s) - see evidence/06-comparison/gates.md
+2026-10-29T10:26:11.8876186Z ##[error]Process completed with exit code 1.
+2026-10-29T10:26:11.9035356Z ##[group]Run if (-not $env:WORKROOT) {
+2026-10-29T10:26:11.9035857Z [36;1mif (-not $env:WORKROOT) {[0m
+2026-10-29T10:26:11.9036419Z [36;1m  Write-Host 'no WORKROOT - setup did not reach the work-drive probe; nothing to tear down'[0m
+2026-10-29T10:26:11.9036939Z [36;1m  exit 0[0m
+2026-10-29T10:26:11.9037204Z [36;1m}[0m
+2026-10-29T10:26:11.9037422Z [36;1m$p = @{[0m
+2026-10-29T10:26:11.9037708Z [36;1m  ReleaseDir   = "$env:WORKROOT\release"[0m
+2026-10-29T10:26:11.9038054Z [36;1m  ServiceName  = 'rda'[0m
+2026-10-29T10:26:11.9038412Z [36;1m  DiskStatePath = "$env:WORKROOT\disk-state.json"[0m
+2026-10-29T10:26:11.9038859Z [36;1m  EvidenceDir  = "$env:EVIDENCE\99-teardown"[0m
+2026-10-29T10:26:11.9039192Z [36;1m}[0m
+2026-10-29T10:26:11.9039475Z [36;1m& .github\scripts\Teardown-Benchmark.ps1 @p[0m
+2026-10-29T10:26:11.9039955Z [36;1m# teardown failures are recorded; the job verdict is the matrix's -[0m
+2026-10-29T10:26:11.9040564Z [36;1m# but a failed uninstall CONTRACT is re-raised so it cannot hide[0m
+2026-10-29T10:26:11.9041239Z [36;1mif ($LASTEXITCODE -ne 0) { Write-Host '::error::teardown contract violation (see evidence/99-teardown)'; exit 1 }[0m
+2026-10-29T10:26:11.9041793Z [36;1mexit 0[0m
+2026-10-29T10:26:11.9081519Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T10:26:11.9081938Z env:
+2026-10-29T10:26:11.9085325Z   GITHUB_TOKEN: ***
+2026-10-29T10:26:11.9085651Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T10:26:11.9086000Z   WORKROOT: D:\cr-bench
+2026-10-29T10:26:11.9086258Z   CORE_TAG: v0.5.2
+2026-10-29T10:26:11.9086525Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T10:26:11.9086808Z ##[endgroup]
+2026-10-29T10:26:14.1227737Z uninstall.ps1 exit: 0 (0 clean; 1 not elevated; 2 stop error; 3 no STOPPED in 5s; 4 delete error; 5 still registered; 6 locked image)
+2026-10-29T10:26:14.1500669Z teardown verified: service gone + image gone
+2026-10-29T10:26:14.3061003Z removed cert 6D242BD73DBE69751F3D392E22F9FA9D933E17E5 from LocalMachine\Root
+2026-10-29T10:26:14.3166437Z removed cert 6D242BD73DBE69751F3D392E22F9FA9D933E17E5 from LocalMachine\TrustedPublisher
+2026-10-29T10:26:15.6921494Z disk small-fat32: detached
+2026-10-29T10:26:17.6930235Z disk small-fat32: vhd file deleted
+2026-10-29T10:26:17.7949998Z disk multi-gpt: detached
+2026-10-29T10:26:19.7876206Z disk multi-gpt: vhd file deleted
+2026-10-29T10:26:19.9390507Z disk large-ntfs: detached
+2026-10-29T10:26:21.9430537Z disk large-ntfs: vhd file deleted
+2026-10-29T10:26:21.9443234Z teardown complete (exit 0)
+2026-10-29T10:26:22.0159756Z ##[group]Run actions/upload-artifact@v4
+2026-10-29T10:26:22.0160169Z with:
+2026-10-29T10:26:22.0160470Z   name: test-benchmark-evidence-smoke-40846150014
+2026-10-29T10:26:22.0160898Z   path: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T10:26:22.0161242Z   if-no-files-found: error
+2026-10-29T10:26:22.0161510Z   retention-days: 30
+2026-10-29T10:26:22.0161765Z   compression-level: 6
+2026-10-29T10:26:22.0162015Z   overwrite: false
+2026-10-29T10:26:22.0162268Z   include-hidden-files: false
+2026-10-29T10:26:22.0162535Z env:
+2026-10-29T10:26:22.0165402Z   GITHUB_TOKEN: ***
+2026-10-29T10:26:22.0165723Z   EVIDENCE: D:\a\core_recovery\core_recovery\evidence
+2026-10-29T10:26:22.0166109Z   WORKROOT: D:\cr-bench
+2026-10-29T10:26:22.0166357Z   CORE_TAG: v0.5.2
+2026-10-29T10:26:22.0166600Z   STAGED: D:\cr-bench\core-staged
+2026-10-29T10:26:22.0166873Z ##[endgroup]
+2026-10-29T10:26:22.2067875Z (node:1548) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T10:26:22.2069173Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T10:26:22.3020047Z With the provided path, there will be 210 files uploaded
+2026-10-29T10:26:22.3026295Z Artifact name is valid!
+2026-10-29T10:26:22.3028347Z Root directory input is valid!
+2026-10-29T10:26:22.5263875Z Beginning upload of artifact content to blob storage
+2026-10-29T10:26:23.5871093Z (node:1548) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-29T10:26:23.8610233Z Uploaded bytes 7014474
+2026-10-29T10:26:23.8826228Z Finished uploading artifact content to blob storage!
+2026-10-29T10:26:23.8830591Z SHA256 digest of uploaded artifact zip is 7a6bcf5c5b003632f08d99393a0a71050d4e93b7c9375264c11c9a018d02803e
+2026-10-29T10:26:23.8833360Z Finalizing artifact upload
+2026-10-29T10:26:24.3423679Z Artifact test-benchmark-evidence-smoke-40846150014.zip successfully finalized. Artifact ID 12890121425
+2026-10-29T10:26:24.3425266Z Artifact test-benchmark-evidence-smoke-40846150014 has been successfully uploaded! Final size is 7014474 bytes. Artifact ID is 12890121425
+2026-10-29T10:26:24.3435969Z Artifact download URL: https://github.com/heicfast/core_recovery/actions/runs/40846150014/artifacts/12890121425
+2026-10-29T10:26:24.3775908Z Post job cleanup.
+2026-10-29T10:26:24.5680234Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T10:26:24.5988929Z git version 2.56.0.windows.3
+2026-10-29T10:26:24.6067713Z Temporarily overriding HOME='D:\a\_temp\5c17a13e-b718-4b1d-b269-9ec5eb0e62ff' before making global git config changes
+2026-10-29T10:26:24.6069416Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T10:26:24.6081755Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-29T10:26:24.6426599Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T10:26:24.6762732Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T10:26:25.2413020Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T10:26:25.2687988Z http.https://github.com/.extraheader
+2026-10-29T10:26:25.2745579Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-29T10:26:25.3053357Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T10:26:25.8267502Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T10:26:25.8577123Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T10:26:26.4051298Z Cleaning up orphan processes
+2026-10-29T10:26:26.4507692Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,11 +1,11 @@
-# MINOR N-220 — the FIFTH committed-marker red-main recurrence (`09a18f9f`, the S82 registration batch): six trail files pushed with live conflict markers — plus the born-collided D-152 TRIPLE seat the gate's `###`-only pattern never saw
+# MINOR N-223 — the 09a18f9f trail-file marker residue (the S82 registration batch): SIX trail files pushed with live conflict markers — plus the born-collided D-152 TRIPLE seat the gate's `###`-only pattern never saw (RENUMBERED from the born-collided N-220 seat at the S84 merge — the racing S85 lane's 9b4a9302-clobber finding landed N-220 first at eeddec57; THIS finding covers the OTHER commit of the same window: 09a18f9f's six TRAIL files, not 9b4a9302's engine clobber)
 
 **Severity:** MINOR (the class convention — M-120 `db228b75`, N-210 `f3da99f1`, N-217 `ed501caa`, N-219 `27bda40e`, now `09a18f9f`; all repaired in the same session before any consumer pulled the broken trail; but the recurrence count is now five and the D-seat half shipped a triple collision the gate provably missed)
 **Module:** audit-trail integrity (the M-120/N-210 class) + the PARITY-DELTAS registry
 **Parameters affected:** Q68 (audit-trail truth), the D-seat uniqueness invariant (N-191/N-207), the doc_truth_gate's own coverage
 **Corpus references:** none for the marker defect (a core-repo integrity defect)
 **Core references:** found at core `cac42582` (origin/main HEAD at this lane's pull): unresolved `<<<<<<<`/`=======`/`>>>>>>>` blocks in `diff-to-fix/CROSS-REF-MATRIX.md` (the M-154 row block), `diff-to-fix/FIXED-LEDGER.md` (a NESTED double conflict at the I-048/M-152/N-145 vs I-048/M-111/M-114 row sets, plus duplicate N-145/N-178 rows), `diff-to-fix/findings/FIXED/I-048-three-registers-...md` (the Resolution section), `docs/PARITY-DELTAS.md` (TWO conflicts — a separator block and the D-155-combined vs D-160/161/162-renumbered nested block), and `worklog.md` (the Session-80-entry-10 vs Session-82-entry-6 block). Verified first-hand: `grep -rn '^<<<<<<< HEAD'` over the tree → 6 files (the sixth, `findings/FIXED/M-120`, is the intentional evidence quote — excluded). The D-seat half: `grep '^## D-152' docs/PARITY-DELTAS.md` → 2 hits plus the legitimate `### D-152` at :4218 — THREE sections under one seat.
-**Status:** FIXED (found and fixed in the same session, per §8's discovered-divergence rule)
+**Status:** FIXED (found and fixed in the same session, per §8's discovered-divergence rule; the N-220 seat conceded to the racing lane's 9b4a9302 finding per SA-9 — different defect commit, same red-window)
 
 ## Summary
 

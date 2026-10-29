@@ -578,8 +578,8 @@ inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int, con
 typedef unsigned short WORD;
 typedef wchar_t WCHAR;
 
-#define STD_INPUT_HANDLE ((DWORD)-10)
-#define STD_OUTPUT_HANDLE ((DWORD)-11)
+#define STD_INPUT_HANDLE ((DWORD) - 10)
+#define STD_OUTPUT_HANDLE ((DWORD) - 11)
 #define KEY_EVENT 0x0001
 typedef struct _KEY_EVENT_RECORD {
     BOOL bKeyDown;

@@ -3652,8 +3652,8 @@ u32 session_last_autosave_path_impl(const char* utf8_dir, char* out_path, uint32
 }
 } // namespace
 
-extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir,
-                                                                char* out_path, uint32_t cap) {
+extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir, char* out_path,
+                                                               uint32_t cap) {
     return guarded(session_last_autosave_path_impl, utf8_dir, out_path, cap);
 }
 

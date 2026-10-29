@@ -1,3 +1,79 @@
+# SUMMARY.md — executive summary (the S84 fix lane on top; the prior lanes below, newest-first)
+
+## Session-84 S84 fix-lane delta (2026-10-29/30 — the user's fix mandate continuation ["fix all the audit findings (priority to major/informational first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `842a587e` (the S83-close tree), corpus `be0cfe9` throughout)
+
+- **N-219 FIXED (MINOR, NEW — filed+fixed at the open, the red-main
+  repair):** main was RED at this session's open — the M-151 landing
+  `27bda40e` committed its rebase resolution against a garbage-collected
+  lane SHA (`9647e8b0`) with live conflict markers in
+  `tests/unit/test_ntfs_volume.cpp` (two regions) and
+  `diff-to-fix/CROSS-REF-MATRIX.md` (one region) — the M-120/N-210/N-217
+  class's FOURTH recurrence, and the second to reach main red. gcc
+  refuses the markers under -Werror (`version control conflict marker in
+  file` at :5780), so cr_tests could not build. The repair recovered
+  BOTH sides' content from the hunks themselves (the A-016 test
+  byte-identical to `e2ea4d50:5764-5829`; the M-151 four-test battery +
+  helper namespace restored; the matrix taking each parameter's later
+  final state — M-151 FIXED from the landing lane, N-182 option-2 from
+  main's own `868d1e85`). RED first-hand (build exit 2, 0 tests
+  runnable) → GREEN: **full suite 1648/1648** (114 s), repo-wide marker
+  sweep clean.
+
+**Board after the N-219 repair and the racing window's absorption
+(filesystem truth): 8 MAJOR (M-075 M-078 M-086 M-087 M-089 M-101 M-105
+M-107) · 2 MINOR (N-107 N-127) · 0 INFO active / 198 FIXED /
+4 tracked-open.** The racing lanes' same-window landings absorbed into
+the board this lane re-verified: I-048 (ACKNOWLEDGED, D-160/D-161/D-162),
+M-111 (the D-158 scope decision), M-114 (the D-159 posture decision),
+M-154 (retention + pointer + the S82 hardening rider), N-181 (the
+RAW-first reorder), M-107's CRW member (the CIFF heap walk, member 2 of
+11). Of the open MAJORs, M-086/M-087/M-089 and the MINORs N-107/N-127
+are driver-repo-resident (the OQ-S10-3 boundary — outside the two-repo
+grant). Next free IDs: S-069+, M-157+, N-220+, I-049+, A-017+,
+D-163+.
+# SUMMARY.md — executive summary (the S84 MAJOR-first fix lane on top — the N-221 leak landing + the marker-repair concession + the MAJOR queue; the prior lanes below, newest-first)
+
+## Session-84 S84 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major/informational first, one by one, 20+ fixes, fixed findings into findings/FIXED/, update all docs and counts"]; opened at core `27bda40e` — main RED at open; the racing S85 window landed the marker repair (N-219) mid-flight, conceded per SA-9; corpus `be0cfe9` throughout)
+
+- **N-221 FIXED (MINOR, NEW — this lane's unique catch at the baseline
+  ASan run):** the N-216 landing's `SizeCapHidesOversizeNode` lambda
+  returned `tree.add_file(root, pr)` directly, never releasing its three
+  FileProperties caller-side refs — LSAN at exit: 1170 bytes / 6
+  allocations, exit 1 behind a green 5/5 (the FilterFolder battery) and
+  a green full-suite gtest summary. The leak survived the racing
+  window's marker repairs (a file none of them touched) — RED
+  re-verified first-hand at `eeddec57` before the fix, GREEN post-fix
+  (exit 0, LSAN clean). Born N-219 locally; renumbered to N-221 at the
+  landing (the racing S85 lane took N-219/N-220 — the M-153
+  born-collided-seat precedent, the renumber note in the file).
+
+- **The marker-repair seat conceded per SA-9:** this lane's independent
+  both-sides-kept reconstruction of the 27bda40e conflict (the A-016
+  test + the M-151 battery) converged with the racing window's
+  c7037bf3/f18ba226/1d7d31a6 landings; the convergence addendum is in
+  their N-219 file. Two riders this lane's verification contributed on
+  top of the concession: the matrix row's trailing `||` table-syntax
+  break + stale title repaired (the run-growth probe's own row), and
+  the N-221 leak above.
+
+- **The racing window's same-window closures absorbed at the rebase:**
+  M-111 (D-158 scope decision), M-114 (D-159 posture decision), M-154
+  (the lifecycle + the hardening rider), I-048 (ACKNOWLEDGED, D-155
+  through D-157), N-145 (the in-flight journal), N-178 (the pause CLI
+  legs), N-181 (the RAW-first start order), M-107's CRW member (member
+  2 of 11), N-220 (the fifth-recurrence class record) — all verified
+  present in FIXED/ at this lane's rebase head.
+
+**Board after this landing (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 8 MAJOR · 2 MINOR · 0 INFO active / 196 FIXED / 4
+tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
+M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
+M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3
+and out of this repo's scope). Next free IDs: S-069+, M-158+, N-222+,
+I-049+, A-017+, D-160+.
+
+---
+
 # SUMMARY.md — executive summary (the S79 MAJOR-first fix lane on top — the M-073 seat conceded to the racing window per SA-9 and re-verified; the prior lanes below, newest-first)
 
 ## Session-79 S79 fix-lane delta (2026-10-29 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `e17a4e6`, corpus `be0cfe9` throughout; baseline suite green re-run first-hand at the open [1484/1442/0]; this lane's own M-073 implementation was CONCEDED to the racing window's landing at the push rebase per SA-9 — the seat's `cr_folderfilter` landing verified first-hand instead, and the verification CAUGHT TWO REAL DEFECTS, filed + fixed this session)

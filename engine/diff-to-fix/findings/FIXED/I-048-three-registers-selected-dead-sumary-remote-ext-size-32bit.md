@@ -49,7 +49,23 @@ Register B's precedence question (remote vs ini default) — immaterial under th
 
 ## Resolution
 
-**Status:** FIXED (the ACKNOWLEDGED-and-registered posture)
-**Fixed in commit:** (this push; the S82 fix lane, 2026-10-29)
-**Verified by:** the three PARITY-DELTAS rows exist verbatim (D-160 the dead-data omission, D-156 the remote-tunability under REPORTING-OOS, D-162 the engine-faithful 64-bit superset); the corpus cites re-verified in each row's reference-behavior block (FileFilter.xml's 16 sites + the stylesheet-only grep record; DRWUI:319007-319022; PRD:1407-1414 vs EXT4SearchDLL:3234).
-**Resolution notes:** Per the finding's own fix plan ("Registration only: add the three rows to the PARITY-DELTAS register... No code change"), the three deliberate differences are now registered as D-160/D-161/D-162 with the corpus cites and the rationale blocks: (A) FileFilter.xml's Selected fields are dead data — the core's omission is correct-by-construction and future lanes are warned off decoding nonexistent semantics; (B) the summary-family groups are the static ini snapshot while the og's are remote-tunable — acceptable under the prior REPORTING-OOS disposition, with the precedence question recorded; (C) the core's lost-partition ext size uses the engine's 64-bit block count where the og's own probe truncates to a signed 32-bit product — the engine-faithful superset (the D-50 calibration family; adopting the og's internal inconsistency would be a down-fix). No code change (each register's core behavior verified as the intended stance at the current tree).
+**Status:** ACKNOWLEDGED (the ACKNOWLEDGED-and-registered posture; the INFO tier's terminal state)
+**Fixed in commit:** `b2bc1970` (the S82 registration batch — the three PARITY-DELTAS rows landed
+verbatim as the renumbered split trio **D-160/D-161/D-162**; the S80/S81 lane's convergent
+ACKNOWLEDGED registration conceded per SA-9 — its corpus re-verification detail merged here)
+**Verified by:** the corpus cites re-verified first-hand by both convergent lanes (PRD:1407-1414 —
+FUN_180003090's `return *(int*)(param_2+4) * (int)uVar1;` 32-bit signed product read directly;
+the DRWUI:319007-319022 remote-key reads into the results-config singleton; the FileFilter.xml
+16-site Selected census with only Qt stylesheet-state consumers DRWUI:1209830/:9887) + the three
+PARITY-DELTAS rows existing verbatim (D-160 the dead-data omission, D-161 the remote-tunable
+groups under the prior REPORTING-OOS disposition with the precedence question recorded, D-162 the
+engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect — the
+D-50 family). The combined D-155 seat the racing S80 lane took is superseded by the renumbered
+trio; both rows described the same three registers and only the trio stands.
+**Resolution notes:** Per the finding's own fix plan ("Registration only: add the three rows to the
+PARITY-DELTAS register... No code change"), all three registers are acknowledged with the rationale
+verified and no code change: (A) the `Selected` dead-data omission is correct by omission — future
+lanes must not burn time decoding "Selected semantics" that do not exist; (B) the summary-group
+tables are the shipped-ini snapshot under the remote layer's prior REPORTING-OOS disposition; (C)
+the core's 64-bit probe is the engine-faithful superset over the og's own probe defect. All three
+divergences are intentional or data-level and must be preserved in future work.

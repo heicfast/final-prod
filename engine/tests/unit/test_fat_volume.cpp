@@ -3351,7 +3351,7 @@ namespace {
 std::vector<u8> build_fat32_high16_image(u32 deleted_first /* the RAW dentry value */,
                                          bool plant_true_chain = true,
                                          u32 true_first = 0x10000 + 0x123) {
-    const u32 SPF = 545;            /* sectors per FAT */
+    const u32 SPF = 545;                /* sectors per FAT */
     const u32 DATA_START = 8 + 2 * SPF; /* sector of cluster 2 */
     const u32 TOTAL = DATA_START + 0x11000 + 64;
     std::vector<u8> img(u64(TOTAL) * 512, 0);

@@ -4668,7 +4668,6 @@ journal salvage is on): surfacing the filesystem's own journal as a lost
 content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
 
-
 ---
 
 ### D-164 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM (M-154 registration; RENUMBERED from the born-collided D-152 seat at the S84 repair — N-145's journal-location row took D-152 first)

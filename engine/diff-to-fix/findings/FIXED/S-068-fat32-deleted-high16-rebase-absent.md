@@ -112,21 +112,23 @@ None material — the og's gates are fully decoded; the only design decision is 
 **Verified by:** 4 tests in tests/unit/test_fat_high16.cpp — FatEngine.DeletedHigh16ZeroRebasesFromHint (the wrong-content discriminator: the extents carry the TRUE chain at cluster 0x310005's offset, not the raw free cluster 5; stats.high16_rebased == 1; the PartialRisk assumed cap), FatEngine.DeletedHigh16RebaseFallsBackToRawWalk (the CHAIN_BAD re-based probe refuses, the raw walk's shape preserved, high16_rebased == 0), FatEngine.LastGoodHintUpdatesOnlyOnFileWalks (a live directory at a lower high-16 region between the hint file and the torn dentry never moves the hint), FatEngine.Fat16NoRebase (the machinery never fires on FAT16). RED proven twice: compile-level on the stash-reverted tree (the tests reference the absent stats surface) and behaviorally via the gate-raising mutation (0x310000 -> 0x310004: the re-base stops firing and DeletedHigh16ZeroRebasesFromHint fails with extents at the raw cluster). Full suites green: cr_tests 1493 + 2 perf, cr_ui_tests 83, ABI smoke OK.
 **Resolution notes:** The corpus re-verified first-hand before the change (all three cited sites: the hint update :13757-58, the low-16 re-base :14753-55, the retry with write-back :14826-48). The fix follows the plan-of-record with one probe-strengthening addition the mutation test exposed: the re-based cluster must be FAT-LINKED (`FatTable::raw(rebased) != 0`) — reconstruct_deleted_chain returns a CLEAN 1-cluster run for a FREE start (the freed-chain signature), so a linkage gate is required or the re-base would adopt free clusters and manufacture exactly the wrong-bytes class the fix removes; the finding's own fixture (a torn delete whose FAT chain stayed intact) is the population the og's retry addresses. The hint update follows the og's walk-driver gate (non-directory successful walks only; volume labels never reach emission); the adoption also updates the hint (the og's :14847). The dentry write-back is an og in-memory repair; the core's equivalent is emitting the corrected cluster (the plan's own posture - the session/writer never rewrite the source volume). The re-based emission rides the inferred/assumed surface (inferred_chain) so the honesty cap holds: a borrowed start never grades Excellent even though the chain itself is FAT-verified - the PartialRisk semantics the GAP-S6-2 rule established. FAT16/FAT12 are structurally immune (no +0x14 high word; the flavor gate) - pinned by Fat16NoRebase. The "0x10000 < local_res8" alternative branch of the og's hint-update gate is not ported (the decompile's variable aliasing makes it ambiguous; the finding's own summary - "after a successful walk of a non-directory file" - is the implemented semantics).
 
-## M-157 repair addendum (S84 fix lane, 2026-10-30)
+## The 9b4a9302 clobber convergence record (S84 fix lane, 2026-10-30)
 
 The trail commit `9b4a9302` — whose message claims "No code change rides
 this commit — the tree equals the racing window's plus this trail record"
 — in fact rewrote the landed engine (143 lines of `cr_fat_quick.cpp`):
 the retry-leg-only `0x310000` comparison was gate-raised onto the PRIMARY
 re-base gate (every FAT32 volume under ~3.1M clusters lost the repair;
-both `DeletedHigh16ZeroRebasesFromHint` and `LastGoodHintUpdatesOnlyOn
+both `DeletedHigh16ZeroRebasesFromHint` and `LastGoodHintUpdatesOnly
 FileWalks` went RED at origin/main), the `reconstruct_deleted_chains`
 flag gate was dropped from the probe path, and the hint update was
-restricted to live walks only. The corpus was re-verified first-hand at
-the repair (the primary site :14753-14755 carries exactly the three-gate
-conjunction `assumed == 0 && value < 0x10000 && value < hint`; the
-`0x310000 < DAT_1800728c8` comparison exists at the two retry-leg sites
-:14834/:30184 only). The M-157 repair restored the primary gate set and
-the both-branches hint update, kept the rewrite's honest probe
-hardenings, and returned the suite to green (1529/0 + 87/87). Full
-record: findings/MAJOR/M-157-9b4a9302-false-trail-commit-s068-gate-regression.md
+restricted to live walks only. TWO lanes independently found and repaired
+it in the same window; the racing `cd3479e7` byte-restore to the landed
+`ad1bcb9e` implementation keeps the seat per SA-9. The corpus was
+re-verified first-hand at both lanes' repairs (the primary site
+:14753-14755 carries exactly the three-gate conjunction `assumed == 0 &&
+value < 0x10000 && value < hint`; the `0x310000 < DAT_1800728c8`
+comparison exists at the two retry-leg sites :14834/:30184 only). The
+suite is green again (the four-test battery green; the full suite at the
+repaired trees). Full record:
+findings/FIXED/N-220-9b4a9302-concession-commit-clobbered-s068-landing-red-main-5th-recurrence.md

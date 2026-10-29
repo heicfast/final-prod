@@ -5851,7 +5851,7 @@ namespace {
  * MFT_LCN (the stale-runlist simulation: the physical records beyond
  * the declaration stay on disk) */
 void patch_mft_runlist_declared(Image& img, u64 clusters) {
-    u8* rec = img.sec(MFT_LCN); /* record 0 */
+    u8* rec = img.sec(MFT_LCN);                      /* record 0 */
     u32 name_alen = (0x18 + 66 + 2 * 4 + 7) / 8 * 8; /* "$MFT" = 4 chars */
     u8* attr = rec + 0x38 + name_alen;
     RunList rl;
@@ -5860,8 +5860,8 @@ void patch_mft_runlist_declared(Image& img, u64 clusters) {
     ASSERT_LE(rle.size(), 8u); /* the runlist area (alen 72 - 0x40) */
     std::memset(attr + 0x40, 0, 8);
     std::memcpy(attr + 0x40, rle.data(), rle.size());
-    put64le_at(attr + 0x18, clusters - 1);           /* last_vcn */
-    put64le_at(attr + 0x28, clusters * CLUSTER);     /* allocated */
+    put64le_at(attr + 0x18, clusters - 1);       /* last_vcn */
+    put64le_at(attr + 0x28, clusters * CLUSTER); /* allocated */
 }
 } // namespace
 
