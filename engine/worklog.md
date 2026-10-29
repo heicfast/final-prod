@@ -12931,7 +12931,6 @@ missing struct-layout static pins.
 **Marker state at this entry:** only M-120's sanctioned evidence quotes
 remain (3 lines) — the C-1 opening finding is closed.
 
-<<<<<<< HEAD
 ---
 
 ---
@@ -12967,7 +12966,7 @@ sequence (41, 18467, 6334, 26500 — the first four low bytes). The S-007
 batch's DWG plant re-pinned the CRW way (a real locator map). The carve
 suite 180/180; the full suite **1666/1666**. Trail: M-107's S85 addendum,
 the matrix row, modules/carve.md's S85 addendum 1, this entry.
-=======
+
 ## Session-84 S84 fix-lane — entry 4: M-075 FIXED (2026-10-30)
 
 **M-075 FIXED (MAJOR, the check ladder's fix rung):** the chkdsk
@@ -12989,4 +12988,3 @@ the CI-SCENARIOS end-to-end row (staged 0x1005 → chkdsk exit 1 →
 re-audit clean). Open residue honest: the og's 5 wrapper arguments
 undecoded (reconcile on a future decode). Board: 7 MAJOR · 2 MINOR
 active / 197 FIXED / 4 tracked-open.
->>>>>>> ff01708d (fix(check): M-075 — the chkdsk escalation endpoint lands: the check ladder's fix rung (the pure grammar + the win-layer launch + the cr_ui_fsck_volume ABI + the fix --chkdsk CLI))
