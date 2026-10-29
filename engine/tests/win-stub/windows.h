@@ -305,7 +305,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t) - 1)
+#define _TRUNCATE ((size_t)-1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -578,8 +578,8 @@ inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int, con
 typedef unsigned short WORD;
 typedef wchar_t WCHAR;
 
-#define STD_INPUT_HANDLE ((DWORD)-10)
-#define STD_OUTPUT_HANDLE ((DWORD)-11)
+#define STD_INPUT_HANDLE ((DWORD) - 10)
+#define STD_OUTPUT_HANDLE ((DWORD) - 11)
 #define KEY_EVENT 0x0001
 typedef struct _KEY_EVENT_RECORD {
     BOOL bKeyDown;

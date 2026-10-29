@@ -3354,8 +3354,8 @@ TEST(FilterFolder, SizeCapHidesOversizeNode) {
         pr->attributes = 0x20;
         return tree.add_file(root, pr);
     };
-    add_file("huge.bin", (u64(2) << 40));          /* 2 TiB > the 1 TiB cap */
-    add_file("boundary.bin", (u64(0x400) << 30));  /* exactly the cap: stays */
+    add_file("huge.bin", (u64(2) << 40));         /* 2 TiB > the 1 TiB cap */
+    add_file("boundary.bin", (u64(0x400) << 30)); /* exactly the cap: stays */
     add_file("normal.bin", 4096);
     const u64 flagged = filterfolder::apply(tree);
     EXPECT_EQ(flagged, 1u);

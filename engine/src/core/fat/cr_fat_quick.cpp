@@ -324,8 +324,7 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (deleted && ctx.p.flavor == Flavor::Fat32 && ctx.flags.reconstruct_deleted_chains &&
         first_cluster >= 2 && first_cluster < 0x10000 &&
         first_cluster < ctx.last_good_first_cluster) {
-        const u32 rebased =
-            (ctx.last_good_first_cluster & 0xFFFF0000u) | u32(e.first_cluster_low);
+        const u32 rebased = (ctx.last_good_first_cluster & 0xFFFF0000u) | u32(e.first_cluster_low);
         ChainResult rb = reconstruct_deleted_chain(*ctx.table, rebased,
                                                    is_dir ? 0 : expect_clusters, ctx.cancel);
         /* the og's confirm semantics (FUN_180014530's `*param_8` gate):

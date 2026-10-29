@@ -587,7 +587,7 @@ TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
             z = &c;
     ASSERT_NE(z, nullptr);
     EXPECT_EQ(z->fs, CandidateFs::Zfs);
-    EXPECT_EQ(z->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_EQ(z->score, 0);               /* M-149: the og's zero floor for count 0 */
     EXPECT_GE(z->structural_points, 35);  /* 25 magic + 10 txg liveness */
     EXPECT_TRUE(z->size_from_device_end); /* flagged fallback (honest) */
 }
@@ -672,7 +672,7 @@ TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
             rf = &c;
     ASSERT_NE(rf, nullptr);
     EXPECT_EQ(rf->fs, CandidateFs::Refs);
-    EXPECT_EQ(rf->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_EQ(rf->score, 0);               /* M-149: the og's zero floor for count 0 */
     EXPECT_GE(rf->structural_points, 40);  /* 35 pages + 5 checkpointed */
     EXPECT_TRUE(rf->size_from_device_end); /* flagged fallback (honest) */
 }
@@ -740,8 +740,8 @@ TEST(LostDiscovery, LostBitlockerPartitionDiscovered) {
             fve = &c;
     ASSERT_NE(fve, nullptr) << "the lost BitLocker partition must surface";
     EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
-    EXPECT_EQ(fve->score, 0); /* M-149: the og's zero floor for count 0 */
-    EXPECT_GE(fve->structural_points, 40); /* 15 boot-sig + 25 fve-shape */
+    EXPECT_EQ(fve->score, 0);               /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(fve->structural_points, 40);  /* 15 boot-sig + 25 fve-shape */
     EXPECT_TRUE(fve->size_from_device_end); /* geometry corpus-undecoded: marked fallback */
     EXPECT_GT(fve->sector_count, 0u);
     /* evidence tags carry the og-gate + shape breakdown */
@@ -1194,11 +1194,11 @@ TEST(LostDiscovery, ScoringTableMatchBonusIsNumeratorOnly) {
      * ln(60)/ln(2020) = 537 (NOT deflated). The old code: den =
      * ln(2520), the leader exactly 1000, the runner-up 522. */
     std::vector<u8> img(u64(32768) * 512, 0);
-    plant_ntfs(img, 1024, 512, 64);           /* unmatched NTFS: count 60 */
-    plant_fat16_content(img, 4096, 40);       /* the FAT leader: 40*50+20 = 2020 */
+    plant_ntfs(img, 1024, 512, 64);     /* unmatched NTFS: count 60 */
+    plant_fat16_content(img, 4096, 40); /* the FAT leader: 40*50+20 = 2020 */
     MemDevice dev(std::move(img));
     table::PartitionInfo live;
-    live.start_lba = 4096;                     /* the FAT's start: the table match */
+    live.start_lba = 4096; /* the FAT's start: the table match */
     live.sector_count = 512;
     live.used = true;
     live.fs = table::FsKind::Fat32;
@@ -1231,7 +1231,7 @@ TEST(LostDiscovery, ScoringZeroCountScoresZero) {
      * genuine 1-file candidate and could outrank it on the structural
      * tie-break. */
     std::vector<u8> img(u64(32768) * 512, 0);
-    plant_ntfs(img, 1024, 512, 64);           /* empty NTFS: count 60 (the bonus) */
+    plant_ntfs(img, 1024, 512, 64); /* empty NTFS: count 60 (the bonus) */
     /* an empty, bonus-less family: a ReFS boot with no content walk ->
      * weighted 0 + no fs_bonus -> count 0 (the fs_bonus table: ReFS has
      * none). Plant a bare ReFS-shaped boot at a disjoint start. */

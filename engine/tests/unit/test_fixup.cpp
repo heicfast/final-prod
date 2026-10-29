@@ -116,9 +116,9 @@ TEST(Fixup, OffsetBandRejectsLowAndHigh) {
      * RED pre-N-213: 0x08 (nonzero, even) and 0x1A0 both passed. */
     SynthRecord low;
     low.usa_off = 0x08;
-    EXPECT_EQ(fixup_validate(low.data.data(), low.data.size(), low.usa_off, low.usa_count,
-                             low.sector),
-              ERR_BAD_PARAMETER)
+    EXPECT_EQ(
+        fixup_validate(low.data.data(), low.data.size(), low.usa_off, low.usa_count, low.sector),
+        ERR_BAD_PARAMETER)
         << "usa_offset below the og's 0x2A floor must reject";
     SynthRecord high;
     high.usa_off = 0x1A0;
@@ -145,14 +145,14 @@ TEST(Fixup, OffsetBandAcceptsRealVolumeOffsets) {
     };
     SynthRecord r1k;
     rewrite_usa(r1k, 0x30);
-    EXPECT_EQ(fixup_validate(r1k.data.data(), r1k.data.size(), r1k.usa_off, r1k.usa_count,
-                             r1k.sector),
-              OK);
+    EXPECT_EQ(
+        fixup_validate(r1k.data.data(), r1k.data.size(), r1k.usa_off, r1k.usa_count, r1k.sector),
+        OK);
     SynthRecord r4k(1024);
     rewrite_usa(r4k, 0x48);
-    EXPECT_EQ(fixup_validate(r4k.data.data(), r4k.data.size(), r4k.usa_off, r4k.usa_count,
-                             r4k.sector),
-              OK);
+    EXPECT_EQ(
+        fixup_validate(r4k.data.data(), r4k.data.size(), r4k.usa_off, r4k.usa_count, r4k.sector),
+        OK);
 }
 
 TEST(Fixup, UsaCountAboveSixteenRejects) {

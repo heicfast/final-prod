@@ -48,9 +48,9 @@ namespace surgery {
  * signature + u64 partition start - DeviceManager :62184-62195, the
  * read-side decode; the write mirrors it byte-for-byte). */
 struct MountedDeviceMapping {
-    char letter;            /* 'C'..'Z' (upper) */
-    u32 disk_signature;     /* the NEW disk's MBR signature */
-    u64 partition_offset;   /* the NEW partition's start offset, bytes */
+    char letter;          /* 'C'..'Z' (upper) */
+    u32 disk_signature;   /* the NEW disk's MBR signature */
+    u64 partition_offset; /* the NEW partition's start offset, bytes */
 };
 
 /* Rewrite every mapping's value. The key \MountedDevices must exist and

@@ -739,8 +739,8 @@ u32 inflight_end(const char* journal_path, const char* disk_identity) {
 }
 
 u32 inflight_probe(const char* journal_path, InFlightDisk* out, u32 max_records, u32* found) {
-    if (journal_path == nullptr || found == nullptr ||
-        (out == nullptr && max_records != 0) || (out != nullptr && max_records == 0))
+    if (journal_path == nullptr || found == nullptr || (out == nullptr && max_records != 0) ||
+        (out != nullptr && max_records == 0))
         return ERR_BAD_PARAMETER;
     *found = 0;
     u32 rc = OK;

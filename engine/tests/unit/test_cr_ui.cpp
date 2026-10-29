@@ -4993,8 +4993,7 @@ TEST(CrUi, PauseStdinReaderMapsKeysOntoTheToken) {
     EXPECT_NE(std::string::npos, body.find("g_cancel_token.cancelled()"))
         << "the reader must terminate on the token's cancel";
     /* the flag parses into the scan verb */
-    EXPECT_NE(std::string::npos, src.find("--pause-stdin"))
-        << "--pause-stdin must be a scan flag";
+    EXPECT_NE(std::string::npos, src.find("--pause-stdin")) << "--pause-stdin must be a scan flag";
     /* the usage block documents the surface */
     EXPECT_NE(std::string::npos, src.find("[--pause-stdin]"))
         << "the usage block must list the flag";
@@ -5120,8 +5119,8 @@ TEST(CrUi, AutosaveDeadPointerDoesNotBlock) {
     std::filesystem::remove(pointed);
     /* the pointed resume now reports absence */
     char again[1024] = {0};
-    EXPECT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), again, sizeof(again)),
-              0x50020004u) /* ERR_RANGE_OUT_OF_BOUNDS: no live pointer */;
+    EXPECT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), again, sizeof(again)), 0x50020004u)
+    /* ERR_RANGE_OUT_OF_BOUNDS: no live pointer */;
     /* round 2: the dead pointer never blocks the new save */
     {
         Ui u;

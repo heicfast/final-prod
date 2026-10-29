@@ -2044,8 +2044,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             wprintf(stopped_window ? L"session auto-saved (stopped): %s\n"
                                    : L"session auto-saved: %s\n",
                     wide_name.c_str());
-} else {
-            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str()); }
+        } else {
+            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
+        }
         return true;
     };
 
@@ -3342,8 +3343,8 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
      * (the og's CWD-relative ini is the registered decline); a journal
      * failure is a WARNING, never a gate - the journal is a crash
      * trace, not a correctness mechanism. */
-    std::wstring journal_w = in_path.empty() ? L"rrecov-apply-inflight.jrn"
-                                             : in_path + L".inflight";
+    std::wstring journal_w =
+        in_path.empty() ? L"rrecov-apply-inflight.jrn" : in_path + L".inflight";
     std::string journal_path(journal_w.begin(), journal_w.end());
     char disk_identity[96];
     std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
@@ -3356,8 +3357,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                     wprintf(L"[apply] WARNING: an earlier apply on disk %u was interrupted "
                             L"(in flight since unix %llu) - the table may be half-applied; "
                             L"the undo log / a re-scan will reconcile\n",
-                            disk,
-                            static_cast<unsigned long long>(marks[m].begin_unix));
+                            disk, static_cast<unsigned long long>(marks[m].begin_unix));
         }
     }
 
