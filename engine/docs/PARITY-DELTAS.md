@@ -4674,6 +4674,12 @@ journal salvage is on): surfacing the filesystem's own journal as a lost
 content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
 
+<<<<<<< HEAD
+=======
+
+---
+
+>>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-156 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-157 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)
 ## D-152 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM
 
 **Surface:** the auto-session lifecycle (M-154). The og's pointer is
@@ -4698,6 +4704,7 @@ flows) have no core counterpart by architecture.
 finding); the M-154 tests (RetentionDeletesPreviousAndPointerNamesIt /
 ManualSaveSurvivesRetention / DeadPointerDoesNotBlock) + the C consumer
 check pin the semantics.
+<<<<<<< HEAD
 
 
 ### D-155 — I-048's three registers (the S69 local-database deep dive: dead data, a remote-tunable layer, and an engine-faithful superset — INFORMATIONAL, ACKNOWLEDGED)
@@ -4731,3 +4738,126 @@ check pin the semantics.
   corpus this session — the PRD product form and the remote key reads
   re-read first-hand; no code change; the divergences are intentional or
   data-level and must be preserved in future work).
+=======
+>>>>>>> 309f7af8 (fix(session): M-154 — the auto-session lifecycle lands: retention-one (the pointer-named previous auto session deleted before every write), the last_scan.info pointer (the og's [Info] four fields), and the pointed-resume ABI)
+=======
+
+### D-160 — FileFilter.xml's `Selected="2"` fields are dead data, correctly omitted (I-048 register A, RENUMBERED from the born-collided D-155 seat — the racing lane's combined I-048 row took it; ACKNOWLEDGED DELIBERATE DIFFERENCE — no reader in any decompiled binary touches the field; the only "Selected" string consumers are Qt stylesheet states)
+
+**Reference behavior** (the shipped `og-codebase/FileFilter.xml`: the
+`Selected="2"` root attr + 15 `<Selected>2</Selected>` children at 16
+sites; the grep record over DRWUI/exFATSearchDLL/EUVideoRepair — only Qt
+stylesheet-state hits, DRWUI:1209830/:1209887): the og's format CARRIES
+the fields but no code reads them.
+
+**Core behavior:** the M-023 generated table has no Selected field.
+
+**Rationale:** matching dead data adds a field nothing consumes. The
+register prevents a future lane from burning time decoding "Selected
+semantics" that do not exist. Registered by I-048's fix-plan step
+(the registration-only posture).
+
+### D-161 — the summary-family groups are static ini snapshots; the og's are remote-tunable (I-048 register B, RENUMBERED from the born-collided D-156 seat, REGISTERED DELIBERATE DIFFERENCE UNDER THE REPORTING-OOS DISPOSITION)
+
+**Reference behavior** (DRWUI:319007-319022, re-verified first-hand at
+the I-048 filing): the results-config init reads `value_fastgoodfile`
+and `value_sumaryfiletype` from the remote-config settings singleton
+(stored at +0x280); both keys ship in the `remote_config_data` cache —
+the og's summary groups can drift from the shipped ini at runtime.
+
+**Core behavior:** the N-132 static tables are the shipped-ini snapshot;
+no remote-config layer exists in the core.
+
+**Rationale:** the remote-config layer is REPORTING-OOS by prior
+disposition (the cloud-tunable surface is the og's online-service
+integration, out of the offline engine's scope). The register records
+that the og's groups can drift at runtime and the core's cannot, and
+the open precedence question (remote value vs ini default — no ini-side
+SumaryFileType reader was found in DRWUI; the remote value may be the
+only runtime source). Registered by I-048's fix-plan step.
+
+### D-162 — the lost-partition ext size uses the engine's 64-bit block count; the og's own probe truncates to a 32-bit signed product (I-048 register C, RENUMBERED from the born-collided D-157 seat, REGISTERED ENGINE-FAITHFUL SUPERSET — adopting the og's probe defect would be a down-fix)
+
+**Reference behavior** (PartitionRecoveryD FUN_180003090, PRD:1407-1414,
+re-verified first-hand at the I-048 filing): the lost-partition ext
+size estimate computes `s_blocks_count * block_size` as a SIGNED 32-BIT
+product (`return *(int *)(param_2 + 4) * (int)uVar1;`) — ≥ 2^31 goes
+negative; the og's own engine validator uses the full 64-bit count
+(EXT4SearchDLL:3234, `CONCAT44(blocks_hi, blocks_lo)`). The og is
+internally inconsistent: the probe truncates where the engine does not.
+
+**Core behavior:** `cr_ext4_engine.cpp`'s 64-bit form
+(`blocks_lo | (blocks_hi << 32)`) feeds `probe_ext`'s sector_count —
+the engine-faithful arithmetic.
+
+**Rationale:** the core adopts the ENGINE's truth (the D-50 calibration
+family): a > 2^31-sector ext volume's lost-partition size must not go
+negative. The delta is observable only on volumes ≥ 1 PiB (sector
+units) where the og's own probe under-reports; the core's estimate is
+the correct one. Registered by I-048's fix-plan step.
+
+### D-158 — no in-app browse of mounted volumes: the engine serves recovery content only (M-111 registration, REGISTERED DELIBERATE DIVERGENCE — the merged product's hosts use the OS shell for mounted volumes, exactly the og's own primary path)
+
+**Reference behavior** (the M-111 consumer trace, double-verified:
+DRWUI:1421095-1421125 — the partition item's browse button
+`ShellExecuteA("open", ...)` for MOUNTED-with-path partitions and the
+in-app FUN_14091c620 only for everything else; PartitionRecovery
+:8440-8503 ExplorerPartition::Open → the FileSystem module's
+vtable+0x38 factory → CWindowsFS (:10650-10800, :14025-14268 — the Win32
+FindFirstFileW chain) for OS-accessible volumes; the used-space + the
+lost-root-openability consumers ride the same factory): the og's browse
+splits — the OS shell for mounted partitions, the in-app Qt table for
+unmounted/lost ones.
+
+**Core behavior:** no live-mounted-FS adapter, no browse-existing-files
+seam at any layer. Volume content is served exclusively through the raw
+recovery engines (the result tree).
+
+**Rationale:** for MOUNTED volumes the og's own primary path IS the OS
+shell — a core-side CWindowsFS equivalent would duplicate the host's
+native capability inside the engine (an ABI host opens Explorer with one
+ShellExecute of its own). For UNMOUNTED/lost partitions the in-app
+table's backend is the RAW PARSERS behind the same interface — which the
+core's engines already are: the lost-partition result tree IS the
+browse of an unmounted volume's content. The engine-side adapter
+family (IFileSystemModule::CreateFileSystem / IFSInterface) is an
+og-internal seam whose only un-duplicated half (GetUsedSpace) is a
+host-UX concern. The capability decision is forced on the host at
+integration time regardless; the register records the scope so the
+decision is made consciously, not by omission.
+
+**Registration trigger:** M-111's fix-plan step 1 (the scope-decision
+branch). The finding closes with the decision registered.
+
+### D-159 — the System-Restore purge around destructive disk ops is DECLINED: silent deletion of user restore points without consent, with the stale-points hazard registered for the host (M-114 registration, REGISTERED SAFETY HARDENING — the RawFixer consent precedent applied to host state)
+
+**Reference behavior** (MainModule :138378-138415 + :138773-138812 +
+:138610-138634, the caller :71496/:71511 — the M-114 decode): around a
+copy/repartition pair, the og's pending-op engine silently deletes EVERY
+System Restore point on BOTH involved drives (srclient.dll's
+SRRemoveRestorePoint via the WMI enumerate-all, the 510-index fallback
+sweep), with no user prompt visible in the chain.
+
+**Core behavior:** the apply engine is strictly transactional on the
+target disk (the CRUNDO01 container); no host-environment operations of
+any kind — no srclient, no WMI, no restore-point mutation.
+
+**Rationale:** silently deleting user restore points without consent
+is the exact class the core's consent doctrine refuses (the RawFixer
+explicit-consent precedent, the BitLocker legitimate-unlock-only
+stance). The og's purge has a real hygiene purpose — stale restore
+points after disk rewrites are a known cause of unbootable Windows and
+of restore-to-corrupt failures — so the HAZARD is registered for the
+host layer: an integrator offering copy/repartition operations should
+surface a consent-gated "purge restore points on drives X, Y" step of
+its own (the plan-item shape the finding sketched for a future
+core-side exposure). The core itself stays out of host state; the
+user-safety note (stale points after recovery-side rewrites) rides the
+register so the decision is made consciously.
+
+**Registration trigger:** M-114's fix-plan step 2 (the
+deliberate-divergence branch with the safety rationale). The finding's
+step-3 corpus erratum (the MainModule behavior was never documented in
+the corpus's own per-binary artifacts) is recorded in
+diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
+>>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-156 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-157 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)

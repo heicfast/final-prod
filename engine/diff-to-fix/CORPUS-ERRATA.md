@@ -621,3 +621,28 @@ Also resolved first-hand: the raw_signs.json min/max **KiB→byte ×1024 at og s
 time** (`FUN_1800205b0` :25020+ `max << 10`, `min << 10`, the `0x7d000` KiB
 absent-max default) — the core's generated table and its documented 500 MiB
 default are the exact og behavior. No divergence.
+
+## E-9 — MainModule's silent System-Restore purge (never documented in the corpus's own per-binary artifacts; surfaced by M-114)
+
+**Corpus site:** `re-workspace/reversed/ghidra-partition/MainModule_decompiled.c`
+:138378-138415 (srclient.dll load + SRRemoveRestorePoint resolve +
+CoInitializeSecurity + WMI connect), :138773 (the WQL "Select * from
+SystemRestore"), :138610-138634 (the per-point removal), :138415/:138418-420
+(the 510-index fallback sweep), the caller :71496/:71511 (both device
+objects' drive letters, 'b'..'y').
+
+**The gap:** `re-workspace/artifacts/per-binary/MainModule.md` carries no
+srclient/SystemRestore/restore-point row — the behavior was never
+documented by the corpus's own inventory (verified by grep at M-114's
+filing). The capability surface (LoadLibrary srclient.dll; COM/WMI
+SystemRestore class; the 510-index fallback) belongs in the per-binary
+capability table and the destructive-host-ops family in the module's
+architecture notes.
+
+**Suggested row for the maintainers:** MainModule — around
+copy/repartition pending-op pairs, silently removes ALL restore points
+on BOTH involved drives (SRRemoveRestorePoint per WMI-enumerated
+sequence number, the 0x1fe index fallback); MainModule-only (grep over
+ToolsModule/CloneModule/RecoveryModule/PartitionRecovery: zero). The
+core-side disposition is the D-159 PARITY-DELTAS decline (the
+consent-gated posture).

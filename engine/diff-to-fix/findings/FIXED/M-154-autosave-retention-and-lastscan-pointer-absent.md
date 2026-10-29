@@ -79,3 +79,35 @@ The APPDATA subfolder constant `DAT_141211ee0` (DRWUI:541001-541057) is unresolv
 **Fixed in commit:** the M-154 S80-lane commit (this session; SHA in the commit footer)
 **Verified by:** CrUi.AutosaveRetentionDeletesPreviousAndPointerNamesIt (RED via the stash dance: BUILD failure pre-fix — the capability was absent) / AutosaveManualSaveSurvivesRetention / AutosaveDeadPointerDoesNotBlock; the pointed-resume ABI consumer check in tests/ui_abi_check.c (cr_ui_abi_check green); the pre-existing autosave pins (AutoSaveOnCompletion, CancelledRunWithResultsAutoSaves — 12/12) stay green; full suite 1651/1651.
 **Resolution notes:** The og-exact posture (the fix plan's option a) landed: the retention loop (DRWUI:442815-442833) runs before every auto-session write in BOTH autosave bands (cr_ui.cpp's autosave_if_due_ + the rrecov.cpp CLI twin) — the previous auto session named by the pointer is deleted, keeping exactly one live auto session (the unbounded accumulation ends). The pointer: session::LastScanInfo (a new module, src/core/session/cr_lastscan.cpp) — a line-based `last_scan.info` sidecar in the autosave dir carrying the og's exact four fields (save_path/name/count/time, the [Info] set at DRWUI:443060-443086), written atomically (tmp+rename) after every successful auto-save; the HKLM SOFTWARE\EASEUS\DRW mirror is the Windows-host convention, deliberately dropped (PARITY-DELTAS-registered: the semantics preserved, the location convention is the difference). The pointed resume: cr_ui_session_last_autosave_path(utf8_dir, out, cap) — reads the pointer, validates the pointed file's presence (the og's PathFileExistsA, :443209-443214), returns the loadable path (FUN_140286390's SavePath-restore equivalent; ERR_RANGE_OUT_OF_BOUNDS on no-live-pointer so the host falls back to the list). The og's Count field carries the surfaced node count (files + deleted + carved). Registered safety hardening (a deliberate superset, noted here): the retention's auto_-name gate — the og's DeleteFileA targets whatever the pointer names (only ever its own auto_*.rsf by construction); the core refuses to delete a non-auto_ file a corrupted/hostile pointer might name. The og's interval-free trigger set (S-044/S-057) unchanged. The session-list surface keeps listing all sessions (the og's auto/manual list split is a UI-surface distinction the ABI's list consumers can apply by name; the pointed resume covers the continue-last contract).
+
+---
+
+## S82 convergence addendum (2026-10-29 — conceded to the racing af5987d0 + the hardening rider this lane landed on top)
+
+A second lane (S82, this one) implemented the same lifecycle
+independently (the same module shape - a cr_lastscan core pair, the
+same last_scan.info sidecar name, the four fields, the retire-before/
+pointer-after wiring, the pointed-resume ABI entry; three Linux core
+tests) and conceded per SA-9 when af5987d0 landed first. The S82
+contribution that survived the concession is the HARDENING RIDER on the
+landed retire:
+
+- **The gap:** the landed `last_scan_retention_delete_previous` gated
+  `info.name` but REMOVED `info.save_path` - two independent sidecar
+  fields. A tampered sidecar naming a valid `auto_*.crsf` in `name`
+  while pointing `save_path` at ANY host file (a manual save, an
+  arbitrary document) passed the gate and deleted the target; the
+  name gate itself also admitted separators and traversal.
+- **The rider (RED->GREEN via the revert rebuild):** the name gate
+  refuses separators, traversal, and a missing `.crsf` tail; the
+  remove path's basename must BE the gated name (a disagreeing
+  save_path is refused, never followed). The principle: the gate must
+  govern what is actually removed. Pinned by
+  `Session.AutosaveRetentionDeletesPreviousAutoOnly` (the hostile
+  save_path refused, the manual save survives) and
+  `Session.AutoPointerNameGateRefusesSmuggledPaths` (the hand-written
+  hostile sidecar) - both RED on the pre-rider tree (the manual file
+  was deleted / the smuggled path followed).
+- The Linux-runnable core trio re-targeted onto the landed API
+  (LastScanPointerFourFieldRoundTrip + the two above) complements the
+  win-lane tests af5987d0 landed in test_cr_ui.cpp.

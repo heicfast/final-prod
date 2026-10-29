@@ -145,8 +145,18 @@ std::string sidecar_path(const std::string& dir) {
 bool name_is_auto(const std::string& name) {
     /* the og's auto-list filter: names containing both "auto_" and the
      * extension (DRWUI:432256-432341, _stricmp-class); the core's own
-     * writer only ever records auto_*.crsf names in the pointer */
-    return name.size() > 5 && name.compare(0, 5, "auto_") == 0;
+     * writer only ever records auto_*.crsf names in the pointer.
+     * S82 hardening rider: the name is also the RETENTION GATE - what it
+     * admits gets REMOVED - so it must be a bare file name: separators,
+     * traversal, and a missing/mismatched .crsf tail are refused (a
+     * tampered sidecar cannot smuggle a path through the name field). */
+    if (name.size() <= 5 || name.compare(0, 5, "auto_") != 0)
+        return false;
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
+        return false;
+    if (name.find("..") != std::string::npos)
+        return false;
+    return name.size() >= 5 + 5 && name.compare(name.size() - 5, 5, ".crsf") == 0;
 }
 
 } // namespace
@@ -206,6 +216,15 @@ bool last_scan_retention_delete_previous(const std::string& dir) {
      * deleted: the name gate is the core's safety hardening (a
      * deliberate superset, registered with the finding). */
     if (!name_is_auto(info.name))
+        return false;
+    /* S82 hardening rider: the gate must govern what is actually removed -
+     * the writer records save_path as dir + "/" + name, so a sidecar whose
+     * two fields DISAGREE (a tampered pointer naming a valid auto_*.crsf
+     * in `name` but an arbitrary target in `save_path`) must be refused,
+     * not followed: the removed path's basename must BE the gated name. */
+    if (info.save_path.size() < info.name.size() ||
+        info.save_path.compare(info.save_path.size() - info.name.size(), info.name.size(),
+                               info.name) != 0)
         return false;
     return ls_remove(info.save_path.c_str()) == 0;
 }

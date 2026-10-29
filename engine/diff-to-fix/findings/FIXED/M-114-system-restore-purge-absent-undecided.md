@@ -5,7 +5,7 @@
 **Parameters affected:** P60-adjacent (bad-sector/unsafe-condition handling class — a destructive host op), A35 (error recovery — the op's place in the apply chain), D46 (documentation of the contract)
 **Corpus references:** `ghidra-partition/MainModule_decompiled.c:138378-138415` — `FUN_1800d7a60`: `LoadLibraryW(L"srclient.dll")` → `GetProcAddress("SRRemoveRestorePoint")` → `CoInitializeSecurity` → WMI connect `root\default`; `:138773` — the WQL `"Select * from SystemRestore"` enumeration; `:138812` — reading each result's `SequenceNumber`; `:138610-138634` — `FUN_1800d8320` calling `SRRemoveRestorePoint(seq)` per point; `:138415` — the 0x1fe (510) iteration bound; `:138418-138420` — the fallback loop driving indices 0..0x1fe directly; the caller `FUN_180060e50` at `:71496` and `:71511` — takes the operation's two device objects (`+0x588`/`+0x590`), resolves each one's drive letter (vtable+0x30, 'b'..'y' range check, `:71458-71476`), and invokes the purge for BOTH drives — i.e., around a disk-copy/repartition pair; MainModule-only (grep `srclient` across ToolsModule/CloneModule/RecoveryModule/PartitionRecovery: 0 each)
 **Core references:** audited `461825d8`-lineage — `grep -rn "srclient|SRRemoveRestorePoint|SystemRestore|restore point" src/ include/ tests/` → **zero hits** (Lane D agent, lead re-verified); the apply chain `src/core/apply/cr_apply.cpp:348-579` + `include/cr/apply/cr_apply.h:221-253` (the CRUNDO01 transactional container — no host-environment side-effects at all, by design)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (the posture decided and registered)
 **Prior audit check:** newly discovered by the S11-lead Lane D tree sweep; zero trail coverage (`grep srclient|SystemRestore|restore point` across docs/ + diff-to-fix/ → 0) and zero CORPUS-artifact coverage (not even string-listed in `artifacts/per-binary/MainModule.md` — the Lane D agent's grep). Not covered by S-029 (the apply transaction itself), M-113 (the boot surgery — a different write side), or any host-contract row.
 
 ## Summary
@@ -92,3 +92,10 @@ gate may exist upstream of the caller chain — the two call sites at :71496/:71
 are in the pending-op executor, but the operation-construction side was not
 decoded this session). The fix lane's posture decision should decode the
 construction site first.
+
+## Resolution
+
+**Status:** FIXED (the deliberate-divergence branch of the fix plan, with the hazard registered for the host)
+**Fixed in commit:** (this push; the S82 fix lane, 2026-10-29)
+**Verified by:** the D-159 PARITY-DELTAS row exists verbatim (the consent rationale + the stale-points hazard + the plan-item shape for a future host-side exposure); the E-9 CORPUS-ERRATA row exists (the per-binary artifact gap recorded for the maintainers); the core-side absence re-verified at the current tree (the srclient/SystemRestore grep census — zero, unchanged).
+**Resolution notes:** The posture is DECIDED: the core declines the silent purge (the RawFixer consent precedent — silent deletion of user restore points without consent is refused by the core's safety doctrine), and the real hazard the og's purge addresses (stale restore points after disk rewrites are a known cause of unbootable Windows and restore-to-corrupt failures) is REGISTERED for the host layer: an integrator offering copy/repartition should surface a consent-gated purge step of its own. The finding's open question (whether the og's purge is unconditional — the construction site undecoded) rides the register as the noted caveat: the decode covered the executor chain (both drives, WMI-all + the fallback), not the upstream gate. The corpus's own per-binary artifact gap is filed as E-9 in CORPUS-ERRATA (read-only on the corpus itself). No code change — the apply engine stays strictly transactional on the target disk (the CRUNDO01 container), which is the registered stance.

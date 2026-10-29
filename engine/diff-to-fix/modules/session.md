@@ -515,3 +515,26 @@ AutosaveDeadPointerDoesNotBlock (the kill-out-of-band shape: the save
 proceeds, the resume reports absence) + the C consumer check; the
 S-044/S-057 trigger pins and the W1c/W1a surfaces stay green. Suite
 1651/1651.
+
+---
+
+---
+
+## Session-82 addendum — M-154 FIXED: the auto-session lifecycle (2026-10-29)
+
+**Retention-one + the pointer.** The og's three-site lifecycle landed:
+the `session::LastScanInfo` pair (the four fields verbatim - SavePath/
+Name/Count/Time - as the `lastscan.info` sidecar beside the auto
+sessions; the og's APPDATA-ini+HKLM-mirror form is a Windows-host
+convention, deliberately dropped with the pointer's semantic preserved),
+`autosave_retire_previous` (delete the pointed prior AUTO session - the
+og's auto_/extension name filter is the safety gate, so manual saves and
+hostile pointers never delete), the wiring in both consumers (the ABI
+twin's `autosave_if_due_` and the CLI twin: retire before the write, the
+pointer after a SUCCESSFUL save), and the `cr_ui_session_resume_last`
+ABI entry (the pointed load - the og's continue-last without
+enumeration; the dead-pointer refusal mirrors its PathFileExistsA
+validation). N auto-saving runs now leave exactly one live auto session
+and a pointer naming it. **#36/#12/#31/#52: MATCH.** Tests:
+LastScanPointerFourFieldRoundTrip / AutosaveRetentionDeletesPreviousAutoOnly /
+AutoSessionNameGate; the win syntax gate 12/12; suite 1524/0.

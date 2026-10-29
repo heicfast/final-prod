@@ -914,6 +914,18 @@ CR_UI_API uint32_t cr_ui_scan_verify_identity(cr_ui_scan* s);
 CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out);
 CR_UI_API void cr_ui_session_close(cr_ui_session* sess);
 
+/* M-154 (diff-to-fix): the pointed resume - the og's "continue last
+ * scanning" without enumeration (DRWUI:443092-443127 reads LastScanInfo.ini's
+ * SavePath and restores through the shared path). Reads the auto-session
+ * pointer sidecar (lastscan.info) inside utf8_dir and loads the AUTO
+ * session it names - no directory scan, no sort. Errors: CR_UI_ERR_BAD_
+ * PARAMETER (null args), ERR_OPEN_FAILED (no pointer sidecar / the pointed
+ * file does not exist / the pointer does not name an auto session - the
+ * dead-pointer class; a caller wanting a list falls back to
+ * cr_ui_session_list whose newest-first order is the enumerated form).
+ * Threading: no shared state; any thread may call. */
+CR_UI_API uint32_t cr_ui_session_resume_last(const char* utf8_dir, cr_ui_session** out);
+
 typedef struct cr_ui_session_info {
     uint32_t fs_family;       /* orchestrator::FsFamily value (D-1 truth) */
     uint32_t stage_done_mask; /* actual completion (quick|deep|carve bits) */

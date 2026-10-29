@@ -2,6 +2,9 @@
 #include <gtest/gtest.h>
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
+#include "cr/session/cr_lastscan.h"
+#include "test_tmpdir.hpp"
+#include <filesystem>
 #include "cr/orchestrator/cr_scan.h"
 #include <algorithm>
 #include <functional>
@@ -2046,4 +2049,125 @@ TEST(Session, TornTailGarbageCountStillFailsCleanly) {
         blob[size_t(i)] = u8(garbage >> (8 * i));
     tree::ResultTree t;
     EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t), u32(0x50040001));
+}
+
+/* ---- M-154 (diff-to-fix): the Linux-runnable core lifecycle tests (the
+ * S82 lane's trio, re-targeted onto the landed module API + the hardening
+ * rider's pins) ---- */
+
+namespace {
+struct M154ScratchDir {
+    std::string p;
+    explicit M154ScratchDir(const char* tag) : p(cr_test::tmp_path(tag, "")) {
+        std::filesystem::create_directories(p);
+    }
+    ~M154ScratchDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(p, ec);
+    }
+    const std::string& path() const { return p; }
+};
+} // namespace
+
+TEST(Session, LastScanPointerFourFieldRoundTrip) {
+    /* the og's [Info] SavePath/Name/Count/Time set (DRWUI:443060-443086)
+     * round-trips through the sidecar */
+    M154ScratchDir dir("m154rt");
+    session::LastScanInfo in;
+    in.save_path = dir.path() + "/auto_C_Drive_20261029_120000.crsf";
+    in.name = "auto_C_Drive_20261029_120000.crsf";
+    in.count = 429;
+    in.time = 1790000000;
+    in.exists = false;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), in));
+    session::LastScanInfo out;
+    ASSERT_TRUE(session::last_scan_info_read(dir.path(), out));
+    EXPECT_EQ(out.name, in.name);
+    EXPECT_EQ(out.count, in.count);
+    EXPECT_EQ(out.time, in.time);
+    EXPECT_EQ(out.save_path, in.save_path);
+}
+
+TEST(Session, AutosaveRetentionDeletesPreviousAutoOnly) {
+    /* the og's retention (DRWUI:442815-442833): the pointed previous AUTO
+     * session is deleted; a MANUAL save named by a corrupt/hostile pointer
+     * is NEVER deleted; a dead pointer is a no-op; a tampered sidecar
+     * whose save_path disagrees with its gated name is refused (the
+     * hardening rider: the gate must govern what is actually removed). */
+    M154ScratchDir dir("m154ret");
+    const std::string auto_a = dir.path() + "/auto_C_Drive_20261028_090000.crsf";
+    const std::string manual = dir.path() + "/manual_save.crsf";
+    {
+        FILE* f = fopen(auto_a.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("auto-session-bytes", f);
+        fclose(f);
+        f = fopen(manual.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("manual-bytes", f);
+        fclose(f);
+    }
+    session::LastScanInfo info;
+    info.save_path = auto_a;
+    info.name = "auto_C_Drive_20261028_090000.crsf";
+    info.count = 1;
+    info.time = 1;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_TRUE(session::last_scan_retention_delete_previous(dir.path()))
+        << "the pointed auto session is deleted";
+    FILE* f = fopen(auto_a.c_str(), "rb");
+    EXPECT_EQ(f, nullptr) << "the previous auto session is gone";
+    if (f)
+        fclose(f);
+
+    /* a hostile sidecar: the gated name is a valid auto name but the
+     * save_path points at the MANUAL file - refused by the rider */
+    info.save_path = manual;
+    info.name = "auto_C_Drive_20261028_090000.crsf";
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()))
+        << "a save_path that disagrees with the gated name is refused";
+    f = fopen(manual.c_str(), "rb");
+    EXPECT_NE(f, nullptr) << "the manual save survives the hostile pointer";
+    if (f)
+        fclose(f);
+
+    /* a dead pointer (the pointed file already gone): a no-op */
+    info.save_path = auto_a;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()));
+
+    /* no pointer at all: a no-op */
+    M154ScratchDir dir2("m154dead");
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir2.path()));
+}
+
+TEST(Session, AutoPointerNameGateRefusesSmuggledPaths) {
+    /* the name field is the retention gate: separators, traversal, and a
+     * missing .crsf tail are refused - a tampered sidecar cannot smuggle
+     * a path through the name even when save_path is empty */
+    M154ScratchDir dir("m154gate");
+    const std::string foreign = dir.path() + "/victim.crsf";
+    {
+        FILE* f = fopen(foreign.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("x", f);
+        fclose(f);
+    }
+    /* hand-write the hostile sidecar (the store would refuse to help) */
+    {
+        FILE* f = fopen((dir.path() + "/last_scan.info").c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fprintf(f, "save_path=%s\n", foreign.c_str());
+        fprintf(f, "name=auto_../../victim\n");
+        fprintf(f, "count=1\n");
+        fprintf(f, "time=1\n");
+        fclose(f);
+    }
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()))
+        << "a smuggled path in the name field is refused";
+    FILE* f = fopen(foreign.c_str(), "rb");
+    EXPECT_NE(f, nullptr) << "the victim survives";
+    if (f)
+        fclose(f);
 }
