@@ -24,7 +24,7 @@
   routing), and the WPD duplicate repair (conceded to the window's
   N-230 delete form, both framings recorded there).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+**Board at the S86 close (filesystem truth): 0 ACUTE · 0 SEVERE ·
 4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3 tracked-open** —
 M-086/M-087/M-089 + N-107/N-127 driver-repo-resident (out of grant);
 M-107 down to the DWG gen-3 R2007 remainder only (every other member
