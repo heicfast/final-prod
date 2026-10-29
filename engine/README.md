@@ -115,8 +115,10 @@ rrecov CLI ──────────────── cr_ui C-ABI shim (cr
 
 Per-capability truth with evidence per row lives in
 [docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md). The honest
-remaining gaps: NTFS XPRESS/LZX compressed $DATA (GAP-P1-1 — the og is
-LZNT1-only too, no corpus surface exists), ReFS container-map
+remaining gaps: NTFS XPRESS/LZX compressed $DATA (the registered shared
+limitation — the og is LZNT1-only too, no corpus surface exists; LZNT1
+itself landed and GAP-P1-1 is CLOSED per docs/CORE-GAP-LIST.md), ReFS
+container-map
 translation (N-036), ZFS multi-vdev topologies, and the HFS+ attributes
 UNVERIFIED-in-corpus items — every one registered with evidence, none
 hidden. The parity board (every finding fixed/invalid/superseded with

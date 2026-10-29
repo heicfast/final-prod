@@ -5264,8 +5264,11 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
  * "HEAP" at +6..+9), record-type u32@+0xa in {CCDR (0x52444343), TIFP
  * (0x50464954), ARCH (0x48435241)}, version byte@+0xe == 2 - the real Canon
  * CIFF header `II/MM 1A 00 00 00 HEAP CCDR/TIFP/ARCH 02`. The og's CIFF heap
- * size-walk (FUN_180052160) is the recorded follow-up; the DWG-pattern
- * bounded extent stands in. */
+ * size-walk (FUN_180052160) was the recorded follow-up when this grammar
+ * gate landed - it landed as M-107's windowed entry search (the block
+ * below, the decode-then-land order); this sentence is corrected to
+ * match (Session-84: the old "DWG-pattern bounded extent stands in"
+ * claim survived the M-107 landing that removed the stand-in itself). */
 /* M-107 (the CRW member, the finding's decode-then-land order, member 2
  * of 11): the og's CIFF heap size walk, decoded first-hand from the raw
  * asm this session (objdump over RAWSearchDLL.dll; the walk = the CRW

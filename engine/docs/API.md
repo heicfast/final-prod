@@ -36,6 +36,8 @@ rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
                [--filter-folder DIR] (repeatable; the scan-time folder filter,
                                        M-073: out-of-prefix folders never enter
                                        the session; volume-root relative)
+rrecov archive-list --in file.crsf (--disk N | --image file) --node ID [--json]
+               (the browse-inside archive inventory, M-116)
 rrecov tree    --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
 rrecov recover --in file.crsf (--disk N | --image file) --to DIR
                [--deleted-only] [--filter s] [--report file.json]
@@ -46,6 +48,9 @@ rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
                [--block-kb N] [--iterations N] [--seed N] [--json]
 rrecov driver  [--service NAME] [--json]
+rrecov image   --create --disk N --out file.img
+               (the flat-raw disk-image producer + .sha256 sidecar, S-040;
+               VHD/VHDX writers out of scope, D-147)
 ```
 
 (The historical `rrecov info` line above was doc drift - no such verb ever
