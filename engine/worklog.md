@@ -39,6 +39,10 @@ following entries.
 
 ## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
+## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
+
+---
+
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
 The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
@@ -100,6 +104,70 @@ S84 addendum 4, this entry.
 
 ## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
 
+- **N-181 CONCEDED to the racing S76 lane's `033c5d7c` per SA-9**
+  (earlier-push-wins). Their landing: the sequential reorder — the carve
+  stage runs before the deep extras whenever quick_done_ (quick disabled
+  keeps deep-first for the F9 carve-vs-structured dedup); their own tests
+  (ScanEvents.CarveStageBeginsBeforeDeepStage +
+  DeepFirstWhenQuickDisabledForTheCarveDedup + the re-pinned
+  CrUi.TypedEventStreamFullLifecycle); suites green at their landing. Their
+  commit registers the residual honestly: "the interleaved-feeds residual
+  stays O37-registered".
+- **This lane's concurrent implementation (withdrawn, preserved here for
+  the future lane that closes the O37 residual)**: the carve worker
+  launching at the og's loop-1 position (FUN_140580720 :916484-916509,
+  re-verified first-hand) with the stage-begin on the scan thread
+  (deterministic ScanStage(2)-before-ScanStage(1)); the defer point inside
+  run_deep's post-pass for the deep-only shape (the M-039/M-005
+  complete-gate semantics preserved — the racing lane's F9-dedup reasoning
+  converges with this lane's gate reasoning for the same configuration);
+  the carve-stage split (run_carve_engine_ worker half touching no caller
+  stats + finish_carve_stage_ scan-thread merge, with merge_carve_stats_
+  on the deep-failure exits); NEW ResultTree::snapshot_dfs (the checkpoint
+  serializer's DFS under the tree mutex — the latent unlocked child-link
+  walk race; byte-identical emission order with roots forward — a stack
+  LIFO bug in the first cut reversed the root order and was caught by the
+  CrUi recovery tests) + ResultTree::collect_structured_extents (the
+  occupancy gate's locked collection with per-node EXT_SHIFTED basis
+  normalization); per-stage telemetry clocks (stage_t0[3] seeded at run
+  start); threads==1 staying sequential per the serial event-delivery
+  contract (CrUi.EventThreadContractPinned); ~ScanController joining the
+  worker as the terminate net. Proven: 3 RED→GREEN tests
+  (Scan.CarveStartsBeforeDeepCompletes — the stash-dance RED [carve_begin
+  2 > deep_begin 1; live_raw_at_deep_boundary 0] + the deterministic
+  begin-order pin; Scan.ConcurrentCarveMatchesSequentialResults — the
+  result-set identity; Scan.ConcurrentCarveSessionMaskAndReCarveIdempotent
+  — the full stage mask + the by-extent re-carve dedup), suite 1569/1569,
+  TSan zero-race on every touched surface (the timing assertion
+  native-lane-scoped with the scan itself still race-checked — the
+  detector's measured 15x per-window inflation recorded in the test), UBSan
+  87/87, clang-format 18.1.8 clean. The commit was `8482132e` on the
+  pre-rebase local branch (visible in this repo's reflog until GC).
+- **Why the residual matters (recorded for the future lane)**: the racing
+  landing's reorder satisfies the finding's acceptance verbatim (the first
+  carved-file event precedes deep's completion — trivially, the whole carve
+  stage precedes deep) but flips the OTHER population's wait: every deep
+  result now sits behind the ENTIRE carve sweep (on a multi-TB volume,
+  tens of minutes of deep-side latency the pre-fix code did not have),
+  where the og interleaves both feeds over the shared chunk stream. The
+  concurrent shape closes both sides at once and is fully specified above
+  with its proof set; the one merge cost is the run() stage-sequence
+  region, which the racing window's M-073/M-135-riders have since touched.
+- **Riders landed now (this lane's verification catches, independent of
+  the conceded seat):** (1) the pre-existing UBSan violation in
+  tests/unit/test_orchestrator.cpp's plant_compact_fat12 (raw `*(u16*)`
+  unaligned stores on odd LBA bases → put16; caught by this lane's local
+  --san run — CI is windows-only by the documented decision, so the local
+  sanitizer lanes are the only place this surfaces; UBSan lane 87/87 green
+  post-fix on the scan/orchestrator/tree/session surfaces); (2) the
+  CR_SANITIZER_LANE define on the ubsan preset + ci-local's tsan lane, so
+  detector-slowed lanes can scope timing-sensitive assertions honestly
+  (the pattern this lane's withdrawn test pioneered).
+
+## Session-84 S84 lane — M-107's DWG member landed (member 3 of 11; 2026-10-29/30)
+
+---
+
 **The DWG member of M-107 (the pattern's namesake) was decoded and landed
 by this lane unpushed (ab5bbb24) — the pull found the racing S85 window had
 landed the same member (ddab68b4 + the f7e49eaf gen-2 struct-offset
@@ -137,6 +205,16 @@ endpoint), M-107 members 3 (DWG gen-1+gen-2), 4 (PSP ~BK), 5 (WPG
 zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
+
+The version set tightens to the og's exact tables {12,13,14,15,18,21,
+24,27,32}; the sanity cap rides the row-max approximation (the X3F/CRW
+precedent, registered). RED→GREEN first-hand via the stash dance (4 walk
+tests RED at the stand-in tree, GREEN with the walk; DwgR2007StandsIn
+Bounded pins the remainder; the S-007 batch's plant re-pinned to the
+walkable shape). The carve suite 279/279. Trail: M-107's S84 addendum 3,
+the matrix row, modules/carve.md's S84 addendum 3, this entry.
+
+---
 
 **The two riders LANDED (the rider commit, this session):** (A) the row
 floor 0x15 = 21 (the gen-1 walk's residual 512-byte floor removed +
@@ -13082,6 +13160,69 @@ export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
 defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
 Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
 
+
+
+## Session-91 S91 fix-lane — entry 1: N-228, the ddab68b4 worklog marker repair (renumbered N-224 → N-227 → N-228 at the SA-9 pushes; 2026-10-30)
+
+**The sixth M-120/N-210-class recurrence, found at the clean-clone
+open:** `ddab68b4` (the S84 DWG-member-3 push, origin/main at this
+lane's open) committed its rebase conflict into worklog.md:2-103 —
+the S87 N-181 concession entry vs the S84 DWG decode record, a live
+`<<<<<<<`/`=======`/`>>>>>>> 0508c013` block. Repaired both-sides-kept
+(the N-223 worklog convention: append-history, zero content
+forfeited); the repo-wide marker sweep re-run clean; doc_truth_gate
+green over the repaired tree. Filed as N-227 (this lane filed N-224
+locally; the racing window's N-224 — the M-075 win-stub gap — pushed
+first and keeps the seat per SA-9; the twice-renumbered record in the
+file's title line: N-224 → N-227 → N-228).
+
+## Session-91 S91 fix-lane — entry 2: the M-075 stub-gap repair — the convergent twin, conceded per SA-9 (2026-10-30)
+
+**RED main at the open (independent of the racing window):**
+`ctest -R win_syntax_check` FAILED at `ddab68b4` — the M-075 landing's
+`src/win/cr_fsck.cpp` uses `Wow64DisableWow64FsRedirection` /
+`Wow64RevertWow64FsRedirection` / `ULONGLONG`, none ever declared in
+`tests/win-stub/windows.h` (`git log -S` proves the stub was never
+grown). This lane grew the identical SDK-faithful stub surface
+(ULONGLONG beside ULONG_PTR + the BOOL no-op WoW64 pair, `void**`/
+`void*` shapes) and re-verified: win_syntax_check 100%, the FULL suite
+1679/1679 — the first fully-green count on main since `d10ae333`.
+**Conceded at the merge per SA-9:** the racing window's N-224 (the
+gap's canonical seat) + N-225 (the triple-definition collision repair
+— three of their lanes each grew the pair at different positions)
+pushed first; this lane's local filing retired as the FOURTH
+convergent instance, recorded in FIXED/N-224's convergence addendum 2.
+The merge resolution deduped the auto-merged duplicate blocks (the
+triple-definition class recurring a fourth time in the merge itself —
+one definition set survives, re-verified).
+
+## Session-91 S91 fix-lane — entry 3: M-107 member 6, the WPD contract lands — CONCEDED to the racing windows at both pushes (re-homed S88 → S90 → S91 per SA-9; 2026-10-30)
+
+**The decode (first-hand, raw asm over the corpus binary):** the
+"\xFFWPC" binding (0x180003ccb-0x180003cde) → node {vtable
+0x18006cff0, idx 0x44}; the node's +0x40 is the return-0 stub (no
+secondary) — the +0x10 tier-1 FUN_180041f50 IS the size authority:
+a three-entry version-pair table at (+8, +0xe) {(0x01020a01,
+0x00050200), (0x00021601, 0x00030000), (0x00010f0f, 0x00030000)} →
+ids 0x44/0x45/0x3d, extent = the declared u32@0x14 verbatim, zero
+size → the generic child walk declines (0x18000b760). The og NEVER
+walks the object chain for WPD and never reads the product word at
++4 — the finding's "object header chain" premise and the S-007-era
+product-word gate both corrected. The decode also corrected the
+census's 0x90001/0x9ac6cdd7 grouping: those keys serve the WMF node
+(idx 0x46) — my fresh decode of FUN_1800264d0 matches the landed
+S-042 validators byte-for-byte (independent re-verification).
+
+**RED→GREEN via the stash dance:** 3 FAILED at the stand-in tree
+(WpdVersionTableSetsExtentFromTheDeclaredSize — the wrong extent;
+WpdZeroProductWordWithGoodPairCarves — the invented gate declined a
+real pair; the re-pinned S-007 batch plant), GREEN with the contract;
+two decline-direction pins. The carve suite 190/190. Trail: M-107's
+S88 addendum, the matrix member row, modules/carve.md's S88 addendum
+1, this entry. Evidence: diff-to-fix/evidence/s91-lane-sheets/
+s91-l1-wpd-version-table-decode.md.
+
+---
 
 ---
 

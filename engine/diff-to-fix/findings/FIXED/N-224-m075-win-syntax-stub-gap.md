@@ -30,3 +30,21 @@ seat per SA-9, and this finding's file remains as the convergent twin's
 record — two lanes, one gap, one fix. The Verified-by line's evidence
 (the RED at origin/main, six parse errors) stands as this lane's
 independent reproduction.
+
+## Convergence addendum 2 — the FOURTH convergent instance (recorded at the S90 lane's merge, 2026-10-30)
+
+A fourth lane (this S90 lane, working from a clean clone of `ddab68b4`
+where the gap still stood RED first-hand: `ctest -R win_syntax_check`
+→ FAIL with the five undeclared-symbol errors —
+`Wow64DisableWow64FsRedirection`/`Wow64RevertWow64FsRedirection` "not
+declared", `ULONGLONG` "does not name a type") grew the identical stub
+surface independently (`ULONGLONG` beside `ULONG_PTR` + the BOOL
+no-op WoW64 pair with the `void**`/`void*` shapes) and filed it as a
+local N-225 before discovering the racing window's landings at the
+push. The local file retired at the merge (the convergence twin
+class); the fix itself was byte-equivalent to the landed form — the
+merged stub carries exactly one definition set, re-verified green
+(win_syntax_check 13/13 at the S90 merge head). The S90 lane's
+independent RED reproduction (from the pre-repair `ddab68b4` tree,
+before the triple-definition window existed) is preserved here as the
+fourth first-hand confirmation of the gap.
