@@ -1,4 +1,31 @@
 
+## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
+
+- **The SIT concession:** the racing S89 window's landing (2214af90 —
+  the FUN_180044ae0 per-ENTRY marker walk: the stride table
+  {0x19->4, 0x3B->5, else 6}, the corrupt-entry terminal, the
+  new-header gate at the 512-byte boundaries) is the fuller decode
+  over this lane's processor-level translation; their earlier push
+  holds the seat per SA-9. The convergence record (M-107's S87
+  addendum 3) carries this lane's deltas for the future arbitration
+  lane: the max*10 = 2 GB walk cap (the heuristic gate's asm
+  lea/add at 0x180015e77-7b) vs the seat's singleton-halved bound,
+  and the classic-' '-form next-header walk vs the seat's honest
+  stand-in. This lane's five processor-level SIT tests withdrawn with
+  the seat.
+- **N-229 FIXED (MINOR, NEW):** the racing SIT push committed a red
+  tree — the plant_sit marker writes lost their [m] subscripts (eight
+  `img] = 0x02;`-form lines, a merge-resolution corruption) AND the
+  WPD merge kept both sides' WpdZeroSizeFieldDeclines batteries (a
+  gtest redefinition) — cr_tests could not build at 98bd30d6, over a
+  commit message claiming "the full suite 1711/1711". The repair: the
+  img[m] writes restored, the duplicate deduped (the racing
+  pending-child form kept), the withdrawn battery swept. The N-210
+  push-without-gate class's recurrence #8, recorded so the next audit
+  weighs message-claimed suite counts against the tree's actual
+  buildability. Post-repair: the full rebuild clean, Sit*/Wpd* 15/15,
+  the full suite 1715/1716 (the known perf flake passes serially).
+
 ## Session-87 S87 fix lane (continuation) — entry 2: M-107 member 9 (SIT) lands (2026-10-30)
 
 - **M-107 member 9 (SIT) FIXED** — the SIT5 end-magic walk, decoded
