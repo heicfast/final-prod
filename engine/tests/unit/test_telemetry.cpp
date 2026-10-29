@@ -83,9 +83,16 @@ public:
         if (far && hit_.load(std::memory_order_acquire) && park_.load(std::memory_order_acquire)) {
             while (park_.load(std::memory_order_acquire))
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        } else if (far && hit_.load(std::memory_order_acquire) &&
+        } else if (off > bad_start_ + bad_len_ && hit_.load(std::memory_order_acquire) &&
                    slow_.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            /* N-239: the slow region starts AT the dead spot (not at the
+             * park threshold) - every post-spot read holds 100 ms, the
+             * permille sweeps through hundreds of ticks after the JPEGs
+             * carve: the widest observation window the design can give
+             * the attach-vs-tick race. The discriminator: if the delta
+             * still never rides a tick on Windows, the attach itself is
+             * not happening there - the api-finding's evidence. */
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (off > data_.size() || len > data_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
