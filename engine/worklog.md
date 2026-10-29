@@ -12988,3 +12988,21 @@ the CI-SCENARIOS end-to-end row (staged 0x1005 → chkdsk exit 1 →
 re-audit clean). Open residue honest: the og's 5 wrapper arguments
 undecoded (reconcile on a future decode). Board: 7 MAJOR · 2 MINOR
 active / 197 FIXED / 4 tracked-open.
+
+## Session-84 — Phase 2 landed: the cross-check sheets (2026-10-29)
+
+`worklog/api-cli-mismatches.md` (6 fixed this session with SHAs, 4 fixed
+by racing windows and re-verified here, 15 open doc-side drifts queued
+for Phase 5, 4 behavior-adjacent filed) and `worklog/api-findings.md`
+(F1 phantom export — closed by the racing a47419c7 landing, verified
+post-hoc: 91 definitions in cr_ui.cpp now; F2 enumerate_volumes rc
+dropped; F3 the N-145 every-startup journal probe absent; F4 fuzz
+campaign drift; F5 the ERR_NOT_FOUND family question; F6 the D-52
+"collision" verified FALSE — an addendum, not a seat claim; F7 the
+gate's D-row regex blind to ##-level rows). Local evidence at this
+point: linux-release build 0 warnings, ctest 1661/1661 (now 1663 with
+the two new pins), doc_truth_gate green at the repaired census
+(exports=91, codes=43, events=12), clang-format 18.1.8 tree-wide clean.
+The UBSan local lane exceeds the 10-minute tool ceiling in this
+container — recorded honestly; the release-lane pass + the CI matrix
+are the session's build evidence.
