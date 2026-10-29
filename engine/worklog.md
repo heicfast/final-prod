@@ -13082,3 +13082,31 @@ the matrix S88 rows, the SUMMARY S88 block (board: 7 MAJOR / 2 MINOR /
 (token redacted), this entry. Corpus: be0cfe9, read-only guarantee
 held. Next: M-101 (the Versions / Tags Extracted branches), then
 M-107's eight members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT).
+
+---
+
+
+---
+
+## Session-85 S85 fix-lane — entry 5: M-107 members 6/7/8 — the DXF, EPS, AI walks land (2026-10-30)
+
+**The decodes (first-hand):** DXF — the CDXFRawInfo walk FUN_1800379c0
+(:42395-42432): the line-ending form from byte[3], the trailer patterns
+"  0\nEOF\n" / "  0\r\nEOF\r\n", FUN_180042ab0's backward search
+(past-the-pattern), the RAW singleton cap 0xbebc200 = 200 MB (no
+multiplier), torn → the walked bound. EPS — the tier-1
+FUN_180032b50 (:38746-62) accepts ONLY "%!PS-Adobe-" (a bare "%!PS"
+RETURNS 0 — the discovered acceptance defect); the CZeroEnd child (cap
+20 GB) walks the "%%EOF" backward search: extent = past + 2 (the DSC
+EOL); the 0x20-ctx arm's -0x10 form is the recorded residue. AI — the
+tier-1's AI arm (:38765-90) is a HEADER FORMULA: extent = max of the
+three (start+length) pairs from dw@4/8, dw@0xC/0x10, dw@0x14/0x18,
+capped at 20 GB; the factory's non-Adobe path returns the plain base
+child — the formula IS the size; the pre-fix "version 1..64" gate was
+a stand-in INVENTION (dw@4 is a block start) — dropped, and the S-007
+noise plant re-pinned to the degenerate all-zero form.
+
+**RED→GREEN via the stash dance:** five of seven tests RED at the
+stand-in tree, GREEN with the walks. The carve suite 193/193. Trail:
+M-107's S85 addendum 4, the three matrix rows, modules/carve.md's S85
+addendum 4, this entry.

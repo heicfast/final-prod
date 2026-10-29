@@ -314,6 +314,12 @@ convergent findings on both sides:
   21-byte walked extent refused by the 512 floor AND the min-64 row;
   DwgWalkSelfLimitsAt256Records — the 260-record wrapped-id fixture
   carved), GREEN with the riders.
+
+---
+
+
+---
+
 - **The tier-1 is the EXACT 32-byte signature** (memcmp 0x20):
   "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the core's old
   16-byte prefix accepted files the og refuses (a discovered defect,
@@ -421,3 +427,48 @@ stand-in tree (the 64 MiB device-end extent) → GREEN (the declared
 size); WpdUnknownPairDeclines pins the decline. The S-007 batch's
 plant re-pinned. The carve suite 288/288. **WPD's member status:
 LANDED (members 1-6 of 11; remaining: SIT APE EPS AI DXF SWF-RECT).**
+
+---
+
+## Session-85 addendum 4 — THREE members LANDED (DXF, EPS, AI: members 6, 7, 8 of 11)
+
+**DXF FIXED (member 6).** The walk decoded first-hand: the
+CDXFRawFileInfo child's +0x20 processor FUN_1800379c0 (:42395-42432)
+— the line ending from byte[3] ('\n' → the LF pattern "  0\nEOF\n"
+(8B), else the CRLF form "  0\r\nEOF\r\n" (10B), built from the
+qword/short stores at :42397-42404); FUN_180042ab0's backward pattern
+search per chunk (returns past-the-pattern); the extent ends past the
+FIRST trailer; **the walk cap is the RAW singleton field 0xbebc200 =
+200 MB** (:42426-42431, no multiplier — unlike DWG's ×100); no trailer
+→ the walked bound (the og's extent += len accumulation). The row max
+now carries 0xbebc200.
+
+**EPS FIXED (member 7) — with a DISCOVERED DIVERGENCE.** The og's
+tier-1 (FUN_180032b50 :38746-38762) accepts ONLY "%!PS-Adobe-"
+headers (the qword "%!PS-Ado" + short "be" + '-'): **a bare "%!PS"
+file RETURNS 0 — the og declines it.** The pre-fix core's 4-byte gate
+accepted every "%!PS" — the discovered defect, pinned in both
+directions (EpsAdobeCovenantRequired). The Adobe-key child is a
+CZeroEndRawFileInfo (FUN_180032c50, cap singleton+0x70 × 100 = 20 GB);
+its walk's "%%EOF" backward search (the general-ctx arm :41446-41449):
+extent = past "%%EOF" + 2 (the DSC trailer's EOL); torn → the walked
+bound. The 0x20-ctx arm's -0x10 form (:41439-41442) is the recorded
+residue (the ctx-window variant, undecoded).
+
+**AI FIXED (member 8) — with a DISCOVERED DIVERGENCE.** The og's AI
+arm (FUN_180032b50 :38765-38790) is a HEADER FORMULA: extent = max of
+the three (start + length) pairs — (dw@4 + dw@8), (dw@0xC + dw@0x10),
+(dw@0x14 + dw@0x18) — capped at singleton+0x70 × 100 = 20 GB; the
+factory's non-Adobe path returns the PLAIN base child (no walk
+refinement) — the tier-1's formula IS the size. **The pre-fix core's
+"version word 1..64" gate was a stand-in-era invention** (dw@4 is a
+block START in the formula, not a version) — dropped; the S-007 noise
+plant re-pinned to the genuinely-degenerate all-zero form (the
+"version 999" plant is an ACCEPT under the corpus-true semantics).
+
+RED→GREEN via the stash dance: five of the seven new tests RED at the
+stand-in tree (DxfEofTrailerWalkSetsExtent / DxfLfFormUsesTheLfTrailer
+/ EpsAdobeCovenantRequired / EpsEofTrailerWalkSetsExtent /
+AiHeaderFormulaWalkSetsExtent), GREEN with the walks; the torn and
+degenerate arms pin the salvage/decline semantics. The carve suite
+193/193. Remaining: WPD, SIT, APE (three) + the DWG gen-3 remainder.
