@@ -1083,10 +1083,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                          * surface counts analyser detections the same way
                          * (GetRawUserInfoMap, FUN_18000ed00
                          * insert-or-increment). */
-                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
                         /* N-171 (re-landed on the merged S-055/S-056
-                         * shape): the record IS validated (the sign
+                         * shape; the hot-window merge had kept BOTH
+                         * tick blocks - the F-A3-6 double-count class,
+                         * repaired): the record IS validated (the sign
                          * matched); carved_found is assigned from
                          * cs.validated (cr_scan.cpp), so the headline
                          * carved count now includes the user-sign

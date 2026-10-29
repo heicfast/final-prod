@@ -7853,7 +7853,15 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
             flac_id = i;
             break;
-        }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
 
     MemDevice dev(std::move(img));
@@ -7885,7 +7893,15 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
             if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
                 fid = i;
                 break;
-            }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
         ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
         for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
             if (rawsigns::kHeaderSigns[hi].fmt == fid) {
@@ -7944,6 +7960,14 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "no user-sign reclaim past the built-in floor gate";
     EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
@@ -7977,6 +8001,14 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
@@ -8022,7 +8054,15 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
             cpl_id = i;
             break;
-        }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     ASSERT_NE(cpl_id, 0xFFFFFFFFu);
     for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
         if (rawsigns::kHeaderSigns[hi].fmt == cpl_id) {
@@ -8155,7 +8195,15 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "cpl: no user-sign record at the two-layer collision";
         EXPECT_EQ(1u, count_builtin_tagged(root))
             << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
-    }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     { /* wpl: the raw sign at +0 + the default user sign at +132 */
         std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
         plant_hex_bytes(img, 0x2000, "3C3F77706C2076657273696F6E3D22312E30223F3E");

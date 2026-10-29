@@ -214,13 +214,13 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
     auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xD000, 0x400);
@@ -235,6 +235,11 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
     EXPECT_TRUE(c2->overlap());
     EXPECT_EQ(Grade::High, c1->grade());
     EXPECT_EQ(Grade::High, c2->grade());
+    /* the merged dot-less rows (the hot-window edit added the files but
+     * not their pins - the assertions restored): the runtime set's ""
+     * quirk makes dot-less files IN-table -> skip the deep path */
+    EXPECT_FALSE(e1->overlap()) << "dot-less names skip the twin path (the \"\" quirk)";
+    EXPECT_FALSE(e2->overlap());
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {
