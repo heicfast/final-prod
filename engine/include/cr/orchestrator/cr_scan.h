@@ -122,6 +122,12 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *    like the og's ~2 s grid cadence; the boundary stamps stay the
  *    authoritative close-of-stage sample); the
  *    error-map delta carries the newest appended range plus the
+ *    per scan plus stage flips). Files/carved counters on events are
+ *    LIVE-REFRESHED from the tree's atomic attach counters (N-166: they
+ *    move mid-stage, monotonically; the og's "Files Found" parity) —
+ *    deleted_found stays a STAGE-BOUNDARY sample (the engines assign
+ *    the deleted-state after the attach); the error-map delta carries
+ *    the newest appended range plus the
  *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
  *    events fire per discovered candidate (deep stage, whole-disk scans).
  *  - Unknown `type` values MUST be ignored by consumers (forward compat). */
@@ -750,6 +756,10 @@ private:
     void tel_stage_end_(u32 stage, const CancelToken* cancel);
     void tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units, const CancelToken* cancel);
     void tel_counts_(ScanStats& stats, const CancelToken* cancel);
+    void tel_counts_(const ScanStats& stats, const CancelToken* cancel);
+    /* N-166: live-refresh the files/carved counters from the tree's
+     * attach atomics (monotonic; boundary stamps stay authoritative) */
+    void refresh_live_counts_() const;
     /* Post-stamp overall permille (monotonic truth) for the boundary
      * progress calls - NEVER a hardcoded weighted() guess, which could
      * regress below what the bridge already forwarded mid-stage. */

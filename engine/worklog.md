@@ -285,6 +285,48 @@ its world. Suite green.
   `CarveStats.StockRawSignFilesCountInCarvedFound`. Suite 1236/1236 (linux-release).
   Audit trail: both finding Resolutions + moves to findings/FIXED/, the N-188 row
   added to CROSS-REF-MATRIX, carve module doc rows, SUMMARY entry-2 block, this entry.
+**Session-46 lane — N-166 lands + the hot-window red main repaired (2026-10-29).**
+
+- **RED-MAIN REPAIRS FIRST (the leave-main-green contract):** the 994e0bb0/cb2abd42
+  convergence merges left main RED in three places — (a) the N-177 duplicate-TEST
+  redefinition in test_ext4_volume.cpp (build-breaking; the S53 lane's
+  byte-equivalent test kept under the distinct name SizeExceedsBlocksDamaged
+  DirectoryStaysUnflagged preserving its unique damaged-directory pin; the
+  duplicate PFLAG_SIZE_EXCEEDS_BLOCKS constant folded into the winner's
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS, the 3 test_session.cpp users re-pointed); (b)
+  the N-171 validated double-count (the merge kept BOTH lanes' user-sign
+  emission increments — every user-sign file counted twice;
+  UserSignFilesCountInCarvedFound red, one increment restored); (c) the
+  4d450da2 re-base's crossed grading assertions (ExtensionTableGatesDeep
+  Validation asserted the .zzqx pair as in-table — corrected to the test's own
+  documented polarity); and (d) the S-055/S-056 battery's user-sign test-hygiene
+  leak (install_default_usersigns' 190-sign set — incl. the og's weak 3-byte
+  "lha" "-lh" prefix sign — never torn down; the leaked lha sign carved
+  LzhWrongDashByteRejects' wrong-dash form; bisected first-hand, per-test
+  teardowns restore the empty registry). Suite 1312/1312 (1270/42/0);
+  cr_ui_tests 73/73.
+
+- **N-166 FIXED (MINOR, orchestration)** — the live file-count telemetry:
+  the og's "Files Found" tracks the tree live (~2 s cadence; the ground-truth
+  capture + DRWUI.log cites re-read); the core's counters froze at stage
+  boundaries. Landed: ResultTree's two relaxed atomic attach counters
+  (live_files_/live_raw_ — bumped in add_file under its own lock; the raw
+  subset keyed on fs_kind==Raw which carve stamps before the attach) +
+  refresh_live_counts_ called at every emit_event_/emit_progress_event_
+  (monotonic advance only; the stage-boundary stamps stay the authoritative
+  close-of-stage sample via tel_counts_; deleted_found deliberately stays
+  boundary-only — the engines assign the deleted-state AFTER the attach, so
+  the finding's "the counters already are atomics" premise was corrected in
+  the Resolution: the tree-level atomics are the race-free carrier). The
+  header contract re-truthed (cr_scan.h's "STAGE-BOUNDARY samples" line →
+  the live-refresh truth with the exact split). Test:
+  Orchestrator.TelemetryCountersMoveDuringCarveStage — (a) monotonic
+  counters across the whole stream, (b) THE PIN: a mid-carve ScanProgress
+  event carries a non-zero live carved count (RED pre-fix with the refresh
+  stashed: every mid-stage event frozen), (c) the final event equals the
+  authoritative stats. Suite 1312/1312; cr_ui_tests 73/73; clang-format
+  clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
+  row; matrix row → MATCH; orchestration module addendum.
 **Session-46 lane — the N-165 registration lands (2026-10-29).**
 
 - **N-165 FIXED (MINOR, fat)** — the out-of-volume run-end stance registered:

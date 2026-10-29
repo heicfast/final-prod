@@ -245,6 +245,25 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
     EXPECT_TRUE(c2->overlap());
     EXPECT_EQ(Grade::High, c1->grade()) << "the twin pair promotes";
     EXPECT_EQ(Grade::High, c2->grade());
+    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0x9000, 0x400);
+    /* the noext pair rides the dedicated DotlessNamesSkipTwinDetection
+     * pin (the 994e0bb0 merge's residue - the dropped assertions left
+     * these adds unused; the hot-window repair removed the orphans) */
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    /* the 4d450da2 re-base crossed the fixture names with the assertions
+     * (a1/a2 are the OUT-OF-TABLE .zzqx pair; c1/c2 the in-table .doc
+     * pair - repaired here to the test's own documented polarity:
+     * NOT-in-table enters the deep path, in-table keeps the engine
+     * default, FUN_1401bebe0 the iterator-inequality comparator) */
+    EXPECT_TRUE(a1->overlap()) << "out-of-table (.zzqx) extensions enter the deep path";
+    EXPECT_TRUE(a2->overlap());
+    EXPECT_EQ(Grade::High, a1->grade()) << "the twin pair promotes (S-058 corrected polarity)";
+    EXPECT_EQ(Grade::High, a2->grade());
+    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions skip the deep path";
+    EXPECT_FALSE(c2->overlap());
+    EXPECT_NE(Grade::High, c1->grade()) << "no twin-induced promotion for in-table rows";
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {
