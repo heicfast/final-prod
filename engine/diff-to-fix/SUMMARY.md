@@ -30,6 +30,21 @@ IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
 
 ## Session-70 S70 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `449fc594` (rebased over `2fb0cb95` — the S72/S73/S75 racing windows' M-136 + M-144 absorbed) (the S70/S71/S72 racing audit/repair windows absorbed at the reset; the trail-repair seat conceded to N-210's equivalent landing per SA-9; baseline suite 1422 tests / 1380 pass / 42 Win-skips / 0 fail re-run green on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
 
+- **N-201 FIXED (MINOR)** — the quick-open media-word re-flavor landed with
+  the RAW-ASM-verified shape family: FUN_180021000's two-leg probe (FAT1
+  then FAT2 first sectors, last read wins) transcribed from objdump of
+  FATSearchDLL.dll 0x180021171-0x18002127c after Ghidra's decompiled text
+  proved defective at this seam (a dropped mask digit making the F8-family
+  tautologically false — caught by the core's -Werror — and a mis-rendered
+  branch target hiding that the 0xFFFFFFFF media word assigns nothing).
+  String-flavor-gated reachability (the D-94/I-002 Fat12 superset
+  untouched); the flavor flip re-derives the flavor's own BPB field family;
+  three registered boundaries (the no-assignment decline + backup retry not
+  ported; the unconditional second read og-exact; the og's EOC-at-2,3
+  mis-flip registered as an I-045-family defect with the spf-usability
+  adoption rule). RED→GREEN: HybridStringFat16MediaFat32ReflavorsToFat32;
+  pins Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; suite 1434/1434.
+
 - **N-200 FIXED (MINOR)** — the lost-scan NTFS candidate acceptance now
   requires positive MFT evidence with the $MFTMirr retry exactly as the og's
   classifier (FUN_180011150 :9889-9906 → FUN_180011560 :10023-10075, both
@@ -43,8 +58,8 @@ IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
   open question (FUN_180011260's getter pair).
 
 **Board after this landing (rebased over the racing S71/S72/S73 lanes'
-N-210 + M-136 + M-144): 0 ACUTE · 0 SEVERE · 15 MAJOR · 10 MINOR · 0 INFO
-active / 160 FIXED / 4 tracked-open** (N-107/N-127 + M-086/M-087/M-089
+N-210 + M-136 + M-144): 0 ACUTE · 0 SEVERE · 15 MAJOR · 9 MINOR · 0 INFO
+active / 161 FIXED / 4 tracked-open** (N-107/N-127 + M-086/M-087/M-089
 driver-repo-resident per OQ-S10-3).
 # SUMMARY.md — executive summary (the S72 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 

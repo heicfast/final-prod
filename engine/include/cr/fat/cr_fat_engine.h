@@ -92,6 +92,49 @@ u32 read_volume_label(IStorageDevice* slice, std::u16string& out);
  * Returns OK or ERR_BAD_PARAMETER. */
 u32 boot_passes_open_gates(const u8* sector512, u32 device_sector, const FatParams& p);
 
+/* N-201 (diff-to-fix): the og's quick-open media-word re-flavor -
+ * FATSearchDLL FUN_180021000 :26318-26350 (the quick-search consumer that
+ * runs AFTER the string-first validator FUN_18002f970). The og reads the
+ * FIRST SECTOR of FAT1 (reserved + base) and applies canonical-shape
+ * tests to the first two u32s, then re-issues the same read at FAT2
+ * (spf + reserved + base, the spf field chosen by the PRE-refinement
+ * flavor) and OVERWRITES the flavor - last read wins. The shape family,
+ * transcribed from the RAW ASSEMBLY (objdump 0x180021171-0x18002127c;
+ * Ghidra's text drops a mask digit and mis-renders one branch target):
+ *   FAT32-shaped -> flavor 2:
+ *     (FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF8 AND
+ *       ((FAT[1] & 0x0FFFFFF8) == 0x0FFFFFF8 OR (FAT[1] & 0x07FFFFF8) == 0x07FFFFF8), OR
+ *     (FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF0 AND (FAT[1] & 0x0FFFFFF0) == 0x0FFFFFF0
+ *   FAT16-canonical -> flavor 1: FAT[0] == 0xFFFFFFF8 (checked only when
+ *     the FAT32 family did not match)
+ *   FAT[0] == 0xFFFFFFFF assigns NOTHING in either leg (leg 1 jumps to
+ *     the second read, leg 2 to the end - 0x18002117f / 0x180021200)
+ *   the second read is UNCONDITIONAL (no numFATs gate; on a 1-FAT volume
+ *   the probe reads the first data sector); a failed read assigns
+ *   nothing.
+ * The refinement runs only on string-derived flavors (the og bails at
+ * the 0xE flavor before the media-word legs when no string assigned
+ * one). When no shape matches the incoming flavor stands - the core's
+ * M-015 whole-table validation stays the final gate with the re-flavored
+ * flavor (the og's caller-side no-assignment decline + backup-boot
+ * retry at :26519-26535 is a deeper seam, registered in the finding's
+ * Resolution). When the refinement changes the flavor, the
+ * flavor-dependent BPB fields (spf field, root model, first-data,
+ * cluster count) are re-derived coherently - the og's FAT constructor
+ * consumes the flavor's own field family, never a mix. The re-flavor is
+ * ADOPTED only when the indicated flavor's own spf field is usable
+ * (nonzero - a torn conversion remnant carries the new format's real
+ * FAT size): the og mis-flips plain FAT16 volumes whose first two data
+ * clusters are EOC-terminated (the packed entries read as F1 ==
+ * 0xFFFFFFFF and fire the F8-family mask) and then consumes the string
+ * flavor's spf anyway (its constructor call at :26546-26554 selects
+ * spf16/spf32 by the re-derived STRING flavor, not the refined one) -
+ * that og defect class is registered (the I-045 family) and NOT
+ * adopted; consistent volumes scan byte-identically.
+ * Returns OK (the incoming flavor when the re-flavor is declined). */
+u32 refine_flavor_by_media_words(IStorageDevice* slice, const u8* sector512, u64 device_bytes,
+                                 FatParams& p);
+
 /* Lost-scan boot gates (N-034, diff-to-fix): the og PartitionRecoveryD
  * deep-scan ladder FUN_180004610 :2516-2606 - bps must be a 512 multiple
  * (:2547 `(bps & 0x1ff) == 0`), cluster count via the BPB, then the

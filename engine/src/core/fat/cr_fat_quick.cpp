@@ -555,6 +555,30 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     if (rc != OK)
         return rc;
 
+    /* N-201 (diff-to-fix): the og's media-word re-flavor - the
+     * FUN_180021000 two-leg probe (FAT1 then FAT2 first sectors, last
+     * read wins, og-exact) that runs AFTER the string-first validator
+     * and BEFORE the FAT tables load. An internally inconsistent volume
+     * (string/bracket say one flavor, the FAT media words carry the
+     * other's canonical shape - real after interrupted format
+     * conversions) is re-flavored by the og and scanned; the refinement
+     * adopts the shape-indicated flavor and re-derives the flavor's own
+     * BPB field family coherently. When no canonical shape matches, the
+     * string-first flavor stands (M-015's whole-table validation stays
+     * the final gate).
+     * Reachability is the og's own: FUN_180021000 bails at the 0xE
+     * flavor BEFORE the media-word legs when the string-first validator
+     * (FUN_18002f970) did not assign 1/2 by string - so the refinement
+     * only ever runs on string-derived flavors. The core's Fat12
+     * bracket superset (the D-94/I-002 family: string-less volumes the
+     * og declines outright) never reaches the og's probe and is left
+     * untouched by it here. */
+    if (p.flavor != Flavor::Fat12) {
+        rc = refine_flavor_by_media_words(slice, gating_sector, slice->size(), p);
+        if (rc != OK)
+            return rc;
+    }
+
     FatTable table;
     table.set_mirror_bad_salvage(flags.mirror_bad_salvage); /* N-022 */
     rc = table.load(slice, p);

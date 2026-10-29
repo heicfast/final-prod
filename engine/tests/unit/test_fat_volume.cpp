@@ -2622,11 +2622,130 @@ TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
         << "the FAT32 string drives flavor 2 under the FAT16 bracket";
 }
 
+/* ---- N-201 (diff-to-fix): the media-word re-flavor -----------------
+ * The og's quick-open consumer FUN_180021000 :26318-26350 re-flavors
+ * the volume from the FAT media words after the string-first validator:
+ * FAT1's first sector, then FAT2's (last read wins), against the
+ * canonical shape family decoded verbatim (see cr_fat_engine.h). The
+ * refinement runs ONLY on string-derived flavors (the og bails at 0xE
+ * before the media-word legs when no string assigned one). ---- */
+
+TEST(FatEngine, HybridStringFat16MediaFat32ReflavorsToFat32) {
+    /* N-201's canonical gap: "FAT16   " string + a valid FAT16 BPB
+     * shape, but the FAT media words carry the FAT32-canonical pair
+     * (torn/interrupted FAT16->FAT32 conversion shape). The og
+     * re-flavors to 2 and scans 32-bit entries; the pre-fix core
+     * refused the volume (M-015's exact Fat16 media check). The
+     * conversion remnant carries usable FAT32 fields: spf32 in the
+     * M-011 Fat32 window (256 here - the remnant of the new format's
+     * larger FAT), root cluster at +0x2C pointing into the flavor-2
+     * data area (beyond the new, larger FAT pair). */
+    std::vector<u8> img(u64(5074) * 512, 0);
+    build_fat16_boot(img);  /* FAT16 BPB: reserved 2, 2 FATs, spf16 20,
+                             * root 512 entries (32 sectors), total 5074 */
+    put32v(img, 0x24, 256); /* spf32: the conversion remnant's new field */
+    put32v(img, 0x2C, 2);   /* root cluster: the FAT32 root chain head */
+
+    /* flavor-2 layout: FAT1 @2 (256 sectors), FAT2 @258, data @514.
+     * The og's FAT2 probe reads at the STRING-FIRST flavor's spf field
+     * (spf16=20 -> sector 22, the old-layout FAT2 position) - the torn
+     * conversion remnant carries the new media words at BOTH positions */
+    const size_t FAT1 = 2 * 512, FAT2 = 258 * 512, DATA = 514 * 512;
+    const size_t OLD_FAT2 = 22 * 512;
+    /* FAT32-canonical media words in both FATs (the shape that fires
+     * the re-flavor): FAT[0] = 0x0FFFFFF8, FAT[1] = 0x0FFFFFFF */
+    put32v(img, FAT1 + 0, 0x0FFFFFF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFFF);
+    put32v(img, FAT2 + 0, 0x0FFFFFF8);
+    put32v(img, FAT2 + 4, 0x0FFFFFFF);
+    put32v(img, OLD_FAT2 + 0, 0x0FFFFFF8);
+    put32v(img, OLD_FAT2 + 4, 0x0FFFFFFF);
+    /* the root chain + one single-cluster file, 32-bit entries in both
+     * FATs: root 2->3 EOC; file cluster 10 EOC */
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 3);
+    link32(3, 0x0FFFFFFF);
+    link32(10, 0x0FFFFFFF);
+    /* cluster 2 @514 (the root dir), cluster 3 @515, cluster 10 @522 */
+    u8* root2 = img.data() + DATA;
+    make_dentry(root2 + 0 * 32, "HYBRID  TXT", 0x20, 10, 100, 0x5A46, 0x6000, false);
+    std::memcpy(img.data() + DATA + 8 * 512, "HYBRIDDATA!", 11);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK)
+        << "the hybrid volume re-flavors to FAT32 and scans (og parity)";
+    tree::FileNode* n = find_node(tree, "HYBRID.TXT");
+    ASSERT_NE(n, nullptr) << "the FAT32 root chain surfaces the file";
+    EXPECT_EQ(n->props()->fs_kind, 2u) << "the media words re-flavored the volume";
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(DATA + 8 * 512))
+        << "cluster 10 at the flavor-2 data-area base (sector 514 + 8)";
+}
+
+TEST(FatEngine, Fat2ReadWinsOverFat1) {
+    /* N-201: the last-read-wins order - FAT1's media words FAT32-shaped,
+     * FAT2's canonical FAT16: the final flavor is the FAT2 leg's (1).
+     * The intermediate FAT1 assignment never takes effect (the og
+     * assigns only at each leg's end, FAT2 overwriting FAT1). */
+    auto img = build_fat16_image();
+    /* overwrite FAT1's media words to the FAT32-canonical pair; FAT2
+     * keeps the fixture's canonical FAT16 pair (0xFFFFFFF8) */
+    const size_t FAT1 = 2 * 512;
+    put32v(img, FAT1 + 0, 0x0FFFFFF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    tree::FileNode* n = find_node(tree, "readme_document_v1.txt");
+    ASSERT_NE(n, nullptr) << "the FAT16 decode stands (FAT2's leg won)";
+    EXPECT_EQ(n->props()->fs_kind, 1u) << "last read wins: FAT2's canonical "
+                                          "FAT16 media word pair";
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(74 * 512 + 8 * 512))
+        << "the FAT16 geometry (fixed root area) still holds";
+}
+
+TEST(FatEngine, ConsistentVolumeUnreflavored) {
+    /* N-201 control: a canonical FAT16 volume (string + media words
+     * agree) scans byte-identically - the refinement's assignment
+     * matches the incoming flavor and nothing re-derives. */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    tree::FileNode* n = find_node(tree, "readme_document_v1.txt");
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->fs_kind, 1u);
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(74 * 512 + 8 * 512));
+    EXPECT_EQ(n->props()->extents[0].length, u64(3 * 512));
+}
+
 TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
     /* S-064 control: the D-94/I-002 deliberate superset SURVIVES the
      * string-first rule - a string-less volume in the FAT12 bracket
      * still brackets to Fat12 (the og declines it; the core recovers
-     * it structurally). */
+     * it structurally). N-201 note: the canonical FAT16 media words in
+     * this fixture must NOT re-flavor it - the og never runs the
+     * media-word probe on a string-less (0xE) volume, and the core's
+     * superset keeps its bracket flavor. */
     std::vector<u8> img(u64(3000) * 512, 0);
     build_fat16_boot(img);
     put16(img, 0x13, 3000);

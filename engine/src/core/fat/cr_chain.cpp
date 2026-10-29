@@ -533,6 +533,77 @@ ChainResult reconstruct_contiguous_chain(const FatTable& t, u32 start, u32 expec
     return r;
 }
 
+namespace {
+/* N-201 (diff-to-fix): the flavor-dependent BPB field family, re-derived
+ * for a decided flavor (shared by validate_boot's decision path and the
+ * media-word re-flavor below). The og's FAT constructor consumes the
+ * flavor's own fields - flavor 2 reads spf32 at +0x24 with the
+ * cluster-chain root model; 12/16 read spf16 at +0x16 with the fixed
+ * root area - never a mix. */
+u32 derive_flavor_dependent_fields(const u8* sector512, FatParams& p) {
+    const u32 total16 = u16_from_bytes_le(sector512 + 0x13);
+    const u32 total32 = u32_from_bytes_le(sector512 + 0x20);
+    const u32 total = total16 ? total16 : total32;
+    const u16 spf16 = u16_from_bytes_le(sector512 + 0x16);
+    const u32 spf32 = u32_from_bytes_le(sector512 + 0x24);
+    if (p.flavor != Flavor::Fat32) {
+        p.fat_sectors = spf16;
+    } else {
+        p.fat_sectors = spf32;
+        p.root_cluster = u32_from_bytes_le(sector512 + 0x2C);
+    }
+    const u64 fat_area = u64(p.fat_count) * p.fat_sectors;
+    u32 root_sectors = 0;
+    if (p.flavor != Flavor::Fat32) {
+        root_sectors = (p.root_entries * 32 + p.bytes_per_sector - 1) / p.bytes_per_sector;
+        p.root_dir_offset = (u64(p.reserved_sectors) + fat_area) * p.bytes_per_sector;
+    } else {
+        /* root dir is a cluster chain; first_data computed below */
+        p.root_dir_offset = 0;
+    }
+    p.first_data_sector = u64(p.reserved_sectors) + fat_area + root_sectors; /* P1-15: u64 */
+    if (p.first_data_sector >= total)
+        return ERR_BAD_PARAMETER;
+    const u32 data_sectors = total - u32(p.first_data_sector);
+    p.cluster_count = data_sectors / p.sectors_per_cluster;
+    /* M-045: the og's classifier rejects cluster counts >= 0xFFFFFF0
+     * outright (FUN_180004610 :2595-2598 - the final band's else-branch);
+     * the spec's own reserved-cluster max is 0x0FFFFFF6, so this only
+     * cuts spec-overflow noise the og never surfaces. */
+    if (p.cluster_count >= 0xFFFFFF0u)
+        return ERR_BAD_PARAMETER;
+    p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;
+    p.total_bytes = u64(total) * p.bytes_per_sector;
+    return OK;
+}
+
+/* N-201 (diff-to-fix): the og's canonical media-word shape tests -
+ * FATSearchDLL FUN_180021000 :26318-26350. Transcribed from the RAW
+ * ASSEMBLY (objdump of og-codebase/FATSearchDLL.dll, 0x180021171-
+ * 0x18002127c) because Ghidra's decompiled text carries two rendering
+ * defects at this seam: the FAT[0] mask prints as 0x0FFFFFF (a digit
+ * dropped - the instruction bytes `25 ff ff ff 0f` decode to AND EAX,
+ * 0x0FFFFFFF) and the FAT[0] == 0xFFFFFFFF branch's target prints as
+ * the flavor-2 assignment (the bytes `74 4d` at 0x18002117f jump to
+ * 0x1800211ce - the SECOND read - i.e. NO assignment). The asm is the
+ * ground truth; both corrections are folded in here. */
+bool media_words_fat32_shaped(u32 f0, u32 f1) {
+    /* the F8 family: (FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF8 with FAT[1]
+     * in the EOC mask family (the 0x0FFFFFF8 / 0x07FFFFF8 pair at
+     * 0x180021193-0x1800211b5) */
+    if ((f0 & 0x0FFFFFFFu) == 0x0FFFFFF8u &&
+        (((f1 & 0x0FFFFFF8u) == 0x0FFFFFF8u) || ((f1 & 0x07FFFFF8u) == 0x07FFFFF8u)))
+        return true;
+    /* the F0 family: the reserved-window pair (0x180021230-0x180021245) */
+    if ((f0 & 0x0FFFFFFFu) == 0x0FFFFFF0u && (f1 & 0x0FFFFFF0u) == 0x0FFFFFF0u)
+        return true;
+    return false;
+}
+bool media_words_fat16_canonical(u32 f0) {
+    return f0 == 0xFFFFFFF8u; /* 0x1800211bb: cmp $0xfffffff8 */
+}
+} // namespace
+
 u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     if (sector512 == nullptr || !fat::boot_signature_ok(sector512))
         return ERR_BAD_MAGIC;
@@ -570,44 +641,17 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         return ERR_BAD_PARAMETER;
 
     p.root_entries = u16_from_bytes_le(sector512 + 0x11);
-    u32 total16 = u16_from_bytes_le(sector512 + 0x13);
-    u32 total32 = u32_from_bytes_le(sector512 + 0x20);
-    u32 total = total16 ? total16 : total32;
-
-    u32 spf16 = u16_from_bytes_le(sector512 + 0x16);
-    u32 spf32 = u32_from_bytes_le(sector512 + 0x24);
 
     p.fat_start = u64(p.reserved_sectors) * p.bytes_per_sector;
-    /* FAT flavor first guess by root_entries/spf shape (final by clusters) */
-    if (spf16 != 0 && p.root_entries != 0) {
-        p.flavor = Flavor::Fat16; /* refined below */
-        p.fat_sectors = spf16;
-    } else {
-        p.flavor = Flavor::Fat32;
-        p.fat_sectors = spf32;
-        p.root_cluster = u32_from_bytes_le(sector512 + 0x2C);
-    }
-
-    u64 fat_area = u64(p.fat_count) * p.fat_sectors;
-    u32 root_sectors = 0;
-    if (p.flavor != Flavor::Fat32) {
-        root_sectors = (p.root_entries * 32 + p.bytes_per_sector - 1) / p.bytes_per_sector;
-        p.root_dir_offset = (u64(p.reserved_sectors) + fat_area) * p.bytes_per_sector;
-    } else {
-        /* root dir is a cluster chain; first_data computed below */
-        p.root_dir_offset = 0;
-    }
-    p.first_data_sector = u64(p.reserved_sectors) + fat_area + root_sectors; /* P1-15: u64 */
-    if (p.first_data_sector >= total)
-        return ERR_BAD_PARAMETER;
-    const u32 data_sectors = total - u32(p.first_data_sector);
-    p.cluster_count = data_sectors / p.sectors_per_cluster;
-    /* M-045: the og's classifier rejects cluster counts >= 0xFFFFFF0
-     * outright (FUN_180004610 :2595-2598 - the final band's else-branch);
-     * the spec's own reserved-cluster max is 0x0FFFFFF6, so this only
-     * cuts spec-overflow noise the og never surfaces. */
-    if (p.cluster_count >= 0xFFFFFF0u)
-        return ERR_BAD_PARAMETER;
+    /* FAT flavor: the shape guess decides the field family the bracket
+     * consumes; the S-064 string-first override (and N-201's media-word
+     * refinement below) re-derive the family when they flip the flavor. */
+    const u16 spf16 = u16_from_bytes_le(sector512 + 0x16);
+    const Flavor shape_guess = (spf16 != 0 && p.root_entries != 0) ? Flavor::Fat16 : Flavor::Fat32;
+    p.flavor = shape_guess;
+    const u32 rc_guess = derive_flavor_dependent_fields(sector512, p);
+    if (rc_guess != OK)
+        return rc_guess;
 
     /* S-064: the flavor is STRING-FIRST when an FS-name string matches -
      * the og's engine-open validator (FUN_18002f970 :38044/:38061)
@@ -620,19 +664,96 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
      * different chains, different recovered bytes. String-less volumes
      * keep the cluster bracket (the D-94/I-002 deliberate superset:
      * structural FAT12 recovery the og declines; unchanged). */
+    Flavor decided = p.flavor;
     if (fs_name_matches(sector512 + 0x36, "fat16   "))
-        p.flavor = Flavor::Fat16;
+        decided = Flavor::Fat16;
     else if (fs_name_matches(sector512 + 0x52, "fat32   "))
-        p.flavor = Flavor::Fat32;
+        decided = Flavor::Fat32;
     else
-        p.flavor = flavor_from_clusters(p.cluster_count);
-    p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;
-    p.total_bytes = u64(total) * p.bytes_per_sector;
+        decided = flavor_from_clusters(p.cluster_count);
+    if (decided != p.flavor) {
+        p.flavor = decided;
+        const u32 rc_redo = derive_flavor_dependent_fields(sector512, p);
+        if (rc_redo != OK)
+            return rc_redo;
+    }
     if (p.total_bytes > device_bytes) {
         /* partition slice smaller than BPB claims (truncated tail): allow,
          * the transport bounds-checks every access */
     }
     out = p;
+    return OK;
+}
+
+u32 refine_flavor_by_media_words(IStorageDevice* slice, const u8* sector512, u64 device_bytes,
+                                 FatParams& p) {
+    /* N-201 (diff-to-fix): the og's quick-open media-word re-flavor, the
+     * FUN_180021000 two-leg probe that runs after the string-first
+     * validator. Leg 1 reads the first sector of FAT1; leg 2 re-reads at
+     * FAT2's offset (fat_start + the PRE-refinement flavor's spf field)
+     * and OVERWRITES - last read wins. The second read is UNCONDITIONAL
+     * on the og (no numFATs gate - on a 1-FAT volume the probe reads the
+     * first data sector; decoded verbatim, no gate exists at :26318-
+     * 26350). A failed read assigns nothing; when no shape matches the
+     * incoming flavor stands and the caller's whole-table validation
+     * (M-015) remains the final gate with the re-flavored flavor. */
+    if (slice == nullptr || sector512 == nullptr)
+        return ERR_BAD_PARAMETER;
+    Flavor refined = p.flavor;
+    bool assigned = false;
+    /* both legs read the same 512-byte shape at their offsets; the FAT2
+     * offset uses the pre-refinement flavor's spf field (the og's uVar1
+     * was computed from the string-first flavor before any assignment) */
+    const u64 fat2_probe = p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector;
+    const u64 probes[2] = {p.fat_start, fat2_probe};
+    for (int leg = 0; leg < 2; ++leg) {
+        u8 sec[512];
+        if (slice->read_at(probes[leg], sec, sizeof(sec)) != OK)
+            continue; /* a failed read assigns nothing (leg 1's read
+                       * failure falls into leg 2 at 0x18002116f; leg 2's
+                       * ends the probe at 0x1800211ec) */
+        const u32 f0 = u32_from_bytes_le(sec);
+        const u32 f1 = u32_from_bytes_le(sec + 4);
+        if (f0 == 0xFFFFFFFFu)
+            continue; /* NO assignment in either leg (leg 1: 0x18002117f
+                       * jumps directly to the second read; leg 2:
+                       * 0x180021200 jumps to the end - the Ghidra text's
+                       * "assign flavor 2" reading is the decompiler's
+                       * mis-rendered target) */
+        if (media_words_fat32_shaped(f0, f1)) {
+            refined = Flavor::Fat32;
+            assigned = true;
+        } else if (media_words_fat16_canonical(f0)) {
+            refined = Flavor::Fat16;
+            assigned = true;
+        }
+    }
+    if (assigned && refined != p.flavor) {
+        /* the usability boundary (the finding's own acceptance criterion:
+         * "consistent volumes byte-identical"). The F8-family conjunction
+         * reads the first TWO u32s as the FAT32 layout's entry0/entry1 -
+         * on a FAT16 volume those bytes are entries 2,3 packed, and two
+         * EOC-terminated single-cluster files at the data-area head
+         * (clusters 2 AND 3) produce F1 == 0xFFFFFFFF - the mask fires
+         * although the volume is perfectly FAT16-consistent. The og
+         * mis-flips such volumes (its own defect class, the I-045
+         * family: the constructor then consumes the STRING-FIRST
+         * flavor's spf field anyway - the caller at :26546-26554 re-runs
+         * FUN_18002f970 and selects spf16/spf32 by the STRING flavor),
+         * and the core declines to follow: the re-flavor is adopted only
+         * when the indicated flavor's own field family is usable (its
+         * spf field nonzero - a torn conversion remnant carries the new
+         * format's real FAT size; a plain FAT16 leaves +0x24 zero). */
+        FatParams scratch = p;
+        scratch.flavor = refined;
+        const u32 rc_redo = derive_flavor_dependent_fields(sector512, scratch);
+        if (rc_redo == OK && scratch.fat_sectors != 0) {
+            p = scratch; /* the flavor's own field family, coherently */
+        }
+        /* else: the incoming flavor stands - the og's mis-flip on
+         * spf-zero volumes is registered, not adopted (I-045 family) */
+    }
+    (void)device_bytes;
     return OK;
 }
 

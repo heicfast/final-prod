@@ -10614,3 +10614,40 @@ before the first change; every fix RED-proven pre-fix and GREEN post-fix.
   new-carrier precedent). Suite **1526/1526**. Trail: findings/FIXED/N-131 +
   Resolution, ledger row, matrix MATCH (row 1016), modules/session.md S76
   addendum, SUMMARY board 14 M / 10 N / 162 FIXED, this entry.
+### N-201 — FIXED (the quick-open media-word flavor refinement)
+
+`fix(fat): N-201 — the media-word re-flavor with the RAW-ASM-verified shape family`
+
+- Corpus re-verified first-hand — and the verification UPGRADED the evidence:
+  Ghidra's decompiled text at FUN_180021000 (:26318-26350) carries two
+  rendering defects at this seam, both corrected against the raw assembly
+  (objdump of og-codebase/FATSearchDLL.dll): (1) the FAT[0] mask prints as
+  0x0FFFFFF — a dropped digit; the instruction bytes `25 ff ff ff 0f` decode
+  to AND EAX, 0x0FFFFFFF (the decompiled form is tautologically false, caught
+  by the core's own -Werror tautological-compare); (2) the
+  FAT[0]==0xFFFFFFFF branch's target prints as the flavor-2 assignment —
+  `74 4d` at 0x18002117f jumps to 0x1800211ce (the second read): no
+  assignment in either leg.
+- refine_flavor_by_media_words landed (cr_chain.cpp + cr_fat_engine.h
+  contract) and wired into scan_fat after boot_passes_open_gates, gated to
+  string-derived flavors (the og's 0xE bail at 0x18002107e is its own
+  reachability; the D-94/I-002 Fat12 superset untouched).
+- validate_boot's tail extracted into derive_flavor_dependent_fields; the
+  flavor flip re-derives the flavor's own BPB field family coherently (the
+  og's constructor consumes flavor-dependent spf/root fields — and per the
+  caller's asm at :26546-26554 it re-derives the STRING flavor's spf, the
+  evidence for the spf-usability adoption rule).
+- Registered boundaries (all asm-cited in the finding's Resolution): the
+  og's no-assignment decline + backup-boot retry (:26519-26535) not ported;
+  the unconditional second read ported og-exact; the og's mis-flip on FAT16
+  volumes with EOC at clusters 2,3 (the packed entries 2,3 read as
+  F1==0xFFFFFFFF and fire the F8-family mask — the lost-scan fixtures'
+  population, 10 tests RED until the boundary landed) registered as an
+  I-045-family defect NOT adopted: adoption requires the indicated flavor's
+  own spf field usable (nonzero).
+- RED (stash-revert): HybridStringFat16MediaFat32ReflavorsToFat32 fails —
+  the pre-fix core refuses the hybrid volume. GREEN: suite 1434/1434
+  (1392 pass + 42 Win-skips, 0 fail); FatEngine 87/87.
+- Trail: findings/FIXED/N-201 (Resolution) + ledger row + matrix MATCH (the
+  stale N-187 row annotated in-table) + modules/fat.md S70 addendum +
+  SUMMARY + this entry.

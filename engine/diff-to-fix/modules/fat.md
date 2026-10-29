@@ -341,3 +341,27 @@ Verified-MATCH this session: the og gate set at :38044-38062 re-derived field by
 field (numFATs/spc-set/bps/root-entries/spf/signature), the flavor-0xE-only consumer
 bail, the bracket function's lost-scan-only placement, the FAT16 exact media check's
 M-015 port confirmed, and the u64 cluster math (D-119 stands).
+
+## S70 lane (2026-10-29): N-201 landed
+
+**N-201 FIXED** — the quick-open media-word re-flavor: after the string-first
+validator and the engine-open gates, scan_fat now runs
+`refine_flavor_by_media_words` — the og's FUN_180021000 two-leg probe (FAT1's
+first sector, then FAT2's at the string-flavor's spf offset, last read wins).
+The shape family is RAW-ASM-verified (objdump of FATSearchDLL.dll
+0x180021171-0x18002127c): the F8 family `(FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF8`
++ the FAT[1] EOC-mask pair, the F0 reserved-window family, the FAT16-exact
+`0xFFFFFFF8` — Ghidra's decompiled text had a dropped mask digit (0x0FFFFFF,
+tautologically false) and a mis-rendered branch target (the 0xFFFFFFFF media
+word assigns nothing in either leg). Reachability is string-flavor-gated (the
+og bails at 0xE before the legs; the core's D-94/I-002 Fat12 superset
+untouched). The flavor flip re-derives the flavor's own BPB field family
+(validate_boot's tail extracted to derive_flavor_dependent_fields — S-064's
+string-override hybrids are coherent by the same path). M-015 stays the final
+gate. Registered boundaries: the og's no-assignment decline + backup-boot
+retry NOT ported (the core's tolerant Fat32 media posture stands); the og's
+mis-flip on FAT16 volumes with EOC at clusters 2,3 (packed entries fire the
+F8 mask) registered as an I-045-family defect NOT adopted — adoption requires
+the indicated flavor's own spf field usable (nonzero). B1/A25 rows now MATCH.
+RED→GREEN: HybridStringFat16MediaFat32ReflavorsToFat32; pins:
+Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
