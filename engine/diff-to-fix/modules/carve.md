@@ -1258,3 +1258,51 @@ Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree, GREEN
 with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
 CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
+
+---
+
+## Session-85 addendum 1 — M-107 member 3: the DWG three-generation walk landed
+
+The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
+remainder named): the section-locator walk (count u32@0x15, 9-byte records
+{number==index, seeker, size} from 0x19, extent = max(seeker+size), the
+number-mismatch decline, the torn walked-prefix salvage) and the R2004+
+rand-XOR struct walk (the MSVC rand seed-1 stream over the 0x6c struct at
++0x20, six gates, extent = u64@0x34 + 0x6c). The registry row max carries
+the og walk's own cap constant (0x4A817C800 = the singleton's 200 MB ×
+100). Two defects discovered and fixed with the landing: the tier-1
+version table's phantom "30" / missing "13" (the og's nine exact —
+AC1013 = R13 carves again, AC1030 no longer does), and the non-og sentinel
+check (dropped — the og's tier-1 is the version table only). Evidence:
+`../evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+Tests: the six Dwg* pins (all RED at the stand-in tree). The carve suite
+180/180.
+
+---
+
+## Session-85 addendum 2 — M-107 member 4: the PSP ~BK block-chain walk landed
+
+The PSP row moves to **MATCH**: the tier-1 is the og's EXACT 32-byte
+signature ("Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the old
+16-byte prefix was a discovered acceptance defect), and the extent is the
+~BK block-chain walk from 0x24 (blocks {u32 "~BK\0", u32 length @+6},
+advance 10+length; the extent = the walked end at the first non-~BK
+block / the 20 MB bound / the device end; the torn straddle salvages).
+Tests: PspBkBlockChainWalkSetsExtent / PspExactSignatureRequired /
+PspTornChainSalvagesTheWalkedEnd (the first two RED at the stand-in via
+the stash dance). The carve suite 183/183.
+
+---
+
+## Session-85 addendum 3 — M-107 member 5: the WPG zero-tail walk landed
+
+The WPG row moves to **MATCH**: the extent is the trailing-zero-run
+position of the hit's own 512-byte window (FUN_180042b30's binary
+search — the whole-buffer-zero case declines; the no-zeros case takes
+the window length), the og's one-chunk-then-done semantic with the
+sector-size chunk (the driver's ctx+0xF0). The deferral residue (the
+processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+recorded in the finding: a future decode of the result object's layout
+could shift the window by multiples of 512. Tests: the three Wpg*
+pins (all RED at the stand-in via the stash dance). The carve suite
+186/186.

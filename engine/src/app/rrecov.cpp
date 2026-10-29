@@ -28,6 +28,12 @@
  *         [--deleted-only] [--filter s] [--report file.json]
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *         [--chkdsk C:] (the M-075 escalation endpoint: launch Windows
+ *          chkdsk /f on a volume - the fix rung of the check ladder;
+ *          no --disk needed: a volume-letter operation)
+ *   unlock --turn-off C: (the M-078 destructive consent twin of the
+ *          unlock surface: turn BitLocker OFF on a volume - decrypt,
+ *          never bypass; the OS decrypt continues in the background)
  *   apply --disk N --session file.crsf [--candidate N] [--apply]
  *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
  *
@@ -47,7 +53,10 @@
  *                                         keeps '<out>.partial' (S-040)
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
- * was given); list 1 on enumeration failure; list-carve-formats 1 on the
+ * was given) / 5 the target disconnected mid-scan (N-125: distinct from
+ * failure and cancel - the reattach-then-resume contract, the checkpoint
+ * from --out resumes after the device returns); list 1 on enumeration
+ * failure; list-carve-formats 1 on the
  * empty registry; sessions 1 on enumeration failure (unreadable files are
  * per-row data, never a failure); health 3 when every health source is
  * unavailable;
@@ -90,6 +99,8 @@
 #include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
+#include "cr/win/cr_fsck.h" /* M-075: the chkdsk escalation endpoint */
+#include "cr/check/cr_fsck_launch.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/crypto/cr_sha256.h"   /* S-040: the digest line */
@@ -2086,8 +2097,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
                     L"loss boundary\n");
             if (!out_path.empty())
-                wprintf(L"reattach the device, then resume: `rrecov resume %ls` continues "
-                        L"from the session checkpoint\n",
+                wprintf(L"reattach the device, then resume: `rrecov scan --resume %ls` "
+                        L"continues from the session checkpoint\n",
                         out_path.c_str());
             else
                 wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
@@ -3526,6 +3537,48 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+/* M-078: the CBitlockerTurnOffOperation endpoint. The explicit-consent
+ * verb: turn BitLocker OFF on a volume (decrypt, never bypass). The
+ * refusal is loud on every path (bad letter, both command forms
+ * failing); the OS decrypt continues in the background after the
+ * request is accepted (manage-bde's own documented shape). */
+static int cmd_unlock(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    bool turn_off_req = false;
+    while (i < argc) {
+        if (wcscmp(argv[i], L"--turn-off") == 0 && i + 1 < argc && argv[i + 1][0]) {
+            v = argv[i + 1];
+            ++i;
+            turn_off_req = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown unlock option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!turn_off_req || v.empty()) {
+        wprintf(L"unlock needs --turn-off C: (the volume letter to turn BitLocker off on)\n");
+        return 1;
+    }
+    const wchar_t c0 = v[0];
+    if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+        wprintf(L"--turn-off needs a volume letter (e.g. --turn-off C:)\n");
+        return 1;
+    }
+    wprintf(L"turning BitLocker off on %c: (the decrypt continues in the background; check "
+            L"'manage-bde -status %c:' for progress)\n",
+            c0, c0);
+    const u32 rc = cr::win::bitlocker::turn_off(c0);
+    if (rc != OK) {
+        wprintf(L"turn-off refused (rc=%08x %hs) - the volume is unchanged, never a silent "
+                L"success\n",
+                rc, err_text(rc));
+        return 2;
+    }
+    wprintf(L"turn-off request accepted on %c:\n", c0);
+    return 0;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
     /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): the repair path
      * reads and writes the disk - driver-only (--no-rda is REMOVED,
@@ -3541,6 +3594,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     int part = -1; /* -1 = whole disk (LBA0 view, superfloppy/lost FS) */
     bool apply = false;
     std::wstring undo_path, undo_apply_path;
+    std::wstring chkdsk_vol; /* M-075: the escalation endpoint (fix --chkdsk C:) */
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
@@ -3564,9 +3618,52 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
             ++i;
             continue;
         }
+        if (get_opt(argc, argv, i, L"--chkdsk", &v)) {
+            chkdsk_vol = v;
+            continue;
+        }
         wprintf(L"unknown fix option: %s\n", argv[i]);
         return 1;
     }
+    /* ---- chkdsk mode (M-075): the escalation endpoint ----
+     * A volume-letter operation (no --disk, no driver: the RDA disk
+     * path is not involved; chkdsk itself needs only elevation - the
+     * og's WinChkdsk wrapper runs beside the engine, not under it).
+     * The posture is the FIX form (the fix verb's own family):
+     * chkdsk X: /f, the guidance string's second half. The refusal is
+     * loud: an absent volume or a bad letter prints and exits 2. */
+    if (!chkdsk_vol.empty()) {
+        const wchar_t c0 = chkdsk_vol[0];
+        if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+            wprintf(L"--chkdsk needs a volume letter (e.g. --chkdsk C:)\n");
+            return 1;
+        }
+        const wchar_t letter = chkdsk_vol[0];
+        int32_t exit_code = -1;
+        const u32 rc = cr::win::fsck::fsck_volume(letter, cr::check::fsck_launch::CHKDSK_FIX,
+                                                  900000u, &exit_code);
+        if (rc == ERR_UNSUPPORTED && !cr::win::is_elevated()) {
+            wprintf(L"chkdsk /f needs administrator rights (elevate and retry)\n");
+            return 2;
+        }
+        if (rc != OK) {
+            wprintf(L"cannot launch chkdsk on %c: (rc=%08x %hs)\n", letter, rc, err_text(rc));
+            return 2;
+        }
+        if (exit_code == 259) {
+            wprintf(L"chkdsk still running after the 15-minute bound - it was left to finish "
+                    L"on its own; re-run to read the final state\n");
+            return 0;
+        }
+        wprintf(L"chkdsk %c: exit code %d\n", letter, int(exit_code));
+        if (cr::check::fsck_launch::chkdsk_exit_means_errors_remain(exit_code)) {
+            wprintf(L"the volume still reports errors (chkdsk could not fix them without a "
+                    L"dismount - close open files and re-run)\n");
+            return 3;
+        }
+        return 0;
+    }
+
     if (!have_disk) {
         /* undo-apply also needs the disk: the undo log carries absolute
          * sector offsets for a specific disk. Without this guard,
@@ -3845,19 +3942,28 @@ int wmain(int argc, wchar_t** argv) {
             L"              the og's LastScanRecordView surface; unreadable files\n"
             L"              are per-row data, only enumeration failure exits 1)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
-            L"             [--whole-disk] [--quick-only] [--no-carve]\n"
+            L"             [--deep] [--whole-disk] [--quick-only] [--no-carve]\n"
             L"             (deep stage always on; --quick-only disables it; --whole-disk = "
             L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
+            L"             [--autosave-dir D] [--label s]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
+            L"             [--pause-stdin]  (N-178's keyboard pause: 'p'/SPACE pauses,\n"
+            L"                               'r'/Enter resumes, Ctrl-C cancels; no-op\n"
+            L"                               when stdin is redirected)\n"
             L"             [--filter-folder DIR] (repeatable: the scan-time folder filter -\n"
             L"                                   out-of-prefix folders never enter the session;\n"
             L"                                   volume-root relative, e.g. --filter-folder "
             L"Users\\\\alice)\n"
-            L"             [--repair] [--repair-apply] [--repair-undo file]\n"
+            L"             [--repair] [--repair-apply] [--repair-undo file] [--check]\n"
             L"             [--bitlocker-fvek hex]  (locked volume: user-supplied FVEK,\n"
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
+            L"             [--bitlocker-dict [file]]  (consent: try the password\n"
+            L"                                     dictionary; default table or the\n"
+            L"                                     og-format dictionary file)\n"
+            L"             [--user-signs file]  (teach the carver new formats;\n"
+            L"                                  invalid input aborts honestly)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
             L"  rrecov archive-list --in file.crsf (--disk N | --image file) --node ID\n"
             L"              [--json]  (the browse-inside archive inventory)\n"
@@ -3878,6 +3984,12 @@ int wmain(int argc, wchar_t** argv) {
             L"              written; cancel keeps '<out>.partial', never a\n"
             L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov fix --chkdsk C:  (launch Windows chkdsk /f on the volume -\n"
+            L"                           the check ladder's fix endpoint, M-075; no\n"
+            L"                           --disk needed: volume-letter operation)\n"
+            L"  rrecov unlock --turn-off C:  (turn BitLocker OFF on the volume - the\n"
+            L"                           M-078 consented destructive op: decrypt, never\n"
+            L"                           bypass; the OS decrypt continues in background)\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
             L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
             L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
@@ -3921,6 +4033,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")
         return cmd_health(argc, argv, i);
+    if (cmd == L"unlock")
+        return cmd_unlock(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
     if (cmd == L"apply")

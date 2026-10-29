@@ -1,4 +1,4 @@
-# Session-86 (S86) — diff-to-fix session prompt (token redacted)
+# Session-87 (S87) — diff-to-fix session prompt (re-homed S79 → S87 per SA-9: the racing windows took S68-S86) (token redacted)
 
 Saved at session open per the mandate. Core at open: `b6801ade`; corpus `be0cfe9`.
 

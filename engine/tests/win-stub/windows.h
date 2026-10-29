@@ -305,7 +305,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t) - 1)
+#define _TRUNCATE ((size_t)-1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -609,4 +609,17 @@ inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
 }
 inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
     return (HANDLE)0;
+}
+
+/* M-075's SDK surface (the Wow64 redirection pair + the timing types;
+ * cr_fsck.cpp's native-binary launch) - the gate's own rule: a new SDK
+ * symbol in src/win grows the stub here. N-223's repair. */
+typedef unsigned long long ULONGLONG;
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return 1;
 }

@@ -301,6 +301,9 @@ typedef struct cr_ui_event {
     uint64_t check_errors;
     uint32_t check_family;
     uint32_t check_pad;
+    /* W1c (R-52) append: the auto-save attempt's rc (CR_EVT_AUTOSAVED
+       only; 0 on every other event type) - matches cr_ui.h's field. */
+    uint64_t autosave_rc;
     /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
        permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
        when no stage is in flight; bytes_total = 0 = unknown.) */
@@ -503,7 +506,7 @@ Contract:
   ever ships runtime-configurable carve tables, the refresh seam becomes
   a versioned ABI question (a bumped count between calls), not a silent
   re-clone.
-- CLI rendering: `rrecov --list-carve-formats` prints the whole table
+- CLI rendering: `rrecov list-carve-formats` prints the whole table
   (layer, ext, size bounds, base confidence, grammar-layer magic) — the
   parity-tooling surface (N-033's step 2).
 

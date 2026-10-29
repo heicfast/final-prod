@@ -17,15 +17,21 @@ same script on the runner image — the local-mirror rule, docs/CI-LOCAL.md):
 .\ci-local.ps1         # Windows (the exact script the CI local-mirror job runs)
 ```
 
-It runs every check CI runs, in the same order, with the same strictness:
-format check, the dead-surface + driver-only architecture lints, the
-warnings-as-errors build, the full unit + contract test suite, the repo
-truth self-tests, dependency pinning, the doc link check, the secrets scan
-of your diff, and the commit message convention. Every failure prints the
-exact files and the fix command. **Green locally, then push.** If the gate
-passes locally but CI's `local-mirror` job fails, that is a
-runner-vs-developer environment difference — diagnose and close it, do not
-just re-push.
+It runs the local gate — format check, the dead-surface + driver-only
+architecture lints, the warnings-as-errors build, the full unit + contract
+test suite, the repo truth self-tests, dependency pinning, the doc link
+check, the secrets scan of your diff, and the commit message convention.
+Every failure prints the exact files and the fix command. **Green locally,
+then push.** (CI-shape note, Session-84: the pre-consolidation CI this
+paragraph described — the `local-mirror` job, the Linux/TSan/UBSan/fuzz
+matrix lanes, CodeQL `if: false`, the driver-install/core-install
+correctness workflows — no longer exists. The CI today is the 4-lane
+windows-2022 set: **Checks** (push/PR + the release's workflow_call gate:
+lint + MSVC Release build-and-test; doc-only paths are ignored by design),
+**Installer gates**, **Release**, and **Test & Benchmark**
+(workflow_dispatch). The sanitizer and fuzz lanes are local-only
+(`ci-local.sh --san` / `--fuzz`); see docs/CI-LOCAL.md's M-088 CI-shape
+note and docs/CI-CURRENT.md for the live inventory.)
 
 Install the hooks (one-time):
 
@@ -60,14 +66,15 @@ ctest --preset linux-gcc         # full suite, ASan
 bash tools/win_syntax_check.sh   # Windows-only sources parse gate (also a ctest)
 ```
 
-CI (the validation lane, docs/CI-LOCAL.md's cost table): the
-`local-mirror` job (your gate, verbatim), Linux + TSan + UBSan + the ONE
-Windows MSVC Release build and test lane, the libFuzzer campaign
-(`make -C fuzz`, `-Werror`) and the Win7 PE import gate
-(`tools/verify_pe_um.py). CodeQL is present but deferred (`if: false` —
-recorded, not silent). The correctness workflows (driver-install,
-core-install, staged scenarios) consume **prebuilt releases only**
-(docs/PREBUILT-ARTIFACTS.md) — nothing but the validation lane and the
+CI (docs/CI-CURRENT.md is the live inventory): the **Checks** workflow
+(push/PR, and the release's workflow_call validation gate) runs the lint
+job + the MSVC Release build-and-test job with the Win7 PE import gate
+(`tools/verify_pe_um.py`) on every non-doc push; **Installer gates** and
+**Release** run their own windows-2022 lanes; **Test & Benchmark**
+(workflow_dispatch) consumes **prebuilt releases only**
+(docs/PREBUILT-ARTIFACTS.md). The sanitizer and fuzz campaigns are
+local-gate lanes, not CI lanes (the M-088 consolidation; see
+docs/CI-LOCAL.md). Nothing but the
 release workflow ever builds from source.
 
 Local sanity for an edit: run the local gate. Formatting must match

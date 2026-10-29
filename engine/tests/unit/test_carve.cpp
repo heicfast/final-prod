@@ -9,6 +9,7 @@
 #include "cr/session/cr_records.h"
 #include "cr/table/cr_table_wire.h"
 #include "cr/cr_text.h"
+#include <array>
 #include <cstring>
 #include <ctime>
 #include <fstream>
@@ -2169,11 +2170,20 @@ size_t plant_mpegps(std::vector<u8>& img, size_t at) {
 
 /* An R2000 DWG (AC1015) with the r13+ sentinel. */
 size_t plant_dwg(std::vector<u8>& img, size_t at) {
+    /* M-107 member 3: the plant now carries a REAL section-locator map
+     * (the CRW-landing precedent - the header-only plant exercised the
+     * stand-in era's blind acceptance; the walk declines noise). The
+     * map: count=1 @ 0x15, record {0, seeker 0x800, size 0x800} from
+     * 0x19 -> the og walk's extent = 0x1000 (the batch's old length). */
     std::memcpy(img.data() + at, "AC1015", 6);
     std::memcpy(img.data() + at + 6, "\x0D\x0A\x0D\x0A\x00", 5);
-    for (size_t i = 11; i < 4096; ++i)
+    put32v(img, at + 0x15, 1);
+    img[at + 0x19] = 0; /* record 0's number byte */
+    put32v(img, at + 0x1A, 0x800);
+    put32v(img, at + 0x1E, 0x800);
+    for (size_t i = 0x30; i < 4096; ++i)
         img[at + i] = u8((i * 31) & 0xFF);
-    return 4096;
+    return 0x800 + 0x800; /* the og walk's extent: max(seeker+size) */
 }
 
 /* ---- S-007 niche batch 1 plants (SCAN-2f) --------------------------- */
@@ -2695,6 +2705,385 @@ TEST(Carve, CrwWalkCapIsTheOgsOwnConstant) {
         << "the og walker's own 50 MiB cap constant - the walked bound";
 }
 
+/* M-107 member 3 (DWG): the og's three-generation walk. The plant helpers
+ * build the exact structures the og's CDWGRawInfo child reads (the ctor's
+ * cursor 0x15, the 9-byte section-locator records from 0x19, the 0x6c
+ * rand-XOR struct at 0x20 - evidence/s85-lane-sheets/
+ * s85-l1-dwg-section-walk-raw-asm-decode.md). */
+void dwg_put32(u8* p, u32 v) {
+    for (int i = 0; i < 4; ++i)
+        p[i] = u8(v >> (8 * i));
+}
+void dwg_put64(u8* p, u64 v) {
+    for (int i = 0; i < 8; ++i)
+        p[i] = u8(v >> (8 * i));
+}
+void plant_dwg_header(std::vector<u8>& img, size_t at, const char ver[2]) {
+    std::memcpy(img.data() + at, "AC10", 4);
+    img[at + 4] = u8(ver[0]);
+    img[at + 5] = u8(ver[1]);
+    /* the og's tier-1 is the version table ONLY - no sentinel check
+     * exists anywhere in its chain */
+}
+void plant_dwg_locator(std::vector<u8>& img, size_t at, u32 count,
+                       const std::vector<std::array<u32, 2>>& seeker_size) {
+    /* the count u32 @ 0x15 (the ctor's cursor), then the 9-byte records
+     * from 0x19: {number:u8 == index, seeker:u32 @+1, size:u32 @+5} */
+    dwg_put32(img.data() + at + 0x15, count);
+    for (u32 i = 0; i < seeker_size.size(); ++i) {
+        const size_t rec = at + 0x19 + size_t(i) * 9;
+        img[rec] = u8(i); /* the number byte MUST equal the record index */
+        dwg_put32(img.data() + rec + 1, seeker_size[i][0]);
+        dwg_put32(img.data() + rec + 5, seeker_size[i][1]);
+    }
+}
+/* the og's gen-2 obfuscation stream: the MSVC rand() LCG, seed 1
+ * (FUN_18002f630: state = state*0x343fd + 0x269ec3, byte = state>>16).
+ * The well-known seed-1 rand() sequence (41, 18467, 6334, ...) is the
+ * independent oracle - the first test below pins its first four bytes. */
+u8 dwg_rand_stream(u32 idx) {
+    u32 st = 1;
+    for (u32 i = 0; i <= idx; ++i)
+        st = st * 0x343fd + 0x269ec3;
+    return u8(st >> 16);
+}
+void plant_dwg_r2004(std::vector<u8>& img, size_t at, u64 extent_base) {
+    plant_dwg_header(img, at, "18");
+    u8 plain[0x6c];
+    std::memset(plain, 0, sizeof(plain));
+    dwg_put32(plain + 0x10, 0x6c);
+    dwg_put32(plain + 0x14, 4);
+    dwg_put64(plain + 0x34, extent_base);
+    dwg_put32(plain + 0x44, 0x20);
+    dwg_put32(plain + 0x48, 0x80);
+    dwg_put32(plain + 0x4c, 0x40);
+    for (size_t i = 0; i < sizeof(plain); ++i)
+        img[at + 0x20 + i] = u8(plain[i] ^ dwg_rand_stream(u32(i)));
+}
+
+TEST(Carve, DwgSectionLocatorWalkSetsExtent) {
+    /* the og's gen-1 walk (FUN_18002f320 :36356-36403, first-hand this
+     * session): extent = max(seeker + size) over the section-locator
+     * records - NOT the blind 64 MiB stand-in. RED at the stand-in tree
+     * (the extent was the device-end-clamped 64 MiB). */
+    std::vector<u8> img(1 * 1024 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "15");
+    plant_dwg_locator(img, at, 3, {{0x1000, 0x2000}, {0x4000, 0x1000}, {0x2000, 0x0800}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the R2000 DWG must carve through the locator walk";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(0x5000))
+        << "extent = max(seeker+size) = max(0x3000, 0x5000, 0x2800)";
+}
+
+TEST(Carve, DwgSectionNumberMismatchDeclines) {
+    /* the og's only structural gate (:36379-36383): a record whose number
+     * byte != its index zeroes the extent - the decline. The stand-in
+     * carved these blind. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "15");
+    plant_dwg_locator(img, at, 2, {{0x1000, 0x2000}, {0x4000, 0x1000}});
+    img[at + 0x19 + 9] = 7; /* record 1's number byte: WRONG */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the mismatched section map must decline (extent 0)";
+}
+
+TEST(Carve, DwgTornSalvagesTheWalkedPrefix) {
+    /* the og's chunk model: the feed stops at the device end with the
+     * running max intact - the walked-prefix salvage (the CRW/X3F
+     * precedent class), at reduced confidence. 200 records declared,
+     * the last one straddles the device end; the salvage is the max
+     * seeker+size over the FULLY-WALKED records. */
+    std::vector<u8> img(2048, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "14");
+    const u32 count = 200;
+    dwg_put32(img.data() + at + 0x15, count);
+    /* records 0..165 fit (547 + 9*166 + 9 <= 2048: record 167 stays
+     * starts at 2040, ends at 2049 - past the end); the max lives at
+     * record 100 (seeker 0x4000 + size 0x1000) */
+    for (u32 i = 0; i <= 166; ++i) {
+        const size_t rec = at + 0x19 + size_t(i) * 9;
+        if (rec + 9 > img.size())
+            break; /* the straddling record stays zeros = unreadable */
+        img[rec] = u8(i);
+        dwg_put32(img.data() + rec + 1, i == 100 ? 0x400u : 0x40u);
+        dwg_put32(img.data() + rec + 5, i == 100 ? 0x100u : 0x10u);
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the torn map still carves the walked prefix";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(0x500))
+        << "the salvage is record 100's seeker+size (0x400+0x100)";
+}
+
+TEST(Carve, DwgR2004RandStructWalkSetsExtent) {
+    /* the og's gen-2 (FUN_18002f630's MSVC-rand XOR stream over the
+     * 0x6c struct at +0x20; the six gates; extent = u64@0x34 + 0x6c).
+     * The independent oracle: the well-known seed-1 rand() sequence's
+     * first four low bytes (41, 35, 190, 132). */
+    EXPECT_EQ(dwg_rand_stream(0), u8(41));
+    EXPECT_EQ(dwg_rand_stream(1), u8(35));
+    EXPECT_EQ(dwg_rand_stream(2), u8(190));
+    EXPECT_EQ(dwg_rand_stream(3), u8(132));
+    std::vector<u8> img(1 * 1024 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_r2004(img, at, 0x30000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the R2004 DWG must carve through the rand-XOR walk";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(0x30000 + 0x6c))
+        << "extent = the decoded struct's u64@0x34 + 0x6c";
+}
+
+TEST(Carve, DwgR2004GateFailDeclines) {
+    /* the og's gates (:36424-36427): any failed gate leaves the extent
+     * at the ctor's 0 - the decline. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_r2004(img, at, 0x30000);
+    /* tear one gate byte in the PLAIN domain: byte 0x44 must decode to
+     * 0x20; corrupt its ciphertext */
+    img[at + 0x20 + 0x44] = u8(img[at + 0x20 + 0x44] ^ 0xFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the failed struct gate must decline";
+}
+
+TEST(Carve, DwgVersionGateIsTheOgsNine) {
+    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly
+     * {12,13,14,15,18,21,24,27,32}. The pre-fix core carried "30"
+     * (AC1030 - no such DWG release) and LACKED "13" (AC1013 = R13) -
+     * both directions pinned here. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(128 * 1024, 0);
+        const size_t at = 512;
+        if (k == 0)
+            plant_dwg_header(img, at, "13"); /* R13 - MUST carve */
+        else
+            plant_dwg_header(img, at, "30"); /* AC1030 - MUST NOT carve */
+        plant_dwg_locator(img, at, 1, {{0x100, 0x2000}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* dwg = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                dwg = c;
+        if (k == 0)
+            EXPECT_NE(dwg, nullptr) << "AC1013 (R13) is in the og's table - it must carve";
+        else
+            EXPECT_EQ(dwg, nullptr) << "AC1030 is NOT a DWG release - the og's table refuses";
+    }
+}
+
+size_t plant_psp(std::vector<u8>& img, size_t at);
+
+TEST(Carve, PspBkBlockChainWalkSetsExtent) {
+    /* the og's walk (FUN_180016510 :17410-17482): the ~BK chain from
+     * 0x24, each block {magic "~BK\0", length u32 @ +6}, advance
+     * 10+length; the extent = the walked end (0x24 + 0x10A + 0x8A) -
+     * NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_psp(img, at);
+    EXPECT_EQ(expect, size_t(0x1B8));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* psp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            psp = c;
+    ASSERT_NE(psp, nullptr) << "the PSP must carve through the ~BK walk";
+    EXPECT_EQ(psp->props()->logical_size, size_t(0x1B8))
+        << "extent = 0x24 + (10+0x100) + (10+0x80) - the block-chain end";
+}
+
+TEST(Carve, PspExactSignatureRequired) {
+    /* the og's tier-1 is the FULL 32-byte compare incl. the 0x0a 0x1a
+     * tail (FUN_180016390) - the old core accepted a 16-byte prefix;
+     * a file with the 26-byte old-core shape (no 0x0a/0x1a) REFUSES. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "Paint Shop Pro Image File", 25);
+    img[at + 25] = 0;
+    img[at + 26] = 0; /* the OLD plant's shape: NUL NUL, not 0x0a 0x1a */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the 26-byte short signature must refuse (the og compares 32)";
+}
+
+TEST(Carve, PspTornChainSalvagesTheWalkedEnd) {
+    /* the chain runs past the device end: the walked end salvages (the
+     * og's chunk-feed exhaustion keeps +0x110's walked position). */
+    std::vector<u8> img(1024, 0);
+    const size_t at = 512;
+    static const char kSig[] = "Paint Shop Pro Image File";
+    std::memcpy(img.data() + at, kSig, 25);
+    img[at + 25] = 0x0a;
+    img[at + 26] = 0x1a;
+    /* one block: len 0x200 -> the next header at 0x24+0x20A = 0x22E =
+     * 558 past the device end (1024): the salvage is the walked end */
+    put32v(img, at + 0x24, 0x004b427eu);
+    put32v(img, at + 0x24 + 6, 0x200);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* psp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            psp = c;
+    ASSERT_NE(psp, nullptr) << "the torn chain still carves the walked end";
+    EXPECT_EQ(psp->props()->logical_size, size_t(1024 - 512))
+        << "the walked end clamps to the device end - never a refusal";
+}
+
+TEST(Carve, WpgZeroTailWalkSetsExtent) {
+    /* the og's zero-tail walk (FUN_180042b30 :50703-50750 + the
+     * processor FUN_180014160: extent = the trailing-zero-run position
+     * of the first 512-byte window) - NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    for (size_t i = 4; i < 300; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* 300 bytes of content */
+    /* [at+300, at+512) stays zeros: the zero run -> extent 300 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpg = c;
+    ASSERT_NE(wpg, nullptr) << "the WPG must carve through the zero-tail walk";
+    EXPECT_EQ(wpg->props()->logical_size, size_t(300))
+        << "extent = the first all-zero-tail position (300), not 512 and "
+           "not the 64 MiB stand-in";
+}
+
+TEST(Carve, WpgZeroTailFullWindowIsTheBoundary) {
+    /* FUN_180042b30's no-zeros arm: the whole window non-zero -> the
+     * extent is the WINDOW length (512) - the og's one-chunk walk. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    for (size_t i = 4; i < 512; ++i)
+        img[at + i] = u8(1 + (i % 251)); /* no zeros anywhere in-window */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpg = c;
+    ASSERT_NE(wpg, nullptr);
+    EXPECT_EQ(wpg->props()->logical_size, size_t(512))
+        << "no zero tail in the window: the extent is the window length";
+}
+
+TEST(Carve, WpgAllZeroWindowDeclines) {
+    /* FUN_180042b30's whole-buffer-zero arm returns 0 - the og's
+     * extent-0 decline class; the core refuses the carve. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    /* everything past the magic stays zero */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the all-zero window is the og's extent-0 decline";
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */
@@ -2740,12 +3129,31 @@ size_t plant_wpd(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
+/* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
+ * (FUN_180016390 :17347-17368: "Paint Shop Pro Image File" + 0x0a + 0x1a
+ * + 5 NULs, memcmp 0x20) - the old 26-byte plant lacked the 0x0a 0x1a.
+ * The walk: the ~BK block chain from 0x24 (FUN_180016510 :17410-17482):
+ * each block {u32 magic 0x004b427e, u32 length @ +6}, advance 10+length;
+ * the extent = the walked end. */
 size_t plant_psp(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "Paint Shop Pro I", 16);
-    std::memcpy(img.data() + at + 16, "mage File\x00", 10);
-    for (size_t i = 26; i < 64; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 64;
+    static const char kSig[] = "Paint Shop Pro Image File\x0a\x1a";
+    std::memcpy(img.data() + at, kSig, 25);
+    img[at + 25] = 0x0a;
+    img[at + 26] = 0x1a;
+    for (int i = 27; i < 32; ++i)
+        img[at + size_t(i)] = 0;
+    /* two ~BK blocks from 0x24: len 0x100 and 0x80 -> the walked end
+     * 0x24 + (10+0x100) + (10+0x80) = 0x1B8 */
+    size_t p = at + 0x24;
+    put32v(img, p, 0x004b427eu); /* "~BK\0" */
+    put32v(img, p + 6, 0x100);
+    p += 10 + 0x100;
+    put32v(img, p, 0x004b427eu);
+    put32v(img, p + 6, 0x80);
+    p += 10 + 0x80;
+    for (size_t i = p - at; i < 0x1B8 + 64; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* non-~BK tail content */
+    return 0x1B8;
 }
 
 size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {

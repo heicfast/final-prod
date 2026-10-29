@@ -42,6 +42,32 @@ Next free IDs: S-069+, M-158+, N-224+, I-049+, A-017+, D-165+.
 
 ---
 
+---
+
+# SUMMARY.md — executive summary (the S86 MINOR-first 20+ fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes]; opened at core `e17a4e6d` [clean tree, ctest 1566/1566 green first-hand], corpus `be0cfe9` throughout; re-homed S79 → S86 per SA-9 [the racing windows took S68-S85]; prompt saved token-redacted at worklog/session-diff-fix-s86-prompt.md)
+
+- **N-181 CONCEDED to the racing S76 lane's `033c5d7c`** (earlier-push-wins):
+  this lane built and PROVED the og-faithful concurrent shape (the carve
+  worker at the loop-1 position, the stage-begin on the scan thread, the
+  carve-stage engine/finish split with disjoint ScanStats ownership, the
+  new locked snapshot_dfs/collect_structured_extents tree APIs, per-stage
+  telemetry clocks, 3 RED→GREEN tests, suite 1569/1569, TSan/UBSan clean)
+  but the racing window landed its sequential carve-before-deep reorder
+  first. Their landing keeps the seat; the interleaved-feeds residual (and
+  the reorder's flip of the deep population's time-to-first-result behind
+  the whole carve sweep) stays O37-registered — the full implementation
+  record + proof set is preserved in worklog.md's S86 concession entry for
+  the future lane that closes it. No board change (their landing already
+  counted).
+- **Riders landed:** the pre-existing UBSan violation in
+  test_orchestrator.cpp's plant_compact_fat12 fixed (unaligned u16 stores →
+  put16 — caught by this lane's local --san run; CI is windows-only by the
+  documented decision) + the CR_SANITIZER_LANE define on the ubsan preset
+  and ci-local's tsan lane (the honest scoping pattern for
+  timing-sensitive assertions under detector slowdown).
+
 # SUMMARY.md — executive summary (the S84 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-84 S84 fix-lane delta (2026-10-29/30 — the user's fix mandate continuation ["fix all the audit findings (priority to major/informational first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `842a587e` (the S83-close tree), corpus `be0cfe9` throughout)
@@ -100,6 +126,30 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-078 FIXED (MAJOR, the destructive consent twin):** the
+  CBitlockerTurnOffOperation endpoint — `win::bitlocker::turn_off` (the
+  dual Disable-BitLocker / manage-bde -off chain, unlock()'s own
+  duality; the og's exact verb undecoded, honestly registered), the
+  `cr_ui_turn_off_bitlocker` ABI export #93 (request-phase progress; OK
+  means accepted, not plaintext — the OS decrypt continues in the
+  background, D-165), the CLI `unlock --turn-off C:` verb (the
+  three-site lock). D-16's legitimate-unlock-only register untouched:
+  decrypt, never bypass, the consent pin is a test
+  (TurnOffIsTheConsentedDestructiveTwin). The 3-test seam battery +
+  the export count sites refreshed (the A-ABI-3 class swept).
+
+- **M-075 FIXED (MAJOR, the escalation endpoint):** the check ladder's
+  fix rung landed — the pure grammar (the two postures of the guidance
+  string, cross-platform/Linux-tested), the win-layer launch (elevated,
+  synchronous with the documented 15-minute bound, WoW64-native via the
+  redirection disable that realizes the og's IsWow64Process branch, the
+  loud refusal on absent volumes), the `cr_ui_fsck_volume` ABI export
+  #92 (all five count sites refreshed — the A-ABI-3 class swept in the
+  same change), the `fix --chkdsk C:` CLI leg (the three-site lock),
+  D-90 rewritten to the superseded posture, R-65 closed to PRESENT. The
+  og's exact 5 arguments to WinChkdsk.exe stay undecoded (honestly
+  registered; the direct chkdsk.exe form is the corpus-grounded base).
+
 - **The racing window's same-window closures absorbed at the rebase:**
   M-111 (D-158 scope decision), M-114 (D-159 posture decision), M-154
   (the lifecycle + the hardening rider), I-048 (ACKNOWLEDGED, D-155
@@ -108,8 +158,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after this landing (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 8 MAJOR · 2 MINOR · 0 INFO active / 196 FIXED / 4
+**Board after M-078 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 6 MAJOR · 2 MINOR · 0 INFO active / 198 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3
@@ -152,6 +202,26 @@ question 2 is closed by that arbitration):
 RED→GREEN first-hand at this lane's repaired tree (before the racing
 windows were found): the two RED tests green, FAT family 94/94, full
 suite 1657/1657; the suite re-verified green after every rebase.
+
+- **M-107's DWG member LANDED (member 3 of 11 — this lane's first
+  finding fix after the restoration):** the three-generation walk
+  (BruteForce::CDWGAnalyser, FUN_18002f320; the factory's initial scan
+  position 0x15 — the constant the prior lanes never decoded; evidence:
+  evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md). Mode 1
+  (R12-R2000): count u32@+0x15, 9-byte records {index gate, seeker@+1,
+  size@+5}, extent = max(seeker+size), the index-mismatch decline, the
+  device-end salvage. Mode 2 (R2004-R2018): the 108-byte section map at
+  +0x80 XOR the MSVC-LCG keystream, six validation gates, extent =
+  u64@+0x34 + 0x6C. Mode 3 (AC1021/R2007): the recorded remainder (the
+  bounded extent stands in for it alone). The version set tightens to
+  the og's exact tables {12,13,14,15,18,21,24,27,32}. RED→GREEN
+  first-hand via the stash dance (4 walk tests RED at the stand-in
+  tree); the carve suite 279/279.
+
+**Board after the DWG member (filesystem truth): 0 ACUTE · 0 SEVERE ·
+8 MAJOR active (M-075/M-078/M-086/M-087/M-089/M-101/M-105/M-107 — M-107
+at members 1-3 of 11 landed, 8 remain) · 2 MINOR · 0 INFO / 4
+tracked-open.**
 
 
 ---

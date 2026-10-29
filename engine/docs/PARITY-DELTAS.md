@@ -3141,12 +3141,21 @@ BCD restore.
 onward (the Win7-inclusive import gate), and Win7 boots through BCD — a
 legacy ARC-path repair has no recovery-relevant consumer in the envelope
 (the finding's own fix-plan note, adopted verbatim as the registered
-rationale). The chkdsk delegation stays OUT OF CORE: spawning an external
-binary is the host's job (the og itself spawns it from the host-side undo
-chain); the core's contract ends at the byte-exact undo record the host
-acts on. Stage (a) — the BCD offset rewriter — IS ported (cr/bcdfix, the
-consent-gated plan/execute/undo core); stage (b) — the UEFI NVRAM updater
-— is the recorded next step on the finding.
+rationale). ~~The chkdsk delegation stays OUT OF CORE~~ — **SUPERSEDED BY M-075
+(2026-10-30)**: the escalation endpoint IS in core now — `cr/win/fsck::
+fsck_volume` + the `cr_ui_fsck_volume` ABI export + the `fix --chkdsk C:`
+CLI leg launch Windows chkdsk on a volume (elevated, synchronous with a
+documented 15-minute bound, WoW64-native via the redirection disable that
+realizes the og's IsWow64Process branch, the loud refusal on absent
+volumes). The direct `chkdsk.exe <vol> /f` form is the corpus-grounded
+base the og's WinChkdsk.exe wrapper itself delegates to (per-binary/
+WinChkdsk.md:28); the wrapper's own 5 arguments remain undecoded (M-075's
+open question — reconcile on a future decode). The host's post-undo
+invocation of this endpoint (the og's MM:83206 `ChkDsk.exe %C: /F /X`
+shape) remains a host-side orchestration choice; the CORE-side rung of
+the ladder exists and is testable. Stage (a) — the BCD offset rewriter —
+IS ported (cr/bcdfix, the consent-gated plan/execute/undo core); stage
+(b) — the UEFI NVRAM updater — is the recorded next step on the finding.
 
 
 **N-122 addendum — the NVRAM Boot#### create/delete halves are deliberately
@@ -4813,3 +4822,33 @@ deliberate-divergence branch with the safety rationale). The finding's
 step-3 corpus erratum (the MainModule behavior was never documented in
 the corpus's own per-binary artifacts) is recorded in
 diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
+
+### D-165 — the BitLocker turn-off is a REQUEST-surfaced op (RENUMBERED from the born-collided D-165 seat at the Session-84 coherence repair — the ext4 journal-inode seat took D-165 first, per the 67d2bf25 first-landing-keeps convention): the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
+
+**CONTEXT:** M-078 landed the CBitlockerTurnOffOperation endpoint
+(`cr_ui_turn_off_bitlocker` + CLI `unlock --turn-off C:` + the win layer's
+`turn_off`). The corpus decodes the operation's EXISTENCE, its
+transactional framing (the CBaseOperation pending queue,
+mom-module-system:78; pending-operation-engine:62-63 — "pause/decrypt
+flows around recovery of encrypted volumes"), and its plumbing partners
+(bitlockerhelp.mo, BitLockerLib.dll) — but NOT the exact verb it issues
+(the finding's own open question: manage-bde `-off` vs an FVE API call).
+
+**DIVERGENCE:** (1) The command chain follows the unlock surface's own
+duality (PowerShell `Disable-BitLocker` primary, `manage-bde -off`
+legacy fallback) — the evidence class the finding's fix plan chose; if a
+future decode recovers the og's exact verb, re-pin against it. (2) The
+returned OK means the REQUEST was accepted, not that the volume is
+plaintext: both Windows verbs schedule the decrypt and return (the OS
+continues in the background — manage-bde's own documented shape). The
+core surfaces this honestly (the header contract says so verbatim; the
+CLI prints the manage-bde -status hint); the og's pending-op queue gives
+its UI a richer progress surface that is host-side chrome over the same
+verbs — not reimplemented (the queue's UI-layer status is the same class
+as D-111's scope decision).
+
+**SAFETY:** the D-16 legitimate-unlock-only register is UNTOUCHED —
+turn-off is decrypt, never bypass; the consent contract is the
+dictionary-unlock class (explicit host opt-in; nothing in the scan/open
+path calls it — pinned by Bitlocker.TurnOffIsTheConsentedDestructiveTwin
+and the TurnOffRefusesLoudlyOnFailure refusal contract).
