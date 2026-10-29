@@ -303,3 +303,19 @@ session's verification:
    og-side TTFR comparison then needs the first-found probe in
    `bench/og/og-driver.ps1` (no first-found capture exists) or an
    owner's scoped-closure decision.
+
+## Session-86 disposition note (2026-10-30 — pushed forward, harness verified at the current tree)
+
+Not resolvable from the Linux container (the question is Windows-hardware by
+nature - 64 KiB direct-I/O vs the og's 4/7 MiB buffered-synchronous
+chunking). Re-verified at the S86 tree: the acceptance machinery is intact -
+`bench/ours/run-alignbench.ps1` carries the og-strategy proxies (4 MiB +
+7 MiB) alongside the core-strategy proxies (64 KiB envelope + 256 KiB cache
+block) in one pass with cpu_ms recorded and the chunk_strategy_ratios
+verdict block emitted; `scripts/ps_parsecheck.ps1` gates the fleet syntax.
+The remaining step is EXACTLY ONE WINDOWS EXECUTION, unchanged: dispatch
+the API Benchmark workflow (or `run-alignbench.ps1 -Target '\\.\C:'
+-SpanMiB 512` on the Windows lane), then transcribe the
+chunk_strategy_ratios verdict + the comparative-bench scan-level
+time-to-first-result into this file, M-030's Resolution addendum, and
+SUMMARY's performance section. No new engineering owed on either half.

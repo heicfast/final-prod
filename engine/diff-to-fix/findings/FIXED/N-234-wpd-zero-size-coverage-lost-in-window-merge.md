@@ -1,10 +1,10 @@
-# MINOR N-231 — the WPD zero-size-decline COVERAGE lost in the racing window's final merge state: N-230's own recorded resolution ("the S87 seat's test kept") does not match the tip it shipped (count 0)
+# MINOR N-234 (renumbered from the born-collided N-231 at the third-window rebase per SA-9 — the racing window's duplicate-gtest-name GATE finding b4bb09f6 holds N-231, the win-syntax repair N-232, the SIT-red record N-233; this lane's coverage restoration takes N-234) — the WPD zero-size-decline COVERAGE lost in the racing window's final merge state: N-230's own recorded resolution ("the S87 seat's test kept") does not match the tip it shipped (count 0)
 
 **Severity:** MINOR (a coverage/bookkeeping-truth repair — the record-vs-tree disagreement class)
 **Module / Surface:** tests (test_carve.cpp — the WPD battery's zero-size member); the N-229/N-230 arbitration records
 **Parameters affected:** Q66 (the zero-size-decline behavior's coverage — the extent!=0 engine gate, corpus-decoded at 0x18000d7e1; the pending-child framing 0x18000b760)
 **Corpus references:** the same two decodes N-229/N-230 record (the engine acceptance gate + the generic pending child's decline) — no new corpus claim
-**Core references (origin/main at `84a3670e`, first-hand):** `git show origin/main:tests/unit/test_carve.cpp | grep -c 'TEST(Carve, WpdZeroSizeFieldDeclines)'` → **0**. Neither the S87 seat's test nor the S91 rider's renamed form exists at the tip — despite the three arbitration records stating the coverage preserved: `8301c72b` ("the S87 seat's test keeps its name, the S91 rider's renamed to its own decode angle ... both batteries' coverage preserved"), `47c849bb` ("the second renamed WpdZeroSizePendingChildWalkDeclines, both green"), a98392d1 ("the racing pending-child form keeps the dedup seat"), and N-230's own Resolution ("the racing fix, their form: the S91 rider's colliding test DELETED, the S87 seat's kept" — count 1 claimed). The landed validator still implements the behavior (`validate_wpd`'s `if (end <= hit) return r;` — the decline on a zero declared size), so the behavior is real, corpus-decoded, and UNPINNED at the tip.
+**Core references (origin/main at `84a3670e`, first-hand):** `git show origin/main:tests/unit/test_carve.cpp | grep -c 'TEST(Carve, WpdZeroSizeFieldDeclines)'` → **0**. Neither the S87 seat's test nor the S91 rider's renamed form exists at the tip — despite the three arbitration records stating the coverage preserved: `8301c72b` ("the S87 seat's test keeps its name, the S91 rider's renamed to its own decode angle ... both batteries' coverage preserved"), `47c849bb` ("the second renamed WpdZeroSizePendingChildWalkDeclines, both green"), a98392d1 ("the racing pending-child form keeps the dedup seat"), and N-230's own Resolution ("the racing fix, their form: the S91 rider's colliding test DELETED, the S87 seat's kept" — count 1 claimed) AND the FIXED/M-107 closing addendum's own claim ("merged into the original definition with both rationales kept"). The landed validator still implements the behavior (`validate_wpd`'s `if (end <= hit) return r;` — the decline on a zero declared size), so the behavior is real, corpus-decoded, and UNPINNED at the tip.
 **Status:** FIXED (filed+fixed this push — the S94 lane's convergence-verification catch)
 
 ## Summary
@@ -17,7 +17,7 @@ The S87 seat's `WpdZeroSizeFieldDeclines` is restored verbatim against the lande
 
 ## Reproduction / verification
 
-- RED (by inspection + grep, first-hand): the count-0 grep at the tip; the behavior implemented at `validate_wpd`'s `end <= hit` decline with no test exercising it anywhere in the suite.
+- RED (by inspection + grep, first-hand): the count-0 grep at the tip (re-verified against the third window's tip 69a9a437: zero tests in the ENTIRE remote tree exercise the WPD zero-size decline — the whole-tree search, not just test_carve.cpp); the behavior implemented at `validate_wpd`'s `end <= hit` decline with no test exercising it anywhere in the suite.
 - GREEN: the restored test passes on the merged tree; the DWG+WPD battery green; the full-suite numbers in this push's worklog entry.
 
 ## Resolution

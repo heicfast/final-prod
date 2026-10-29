@@ -382,3 +382,30 @@ CLI by **source inspection** (`cr_test::read_repo_file("src/app/rrecov.cpp")`) p
   (src/app/CMakeLists.txt:1–2) + vcpkg DLL deployment backstop (:5); Windows-only
   (src/CMakeLists.txt:10–14; root CMakeLists.txt:40 `CR_BUILD_APP` ON). No linkage to
   cr_ui — consistent with the zero-call-site observation.
+
+---
+
+## Session-90 coherence addendum (re-stamped at the pre-v0.5.3 close)
+
+Deltas against the Session-84 record (13 verbs, e8dcaba8):
+
+- **The verb count is 14, not 13.** The M-075/M-078 window (d10ae333,
+  fcd3ba10 — both post-e8dcaba8) added `unlock` (dispatch
+  src/app/rrecov.cpp:4037 -> cmd_unlock :3545; exits 0 ok / 1
+  unknown-option+usage / 2 refused) and `fix --chkdsk` (:3621, the
+  M-075 posture flag; exits 2 on refusal, 3 on errors-remain). The
+  Session-84 verb table otherwise holds verbatim (list,
+  list-carve-formats, sessions, scan, tree, archive-list, recover,
+  health, fix, apply, image, bench, driver).
+- **The `image --create` selector parses** since 32441353 (the five-site
+  wiring repair: the usage header, -h, docs, and parser all agree now).
+- Exit-code surface: 0-5 as recorded + the unlock/chkdsk rows above.
+- The release-notes' CLI section (RELEASE-NOTES.md, v0.5.3 entry) was
+  reconciled to this count this session.
+
+— Session-90 coherence lane. End of addendum.
+
+### Post-window correction: re-verified at the v0.6.0 cut - the 14-verb
+count HOLDS at the merged HEAD (the dispatch recounted first-hand; the
+racing window's M-116 archive-list and the unlock/fix --chkdsk surface
+were already in this addendum's count).
