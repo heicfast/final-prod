@@ -126,3 +126,26 @@ addendum records the convergence. **Two independent lanes reading the
 same corpus filter and reaching the same fix is the strongest evidence
 class this trail carries** (the N-217/S81 precedent's own words). The
 counter name in the landed code is the racing lane's `orphan_admitted`.
+
+---
+
+## Convergence addendum (this lane — the S80 parity-fix lane; a THIRD independent landing)
+
+This lane also independently implemented the fix in the same window (the
+identical corpus decode of the four shape gates, the skip removed, the
+`orphan_admitted`-class counter, the mode gate kept as the registered
+hardening, the RED-GREEN proof via the stash dance: OrphanActive never
+surfaced pre-fix, ext4 family green post) before the push met TWO racing
+landings in sequence (`15f51121`, then the re-verified-from-raw-asm
+`18012c1a` whose objdump-level verification of the filter instructions
+0x180005f5d-0x180005f87 [size_lo / EXTENTS_FL / 0xF30A / eh_entries, no
+dtime or links read] independently confirms the decompile-line cite this
+lane worked from). The seat conceded both times; the final landing verified
+first-hand through this lane's N-219 repair (the full suite green at the
+post-repair tree). One disposition note recorded from this lane's own
+implementation experience: the JOURNAL INODE on an extents-mapped fixture
+is an orphan-active by shape — this lane's variant let it surface (with the
+EndToEndWalk re-pin documenting the real-volume indirect-mapped exemption),
+the landed variant claims it as engine state with the og's finalize
+disposition honestly marked UNDECODED (D-152(b)) — the landed posture is
+the more conservative one and this lane concurs with it.
