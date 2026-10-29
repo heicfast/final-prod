@@ -129,3 +129,32 @@ Currency note (SA-10): M-086/M-087/M-089/N-107/N-127 (the driver-contract
 batch) were re-verified standing at the reconciliation HEAD by this session's
 triage lane; the driver-repo-side items belong to that repo's lane per the
 two-repo grant.
+
+## Session-86 update — the DRWService K-slice scored (M-105 option (a) landed; 2026-10-30)
+
+**The K71/K72/K73 DRWService sub-verdicts (previously unscored — the
+packaging milestone's own hole):** all three resolve
+**ABSENT-BY-DECISION (registered)** under option (a), the finding's
+recommended default posture, recorded in PARITY-DELTAS D-166:
+
+- **K71 (DRWService slice)**: ABSENT-REGISTERED — no /install//uninstall
+  verbs, no SCM error strings in core (the og's per-call strings
+  "OpenSCManager failed"/"CreateService failed"/"StartService failed"/
+  "Install service succeed" have no counterpart; nothing silently
+  exits 0 — the in-process harvest's failures are the loud
+  ERR_FVE_LOCKED / the new ERR_FVE_ELEVATION_REQUIRED).
+- **K72 (DRWService slice)**: ABSENT-REGISTERED — no service at all:
+  no CreateService shape (name/display/type/start/error-control/
+  account/description/ImagePath), by the D-166 decision.
+- **K73 (DRWService slice)**: ABSENT-REGISTERED — no uninstall
+  lifecycle; the og's stop-gated delete ("Service not installed"
+  no-op) has no counterpart and none is owed under the posture.
+
+The capability half the service existed for (a non-elevated host
+reading the SYSTEM-ACL'd FVEAutoUnlock store) is served by the
+diagnosis instead: the harvest's failure path distinguishes "no keys
+configured" from "the store exists but this token cannot read it"
+(ERR_FVE_ELEVATION_REQUIRED, 0x50060002) — the finding's falsifiable
+claim #4 closed. R-83's false note ("install lives in driver-repo CI
+scripts") corrected in REFERENCE-API-GAP.md (both sites). The
+K71-K73 RDA-driver rows above are untouched.

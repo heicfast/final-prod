@@ -15,6 +15,7 @@ add_executable(cr_tests
     unit/test_retry.cpp
     unit/test_parallel.cpp
     unit/test_node_tree.cpp
+    unit/test_m101_branches.cpp
     unit/test_grading.cpp
     unit/test_health_grade.cpp
     unit/test_health_csmi.cpp
@@ -63,6 +64,7 @@ add_executable(cr_tests
     unit/test_query.cpp
     unit/test_fscheck.cpp
     unit/test_fscheck_launch.cpp
+    unit/test_fve_policy.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
     unit/test_apply.cpp

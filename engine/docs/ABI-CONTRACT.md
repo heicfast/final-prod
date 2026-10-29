@@ -90,6 +90,7 @@ Single numeric space, shared with `cr_error.h`. Selected codes:
 | 0x50030009 | ERR_NO_MEMORY | allocation failure |
 | 0x50050001 | ERR_DEST_OVERLAP | destination overlaps the source (F12 refusal) |
 | 0x50060001 | ERR_FVE_LOCKED | BitLocker volume locked (legitimate unlock failed) |
+| 0x50060002 | ERR_FVE_ELEVATION_REQUIRED | FVE auto-unlock keys exist but require an elevated token (M-105 option (a): the harvest's ACL diagnosis; append-only in the FVE family) |
 | 0x500B0001 | ERR_DRIVER_ABSENT | driver service not installed (prerequisite gate, DRIVER-REQUIRED.md §4) |
 | 0x500B0002 | ERR_DRIVER_NOT_STARTED | driver installed, service not RUNNING |
 | 0x500B0003 | ERR_DRIVER_UNAUTHORIZED | device DACL denied the control-device open |

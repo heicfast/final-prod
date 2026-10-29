@@ -81,16 +81,19 @@ std::vector<u8> build_large_64bit_volume() {
     std::vector<u8> img(size_t(TOTAL_BLOCKS) * BS4K, 0);
     u8* sb = img.data() + 1024;                   /* superblock at byte 1024 */
     put32(sb + 0x00, u32(LARGE_GROUPS * IPG_4K)); /* s_inodes_count */
-    put32(sb + 0x04, u32(LARGE_GROUPS * BPG_4K)); /* s_blocks_count_lo */
-    put32(sb + 0x14, 0);                          /* s_first_data_block (4KiB => 0) */
-    put32(sb + 0x18, 2);                          /* s_log_block_size = 2 (4096) */
-    put32(sb + 0x20, BPG_4K);                     /* s_blocks_per_group */
-    put32(sb + 0x28, IPG_4K);                     /* s_inodes_per_group */
-    put16(sb + 0x38, 0xEF53);                     /* magic */
-    put32(sb + 0x4C, 1);                          /* rev level 1 */
-    put16(sb + 0x58, 256);                        /* s_inode_size */
-    put32(sb + 0x60, 0x0080);                     /* incompat: 64BIT */
-    put16(sb + 0xFE, DESC_64);                    /* s_desc_size (64BIT) */
+    /* the lo/hi split of the >4 GiB block count: mask the low word BEFORE
+     * the narrowing cast so the truncation is explicit (MSVC C4310 fires on
+     * a truncating cast of a constant; the mask carries the same bits) */
+    put32(sb + 0x04, u32((LARGE_GROUPS * BPG_4K) & 0xFFFFFFFFull)); /* s_blocks_count_lo */
+    put32(sb + 0x14, 0);       /* s_first_data_block (4KiB => 0) */
+    put32(sb + 0x18, 2);       /* s_log_block_size = 2 (4096) */
+    put32(sb + 0x20, BPG_4K);  /* s_blocks_per_group */
+    put32(sb + 0x28, IPG_4K);  /* s_inodes_per_group */
+    put16(sb + 0x38, 0xEF53);  /* magic */
+    put32(sb + 0x4C, 1);       /* rev level 1 */
+    put16(sb + 0x58, 256);     /* s_inode_size */
+    put32(sb + 0x60, 0x0080);  /* incompat: 64BIT */
+    put16(sb + 0xFE, DESC_64); /* s_desc_size (64BIT) */
     /* blocks_count_hi (s_blocks_count_hi @ 0x150): 200000*32768 = 6.55e9,
      * fits in u32 only when wrapped; set the high word correctly. */
     put32(sb + 0x150, u32((LARGE_GROUPS * BPG_4K) >> 32));
@@ -131,16 +134,16 @@ TEST(Ext4EngineM144, CorruptHugeGroupCountStillRefused) {
      * guard the cap legitimately provides. */
     std::vector<u8> raw(size_t(8) * BS4K, 0);
     u8* sb = raw.data() + 1024;
-    const u64 corrupt_groups = (1ull << 26) + 1;    /* > MAX_GROUPS */
-    put32(sb + 0x04, u32(corrupt_groups * BPG_4K)); /* s_blocks_count_lo */
-    put32(sb + 0x14, 0);                            /* fdb (4KiB) */
-    put32(sb + 0x18, 2);                            /* log_bs (4KiB) */
-    put32(sb + 0x20, BPG_4K);                       /* bpg */
-    put32(sb + 0x28, IPG_4K);                       /* ipg */
-    put16(sb + 0x38, 0xEF53);                       /* magic */
-    put32(sb + 0x4C, 1);                            /* rev */
-    put16(sb + 0x58, 256);                          /* inode_size */
-    put32(sb + 0x60, 0x0080);                       /* 64BIT */
+    const u64 corrupt_groups = (1ull << 26) + 1;                      /* > MAX_GROUPS */
+    put32(sb + 0x04, u32((corrupt_groups * BPG_4K) & 0xFFFFFFFFull)); /* s_blocks_count_lo */
+    put32(sb + 0x14, 0);                                              /* fdb (4KiB) */
+    put32(sb + 0x18, 2);                                              /* log_bs (4KiB) */
+    put32(sb + 0x20, BPG_4K);                                         /* bpg */
+    put32(sb + 0x28, IPG_4K);                                         /* ipg */
+    put16(sb + 0x38, 0xEF53);                                         /* magic */
+    put32(sb + 0x4C, 1);                                              /* rev */
+    put16(sb + 0x58, 256);                                            /* inode_size */
+    put32(sb + 0x60, 0x0080);                                         /* 64BIT */
     put16(sb + 0xFE, DESC_64);
 
     SuperBlock out;

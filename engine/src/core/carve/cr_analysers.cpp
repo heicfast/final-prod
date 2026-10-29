@@ -4648,9 +4648,9 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
              * FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
              * id into eax, `cmp %ecx,%eax` with ecx the counter) - so the
              * walk SELF-LIMITS at 256 records (no byte can match a
-             * counter >= 256). The S86 convergence rider: the u8(i)
-             * truncation of the first landing accepted count>256 fixtures
-             * with wrapped ids the og refuses (FUN_18002f320's loop,
+             * counter >= 256). The S86 convergence rider (this lane renumbered from the
+             * born-collided S86 seat): the u8(i) truncation of the first landing accepted count>256
+             * fixtures with wrapped ids the og refuses (FUN_18002f320's loop,
              * 0x18002f400-0x18002f441). */
             if (u32(rec[0]) != i) {
                 /* the og's only structural gate: number != index ->
@@ -4670,8 +4670,8 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         u64 end = hit + extent;
         if (end > limit)
             end = limit;
-        /* the S86 convergence rider: the residual 512-byte floor removed -
-         * the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
+        /* the S86 convergence rider: the residual
+         * 512-byte floor removed - the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
          * factory FUN_18002ff20's qword write at +0x110 - the SAME write
          * that seeds the walk cursor; the PNG/ONE ctor pattern
          * [0x22]=min/[0x23]=max), and the og's gen-1 walk has no other
@@ -5621,46 +5621,48 @@ CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* SIT: "Stuf" key 0x66757453 (:5840) -> the SIT chain idx 93 (0x5d, the
- * index-first archive family). M-107 member 9 (SIT): the SIT5 magic
- * walk decoded first-hand from the raw asm this session (the processor
- * FUN_180015d70, asm 0x180015d70-0x180015f5e, the vtable pointer at
- * .data 0x180067848; the tier-1 FUN_180015a20 = the 7-byte "StuffIt"
- * covenant; the child ctor FUN_180015a90: min 0x5000 = 20480, max
- * 200,000,000; the search FUN_180015b60, asm 0x180015b60-0x180015d5b):
+/* SIT: "Stuf" key 0x66757453 (:2153) -> the SIT chain idx 93 (index-first
+ * archive family). The M-107 member landing (the FileSITAnalyser walk,
+ * FUN_180044a10, raw-asm-decoded first-hand):
  *
- * - byte@+7 == ' ' (the pre-SIT5 old form) or any non-'!' byte: NO
- *   size stamp, no search flag - the og's processor keeps feeding
- *   (return 2) until a LATER chunk's head is another full SIT-family
- *   header ("Stuf"+"fI"+byte6 't'+byte7 in {' ','!'} - the else
- *   branch's re-validation at 0x180015df3-0x180015e67 - or the
- *   "WEBB AIKE 66 66 EB B4 A3 74 BD 7B" form, the u64 0xB4EB6666454B
- *   4941 + u32 0x7bbd74a3) or the walk cap; the extent = that chunk's
- *   end (the next archive's boundary).
- * - byte@+7 == '!' (the SIT5 form): the search flag is set (+0x110);
- *   each chunk is scanned for the THREE 8-byte LE end-magics - the
- *   .data constants at 0x180067858/0x180067868/0x180067878, first-hand
- *   dumps: 02 D7 0A 19 98 F6 42 88 / 02 D7 0A 3B 98 F6 42 88 /
- *   02 D7 0A 10 98 F6 42 88 (u64 LE 0x8842f698190ad702 /
- *   0x8842f6983b0ad702 / 0x8842f698100ad702 - the three archive-
- *   flavor variants of the SIT5 end magic; the search's skip-3-on-
- *   zero-dword stride at 0x180015bd1-0x180015bdd is the og's own
- *   padding-skip optimization). A magic found -> the extent = the
- *   containing chunk's end. The next-header terminator applies to
- *   this form too (the else branch runs for every later chunk).
- * - The walk's own cap: max*10 = 2,000,000,000 (the asm's
- *   lea (%rax,%rax,4)+add at 0x180015e77-0x180015e7b - the child's
- *   200,000,000 max scaled by ten); crossing it force-stamps the
- *   current chunk's end - never a refusal once the key held.
- * - The model translation (the registered model-divergence class -
- *   the CRW/X3F stance): the og's chunk-granular extent stamps become
- *   the exact structural positions - the magic's END for the SIT5
- *   form, the next header's position for the terminator arm; the
- *   stream-end drop (a candidate whose walk never completes before
- *   the device ends) becomes the decline; the 2 GB force-stamp stays
- *   the salvage. The row max carries the walk's own cap
- *   (2,000,000,000 - the 64 MiB stand-in gone); the min stays the
- *   ctor's 20480 floor (N-093's registered stance). */
+ *  - The acceptance gate is the family union the og's processor enforces
+ *    (raw-asm 0x180015df3-0x180015e67: `sub $0x20,%al; ja` + the u16@4/
+ *    byte@6 checks): "Stuf"+"fI"+'t' with byte[7] in {' ', '!'} — the
+ *    classic "StuffIt " and the "StuffIt!" forms. The FileSITAnalyser's
+ *    own gate (0x180044a93, `cmpb $0x21,0x7(%rax)`) serves the '!' form
+ *    only; a byte[7] outside the window never finalizes in the og (the
+ *    node's 7-byte gate accepts, the processor refuses, the candidate
+ *    rides the continuation until it dies) — the core refuses it outright.
+ *
+ *  - The '!' form's size walk (FUN_180044a10, the File*Analyser
+ *    one-function tier-1+size shape; the M-090 authority precedent): a
+ *    windowed search for the 8-byte entry marker 02 D7 0A XX 98 F6 42 88
+ *    (the 3-byte prefix search FUN_180044890 + the +4 u32 0x8842f698
+ *    validation, raw-asm 0x180044ca3-0x180044ca9); a full hit stamps
+ *    extent = marker + 8 + stride (raw-asm 0x180044ccc-0x180044cd2) with
+ *    the stride table: XX == 0x19 -> 4, XX == ';' (0x3b) -> 5, else 6
+ *    (the .rdata pattern table at 0x180067848 lists the three forms
+ *    {0x10, 0x3b, 0x19}). A 3-byte prefix hit whose +4 u32 mismatches is
+ *    the corrupt-entry terminal: the extent is the 512-aligned sector
+ *    start containing it (the og's walk position at the break).
+ *
+ *  - The new-header gate: a following archive's header — the 7-byte
+ *    "StuffIt" form or the 16-byte "WEBB"+"AIKE"+66 66 EB B4 A3 74 BD 7B
+ *    key (FUN_180044960, raw-asm-verified) — at a 512-byte boundary
+ *    beyond the start ends the walk there (raw-asm 0x180044bef-0x180044c10).
+ *
+ *  - Torn (no marker, no new header) -> the walked bound (the loop-exit
+ *    stamps the position; the og's own cap is the singleton+0x70 halved
+ *    bound — the SITRawFileInfo row max 200,000,000, the X3F stance).
+ *
+ *  - The classic ' ' form's size comes from the primary's feeding
+ *    protocol (the (offset-stored+1)*len epilogue at 0x180015f42 — the
+ *    streaming artifact, undecoded as a whole-file semantic): the honest
+ *    bounded-extent stand-in stays for that population, at reduced
+ *    confidence, naming the recorded follow-up. The og's zero-tailed-
+ *    sector gate and the 0x20 straddle retry are the streaming model's
+ *    artifacts (the registered CRW/X3F divergence class) — the core
+ *    searches every window, the registered superset stance. */
 CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5668,71 +5670,115 @@ CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h, "Stuf", 4) != 0 || std::memcmp(h + 4, "fIt", 3) != 0)
         return r;
-    const bool sit5 = h[7] == '!';
-    /* ' ' (the old form) and every other byte: the next-header-only
-     * walk (the og's flag is unset - the magic search never runs) */
+    if (h[7] != ' ' && h[7] != '!')
+        return r; /* the processor's byte[7] window: anything else never finalizes */
+    r.ok = true;
     const u64 limit = probe_limit(s, hit, cap);
-    const u64 rel_limit = limit > hit ? limit - hit : 0;
-    constexpr u64 SIT_WALK_CAP = 200000000ull * 10; /* the og's max*10 force-stamp bound */
-    const u64 bound = std::min<u64>(rel_limit, SIT_WALK_CAP);
-    static const u64 kMagics[3] = {0x8842f698190ad702ull, 0x8842f6983b0ad702ull,
-                                   0x8842f698100ad702ull};
-    u64 found = 0; /* the walk end (the magic's end or the header's position) */
-    bool by_magic = false;
-    {
-        std::vector<u8> win(64 * 1024);
-        u64 pos = 8; /* past the "StuffIt!" header - the magic never overlaps it */
-        while (pos < bound) {
-            const u64 chunk = std::min<u64>(win.size(), bound - pos);
-            if (chunk < 16)
+    if (h[7] != '!') {
+        /* the classic form: the primary's streaming walk is the recorded
+         * follow-up — the honest stand-in (the available-extent bound) */
+        r.end = std::min(hit + u64(64 << 20), limit);
+        r.confidence = 560;
+        r.note = "sit-classic-space-form,primary-feed-walk-undecoded";
+        return r;
+    }
+    /* the '!' form: the FileSITAnalyser marker walk */
+    const u64 rel_limit = limit - hit;
+    const u64 bound = std::min<u64>(rel_limit, 200000000u);
+    std::vector<u8> win(kProbeBlock);
+    /* the new-header gate: the first 512-aligned tier-1 form beyond the
+     * start caps the search (the og checks each boundary before the
+     * sector's marker search) */
+    u64 new_header = bound;
+    for (u64 base = 0; base < bound; base += kProbeBlock) {
+        const u64 chunk = std::min<u64>(win.size(), bound - base);
+        if (chunk < 16)
+            break;
+        if (!rd(s, hit + base, win.data(), u32(chunk)))
+            break;
+        /* 512-aligned tier-1 scan (the "Stuf" 7-byte form + the 16-byte key) */
+        for (u64 a = (base == 0 ? 512 : base); a + 16 <= base + chunk; a += 512) {
+            const u8* p = win.data() + (a - base);
+            const bool stuf = std::memcmp(p, "Stuf", 4) == 0 && std::memcmp(p + 4, "fIt", 3) == 0;
+            const bool key =
+                u32_from_bytes_le(p) == 0x42424557u && u32_from_bytes_le(p + 4) == 0x454b4941u &&
+                u32_from_bytes_le(p + 8) == 0xb4eb6666u && u32_from_bytes_le(p + 12) == 0x7bbd74a3u;
+            if (stuf || key) {
+                new_header = a;
                 break;
-            if (!rd(s, hit + pos, win.data(), u32(chunk)))
-                break; /* torn feed: the walked bound below is the salvage */
-            for (u64 i = 0; i + 8 <= chunk; ++i) {
-                const u8* p = win.data() + i;
-                if (sit5) {
-                    const u64 v = u64_from_bytes_le(p);
-                    if (v == kMagics[0] || v == kMagics[1] || v == kMagics[2]) {
-                        found = pos + i + 8; /* the magic's END */
-                        by_magic = true;
-                        break;
-                    }
-                }
-                /* the next-header terminator: a full "StuffIt "/"StuffIt!"
-                 * or the WEBB AIKE form ends the walk at its position */
-                if (std::memcmp(p, "Stuf", 4) == 0 && u16_from_bytes_le(p + 4) == 0x4966 &&
-                    p[6] == 't' && (p[7] == ' ' || p[7] == '!')) {
-                    found = pos + i;
-                    break;
-                }
-                if (i + 16 <= chunk && u32_from_bytes_le(p) == 0x42424557u &&
-                    u64_from_bytes_le(p + 4) == 0xb4eb6666454b4941ull &&
-                    u32_from_bytes_le(p + 12) == 0x7bbd74a3u) {
-                    found = pos + i;
-                    break;
-                }
             }
-            if (found)
-                break;
-            if (chunk < win.size())
-                break;        /* short final read: the window is exhausted */
-            pos += chunk - 8; /* the 8-byte straddle overlap (the magic width) */
         }
+        if (new_header != bound)
+            break;
+        if (chunk < win.size())
+            break; /* short final read: nothing further to scan */
+    }
+    /* the entry-marker search: the 8-byte marker's 3-byte prefix + the
+     * +4 u32 validation, windowed with the straddle overlap */
+    u64 marker_at = 0;
+    u64 stride = 0;
+    bool corrupt = false;
+    u64 corrupt_at = 0;
+    bool found = false;
+    u64 pos = 0;
+    const u64 search_bound = new_header;
+    while (pos + 3 <= search_bound) {
+        const u64 chunk = std::min<u64>(win.size(), search_bound - pos);
+        if (chunk < 3)
+            break;
+        if (!rd(s, hit + pos, win.data(), u32(chunk)))
+            break; /* unreadable window: the walked prefix ends here */
+        for (u64 i = 0; i + 3 <= chunk; ++i) {
+            if (win[i] != 0x02 || win[i + 1] != 0xd7 || win[i + 2] != 0x0a)
+                continue;
+            if (i + 8 > chunk)
+                break; /* the marker straddles the window: the overlap re-reads it */
+            if (u32_from_bytes_le(win.data() + i + 4) != 0x8842f698u) {
+                /* the corrupt-entry terminal: the extent is the 512-aligned
+                 * sector start containing the broken marker (the og's walk
+                 * position at the break, raw-asm 0x180044ca9 `jne` -> the
+                 * extent stamp at pos) */
+                corrupt = true;
+                corrupt_at = pos + i;
+                break;
+            }
+            marker_at = pos + i;
+            const u8 x = win[i + 3];
+            stride = (x == 0x19) ? 4 : (x == 0x3b ? 5 : 6);
+            found = true;
+            break;
+        }
+        if (found || corrupt)
+            break;
+        if (chunk < win.size())
+            break;        /* short final read: the window is exhausted */
+        pos += chunk - 2; /* straddle overlap: a 3-byte prefix never splits */
     }
     if (found) {
-        r.ok = true;
-        r.end = hit + found;
-        r.confidence = by_magic ? 650 : 620;
-        r.note = by_magic ? "sit5-end-magic-walk" : "sit-next-header-walk";
-    } else if (rel_limit >= SIT_WALK_CAP) {
-        /* the og's force-stamp: the walk crossed the 2 GB boundary */
-        r.ok = true;
-        r.end = hit + SIT_WALK_CAP;
-        r.confidence = 550;
-        r.note = "sit-force-stamp-walk-cap";
+        r.end = hit + marker_at + 8 + stride;
+        if (r.end > limit)
+            r.end = limit;
+        r.confidence = 650;
+        r.note = "sit-entry-marker-walk";
+        return r;
     }
-    /* else: the stream ended before the walk completed - the og's
-     * pending candidate drops; the core declines */
+    if (corrupt) {
+        r.end = hit + (corrupt_at & ~u64(511));
+        r.confidence = 600;
+        r.note = "sit-corrupt-entry-terminal";
+        return r;
+    }
+    if (new_header != bound) {
+        r.end = hit + new_header;
+        r.confidence = 640;
+        r.note = "sit-new-header-boundary";
+        return r;
+    }
+    /* torn: the walked bound (the og's loop-exit stamps the position at
+     * its own cap — the halved singleton bound the row max mirrors) */
+    r.end = hit + bound;
+    r.confidence = 550;
+    r.note = "sit-marker-walk,torn-salvage";
     return r;
 }
 

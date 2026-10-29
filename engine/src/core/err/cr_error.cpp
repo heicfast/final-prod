@@ -67,6 +67,8 @@ const char* err_text(u32 code) {
         return "network destination (the local-only destination contract)";
     case ERR_FVE_LOCKED:
         return "volume locked (FVE)";
+    case ERR_FVE_ELEVATION_REQUIRED: /* M-105 option (a) */
+        return "FVE auto-unlock keys exist but require an elevated token";
     case ERR_HEALTH_UNAVAILABLE:
         return "health data unavailable";
     case ERR_REPAIR_REFUSED:
