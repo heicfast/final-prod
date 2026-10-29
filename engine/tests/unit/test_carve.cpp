@@ -3418,7 +3418,6 @@ TEST(Carve, ApeVersionWindowIsTheOgsThousandWindow) {
                 << "version " << ver << " is outside [1000, 9999] - the og declines";
     }
 }
-
 /* ---- M-107 member 6 (WPD): the version-table walk
  * (FUN_180041f50) ------------------------------------------ */
 
