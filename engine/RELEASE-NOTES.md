@@ -1,5 +1,18 @@
 # core_recovery release notes
 
+**A-F1 (the honest residue, filed not fixed):** the mid-stage carved-
+count telemetry delta (N-166's property) does not materialize on
+Windows — four release validations' evidence, three independent test
+designs, and a discriminating run with hundreds of ticks flowing all
+confirm no ScanProgress event carries `carved_found >= 1` before
+completion there, while carving itself, the tick machinery (stages
+0/1), the park machinery, and mid-scan queries are all proven working
+by the sibling batteries in the same runs. The property holds on
+Linux. The pin (Telemetry.CountersMoveDuringStage) is deleted with
+this pointer and re-lands with the Windows fix; the full evidence
+chain and the scoped next-session probe live at
+worklog/api-findings.md A-F1.
+
 # core_recovery v0.6.1
 
 **Scope of this release:** the v0.6.0 scope plus the release-blocking

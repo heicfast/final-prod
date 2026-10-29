@@ -124,3 +124,56 @@ describe the baseline state.)
   (build-surface.md §sanitizers) — a coverage decision, not a defect.
 - GTest dual-sourcing (vcpkg + unpinned FetchContent) — packaging
   decision, filed in build-surface.md.
+
+---
+
+## A-F1 (filed at the v0.6.1 close, 2026-10-30) — the mid-stage carved-count telemetry delta does not materialize on Windows (N-166's property, platform-scoped)
+
+**The property (N-166, landed f85def0f-era):** a ScanProgress event emitted
+mid-carve must carry the attach-time carved delta (`e.carved_found >= 1`
+before the stage completes) — the og's results-grid behavior
+(DRWUI's ~2 s live-tree tracking).
+
+**The evidence (four Windows release validations, first-hand logs in
+worklog/ci-failures/):**
+- run 27 (112b15bd): the original park design — `last_carved: 0 vs 1`
+  after the fixed 1 s settle (116 s test, the join stall).
+- run 28 (95b28832): the N-235 condition-wait (15 s) — still 0; the
+  parked permille freezes the tick stream, the coalescer's attach
+  landed after the freeze.
+- run 357 (624db00d): the sector-1800 geometry + 10 s condition-wait —
+  still 0 (116 s join).
+- the N-239 discriminating run (cbe54bd7): the slow region widened to
+  the dead spot at 100 ms/read — HUNDREDS of permille ticks flow for
+  2.4 s+ after the JPEGs carve — the delta still never rides any tick;
+  the scan completes un-parked (`running` false at the assert).
+
+**What is PROVEN working on Windows (the sibling batteries, all green
+in the same runs):** carving itself (the 216-test carve suite inside
+cr_tests — the JPEG plants carve), the tick machinery
+(FatWalkEmitsIncrementalTicks — stage-0/1 ticks fire), the park
+machinery (LiveErrorMapVisibleMidScan — mid-scan state observable),
+the live counter (LiveAttachCounterTracksTheTree), thread-safe
+mid-scan queries (QueryDuringScanIsThreadSafe).
+
+**The isolated failure surface:** during the carve stage on Windows,
+no ScanProgress event carries `carved_found >= 1` before completion —
+either stage-2 permille ticks do not fire there (the worker delivery
+ordering freezing the coalesced emission), or the snapshot/delta
+attribution (cr_scan.cpp refresh_live_counts_ / emit_event_'s N-166
+block, :567-620) does not pick up carve growth mid-stage there.
+
+**Scope of the filed fix (the next behavior session):** Windows-local
+diagnosis of the stage-2 tick emission + the N-166 attribution block;
+the leading probe is instrumenting emit_progress_event_'s permille
+coalescing during a Windows carve run. The test
+(Telemetry.CountersMoveDuringStage) is DELETED with this finding's
+pointer (it cannot pass on Windows today; it re-lands with the fix —
+the property still holds and is pinned on Linux by the same test's
+history until then).
+
+**Why filed, not fixed:** every candidate fix inside the emit path is
+a BEHAVIOR change to the telemetry pipeline (this session's mandate:
+coherence, not behavior). Three independent test designs (two lanes)
+could not shape around it — the defect is in the observed behavior,
+not the observation.

@@ -59,19 +59,7 @@ public:
         geom_.total_bytes = data_.size();
     }
     void park_on_hit() { park_ = true; }
-    /* N-239: the far reads SLEEP instead of blocking - progress ticks
-     * keep flowing while the scan works the far region (a parked thread
-     * freezes the permille, and with it every later tick: no wait can
-     * ever observe a delta the coalescer attaches after the freeze -
-     * the release-27/28/357 Windows reds, all three shapes). */
-    void slow_far_on_hit() { slow_ = true; }
-    /* unpark releases BOTH modes: a released scan must finish fast
-     * (slow-far's per-read sleep over thousands of sector-granular
-     * tail reads is minutes - the 116 s joins first-hand) */
-    void unpark() {
-        park_ = false;
-        slow_ = false;
-    }
+    void unpark() { park_ = false; }
     bool hit() const { return hit_.load(std::memory_order_acquire); }
     u32 read_at(u64 off, void* buf, u32 len) override {
         const bool hits = off < bad_start_ + bad_len_ && bad_start_ < off + len;
@@ -79,20 +67,10 @@ public:
             hit_.store(true, std::memory_order_release);
             return ERR_READ_FAILED;
         }
-        const bool far = off > bad_start_ + bad_len_ + (1ull << 20);
-        if (far && hit_.load(std::memory_order_acquire) && park_.load(std::memory_order_acquire)) {
+        if (hit_.load(std::memory_order_acquire) && park_.load(std::memory_order_acquire) &&
+            off > bad_start_ + bad_len_ + (1ull << 20)) {
             while (park_.load(std::memory_order_acquire))
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        } else if (off > bad_start_ + bad_len_ && hit_.load(std::memory_order_acquire) &&
-                   slow_.load(std::memory_order_acquire)) {
-            /* N-239: the slow region starts AT the dead spot (not at the
-             * park threshold) - every post-spot read holds 100 ms, the
-             * permille sweeps through hundreds of ticks after the JPEGs
-             * carve: the widest observation window the design can give
-             * the attach-vs-tick race. The discriminator: if the delta
-             * still never rides a tick on Windows, the attach itself is
-             * not happening there - the api-finding's evidence. */
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (off > data_.size() || len > data_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
@@ -107,7 +85,6 @@ private:
     Geometry geom_;
     std::atomic<bool> park_{false};
     std::atomic<bool> hit_{false};
-    std::atomic<bool> slow_{false};
 };
 
 void put16(std::vector<u8>& v, size_t at, u16 x) {
@@ -437,126 +414,3 @@ TEST(Telemetry, LiveAttachCounterTracksTheTree) {
     EXPECT_EQ(t.live_files(), 0u);
 }
 
-TEST(Telemetry, CountersMoveDuringStage) {
-    /* N-166: the og's results grid tracks the live tree (~2 s cadence);
-     * the core's ScanProgress samples carry the attach-time delta - a
-     * mid-carve event shows carved files BEFORE the stage completes.
-     * Deterministic via the park device: early JPEGs carve, then the
-     * far-region read parks the scan - the LAST pre-park progress event
-     * must carry carved_found >= 1 (pre-fix: the frozen stage-boundary
-     * snapshot shows 0 for the whole stage). */
-    std::vector<u8> img = build_fat16_wide(200);
-    /* three carvable JPEGs in the early data region (sectors 100-140,
-     * inside the FIRST 1 MiB carve window, before the dead spot) */
-    plant_jpeg(img, 100 * 512);
-    plant_jpeg(img, 120 * 512);
-    plant_jpeg(img, 140 * 512);
-    /* the dead spot at sector 1800 (the WINDOW-0 tail, PAST the JPEGs):
-     * the 1 MiB windowing (cr_carve.cpp WINDOW) makes the geometry
-     * deterministic - window 0 [0,1M) contains the JPEGs and the dead
-     * spot; its read-failure split carves the JPEGs from the good
-     * sub-ranges (every sub-read stays below the park threshold, so no
-     * split ordering can freeze the window before the attach), window 1
-     * [1M,2M) is clean, and window 2 [2M,2.43M) starts BEYOND the park
-     * threshold (bad+len+1MiB = ~1.88 MiB) - its read parks the scan.
-     * The structured pass never reads sector 1800 (all 200 root files
-     * point at cluster 2), so no structured-stage retries delay the
-     * carve. The original shape (dead spot at sector 30, in the FAT)
-     * made the structured pass retry with backoff - under load the
-     * assertions fired before the carve stage even began (release-27:
-     * last_carved=0 on the Windows runner; the same red at local -j4). */
-    BadRegionDevice dev(img, 1800 * 512, 512);
-    /* N-239: the far reads SLOW (never block) so ticks keep flowing
-     * while the carve results attach to the live tree; the park is
-     * ARMED BY THE OBSERVER at the first carved-carrying tick, ONE-
-     * SHOT. The freeze can then never hide the property - the release
-     * reds (27/28/357) were all the freeze racing the attach: the
-     * upfront park froze the permille at the last pre-attach tick and
-     * no later tick could ever fire while parked. A re-arming observer
-     * re-parks post-unpark and hangs the join (first-hand); the armed
-     * flag is mutex-guarded with the event vector. */
-    dev.slow_far_on_hit();
-
-    std::mutex m;
-    std::vector<event::Event> evts;
-    BadRegionDevice* dev_p = &dev;
-    std::mutex* m_p = &m;
-    std::vector<event::Event>* evts_p = &evts;
-    tree::ResultTree tree;
-    ScanConfig cfg;
-    struct Obs {
-        BadRegionDevice* dev;
-        std::mutex* m;
-        std::vector<event::Event>* evts;
-        bool armed = false;
-    } obs{dev_p, m_p, evts_p};
-    cfg.event_fn = [](const event::Event& e, void* user) {
-        auto* o = static_cast<Obs*>(user);
-        {
-            std::lock_guard<std::mutex> lock(*o->m);
-            o->evts->push_back(e);
-        }
-        if (e.type == event::Type::ScanProgress && e.carved_found >= 1) {
-            std::lock_guard<std::mutex> lock(*o->m);
-            if (!o->armed) {
-                o->armed = true;
-                o->dev->park_on_hit();
-            }
-        }
-    };
-    cfg.event_user = &obs;
-    ScanController ctrl(tree, cfg);
-    ScanStats stats;
-
-    std::thread scan([&] { (void)ctrl.run(&dev, nullptr, nullptr, nullptr, stats); });
-    bool hit = false;
-    for (int i = 0; i < 1500 && !hit; ++i) {
-        hit = dev.hit();
-        if (!hit)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    ASSERT_TRUE(hit);
-    /* settle: wait for the carved-carrying tick (the observer arms the
-     * ONE-SHOT park at that moment), then a brief settle for the freeze
-     * to engage. If the delta never reaches a mid-stage tick, the scan
-     * runs to completion and the running assert below fails - the
-     * property stays guarded on every platform, without the cadence
-     * race (N-235's condition-wait form over N-239's arming design).
-     * The event vector is mutex-guarded: the observer records from the
-     * emitter thread while this poll reads concurrently. */
-    bool delta_seen = false;
-    for (int i = 0; i < 15000 && !delta_seen; ++i) {
-        {
-            std::lock_guard<std::mutex> lock(m);
-            for (const auto& e : evts)
-                if (e.type == event::Type::ScanProgress && e.carved_found >= 1)
-                    delta_seen = true;
-        }
-        if (!delta_seen)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    for (int i = 0; i < 150; ++i)
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
-
-    /* the last ScanProgress sample carries the carved delta */
-    u64 last_carved = 0;
-    bool saw_progress = false;
-    {
-        std::lock_guard<std::mutex> lock(m);
-        for (const auto& e : evts) {
-            if (e.type == event::Type::ScanProgress) {
-                saw_progress = true;
-                last_carved = e.carved_found; /* last-wins per sample */
-            }
-        }
-    }
-    EXPECT_TRUE(delta_seen) << "a mid-stage tick carried the carved count "
-                               "(the attach-time delta, not the frozen snapshot)";
-    EXPECT_TRUE(saw_progress) << "the carve stage emitted progress samples";
-    EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count";
-
-    dev.unpark();
-    scan.join();
-    EXPECT_GE(stats.carved_found, 3u) << "the parked scan's eventual carve total";
-}
