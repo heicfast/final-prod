@@ -36,6 +36,8 @@ rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
                [--filter-folder DIR] (repeatable; the scan-time folder filter,
                                        M-073: out-of-prefix folders never enter
                                        the session; volume-root relative)
+rrecov archive-list --in file.crsf (--disk N | --image file) --node ID [--json]
+               (the browse-inside archive inventory, M-116)
 rrecov tree    --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
 rrecov recover --in file.crsf (--disk N | --image file) --to DIR
                [--deleted-only] [--filter s] [--report file.json]
@@ -46,6 +48,9 @@ rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
                [--block-kb N] [--iterations N] [--seed N] [--json]
 rrecov driver  [--service NAME] [--json]
+rrecov image   --create --disk N --out file.img
+               (the flat-raw disk-image producer + .sha256 sidecar, S-040;
+               VHD/VHDX writers out of scope, D-147)
 ```
 
 (The historical `rrecov info` line above was doc drift - no such verb ever
@@ -64,6 +69,7 @@ present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
 | 2 | recover: partial — item errors or hash mismatch in the write set; apply/fix: open/plan/execute/undo failure; bench: open/read failure or zero hits |
 | 3 | scan cancelled (session saved when --out was given) / health: every source unavailable |
 | 4 | the DRIVER prerequisite is not met — scan/recover/fix/apply/bench refuse before any other output with the ERR_DRIVER_* class on stderr (docs/DRIVER-REQUIRED.md) |
+| 5 | scan only: the target device disconnected mid-scan (N-125) — distinct from failure (1) and cancel (3); with `--out` the session checkpoint resumes after reattach |
 
 Every command logs stage timings, per-stage counts and error maps
 (`--log`). `scan --json` emits the run summary machine-readably;
@@ -92,8 +98,8 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 91 exported functions in the current header (the
-count re-derived 2026-10-29, the N-140 lane's carve-tally pair: 92 `CR_UI_API`
+append-only-flat-C: 93 exported functions in the current header (the
+count re-derived 2026-10-30, the M-075 lane: 96 `CR_UI_API`
 lines minus 3 `#define` macros; CI-guarded by the doc_truth_gate count
 invariants), all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,

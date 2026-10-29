@@ -92,3 +92,36 @@ branch) vs the core's in-engine-only checker; the 0x100E "use Chkdsk /F"
 advisory is advice the product cannot act on. The fix must also rewrite the
 D-90/PARITY-DELTAS:2977 "out of core" registration — the plan-of-record
 supersedes it. The in-engine audit itself (M-041) remains corpus-exact.
+
+## Session-84 S84 section (2026-10-30, landed at the M-075 seat)
+
+**M-075 FIXED** — the escalation endpoint landed. The pure grammar
+(`cr/check/cr_fsck_launch.h`): the two postures of the guidance string
+(strings_ascii.txt:126 — check, or `/f`), the letter validation, the
+documented chkdsk exit classes; cross-platform, Linux-tested
+(FsckVolume.CommandConstruction / RefusesInvalidVolume / ExitCodeClass).
+The win layer (`src/win/cr_fsck.cpp` + `include/cr/win/cr_fsck.h`): the
+elevated synchronous launch with the documented 15-minute bound, the
+WoW64-native guarantee (Wow64DisableWow64FsRedirection around the
+CreateProcessW — the og's IsWow64Process/x64\WinChkdsk.exe branch
+realized for the direct chkdsk.exe form), the loud refusal (absent
+volume → ERR_OPEN_FAILED, nothing spawned), the seam battery
+(FsckWin.WiresTheCommandToTheSpawn / ScanOnlyPostureOmitsTheFixFlag /
+RefusesAbsentVolumeLoudly / RefusesInvalidLetterLoudly /
+SpawnFailureMapsOpenFailed / ChkdskVerdictPassesThroughRaw — the
+Windows lane). The ABI: `cr_ui_fsck_volume(letter, flags, exit_code)` —
+export #92, the count sites refreshed (the A-ABI-3 class), non-Windows
+returns ERR_UNSUPPORTED (the honest platform answer). The CLI:
+`fix --chkdsk C:` (the three-site lock: the header comment, the -h
+usage, the parser). The D-90 registration rewritten to the superseded
+posture; R-65 in REFERENCE-API-GAP closed to PRESENT. The ladder row:
+| P35 error recovery ladder | **MATCH** (check phase + the escalation
+endpoint) | audit informs, never gates; the fix rung =
+`cr_ui_fsck_volume` + `fix --chkdsk C:` (M-075 FIXED); the boot-chain
+endpoints = M-040 (BCD patch DONE, NVRAM DONE, post-op chkdsk = the
+host's invocation of this endpoint) |
+
+Open residue (honest): the og's exact 5 arguments to WinChkdsk.exe stay
+undecoded (the corpus names the count, not the values) — the direct
+`chkdsk.exe <vol> /f` form is the corpus-grounded base the wrapper
+itself wraps; reconcile on a future decode.

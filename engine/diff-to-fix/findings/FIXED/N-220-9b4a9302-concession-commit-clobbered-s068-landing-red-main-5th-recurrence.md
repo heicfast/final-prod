@@ -26,3 +26,53 @@ The S82 addendum's open question 2 ("the landed reading is the closer site-2 dec
 **Fixed in commit:** `cd3479e7` (the racing repair — the conceding lane restored both files to the landed `ad1bcb9e` implementation; this lane's independent minimal-delta repair conceded per SA-9 and is recorded below)
 **Verified by:** first-hand at this lane's tree: the two RED tests green (`FatEngine.DeletedHigh16ZeroRebasesFromHint`: high16_rebased 1, the extent at the TRUE chain 34264576, fat_origin_cluster 65827, PartialRisk; `FatEngine.LastGoodHintUpdatesOnlyOnFileWalks`: the directory dentry never clobbers the hint), FAT family 92/92, full suite 1657/1657 at `0cf6142d`+repair; the racing `cd3479e7` restore verified byte-equivalent to the landing (`efd037e4` blob identity).
 **Resolution notes:** Two lanes independently found and repaired the clobber in the same window (the racing `cd3479e7` byte-restore keeps the seat per SA-9; this lane's variant — removing only the `> 0x310000` conjunct while keeping the conceding tree's refinements — was withdrawn unpushed: its hint-update position (live-walks only) is a semantic delta from the landing's any-successful-non-directory-walk position, and the landing's position is the closer decode of :13757-13758's walk-driver site). The class's fifth recurrence extends its shape: a concession commit that lands the conceding variant against its own message. The gates that catch the class are now: the conflict-marker lint (markers), `-Werror` (interleaved code), and ONLY the full test suite (semantic clobbers) — this recurrence compiled clean and passed every lint, which is why the repair protocol for pulled-red main must always start with the full ctest run, not the build. The two-site decode is recorded here for the next audit; S-068's finding Resolution stands unchanged (the landing's semantics are what the tree carries again).
+
+## Convergence addendum (the S84 lane's independent corroboration, recorded at the merge — 2026-10-30)
+
+A second lane (the S84 fix lane, opened at `cac42582`) independently
+found, corpus-verified, and repaired the clobber in the same window —
+its finding was filed as M-157 (the false-message severity reading)
+before the pull revealed this lane's N-220 had already landed; the
+M-157 seat is conceded per SA-9 and its content merged here. The
+corroboration record:
+
+- **The identical corpus decode.** Both lanes read the PRIMARY site
+  (:14752-14756) as the three-gate conjunction with no big-volume gate,
+  and located the `0x310000 < DAT_1800728c8` comparison at the retry
+  sites only (:14834 and :30184 — the S84 lane additionally censused
+  the second FAT16-family twin site). Both lanes reproduced the two RED
+  tests first-hand at the pulled HEAD before any edit.
+- **The identical repair gate set.** The S84 variant restored the same
+  primary conjunction (`deleted && Fat32 && reconstruct_deleted_chains
+  && first >= 2 && first < 0x10000 && first < hint`) and the
+  both-branches hint update.
+- **The one implementation delta (conceded, recorded for the next
+  audit):** the S84 variant KEPT three of the clobbering rewrite's
+  probe refinements the byte-restore drops — the explicit `rebased`
+  bounds check, the `!broken && !cycle` probe refusal, and the adoption
+  log line. The byte-restore (the seat) is implicitly safe on the
+  bounds (a non-empty walked chain implies an in-range cluster) and its
+  adoption gate `!cancelled && !clusters.empty() && raw(rebased) != 0`
+  matches the landed Resolution's own decode of the success-flag class.
+  If a future audit finds the broken-chain adoption shape matters (a
+  torn re-based chain adopted on its partial run), the stricter probe
+  is the recorded next step.
+- **The class lesson both lanes reached independently:** a concession
+  commit that lands the conceding variant against its own message is a
+  semantic clobber that passes the marker lint AND `-Werror` — only the
+  full test suite catches it. Trail commits must be diffstat-checked
+  against their own messages before push.
+
+## Corroboration addendum (a third independent lane, same two-site decode)
+
+A convergent repair lane (rebasing over this window) independently reached
+the identical arbitration from a clean corpus read — the same two sites
+(:14752-14756 primary pre-walk re-base, three gates, no big-volume gate;
+:14826-14848 the 0x310000-gated second-chance retry leg, a different
+population), the same RED evidence (high16_rebased 0, the extent at the raw
+low cluster, fat_origin_cluster 291), and the same repair (the gate
+restored to the corpus-true primary form; the retry-leg shape recorded as
+the unmodeled sibling). Three independent lanes, one decode, one verdict —
+the arbitration is as settled as the corpus allows. The convergent lane's
+finding file was folded here per the no-duplication convention; its
+format-drift sweep of rrecov.cpp/cr_ui.cpp landed in the same window.

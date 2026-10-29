@@ -378,19 +378,41 @@ Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
   re-flavor) does not touch this seam. Evidence: `s79-lead-verification.md` §A.
 
 
-## S-068 Resolution note (S79 fix lane, 2026-10-29)
+## S80 addendum — S-068 FIXED: the deleted FAT32 high-16 re-base (2026-10-29)
 
-**S-068 FIXED** — the FAT32 deleted high-16 re-base landed: the
-`EmitCtx.last_good_first` hint (updated after every successful non-directory
-live walk, mirroring FATSearchDLL :13757-58; never moved by directories or
-volume labels), the deleted low-16-only detection (value < 0x10000, < hint,
-FAT32-only, hint > 0x310000 - the og's big-volume gate), the re-based probe
-(hint's high 16 | the dentry's low word) adopted only when the re-based
-cluster is FAT-LINKED and the chain walks clean (a free re-based cluster is
-the freed-chain signature - adopting it would manufacture the wrong-bytes
-class the fix removes), the stats surface (`FatScanStats.high16_rebased`)
-and the assumed-start honesty cap (PartialRisk, never Excellent - the
-GAP-S6-2 rule). 4 tests in tests/unit/test_fat_high16.cpp; RED proven both
-compile-level (the stash-reverted tree) and behaviorally (the gate-raising
-mutation: extents fall back to the raw cluster). Suite green: 1493 + 2 perf
-core, 83 UI ABI.
+**The last-good-hint machinery landed (the SEVERE tier closes).** All
+three og sites verified first-hand before the fix (:13753-13758 the
+hint update, :14753-14755 the low-16 re-base, :14826-14848 the deleted
+retry + write-back). The landing: EmitCtx.last_good_first_cluster —
+the scan-global hint (DAT_1800728c8), moved only by successful
+non-directory file walks; the deleted-dentry pre-walk re-base — FAT32
+only, the low-16-only shape (`< 0x10000 && < hint`), the candidate
+`hint_high | dentry_low16` walked before the raw walk, ADOPTED only
+when the re-based cluster's own FAT entry is live (the og's
+walk-confirmation gate — a FREE entry at the re-based cluster is the
+unlinked shape and never adopts); the adopted emission stamps the
+repaired pair as the origin cluster (the og's in-memory dentry repair
++0x14/+0x1a), carries the assumed/inferred provenance (never
+Excellent), and counts in FatScanStats.high16_rebased. The failed
+re-based walk falls back to the raw dentry value (the og's first-leg
+behavior; GAP-S6-2 still applies on the raw path). Open refinements
+recorded in the finding's S80 addendum: the og's hint-update
+refinement gate (param_5 undecoded) and the retry leg's distinct
+target (undecodable from the walk's return-on-failure; the pre-walk
+re-base covers the population). Tests: DeletedHigh16ZeroRebasesFromHint
+(the true-chain extent + the repaired origin stamp + PartialRisk) /
+DeletedHigh16RebaseFallsBackToRawWalk (FREE at the re-based cluster:
+no adoption, the raw walk decides) / LastGoodHintUpdatesOnlyOnFileWalks
+(a directory dentry between the anchor and the torn file never
+clobbers the hint) / FAT16NoRebase (the flavor gate). RED first-hand
+via the stash dance; suite 1604/1604.
+
+**Repair note (this session):** the `9b4a9302` trail commit's variant
+(`hint > 0x310000` on the pre-walk re-base) was the corpus-divergent
+reading — the big-volume gate guards the :14834 retry leg only (both
+of the constant's occurrences in the whole decompile are on retry
+legs; the :14754 site-1 re-base carries no such gate). The gate was
+removed from the re-base at the repair; the two RED tests
+(DeletedHigh16ZeroRebasesFromHint, LastGoodHintUpdatesOnlyOnFileWalks)
+green again; suite 1657/1657. The full record: the finding's repair
+addendum + N-220's convergence addendum (the red-window class record).

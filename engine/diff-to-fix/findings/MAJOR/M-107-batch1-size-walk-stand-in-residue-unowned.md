@@ -277,63 +277,40 @@ WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
 
 ---
 
-## Session-86 addendum (2026-10-29/30 — the DWG member, member 3 of 11, the pattern's namesake)
+## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
-**DWG LANDED (the class-1 era; the R2004+ era split stays a registered
-follow-up).** The og's DWG walk decoded first-hand this session from
-FUN_18002f320 — the CDWGRawInfo's per-chunk feed (RAWSearchDLL_
-decompiled.c:36303-36461), cross-verified against the raw asm
-0x18002f3a7-0x18002f480 (objdump over og-codebase/RAWSearchDLL.dll —
-the CRW landing's toolchain). The og is a THREE-GENERATION state
-machine keyed by the 6-byte version string (the walk-side class table
-differs from the analyser-side version list FUN_18002fe30):
+**The seat conceded.** This lane decoded the DWG walk independently
+(FUN_18002f320, the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
+36303-36461 + the raw asm 0x18002f3a7-0x18002f480, objdump over
+og-codebase/RAWSearchDLL.dll) and landed it unpushed (ab5bbb24) while
+the racing S85 window landed the same member (ddab68b4 + the f7e49eaf
+gen-2 struct-offset repair). Per SA-9 the racing seat stands; the
+convergent findings on both sides:
 
-- **class 1 {AC1012, AC1013, AC1014, AC1015} (R13-R2000)** — the
-  SECTION-LOCATOR walk, now landed: on the first feed the og reads a
-  u32 RECORD COUNT at file+0x15 (the birth cursor 0x15 comes from the
-  CDWGRawInfo factory's row-floor write — the row-min slot doubles as
-  the walk cursor; raw asm 0x18002f3b8-0x18002f3d2), advances the
-  cursor to 0x19, then walks 9-byte records {u8 id@+0, u32 off@+1,
-  u32 size@+5}: the id must equal the FULL 32-bit running counter
-  (`cmp %ecx,%eax` at 0x18002f40a — so the walk self-limits at 256
-  records and a mismatch is the extent-zero refusal, `movq $0,0x10`
-  at 0x18002f46b, the hit dropped downstream); the extent is the
-  cmovbe MONOTONIC MAX of (off+size) (0x18002f41f); the exit gate
-  (LAB_18002f5e9) zeroes the extent when it exceeds 100 × 200,000,000
-  (the engine singleton +0x70 default — FUN_180001350, set once at
-  init :9049). The streaming return-2 feed-me-more / return-1 done
-  protocol is the registered model divergence (the synchronous port
-  walks the device directly).
-- **class 2 {AC1018, AC1024, AC1027, AC1032}** (R2004/R2010/R2013/
-  R2018) — the compressed system-section map (FUN_18002f630: the
-  rand()-LCG stream de-obfuscation, validation constants
-  0x6c/4/0x20/0x80/0x40, extent = the map field + 0x6c): NOT decoded
-  this session — the RECORDED FOLLOW-UP per this finding's own open
-  question 2 ("DWG's R2004+ compressed section map: likely its own
-  follow-up even after the R13-R2000 map lands"). The R2004+ era keeps
-  the 64 MiB stand-in in `validate_dwg`'s era split.
-- **class 3 {AC1021}** (R2007) — the 984-byte (0x3d8) section map
-  accumulated at +0x128 then parsed by FUN_18002fc50: the same
-  recorded follow-up; the stand-in stands.
-
-The landing: `validate_dwg` keeps the M-041-era version gate + the
-R13-R2000 sentinel, splits the eras, and replaces the blind 64 MiB
-stand-in with the class-1 walk (the count read, the id-sequence gate
-against the full 32-bit counter, the monotonic max, the sanity gate at
-200,000,000 × 100, torn/unreadable records refused). The DWG registry
-row re-pinned to the og's registered caps (the CDWGRawInfo factory
-FUN_18002ff20: min 0x15 = 21, max 0/unbounded — the probe clamp
-carries the sanity's own derivation; the former {64, 64 MiB} was the
-S-007 stand-in era's superset, never the og's row — the same class of
-correction N-093 applied to PSP/SIT/GZ). RED→GREEN first-hand via the
-stash dance: `DwgSectionLocatorWalkSetsExtent` (a 72 MiB max-end walk,
-RED at exactly 64 MiB), `DwgWalkRefusesBrokenRecordIds` (RED: the
-broken-id file carved at the stand-in tree), and
-`DwgRowCarriesTheOgsRegisteredFloor` (RED: the 21-byte extent was
-rejected at the old min 64) all RED at the pre-fix tree, GREEN with
-the walk; `DwgR2004EraKeepsTheBoundedStandIn` the era-split guard
-(passes at both trees by design — the R2004+ behavior is unchanged).
-The matrix row: `carve · DWG size walk` → MATCH (member 3 of 11
-landed, the era split registered). Remaining members after this
-landing: WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT (the CRW addendum's
-order, minus the landed X3F/CRW/DWG).
+- AGREED (both decodes): the three-generation state machine keyed by
+  the 6-byte version; gen-1 = the section-locator walk (u32 count at
+  file+0x15 — the birth cursor 0x15 IS the row floor the factory wrote
+  into the walk-state slot; 9-byte records {u8 id, u32 off@+1, u32
+  size@+5} at +0x19; the id-sequence gate; the monotonic max of
+  off+size; the torn walked-prefix salvage). The racing decode went
+  FURTHER: gen-2 (the rand-LCG struct at +0x80 bytes, the six gates,
+  extent = u64@0x34 + 0x6c) landed where this lane recorded it as the
+  follow-up — the racing seat's superiority is the concession's own
+  justification.
+- THIS LANE'S UNIQUE CONTRIBUTIONS (the riders, landed separately this
+  session): (1) the ROW FLOOR — the racing landing kept min 64 (the
+  S-007 superset); the og's registered floor is 0x15 = 21 (the factory
+  FUN_18002ff20's qword write at +0x110 — puVar1[0x22] = 0x15, the same
+  write that seeds the walk cursor; the PNG/ONE ctor pattern
+  [0x22]=min/[0x23]=max), and the gen-1 walk's residual 512-byte floor
+  (inherited from the stand-in era) contradicts it; (2) the
+  ID-SEQUENCE GATE — the racing landing compares rec[0] != u8(i)
+  (truncated); the og compares the byte against the FULL 32-bit counter
+  (cmp %ecx,%eax at 0x18002f40a, eax = movzbl of the id, ecx = the
+  running counter) so the walk SELF-LIMITS at 256 records (no byte can
+  match counter >= 256) — a count>256 fixture with wrapped ids is
+  accepted by the racing port and refused by the og. Both riders:
+  RED at the racing tree (DwgRowCarriesTheOgsRegisteredFloor — the
+  21-byte walked extent refused by the 512 floor AND the min-64 row;
+  DwgWalkSelfLimitsAt256Records — the 260-record wrapped-id fixture
+  carved), GREEN with the riders.

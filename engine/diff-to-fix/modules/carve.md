@@ -1259,38 +1259,22 @@ with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
 CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
 
-## Session-86 addendum — M-107's DWG member LANDED (member 3 of 11: the class-1 section-locator walk; the pattern's namesake) (2026-10-29/30)
 
-**The blind 64 MiB stand-in replaced for the R13-R2000 era; the R2004+
-era split stays a registered follow-up.** The walk decoded first-hand
-from FUN_18002f320 (the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
-36303-36461) + the raw asm 0x18002f3a7-0x18002f480 (objdump over
-og-codebase/RAWSearchDLL.dll): the og is a three-generation state
-machine keyed by the 6-byte version string. Class 1 {AC1012/13/14/15}
-(R13-R2000) is the SECTION-LOCATOR walk — the u32 record count read at
-file+0x15 (the birth cursor 0x15 IS the row floor the factory wrote
-into the walk-state slot), 9-byte records {u8 id, u32 off@+1, u32
-size@+5} at +0x19, the id-sequence gate against the FULL 32-bit counter
-(a mismatch zeroes the extent — the hit is dropped; the gate also
-self-limits the walk at 256 records), the extent = the cmovbe
-monotonic max of (off+size), and the exit sanity extent ≤ 100 ×
-200,000,000 (the engine singleton's default). Class 2 {AC1018/24/27/32}
-(the rand()-stream compressed system-section map) and class 3
-{AC1021} (the 984-byte map at +0x128) are the honestly-recorded
-follow-up (the finding's open question 2) — those versions keep the
-64 MiB stand-in.
+## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
-The landing: validate_dwg keeps the version gate + the R13-R2000
-sentinel, splits the eras, and walks class 1 (torn/unreadable records
-refused, the sanity gate, the row clamp + device end on the extent).
-The DWG registry row re-pinned to the og's registered caps (the
-CDWGRawInfo factory: min 0x15 = 21, max 0/unbounded; the former
-{64, 64 MiB} was the S-007 superset — the N-093 correction class).
-RED→GREEN via the stash dance: DwgSectionLocatorWalkSetsExtent (72 MiB
-max-end, RED at exactly 64 MiB) / DwgWalkRefusesBrokenRecordIds (RED:
-the broken-id file carved) / DwgRowCarriesTheOgsRegisteredFloor (RED:
-the 21-byte extent rejected at the old min 64) all RED at the pre-fix
-tree, GREEN with the walk; DwgR2004EraKeepsTheBoundedStandIn the
-era-split guard. **The rows: A25/A27 (the DWG class-1 slice) MATCH; the
-finding stays active for its remaining eight members (WPG/WPD/PSP/SIT/
-APE/EPS/DXF/SWF-RECT, the CRW addendum's order).**
+**The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
+ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
+section-locator walk (the count at +0x15, the 9-byte records, the
+id-sequence gate, the monotonic max); the racing decode went further (gen-2
+landed — the rand-LCG struct at +0x80, the six gates, extent = u64@0x34 +
+0x6c). This lane's unique contributions land as riders (see the M-107
+finding's Session-86 addendum): the ROW FLOOR 0x15 = 21 (the factory's
+qword write at +0x110 — the same write that seeds the walk cursor; the
+racing row kept the S-007-era min 64, and the gen-1 walk's residual
+512-byte floor contradicts it) and the ID-SEQUENCE GATE against the FULL
+32-bit counter (cmp %ecx,%eax at 0x18002f40a — the walk self-limits at 256
+records; the racing port's u8(i) truncation accepts count>256 fixtures
+with wrapped ids that the og refuses). RED→GREEN for both riders at the
+racing tree: DwgRowCarriesTheOgsRegisteredFloor (the 21-byte walked
+extent refused by the 512 floor AND the min-64 row) and
+DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).

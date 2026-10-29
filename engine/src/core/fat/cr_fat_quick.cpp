@@ -311,18 +311,24 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     /* chain resolution (F-A1-11: the walkers poll the token per step) */
     ChainResult chain;
     bool inferred_chain = false;
-    /* S-068: the og's deleted high-16 re-base (FAT32 only - the high
-     * word exists only there; the og's own gates at :14753-14755 fire
-     * under the FAT32 shape). The pre-walk position matches the og's
-     * site: the value is re-based BEFORE the walk, the walk at the
-     * re-based cluster decides adoption, and a failed re-based walk
-     * falls back to the raw dentry value (the og's first-leg
+    /* S-068/M-159: the og's deleted high-16 re-base (FAT32 only - the high
+     * word exists only there). M-159's dispatcher decode, first-hand
+     * (FATSearchDLL FUN_180012e60 :13744-13749): dentries route by the
+     * ATTR_DIRECTORY bit - FILE dentries (attr & 0x10 == 0) to
+     * FUN_1800140d0, whose re-base (Site A, :14753-14755) is EAGER
+     * under the three-gate conjunction with NO big-volume gate;
+     * DIRECTORY dentries to FUN_180014530, whose raw-first retry leg
+     * (Site B, :14826-14848) carries the 0x310000 < hint gate - the
+     * M-159 Site-B block below models it. The pre-walk position matches
+     * the og's Site A: the value is re-based BEFORE the walk, the walk
+     * at the re-based cluster decides adoption, and a failed re-based
+     * walk falls back to the raw dentry value (the og's first-leg
      * behavior). The re-based emission carries the assumed/inferred
      * provenance (the og's `*param_8 = 1` flag - the same assumed
      * family as the EXFAT-2 salvage) and never grades Excellent. */
     bool high16_rebased = false;
-    if (deleted && ctx.p.flavor == Flavor::Fat32 && ctx.flags.reconstruct_deleted_chains &&
-        first_cluster >= 2 && first_cluster < 0x10000 &&
+    if (deleted && !is_dir && ctx.p.flavor == Flavor::Fat32 &&
+        ctx.flags.reconstruct_deleted_chains && first_cluster >= 2 && first_cluster < 0x10000 &&
         first_cluster < ctx.last_good_first_cluster) {
         const u32 rebased = (ctx.last_good_first_cluster & 0xFFFF0000u) | u32(e.first_cluster_low);
         ChainResult rb = reconstruct_deleted_chain(*ctx.table, rebased,
@@ -365,20 +371,58 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
             }
         }
     }
+    /* M-159 Site B: the deleted-DIRECTORY retry leg
+     * (FUN_180014530 :14826-14848, decoded first-hand): the raw walk
+     * above ran FIRST (the og's first leg, the 7th walk arg carrying
+     * the low-16 flag); on its failure the og retries at the re-based
+     * cluster ONLY when the big-volume gate holds (0x310000 <
+     * DAT_1800728c8, :14834). Adoption stamps the write-back pair
+     * and moves the hint to the ADOPTED cluster itself (:14847) -
+     * the one hint update that is not the walked END. The firing
+     * condition maps the og's failed first walk onto the core's
+     * broken/cycle/empty class; free-start shapes keep the
+     * registered GAP-S6-2 semantics (a clean 1-cluster run is the
+     * core's intended emission there, not a retry trigger). The
+     * gate is seam-exposed as dir_retry_rebase_cluster() for the
+     * test matrix (no CI-scale fixture can carry a >0x310000-cluster
+     * FAT). */
+    if (is_dir && !high16_rebased && ctx.p.flavor == Flavor::Fat32 && !chain.cancelled &&
+        (chain.broken || chain.cycle || chain.clusters.empty())) {
+        const u32 rb = dir_retry_rebase_cluster(first_cluster, ctx.last_good_first_cluster);
+        if (rb >= 2 && rb <= ctx.table->max_cluster() && ctx.table->raw(rb) != 0) {
+            ChainResult retry = reconstruct_deleted_chain(*ctx.table, rb, 0, ctx.cancel);
+            if (!retry.cancelled && !retry.broken && !retry.cycle && !retry.clusters.empty()) {
+                chain = std::move(retry);
+                effective_first = rb;
+                high16_rebased = true;
+                inferred_chain = true; /* the assumed flag: never Excellent */
+                ++ctx.stats->high16_rebased;
+                /* :14847 - the adopted cluster itself, not the END */
+                ctx.last_good_first_cluster = rb;
+            }
+        }
+    }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
 
-    /* S-068: the og's last-good hint update (FATSearchDLL :13753-13758) -
-     * after a successful non-directory walk, the walked file's (possibly
-     * re-based/adopted) first cluster becomes the hint. Directories and
-     * volume labels never move it (the og's `attr & 0x10 == 0` gate);
-     * empty/unresolvable chains do not either. The og's own extra gate
-     * (`param_5 != 0 || 0x10000 < walked`) is a refinement whose param_5
-     * is undecoded in the decompile - the finding's fix-plan contract
-     * (every successful non-directory walk) is implemented; recorded in
-     * the Resolution as the open refinement. */
-    if (!is_dir && !chain.clusters.empty())
-        ctx.last_good_first_cluster = effective_first;
+    /* S-068/M-159: the og's last-good hint update, the walked END - the
+     * decode their own landing left open ("param_5 is undecoded"), read
+     * first-hand this session (FATSearchDLL :13722-13727 + :13754-13756):
+     * uVar6 = ceil(size/cluster_bytes) is computed from the DENTRY's
+     * size BEFORE the walk, and the update stamps local_res8 + uVar6 -
+     * the final first cluster PLUS the size-derived cluster count,
+     * never the bare first cluster and never the walked length. The
+     * gate is non-directory && (success || final_first > 0x10000):
+     * param_5's first byte is the walk-success flag (FUN_180012c00 sets
+     * it - the Site B quote's `if (*param_8 == '\0')` proves the
+     * semantics), and the `0x10000 < local_res8` arm keeps the
+     * high-water mark even when the walk BROKE - any recently-seen
+     * high cluster is high-word evidence for the next torn dentry.
+     * Directories and volume labels never move it (:13755, the
+     * attr & 0x10 == 0 gate); the M-159 Site-B adoption above is the
+     * one exception (the adopted cluster itself, :14847). */
+    if (!is_dir && (!chain.clusters.empty() || effective_first > 0x10000))
+        ctx.last_good_first_cluster = effective_first + expect_clusters;
 
     /* M-052: recycle-bin pairing inside the recognized bin roots (the
      * og's four-name _stricmp set, FATSearchDLL :1668-1677). $I<token>
@@ -568,6 +612,22 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
 }
 
 } // namespace
+
+u32 dir_retry_rebase_cluster(u32 raw_first, u64 last_good_hint) {
+    /* M-159 Site B's gate set, LITERAL (FUN_180014530 :14826-14848,
+     * decoded first-hand): the only gate is the big-volume check
+     * `0x310000 < DAT_1800728c8` (:14834) - the raw walk has already
+     * failed at this point (the first leg, *param_8 == 0), and the
+     * re-based candidate is the og's `(DAT_1800728c8 & ~0xFFFF) +
+     * uVar2` form (:14834-14836) where uVar2 is the failed first walk's
+     * start. No low-16-only gate and no below-hint gate exist at THIS
+     * site (they belong to Site A) - recorded literally; the CALLER's
+     * bounds + FAT-linked validation refuse the degenerate candidates
+     * (0/1/out-of-range/free). */
+    if (last_good_hint <= 0x310000)
+        return 0;
+    return u32((last_good_hint & 0xFFFF0000u) | (raw_first & 0xFFFFu));
+}
 
 u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* cancel,
              WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,

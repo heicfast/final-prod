@@ -439,20 +439,17 @@ const Signature kTable[] = {
      600,
      validate_mpeges,
      "MPEG video (elementary)"},
-    /* M-107 (the DWG member): the og's registered row re-pinned from the
-     * CDWGRawInfo factory (FUN_18002ff20, RAWSearchDLL :36812-36820):
-     * min 0x15 (21), max 0 (unbounded at the row level - the class-1
-     * walk's only bound is the engine sanity 100 x 200,000,000, the
-     * singleton +0x70 default; the former {64, 64 MiB} was the S-007
-     * stand-in era's superset, not the og's row). The max here carries
-     * the sanity's own derivation as the probe clamp. */
+    /* M-107 member 3 (DWG): the row max carries the og walk's own cap
+     * constant - the child walk's cap check at raw-asm 0x18002f5ee
+     * (`imul $0x64,0x70(%rax)`): singleton+0x70 (0xbebc200 = 200 MB)
+     * x 100 = 0x4A817C800 (20 GB). The 64 MiB stand-in value is gone. */
     {FMT_DWG,
      "dwg",
      {'A', 'C', '1', '0'},
      4,
      0,
-     0x15,
-     200000000ull * 100,
+     64,
+     0x4A817C800ull,
      620,
      validate_dwg,
      "AutoCAD DWG"},

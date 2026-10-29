@@ -42,8 +42,10 @@ exact files/issues and the fix command).
 Static analysis (clang-tidy / cppcheck) is **not configured in this repo
 yet** — the gate reports it as an INFO line, never a silent pass; when a
 configuration lands, it joins this table with the same local-then-CI
-mirroring rule. No suppression exists anywhere: docs/BUILD-SUPPRESSIONS.md
-carries zero rows.
+mirroring rule. Suppressions: docs/BUILD-SUPPRESSIONS.md is the registry — it carries
+the ONE registered row (S-1, the vendored stb_image.h block); there are
+no other suppressions anywhere (Session-84 corrected this page's stale
+'zero rows' echo).
 
 ## The hooks
 

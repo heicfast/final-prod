@@ -311,12 +311,21 @@ def check_finding_id_uniqueness():
 
 
 def derive_abi_counts():
-    """The tree's own truth: exports, error codes, event types."""
+    """The tree's own truth: exports, error codes, event types.
+
+    Session-84 truth repair on the error-code half: the old file-wide
+    `0x5[0-9a-fA-F]{7}` regex counted the truncated prefixes
+    (0x50022000 / 0x5002c000) of the two 13-digit og-corpus comment
+    literals at cr_error.h:6, inflating the census to 45 against the
+    enum's real 43 ERR_ members. The census now anchors on enum-member
+    lines only - the count describes the error-code family, not the
+    file's comment text.
+    """
     hdr = (ROOT / "include" / "cr" / "cr_ui.h").read_text(encoding="utf-8", errors="replace")
     exports = sum(1 for l in hdr.splitlines() if "CR_UI_API" in l and "#define" not in l)
     events = len(set(re.findall(r"\bCR_EVT_[A-Z_]+\b", hdr)))
     err = (ROOT / "include" / "cr" / "cr_error.h").read_text(encoding="utf-8", errors="replace")
-    codes = len(set(re.findall(r"0x5[0-9a-fA-F]{7}", err)))
+    codes = len(set(re.findall(r"^\s*ERR_[A-Z0-9_]+\s*=\s*(0x[0-9a-fA-F]+)", err, re.M)))
     return exports, codes, events
 
 
@@ -324,11 +333,13 @@ def check_abi_count_claims():
     """N-150: the ABI count sites must state the tree's derived numbers.
 
     The export count is derived from cr_ui.h (CR_UI_API lines minus
-    #defines), the error-code count from cr_error.h's distinct 0x5-codes,
-    the event count from the CR_EVT_* census. Every count claim in the
-    three API gate docs must match - the "81 exports as of <landing>"
-    snapshot phrasing is how stale counts hid (the A-ABI-3 lesson);
-    historical mentions (audit-time / counted at / was N) are exempt.
+    #defines), the error-code count from cr_error.h's ERR_ enum members
+    (the Session-84 truth repair: enum-member census, not file-wide
+    literals), the event count from the CR_EVT_* census. Every count
+    claim in the three API gate docs must match - the "81 exports as of
+    <landing>" snapshot phrasing is how stale counts hid (the A-ABI-3
+    lesson); historical mentions (audit-time / counted at / was N) are
+    exempt.
     """
     exports, codes, events = derive_abi_counts()
     ok = True
@@ -463,7 +474,11 @@ def check_parity_delta_numbering():
         print("doc_truth_gate: PARITY-DELTAS.md missing")
         return False
     for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        m = re.match(r"^(?:###|\*\*)\s*D-(\d+)\b", line)
+        # M-157's gate repair: the heading form must cover BOTH `### D-<n>`
+        # AND `## D-<n>` (the S84 born-collided D-152s shipped as `##`-form
+        # rows the `###`-only pattern never counted - three lanes claimed
+        # the same seat under the gate's eye)
+        m = re.match(r"^(?:#{2,3}|\*\*)\s*D-(\d+)\b", line)
         # N-207: an ADDENDUM heading is the deliberate continuation of its
         # parent row (the D-74 supersession form) - not a new seat claim
         if m and "ADDENDUM" not in line:

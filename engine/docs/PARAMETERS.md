@@ -15,14 +15,18 @@ row cited below where it governs a parameter).
 | Flag | Default | Meaning |
 |---|---|---|
 | `--disk N` / `--volume C:` / `--image file` | — (one required) | target: PhysicalDrive N, volume letter, or a disk image (`.img`/`.vmdk`/`.vhd`/`.vhdx`/raw `.dmg`) |
-| `--part P` | whole disk | limit to partition P (with `--disk`) |
 | `--whole-disk` | off | lost-partition discovery over the full disk view (implies the disk target) |
+| `--deep` | on | deep stage selector (deep is on by default; `--quick-only` disables it; the flag is the explicit form) |
 | `--quick-only` | off | quick stage only (deep + carve disabled) |
 | `--no-carve` | off | disable the carve stage |
 | `--threads N` | 0 = auto | worker threads; 0 = hw−1 clamped 1..8; 1 = single-threaded |
 | `--out file.crsf` | — | save the durable session (atomic; also enables auto-checkpoints) |
 | `--resume file.crsf` | — | resume the saved session (revalidates device identity) |
+| `--autosave-dir D` | — | auto-session directory (retention-one: the pointer-named previous auto session is deleted before every write, M-154) |
+| `--label s` | — | the auto-save volume-label override (M-079) |
+| `--pause-stdin` | off | N-178's keyboard pause surface ('p'/SPACE pauses, 'r'/Enter resumes; no-op when stdin is redirected) |
 | `--filter s` | — | name substring filter (ASCII case-insensitive) |
+| `--filter-folder DIR` | — | repeatable scan-time folder filter (M-073: out-of-prefix folders never enter the session; volume-root relative) |
 | `--deleted-only` | off | deleted results only (carved files count as deleted, S-031) |
 | `--json` / `--csv` / `--log file` | off | machine-readable run summary / flat list / detailed log |
 | `--bitlocker-fvek hex` | — | **consent**: open a locked volume with a user-supplied FVEK (in-stack XTS-AES, M-033) |
@@ -42,15 +46,29 @@ row cited below where it governs a parameter).
   item errors / hash mismatch).
 - `health --disk N` — SMART/NVMe grading (exit 3 = every source
   unavailable).
-- `fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]`
-  — RawFixer analyze/dry-run by default; `--apply` **consent**;
-  `--undo-apply` restores.
-- `apply` / `undo` — lost-partition table apply and its undo
-  (**consent**; plan is read-only with refusals listed).
+- `fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+  [--chkdsk C:]` — RawFixer analyze/dry-run by default; `--apply`
+  **consent**; `--undo-apply` restores; `--chkdsk C:` the M-075
+  escalation endpoint (launches Windows chkdsk /f on a volume; a
+  volume-letter operation, no --disk).
+- `apply --disk N --session file.crsf [--candidate N] [--apply]
+  [--undo file] [--boot-fix lba] [--boot-fix-bcd file]` — lost-partition
+  table apply (**consent**; plan is read-only with refusals listed; the
+  undo surface is `--undo` here and `--undo-apply` on fix — there is no
+  standalone `undo` verb).
 - `bench --disk N [--mode seq|rand|open|read|info] [--mb N]
-  [--block-kb N] [--iterations N] [--seed N] [--json] [--no-rda]` —
-  transport/device microbenchmarks.
+  [--block-kb N] [--iterations N] [--seed N] [--json]` —
+  transport/device microbenchmarks (`--no-rda` is REMOVED — the
+  driver-only architecture, PLAN-DRIVER-ONLY R10; the parser rejects it).
 - `list`, `list-carve-formats`, `info` (via bench mode) — read-only.
+- `sessions [--dir D] [--json]` — the saved-session inventory.
+- `archive-list --in file.crsf (--disk N | --image file) --node ID
+  [--json]` — the browse-inside archive inventory (M-116).
+- `image --create --disk N --out file.img` — the flat-raw disk-image
+  producer + `.sha256` sidecar (S-040; VHD/VHDX writers out of scope,
+  D-147).
+- `driver [--service NAME] [--json]` — the driver-status surface (exit
+  0 = ready, 4 = prerequisite not met).
 
 ## 2. ScanConfig (the C++ / ABI surface)
 

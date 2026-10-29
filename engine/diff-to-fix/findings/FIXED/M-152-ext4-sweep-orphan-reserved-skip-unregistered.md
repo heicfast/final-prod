@@ -147,5 +147,5 @@ implementation experience: the JOURNAL INODE on an extents-mapped fixture
 is an orphan-active by shape — this lane's variant let it surface (with the
 EndToEndWalk re-pin documenting the real-volume indirect-mapped exemption),
 the landed variant claims it as engine state with the og's finalize
-disposition honestly marked UNDECODED (D-152(b)) — the landed posture is
+disposition honestly marked UNDECODED (PARITY-DELTAS D-163, renumbered from the born-collided D-152(b) seat) — the landed posture is
 the more conservative one and this lane concurs with it.

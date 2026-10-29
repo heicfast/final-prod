@@ -62,6 +62,7 @@ add_executable(cr_tests
     unit/test_snapshot.cpp
     unit/test_query.cpp
     unit/test_fscheck.cpp
+    unit/test_fscheck_launch.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
     unit/test_apply.cpp
@@ -118,6 +119,13 @@ if(WIN32)
     target_link_libraries(cr_bitlocker_tests PRIVATE cr::win GTest::gtest_main)
     cr_deploy_vcpkg_binaries(cr_bitlocker_tests)
     add_test(NAME bitlocker COMMAND cr_bitlocker_tests)
+
+    # M-075: the chkdsk launch endpoint's wiring contracts (the seam
+    # battery; the pure grammar battery rides cr_tests on both lanes)
+    add_executable(cr_fsck_win_tests unit/test_fsck_win.cpp)
+    target_link_libraries(cr_fsck_win_tests PRIVATE cr::win GTest::gtest_main)
+    cr_deploy_vcpkg_binaries(cr_fsck_win_tests)
+    add_test(NAME fsck_win COMMAND cr_fsck_win_tests)
 
     # S-040: the flat-raw image producer's file disposition contract
     # (atomic temp+rename commit, .sha256 sidecar, the explicit .partial

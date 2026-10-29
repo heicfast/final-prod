@@ -49,6 +49,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_image_create.h" /* S-040 */
+#include "cr/win/cr_fsck.h"         /* M-075: the chkdsk escalation endpoint */
 #include "cr/win/cr_winenv.h"       /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
@@ -2425,9 +2426,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3033,8 +3034,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3655,6 +3656,49 @@ u32 session_last_autosave_path_impl(const char* utf8_dir, char* out_path, uint32
 extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir, char* out_path,
                                                                uint32_t cap) {
     return guarded(session_last_autosave_path_impl, utf8_dir, out_path, cap);
+}
+
+namespace {
+/* M-154 (the pointed-resume ABI half): the og's continue-last flow reads
+ * the pointer (SavePath, PathFileExistsA-validated, FUN_140286390's
+ * SavePath-restore, DRWUI:443092-443127) and restores through the shared
+ * load path instead of enumerating - no directory scan, no sort
+ * (cr_ui.h:917-927 contract). The dead-pointer class is ERR_OPEN_FAILED
+ * per that contract: no sidecar, a pointed file that does not exist, or
+ * a pointer that does not name an auto session. The auto-name gate
+ * mirrors cr_lastscan.cpp's own retention gate (name_is_auto + the S82
+ * rider's two-field agreement - save_path must END WITH the gated name):
+ * a tampered sidecar is refused, never followed, exactly as the
+ * retention path refuses what it is asked to remove. */
+bool resume_last_name_is_auto_(const std::string& name) {
+    if (name.size() <= 5 || name.compare(0, 5, "auto_") != 0)
+        return false;
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
+        return false;
+    if (name.find("..") != std::string::npos)
+        return false;
+    return name.size() >= 5 + 5 && name.compare(name.size() - 5, 5, ".crsf") == 0;
+}
+u32 session_resume_last_impl(const char* utf8_dir, cr_ui_session** out) {
+    if (!utf8_dir || !*utf8_dir || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/out");
+    session::LastScanInfo info;
+    if (!session::last_scan_info_read(utf8_dir, info) || !info.exists)
+        return ret_(ERR_OPEN_FAILED, "no live last-scan pointer in %s", utf8_dir);
+    if (!resume_last_name_is_auto_(info.name))
+        return ret_(ERR_OPEN_FAILED, "pointer does not name an auto session (%s)",
+                    info.name.c_str());
+    if (info.save_path.size() < info.name.size() ||
+        info.save_path.compare(info.save_path.size() - info.name.size(), info.name.size(),
+                               info.name) != 0)
+        return ret_(ERR_OPEN_FAILED, "pointer fields disagree (save_path does not name %s)",
+                    info.name.c_str());
+    return session_load_impl(info.save_path.c_str(), out);
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_session_resume_last(const char* utf8_dir, cr_ui_session** out) {
+    return guarded(session_resume_last_impl, utf8_dir, out);
 }
 
 /* =========================================================================
@@ -4987,4 +5031,64 @@ extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_si
 extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                                  cr_ui_recovery_progress_fn progress, void* user) {
     return guarded(image_create_impl, disk, utf8_path, progress, user);
+}
+
+/* ---- M-075: the chkdsk escalation endpoint (the ladder's fix rung) ----
+ * The narrow-ASCII letter form; the win layer's wide seam carries the
+ * spawn. The internal synchronous bound is 15 minutes (900,000 ms) — a
+ * documented engineering default, not a corpus-decoded constant (the
+ * og's WinChkdsk monitoring loop has no decoded bound); on timeout the
+ * process is left running and exit_code reports STILL_ACTIVE (259). */
+static u32 fsck_volume_impl(char letter, uint32_t flags, int32_t* exit_code) {
+#ifdef _WIN32
+    if (exit_code)
+        *exit_code = -1;
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    return win::fsck::fsck_volume(wchar_t(lc), flags, 900000u, exit_code);
+#else
+    (void)letter;
+    (void)flags;
+    (void)exit_code;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_fsck_volume requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code) {
+    return guarded(fsck_volume_impl, letter, flags, exit_code);
+}
+
+/* ---- M-078: the CBitlockerTurnOffOperation endpoint (the consented
+ * destructive twin of the unlock surface). The progress callback marks
+ * the REQUEST phases (start + the settled command) - the OS decrypt
+ * percentage is not observable through this surface (the honest
+ * contract; the og's pending-op queue is UI-layer chrome over the same
+ * verbs). Nothing in the scan/open path calls this - explicit host
+ * opt-in only. */
+static u32 turn_off_bitlocker_impl(char letter, cr_ui_progress_fn progress, void* user) {
+#ifdef _WIN32
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    if (progress)
+        progress(user, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0, 0, 0); /* request start */
+    const u32 rc = win::bitlocker::turn_off(wchar_t(lc));
+    if (progress)
+        progress(user, 0xFFFFFFFFu, rc == OK ? 1000u : 0u, 0xFFFFFFFFu, 0, 0, 0); /* settled */
+    if (rc != OK)
+        return ret_(rc, "turn-off refused: both command forms failed (the volume stays "
+                        "locked/encrypted - never a silent success)");
+    return OK;
+#else
+    (void)letter;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_turn_off_bitlocker requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_turn_off_bitlocker(char letter, cr_ui_progress_fn progress,
+                                                       void* user) {
+    return guarded(turn_off_bitlocker_impl, letter, progress, user);
 }

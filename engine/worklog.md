@@ -1,68 +1,48 @@
-## Session-86 S86 lane — opens (the M-107 member wave); the DWG member lands (member 3 of 11) (2026-10-29/30)
+## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
-Opened at core `32441353` (the S84/S85-window head: the image `--create`
-flag landing), corpus `be0cfe9` (read-only guarantee held). The prompt
-saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`). Board at
-open (filesystem truth): 8 MAJOR active (M-075 M-078 M-086 M-087 M-089
-M-101 M-105 M-107) · 2 MINOR (N-107 N-127) · 0 INFO / 200 FIXED
-(filesystem census) / 4 tracked-open. Of the MAJORs, M-086/M-087/M-089 and
-the MINORs are driver-repo-resident per OQ-S10-3 (outside the two-repo
-grant — rda-driver untouched; pushed forward per the standing
-disposition). Baseline suite green first-hand at the open:
-**1661/1661 (543.7 s)** on this 2-core lane VM (the big-device carve
-tests dominate; CI runners are faster). Toolchain pinned to the CI
-versions (clang-format 18.1.8, cmake 4.4.4).
+Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
+The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
+Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
+this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
+18.1.8, cmake 4.4.4).
 
-**The DWG member of M-107 landed (the pattern's namesake, member 3 of
-11 after X3F/M-156 and CRW/S83):** the og's DWG walk decoded first-hand
-from FUN_18002f320 (the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
-36303-36461) + the raw asm 0x18002f3a7-0x18002f480 (objdump over
-og-codebase/RAWSearchDLL.dll). The decode: a THREE-GENERATION state
-machine keyed by the 6-byte version — class 1 {AC1012/13/14/15}
-(R13-R2000) = the section-locator walk (u32 record count at file+0x15 —
-the birth cursor 0x15 IS the row floor the factory FUN_18002ff20 wrote
-into the walk-state slot; 9-byte records {u8 id, u32 off@+1, u32
-size@+5} at +0x19; the id-sequence gate against the FULL 32-bit counter
-at 0x18002f40a — a mismatch is the extent-zero refusal at 0x18002f46b,
-and the gate self-limits the walk at 256 records; the extent is the
-cmovbe monotonic max of off+size at 0x18002f41f; the exit sanity
-extent ≤ 100 × 200,000,000 at LAB_18002f5e9); class 2
-{AC1018/24/27/32} (the rand()-stream compressed system-section map,
-FUN_18002f630) and class 3 {AC1021} (the 984-byte map at +0x128,
-FUN_18002fc50) = the honestly-recorded follow-up per the finding's own
-open question 2 — the R2004+ era keeps the 64 MiB stand-in in the
-landed era split.
+**The DWG member of M-107 (the pattern's namesake) was decoded and landed
+by this lane unpushed (ab5bbb24) — the pull found the racing S85 window had
+landed the same member (ddab68b4 + the f7e49eaf gen-2 struct-offset
+repair). CONCEDED per SA-9: the racing seat stands (their decode went
+further — gen-2 landed where this lane recorded the follow-up). The
+convergence record rides the M-107 finding's Session-86 addendum. This
+lane's independent decode carried TWO real deltas the racing landing
+missed — landed as convergence riders (the S79 precedent: concede the
+seat, verify first-hand, fix what verification catches):
 
-The landing (one commit, this SHA): `validate_dwg` keeps the M-041-era
-version gate + the R13-R2000 sentinel, splits the eras, and walks class
-1 (the count read, the full-32-bit-counter id gate, the monotonic max,
-the sanity at 200,000,000 × 100, torn/unreadable records refused, the
-row clamp + device end). The DWG registry row re-pinned to the og's
-registered caps (min 0x15 = 21, max 0/unbounded — the sanity's own
-derivation carries the probe clamp; the former {64, 64 MiB} was the
-S-007 superset — the N-093 correction class). RED→GREEN first-hand via
-the stash dance (git stash push of the two src files, rebuild, run,
-restore): `DwgSectionLocatorWalkSetsExtent` (72 MiB max-end, RED at
-exactly 64 MiB), `DwgWalkRefusesBrokenRecordIds` (RED: the broken-id
-file carved), `DwgRowCarriesTheOgsRegisteredFloor` (RED: the 21-byte
-extent rejected at the old min 64) — all three RED at the pre-fix tree,
-GREEN with the walk (80/72-MiB devices; 54.2 s/48.7 s on this VM, the
-CRW-cap-test class);
-`DwgR2004EraKeepsTheBoundedStandIn` the era-split guard (green at both
-trees by design). Corpus citations: FUN_18002f320 / FUN_18002ff20 /
-FUN_18002f630 / FUN_18002fc50 / FUN_18002fe30 + the raw-asm sites
-above; the version-string table decoded from the stack-string constants
-(0x3531/0x3431/0x3331/0x3231 = 15/14/13/12; 0x3831/0x3432/0x3732/
-0x3233 = 18/24/27/32; 0x3132 = 21 — the LE-u16 flip the audit's own
-S11-R addendum class caught once before). Audit trail: the M-107
-finding's Session-86 addendum, the matrix row
-`carve · DWG size walk` → MATCH (member 3, the era split registered),
-`modules/carve.md`'s Session-86 addendum. No safety hardening touched.
+1. **The row floor**: the racing row kept min 64 (the S-007 superset);
+   the og's registered floor is 0x15 = 21 (the CDWGRawInfo factory
+   FUN_18002ff20's qword write at +0x110 — puVar1[0x22] = 0x15, the PNG/
+   ONE ctor pattern [0x22]=min/[0x23]=max; the SAME write seeds the gen-1
+   walk cursor). The racing gen-1 walk also carried the stand-in era's
+   residual 512-byte floor (`if (end - hit < 512) return r;`) which
+   contradicts the og's 21-byte floor. Fix: the row min re-pinned to
+   0x15 and the 512 floor removed from the gen-1 walk.
+   `DwgRowCarriesTheOgsRegisteredFloor` is the fail-before pin (a
+   21-byte walked extent: RED at the racing tree, GREEN with the rider).
+2. **The id-sequence gate**: the racing port compares `rec[0] != u8(i)`
+   (truncated); the og compares the id byte against the FULL 32-bit
+   running counter (raw-asm 0x18002f40a: `movzbl` the id into eax, `cmp
+   %ecx,%eax` with ecx the counter) — so the og's walk SELF-LIMITS at
+   256 records (no byte can match a counter >= 256). A count>260 fixture
+   with wrapped ids is accepted by the racing port and refused by the
+   og. Fix: `u32(rec[0]) != i`. `DwgWalkSelfLimitsAt256Records` is the
+   fail-before pin (RED at the racing tree: the fixture carved; GREEN:
+   refused).
 
-Remaining M-107 members after this landing (the CRW addendum's order):
-WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
-
----
+The racing window's same-window landings absorbed at this merge
+(verified first-hand at the merge tree): M-075 (the chkdsk endpoint
+src/win/cr_fsck.cpp + the win-stub repairs), M-078 (the turn-off
+endpoint), M-107 members 3 (DWG gen-1+gen-2), 4 (PSP ~BK), 5 (WPG
+zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
+members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
+R2007 remainder.
 
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
@@ -12238,8 +12218,6 @@ carve suite green. Trail: M-107's S83 addendum 2, the matrix row, the
 carve module addendum, SUMMARY, this entry.
 ---
 
----
-
 # Session 82 — entry 6: M-151 conceded; I-048 + M-111 + M-114 + M-154 FIXED
 
 **The registrations (three findings closed by decision per their own
@@ -12295,6 +12273,98 @@ three 07-28-{A8,B2,E4} needles, the {70,60,50} map — all carried into the
 landing's own evidence sheet).
 
 ---
+
+## Session-84 S84 fix-lane — entry 0: N-223 FIXED (the 09a18f9f trail-file marker residue + the D-152 triple seat + the gate's `##`-form blind spot closed; RENUMBERED from the born-collided N-220 seat at the merge — the racing S85 lane's 9b4a9302 finding landed N-220 first) (2026-10-30)
+
+**N-223 (MINOR, NEW — filed+fixed this session):** the S82 registration
+batch push `09a18f9f` left six trail files with live committed conflict
+markers (the matrix's M-154 row block, the ledger's nested double
+conflict + duplicate rows, the I-048 Resolution, PARITY-DELTAS's two
+conflicts, the worklog's Session-80/82 entry interleave) — the fifth
+recurrence of the M-120/N-210 class. All resolved corpus-truth-first:
+the matrix to the landed MATCH row, the ledger to the union of distinct
+rows, I-048 to the S82 registration, PARITY-DELTAS to the renumbered
+D-160/D-161/D-162 split, the worklog both-sides-kept. Beneath the
+markers: a born-collided D-152 TRIPLE seat (N-145's journal location
+[keeps the seat], the ext4 two-guards section, the last-scan pointer)
+that the doc_truth_gate never saw because its D-row pattern matched only
+`###`-form headings — the two colliding sections shipped as `##`-form
+rows. The seat repair followed the 67d2bf25 convention: the ext4
+journal-inode claim renumbered D-163 (its mode-gate half removed as
+D-153's duplicate), the last-scan pointer renumbered D-164, the
+cross-references swept (modules/ext4.md, modules/session.md, M-152's
+Resolution, SUMMARY's M-152/M-154 rows). The gate's pattern widened to
+`^(?:#{2,3}|\*\*)\s*D-(\d+)` — re-run green over 156 rows (the two
+formerly-invisible rows now counted). Trail-only change; the suite
+unaffected.
+
+**Trail:** findings/MINOR/N-223, the swept cross-references, the gate
+repair, this entry. (The N-220 seat was conceded to the racing S85
+lane's 9b4a9302-clobber finding — a different defect commit in the same
+red window; both findings stand.)
+
+---
+
+## Session-84 S84 fix-lane — entry 1: the S-068 gate regression repair — CONCEDED to the racing cd3479e7 byte-restore at the push rebase (the M-157 seat folded into the racing N-220; the convergence addendum landed there) (2026-10-30)
+
+**The session's open state:** pulled at `cac42582` (origin/main HEAD);
+audited-commit discipline per the S69+ lanes (corpus `be0cfe9`
+throughout, read-only guarantee held). The baseline suite run FIRST
+exposed the red main: `FatEngine.DeletedHigh16ZeroRebasesFromHint` and
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` both FAIL (high16_rebased
+0 != 1; the torn dentry's extent at the raw low cluster 710144 instead
+of the TRUE chain's 34264576) — the S-068 recovery-correctness surface
+was broken at HEAD.
+
+**The defect (independently found, filed as M-157, then conceded):** root-caused to the
+trail commit `9b4a9302` — its message's operative claim is "No code
+change rides this commit — the tree equals the racing window's plus
+this trail record", but the diffstat carries a 143-line engine rewrite
+(`cr_fat_quick.cpp`) plus the header, the S-068 finding file (131 lines
+removed), the matrix, and the fat module doc. The rewrite is the
+conceded lane's own variant (the message describes dropping it), and its
+central delta contradicts both the corpus and the concession's own text
+("the landed reading attributes the gate to the :14834 retry leg"):
+the retry-leg-only `hint > 0x310000` comparison was gate-raised onto
+the PRIMARY re-base gate.
+
+**Corpus verification (first-hand, before any edit):**
+`re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` —
+the PRIMARY re-base at :14753-14755 is the three-gate conjunction
+`*param_8 == '\0' && uVar5 < 0x10000 && uVar5 < DAT_1800728c8` (no
+0x310000 anywhere near it); the `0x310000 < DAT_1800728c8` comparison
+exists at exactly two sites (:14834, :30184) — both inside the RETRY
+leg's second-chance walk (FUN_180014530 and its FAT16-family twin).
+The hint update at :13753-13758 (FUN_180012e60, the shared dentry
+emission driver): non-directory gate `attr & 0x10 == 0`, the value =
+the walked (possibly re-based) first cluster.
+
+**The repair (this lane's variant, then conceded):** the primary gate
+restored (`deleted && Fat32 && reconstruct_deleted_chains && first >=
+2 && first < 0x10000 && first < hint` — the `0x310000` gate and the
+added `!is_dir` removed per the landed `ad1bcb9e` semantics); the hint
+update restored to the post-chain-resolution placement; the rewrite's
+probe hardenings KEPT (bounds, FAT-linkage refusal, broken/cycle
+refusal, the log line). At the push rebase, the racing `cd3479e7`
+byte-restore (back to the landed `ad1bcb9e` bytes exactly) had already
+landed — SA-9: the racing repair keeps the seat, this lane's variant
+withdrawn, the one implementation delta (the probe hardenings) recorded
+in the racing finding's convergence addendum for the next audit.
+
+**RED→GREEN:** the two red tests reproduced first-hand at the pulled
+HEAD before the edit; green post-repair; the four-test S-068 battery
+green; full `cr_tests` 1529 passed / 0 failed / 42 fixture-conditional
+skips (pre-existing count); `cr_ui_tests` 87/87.
+
+**Trail:** the racing findings/FIXED/N-220 (the seat) + this lane's
+convergence addendum (the identical decode, the identical repair gates,
+the probe-hardening delta), the S-068 finding's convergence record, the
+matrix S-068 row corrected (the gate description now cites the
+primary-site truth), modules/fat.md's convergence record + the
+module-note correction, this entry. The commit-message-falsification
+hazard (a "no code change" message carrying an engine rewrite) is
+recorded for the next audit's liveness battery: trail commits must be
+diffstat-checked before push.
 
 ## Session-84 — the post-remediation coherence session, opened (2026-10-29)
 
@@ -12482,3 +12552,515 @@ never populates `$Matches` on the 240-line `list-carve-formats` output →
 misfire; the message describes only the profile half. Both fixes are real,
 both evidenced in `worklog/ci-failures/test-benchmark-6.txt`; recorded here
 so the history stays truthful (no rewrite of pushed main).
+
+---
+
+## Session-84 S84 fix-lane — the merge landing record (2026-10-30)
+
+**The rebase window:** this lane's two local commits (the N-223 trail
+repair + the S-068 gate repair) were built at `cac42582`; the push
+revealed the racing S85 lane had landed ten commits in the window
+(`8fe3542f` the format sweep, `15c59ee7` the N-219 marker repair,
+`b6801ade` N-221, `50a59f51` the gate repair, `8daf75dc` the bench
+profile fix, `9b921ef8` the lint fixes, `32441353` the image --create
+wiring, `cd3479e7` the S-068 byte-restore, `eeddec57` the racing N-220,
+plus the worklog/context commits). The merge resolution:
+
+- **cr_fat_quick.cpp:** the racing `cd3479e7` byte-restore keeps the
+  seat (byte-equal to the landed `ad1bcb9e` implementation modulo the
+  format sweep's line-wrap); this lane's variant withdrawn per SA-9,
+  the probe-hardening delta recorded in the racing N-220's convergence
+  addendum.
+- **The M-157 seat folded into the racing N-220** (the same defect:
+  the 9b4a9302 clobber) — the finding file removed unpushed, the
+  convergence addendum carrying the corroboration and the one delta.
+- **This lane's N-220 (the 09a18f9f six-trail-file marker residue +
+  the D-152 triple seat + the gate `##`-form blind spot) renumbered
+  N-223** — the racing lane's N-220 (the 9b4a9302 clobber) landed
+  first; different defect commits in the same red window, both
+  findings stand.
+- **The D-163/D-164 seat repair and the doc_truth_gate pattern fix
+  survive the merge** (the racing lane never touched the D-152 triple
+  collision — their 50a59f51 fixed the N-219 finding-ID collision
+  only). The gate is green over the merged tree.
+- **The matrix/ledger/I-048/PARITY-DELTAS conflicts** resolved to the
+  racing lane's later states where they carried more truth (their
+  ledger superset, their I-048 convergence Resolution), and to this
+  lane's states where this lane's repair is the only one (the D-164
+  renumbering; the matrix M-154 row).
+
+The post-merge verification: full suite + gate + format re-run below
+(in the next entry).
+
+## Session-84 — entry 3 (this lane): the phantom export lands — cr_ui_session_resume_last implemented (2026-10-30)
+
+**The defect (the api-surface sheet's F1 HIGH, independently confirmed
+here):** cr_ui.h:927 has declared the M-154 pointed-resume export since
+b2bc1970 (a header-only landing; the racing window dropped the
+implementation half). 91 declared exports vs 90 definitions in
+src/ui/cr_ui.cpp; `nm -D` showed nothing. The Linux gates stayed green
+because GCC emits nothing for an undeffed visibility declaration, while
+the MSVC DLL build would LNK2001 the moment Build+test unblocks behind
+the (now-green) lint job — the exact class this session hunts.
+
+**The fix (wiring, not behavior):** `session_resume_last_impl`
+(src/ui/cr_ui.cpp:3660-3701) — pointer read via
+`session::last_scan_info_read`; every dead-pointer class returns
+ERR_OPEN_FAILED per the cr_ui.h:917-926 contract (no sidecar / dead
+pointed file / a name that is not an auto session / the
+two-fields-disagree tamper — the S82 rider's rule extended from the
+retention path to the load, mirroring cr_lastscan.cpp's gate); the load
+goes through the shared `session_load_impl` (the og's "restore through
+the shared path", DRWUI:443092-443127). Header comment typo repaired in
+the same commit: cr_ui.h:920 "lastscan.info" -> "last_scan.info" (what
+cr_lastscan.cpp:142 actually builds). The write side was already wired
+(cr_ui.cpp:2330/:2344 for ABI hosts, rrecov.cpp:2033/:2043 for the CLI)
+— this landing completes the lifecycle.
+
+**Verification (all first-hand):** linux-gcc preset build clean at
+-Wall -Wextra -Wpedantic -Werror -Wshadow; `nm -D libcr_ui.so` =>
+`T cr_ui_session_resume_last`; the new pin
+`CrUi.SessionResumeLastLoadsPointedAutoAndRefusesTampered` PASSES with
+six contract arms (pointed-load stats == direct-load stats,
+BAD_PARAMETER x2, no-sidecar, tampered-name, tampered-save_path against
+a loadable decoy, dead pointer); the full cr_ui_tests suite 89/89
+(127.9 s); doc_truth_gate green (exports=91 unchanged — the header count
+already included the phantom); clang-format 18.1.8 dry-run clean on all
+three touched files. Side effect: CORE-API-CURRENT.md:15's
+"91 definitions in cr_ui.cpp" claim — false at Phase 0 — is now true.
+---
+
+# Session 84 — the diff-to-fix execution lane (opened 2026-10-29)
+
+**Opened at core `27bda40e`, corpus `be0cfe9` (both first-hand).** The
+S84 lane's grant: the two-repo boundary (core modified + corpus read-only;
+the five driver-repo-resident findings stay untouchable per OQ-S10-3).
+The user's order this session: MAJOR/INFORMATIONAL first, one finding /
+one verified fix / one push, 20+ fixes, fixed findings to findings/FIXED/.
+
+**T1-T3 (the read-before-touching pass):** diff-to-fix/ read in full
+(SUMMARY, README, all 11 MAJOR + 4 MINOR + 1 INFO finding files, the 4
+tracked-open files, FIXED-LEDGER conventions, the modules index); the core
+tree surveyed (src/win, src/core, src/ui, src/app, tests/unit); the
+baseline build attempted FIRST — **main is RED at open**: `27bda40e` (the
+M-151 landing) committed unresolved merge conflict markers in
+`tests/unit/test_ntfs_volume.cpp` (two marker pairs at :5780/:5865, the
+A-016-vs-M-151 test collision), so the suite cannot build — the M-151
+commit message's "full suite 1634/1634" claim is false against its own
+tree (the M-120/N-210/M-155 class's FOURTH recurrence). Filed as N-219
+and repaired before any lane work (the red-main-repair-first precedent).
+
+**The lane's queue (the user's priority order):** N-219 (the red main)
+→ M-075 (chkdsk launch) → M-078 (BitLocker turn-off) → M-154 (autosave
+retention + pointer) → M-101 (Versions + Tags Extracted branches) →
+M-105 (DRWService: option a) → M-114 (system-restore purge plan item) →
+M-111 (browse scope decision) → M-107's members (CRW → DWG → WPG → WPD →
+PSP → SIT → APE → EPS → DXF → SWF-RECT, corpus decode each) → I-048 →
+N-178 → N-181 → the four OQs (S10-1/S10-3/S4-3/S79-1).
+
+## Session 84 — entry 1: N-219 FIXED (the red-main repair, before any lane work)
+
+**N-219 (MINOR, NEW — filed+fixed this session).** Main was RED at open:
+`27bda40e` (the M-151 landing) carries two committed conflict-marker pairs
+in `tests/unit/test_ntfs_volume.cpp` (:5780/:5865 — the A-016 test vs the
+M-151 block, sharing the walk_mft preamble), plus M-151's three re-truthed
+tests outside the markers. The union resolution keeps everything: the
+re-truthed pre-region, A-016's transparency pin in full, M-151's four-test
+battery in full. RED first-hand (the build fails at :5802); GREEN: suite
+**1562 / 1520 passed / 0 failed / 42 platform skips**; N-210 lint clean;
+clang-format clean; `git config core.hooksPath .githooks` re-asserted (the
+pusher's hook was evidently not installed — the gate would have caught
+this class). Trail: findings/FIXED/N-219 + ledger row + this entry.
+
+## Session 84 — entry 2: the racing window absorbed (M-154/M-111/M-114/I-048/N-178/N-181/CRW all landed by racing lanes; the FIFTH marker recurrence swept)
+
+The rebase at push time surfaced a large racing window: `1d7d31a6` (the
+M-151 marker repair — convergent with this lane's, conceded), `0cf6142d`
+(M-107's CRW member), `af5987d0`+rider (M-154), and `b2bc1970` (I-048
+ACKNOWLEDGED as D-155/D-160/D-161/D-162; M-111 closed by the D-158 scope
+decision; M-114 closed by the D-159 decline; M-154's hardening rider).
+N-178 (--pause-stdin + D-154) and N-181 (the carve-before-deep reorder)
+also landed in the same window per the ledger.
+
+**N-219's convergence + the fifth recurrence:** the racing `b2bc1970`
+committed markers in FIVE audit-trail files (worklog, ledger,
+PARITY-DELTAS ×2, matrix, I-048's Resolution) — swept at this lane's
+rebase with union resolutions (both sides preserved everywhere; the
+D-155-combined + D-160/161/162-split born-collided pair kept per the
+convention; the matrix's M-154 MATCH row kept over the stale DIVERGENCE
+row; the ledger's exact-duplicate rows deduped). The lane's remaining
+queue re-planned against the new board: M-075 (chkdsk launch), M-078
+(BitLocker turn-off), M-101 (Versions + Tags branches), M-105 (DRWService
+option a), M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE →
+EPS → DXF → SWF-RECT), the OQs.
+
+## Session 84 — entry 3: N-220 FIXED (the S-068 substitution repair, corpus-arbitrated)
+
+**N-220 (MINOR, NEW — filed+fixed this session).** The pre-push gate caught
+ctests red on the merged tree: `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
+`LastGoodHintUpdatesOnlyOnFileWalks` FAIL. Root cause: `9b4a9302` — the S79
+concession "trail" commit whose message says "No code change rides this
+commit" — substituted the S-068 re-base with the conceding variant, moving
+the og's 0x310000 retry-leg gate onto the first-chance re-base. Corpus
+arbitration (read first-hand this session): FATSearchDLL **:14753-55** — the
+first-chance re-base is gated ONLY on low-16-only + below-hint (no
+big-volume gate); **:14834-42** — 0x310000 belongs to the failed-raw-walk
+RETRY leg (a different trigger shape, + its :20184 twin). The S82
+convergence record's "open question 2" is settled by the direct read. The
+gate restored → FatEngine 92/92, the full suite **1529/0-fail**, cr_ui
+**87/87**; the window's format drift (rrecov.cpp ×4, cr_ui.cpp ×1) swept.
+The retry-leg shape itself (walk raw → on failure AND hint>0x310000 → walk
+re-based) remains unmodeled — recorded honestly in the code comment and the
+finding (it is the OR-shape of the two walks this engine already runs, a
+future refinement, not a parity break: both og sites borrow the same hint
+bits and validate through the same FUN_180012c00 class).
+
+---
+
+## Session-84 — entry 4 (this lane): the ledger collision repair — the gate red eb1b4e35 carried (2026-10-30)
+
+**Honesty note first:** eb1b4e35 merged the racing 0626e6e6 landing and
+pushed with a RED doc_truth_gate — this lane's merge verification ran
+the gate with tail-truncated output and did not check the exit code
+(the same verification-discipline class as the racing lane's own
+8daf75dc staging-misfire note). The eb1b4e35 Checks run fails on it;
+this entry's commit heals main.
+
+**The defect (M-117 collision class, two FAILs):** FIXED-LEDGER.md
+carried five rows across N-219/N-221/N-222 citing three different
+slugs, two of which name files that do not exist on disk:
+- one N-219 row citing the pre-rename slug
+  `N-219-committed-conflict-markers-red-main-fourth-recurrence.md`
+  (superseded by the N-222 row when 50a59f51 renumbered the born-collided
+  seat — the row should have been retired with the rename);
+- two rows (an N-221 and an N-219) citing
+  `N-219-m151-landing-committed-conflict-markers.md` — a PHANTOM
+  citation: the file never existed on main (git log over the path is
+  empty; the third S-068-arbitration lane's pre-push name). 0626e6e6
+  retired the lane's duplicate finding FILE and one ledger row, leaving
+  these two behind.
+
+**The fix (trail accuracy, no audit work lost):** the three stale rows
+deleted; the canonical rows stand — N-219 -> the 27bda40e file (:673),
+N-222 -> the renumbered file (:674), N-221 -> the leak file (:675).
+The retired lane's full record lives in git history (0626e6e6's
+ancestry) and its narrative is already carried by the surviving rows.
+
+**Verification:** `python3 tools/doc_truth_gate.py` => exit 0, green
+(was: 2 FAILs). Source tree marker-clean; no other trail file touched.
+---
+## Session-86 S86 fix-lane — entry 1: the open (2026-10-29)
+
+**Baseline recorded.** Core at open: `b6801ade` (the S84/S85 close tree); corpus
+`be0cfe9` throughout. Suite GREEN first-hand at the open (the linux-gcc preset,
+ASan on): **1381/1381 ctest** (163 s), LSAN clean at exit. The prompt saved
+(token redacted) at `worklog/session-diff-fix-s86-prompt.md`, read twice.
+
+**Board at open (filesystem truth): 0 ACUTE · 0 SEVERE · 8 MAJOR · 2 MINOR ·
+0 INFO active / 198 FIXED / 4 tracked-open.** In-grant fixable this session:
+M-075 (chkdsk launch), M-078 (BitLocker turn-off), M-101 (the two tree
+branches), M-105 (DRWService, option-a shape), M-107's nine remaining members
+(DWG WPG WPD PSP SIT APE EPS DXF SWF-RECT). Out-of-grant (driver-repo-resident
+per OQ-S10-3, re-affirmed): M-086/M-087/M-089/N-107/N-127.
+
+**The minor-first trail landing (this push):** per the user's session addendum
+("priority to minor first") the two open MINORs were handled first — both are
+driver-repo-resident, so the in-grant half is the trail: N-107/N-127 brought
+from the audit lanes' "READ-ONLY FINDING" status to the consistent PUSHED-FORWARD
+posture (the M-086/87/89 convention) with per-finding session disposition notes
+carrying this session's first-hand re-verifications (DRIVER-CONTRACT §4.4's 19
++ §4.2's wire-truth rows; the corpus's eprdtdrv §4 no-ACL posture), plus the
+OQ-S10-3 fifth re-affirmation note. No code change (none is owed in this repo);
+the audit trail is the deliverable of this landing.
+
+**Next:** the M-107 member queue (DWG's section-locator map first, per the
+finding's decode-then-land order), then M-075/M-078/M-101/M-105, then the OQ
+items (S79-1's $LogFile decode is in-repo workable).
+
+
+---
+
+## Session-84 — entry 5 (this lane): the T3/T4 registers land (2026-10-30)
+
+**`worklog/api-cli-mismatches.md`** — the ABI↔CLI↔docs cross-check register:
+the architecture truth first (the CLI links cr::core/cr::win directly by
+design, rrecov.cpp:859-867 — the "wired to the ABI" gate is the two edges
+CLI→core and cr_ui→core), then six defects FIXED this session with SHAs
+(F-1 phantom export a47419c7, F-2 image --create 32441353, F-3 exit-5 docs
+78c60e89, F-4 ledger collisions 24edbb04, F-5 lint/bench root causes, F-6
+the marker class swept), nine DOC dispositions for the T17 batch, three
+BEHAVIOR dispositions filed, and the corpus-parity seed.
+
+**`worklog/api-findings.md`** — the next-behavior-session scope: AF-1 the
+exit-code taxonomy inconsistencies; AF-2 the two zero-coverage exports
+(cr_ui_open_volume_with_key, cr_ui_unlock_volume_with_dictionary — union
+coverage 89/91 computed first-hand); AF-3 the oracle's phantom error-code
+matches (43+OK real vs 45 counted); AF-4 the event-emission split; AF-5 the
+missing struct-layout static pins.
+
+**Marker state at this entry:** only M-120's sanctioned evidence quotes
+remain (3 lines) — the C-1 opening finding is closed.
+
+---
+
+---
+
+## Session-85 S85 fix-lane — entry 1: M-107 member 3, the DWG walk lands (2026-10-30)
+
+**The decode (first-hand, raw asm):** the "AC10" chain — the binding at
+0x1800036bf → the node (vtable 0x18006bc00, idx 0x18) → the tier-1
+NINE-version gate FUN_18002fe30 {12,13,14,15,18,21,24,27,32} → the factory
+FUN_18002ff20 (the 0x508 CDWGRawInfo child; **cursor = 0x15** at
+0x18002ff59; extent 0) → the +0x20 walk FUN_18002f320, NO secondary (the
+node's +0x40 is the `xor eax,eax; ret` stub). THREE generations: gen-1
+(AC1012-15) the section-locator walk (count u32@0x15; 9-byte records
+{number==index, seeker u32@+1, size u32@+5} from 0x19; number mismatch →
+extent 0; extent = max(seeker+size); torn → the walked-prefix salvage);
+gen-2 (AC1018/24/27/32) the 0x6c struct at +0x20 XOR the MSVC rand LCG
+stream seed 1, six gates, extent = u64@0x34 + 0x6c; gen-3 (AC1021 = R2007)
+the de-interleave record chain — undecoded, the bounded extent stays (the
+finding's own 1(c) split). The walk cap: singleton+0x70 (0xbebc200) × 100
+= 0x4A817C800 (raw-asm 0x18002f5ee `imul $0x64`) — the row max carries it.
+Evidence: `diff-to-fix/evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+
+**Two defects discovered during verification, fixed in the landing:** the
+tier-1 table's phantom "30" (AC1030 — not a real DWG release) and its
+missing "13" (AC1013 = R13); the non-og sentinel check dropped.
+
+**RED→GREEN:** six tests RED at the stand-in tree
+(DwgSectionLocatorWalkSetsExtent / DwgSectionNumberMismatchDeclines /
+DwgTornSalvagesTheWalkedPrefix / DwgR2004RandStructWalkSetsExtent /
+DwgR2004GateFailDeclines / DwgVersionGateIsTheOgsNine), GREEN with the
+walk. The gen-2 stream pinned against the well-known MSVC rand seed-1
+sequence (41, 18467, 6334, 26500 — the first four low bytes). The S-007
+batch's DWG plant re-pinned the CRW way (a real locator map). The carve
+suite 180/180; the full suite **1666/1666**. Trail: M-107's S85 addendum,
+the matrix row, modules/carve.md's S85 addendum 1, this entry.
+
+## Session-84 S84 fix-lane — entry 4: M-075 FIXED (2026-10-30)
+
+**M-075 FIXED (MAJOR, the check ladder's fix rung):** the chkdsk
+escalation endpoint. Corpus re-verified first (the decompile's
+:7099/:7134/:7217 launch sites, the WinChkdsk.md:28 wrapper role, the
+strings_ascii.txt:126 two-posture guidance). The landing per the
+finding's own fix plan: the pure grammar seam
+(cr/check/cr_fsck_launch.* — build_chkdsk_command, the letter
+validation, the documented exit classes; FsckVolume.* 3/3 on Linux),
+the win layer (src/win/cr_fsck.cpp — elevated synchronous launch,
+15-minute documented bound, WoW64-native redirection disable, loud
+refusal; FsckWin.* 6-test seam battery on the Windows lane), the ABI
+cr_ui_fsck_volume (export #92 — the five count sites refreshed, the
+doc_truth_gate green), the CLI fix --chkdsk C: (three-site lock; a
+volume-letter op placed outside the driver precondition — the og's
+wrapper runs beside the engine), D-90 rewritten to the superseded
+posture (the doc/code contradiction resolved), R-65 closed PRESENT,
+the CI-SCENARIOS end-to-end row (staged 0x1005 → chkdsk exit 1 →
+re-audit clean). Open residue honest: the og's 5 wrapper arguments
+undecoded (reconcile on a future decode). Board: 7 MAJOR · 2 MINOR
+active / 197 FIXED / 4 tracked-open.
+
+## Session-84 — Phase 2 landed: the cross-check sheets (2026-10-29)
+
+`worklog/api-cli-mismatches.md` (6 fixed this session with SHAs, 4 fixed
+by racing windows and re-verified here, 15 open doc-side drifts queued
+for Phase 5, 4 behavior-adjacent filed) and `worklog/api-findings.md`
+(F1 phantom export — closed by the racing a47419c7 landing, verified
+post-hoc: 91 definitions in cr_ui.cpp now; F2 enumerate_volumes rc
+dropped; F3 the N-145 every-startup journal probe absent; F4 fuzz
+campaign drift; F5 the ERR_NOT_FOUND family question; F6 the D-52
+"collision" verified FALSE — an addendum, not a seat claim; F7 the
+gate's D-row regex blind to ##-level rows). Local evidence at this
+point: linux-release build 0 warnings, ctest 1661/1661 (now 1663 with
+the two new pins), doc_truth_gate green at the repaired census
+(exports=91, codes=43, events=12), clang-format 18.1.8 tree-wide clean.
+The UBSan local lane exceeds the 10-minute tool ceiling in this
+container — recorded honestly; the release-lane pass + the CI matrix
+are the session's build evidence.
+
+---
+
+---
+
+## Session-85 S85 fix-lane — entry 2: M-107 member 4, the PSP walk lands (2026-10-30)
+
+**The decode (first-hand):** the PSP chain — the tier-1 FUN_180016390
+(:17347-17368) is the EXACT 32-byte signature compare ("Paint Shop Pro
+Image File" + 0x0a + 0x1a + 5 NULs); the child ctor FUN_180016430 (min
+0x24, max 20000000, the walked position starts at 0x24); the walk
+FUN_180016510 (:17410-17482): the ~BK block chain — each block {u32
+magic 0x004b427e, u32 length @ +6}, advance 10 + length, the extent =
+the walked END (the first non-~BK block / the 20 MB bound / the device
+end all stop there; the torn straddle salvages the walked end).
+
+**A discovered defect fixed with the landing:** the core's old tier-1
+was a 16-byte prefix — it accepted files the og refuses.
+
+**RED→GREEN via the stash dance:** PspBkBlockChainWalkSetsExtent +
+PspExactSignatureRequired RED at the stand-in validator, GREEN with the
+walk. The S-007 batch-1 PSP plant re-pinned (the og's exact signature +
+a real two-block chain). The carve suite 183/183. Trail: M-107's S85
+addendum 2, the matrix row, modules/carve.md's S85 addendum 2, this
+entry.
+
+
+---
+
+## Session-84 — entry 6 (this lane): the b82f75b2 marker repair — this lane's own M-120-class miss, caught and fixed (2026-10-30)
+
+**Honesty note:** b82f75b2 pushed with live conflict markers in
+include/cr/cr_ui.h:1021-1030 — this lane's scripted merge resolution
+handled worklog.md but swept the still-conflicted header through
+`git add -A`; the gate ran but the marker grep did not. The exact
+M-120/N-219 class this session exists to hunt, committed by this lane's
+own carelessness. The Checks run on b82f75b2 fails; this commit heals
+main.
+
+**The resolution:** both sides of the conflict were the SAME fix — the
+racing lane had independently corrected the identical ERR_NOT_FOUND
+contract comment (their text richer: the hex code, the pin citation,
+the correction note). Per SA-9 their side stands; this lane's twin
+dropped. Process repair for the rest of this session: no scripted
+`git add -A` in merges; every conflicted file resolved explicitly; the
+pre-push checklist is now marker-grep + doc_truth_gate + build when a
+code path is touched.
+
+**Verification:** zero markers in cr_ui.h; clang-format 18.1.8 clean;
+doc_truth_gate green; cr_ui_tests rebuilt clean; the Autosave/ResumeLast
+ABI tests 4/4 (12.4 s).
+---
+---
+
+## Session-85 S85 fix-lane — entry 3: M-107 member 5, the WPG zero-tail walk lands (2026-10-30)
+
+**The decode (first-hand):** the WPG chain — the tier-1 FUN_180014030
+("wpg\0" re-check, id 0x45); the factory FUN_180014090 (the 0x120
+WPGRawFileInfo child, min 20 / max 100 MB — already in the row); the
+processor FUN_180014160 (raw asm 0x180014160-0x1800142b0): **extent =
+chunk offset + zero_tail(chunk)**, return 1 after the first walked
+chunk. The zero-tail walk FUN_180042b30 (:50703-50750): a binary
+search for the first all-zero-tail position (+1); whole-buffer zero →
+0 (the decline); no zeros → the buffer length. The driver's chunk
+length = the DEVICE SECTOR SIZE (ctx+0xF0, :9192-95, default 0x200;
+the +0x20 dispatch at 0x18000d7ae).
+
+The landing: the trailing-zero-run position of the hit's 512-byte
+window (the registered model-divergence class). The deferral residue
+(the processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+RECORDED in the finding: if the gate defers the walk to a later sector
+the extent shifts by multiples of 512; the walk and the formula are
+byte-exact.
+
+**RED→GREEN via the stash dance:** all three Wpg* tests RED at the
+stand-in (the blind 64 MiB; the all-zero acceptance), GREEN with the
+walk. The carve suite 186/186. Trail: M-107's S85 addendum 3, the
+matrix row, modules/carve.md's S85 addendum 3, this entry.
+
+## Session-84 S84 fix-lane — entry 5: M-078 FIXED (2026-10-30)
+
+**M-078 FIXED (MAJOR, the BitLocker turn-off):** the
+CBitlockerTurnOffOperation endpoint. Corpus re-verified (the four
+citations; the exact verb undecoded — the finding's open question, the
+unlock duality the evidence class). The landing: turn_off in
+cr_bitlocker.cpp (PowerShell Disable-BitLocker primary + manage-bde
+-off fallback, 10-minute request bound, ERR_FVE_LOCKED on both failing
+— the loud refusal), the cr_ui_turn_off_bitlocker ABI export #93
+(request-phase progress, the accepted-not-plaintext contract), the CLI
+unlock --turn-off C: verb (a NEW verb, three-site lock + dispatch),
+D-163 registered (the request-vs-completion posture + the undecoded
+verb's reconciliation note), R-88 closed to the full family. Tests:
+TurnOffCommandConstruction / TurnOffIsTheConsentedDestructiveTwin /
+TurnOffRefusesLoudlyOnFailure (the Windows-lane seam battery); the
+export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
+defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
+Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
+
+
+---
+
+## Session-85 S85 fix-lane — entry 4 (rewritten to the concession): M-078 conceded to the racing fcd3ba10; N-223's repair lands (2026-10-30)
+
+**M-078 CONCEDED per SA-9:** this lane's independent turn-off implementation
+(the pure seam header + the status-refusal chain + the fix --bitlocker-off
+CLI flag + the Linux-runnable seam battery) was withdrawn unpushed when the
+racing fcd3ba10 landed first (their shape: detail::build_turn_off_command
+inside the win layer, the `unlock --turn-off` CLI verb, the
+cr_ui_turn_off_bitlocker ABI, the Windows-lane test battery). Their landing
+verified first-hand at the reset tree — the consent posture, the duality,
+and the loud-refusal mapping all present; the one design delta (their
+turn_off carries no status-refusal pre-probe — mine refused
+locked/unencrypted volumes before spawning) is recorded here as the
+concession's honest delta, not re-landed: the og's pending-op shape runs
+the verb directly, and their form is the closer decode.
+
+**N-223 FIXED (the pulled-red repair):** the M-075 lane's cr_fsck.cpp
+landed its new SDK symbols (the Wow64 redirection pair + ULONGLONG)
+without the tests/win-stub/windows.h declarations — win_syntax_check RED
+at the pull and STILL RED at the post-M-078 head (two racing windows
+pushed over it). The repair: the three stub declarations (the gate's own
+prescribed form); 13/13 files parse; the suite green at the repaired
+tree.
+## Session-88 S88 fix-lane — entry 1 (2026-10-30): the S-068 complementary halves land (M-159) + the M-075 stub-gap repair (N-224)
+
+Opened at core `842a587e` (RED-again main at open), pulled through four
+racing windows (38+16+38-commit scale) to the landing head `db468e29`,
+corpus `be0cfe9` throughout. This lane's independent repairs conceded
+per SA-9 across the windows: the 27bda40e marker repair (the racing
+N-219 keeps the seat), the S-068 clobber repair (the racing N-220 /
+cd3479e7 byte-restore), and the trail-marker/D-seat sweep (the racing
+N-223, whose seat assignments — N-145 keeps D-152, ext4-guards → D-163,
+the pointer → D-164 — stand). The lane re-homed S84 → S88.
+
+**M-159 FIXED (MAJOR, filed+fixed this session):** the S-068 machinery's
+complementary halves, all decoded first-hand from FATSearchDLL this
+session:
+(1) **The hint is the WALKED END** — the dispatcher computes the
+dentry's size-derived cluster count BEFORE the walk (uVar6,
+:13722-13727) and stamps final_first + count into the hint (:13754-56);
+the byte-restored code stamped the bare first cluster. Discriminated by
+the 67 MiB bank-crossing fixture: the anchor's declared size crosses a
+64K bank, so the two readings re-base the next torn dentry into
+DIFFERENT banks — the true chain lives in the END reading's bank.
+(2) **The failed-but-high arm** — the og's gate is `param_5 != 0 ||
+0x10000 < local_res8`; param_5's first byte is the walk-success flag
+(FUN_180012c00 sets it; the Site B quote's `if (*param_8 == '\0')`
+proves the semantics) — decoded where the landing's own comment said
+"a refinement whose param_5 is undecoded". A broken walk whose start
+sits above 0x10000 still feeds the hint.
+(3) **The dispatcher's ATTR_DIRECTORY routing** (:13744-49): the eager
+ungated primary re-base (Site A, FUN_1800140d0 :14753-55) is the FILE
+site; deleted DIRECTORY dentries route to FUN_180014530 — the raw-first
+retry leg (Site B, :14826-48) under the 0x310000 big-volume gate with
+the write-back and the adopted-cluster hint update (:14847). The landed
+code served directories eagerly with no gate — `!is_dir` added; Site B
+implemented with the gate seam-exposed as `dir_retry_rebase_cluster`
+(the og's literal shape: the big-volume check is the ONLY gate; no CI
+fixture spans >0x310000 clusters, so the positive arm is pinned at the
+seam). The firing condition maps the og's failed first walk onto the
+core's broken/cycle/empty class; free-start shapes keep the registered
+GAP-S6-2 model (recorded, not papered over).
+
+RED first-hand via the revert-rebuild (the three corrections reverted
+alone, the seam kept): `DeletedHigh16HintIsTheWalkedEndCluster` /
+`DeletedHigh16FailedHighWalkStillFeedsTheHint` /
+`DeletedDirectoryHigh16RetryHoldsBelowBigVolumeGate` all FAIL against
+the origin/main structure (the last proving the eager directory re-base
+is a live divergence, not a hypothetical) → GREEN: all four new tests +
+the four S-068 originals green; FAT families 98/98; the full suite
+**1676/1676**.
+
+**N-224 FIXED (MINOR, filed+fixed):** the M-075 landing's cr_fsck.cpp
+broke win_syntax_check at origin/main — the WoW64-redirection pair +
+ULONGLONG never grown into the win-stub (six parse errors, first-hand;
+the landing's message honestly omitted the win-gate claim). The stub
+grown per its own N-116 contract; the gate GREEN; the launcher's logic
+untouched.
+
+**N-223 moved to findings/FIXED/** (the fixed-directory directive —
+its Resolution was FIXED but the file sat in MINOR/).
+
+Trail: findings/FIXED/{M-159, N-224} + Resolutions, the ledger rows,
+the matrix S88 rows, the SUMMARY S88 block (board: 7 MAJOR / 2 MINOR /
+0 INFO active / 204 FIXED / 4 tracked-open), the S88 prompt archive
+(token redacted), this entry. Corpus: be0cfe9, read-only guarantee
+held. Next: M-101 (the Versions / Tags Extracted branches), then
+M-107's eight members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT).

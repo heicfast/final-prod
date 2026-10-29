@@ -5141,6 +5141,88 @@ TEST(CrUi, AutosaveDeadPointerDoesNotBlock) {
     EXPECT_TRUE(std::filesystem::exists(fresh)) << "the pointer names the new session";
 }
 
+/* Session-84 (coherence): the pointed-resume ABI half - cr_ui.h:927
+ * declared cr_ui_session_resume_last in b2bc1970 but the racing window
+ * dropped the implementation (the phantom-export class: MSVC LNK2001
+ * the moment Build+test runs; the Linux build silently emits nothing).
+ * The pin covers every contract arm of cr_ui.h:917-927: the pointed
+ * load through the shared path (no enumeration, no sort), BAD_PARAMETER
+ * on null args, and the dead-pointer classes as ERR_OPEN_FAILED
+ * (0x50020001) - including the two tamper refusals (the S82 rider's
+ * rule extended to the load: a sidecar whose fields disagree, or whose
+ * name is not an auto session, is refused, never followed). */
+TEST(CrUi, SessionResumeLastLoadsPointedAutoAndRefusesTampered) {
+    const std::string img = write_fixture("m154rl");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/m154_rl_" + std::to_string(CR_TEST_PID());
+    std::filesystem::remove_all(adir);
+    std::filesystem::create_directories(adir);
+
+    /* one auto-saving run: the auto session + the pointer */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    }
+    /* (1) the pointed load: same session the direct load sees */
+    char pointed[1024] = {0};
+    ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), pointed, sizeof(pointed)), CR_UI_OK);
+    cr_ui_session* direct = nullptr;
+    ASSERT_EQ(cr_ui_session_load(pointed, &direct), CR_UI_OK);
+    cr_ui_scan_stats dst{};
+    ASSERT_EQ(cr_ui_session_stats(direct, &dst), CR_UI_OK);
+    cr_ui_session* resumed = nullptr;
+    ASSERT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), CR_UI_OK);
+    cr_ui_scan_stats rst{};
+    ASSERT_EQ(cr_ui_session_stats(resumed, &rst), CR_UI_OK);
+    EXPECT_EQ(rst.files_found, dst.files_found)
+        << "the pointed resume loads the same session as the direct load";
+    cr_ui_session_close(resumed);
+    cr_ui_session_close(direct);
+
+    /* (2) null args: BAD_PARAMETER */
+    EXPECT_EQ(cr_ui_session_resume_last(nullptr, &resumed), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), nullptr), CR_UI_ERR_BAD_PARAMETER);
+
+    /* (3) a dir with no sidecar: ERR_OPEN_FAILED */
+    const std::string no_ptr = adir + "_nopointer";
+    std::filesystem::create_directories(no_ptr);
+    EXPECT_EQ(cr_ui_session_resume_last(no_ptr.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: no pointer sidecar */;
+
+    /* (4) tampered name (not an auto session): refused, never followed -
+     * save_path still names the real, loadable file */
+    cr::session::LastScanInfo good;
+    ASSERT_TRUE(cr::session::last_scan_info_read(adir, good));
+    cr::session::LastScanInfo info = good;
+    info.name = "manual_save.crsf";
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, info));
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: the pointer does not name an auto session */;
+
+    /* (5) tampered save_path (fields disagree): refused even though the
+     * target is a real, loadable session - the smuggled-path refusal */
+    const std::string decoy = adir + "/decoy_save.crsf";
+    std::filesystem::copy_file(good.save_path, decoy);
+    info = good;
+    info.save_path = decoy;
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, info));
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: save_path does not name the gated name */;
+
+    /* (6) dead pointer (the pointed file deleted out-of-band) */
+    ASSERT_TRUE(cr::session::last_scan_info_write(adir, good));
+    std::filesystem::remove(good.save_path);
+    std::filesystem::remove(decoy);
+    EXPECT_EQ(cr_ui_session_resume_last(adir.c_str(), &resumed), 0x50020001u)
+    /* ERR_OPEN_FAILED: the pointed file does not exist */;
+}
+
 /* Session-84 (coherence): the image verb's --create selector - the
  * five-site surface (dispatch / -h / usage header / docs / the parser)
  * was four-site until now: 13fe7258 landed the verb with the documented
@@ -5166,4 +5248,73 @@ TEST(CrUi, CliImageCreateFlagParses) {
     EXPECT_NE(rrecov.find("L\"image\""), std::string::npos) << "the dispatch site must stay";
     EXPECT_NE(rrecov.find("image needs --disk N and --out file.img"), std::string::npos)
         << "the missing-args refusal must stay (the parser still demands both)";
+}
+
+/* Session-84 (coherence): the disconnect hint must name a real verb - the
+ * N-125 exit-5 message at rrecov.cpp:2092 said `rrecov resume %ls`, but no
+ * `resume` verb exists in the dispatch (the 13-verb table has no such
+ * entry; the real reattach path is `scan --resume <file> --disk N |
+ * --volume C:`, parsed at rrecov.cpp:1559 and stated by the sibling
+ * cancel-resume message at :1921). A hint that names a nonexistent
+ * command is the user-facing wiring class this session hunts. */
+TEST(CrUi, CliDisconnectHintNamesRealVerb) {
+    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(rrecov.empty());
+    EXPECT_NE(rrecov.find("rrecov scan --resume %ls"), std::string::npos)
+        << "the exit-5 disconnect hint must name the real resume form "
+           "(scan --resume), never a phantom `rrecov resume` verb";
+}
+
+/* Session-84 (coherence, D14): the -h block's scan section omitted six
+ * live flags (--autosave-dir/--label/--pause-stdin/--user-signs/
+ * --bitlocker-dict/--check) while the parse loop accepted them - the
+ * N-094 class (a surface invisible in the product's own help), flagged
+ * by the Phase-0 CLI sheet and repaired in the same session. The pin
+ * holds the invariant the same way N-094 holds the verb invariant:
+ * every flag cmd_scan's parse loop accepts must appear in the -h usage
+ * block. */
+TEST(CrUi, CliHelpListsEveryScanFlag) {
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* the scan parse loop: from cmd_scan's opening to the refusal line */
+    const size_t scan_start = src.find("int cmd_scan(");
+    ASSERT_NE(std::string::npos, scan_start) << "cmd_scan not found";
+    const size_t scan_end = src.find("scan needs --disk", scan_start);
+    ASSERT_NE(std::string::npos, scan_end) << "scan parse loop end not found";
+    const std::string scan_body = src.substr(scan_start, scan_end - scan_start);
+
+    /* every flag the loop accepts, both valueless and valued */
+    std::vector<std::string> flags;
+    for (size_t pos = 0; (pos = scan_body.find("L\"--", pos)) != std::string::npos;) {
+        const size_t start = pos + 3;
+        const size_t end = scan_body.find('"', start);
+        ASSERT_NE(std::string::npos, end);
+        const std::string name = scan_body.substr(start, end - start);
+        /* full-match flag names only: prose fragments (e.g. a comment
+         * quoting "--quick-only disables it") must not count as flags */
+        if (name.size() > 2 &&
+            name.find_first_not_of("-abcdefghijklmnopqrstuvwxyz0123456789") == std::string::npos)
+            flags.push_back(name);
+        pos = end;
+    }
+    ASSERT_GE(flags.size(), 20u) << "scan-flag extraction broke (found " << flags.size() << ")";
+
+    /* the -h usage block: the wprintf'd help between the scan verb line
+     * and the tree verb line */
+    const size_t h_start = src.find("rrecov scan --disk N | --volume C: | --image file.vmdk");
+    ASSERT_NE(std::string::npos, h_start) << "-h scan section not found";
+    const size_t h_end = src.find("rrecov tree --in", h_start);
+    ASSERT_NE(std::string::npos, h_end) << "-h tree line not found";
+    const std::string help_block = src.substr(h_start, h_end - h_start);
+
+    for (const auto& f : flags) {
+        /* --volume/--disk/--image are target selectors, already on the
+         * first line; every other parsed flag must appear in the block */
+        if (f == "--disk" || f == "--volume" || f == "--image")
+            continue;
+        EXPECT_NE(std::string::npos, help_block.find(f))
+            << "the -h scan section must list the parsed flag " << f
+            << " (the N-094 class: a surface invisible in the product's own help)";
+    }
 }

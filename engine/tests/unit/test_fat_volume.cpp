@@ -3533,3 +3533,182 @@ TEST(FatEngine, FAT16NoRebase) {
     ASSERT_EQ(rc, OK) << err_text(rc);
     EXPECT_EQ(stats.high16_rebased, 0u) << "FAT16 never re-bases (no high word)";
 }
+
+namespace {
+/* N-220: the wider S-068 geometry - the hint's high word must DIFFER from
+ * the anchor's own high word for the walked-END discriminator, so the
+ * true chain lives one 0x10000-cluster bank above the anchor. Geometry:
+ * reserved 8, FAT 2x1030 sectors (0x20C00 entries covers the bank-2
+ * clusters), data from sector 2068; ~67 MiB image (the only fixture
+ * whose hint can cross a 64K bank boundary at CI scale). */
+enum class EndHintKind { WalkedEnd, FailedHigh };
+std::vector<u8> build_fat32_endhint_image(EndHintKind kind) {
+    const u32 SPF = 1030;
+    const u32 DATA_START = 8 + 2 * SPF;
+    const u32 TOTAL = DATA_START + 0x20280;
+    std::vector<u8> img(u64(TOTAL) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1; /* 512B clusters */
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    put32v(img, 0x20, TOTAL);
+    put32v(img, 0x24, SPF);
+    put32v(img, 0x2C, 2);
+    put16(img, 0x32, 6);
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 6 * 512, b, 512);
+
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + SPF) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 0x0FFFFFFF); /* root: single cluster */
+    /* the TRUE chain of the torn dentry: one cluster at 0x20123 (bank 2) */
+    link32(0x20123, 0x0FFFFFFF);
+
+    u8* root = img.data() + u64(DATA_START) * 512;
+    if (kind == EndHintKind::WalkedEnd) {
+        /* a LIVE, WALKABLE anchor at 0x10000 whose DECLARED size (0x10000
+         * clusters) crosses the bank boundary: the og's hint is the
+         * walked END = first + the size-derived cluster count
+         * (FUN_180012e60 :13722-13727 computes uVar6 BEFORE the walk;
+         * :13754-13756 stamps local_res8 + uVar6) - 0x20000, bank 2.
+         * Under the bare-FIRST reading the hint would stay bank 1. The
+         * planted chain is only 2 clusters (the walk succeeds on EOC;
+         * the og never consults the walked length for the hint). */
+        link32(0x10000, 0x10001);
+        link32(0x10001, 0x0FFFFFFF);
+        make_dentry(root + 0 * 32, "ANCHOR  BIN", 0x20, 0x10000, 0x10000 * 512, 0x5A46, 0x6000,
+                    false);
+    } else {
+        /* a LIVE anchor at 0x1FF00 whose chain is BROKEN (the FAT entry
+         * points out of range) and whose declared size (0x200 clusters)
+         * still feeds the hint through the og's failed-but-high arm
+         * (:13755, `|| (0x10000 < local_res8)`): the high-water mark
+         * moves to 0x1FF00 + 0x200 = 0x20100, bank 2 - even though the
+         * walk never completed. Under a success-only hint this torn
+         * dentry would find no hint at all (no prior walk). */
+        link32(0x1FF00, 0x0F000000); /* out of range: the walk breaks */
+        make_dentry(root + 0 * 32, "BROKEN  BIN", 0x20, 0x1FF00, 0x200 * 512, 0x5A46, 0x6000,
+                    false);
+    }
+    /* the deleted file: the torn high word (raw = low 16 only) */
+    make_dentry(root + 1 * 32, "TORN    DAT", 0x20, 0x123, 512, 0x5A46, 0x6000, true);
+
+    const u64 data_base = u64(DATA_START) * 512;
+    std::memcpy(img.data() + data_base + u64(0x20123 - 2) * 512, "TRUEDATA", 8);
+    if (kind == EndHintKind::WalkedEnd)
+        std::memcpy(img.data() + data_base + u64(0x10000 - 2) * 512, "ANCHORDATA", 10);
+    return img;
+}
+} // namespace
+
+TEST(FatEngine, DeletedHigh16HintIsTheWalkedEndCluster) {
+    /* N-220: the hint's VALUE is the walked END (first + the dentry's
+     * size-derived cluster count), not the bare first cluster. The
+     * discriminator: the anchor's declared size crosses a 64K bank, so
+     * the two readings re-base the torn dentry into DIFFERENT banks -
+     * the true chain is planted in the END reading's bank. Before the
+     * fix the hint stayed bank 1, the probe at 0x10123 found no chain,
+     * and no re-base fired (high16_rebased 0). */
+    auto img = build_fat32_endhint_image(EndHintKind::WalkedEnd);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the walked-END hint re-bases across the bank";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the re-based walk recovers the file";
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x20123u)
+        << "the re-based cluster comes from the END hint's bank";
+}
+
+TEST(FatEngine, DeletedHigh16FailedHighWalkStillFeedsTheHint) {
+    /* N-220: the og's failed-but-high arm (:13755) - a broken chain
+     * whose start sits above 0x10000 still moves the hint to its
+     * would-be END. Without the arm, a torn dentry following a broken
+     * high anchor finds no hint at all. */
+    auto img = build_fat32_endhint_image(EndHintKind::FailedHigh);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the broken high anchor still feeds the hint";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr);
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x20123u)
+        << "the re-based cluster comes from the failed-high hint's bank";
+}
+
+TEST(FatEngine, DeletedDirectoryHigh16RetryHoldsBelowBigVolumeGate) {
+    /* N-220 Site B (FUN_180014530 :14826-14848): the deleted-DIRECTORY
+     * retry is gated on the big-volume hint (0x310000 < hint, :14834).
+     * Below the gate a broken raw walk must NOT adopt a re-based
+     * candidate even when one is FAT-linked and walkable - the exact
+     * inverse pin of the 9b4a9302 substitution (which placed THIS gate
+     * on the file path, suppressing the file re-base on every small
+     * volume). */
+    auto img = build_fat32_high16_image(0x123);
+    /* turn the torn dentry into a DIRECTORY whose raw chain BREAKS:
+     * FAT[0x123] points out of range -> the raw walk fails; the
+     * re-based candidate 0x10123 IS planted, FAT-linked and walkable -
+     * the adoption would happen if the gate were missing. */
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + 545) * 512;
+    put32v(img, FAT1 + 0x123 * 4, 0x0F000000);
+    put32v(img, FAT2 + 0x123 * 4, 0x0F000000);
+    u8* root = img.data() + u64(S068_DATA_START) * 512;
+    make_dentry(root + 1 * 32, "ASUBDIR    ", ATTR_DIRECTORY, 0x123, 0, 0x5A46, 0x6000, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 0u)
+        << "the directory retry never fires below the big-volume gate";
+}
+
+TEST(FatEngine, DirRetryRebaseClusterSeamMatrix) {
+    /* N-220: the Site B gate seam - the og's literal shape
+     * (:14834-14836): the ONLY gate is the big-volume check; the
+     * candidate is hint_high | raw_low16. */
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x310001), 0x310123u)
+        << "above the big-volume gate: the re-based candidate";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x310000), 0u) << "the gate is strict (> 0x310000)";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x10000), 0u)
+        << "every fixture-scale volume: no retry";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x400000), 0x400123u);
+    EXPECT_EQ(dir_retry_rebase_cluster(0x1FF00, 0x400000), 0x40FF00u)
+        << "the literal form re-bases the raw's low 16 whatever they are";
+    EXPECT_EQ(dir_retry_rebase_cluster(0, 0x400000), 0x400000u)
+        << "degenerate candidates are the caller's bounds-check's job";
+}

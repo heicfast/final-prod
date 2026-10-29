@@ -25,8 +25,10 @@
 #include <cstdio>
 
 typedef unsigned long DWORD;
+typedef unsigned long long ULONGLONG; /* M-075's cr_fsck.cpp timeout arithmetic */
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
+typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
 typedef long LONG;
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
@@ -294,6 +296,17 @@ inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() {
     return 0;
 }
+/* M-075's chkdsk launcher (cr_fsck.cpp): the WoW64 file-system
+ * redirection pair - BOOL-returning no-ops on the stub lane (the native
+ * signatures take PVOID* / PVOID). */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return TRUE;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return TRUE;
+}
 inline DWORD GetTickCount() {
     return 0;
 }
@@ -305,7 +318,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t) - 1)
+#define _TRUNCATE ((size_t)-1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -415,6 +428,17 @@ inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECUR
 }
 inline DWORD WaitForSingleObject(HANDLE, DWORD) {
     return WAIT_OBJECT_0;
+}
+/* M-075 (cr_fsck.cpp): the WoW64 redirection pair the og's WinChkdsk
+ * branch uses to launch the NATIVE chkdsk from a 32-bit host. Parse-gate
+ * stubs only - the Linux core never executes them. */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    if (old_value)
+        *old_value = nullptr;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void*) {
+    return 1;
 }
 inline BOOL GetExitCodeProcess(HANDLE, DWORD*) {
     return 1;
@@ -609,4 +633,17 @@ inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
 }
 inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
     return (HANDLE)0;
+}
+
+/* M-075's SDK surface (the Wow64 redirection pair + the timing types;
+ * cr_fsck.cpp's native-binary launch) - the gate's own rule: a new SDK
+ * symbol in src/win grows the stub here. N-223's repair. */
+typedef unsigned long long ULONGLONG;
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return 1;
 }
