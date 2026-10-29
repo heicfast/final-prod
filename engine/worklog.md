@@ -13032,3 +13032,28 @@ a real two-block chain). The carve suite 183/183. Trail: M-107's S85
 addendum 2, the matrix row, modules/carve.md's S85 addendum 2, this
 entry.
 
+
+---
+
+## Session-84 — entry 6 (this lane): the b82f75b2 marker repair — this lane's own M-120-class miss, caught and fixed (2026-10-30)
+
+**Honesty note:** b82f75b2 pushed with live conflict markers in
+include/cr/cr_ui.h:1021-1030 — this lane's scripted merge resolution
+handled worklog.md but swept the still-conflicted header through
+`git add -A`; the gate ran but the marker grep did not. The exact
+M-120/N-219 class this session exists to hunt, committed by this lane's
+own carelessness. The Checks run on b82f75b2 fails; this commit heals
+main.
+
+**The resolution:** both sides of the conflict were the SAME fix — the
+racing lane had independently corrected the identical ERR_NOT_FOUND
+contract comment (their text richer: the hex code, the pin citation,
+the correction note). Per SA-9 their side stands; this lane's twin
+dropped. Process repair for the rest of this session: no scripted
+`git add -A` in merges; every conflicted file resolved explicitly; the
+pre-push checklist is now marker-grep + doc_truth_gate + build when a
+code path is touched.
+
+**Verification:** zero markers in cr_ui.h; clang-format 18.1.8 clean;
+doc_truth_gate green; cr_ui_tests rebuilt clean; the Autosave/ResumeLast
+ABI tests 4/4 (12.4 s).
