@@ -25,3 +25,15 @@ The merge resolution dedupes to ONE definition set (the exact surface the M-055 
 **Fixed in commit:** (this push; the S87 fix lane's merge over `322dbdc0`, 2026-10-30)
 **Verified by:** `bash tools/win_syntax_check.sh` → 13/13 ok (zero FAIL lines); `grep -c 'Wow64DisableWow64FsRedirection(void\*\*)' tests/win-stub/windows.h` → 1; the merge commit's tree carries exactly one definition set. Full ctest re-run post-merge.
 **Resolution notes:** RED first-hand on the merged origin/main tree (three definition sites), GREEN after the dedupe. The convergent-lane collision mechanism — N lanes repairing one defect in one window without re-running the shared gate between landings — is recorded here as the class's own entry so the next audit sees that the N-210 recurrence count reached the repair lanes themselves. The procedural fix is unchanged: the gate must run against the PULLED head immediately before every push, not against the pre-pull working tree. This lane's independently-derived stub growth (the born-collided local N-224, commit `74f29341`) is conceded to the racing filings per SA-9; the N-225 seat is the collision defect the racing window created and did not see.
+
+## Session-89 disposition (2026-10-30, the S89 MINOR-first fix lane — the fixed-directory move + the re-verification at the lane head)
+
+The finding's Resolution was FIXED at the S87 merge but the file remained in
+`findings/MINOR/` — the same class of bookkeeping gap the S88 lane's N-223 move
+closed. Moved to `findings/FIXED/` this session per the user's fixed-directory
+directive. Re-verified at the lane head `7953c5e8` (first-hand): exactly ONE
+`inline BOOL Wow64DisableWow64FsRedirection` definition (`tests/win-stub/windows.h:301`),
+ONE `Wow64RevertWow64FsRedirection`, ONE `ULONGLONG` typedef (`:28`), and
+`bash tools/win_syntax_check.sh` → 13/13 ok, zero FAIL lines; the full suite
+1685/1685 green at the same tree (the S88-close suite grew 1683→1685 with the
+racing window's landings). No code change owed — the move is the fix.

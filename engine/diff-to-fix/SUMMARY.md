@@ -1,3 +1,30 @@
+# SUMMARY.md — executive summary (the S89 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-89 S89 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session... fix all remaining ones"]; opened at core `7953c5e8` (the S88-close tree, fresh build + full suite 1685/1685 green first-hand at the open), corpus `be0cfe9` throughout; prompt archived token-redacted at worklog/session-diff-fix-s89-prompt.md; every fix verified against the corpus before landing, one finding per push)
+
+- **N-225 moved to findings/FIXED/ (fix #1 — the fixed-directory
+  directive):** the convergent win-stub collision's Resolution was FIXED at
+  the S87 merge (`322dbdc0` → one definition set) but the file sat in
+  MINOR/. Re-verified at the lane head: exactly one Wow64 pair + one
+  ULONGLONG typedef, win_syntax_check 13/13, suite 1685/1685; the file
+  moved, the ledger row added, the matrix Q68 stub-surface row extended.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 6
+MAJOR · 2 MINOR · 0 INFO active / 207 FIXED / 4 tracked-open.** (Of the
+active MAJORs, M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3
+— out of this grant's two-repo boundary; the 2 active MINORs,
+N-107/N-127, are the same driver-repo class. M-107 remains active for
+its SIX un-landed members — SIT, APE, EPS, AI, DXF, SWF-RECT — X3F,
+CRW, DWG, WPG, PSP, WPD landed as members 1-6. The in-scope fix queue:
+M-107's six members, M-101 (the Versions / Tags Extracted branches),
+M-105 (the DRWService lifecycle), OQ-S79-1 (the $LogFile decode),
+OQ-S4-3 (the Windows bench leg), the OQ-S10-1/OQ-S10-3 dispositions,
+plus the §8 discovered-findings protocol as the verification sweep
+runs.)
+Next free IDs: S-069+, M-160+, N-226+, I-049+, A-017+, D-166+.
+
+---
+
 # SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)

@@ -13098,3 +13098,12 @@ lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench leg), OQ-
 + OQ-S10-3 (the disposition re-affirmations), plus whatever the verification sweep
 discovers (the §8 new-finding protocol). Target ≥ 20 fixes. Baseline before any
 change: fresh build + full ctest green.
+
+**Fix #1 — N-225 moved to findings/FIXED/ (the fixed-directory directive).**
+Re-verified at `7953c5e8` first-hand: `tests/win-stub/windows.h` carries exactly
+ONE Wow64Disable/Revert pair (:301) + ONE ULONGLONG typedef (:28);
+`bash tools/win_syntax_check.sh` → 13/13 ok, zero FAIL; full suite 1685/1685 at
+the same tree. The file moved (git mv, history preserved), the Session-89
+disposition note added, the ledger row appended, the matrix Q68 stub-surface row
+extended to N-224 + N-225, the SUMMARY S89 block opened (board: 6 MAJOR / 2
+MINOR / 0 INFO active / 207 FIXED / 4 tracked-open). No code change owed.
