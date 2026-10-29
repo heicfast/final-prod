@@ -535,6 +535,291 @@ bool mp4_info(Window& w, Metadata& m) {
     return false;
 }
 
+/* ---- N-184 (diff-to-fix): the og's media metadata families ----
+ * The og's preview pipeline derives metadata for every media family its
+ * agent opens (the media-agent path; UIUX/10 + DRWUI-subsystems:66-98);
+ * the core carried exactly two (MP4 + WAV). The four cheap head-window
+ * extractors below close the gap; each stays inside the Window budget
+ * (bounded walks - the head-fetch model the MP4 branch uses). */
+
+bool avi_info(Window& w, Metadata& m) {
+    /* RIFF....AVI ....LIST (hdrl) avih - the main AVI header carries
+     * dwMicroSecPerFrame@+8 and dwLength(total frames)@+20; the strh
+     * children of the hdrl list are the stream count. */
+    const u8* p = w.fetch(0, 12);
+    if (!p || std::memcmp(p, "RIFF", 4) != 0 || std::memcmp(p + 8, "AVI ", 4) != 0)
+        return false;
+    m.kind = "video";
+    m.format = "avi";
+    m.codec = "avi";
+    u64 off = 12;
+    u64 usec_per_frame = 0, total_frames = 0, streams = 0;
+    for (u32 guard = 0; guard < 64; ++guard) {
+        const u8* c = w.fetch(off, 8);
+        if (!c)
+            break;
+        const u32 csz = le32(c + 4);
+        if (std::memcmp(c, "LIST", 4) == 0 && csz >= 4) {
+            const u8* lt = w.fetch(off + 8, 4);
+            if (lt && std::memcmp(lt, "hdrl", 4) == 0) {
+                const u64 hend = off + 8 + u64(csz);
+                u64 ho = off + 12;
+                for (u32 g2 = 0; g2 < 64 && ho + 8 <= hend; ++g2) {
+                    const u8* h = w.fetch(ho, 8);
+                    if (!h)
+                        break;
+                    const u32 hsz = le32(h + 4);
+                    if (std::memcmp(h, "avih", 4) == 0 && hsz >= 24) {
+                        const u8* a = w.fetch(ho + 8, 24);
+                        if (a) {
+                            usec_per_frame = le32(a);    /* +8  */
+                            total_frames = le32(a + 12); /* +20 */
+                        }
+                    } else if (std::memcmp(h, "strh", 4) == 0) {
+                        ++streams;
+                    }
+                    if (hsz < 8)
+                        break;
+                    ho += 8 + u64(hsz) + (hsz & 1);
+                }
+            }
+        } else if (std::memcmp(c, "movi", 4) == 0) {
+            break; /* the media payload: the header walk ends */
+        }
+        if (csz == 0)
+            break;
+        off += 8 + u64(csz) + (csz & 1);
+    }
+    if (usec_per_frame && total_frames)
+        m.duration_ms = usec_per_frame * total_frames / 1000;
+    if (streams)
+        m.codec += "/" + std::to_string(streams) + "str";
+    return usec_per_frame != 0 || total_frames != 0 || streams != 0;
+}
+
+namespace n184 {
+/* EBML helpers (Matroska): the vint length encoding - the first set
+ * bit from the top marks the byte count and is stripped for sizes. */
+inline u32 ebml_id_len(const u8* q) {
+    for (u32 len = 1; len <= 4; ++len) {
+        const u8 mask = u8(1u << (8 - len));
+        if (q[0] & mask)
+            return len;
+    }
+    return 0;
+}
+inline u64 ebml_size_of(const u8* q, u32& len_out) {
+    for (u32 len = 1; len <= 8; ++len) {
+        const u8 mask = u8(1u << (8 - len));
+        if (q[0] & mask) {
+            u64 sz = q[0] & u8(mask - 1);
+            for (u32 i = 1; i < len; ++i)
+                sz = (sz << 8) | q[i];
+            len_out = len;
+            return sz; /* 0 = unknown-size element (Segment may use it) */
+        }
+    }
+    return 0;
+}
+} // namespace n184
+
+bool mkv_info(Window& w, Metadata& m) {
+    /* EBML 0x1A45DFA3 head; the Segment walk finds Info (Duration
+     * float + TimecodeScale) and the TrackEntry count in Tracks. All
+     * bounded head-window fetches. */
+    const u8* p = w.fetch(0, 4);
+    if (!p || p[0] != 0x1A || p[1] != 0x45 || p[2] != 0xDF || p[3] != 0xA3)
+        return false;
+    m.kind = "video";
+    m.format = "mkv";
+    m.codec = "matroska";
+    const u64 limit = pr_size(w) < 262144 ? pr_size(w) : 262144;
+    u64 timescale_ns = 1000000; /* the EBML default */
+    double duration_units = 0;
+    bool have_duration = false;
+    u32 tracks = 0;
+    /* element reader at `at`: returns the data offset, or 0 on stop */
+    auto elem = [&](u64 at, u32& id_out, u64& sz_out) -> u64 {
+        const u8* q = w.fetch_any(at, 8);
+        if (!q || w.last_got < 2)
+            return 0;
+        const u32 ilen = n184::ebml_id_len(q);
+        if (!ilen || u64(ilen) + 1 > w.last_got)
+            return 0;
+        u32 id = q[0];
+        for (u32 i = 1; i < ilen; ++i)
+            id = (id << 8) | q[i];
+        u32 slen = 0;
+        const u64 sz = n184::ebml_size_of(q + ilen, slen);
+        if (!slen || u64(ilen + slen) > w.last_got)
+            return 0;
+        id_out = id;
+        sz_out = sz;
+        return at + ilen + slen;
+    };
+    u64 off = 0;
+    for (u32 guard = 0; guard < 512 && off < limit; ++guard) {
+        u32 id = 0;
+        u64 sz = 0;
+        const u64 data = elem(off, id, sz);
+        if (!data)
+            break;
+        if (id == 0x18538067) { /* Segment (may be unknown-size) */
+            const u64 send = sz ? data + sz : limit;
+            u64 co = data;
+            for (u32 g2 = 0; g2 < 512 && co < send && co < limit; ++g2) {
+                u32 cid = 0;
+                u64 csz = 0;
+                const u64 cdata = elem(co, cid, csz);
+                if (!cdata || !csz)
+                    break;
+                if (cid == 0x1549A966) { /* Info */
+                    u64 io = cdata;
+                    const u64 iend = cdata + csz;
+                    for (u32 g3 = 0; g3 < 64 && io + 2 < iend; ++g3) {
+                        u32 iid = 0;
+                        u64 isz = 0;
+                        const u64 idata = elem(io, iid, isz);
+                        if (!idata || !isz)
+                            break;
+                        if (iid == 0x2AD7B1 && isz <= 8) { /* TimecodeScale */
+                            const u8* t = w.fetch(idata, u32(isz));
+                            u64 v = 0;
+                            if (t) {
+                                for (u64 i = 0; i < isz; ++i)
+                                    v = (v << 8) | t[i];
+                                if (v)
+                                    timescale_ns = v;
+                            }
+                        } else if (iid == 0x4489 && (isz == 4 || isz == 8)) { /* Duration */
+                            const u8* d = w.fetch(idata, u32(isz));
+                            if (d) {
+                                u64 bits = 0;
+                                for (u64 i = 0; i < isz; ++i)
+                                    bits = (bits << 8) | d[i];
+                                if (isz == 4) {
+                                    const u32 fb = u32(bits);
+                                    float fout = 0;
+                                    std::memcpy(&fout, &fb, 4); /* a 4-byte EBML float */
+                                    duration_units = double(fout);
+                                } else {
+                                    double dout = 0;
+                                    std::memcpy(&dout, &bits, 8); /* an 8-byte one */
+                                    duration_units = dout;
+                                }
+                                have_duration = true;
+                            }
+                        }
+                        io = idata + isz;
+                    }
+                } else if (cid == 0x1654AE6B) { /* Tracks */
+                    u64 to = cdata;
+                    const u64 tend = cdata + csz;
+                    for (u32 g3 = 0; g3 < 64 && to + 2 < tend; ++g3) {
+                        u32 tid = 0;
+                        u64 tsz = 0;
+                        const u64 tdata = elem(to, tid, tsz);
+                        if (!tdata || !tsz)
+                            break;
+                        if (tid == 0xAE) /* TrackEntry */
+                            ++tracks;
+                        to = tdata + tsz;
+                    }
+                }
+                co = cdata + csz;
+            }
+            break; /* the Segment walk is the whole job */
+        }
+        if (!sz)
+            break; /* unknown-size non-Segment: cannot step past */
+        off = data + sz;
+    }
+    if (have_duration)
+        m.duration_ms = u64(duration_units * double(timescale_ns) / 1000000.0);
+    if (tracks)
+        m.codec += "/" + std::to_string(tracks) + "trk";
+    return true;
+}
+
+bool flac_info(Window& w, Metadata& m) {
+    /* fLaC + the STREAMINFO metadata block (type 0, 34 bytes): the
+     * packed 8-byte field at body+10 carries sample rate (20 bits),
+     * channels-1 (3), bps-1 (5), then the 36-bit total samples. */
+    const u8* p = w.fetch(0, 4 + 4 + 34);
+    if (!p || std::memcmp(p, "fLaC", 4) != 0)
+        return false;
+    if ((p[4] & 0x7F) != 0) /* the first block must be STREAMINFO */
+        return false;
+    const u32 blen = (u32(p[5]) << 16) | (u32(p[6]) << 8) | p[7];
+    if (blen < 34)
+        return false;
+    const u8* si = p + 8;
+    const u32 rate = (u32(si[10]) << 12) | (u32(si[11]) << 4) | (si[12] >> 4);
+    const u32 channels = ((si[12] >> 1) & 0x7) + 1;
+    const u64 total_samples = ((u64(si[13] & 0x1) << 32) | (u64(si[14]) << 24) |
+                               (u64(si[15]) << 16) | (u64(si[16]) << 8) | si[17]);
+    m.kind = "audio";
+    m.format = "flac";
+    m.codec = "flac";
+    if (rate) {
+        m.width = rate;      /* the sample rate (the audio slot convention) */
+        m.height = channels; /* the channel count (the second slot) */
+        if (total_samples)
+            m.duration_ms = total_samples * 1000 / rate;
+    }
+    return true;
+}
+
+bool mp3_info(Window& w, Metadata& m) {
+    /* ID3v2 (skipped by the syncsafe size) or a raw frame sync; the
+     * first frame's bitrate + the file size give the duration
+     * estimate (the head-window form of the agent's estimate). */
+    u64 off = 0;
+    const u8* p = w.fetch(0, 10);
+    if (p && std::memcmp(p, "ID3", 3) == 0) {
+        const u32 sz = (u32(p[6] & 0x7F) << 21) | (u32(p[7] & 0x7F) << 14) |
+                       (u32(p[8] & 0x7F) << 7) | u32(p[9] & 0x7F);
+        off = 10 + sz;
+        p = w.fetch(off, 4);
+    }
+    if (!p || (p[0] & 0xFF) != 0xFF || (p[1] & 0xE0) != 0xE0)
+        return false;
+    m.kind = "audio";
+    m.format = "mp3";
+    const u32 version = (p[1] >> 3) & 0x3; /* 0=MPEG2.5 2=MPEG2 3=MPEG1 */
+    const u32 layer = (p[1] >> 1) & 0x3;   /* 1=III 2=II 3=I */
+    m.codec = layer == 1 ? "mp3" : (layer == 2 ? "mp2" : "mp1");
+    static const u32 v1_l3[16] = {0,   32,  40,  48,  56,  64,  80,  96,
+                                  112, 128, 160, 192, 224, 256, 320, 0};
+    static const u32 v2_l3[16] = {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0};
+    static const u32 v1_l1[16] = {0,   32,  64,  96,  128, 160, 192, 224,
+                                  256, 288, 320, 352, 384, 416, 448, 0};
+    const u32 bri = p[2] >> 4;
+    const u32 sri = (p[2] >> 2) & 0x3;
+    u32 kbps = 0;
+    if (bri != 0 && bri != 15) {
+        if (version == 3)
+            kbps = layer == 3 ? v1_l1[bri] : v1_l3[bri];
+        else
+            kbps = v2_l3[bri];
+    }
+    static const u32 rates[4][4] = {{11025, 12000, 8000, 0},   /* MPEG2.5 */
+                                    {0, 0, 0, 0},              /* reserved */
+                                    {22050, 24000, 16000, 0},  /* MPEG2 */
+                                    {44100, 48000, 32000, 0}}; /* MPEG1 */
+    const u32 hz = rates[version][sri];
+    if (hz)
+        m.width = hz;
+    if (kbps) {
+        const u64 sz = pr_size(w);
+        if (sz > off)
+            m.duration_ms = (sz - off) * 8 / kbps; /* bytes*8/kbps = ms */
+        m.height = kbps;                           /* the bitrate (the second audio slot) */
+        m.codec += "@" + std::to_string(kbps) + "k";
+    }
+    return kbps != 0 || hz != 0;
+}
+
 bool wav_info(Window& w, Metadata& m) {
     const u8* p = w.fetch(0, 44);
     if (!p || std::memcmp(p, "RIFF", 4) != 0 || std::memcmp(p + 8, "WAVE", 4) != 0)
@@ -1006,14 +1291,29 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
     const bool is_tiff = hs >= 4 && ((h0 == 'I' && h1 == 'I' && head[2] == 42 && head[3] == 0) ||
                                      (h0 == 'M' && h1 == 'M' && head[2] == 0 && head[3] == 42));
     const bool riff = hs >= 4 && std::memcmp(head, "RIFF", 4) == 0;
-    bool is_webp = false, is_wav = false;
+    bool is_webp = false, is_wav = false, is_avi = false;
     if (riff && sz >= 12) {
         const u8* w8 = w.fetch(8, 4);
         if (w8) {
             is_wav = std::memcmp(w8, "WAVE", 4) == 0;
             is_webp = std::memcmp(w8, "WEBP", 4) == 0;
+            is_avi = std::memcmp(w8, "AVI ", 4) == 0; /* N-184 */
         }
     }
+    /* N-184: the remaining media magics - Matroska (EBML), FLAC, MP3
+     * (ID3 or the raw frame sync). M4A/MOV ride the ftyp branch below
+     * (they ARE ISO-BMFF containers; the brand string distinguishes). */
+    const bool is_mkv = hs >= 4 && h0 == 0x1A && h1 == 0x45 && head[2] == 0xDF && head[3] == 0xA3;
+    const bool is_flac = hs >= 4 && std::memcmp(head, "fLaC", 4) == 0;
+    /* the two UTF-16 BOM forms are excluded: FF FE collides with the
+     * MPEG1-Layer-I frame-sync mask, and a BOM-led text file is the
+     * overwhelmingly real case on the magic-first dispatch (the og's
+     * agent layer is extension-driven, so .txt never reaches its media
+     * path - the BOM exclusion reproduces that net behavior for the
+     * text population). */
+    const bool bom16 = hs >= 2 && ((h0 == 0xFF && h1 == 0xFE) || (h0 == 0xFE && h1 == 0xFF));
+    const bool is_mp3 = !bom16 && ((hs >= 3 && h0 == 0xFF && (h1 & 0xE0) == 0xE0) ||
+                                   (hs >= 3 && std::memcmp(head, "ID3", 3) == 0));
     const bool is_mp4 = hs >= 12 && be32(head + 4) >= 8 && std::memcmp(head + 4, "ftyp", 4) == 0;
     const bool is_pdf = hs >= 5 && std::memcmp(head, "%PDF-", 5) == 0;
     const bool is_zip = hs >= 2 && h0 == 'P' && h1 == 'K';
@@ -1047,6 +1347,14 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
         m.kind = "audio";
         m.format = "wav";
         (void)wav_info(w, m);
+    } else if (is_avi) { /* N-184 */
+        (void)avi_info(w, m);
+    } else if (is_mkv) { /* N-184 */
+        (void)mkv_info(w, m);
+    } else if (is_flac) { /* N-184 */
+        (void)flac_info(w, m);
+    } else if (is_mp3) { /* N-184 */
+        (void)mp3_info(w, m);
     } else if (is_mp4) {
         m.kind = "video";
         m.format = "mp4"; /* brand string refined in mp4_info */

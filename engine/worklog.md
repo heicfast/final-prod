@@ -8723,7 +8723,6 @@ this entry. **Also this window: five main-red repairs** (the e1/e2 dangling vars
 duplicate test, the crossed grading assertions, the carve triple-tick, the win-stub S-060 gap,
 the test_carve comment splice — several converged with the parallel lanes' own repairs per
 SA-9), all verified at 1419/1419 before their pushes.
-=======
 **S-058 CONVERGENT (SEVERE — the grading extension-table gate polarity).** This
 lane's independent verification + fix preceded its push by a full build/test
 cycle (the comparator pair :324923-324939, FUN_140256d00's set::find idiom
@@ -8758,3 +8757,23 @@ earlier win-gate repair (rrecov.cpp's PartitionSlice retype — convergent with
 the S53 lane's N-188; cr_ui.cpp's Level::Warn — this lane's unique half).
 Suite 1392/1392 green, win gate 10/10, format clean. The lane continues down
 the SEVERE queue (S-059 next).
+=======
+
+## Session-46 minors lane — N-184 landed (2026-10-29)
+
+**N-184 FIXED (MINOR — the preview media metadata families).** Four bounded
+head-window extractors landed: avi_info (the LIST/hdrl walk: avih
+dwMicroSecPerFrame × dwLength + the strh stream count), mkv_info (the minimal
+EBML vint grammar — Segment → Info's TimecodeScale + the 4-or-8-byte Duration
+float + the Tracks TrackEntry count), flac_info (the STREAMINFO packed field:
+rate/channels/total samples), mp3_info (the ID3v2 syncsafe skip + the first
+frame's bitrate → the size-based duration estimate). M4A/MOV needed no code —
+they are ISO-BMFF containers riding the ftyp branch (the M4aTypedAsMp4Family
+pin). The RED pass caught two real bugs in the first implementation (the 4-byte
+EBML float memcpy'd into a double; the strict 8-byte element fetch refusing the
+final partial TrackEntry) AND one dispatch collision the existing BOM text
+tests exposed (the UTF-16 BOM FF FE matching the MPEG frame-sync mask — now
+explicitly excluded, reproducing the og's extension-driven net behavior for
+text files). Tests: the five named pins, 4 pre-fix FAILs. Suite 1341 ran /
+1299 pass / 42 env-skips / 0 fail. Trail: findings/FIXED/N-184 + ledger row +
+matrix row + this entry.
