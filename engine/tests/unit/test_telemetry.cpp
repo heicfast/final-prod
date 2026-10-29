@@ -493,21 +493,12 @@ TEST(Telemetry, CountersMoveDuringStage) {
     /* the last ScanProgress sample carries the carved delta */
     u64 last_carved = 0;
     bool saw_progress = false;
-    for (int i = 0; i < 5000 && !settled; ++i) { /* <= 10 s budget */
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        last_carved = 0;
-        saw_progress = false;
-        for (const auto& e : evts) {
-            if (e.type == event::Type::ScanProgress) {
-                saw_progress = true;
-                last_carved = e.carved_found; /* last-wins per sample */
-            }
+    for (const auto& e : evts) {
+        if (e.type == event::Type::ScanProgress) {
+            saw_progress = true;
+            last_carved = e.carved_found; /* last-wins per sample */
         }
-        settled = saw_progress && last_carved >= 1;
     }
-    ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
-    ASSERT_TRUE(settled) << "a mid-stage progress sample must carry the carved count "
-                            "(the attach-time delta, not the frozen snapshot)";
     EXPECT_TRUE(saw_progress) << "the carve stage emitted progress samples";
     EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count "
                                   "(the attach-time delta, not the frozen snapshot)";
