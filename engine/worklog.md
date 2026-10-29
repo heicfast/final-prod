@@ -1,3 +1,35 @@
+
+## Session-84 S84 lane (the third convergent lane) — the audit-trail restoration's record (2026-10-29)
+
+- **The red-main window found at the opening baseline** (2 RED tests:
+  FatEngine.DeletedHigh16ZeroRebasesFromHint +
+  FatEngine.LastGoodHintUpdatesOnlyOnFileWalks), independently arbitrated
+  (BOTH occurrences of `0x310000 < DAT_1800728c8` in
+  FATSearchDLL_decompiled.c — :14834 + :30184 — are RETRY-leg gates; the
+  :14754 pre-walk re-base carries only the low-16-only + consistency
+  gates; the S82 open question 2 closed by that arbitration), and
+  repaired — then **conceded at the push** to the racing windows
+  (`cd3479e7`'s code byte-restore + `eeddec57`'s N-220 class record,
+  `15c59ee7`'s N-219 marker sweep). The convergence record: N-220's
+  addendum (this lane's).
+- **The unique landings that stand:** the S-068 finding file restored
+  from `ad1bcb9e` (the gutted S80 addendum + Resolution, the damage's
+  replacement had named a nonexistent test file) + the repair addendum;
+  modules/fat.md's S80 addendum restored + the repair note; the matrix's
+  A-016 MATCH row re-landed + the N-145 stale row re-truthed (the
+  residual rollback the N-219 sweep missed); the nested
+  0fac15de/309f7af8/09a18f9f markers resolved in FIXED-LEDGER.md +
+  I-048 (the racing sweeps took PARITY-DELTAS + worklog); the ledger's
+  N-220 row; the permanent note that `9b4a9302`'s "No code change rides
+  this commit" claim cannot be trusted for the diff it pushed.
+- RED→GREEN first-hand at this lane's repaired tree (pre-concession):
+  the two tests green, FAT 94/94, suite 1657/1657; re-verified green
+  after every rebase.
+- **The board at this push:** 8 MAJOR active (M-075/M-078/M-086/M-087/
+  M-089/M-101/M-105/M-107 — M-111/M-114 closed by the racing S82 batch's
+  D-158/D-159) · 2 MINOR (the driver-repo pair) · 4 tracked-open. This
+  lane's queue continues MAJOR-first: M-107's nine remaining members →
+  M-101 → M-075 → M-078 → M-105 → the OQ-S79-1 decode.
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
@@ -37,50 +69,6 @@ in the racing window's own history).
   Driver-repo-resident items (M-086/M-087/M-089/N-107/N-127) stay
   behind the OQ-S10-3 two-repo boundary.
 
-
-## Session-84 S84 lane — opens RED (the 9b4a9302 window); the audit-trail restoration lands (the code half conceded to cd3479e7 per SA-9; 2026-10-29)
-
-- **Baseline:** opened at core `0cf6142d` (the M-107 CRW landing),
-  corpus `be0cfe9`. **The opening suite was RED**: 2 failures
-  (FatEngine.DeletedHigh16ZeroRebasesFromHint,
-  FatEngine.LastGoodHintUpdatesOnlyOnFileWalks — S-068's own tests,
-  the `9b4a9302` red window). Third anomaly (FatChain.CycleGuardPerf
-  "Subprocess killed") isolated as a parallel-run memory artifact —
-  passes alone in 1.45 s.
-- **The red window found + independently arbitrated + repaired**, then
-  **conceded at the push**: the racing window (`cd3479e7` code restore
-  + `eeddec57`'s N-220 class record) had pushed while this lane worked.
-  Same arbitration derived independently here: BOTH occurrences of
-  `0x310000 < DAT_1800728c8` in the whole FATSearchDLL decompile
-  (:14834 + :30184) are RETRY-leg gates; the :14754 pre-walk re-base
-  has no big-volume gate. `ad1bcb9e` is corpus-true; the S82 open
-  question 2 is closed.
-- **What this lane lands on top (the audit-trail half the racing window
-  left behind):** the S-068 finding file restored from `ad1bcb9e` (the
-  gutted S80 addendum + Resolution, the replacement had named a
-  nonexistent test file) + the repair addendum; modules/fat.md's S80
-  addendum restored; the matrix's ~10 rolled-back MATCH rows re-landed
-  from the pre-damage `977812cd` tree (the N-145 + CRW post-damage rows
-  kept, the damage-era duplicates folded); the nested 0fac15de/09a18f9f
-  markers resolved in FIXED-LEDGER.md + I-048 (the marker class's SIXTH
-  recurrence, live on main in 4 files at the open); the ledger's N-220
-  row (the racing filing had none) with the convergence record; N-220's
-  convergence addendum (the full rollback record + the permanent note
-  that `9b4a9302`'s message cannot be trusted for its diff). RED→GREEN
-  first-hand at this lane's repaired tree: the two tests green, FAT
-  94/94, suite 1657/1657.
-- **The board moved under this lane** (the racing S82 batch, b2bc1970):
-  M-111 CLOSED by scope decision D-158, M-114 CLOSED by posture
-  decision D-159, I-048 ACKNOWLEDGED with the D-155..D-162 registers,
-  the M-154 hardening rider. The active MAJORs are now 8 (M-075/M-078/
-  M-086/M-087/M-089/M-101/M-105/M-107).
-- **Next (this lane's queue, MAJOR-first per the mandate):** M-107's
-  nine remaining members (DWG next per the finding's order, then
-  WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT) → M-101 (the tree's
-  Versions/Tags branches) → M-075 (chkdsk launch) → M-078 (BitLocker
-  turn-off) → M-105 (DRWService posture) → the OQ-S79-1 decode; the
-  driver-repo residents (M-086/M-087/M-089/N-107/N-127 + OQ-S10-3)
-  verified + pushed forward precisely per the two-repo grant.
 
 ## Session-79 S79 lane — the S-068 seat conceded (the FOURTH independent implementation; 2026-10-29)
 
