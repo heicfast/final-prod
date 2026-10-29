@@ -12481,3 +12481,24 @@ queue re-planned against the new board: M-075 (chkdsk launch), M-078
 (BitLocker turn-off), M-101 (Versions + Tags branches), M-105 (DRWService
 option a), M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE →
 EPS → DXF → SWF-RECT), the OQs.
+
+## Session 84 — entry 3: N-220 FIXED (the S-068 substitution repair, corpus-arbitrated)
+
+**N-220 (MINOR, NEW — filed+fixed this session).** The pre-push gate caught
+ctests red on the merged tree: `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
+`LastGoodHintUpdatesOnlyOnFileWalks` FAIL. Root cause: `9b4a9302` — the S79
+concession "trail" commit whose message says "No code change rides this
+commit" — substituted the S-068 re-base with the conceding variant, moving
+the og's 0x310000 retry-leg gate onto the first-chance re-base. Corpus
+arbitration (read first-hand this session): FATSearchDLL **:14753-55** — the
+first-chance re-base is gated ONLY on low-16-only + below-hint (no
+big-volume gate); **:14834-42** — 0x310000 belongs to the failed-raw-walk
+RETRY leg (a different trigger shape, + its :20184 twin). The S82
+convergence record's "open question 2" is settled by the direct read. The
+gate restored → FatEngine 92/92, the full suite **1529/0-fail**, cr_ui
+**87/87**; the window's format drift (rrecov.cpp ×4, cr_ui.cpp ×1) swept.
+The retry-leg shape itself (walk raw → on failure AND hint>0x310000 → walk
+re-based) remains unmodeled — recorded honestly in the code comment and the
+finding (it is the OR-shape of the two walks this engine already runs, a
+future refinement, not a parity break: both og sites borrow the same hint
+bits and validate through the same FUN_180012c00 class).
