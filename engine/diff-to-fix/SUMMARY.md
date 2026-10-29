@@ -74,7 +74,40 @@ driver-repo-resident per OQ-S10-3).
   audit — both absorbed at the push-rebases; N-212 this lane's addition).
 
 
-## Session-73 S73 lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-audit lane absorbed; baseline suite 1496/1496 green on Linux before the first change; the racing S69/S70 audit lanes conceded per SA-9 with a disjoint slice taken), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
+## Session-73 S73 lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-audit lane absorbed; the racing S69/S70/S71/S72 audit+fix lanes conceded per SA-9 with disjoint slices taken), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
+
+- **M-144 FIXED (MAJOR, ext4)** — see the prior S73 lane delta below for
+  the full Resolution (the 8 MiB single-shot GDT read cap replaced with
+  an 8 MiB chunked reader; MAX_GROUPS raised 1<<20→1<<26; the og's
+  unbounded stance registered in PARITY-DELTAS D-148).
+
+- **M-143 FIXED (MAJOR, ext4)** — the journal pass's `parse_one` lambda
+  is extended to call `parse_inode_image_block` after `parse_dir_block`
+  rejects a block. The new function walks the block at `inode_size`
+  stride and applies the og's exact gate set (FUN_180005e50 :4419-4420,
+  re-read first-hand this session): `i_size_lo (+0x04) != 0 &&
+  (i_flags (+0x20) & 0x80000 [EXTENTS_FL]) && extent magic (+0x28) ==
+  0xF30A && eh_entries (+0x2A) != 0`. Records that pass the gate are
+  decoded via the engine's existing extent walker over the inline
+  extent root (i_block, 60 bytes), and emitted in pass 2 as orphan
+  "Inode%N" records under root_lost with the inode's extents as
+  content. The synthetic inode# is journal-positional
+  (`0x10000000 + (jb << 10) + slot`) — above MAX_INODES so it never
+  collides with real inode numbers. The og's exact inode# derivation
+  is the finding's open question, preserved per the finding's
+  "does not gate the fix" note. The "Inode%u" naming follows the
+  engine's existing deleted-inode convention for consistency. The
+  directory-model-takes-precedence order matches the og's branch
+  order. 6 RED→GREEN tests: `JournalInodeImageSurfacesInodeRecord`
+  + `ZeroSizeSkipped` + `NoExtentsFlagSkipped` +
+  `BadExtentMagicSkipped` + `ZeroEhEntriesSkipped` +
+  `DirPairTakesPrecedence`.
+
+**Board after this landing (M-143 + M-144 absorbed): 0 ACUTE · 0 SEVERE ·
+15 MAJOR · 11 MINOR · 0 INFO active / 158 FIXED / 4 tracked-open.**
+Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+.
+
+## Session-73 S73 lane delta (M-144 first landing — prior delta preserved below)
 
 - **M-144 FIXED (MAJOR, ext4)** — the 8 MiB single-shot GDT read cap at
   `cr_ext4_engine.cpp:785` (which refused any 64BIT volume whose GDT

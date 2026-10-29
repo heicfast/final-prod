@@ -10269,3 +10269,70 @@ the og's per-format extent semantics to validate each landing); (c) the
 og's per-analyser id-classification outcomes (ids 6/7/8 for ASF — the core
 does not emit classification ids; whether any consumer surface needs them
 is an open mapping question).
+
+---
+
+### M-143 FIXED (MAJOR, ext4) — the journal inode-image harvest
+
+**The fix.** The journal pass's `parse_one` lambda is extended to call
+`parse_inode_image_block` after `parse_dir_block` rejects a block. The
+new function walks the block at `inode_size` stride and applies the og's
+exact gate set (FUN_180005e50 :4419-4420, re-read first-hand this
+session): `i_size_lo (+0x04) != 0 && (i_flags (+0x20) & 0x80000
+[EXTENTS_FL]) && extent magic (+0x28) == 0xF30A && eh_entries (+0x2A)
+!= 0`. Records that pass the gate are decoded via the engine's existing
+extent walker over the inline extent root (i_block, 60 bytes), and
+emitted in pass 2 as orphan "Inode%N" records under root_lost with the
+inode's extents as content.
+
+**Why the synthetic inode#.** The og's exact inode# derivation (the
++0x4b8 list's reader in FUN_1800041e0's callers) is the finding's open
+question — the journal block image doesn't carry the inode# directly
+(the inode# is positional, computed from the journal block + slot, but
+the og's exact mapping is not fully decoded in the corpus). The core's
+synthetic inode# is `0x10000000 + (jb << 10) + slot` — above MAX_INODES
+(16M) so it never collides with real inode numbers, deterministic so
+the same journal block produces the same name across runs, and
+sufficient for the recovery surface (the user sees the inode's size,
+extents, and content under the "Inode%N" name).
+
+**Why the "Inode%u" naming (not "iNode%I64d").** The engine's existing
+deleted-inode surface (line 1195 of `cr_ext4_engine.cpp`) uses
+`snprintf(buf, sizeof(buf), "Inode%u%s", ino, ...)` with capital I and
+`%u`. The og's `iNode%I64d` (lowercase i, Windows `%I64d` for 64-bit
+int) is the same name class (prefix + numeric inode#); the textual
+prefix differs in case but the convention is preserved for consistency
+with the existing surface. Matching the og's exact form would create a
+mixed-case naming inconsistency within the engine's output.
+
+**Tests.** Six new tests in
+`tests/unit/test_ext4_m143_journal_inode_image.cpp`:
+`JournalInodeImageSurfacesInodeRecord` (RED pre-fix: the inode-image
+scan was absent, the dir parser rejected the block and nothing
+surfaced; GREEN post-fix: the inode-image scan walks the block at
+inode_size stride, accepts the regular-file inode at slot 0 [size=100,
+EXTENTS_FL, extent magic 0xF30A, eh_entries=1, extent at block 50],
+surfaces it as "Inode268437504" under Lost Files with the extent's
+offset [50 * 1024 = 51200 bytes] carried through);
+`JournalInodeImageZeroSizeSkipped` (i_size_lo == 0 → gate rejects);
+`JournalInodeImageNoExtentsFlagSkipped` (EXTENTS_FL unset → gate
+rejects); `JournalInodeImageBadExtentMagicSkipped` (extent magic !=
+0xF30A → gate rejects); `JournalInodeImageZeroEhEntriesSkipped`
+(eh_entries == 0 → gate rejects); `JournalDirPairTakesPrecedence` (a
+block with BOTH a '.'/..' dirent pair AND a valid inode-image: the
+directory model wins per the og's branch order; the dir path's child
+entry surfaces under Lost Files via the unresolvable-chain fallback,
+and NO "Inode%N" record appears — the inode-image scan did NOT run).
+
+**Audit trail.** Finding moved `findings/MAJOR/` → `findings/FIXED/`
+with the Resolution section appended. `CROSS-REF-MATRIX.md` row 34
+changed `DIVERGENCE-MAJOR` → `MATCH` with the fix summary.
+`modules/ext4.md` appends the S73 fix-lane addendum #2 (the B2/A26/A25
+journal-salvage rows are now MATCH — the inode-image surface joins the
+directory-block surface as the og's two-branch journal classifier).
+`SUMMARY.md` board decremented: 0 ACUTE · 0 SEVERE · **15** MAJOR ·
+11 MINOR · 0 INFO active / **158** FIXED / 4 tracked-open.
+`diff-to-fix/FIXED-LEDGER.md` row appended.
+
+**Commit SHA recorded in the finding file's Resolution section at push
+time.**

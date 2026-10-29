@@ -71,3 +71,54 @@ Decompiled evidence, lead-verified first-hand this session: the classifier's two
 ## Open questions
 
 The og-side grouping decode: which tree branch the journal-inode records surface under (the +0x4b8 list's consumer in the results-tree assembly) — one probe: trace the +0x4b8 list's reader in FUN_1800041e0's callers and check the branch label it lands under; upgrades this finding's precision (and possibly severity) but does not gate the fix.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's push — SHA recorded at commit time)
+**Verified by:**
+- `Ext4EngineM143.JournalInodeImageSurfacesInodeRecord` — RED pre-fix (the
+  inode-image scan was absent; the dir parser rejected the inode-image
+  block and nothing surfaced); GREEN post-fix (the inode-image scan walks
+  the block at inode_size stride, accepts the regular-file inode at slot 0
+  [size=100, EXTENTS_FL, extent magic 0xF30A, eh_entries=1, extent at
+  block 50], surfaces it as "Inode268437504" under Lost Files with the
+  extent's offset [50 * 1024 = 51200 bytes] carried through).
+- `Ext4EngineM143.JournalInodeImageZeroSizeSkipped` — i_size_lo == 0 →
+  the gate rejects the record; nothing surfaces.
+- `Ext4EngineM143.JournalInodeImageNoExtentsFlagSkipped` — EXTENTS_FL
+  unset → the gate rejects the record.
+- `Ext4EngineM143.JournalInodeImageBadExtentMagicSkipped` — extent
+  magic != 0xF30A → the gate rejects the record.
+- `Ext4EngineM143.JournalInodeImageZeroEhEntriesSkipped` — eh_entries
+  == 0 → the gate rejects the record.
+- `Ext4EngineM143.JournalDirPairTakesPrecedence` — a block with BOTH a
+  '.'/..' dirent pair AND a valid inode-image at slot 4: the directory
+  model wins per the og's branch order; the dir path's child entry
+  surfaces under Lost Files (the unresolvable-chain fallback), and NO
+  "Inode%N" record appears (the inode-image scan did NOT run).
+
+**Resolution notes:** the journal pass's `parse_one` lambda is extended
+to call `parse_inode_image_block` after `parse_dir_block` rejects a
+block. The new function walks the block at `inode_size` stride and
+applies the og's exact gate set (FUN_180005e50 :4419-4420, re-read
+first-hand this session): `i_size_lo (+0x04) != 0 && (i_flags (+0x20) &
+0x80000 [EXTENTS_FL]) && extent magic (+0x28) == 0xF30A &&
+eh_entries (+0x2A) != 0`. Records that pass the gate are decoded via
+the engine's existing extent walker over the inline extent root
+(i_block, 60 bytes), and emitted in pass 2 as orphan "Inode%N" records
+under root_lost with the inode's extents as content. The synthetic
+inode# is journal-positional (`0x10000000 + (jb << 10) + slot`) — above
+MAX_INODES so it never collides with real inode numbers. The og's
+exact inode# derivation (the +0x4b8 list's reader in FUN_1800041e0's
+callers) is the finding's open question, preserved per the finding's
+"does not gate the fix" note. The "Inode%u" naming follows the engine's
+existing deleted-inode convention (capital I, lowercase %u) for
+consistency — the og's "iNode%I64d" form is the same name with a
+Windows-style 64-bit format spec; the textual prefix differs in case
+but the name class is identical. The directory-model-takes-precedence
+order matches the og's branch order (FUN_180005e50 :4388-4424: the
+'.'/..' test runs first, the inode-image scan runs only on failure).
+The M-144 work on the same engine (the chunked GDT reader) is
+unaffected — the journal scan reads the journal inode's extents via
+the existing extent walker, not the GDT path.

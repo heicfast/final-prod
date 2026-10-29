@@ -877,6 +877,77 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     };
     std::map<u32, JournalDirInfo> journal_dirs; /* owning dir inode -> info */
     std::vector<DirEntry> journal_orphans;      /* "."-less blocks' entries */
+    /* M-143: the og's jbd2 inode-image harvest surface — every journal block
+     * the dir parser rejected is walked at inode_size stride; records with
+     * i_size_lo!=0 && (i_flags & EXTENTS_FL) && extent magic 0xF30A &&
+     * eh_entries!=0 are emitted as orphan "Inode%N" records under root_lost
+     * (FUN_180005e50 :4414-4573, re-read first-hand this session; the
+     * orphan-finalize consumer FUN_1800041e0 :2982-2993 "iNode%I64d" naming
+     * — the core's existing "Inode%u" convention is preserved for
+     * consistency with the deleted-inode surface). The synthetic inode#
+     * is a journal-positional value (jb<<10|slot) offset above MAX_INODES
+     * so it cannot collide with real inode numbers; the og's exact inode#
+     * derivation is the finding's open question, preserved. */
+    struct JournalInodeImage {
+        u32 synthetic_inum = 0;  /* journal-positional, never a real inode# */
+        u16 mode = 0;            /* 0x4000 dir or 0x8000 regular */
+        u64 size = 0;
+        u32 flags = 0;
+        u32 blocks_512 = 0;
+        i64 atime = 0, ctime = 0, mtime = 0;
+        u32 atime_nsec = 0, ctime_nsec = 0, mtime_nsec = 0;
+        std::vector<Extent> extents;  /* decoded from the inline extent root */
+        bool extents_ok = true;
+    };
+    std::vector<JournalInodeImage> journal_inode_images;
+    auto parse_inode_image_block = [&](const u8* blk, u64 jb) {
+        const u32 isz = v.sb.inode_size;
+        if (isz == 0 || isz > v.sb.block_size)
+            return;
+        const u64 per_block = v.sb.block_size / isz;
+        for (u64 slot = 0; slot < per_block; ++slot) {
+            const u8* p = blk + slot * isz;
+            /* M-143 gate set (FUN_180005e50 :4419-4420, re-read first-hand):
+             *   i_size_lo (+0x04) != 0
+             *   i_flags  (+0x20) & 0x80000 (EXTENTS_FL)
+             *   extent magic (+0x28) == 0xF30A
+             *   eh_entries   (+0x2A) != 0
+             * skip silently on any failure (the og's `goto LAB_180006289`
+             * stride advance). */
+            const u32 size_lo = le32(p + I_SIZE_LO);
+            const u32 iflags = le32(p + I_FLAGS);
+            const u16 ext_magic = le16(p + I_BLOCK);
+            const u16 eh_entries = le16(p + I_BLOCK + 2);
+            if (size_lo == 0 || (iflags & EXTENTS_FL) == 0 ||
+                ext_magic != EXT4_EXT_MAGIC || eh_entries == 0)
+                continue;
+            JournalInodeImage img;
+            img.synthetic_inum = u32(0x10000000u + (jb << 10) + slot);
+            img.mode = le16(p + I_MODE);
+            img.size = size_lo;
+            if (ifmt(img.mode) == 0x8000)
+                img.size |= u64(le32(p + I_SIZE_HIGH)) << 32;
+            img.flags = iflags;
+            img.blocks_512 = le32(p + I_BLOCKS_LO);
+            img.atime = i64(le32(p + I_ATIME));
+            img.ctime = i64(le32(p + I_CTIME));
+            img.mtime = i64(le32(p + I_MTIME));
+            /* decode the inline extent root (i_block[15], 60 bytes) —
+             * the engine's existing extent walker applies. A scratch
+             * block-sized buffer carries the inline header so the walker
+             * sees the same shape a real extent-root block would (the
+             * inline root has no leading 4 bytes; the walker reads from
+             * node+0). */
+            std::vector<u8> node(size_t(v.sb.block_size), 0);
+            if (node.size() >= 60)
+                std::memcpy(node.data(), p + I_BLOCK, 60);
+            u64 budget = 65536; /* P1-11 per-inode node-read budget */
+            const u16 depth = le16(node.data() + 6);
+            if (!walk_extent_node(v, node.data(), depth, budget, img.extents, 0))
+                img.extents_ok = false;
+            journal_inode_images.push_back(std::move(img));
+        }
+    };
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
@@ -964,7 +1035,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                     }
                 }
 
-                auto parse_one = [&](const u8* blk) {
+                auto parse_one = [&](const u8* blk, u64 jb) {
                     std::vector<DirEntry> entries;
                     /* M-037: the inode#<=inodes_count gate belongs to the
                      * og's LIVE dir walk (FUN_180005820 :4168); the
@@ -974,8 +1045,16 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                      * truncated/rebuilt superblock no longer counts (the
                      * S-004 fixtures model exactly that: ghost inode 50 on
                      * an 8-inode volume). Gate OFF here, ON in walk_dir. */
-                    if (!parse_dir_block(blk, bs, true, 0, entries))
+                    if (!parse_dir_block(blk, bs, true, 0, entries)) {
+                        /* M-143: dir parser rejected — try the inode-image
+                         * scan. The og's two-branch classifier
+                         * (FUN_180005e50 :4388-4424): a block passing the
+                         * '.'/'..' test is a directory image; otherwise the
+                         * inode-image scan runs. The directory model takes
+                         * precedence per the og's branch order. */
+                        parse_inode_image_block(blk, jb);
                         return;
+                    }
                     u32 dir_ino = 0, parent_ino = 0;
                     for (const auto& de : entries) {
                         if (de.name == u".")
@@ -1010,7 +1089,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                     if (cancel && cancel->checkpoint())
                         break;
                     const u8* raw = jdata.data() + jb * bs;
-                    parse_one(raw);
+                    parse_one(raw, jb);
                     auto et = escape_tags.find(jb);
                     if (et != escape_tags.end() && et->second) {
                         restored.assign(raw, raw + bs);
@@ -1018,7 +1097,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                         restored[1] = 0x3B;
                         restored[2] = 0x39;
                         restored[3] = 0x98;
-                        parse_one(restored.data());
+                        parse_one(restored.data(), jb);
                     }
                 }
             }
@@ -1350,6 +1429,49 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                 n->set_deleted_state(tree::DeletedState::Deleted);
                 n->set_confidence(tree::Confidence::PartialRisk);
                 salvaged_nodes[de.inode] = n;
+                ++stats.journal_salvaged;
+            }
+        }
+        /* M-143: the journal inode-image harvest emission. Each image
+         * surfaces as an orphan "Inode%N" record under root_lost, with
+         * the inode's extents as content (the og's orphan-finalize
+         * consumer FUN_1800041e0 :2982-2993 + FUN_180005e50 :4514-4573's
+         * +0x4b8 list emission). The synthetic inode# is journal-positional
+         * (the og's exact inode# derivation is the finding's open question);
+         * the "Inode%u" naming follows the engine's existing deleted-inode
+         * convention for consistency (the og's "iNode%I64d" form is the
+         * same name with a Windows-style format spec — the textual prefix
+         * differs in case but the name class is identical). */
+        for (const auto& img : journal_inode_images) {
+            if (salvaged_nodes.count(img.synthetic_inum))
+                continue; /* de-dup: a prior image with the same synthetic# won */
+            auto* props = new (std::nothrow) tree::FileProperties();
+            if (!props)
+                break;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Inode%u", img.synthetic_inum);
+            std::u16string nm;
+            for (const char* p = buf; *p; ++p)
+                nm.push_back(u16(u8(*p)));
+            props->name = nm;
+            props->fs_kind = u32(FsKindCode::Ext4);
+            props->record_ref = img.synthetic_inum;
+            props->logical_size = img.size;
+            props->attributes = ifmt(img.mode) == 0x4000 ? 0x10 : 0;
+            props->times.created = unix_to_filetime_ns(img.ctime ? img.ctime : 0,
+                                                       img.ctime_nsec);
+            props->times.modified = unix_to_filetime_ns(img.mtime, img.mtime_nsec);
+            props->times.changed = unix_to_filetime_ns(img.ctime, img.ctime_nsec);
+            props->times.accessed = unix_to_filetime_ns(img.atime, img.atime_nsec);
+            for (const auto& e : img.extents)
+                props->extents.push_back({v.base + e.offset, e.length});
+            tree::FileNode* n = tree.add_file(root_lost, props);
+            props->release();
+            if (n) {
+                n->set_origin(tree::Origin::Lost);
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                n->set_confidence(tree::Confidence::PartialRisk);
+                salvaged_nodes[img.synthetic_inum] = n;
                 ++stats.journal_salvaged;
             }
         }

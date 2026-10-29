@@ -247,3 +247,28 @@ divergence is registered in PARITY-DELTAS **D-148**.
 bound. The module's X49/X52/B1 capacity-edges rows are now MATCH
 (parallel to the og's unbounded scan, with the corrupt-SB guard
 deliberately kept and registered).
+
+## S73 fix-lane addendum #2 (2026-10-29 — M-143 the journal inode-image
+harvest)
+
+**M-143 FIXED (MAJOR)** — the journal pass's `parse_one` lambda is
+extended to call `parse_inode_image_block` after `parse_dir_block`
+rejects a block. The new function walks the block at `inode_size`
+stride and applies the og's exact gate set (FUN_180005e50 :4419-4420,
+re-read first-hand): `i_size_lo (+0x04) != 0 && (i_flags (+0x20) &
+0x80000 [EXTENTS_FL]) && extent magic (+0x28) == 0xF30A && eh_entries
+(+0x2A) != 0`. Records that pass the gate are decoded via the engine's
+existing extent walker over the inline extent root (i_block, 60 bytes),
+and emitted in pass 2 as orphan "Inode%N" records under root_lost with
+the inode's extents as content. The synthetic inode# is
+journal-positional (`0x10000000 + (jb << 10) + slot`) — above
+MAX_INODES so it never collides with real inode numbers. The og's
+exact inode# derivation is the finding's open question, preserved per
+the finding's "does not gate the fix" note. The "Inode%u" naming
+follows the engine's existing deleted-inode convention for consistency.
+The directory-model-takes-precedence order matches the og's branch
+order. 6 RED→GREEN tests in
+`tests/unit/test_ext4_m143_journal_inode_image.cpp`. The module's
+B2/A26/A25 journal-salvage rows are now MATCH (the inode-image surface
+joins the directory-block surface as the og's two-branch journal
+classifier).
