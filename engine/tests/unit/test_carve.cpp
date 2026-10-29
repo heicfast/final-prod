@@ -11437,6 +11437,100 @@ TEST(Carve, SwfCwsVersionGateIsSix) {
     EXPECT_EQ(all[0]->props()->logical_size, size_t(0x400));
 }
 
+TEST(Carve, SitTornNoMarkerStampsTheWalkedBound) {
+    /* The walk's torn arm (cr_analysers.cpp 'sit-marker-walk,torn-salvage'):
+     * a '!' form whose walk finds no marker, no corrupt prefix and no next
+     * header stamps the walked bound (the salvage) - it never declines and
+     * it never falls back to the blind 64 MiB stand-in. This arm had no
+     * coverage after the reconstruction (the member-9 battery's decode
+     * disagreement is recorded in M-107's addenda for the corpus arbiter). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    img[at] = 'S';
+    img[at + 1] = 't';
+    img[at + 2] = 'u';
+    img[at + 3] = 'f';
+    img[at + 4] = 'f';
+    img[at + 5] = 'I';
+    img[at + 6] = 't';
+    img[at + 7] = '!';
+    for (size_t i = 8; i < 20480; ++i)
+        img[at + i] = u8((i * 5) & 0xFF); /* no 02 D7 0A prefix (step-5 filler), no Stuf/WEBB */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the torn arm stamps the walked bound";
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(64 * 1024 - 512))
+        << "the bound is the available device extent (no marker, no header)";
+}
+
+TEST(Carve, SitMarkerFlavorStridesCarve) {
+    /* The marker's flavor byte selects the stride (cr_analysers.cpp's
+     * table: 0x19 -> 4, 0x3B -> 5, else 6): all three og .data magic
+     * variants (02 D7 0A <flavor> 98 F6 42 88, the constants at
+     * 0x180067858/68/78) carve through the same walk. Each marker rides
+     * at bytes - 8 - stride so the extent (marker + 8 + stride) lands
+     * exactly at the planted length. */
+    std::vector<u8> img(256 * 1024, 0);
+    const struct {
+        size_t at;
+        size_t bytes;
+        u8 flavor;
+        size_t stride;
+    } v[3] = {{512, 0x6000, 0x19, 4}, {65536, 0x5000, 0x3B, 5}, {131072, 0x7000, 0x10, 6}};
+    for (const auto& c : v) {
+        img[c.at] = 'S';
+        img[c.at + 1] = 't';
+        img[c.at + 2] = 'u';
+        img[c.at + 3] = 'f';
+        img[c.at + 4] = 'f';
+        img[c.at + 5] = 'I';
+        img[c.at + 6] = 't';
+        img[c.at + 7] = '!';
+        for (size_t i = 8; i < c.bytes - 8 - c.stride; ++i)
+            img[c.at + i] = u8((i * 7) & 0xFF); /* archive-ish body, marker-free */
+        const size_t m = c.at + c.bytes - 8 - c.stride;
+        img[m] = 0x02;
+        img[m + 1] = 0xD7;
+        img[m + 2] = 0x0A;
+        img[m + 3] = c.flavor;
+        img[m + 4] = 0x98;
+        img[m + 5] = 0xF6;
+        img[m + 6] = 0x42;
+        img[m + 7] = 0x88;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 3u) << "every flavor variant carves through the same walk";
+    for (const auto& c : v) {
+        bool found = false;
+        for (tree::FileNode* n : all) {
+            ASSERT_FALSE(n->props()->extents.empty());
+            if (n->props()->extents.front().offset == c.at) {
+                found = true;
+                EXPECT_EQ(n->props()->logical_size, c.bytes)
+                    << "flavor " << int(c.flavor) << " strides " << c.stride;
+            }
+        }
+        EXPECT_TRUE(found) << "flavor " << int(c.flavor) << " must carve";
+    }
+}
+
 /* ---- N-111: the JP2 family (the og's JP2Analyser id 0x80, the brand
  * map jp2 /jpx /jpm , the box-walk extent machinery) ---- */
 
