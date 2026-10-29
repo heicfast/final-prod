@@ -13163,3 +13163,30 @@ with the racing N-226 renumber). Two of this lane's own red pushes
 (eb1b4e35, f5cb2a60) are recorded with honesty notes in entries 4/6 —
 the verification-discipline lesson (gate must BLOCK the push, not just
 run) is now enforced in this lane's push script.
+
+## Session-84 S84 fix-lane — entry 6: M-101 FIXED (2026-10-30)
+
+**M-101 FIXED (MAJOR, the 5-branch results tree):** the two missing
+branches landed. Corpus re-verified first-hand (UIUX/09:27-36 — the five
+tr-verified roots with their coaching copy). The Versions node:
+FileProperties::version_group (the FNV-1a namespace-identity hash over
+the namespace-best link's parent+name; deterministic, no map, stamped at
+walk emission for structured NTFS nodes), persisted as the nflags bit-14
+append-only block, exposed as Row/Filter fields + query::version_groups()
+(the branch enumeration; junk-filtered nodes never members). Tags
+Extracted: the runtime tags_extracted flag (the host's preview pass
+stamps it; NOT persisted — the corpus shows the og persisting no tag
+state; the finding's own defer note) + the tags_only filter axis. The
+snapshot carries both axes append-only. Tests: the finding's four-test
+plan + two guards, 6/6 (the walk-side torn-sibling falsification — a
+planted second record for (16, readme.txt) — the branch semantics, the
+M-072 composition, the session round-trip, the tags grouping, the
+three-landed-branches regression pin). Full suite 1550/0 release, 1549/0
+ASan-clean. Honest note: the code rode b7d05b12 (the gate-repair
+commit's add -A sweep — the mishap recorded in the finding's Resolution);
+this commit lands the trail. The N-223/N-224/N-225/N-226 win-stub
+collision window also verified this session: the racing lane's finding
+against MY M-075 landing (the win-stub gap) was CORRECT, its repair
+verified first-hand, and the lesson absorbed (the full ctest —
+win_syntax_check included — is now a pre-push gate for this lane).
+Board: 5 MAJOR · 2 MINOR active / 199 FIXED / 4 tracked-open.
