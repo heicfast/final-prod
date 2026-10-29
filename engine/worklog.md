@@ -11592,3 +11592,30 @@ pre-fix): DeletedHigh16ZeroRebasesFromHint /
 DeletedHigh16RebaseFallsBackToRawWalk / LastGoodHintUpdatesOnlyOnFileWalks /
 FAT16NoRebase. Suite 1604/1604. Trail: findings/FIXED/S-068, matrix
 MATCH, modules/fat.md S80 addendum, SUMMARY board (0 SEVERE).
+
+---
+
+## Session-80 S80 fix-lane — entry 5 (2026-10-29): the N-213 convergence concession
+
+**The SA-9 concession (earlier-push-wins):** this lane's independent N-213
+landing (the offset band + the remnant honest-declaration gate, RED-first
+via the stash dance, suite green) was pushed minutes after the racing
+lane's own N-213 landed. Their landing is the more corpus-faithful one
+and owns the seat: (1) their band is FAMILY-KEYED — FILE ∈ [0x2A, 0x100]
+AND INDX ∈ [0x28, 0x100] — backed by a corpus site this lane had not
+reached (FUN_180045510 :54704-54745, the INDX validator with its own
+band and count cap; this lane's magic-keyed exemption was too loose: the
+og DOES gate INDX offsets, just with a floor two bytes lower); (2) their
+usa_count ≤ 0x10 cap is ported (correctly compatible with D-143 — the
+oversize-stride pin only asserts the walk runs, and their remnant
+emit-test pins the >4 KiB acceptance); (3) their remnant alloc gate is
+the og's EXACT form (0x400-aligned + declared-fit ≥ usa_count−1, no
+stride-equality — correcting the fix plan's paraphrase, no upper cap per
+D-143). This lane's duplicate source/tests/trail files were conceded at
+the rebase resolution (all conflicts resolved for the racing side); the
+convergence — two lanes independently reading FUN_180046160 and landing
+bands — is corroborating evidence for the decode. The one delta this
+lane contributed that their landing already carried better: the INDX
+0x28 discovery (their IndxFloorIsTwoBytesLower test + the family-keyed
+floor constant; this lane's version of the same discovery is preserved
+in this entry for the history).
