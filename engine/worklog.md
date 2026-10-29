@@ -11012,3 +11012,74 @@ racing seat stands; this lane's local landing was dropped at the reset
 (the worklog record above preserves the design and the RED evidence).
 Their landing verified first-hand on the reset tree: the named tests
 green, full suite 1484/1484 (1442 pass + 42 Win-skips, 0 fail).
+## Session-79 S79 lane — the close-out handoff (2026-10-29)
+
+**Pins:** audited core `3799dee2` (the lane's verification pin), LIVE re-verified at
+`0da3490b`, pushed over the `982efeb5` head as `11a01a53`; corpus `be0cfe9` throughout.
+
+**Coverage statistics (this lane's reads):**
+- The corpus deep-read: ~460 K lines of Ghidra decompile across the eight SearchDLLs
+  (RAWSearchDLL 80 614 / FATSearchDLL 64 658 / NTFSSearchDLL 62 394 / exFATSearchDLL
+  58 043 / ZfsSearchDLL 45 364 / HFSPlusSearchDLL 22 304 / ReFSSearchDLL 20 270 /
+  BtrfsSearchDLL 18 626 / EXT4SearchDLL 18 071) + the 2.38 M-line DRWUI decompile at
+  the scoring/grading/progress seams + the 30 SearchDLL artifacts + the og's own
+  runtime logs (CalcPartition.log 186 fitted rows). Five parallel-agent context
+  sheets in `evidence/s79-lane-sheets/`.
+- The core deep-read: the full 77 K-line src/include tree at the audit pin (the
+  stage-and-bounds map alone inventoried 55+ engine loops: 50 BOUNDED, 0 UNBOUNDED,
+  5 BOUNDED-BY-ASSUMPTION).
+- The divergence pipeline: 29 candidates from the five censuses → 21 DROPPED after
+  the trail coverage check (each with its reason, §B of the lead-verification sheet)
+  → 8 lead-verified first-hand (the decompile lines AND the core lines re-read) →
+  7 filed live + 1 retired at the rebase as the convergent duplicate + 1 tracked-open.
+
+**The board at the pushed tree: 30 active (2 SEVERE · 17 MAJOR · 11 MINOR · 0 INFO)
+/ 163+ FIXED / 5 tracked-open** (OQ-S10-1, OQ-S10-3, OQ-S4-3, OQ-S52-1's residue if
+any, OQ-S79-1).
+
+**The recommended first 20 fixes in priority order (the roadmap's next lane):**
+1. **S-067** — the exFAT out-of-range clamp (a ~10-line fix in `next()`; 3 tests) —
+   wrong extents + wrong grading on damaged volumes.
+2. **S-068** — the FAT32 high-16 re-base (the hint thread + the deleted-path retry;
+   4 tests) — wrong recovered bytes on the torn-high-word population.
+3. **M-149** — the ghost-score two-pass restoration (restore the dropped 48a6c099
+   form into `cr_candidates.cpp`; the CalcPartition replay test) — wrong surfaced
+   scores + the empty-candidate inversion.
+4. **M-150** — the session-load count gate (a 2-line bound + 2 tests) — the
+   freeze/OOM class.
+5. **M-151** — the $MFT run-growth probe (the post-bootstrap pass; 4 tests) —
+   invisible records on truncated runlists.
+6. **M-152** — the ext4 orphan-reserved skip drop (1 line + the dedup/grading;
+   4 tests) — the lost-file population.
+7. **N-213** — the fixup band (the offset band + the remnant alloc gate; 2 tests).
+8. **N-211** — the cr_scan.h contract re-truth (a comment sweep; 0 tests).
+9. **M-107** — the batch-1 size-walk stand-in residue (the og's exact walks).
+10. **M-101** — the results-tree versions/tags/extracted branches.
+11. **M-118** (landed by the racing lane this window — verify, then next) → the
+    remaining assembly surfaces.
+12. **M-073** — the scan-time folder filter.
+13. **M-075** — the chkdsk launch surface.
+14. **M-078** — the BitLocker turn-off surface.
+15. **M-111** — the explorer partition browse.
+16. **M-113** — the recovered-OS boot surgery.
+17. **M-114** — the system-restore purge (decision-class).
+18. **M-105** — the DRWService install lifecycle.
+19. **N-178/N-181/N-182** — the CLI pause legs / raw-first ordering / deep-range
+    derivation.
+20. **N-144/N-145** — the txtview thumbnails / the pending-marked disk marker.
+(The driver-repo-resident M-086/M-087/M-089/N-107/N-127 stay behind the OQ-S10-3
+two-repo boundary.)
+
+**The next audit lane's seeds (from this lane's dropped-but-real candidates, §B of
+the lead sheet):** the FAT date-sanity day-bound edge (N-010c's scope), the HFS+
+journal-replay child-resolution (needs a journaled fixture), the HFS+ leading-NUL
+trim + 255 cap, the Btrfs short-EXTENT_DATA edges, the exFAT deleted-cluster bitmap
+reasoning (the CQuickSearchAndBuildBitmap decode), the $Tops/$TxfLog/$Repair
+suppression table, the N-070 score-max premise re-verification, and the OQ-S79-1
+$LogFile follow-the-data walk.
+
+**Read-only guarantee (final):** this lane's delta = diff-to-fix/ (new findings +
+evidence + trail sections + the three documented born-red repairs) + worklog* only.
+The one exception class, recorded above: the five mechanical ABI count lines in
+docs/ (the A-ABI-3 repair, required by the never-push-a-red-commit rule). No
+source, header, test, build, or workflow file was modified.
