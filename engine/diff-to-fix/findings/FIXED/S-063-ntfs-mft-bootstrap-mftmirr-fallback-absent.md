@@ -97,3 +97,49 @@ Decompiled evidence, lead-verified first-hand this session (both getters traced 
 ## Open questions
 
 None on the og side (the decode is complete). One implementation note: the og's fallback uses a 512-byte-rounded record size (`>> 9`) where the primary uses device-sector units — the fix should use the core's existing `record_size` for both reads; the difference only matters on non-512 device geometry and the core's P1-4 cap already governs.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S56 ACUTE-first lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on three of the four pins (the fourth
+is the preserved-refusal control, green both sides):
+`NtfsVolume.TornMftRecord0BootstrapsFromMirror` (RED: "open err bad magic" —
+the whole-volume refusal reproduced; GREEN: the open succeeds,
+`boot_from_mftmirr` set, and the walk recovers the same file set ≥ 5 through
+the mirror-derived runlist), `NtfsVolume.MirrorBootstrapSameRunlistAsIntactControl`
+(RED: the same refusal; GREEN: the torn volume's walked set == the intact
+control's — the mirror record-0 $DATA decodes to the primary's extents),
+`NtfsVolume.BothMftAndMirrorTornRefuses` (green both sides — the og's
+0x610016 refusal class preserved, the fallback is not a bypass),
+`NtfsVolume.MirrorBootstrapFlaggedInOpenDiagnostics` (RED: the refusal;
+GREEN: the params flag + the Info log line at the seam). The pre-fix RED was
+proven by neutralizing the fallback branch at an otherwise-identical tree.
+NTFS volume family 76/76; RawFixer 33/33 (one test RE-TRUTHED — below);
+full suite 1453/1453.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand:
+FUN_1800272b0's primary path and the LAB_180027467 fallback block re-read
+at NTFSSearchDLL:31585-31630 — the identical chunk reader
+(FUN_18001a3c0) retried at the $MFTMirr LCN (FUN_18003f970 → boot
+struct +0x38) when the primary read fails or the odd/>16-sector geometry
+gates reject it; both failing is the 0x610016 refusal. The fix is the
+finding's plan: `load_mft_stream(u64 at_lcn, bool from_mirror)`
+parameterizes the record-0 read position; `NtfsVolume::open` retries at
+`p_.mftmirr_lcn` when the primary fails (mft_lcn != mftmirr_lcn guarded),
+sets `VolumeParams::boot_from_mftmirr` (the report-only open diagnostic,
+`boot_from_backup`'s sibling) and logs the event through the cr::log seam
+(Level::Info — the og logs its mirror events); both failing surfaces the
+primary's error exactly as before. The wrong "nothing to mirror FROM"
+comment is replaced by the verified decode. En-route truth work: the
+RawFixer `MftRestoreMakesVolumeOpenable` test RE-TRUTHED — its "torn
+record 0 must fail volume open" premise was the finding's own defect class
+(the pin now asserts the boot SOURCE: mirror pre-repair, primary
+post-repair, mirror again post-undo — a sharper transactional pin than the
+old nullptr form). The fixture quirk documented: the test fixture's
+$MFTMirr region overlaps the $MFT extent (clusters 68..71), so the
+mirror's record-0 copy must be re-planted in the S-063 tests (a fixture
+artifact, not a volume-model defect — real volumes never overlap the two).
+The geometry-quirk stance registered per the fix plan: the core's P1-4
+record-size cap already governs both positions more strictly than the
+og's 512-byte-rounded fallback re-check (cross-ref N-196). No safety
+hardening touched — the repair path stays consent-gated (RawFixer S-008).

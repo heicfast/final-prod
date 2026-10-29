@@ -4,6 +4,7 @@
  */
 
 #include "cr/ntfs/cr_bootstrap.h"
+#include "cr/cr_log.h"
 #include <algorithm>
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
@@ -93,12 +94,20 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     return OK;
 }
 
-u32 NtfsVolume::load_mft_stream() {
+u32 NtfsVolume::load_mft_stream(u64 at_lcn, bool from_mirror) {
     /* read record 0 with the corpus minimum capacity, fixup, then decode the
-     * $DATA runlist of $MFT itself; $ATTRIBUTE_LIST -> fragmented path (F6) */
+     * $DATA runlist of $MFT itself; $ATTRIBUTE_LIST -> fragmented path (F6).
+     * S-063: at_lcn parameterizes the READ POSITION — the primary call passes
+     * p_.mft_lcn, the og's mirror fallback (FUN_1800272b0's LAB_180027467,
+     * NTFSSearchDLL :31595-31609, the identical chunk reader FUN_18001a3c0
+     * at the $MFTMirr LCN) passes p_.mftmirr_lcn. from_mirror only routes
+     * the geometry gates the og's fallback re-checks (the odd/>16-sector
+     * record-size class re-reads at 512-byte rounding there; our P1-4 cap
+     * already governs both positions the same way — registered N-196). */
+    (void)from_mirror;
     std::vector<u8> buf;
     buf.resize(p_.record_size);
-    if (dev_->read_at(p_.mft_lcn * p_.cluster_bytes, buf.data(), u32(buf.size())) != OK)
+    if (dev_->read_at(at_lcn * p_.cluster_bytes, buf.data(), u32(buf.size())) != OK)
         return ERR_READ_FAILED;
 
     RecordHeader rh;
@@ -409,12 +418,32 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
         }
     }
     v->p_.boot_from_backup = from_backup;
-    rc = v->load_mft_stream();
+    rc = v->load_mft_stream(v->p_.mft_lcn, false);
+    if (rc != OK && v->p_.mftmirr_lcn != v->p_.mft_lcn) {
+        /* S-063: the og's $MFTMirr bootstrap fallback — when record 0 is
+         * unreadable at the primary $MFT LCN (or its geometry gates reject
+         * it), the walk entry retries the IDENTICAL read at the $MFTMirr
+         * LCN before refusing with 0x610016 (FUN_1800272b0, the
+         * LAB_180027467 block at NTFSSearchDLL :31595-31609; the getters
+         * FUN_18003f990/FUN_18003f970 = the boot struct's +0x30/+0x38
+         * LCN pair). The mirror's record-0 slot is a copy of $MFT's own
+         * record, whose $DATA runlist describes the entire primary MFT:
+         * there is everything to bootstrap FROM — the pre-fix comment
+         * reasoned the opposite and refused the whole volume. */
+        const u32 mrc = v->load_mft_stream(v->p_.mftmirr_lcn, true);
+        if (mrc == OK) {
+            v->p_.boot_from_mftmirr = true; /* the open diagnostic */
+            if (cr::log::enabled())
+                cr::log::write(cr::log::Level::Info,
+                               "ntfs: primary $MFT record 0 unreadable (rc=%08x); "
+                               "bootstrapped from the $MFTMirr copy (LCN %llu)",
+                               rc, static_cast<unsigned long long>(v->p_.mftmirr_lcn));
+            rc = OK;
+        }
+    }
     if (rc != OK) {
-        /* corpus: $MFTMirr cross-reference as repair/verification source when
-         * primary fails. Try mirror's $MFT? The mirror holds records 0..3
-         * copies - for bootstrap we only need record 0's runlist; if primary
-         * is unreadable there is nothing to mirror FROM - surface the error. */
+        /* both the primary and the mirror failed — the og's 0x610016
+         * refusal class: surface the primary's error. */
         if (err)
             *err = rc;
         return nullptr;

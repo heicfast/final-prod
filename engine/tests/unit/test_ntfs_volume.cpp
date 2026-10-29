@@ -4924,3 +4924,134 @@ TEST(NtfsVolume, LostDirNameIsRecordNumber) {
     EXPECT_EQ(find_child_by_name(rl, "LostDir07206"), nullptr) << "never zero-padded";
     EXPECT_EQ(find_child_by_name(rl, "LostDir7206 "), nullptr) << "never suffixed";
 }
+
+/* ---- S-063: the $MFTMirr bootstrap fallback ------------------------------ */
+
+TEST(NtfsVolume, TornMftRecord0BootstrapsFromMirror) {
+    /* S-063: the og's walk entry retries the record-0 read at the $MFTMirr
+     * LCN when the primary $MFT's first cluster is unreadable or fails
+     * decode (FUN_1800272b0's LAB_180027467, NTFSSearchDLL :31595-31609 -
+     * the IDENTICAL chunk reader at the mirror LCN; both failing is the
+     * 0x610016 refusal). The mirror's record-0 slot is a copy of $MFT's
+     * own record, whose $DATA runlist describes the whole primary MFT.
+     * Pre-fix: the open refused the whole volume (zero structured files).
+     * Fail-before: open returned the primary's error. */
+    Image img;
+    build_image(img);
+    /* re-plant the mirror's record-0 copy: the fixture's $MFTMirr region
+     * (clusters 68..75) OVERLAPS the $MFT extent (4..71) - records 32..33
+     * (sec 68..71) clobber the copies build_image made (a fixture quirk,
+     * not a volume-model defect: real volumes never overlap the two). */
+    std::memcpy(img.sec(MIRR_LCN), img.sec(MFT_LCN), RECORD_SIZE);
+    /* tear the primary record 0: destroy the magic (the fixup would also
+     * catch it, but the magic is the cheapest deterministic tear) */
+    std::memset(img.sec(MFT_LCN), 0xFF, RECORD_SIZE);
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().boot_from_mftmirr) << "the bootstrap must be flagged mirror-sourced";
+    EXPECT_FALSE(vol->params().boot_from_backup);
+
+    /* the walk recovered through the mirror-derived runlist: the whole
+     * primary MFT is still described by record 0's $DATA */
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.active + stats.deleted, 5u)
+        << "the mirror-derived runlist reaches the same file set";
+}
+
+TEST(NtfsVolume, MirrorBootstrapSameRunlistAsIntactControl) {
+    /* S-063: the mirror record-0's $DATA decodes to the primary's extents -
+     * proven behaviorally: the torn-primary volume's walked file set equals
+     * the intact control's. The control itself must NOT set the flag (the
+     * primary path is untouched when it succeeds). */
+    Image control_img;
+    build_image(control_img);
+    MemDevice control_dev(control_img.raw(), control_img.geom());
+    u32 cerr = 0;
+    auto control =
+        NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(control_dev)), &cerr);
+    ASSERT_NE(control, nullptr) << "control open err " << err_text(cerr);
+    EXPECT_FALSE(control->params().boot_from_mftmirr)
+        << "the intact volume boots from the primary, no flag";
+
+    Image torn_img;
+    build_image(torn_img);
+    std::memcpy(torn_img.sec(MIRR_LCN), torn_img.sec(MFT_LCN), RECORD_SIZE);
+    std::memset(torn_img.sec(MFT_LCN), 0xFF, RECORD_SIZE);
+    MemDevice torn_dev(torn_img.raw(), torn_img.geom());
+    u32 terr = 0;
+    auto torn = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(torn_dev)), &terr);
+    ASSERT_NE(torn, nullptr) << "torn open err " << err_text(terr);
+    ASSERT_TRUE(torn->params().boot_from_mftmirr);
+
+    std::unique_ptr<VolumeBitmap> cbm;
+    ASSERT_EQ(VolumeBitmap::load(control.get(), cbm), OK);
+    tree::ResultTree ct;
+    auto* ca = ct.add_root(u"Found");
+    auto* cd = ct.add_root(u"Deleted");
+    auto* cl = ct.add_root(u"Lost");
+    WalkerFlags wf;
+    WalkStats cs;
+    ASSERT_EQ(walk_mft(control.get(), cbm.get(), wf, nullptr, nullptr, nullptr, ct, ca, cd, cl, cs),
+              OK);
+    std::unique_ptr<VolumeBitmap> tbm;
+    ASSERT_EQ(VolumeBitmap::load(torn.get(), tbm), OK);
+    tree::ResultTree tt;
+    auto* ta = tt.add_root(u"Found");
+    auto* td = tt.add_root(u"Deleted");
+    auto* tl = tt.add_root(u"Lost");
+    WalkStats ts;
+    ASSERT_EQ(walk_mft(torn.get(), tbm.get(), wf, nullptr, nullptr, nullptr, tt, ta, td, tl, ts),
+              OK);
+    EXPECT_EQ(cs.active + cs.deleted, ts.active + ts.deleted)
+        << "the mirror bootstrap produces the same runlist - same walked set";
+}
+
+TEST(NtfsVolume, BothMftAndMirrorTornRefuses) {
+    /* S-063: both record-0 copies torn -> the og's 0x610016 refusal class;
+     * the honest refusal is preserved (the fallback is not a bypass). */
+    Image img;
+    build_image(img);
+    std::memset(img.sec(MFT_LCN), 0xFF, RECORD_SIZE);
+    std::memset(img.sec(MIRR_LCN), 0xFF, RECORD_SIZE); /* both torn (the
+        mirror copy's overwrite state is irrelevant - every byte is torn) */
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    EXPECT_EQ(vol, nullptr) << "both torn: the open must refuse";
+    EXPECT_NE(err, 0u);
+}
+
+TEST(NtfsVolume, MirrorBootstrapFlaggedInOpenDiagnostics) {
+    /* S-063: the fallback is observable in the open diagnostics - the
+     * params flag (the report-only summary surface, boot_from_backup's
+     * sibling) + the Info log line at the seam. */
+    Image img;
+    build_image(img);
+    std::memcpy(img.sec(MIRR_LCN), img.sec(MFT_LCN), RECORD_SIZE); /* the
+        mirror re-plant: the fixture overlap note above */
+    /* tear ONLY the first sector of record 0 (the fixup/magic decode
+     * fails; the rest of the cluster stays intact) */
+    std::memset(img.sec(MFT_LCN), 0x00, SEC);
+    img.sec(MFT_LCN)[0] = 'X';
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().boot_from_mftmirr)
+        << "the params flag is the open diagnostic surface";
+}

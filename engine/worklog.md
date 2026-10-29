@@ -9133,6 +9133,28 @@ RED proof via the stash-revert rebuild (CarveEngine.JpegExifPrefixCappedAtThirty
 the whole 45-char tag named the file pre-fix); GREEN post-fix; the OgNaming family
 green (fixtures < 39). Suite 1454/1454. Trail: findings/FIXED/N-190 + SUMMARY + this
 entry.
+---
+
+## Session-56 ACUTE-first lane — S-063 landed (2026-10-29)
+
+**S-063 FIXED (SEVERE — the NTFS torn-$MFT $MFTMirr bootstrap fallback).**
+Corpus re-verified first-hand: FUN_1800272b0's primary path + the
+LAB_180027467 fallback (NTFSSearchDLL :31585-31630) — the identical chunk
+reader retried at the $MFTMirr LCN; both failing = 0x610016. The core:
+load_mft_stream parameterized by at_lcn; NtfsVolume::open retries the
+mirror when the primary fails; VolumeParams::boot_from_mftmirr as the
+report-only open diagnostic + the Info log line. Tests: 3 RED->GREEN
+(TornMftRecord0BootstrapsFromMirror + MirrorBootstrapSameRunlistAsIntactControl
++ MirrorBootstrapFlaggedInOpenDiagnostics) + BothMftAndMirrorTornRefuses
+(green both sides — the honest refusal preserved). The RawFixer
+MftRestoreMakesVolumeOpenable test RE-TRUTHED (its "must fail volume open"
+premise was this finding's defect class; the pin now asserts the boot
+source across repair/undo — sharper than the old nullptr form). Fixture
+quirk documented: the fixture's $MFTMirr region overlaps the $MFT extent —
+the S-063 tests re-plant the mirror's record-0 copy. NTFS family 76/76,
+RawFixer 33/33, full suite 1453/1453. Trail: findings/FIXED/S-063 +
+ledger row + ntfs.md + the matrix MATCH cell + SUMMARY block + this entry.
+
 
 ## Session-57 lane — N-191 + N-207 landed (the PARITY-DELTAS renumber batch) (2026-10-29)
 
@@ -9150,3 +9172,4 @@ renumber note, the gate's ADDENDUM continuation exclusion added (the D-74 supers
 form is one row's continuation, not a seat claim). Gate green: 135 unique D-rows,
 CI-wired (checks.yml:173). No code change — the registry + gate + citations are the
 deliverable.
+

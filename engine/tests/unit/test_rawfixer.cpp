@@ -657,15 +657,19 @@ TEST(RawFixer, MftBothInvalidNoWrite) {
 }
 
 TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
-    /* the finding's falsifiable claim (1), proven at the engine boundary:
-     * a torn $MFT record 0 with an intact mirror makes NtfsVolume::open
-     * fail (carve-only path); after the consent-gated repair the volume
-     * opens and the structured engine can walk it. */
+    /* the finding's falsifiable claim (1), proven at the engine boundary -
+     * RE-TRUTHED at S-063: a torn $MFT record 0 with an intact mirror no
+     * longer fails NtfsVolume::open (the og's $MFTMirr bootstrap fallback,
+     * FUN_1800272b0's LAB_180027467); the repair's observable difference
+     * is the BOOT SOURCE: torn record 0 -> mirror-bootstrapped
+     * (boot_from_mftmirr), consent-gated repair -> the primary again,
+     * undo -> the mirror-bootstrap state returns. */
     NtfsVolumeImage v(true);
     u32 err = 0;
     auto before =
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(v.img)), &err);
-    EXPECT_EQ(nullptr, before) << "torn record 0 must fail volume open";
+    ASSERT_NE(nullptr, before) << "S-063: the intact mirror must bootstrap the open";
+    EXPECT_TRUE(before->params().boot_from_mftmirr) << "the pre-repair boot source";
 
     RamDevice dev(v.img);
     RepairPlan plan;
@@ -679,12 +683,16 @@ TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
     ASSERT_NE(nullptr, after) << "repaired volume must open: " << err_text(err);
     EXPECT_EQ(1024u, after->params().record_size);
+    EXPECT_FALSE(after->params().boot_from_mftmirr)
+        << "the repaired primary is the boot source again";
 
-    /* undo returns the volume to the unopenable state (transactional truth) */
+    /* undo returns the volume to the mirror-bootstrap state (transactional
+     * truth: the torn record 0 is back, the mirror still covers it) */
     ASSERT_EQ(OK, undo(wd, undo_log));
     auto reverted =
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
-    EXPECT_EQ(nullptr, reverted);
+    ASSERT_NE(nullptr, reverted) << "undo restores the torn record, not the mirror";
+    EXPECT_TRUE(reverted->params().boot_from_mftmirr);
 }
 
 TEST(RawFixer, FatTornMirrorCopyRestoredSectorGranular) {

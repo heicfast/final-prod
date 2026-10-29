@@ -549,7 +549,7 @@ s50-ntfs-btrfs-time-precedence-decodes.md` §1.
 
 ## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
 
-New active findings on this module: **S-063** (SEVERE — the torn-$MFT bootstrap
+New active findings on this module: **S-063** **FIXED** (the S56 ACUTE-first lane: the mirror bootstrap fallback landed — findings/FIXED/S-063, 3 RED->GREEN + the refusal control; the RawFixer pin re-truthed to the boot-source axis) — the torn-$MFT bootstrap
 fallback to the $MFTMirr LCN the og has and the core refuses, with the core's own
 "nothing to mirror FROM" comment premise refuted), **M-138** (cpr/cib zero: the og's
 four scan-path default sites 0x400/0x1000 vs the core's rejection + the D-52
