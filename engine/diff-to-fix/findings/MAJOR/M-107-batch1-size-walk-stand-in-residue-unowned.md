@@ -273,3 +273,67 @@ S-007 batch's CRW plant (header-only) exercises the torn-salvage path —
 its ≥ assertion holds unchanged. Remaining members: DWG (the
 section-locator map) next per the fix plan's order, then
 WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
+
+
+---
+
+## Session-86 addendum (2026-10-29/30 — the DWG member, member 3 of 11, the pattern's namesake)
+
+**DWG LANDED (the class-1 era; the R2004+ era split stays a registered
+follow-up).** The og's DWG walk decoded first-hand this session from
+FUN_18002f320 — the CDWGRawInfo's per-chunk feed (RAWSearchDLL_
+decompiled.c:36303-36461), cross-verified against the raw asm
+0x18002f3a7-0x18002f480 (objdump over og-codebase/RAWSearchDLL.dll —
+the CRW landing's toolchain). The og is a THREE-GENERATION state
+machine keyed by the 6-byte version string (the walk-side class table
+differs from the analyser-side version list FUN_18002fe30):
+
+- **class 1 {AC1012, AC1013, AC1014, AC1015} (R13-R2000)** — the
+  SECTION-LOCATOR walk, now landed: on the first feed the og reads a
+  u32 RECORD COUNT at file+0x15 (the birth cursor 0x15 comes from the
+  CDWGRawInfo factory's row-floor write — the row-min slot doubles as
+  the walk cursor; raw asm 0x18002f3b8-0x18002f3d2), advances the
+  cursor to 0x19, then walks 9-byte records {u8 id@+0, u32 off@+1,
+  u32 size@+5}: the id must equal the FULL 32-bit running counter
+  (`cmp %ecx,%eax` at 0x18002f40a — so the walk self-limits at 256
+  records and a mismatch is the extent-zero refusal, `movq $0,0x10`
+  at 0x18002f46b, the hit dropped downstream); the extent is the
+  cmovbe MONOTONIC MAX of (off+size) (0x18002f41f); the exit gate
+  (LAB_18002f5e9) zeroes the extent when it exceeds 100 × 200,000,000
+  (the engine singleton +0x70 default — FUN_180001350, set once at
+  init :9049). The streaming return-2 feed-me-more / return-1 done
+  protocol is the registered model divergence (the synchronous port
+  walks the device directly).
+- **class 2 {AC1018, AC1024, AC1027, AC1032}** (R2004/R2010/R2013/
+  R2018) — the compressed system-section map (FUN_18002f630: the
+  rand()-LCG stream de-obfuscation, validation constants
+  0x6c/4/0x20/0x80/0x40, extent = the map field + 0x6c): NOT decoded
+  this session — the RECORDED FOLLOW-UP per this finding's own open
+  question 2 ("DWG's R2004+ compressed section map: likely its own
+  follow-up even after the R13-R2000 map lands"). The R2004+ era keeps
+  the 64 MiB stand-in in `validate_dwg`'s era split.
+- **class 3 {AC1021}** (R2007) — the 984-byte (0x3d8) section map
+  accumulated at +0x128 then parsed by FUN_18002fc50: the same
+  recorded follow-up; the stand-in stands.
+
+The landing: `validate_dwg` keeps the M-041-era version gate + the
+R13-R2000 sentinel, splits the eras, and replaces the blind 64 MiB
+stand-in with the class-1 walk (the count read, the id-sequence gate
+against the full 32-bit counter, the monotonic max, the sanity gate at
+200,000,000 × 100, torn/unreadable records refused). The DWG registry
+row re-pinned to the og's registered caps (the CDWGRawInfo factory
+FUN_18002ff20: min 0x15 = 21, max 0/unbounded — the probe clamp
+carries the sanity's own derivation; the former {64, 64 MiB} was the
+S-007 stand-in era's superset, never the og's row — the same class of
+correction N-093 applied to PSP/SIT/GZ). RED→GREEN first-hand via the
+stash dance: `DwgSectionLocatorWalkSetsExtent` (a 72 MiB max-end walk,
+RED at exactly 64 MiB), `DwgWalkRefusesBrokenRecordIds` (RED: the
+broken-id file carved at the stand-in tree), and
+`DwgRowCarriesTheOgsRegisteredFloor` (RED: the 21-byte extent was
+rejected at the old min 64) all RED at the pre-fix tree, GREEN with
+the walk; `DwgR2004EraKeepsTheBoundedStandIn` the era-split guard
+(passes at both trees by design — the R2004+ behavior is unchanged).
+The matrix row: `carve · DWG size walk` → MATCH (member 3 of 11
+landed, the era split registered). Remaining members after this
+landing: WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT (the CRW addendum's
+order, minus the landed X3F/CRW/DWG).

@@ -2695,6 +2695,139 @@ TEST(Carve, CrwWalkCapIsTheOgsOwnConstant) {
         << "the og walker's own 50 MiB cap constant - the walked bound";
 }
 
+/* ---- M-107/S86: the DWG section-locator walk (member 3 of 11) ---- */
+
+/* plant an R13-R2000-family DWG header: the 6-byte version + the
+ * 0D 0A 0D 0A 00 sentinel at +6 (the core's landed gate). */
+void plant_dwg_header(std::vector<u8>& img, size_t at, const char* ver = "15") {
+    std::memcpy(img.data() + at, "AC10", 4);
+    img[at + 4] = u8(ver[0]);
+    img[at + 5] = u8(ver[1]);
+    std::memcpy(img.data() + at + 6, "\x0D\x0A\x0D\x0A\x00", 5);
+}
+
+/* plant the og's section-locator record array: the u32 count at +0x15
+ * and `n` 9-byte records {u8 id, u32 off@+1, u32 size@+5} at +0x19 -
+ * the walk's exact read sites (FUN_18002f320, raw-asm
+ * 0x18002f3b8-0x18002f441). `ids` overrides the record ids (for the
+ * broken-sequence fixture). */
+void plant_dwg_records(std::vector<u8>& img, size_t at, u32 n, const u32 off_in[3],
+                       const u32 size_in[3], const u8 ids[3] = nullptr) {
+    put32v(img, at + 0x15, n);
+    for (u32 i = 0; i < n && i < 3; ++i) {
+        const size_t rp = at + 0x19 + size_t(i) * 9;
+        img[rp] = ids ? ids[i] : u8(i);
+        put32v(img, rp + 1, off_in[i]);
+        put32v(img, rp + 5, size_in[i]);
+    }
+}
+
+TEST(Carve, DwgSectionLocatorWalkSetsExtent) {
+    /* the og's class-1 walk (FUN_18002f320's record loop): the extent is
+     * the MONOTONIC MAX of (offset + size) over the section-locator
+     * records - not the blind 64 MiB stand-in. Three records whose max
+     * end is 72 MiB: RED at the stand-in tree (carves exactly 64 MiB),
+     * GREEN with the walk (carves 72 MiB). */
+    std::vector<u8> img(80ull << 20, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "15");
+    const u32 offs[3] = {16u << 20, 8u << 20, 0};
+    const u32 sizes[3] = {0, 1u << 20, 72u << 20};
+    plant_dwg_records(img, at, 3, offs, sizes);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the R2000 DWG must carve through the walk";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(72u << 20))
+        << "extent = max(off+size) over the records (the cmovbe max)";
+}
+
+TEST(Carve, DwgWalkRefusesBrokenRecordIds) {
+    /* the og's id-sequence gate (cmp %ecx,%eax at 0x18002f40a): a record
+     * whose id != its running index zeroes the extent and drops the hit.
+     * RED at the stand-in tree (the broken file carved 64 MiB); GREEN
+     * here: no carve at all. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "14");
+    const u32 offs[3] = {4096, 8192, 12288};
+    const u32 sizes[3] = {4096, 4096, 4096};
+    const u8 bad_ids[3] = {0, 1, 7}; /* the third record claims id 7, not 2 */
+    plant_dwg_records(img, at, 3, offs, sizes, bad_ids);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ASSERT_TRUE(!(c->props() && c->props()->extents.front().offset == at))
+            << "a broken id sequence must refuse (the og's extent-zero)";
+}
+
+TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
+    /* the og's registered row floor (CDWGRawInfo's factory): min 0x15
+     * (21). A one-record walk ending at exactly 21 bytes emits at 21 -
+     * RED at the stand-in row (min 64 rejected the 21-byte extent at
+     * the emit gate); GREEN with the re-pinned row. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "12"); /* R13 - a class-1 member */
+    const u32 offs[3] = {5, 0, 0};
+    const u32 sizes[3] = {16, 0, 0};
+    plant_dwg_records(img, at, 1, offs, sizes);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the 21-byte extent must clear the og's own floor";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(21)) << "off 5 + size 16";
+}
+
+TEST(Carve, DwgR2004EraKeepsTheBoundedStandIn) {
+    /* the era split (M-107 open question 2): AC1018 (R2004, class 2 -
+     * the compressed system-section map) keeps the honest bounded
+     * stand-in until the compressed-map follow-up lands. A guard test:
+     * the R2004+ behavior is unchanged by the class-1 landing. */
+    std::vector<u8> img(72ull << 20, 0);
+    const size_t at = 512;
+    plant_dwg_header(img, at, "18");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* dwg = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            dwg = c;
+    ASSERT_NE(dwg, nullptr) << "the R2004 header must still carve";
+    EXPECT_EQ(dwg->props()->logical_size, size_t(64u << 20))
+        << "the R2004+ stand-in: 64 MiB, not the walk";
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */

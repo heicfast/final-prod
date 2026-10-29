@@ -1,3 +1,69 @@
+## Session-86 S86 lane — opens (the M-107 member wave); the DWG member lands (member 3 of 11) (2026-10-29/30)
+
+Opened at core `32441353` (the S84/S85-window head: the image `--create`
+flag landing), corpus `be0cfe9` (read-only guarantee held). The prompt
+saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`). Board at
+open (filesystem truth): 8 MAJOR active (M-075 M-078 M-086 M-087 M-089
+M-101 M-105 M-107) · 2 MINOR (N-107 N-127) · 0 INFO / 200 FIXED
+(filesystem census) / 4 tracked-open. Of the MAJORs, M-086/M-087/M-089 and
+the MINORs are driver-repo-resident per OQ-S10-3 (outside the two-repo
+grant — rda-driver untouched; pushed forward per the standing
+disposition). Baseline suite green first-hand at the open:
+**1661/1661 (543.7 s)** on this 2-core lane VM (the big-device carve
+tests dominate; CI runners are faster). Toolchain pinned to the CI
+versions (clang-format 18.1.8, cmake 4.4.4).
+
+**The DWG member of M-107 landed (the pattern's namesake, member 3 of
+11 after X3F/M-156 and CRW/S83):** the og's DWG walk decoded first-hand
+from FUN_18002f320 (the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
+36303-36461) + the raw asm 0x18002f3a7-0x18002f480 (objdump over
+og-codebase/RAWSearchDLL.dll). The decode: a THREE-GENERATION state
+machine keyed by the 6-byte version — class 1 {AC1012/13/14/15}
+(R13-R2000) = the section-locator walk (u32 record count at file+0x15 —
+the birth cursor 0x15 IS the row floor the factory FUN_18002ff20 wrote
+into the walk-state slot; 9-byte records {u8 id, u32 off@+1, u32
+size@+5} at +0x19; the id-sequence gate against the FULL 32-bit counter
+at 0x18002f40a — a mismatch is the extent-zero refusal at 0x18002f46b,
+and the gate self-limits the walk at 256 records; the extent is the
+cmovbe monotonic max of off+size at 0x18002f41f; the exit sanity
+extent ≤ 100 × 200,000,000 at LAB_18002f5e9); class 2
+{AC1018/24/27/32} (the rand()-stream compressed system-section map,
+FUN_18002f630) and class 3 {AC1021} (the 984-byte map at +0x128,
+FUN_18002fc50) = the honestly-recorded follow-up per the finding's own
+open question 2 — the R2004+ era keeps the 64 MiB stand-in in the
+landed era split.
+
+The landing (one commit, this SHA): `validate_dwg` keeps the M-041-era
+version gate + the R13-R2000 sentinel, splits the eras, and walks class
+1 (the count read, the full-32-bit-counter id gate, the monotonic max,
+the sanity at 200,000,000 × 100, torn/unreadable records refused, the
+row clamp + device end). The DWG registry row re-pinned to the og's
+registered caps (min 0x15 = 21, max 0/unbounded — the sanity's own
+derivation carries the probe clamp; the former {64, 64 MiB} was the
+S-007 superset — the N-093 correction class). RED→GREEN first-hand via
+the stash dance (git stash push of the two src files, rebuild, run,
+restore): `DwgSectionLocatorWalkSetsExtent` (72 MiB max-end, RED at
+exactly 64 MiB), `DwgWalkRefusesBrokenRecordIds` (RED: the broken-id
+file carved), `DwgRowCarriesTheOgsRegisteredFloor` (RED: the 21-byte
+extent rejected at the old min 64) — all three RED at the pre-fix tree,
+GREEN with the walk (80/72-MiB devices; 54.2 s/48.7 s on this VM, the
+CRW-cap-test class);
+`DwgR2004EraKeepsTheBoundedStandIn` the era-split guard (green at both
+trees by design). Corpus citations: FUN_18002f320 / FUN_18002ff20 /
+FUN_18002f630 / FUN_18002fc50 / FUN_18002fe30 + the raw-asm sites
+above; the version-string table decoded from the stack-string constants
+(0x3531/0x3431/0x3331/0x3231 = 15/14/13/12; 0x3831/0x3432/0x3732/
+0x3233 = 18/24/27/32; 0x3132 = 21 — the LE-u16 flip the audit's own
+S11-R addendum class caught once before). Audit trail: the M-107
+finding's Session-86 addendum, the matrix row
+`carve · DWG size walk` → MATCH (member 3, the era split registered),
+`modules/carve.md`'s Session-86 addendum. No safety hardening touched.
+
+Remaining M-107 members after this landing (the CRW addendum's order):
+WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
+
+---
+
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.

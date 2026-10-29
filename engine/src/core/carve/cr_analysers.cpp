@@ -4552,12 +4552,57 @@ CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap) {
                               "m2ts-packet-walk-192+null");
 }
 
+/* M-107 (the DWG member, the pattern's namesake, member 3 of 11 after
+ * X3F and CRW): the og's DWG size walk, decoded first-hand from
+ * FUN_18002f320 (the CDWGRawInfo feed, ghidra-searchdll
+ * RAWSearchDLL_decompiled.c:36303-36461) + the raw asm
+ * 0x18002f3a7-0x18002f480 (objdump over og-codebase/RAWSearchDLL.dll).
+ * The og is a three-generation state machine keyed by the 6-byte
+ * version string:
+ *   - class 1 = {AC1012, AC1013, AC1014, AC1015} (the R13-R2000
+ *     family): the SECTION-LOCATOR walk. Birth state
+ *     (CDWGRawInfo's factory FUN_18002ff20): the row-min slot
+ *     +0x110 doubles as the walk cursor and starts at the og's
+ *     registered row floor 0x15 (21), the record counter +0x114 is
+ *     0 (the high dword of the same qword write), +0x118 (the row
+ *     max, re-purposed mid-walk) 0. First feed: read u32 at
+ *     file+0x15 -> +0x118 (the section-locator RECORD COUNT); the
+ *     cursor advances 21->25 (0x18002f3b8-0x18002f3d2). The record
+ *     loop (0x18002f400-0x18002f441): each 9-byte record
+ *     {u8 id@+0, u32 offset@+1, u32 size@+5} must carry
+ *     id == the running counter (0,1,2,...) - a mismatch zeroes the
+ *     extent (movq $0,0x10 at 0x18002f46b) and ends the walk (the
+ *     hit is dropped downstream); otherwise the extent is the
+ *     MONOTONIC MAX of (offset+size) over the walked records
+ *     (cmovbe 0x18002f41f), the cursor advances +9, the counter
+ *     increments, and the loop ends at counter == count. The exit
+ *     gate (LAB_18002f5e9, :36454): extent > 100 x 200,000,000 (the
+ *     engine singleton +0x70's default, FUN_180001350; the sanity
+ *     guard) -> extent 0. Streaming return 2 = feed-me-more, 1 =
+ *     done (the registered model divergence - the synchronous port
+ *     walks the device directly).
+ *   - class 2 = {AC1018, AC1024, AC1027, AC1032} (R2004/R2010/
+ *     R2013/R2018): the compressed system-section map
+ *     (FUN_18002f630 - the rand()-stream de-obfuscation; validation
+ *     0x6c/4/0x20/0x80/0x40; extent = the map field + 0x6c) - the
+ *     RECORDED FOLLOW-UP (the finding's open question 2 sanctions
+ *     the era split; these versions keep the 64 MiB stand-in).
+ *   - class 3 = {AC1021} (R2007): the 984-byte (0x3d8) section map
+ *     accumulated at +0x128 then parsed by FUN_18002fc50 - the same
+ *     recorded follow-up (the 64 MiB stand-in stands).
+ * The og's registered row (CDWGRawInfo factory :36812-36820):
+ * min 0x15 (21), max 0 (unbounded - the walk's only bound is the
+ * sanity gate). The core row re-pins to the og's floor 21 and to
+ * the sanity's own derivation (200,000,000 x 100) as the probe
+ * clamp. NOTE: the og's class-1 list includes AC1013 - a version
+ * outside the core's landed version gate (M-041 territory; the
+ * walk applies to the accepted class-1 members {"12","14","15"}
+ * and would cover "13" identically if the gate ever admits it). */
 CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     /* AutoCAD DWG: "AC10xx" version gate over the known release set
-     * (r13..R2018), then the bounded extent (the finding's sanctioned
-     * heuristic: the R13-R2000 section-locator map is version-dependent
-     * and the R2004+ map is compressed - a full section walk is a
-     * follow-up; the version gate + bounded extent is the honest floor). */
+     * (r13..R2018); the class-1 members (R13-R2000) carry the decoded
+     * section-locator walk; the R2004+ era keeps the honest bounded
+     * stand-in (the compressed-map follow-up, M-107 open question 2). */
     CarveResult r;
     u8 v[6];
     if (!rd(s, hit, v, 6))
@@ -4577,16 +4622,70 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         sent[3] == 0x0A && sent[4] == 0x00) {
         known = true; /* strengthens the classification */
     }
+    /* the era split (the og's class table): the class-1 members
+     * {AC1012, AC1014, AC1015} (R13/R14/R2000) carry the decoded
+     * section-locator walk; every later era (R2004+ class 2, the
+     * R2007 class 3) keeps the honest bounded stand-in - the
+     * compressed-map follow-up is recorded in the M-107 comment
+     * block above and in the finding's open question 2. */
+    const bool class1 = v[4] == '1' && (v[5] == '2' || v[5] == '4' || v[5] == '5');
     const u64 limit = probe_limit(s, hit, cap);
-    u64 end = hit + (64ull << 20); /* the finding's 64 MiB cap */
-    if (end > limit)
-        end = limit;
-    if (end - hit < 512)
+    if (!class1) {
+        u64 end = hit + (64ull << 20); /* the R2004+ stand-in (the honest floor) */
+        if (end > limit)
+            end = limit;
+        if (end - hit < 512)
+            return r;
+        r.ok = true;
+        r.end = end;
+        r.confidence = 620; /* bounded-extent honesty: raw-sign class */
+        r.note = "dwg-version-gate,r2004-bounded-standin";
         return r;
+    }
+    /* the class-1 walk (the og's FUN_18002f320 record loop,
+     * 0x18002f400-0x18002f441, synchronous port):
+     * - the record count: u32 at file+0x15 (the og's first-feed read,
+     *   cursor 21 -> 25);
+     * - the records: 9 bytes each at file+0x19, {u8 id, u32 off@+1,
+     *   u32 size@+5}; id must equal the running counter (a mismatch is
+     *   the og's extent-zero refusal - the hit is dropped);
+     * - the extent: the monotonic max of (off + size) over the walked
+     *   records;
+     * - the sanity gate: extent > 100 x 200,000,000 (the og's engine
+     *   default, FUN_180001350's singleton +0x70) -> extent 0. */
+    const u64 sanity = 200000000ull * 100;
+    u8 cw[4];
+    if (!rd(s, hit + 0x15, cw, sizeof(cw)))
+        return r; /* the count field is unreadable: the walk never starts */
+    const u32 count = u32_from_bytes_le(cw);
+    u64 extent = 0;
+    u64 cursor = 0x19; /* the og's post-count cursor (25) */
+    u8 rec[9];
+    for (u32 i = 0; i < count; ++i) {
+        if (!rd(s, hit + cursor, rec, sizeof(rec)))
+            return r; /* torn: the og's feed-me-more never completes */
+        /* the id-sequence gate: the og compares the byte against the
+         * FULL 32-bit counter (cmp %ecx,%eax at 0x18002f40a) - the walk
+         * self-limits at 256 records (no byte can match counter >= 256),
+         * and a mismatch is the og's extent-zero refusal (the hit is
+         * dropped downstream). */
+        if (u32(rec[0]) != i)
+            return r;
+        const u64 off = u32_from_bytes_le(rec + 1);
+        const u64 sz = u32_from_bytes_le(rec + 5);
+        const u64 end_at = off + sz;
+        if (end_at > extent)
+            extent = end_at; /* the cmovbe max */
+        cursor += 9;
+    }
+    if (extent > sanity)
+        return r; /* the LAB_18002f5e9 exit gate: extent 0 */
+    if (extent == 0)
+        return r; /* degenerate records: the og's extent stays 0 (dropped) */
     r.ok = true;
-    r.end = end;
-    r.confidence = 620; /* bounded-extent honesty: raw-sign class */
-    r.note = "dwg-version-gate,bounded-extent";
+    r.end = std::min(hit + extent, limit); /* the row clamp + device end */
+    r.confidence = 620;
+    r.note = "dwg-version-gate,r13-r2000-section-locator-walk";
     return r;
 }
 
