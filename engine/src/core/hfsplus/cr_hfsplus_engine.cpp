@@ -571,10 +571,23 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
     const u32 total_blocks = be32(vh + VH_TOTAL_BLOCKS);
     if (total_blocks == 0)
         return false;
-    /* fork block-count clamps (decompile-verified gate) */
-    const ForkData alloc = parse_fork(vh + VH_ALLOCATION_FORK);
-    const ForkData ext = parse_fork(vh + VH_EXTENTS_FORK);
-    if (alloc.total_blocks > total_blocks || ext.total_blocks > total_blocks)
+    /* M-142 (diff-to-fix): the og's gate conjunction is freeBlocks <=
+     * totalBlocks && journalInfoBlock <= totalBlocks (FUN_18000c6e0,
+     * HFSPlusSearchDLL :10005-10006, re-read first-hand: local_1e8 <=
+     * uStack_1ec and uStack_20c <= uStack_1ec) - freeBlocks (+0x30) and
+     * journalInfoBlock (+0x0C) are the only u32s the validator
+     * byte-swaps besides blockSize (the swap band :9978-9998). The fork
+     * fields at +0x70/+0xC0 are NEVER gated: the next stage
+     * FUN_18000cf90 is the fork byte-swapper (the 16-byte fork header +
+     * FUN_18000cd50 on the extents), driven by FUN_18000d030 over all
+     * five forks - no compares anywhere in that family. The old fork
+     * clamps here were a doc-borne misreading (the corpus deep-dive and
+     * AUDIT-LINUX-FS row corrected in the same push; CORPUS-ERRATA row
+     * records the artifact's error). total_blocks==0 stays refused
+     * (geometric hardening, the blockSize-0 floor's N-005 class). */
+    const u32 free_blocks = be32(vh + VH_FREE_BLOCKS);
+    const u32 journal_info_block = be32(vh + VH_JOURNAL_INFO);
+    if (free_blocks > total_blocks || journal_info_block > total_blocks)
         return false;
 
     out.signature = sig;

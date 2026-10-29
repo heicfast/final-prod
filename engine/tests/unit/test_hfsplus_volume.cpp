@@ -234,9 +234,81 @@ TEST(HfsPlus, VolumeHeaderValidation) {
     EXPECT_FALSE(validate_volume_header(vh, h));
     be32(vh + 0x28, 4096);
 
-    /* fork block-count clamp: allocation fork > total blocks */
+    /* M-142: the og never gates the fork fields at the VH gate
+     * (FUN_18000c6e0 swaps freeBlocks/journalInfoBlock, never the forks;
+     * FUN_18000cf90 - the next stage - is the fork byte-swapper, no
+     * compares). A torn allocation fork is ACCEPTED. */
     write_fork(vh + 0x70, 999 * BS, 0, 200);
-    EXPECT_FALSE(validate_volume_header(vh, h));
+    EXPECT_TRUE(validate_volume_header(vh, h));
+    write_fork(vh + 0x70, 0, 0, 0);
+}
+
+TEST(HfsPlus, VhFreeBlocksAboveTotalRejected) {
+    /* M-142 fixture A (the FP direction): the og rejects freeBlocks >
+     * totalBlocks (FUN_18000c6e0 :10005-10006, local_1e8 <= uStack_1ec)
+     * even with valid forks/sig/version/blockSize - the old core accepted
+     * this header because its fork clamps passed. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 0xFFFFFFFF); /* freeBlocks > totalBlocks */
+    VolumeHeader h;
+    EXPECT_FALSE(validate_volume_header(vh, h))
+        << "freeBlocks above totalBlocks is the og's rejection (M-142 A)";
+}
+
+TEST(HfsPlus, VhJournalInfoBlockAboveTotalRejected) {
+    /* M-142: journalInfoBlock > totalBlocks is the og's second clamp
+     * (uStack_20c <= uStack_1ec) - the only u32s it swaps besides
+     * blockSize. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x0C, 0x10001); /* journalInfoBlock > totalBlocks */
+    VolumeHeader h;
+    EXPECT_FALSE(validate_volume_header(vh, h))
+        << "journalInfoBlock above totalBlocks is the og's rejection";
+}
+
+TEST(HfsPlus, VhTornAllocForkStillValidates) {
+    /* M-142 fixture B (the FN direction): allocationFile.total_blocks
+     * torn to 0xFFFFFFFF with everything else valid - the og scans this
+     * volume (forks are swapped by FUN_18000d030's fork walker but never
+     * gated); the old core refused the whole volume. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 8); /* freeBlocks sane */
+    write_fork(vh + 0x70, 999 * BS, 0, 0xFFFFFFFF); /* torn alloc fork */
+    write_fork(vh + 0xC0, 0, 0, 0x7FFFFFFF);        /* torn extents fork */
+    VolumeHeader h;
+    EXPECT_TRUE(validate_volume_header(vh, h))
+        << "torn fork block counts never gate the VH (M-142 B)";
+}
+
+TEST(HfsPlus, VhFreeBlocksEqualTotalAccepted) {
+    /* boundary: freeBlocks == totalBlocks (a completely full volume) is
+     * the og's <= edge - accepted. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x4858); /* HX */
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 0x10000); /* == totalBlocks */
+    be32(vh + 0x0C, 0x10000); /* journalInfoBlock == totalBlocks */
+    VolumeHeader h;
+    EXPECT_TRUE(validate_volume_header(vh, h))
+        << "both ==-edges accepted (the <= forms)";
 }
 
 TEST(HfsPlus, EndToEndWalk) {

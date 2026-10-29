@@ -10,8 +10,10 @@ Core (audited commit `67193b6`): `src/core/hfsplus/cr_hfsplus_engine.cpp` (680 L
 ## Behavioral
 
 - **B1 detection** — `M` on the verified gate: signature "H+"(0x482B)/"HX"(0x4858),
-  `(blockSize & 0x1FF)==0`, `version < 0x11`, alloc/extents fork clamps ≤ totalBlocks
-  (decompile :10005–10010 agent-B verified); **N-005** (extra 512..65536 bounds the og
+  `(blockSize & 0x1FF)==0`, `version < 0x11`, **freeBlocks/journalInfoBlock ≤
+  totalBlocks (M-142 FIXED — the og's actual conjunction, FUN_18000c6e0
+  :10005-10006; the fork clamps dropped; FUN_18000cf90 proven the fork
+  byte-swapper, never a gate)**; **N-005** (extra 512..65536 bounds the og
   gate does not have at that site).
 - **B2 recovery correctness** — `M` catalog leaf walk with cnid parent chains,
   sign-extended record kinds, extents-overflow follow for >8-extent forks (og
@@ -318,10 +320,10 @@ Audited `869da779`-lineage (lane tip `d4776278`), corpus `be0cfe9`. Full decode:
 
 ## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
 
-New active findings on this module: **M-142** (the VH validator gates the wrong
-fields: the og gates freeBlocks/journalInfoBlock ≤ totalBlocks — the frame-offset
-derivation is the evidence — the core gates the fork clamps; both corpus docs that
-carry the misread are filed as errata rows). Verified-MATCH this session: the sig/
+New active findings on this module: **M-142** (FIXED this session — the S64 lane:
+the VH validator's fork clamps replaced with the og's freeBlocks/journalInfoBlock
+gates, FUN_18000cf90 proven first-hand the fork byte-swapper so the clamps belong
+nowhere; both corpus docs' misreads filed as errata rows). Verified-MATCH this session: the sig/
 version/blockSize gates, the +0x0C/+0x28/+0x2C/+0x30 swapped-field map, the B-tree
 walk guards (core strictly guarded — the og's recursion is its own risk), and the
-fork clamps' status as a core-invented gate (not og behavior).
+fork clamps' status as a core-invented gate (not og behavior — now removed).

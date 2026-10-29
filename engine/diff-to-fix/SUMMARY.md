@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SUMMARY.md — executive summary (the S64 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-64 S64 lane delta (2026-10-29 — the user's MINOR-first fix mandate ["priority to minor first", 20+ fixes]; opened at core `24e480c4` (the S60-B/S63 hot-window merge head), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
@@ -26,6 +27,34 @@ fixable in core, counted active-open. Next free IDs: S-068+, M-148+,
 N-210+, I-048+, A-016+, D-148+.
 
 
+=======
+# SUMMARY.md — executive summary (the S65 diff-to-fix execution lane on top; the prior lanes below, newest-first)
+
+## Session-65 S65 fix-lane delta (2026-10-29 — the user's fix mandate ["priority to informational first", 20+ fixes]; opened at core `24e480c4`, corpus `be0cfe9` throughout; baseline suite 1485/1485 green before the first change)
+
+**The informational-first pass verified:** all 21 I- findings ride findings/FIXED/
+with their ACKNOWLEDGED/INVALID/FIXED-ALREADY resolutions current — the INFO tier
+is fully closed; no new INFO findings exist to acknowledge. The lane then works
+the MINOR/MAJOR ladders (the SEVERE/ACUTE tiers are empty).
+
+- **M-142 FIXED (MAJOR, hfsplus)** — the VH validator's fork clamps replaced with
+  the og's actual gates (`free_blocks <= total_blocks && journal_info_block <=
+  total_blocks`, FUN_18000c6e0 :10005-10006 re-read first-hand with the
+  frame-offset derivation and the CONCAT13/CONCAT12 swap band). The finding's open
+  question resolved first-hand: FUN_18000cf90 (:10335) is the 16-byte fork
+  byte-swapper (driven by FUN_18000d030 over all five forks) — no fork compares
+  anywhere in the og's VH path, so the clamps belong at no stage. N-005 blockSize
+  bounds and total_blocks==0 refusal preserved. AUDIT-LINUX-FS §2.1 row 1
+  corrected; CORPUS-ERRATA Session-64 row records the corpus deep-dive's
+  misreading. RED 4/5 → GREEN 29/29 (HfsPlus family).
+
+**Board after this landing:** 0 ACUTE · 0 SEVERE · 19 MAJOR · 13 MINOR · 0 INFO
+active / 152 FIXED / 4 tracked-open. (Lane name S65 — the racing window took
+the S64 seat with its own worklog open; both lanes ride the same mandate.) (M-086/M-087/M-089/N-107/N-127 remain
+driver-repo-resident per OQ-S10-3's two-repo grant boundary.)
+
+# SUMMARY.md — executive summary (the S62 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+>>>>>>> 60b82181 (fix(hfsplus): M-142 — the VH validator's fork clamps replaced with the og's freeBlocks/journalInfoBlock gates (FUN_18000c6e0 :10005-10006 re-read first-hand: the frame-offset derivation local_1e8=+0x30 freeBlocks / uStack_20c=+0x0C journalInfoBlock + the CONCAT13/CONCAT12 swap band :9978-9998 prove the og swaps and gates exactly freeBlocks/journalInfoBlock besides blockSize; the fork fields at +0x70/+0xC0 are never compared — FUN_18000cf90 :10335 is the fork byte-swapper driven by FUN_18000d030, the finding's open question resolved: the clamps belong at no stage). og-exact (clamps dropped); N-005 blockSize bounds + total_blocks==0 refusal preserved. Tests RED 4/5 pre-fix: VhFreeBlocksAboveTotalRejected / VhTornAllocForkStillValidates / VhJournalInfoBlockAboveTotalRejected / VolumeHeaderValidation-repin -> GREEN 29/29 post-fix. Docs: AUDIT-LINUX-FS 2.1 row 1 corrected; CORPUS-ERRATA Session-64 row records the corpus deep-dive's misreading (corpus read-only). Trail: findings/FIXED/M-142 + Resolution + ledger row + matrix MATCH + modules/hfsplus.md + SUMMARY + worklog)
 
 ## Session-62 S62 fix-lane delta (2026-10-29 — the user's MAJOR-first directive; core `98a5b139` at open, corpus `be0cfe9`; baseline suite 1460/1460)
 

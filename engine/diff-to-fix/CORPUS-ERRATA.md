@@ -573,3 +573,19 @@ remote rows stand. **One distinct row the remote set does not carry:**
    `""` consequence corrected in the same edit (dot-less files SKIP, not
    enter). The erratum note is now in the s5 file itself; the code fix
    landed as S-058.
+## Session-65 row (2026-10-29 — the S65 diff-to-fix lane [renamed from S64 at the push-rebase: the racing window took the S64 seat]; M-142's corpus-doc misreading recorded)
+
+1. **HFS+ `hfsplus-engine--deep-dive.md` §1 — the VH gate's fork clamps are a
+   misreading of FUN_18000c6e0.** The artifact's accepted-volume conjunction
+   (`:20-26`) gates `allocFileBlockCount <= totalBlocks` and
+   `extentsFileBlockCount <= totalBlocks`. First-hand re-read of the decompile
+   (HFSPlusSearchDLL_decompiled.c:9900-10020): the validator byte-swaps exactly
+   sig/version and the four u32s at VH+0x0C (journalInfoBlock), +0x28
+   (blockSize), +0x2C (totalBlocks), +0x30 (freeBlocks) — the CONCAT13/CONCAT12
+   swap band at :9978-9998 — and gates `local_1e8 <= uStack_1ec` (freeBlocks)
+   and `uStack_20c <= uStack_1ec` (journalInfoBlock). The fork fields at
+   +0x70/+0xC0 are never swapped in the validator and never compared: the
+   next stage FUN_18000cf90 is the 16-byte fork byte-swapper (+ FUN_18000cd50
+   on the extents), driven by FUN_18000d030 over all five forks — no compares
+   in that family. The core carried the same misreading until M-142 (fixed
+   this session); AUDIT-LINUX-FS.md §2.1 row 1 corrected in the same push.

@@ -58,7 +58,7 @@ Task ID: **Refactor-E** · READ-ONLY audit (no source modified, no git state cha
 
 | Parameter | Ours | og (decompile pin) | Verdict |
 |---|---|---|---|
-| VH sig 'H+'(0x482B)/'HX'(0x4858) @1024+0, version<0x11 @+2, blockSize%512==0 @+0x28, fork clamps | ✓ | HFSPlusSearchDLL:10005-10006 (`local_218==0x482b‖0x4858`, `&0x1ff==0`, `<0x11`, two fork-count ≤ totalBlocks) | MATCH |
+| VH sig 'H+'(0x482B)/'HX'(0x4858) @1024+0, version<0x11 @+2, blockSize%512==0 @+0x28, **freeBlocks≤totalBlocks @+0x30, journalInfoBlock≤totalBlocks @+0x0C** (M-142: the fork clamps were a doc-borne misreading — the og never gates the forks; FUN_18000cf90 is the fork byte-swapper, not a gate) | ✓ (M-142 FIXED) | HFSPlusSearchDLL:10005-10006 (`local_218==0x482b‖0x4858`, `&0x1ff==0`, `<0x11`, `local_1e8<=uStack_1ec` [freeBlocks], `uStack_20c<=uStack_1ec` [journalInfoBlock]) | MATCH |
 | VH forks: alloc@0x70, extents@0xC0, catalog@0x110 | ✓ | (hfsplusvolume.cpp flow) | MATCH |
 | Node kinds: −1 leaf, 0 index, 1 header, 2 map; **sign-extended kind byte** | ✓ (`i16(i8(node[8]))`) | FUN_180010720:13068-13078: node size ≥0x200 & %512==0; `3 < (byte)((char)kind+1U)` ⇒ kind∈{−1,0,1,2}; kind==1 header | **F-A2-17 FIXED & VERIFIED** |
 | BTHeaderRec (after 14-B node descriptor): treeDepth@0, rootNode@2, leafRecords@6, firstLeaf@0x0A, lastLeaf@0x0E, **nodeSize@0x12** | ✓ | FUN_180012160:14335-50 — node0 bootstrap reads qwords at node+0x0E/0x16/0x1E/0x26…; `sVar9 = local_88._2_2_` = qword@(node+0x1E) bytes 2-3 = **BTH+0x12 = nodeSize** | **F-A2-18 FIXED & VERIFIED** |

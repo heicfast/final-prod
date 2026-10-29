@@ -1,3 +1,32 @@
+
+## Session-65 S65 lane — opens; M-142 lands (2026-10-29) (lane renamed S64->S65 at the rebase: the racing window took the S64 seat)
+
+- **Baseline:** core `24e480c4` at open (clean tree), corpus `be0cfe9`;
+  linux-release build clean; suite **1485/1485** (90s). Prompt saved
+  token-redacted at `worklog/session-diff-fix-s65-prompt.md`. Board at open:
+  0 SEVERE · 20 MAJOR · 13 MINOR · 0 INFO active / 151 FIXED / 4 tracked-open.
+  The informational-first directive verified: all 21 I- findings properly closed
+  in findings/FIXED/ (ACKNOWLEDGED/INVALID/FIXED-ALREADY with evidence).
+- **M-142 FIXED (MAJOR, hfsplus)** — the VH validator's fork clamps (a
+  doc-borne misreading: the corpus deep-dive §1 + AUDIT-LINUX-FS §2.1 row 1
+  both assert fork gates the decompile does not have) replaced with the og's
+  gates: freeBlocks ≤ totalBlocks && journalInfoBlock ≤ totalBlocks
+  (FUN_18000c6e0, HFSPlusSearchDLL_decompiled.c:10005-10006, re-read
+  first-hand; the frame-offset mapping local_1e8=+0x30/uStack_20c=+0x0C and
+  the swap band :9978-9998 confirm the field set). The finding's OPEN
+  QUESTION resolved first-hand: FUN_18000cf90 (:10335) is the fork
+  byte-swapper (16-byte fork header + FUN_18000cd50 on extents), driven by
+  FUN_18000d030 over the five forks at +0x70/+0xC0/+0x110/+0x160/+0x1B0 —
+  NO fork compares anywhere; the clamps belong at no stage. og-exact fix
+  (fork clamps dropped, no superset registered — the finding's own
+  recommendation). Preserved: N-005 blockSize bounds, total_blocks==0
+  geometric refusal. Tests RED→GREEN: VhFreeBlocksAboveTotalRejected (A),
+  VhTornAllocForkStillValidates (B), VhJournalInfoBlockAboveTotalRejected,
+  VhFreeBlocksEqualTotalAccepted, the re-pinned VolumeHeaderValidation
+  (fork-clamp leg inverted); HfsPlus family 29/29. Trail: finding +
+  Resolution moved to findings/FIXED/, ledger row, matrix MATCH,
+  modules/hfsplus.md, CORPUS-ERRATA Session-64 row, AUDIT-LINUX-FS row,
+  this entry.
 ## Closing-fix lane — S-040 lands (the SEVERE zero; 2026-10-29)
 
 **S-040 FIXED (SEVERE, imaging/ABI/CLI)** — the disk-image CREATE
@@ -9706,7 +9735,7 @@ re-synced against their landings before each fix.
 **Session-64 S64 lane — the diff-to-fix execution lane (2026-10-29).**
 
 - **Lane open record:** prompt saved (token redacted) at
-  `worklog/session-diff-fix-s64-prompt.md`. The user's lane directive:
+  `worklog/session-diff-fix-s65-prompt.md`. The user's lane directive:
   MINOR-first, one finding one push, aim 20+ fixes. Opening HEAD
   `24e480c4` (the S60-B/S63 hot-window merge head), corpus `be0cfe9`.
   Baseline suite building (linux-release, gcc Werror); board re-counted
