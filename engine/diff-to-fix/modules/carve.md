@@ -1081,3 +1081,45 @@ no-stuck-or-freeze walk-bound matrix (every core walker carries explicit
 caps; the og's own Btrfs B-tree recursion has no visited set — the core's
 hardening is the D-14 family). Evidence:
 `../evidence/s55-lane-sheets/S55-D2-scanmath.md`.
+
+## S68 addendum (2026-10-29 — the eighth continuation lane: the registry-initializer + tier-1 decode)
+
+**New on this module:**
+
+- **N-212 (MINOR, active)** — the ASF validator's acceptance band (count
+  gate / header-size floor the og never reads — the tier-1 at RVA 0x37030
+  is raw-asm-verified as the 16-byte GUID compare ALONE) and the extent
+  source (the og's FileProperties-declared-size-at-+0x28, maxed with the
+  last top-level position and clamped by global×500, vs the core's
+  walked-object end). Both walk phases decoded first-hand
+  (FUN_180037210 :41994-:42110, the 9-GUID family FUN_1800374c0
+  :42113-:42170).
+
+**Verified-MATCH this lane (no findings — the near-divergences disproven
+first-hand):**
+
+- **The full og registry initializer** (66 keys, the construct-then-insert
+  pairing): every u32 key maps to the correct core row — including the
+  census doc's four previously-ambiguous "—" chains, now resolved (0x1cd =
+  the CD01-compressed-SVG key → FMT_SVG_CD01; 0xd302020 = the DXF "  0\r"
+  key → FMT_DXF; 0x4e444221 = the PST !BDN key → FMT_PST; 0x694c5153 =
+  the FCPEvt/SQLite chain → FMT_SQLITE + the N-089 relabel).
+- **The 15 long-magic rows** (PNG 8B / PDF 5B / ASF 16B / RAR4 7B /
+  SQLITE 12+4B / 7Z 6B / TAR 5B@+257 / MOBI 8B@+0x3C / LZH family / VCF
+  11B): every og tier-1 completes exactly the core's longer magic — the
+  ASF tier-1 compares all 16 GUID bytes (raw asm), the FCPEvt tier-1 is
+  `memcmp("SQLite format 3", 15)` with the core's validator tail re-gating
+  `"t 3\0"` at +12..+15 (16 bytes total, identical acceptance).
+- **raw_signs.json content**: all 199 header + 62 tail signs byte-exact
+  (offsets, bytes, confidences ×1000, format indices); the min/max KiB →
+  byte ×1024 resolved as the og's own scan-time `<<10` (FUN_1800205b0) —
+  the core's generated table is exact; the 0x7d000 KiB absent-max default
+  documented in cr_rawsigns.h matches.
+- **RawConfig [Filter]** (34 toggles, STL/VPJ shipped OFF): the M-024
+  surface + the row-level gates cover it; no core row for STL/VPJ is the
+  correct absence.
+
+Evidence: `../evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`
+(L1: the initializer decode; L2: the tier-1 audit; L3: the raw-signs
+verification). Five census-doc label corrections recorded in
+CORPUS-ERRATA (session-68 rows 10-14).

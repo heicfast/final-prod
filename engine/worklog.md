@@ -10161,3 +10161,30 @@ pre-fix and GREEN post-fix.
   Resolution moved to findings/FIXED/, ledger row, matrix MATCH,
   modules/writer.md E35/R51 → MATCH, SUMMARY board 16 MAJOR / 157 FIXED,
   this entry.
+## Session-68 S68 lane — the filings land (2026-10-29)
+
+**N-212 FILED (MINOR — the ASF acceptance band + extent source).** The lane's
+tier-1 raw-asm decode (RVA 0x37030 — Ghidra's decompile of FUN_180037030
+dropped the buffer param; the bytes carry the full 16-byte GUID compare plus
+nothing else) exposed the acceptance-band asymmetry: the core's
+`count == 0 || count > 128` gate and `obj_size < 30` floor reject
+torn-header candidates the og never gates (the count field at +0x18 is read
+NOWHERE in the og's ctor/tier-1/walker — grep-verified). The extent leg: both
+og walk phases decoded first-hand (FUN_180037210 :41994-:42110 — phase 1
+walks the header's children capturing the FileProperties +0x28 declared
+size via an AVX extract; phase 2 walks top-level objects through the 9-GUID
+family FUN_1800374c0, finalizing `max(declared, last_pos)` clamped by
+global×500 at the first non-family object). Core: walked-object end only.
+Trail: findings/MINOR/N-212 + modules/carve.md S68 addendum + CROSS-REF-MATRIX
+S68 rows + SUMMARY board (16 M / 12 N active, 157 FIXED, 4 tracked-open) +
+this entry.
+
+**The lane's zero-divergence verifications (the "what session 1 missed"
+hunt's outcome):** the registry initializer (66 keys — ALL MATCH, four
+formerly-ambiguous census chains resolved), the tier-1 acceptance gates
+(15 long-magic rows — ALL MATCH, three near-divergences disproven by raw-asm
+decode), the raw_signs content (199+62 signs byte-exact + the ×1024
+scan-time resolution), RawConfig coverage, and the u16-map layer's prior
+decode confirmation. Five census-doc corrections in CORPUS-ERRATA rows 10-14.
+One new finding (N-212) — the seam the prior sessions had genuinely not
+decoded end-to-end.

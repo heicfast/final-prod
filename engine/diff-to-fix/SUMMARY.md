@@ -9,6 +9,50 @@
 
 # SUMMARY.md — executive summary (the S73 MAJOR-first continuation fix lane on top; the prior lanes below, newest-first)
 
+
+## Session-68 S68 continuation-audit lane delta (2026-10-29 — the user's second-session continuation mandate ["now you have go look for other things which session 1 missed and continue working"]; opened at core `f3da99f1`, the racing fix lanes' M-144 landing absorbed at the rebase (`ee19145c`), corpus `be0cfe9` throughout; the lane's filings verified at `9be37b68`; read-only lane — diff-to-fix/ + worklog* only)
+
+- **N-212 filed (MINOR)** — the ASF validator's acceptance band: the
+  header object-count gate (`count == 0 || count > 128`) and the header-size
+  floor (`obj_size < 30`) reject torn-header candidates the og's analyser
+  never gates on (the tier-1 at RVA 0x37030 raw-asm-verified as the 16-byte
+  GUID compare ALONE — Ghidra's decompile dropped the buffer param; the
+  count field at +0x18 is never read anywhere in the og's ctor/tier-1/walker);
+  and the extent source (the og's FileProperties-declared-size at +0x28,
+  maxed with the last top-level position, clamped by global×500 — vs the
+  core's walked-object end). Both og walk phases decoded first-hand
+  (FUN_180037210 :41994-:42110).
+
+- **The registry-initializer decode (zero-divergence verification):** all
+  66 u32 keys of the og's static registry mapped first-hand to core rows —
+  ALL MATCH, including the census doc's four formerly-ambiguous chains
+  (0x1cd = CD01-SVG → FMT_SVG_CD01 [the M-140 family]; 0xd302020 = DXF
+  "  0\r" → FMT_DXF; 0x4e444221 = PST !BDN → FMT_PST; 0x694c5153 = the
+  FCPEvt/SQLite chain → FMT_SQLITE + N-089's relabel). The raw_signs
+  min/max ×1024 question RESOLVED as the og's own scan-time `<<10`
+  (FUN_1800205b0 :25020+) — the core's generated table and its documented
+  0x7d000 KiB absent-max default are exact. **All 199 header + 62 tail
+  signs byte-exact** vs the corpus json.
+
+- **The tier-1 acceptance-gate audit (zero-divergence verification):** the
+  15 core long-magic rows verified against the og's analyser tier-1 checks
+  (raw-asm where Ghidra mis-decompiled) — the ASF 16-byte GUID compare, the
+  FCPEvt 15-byte "SQLite format 3" memcmp (+ the core validator's t3\0
+  tail re-gate), the MOBI BOOK@60/MOBI@64 BE pair, TAR ustar@257, 7Z 6-byte,
+  the LZH -lhX family + buf[6] second gate, VCF 11B, PNG 8B, PDF 5B,
+  RAR4 7B. ISO/RAR5/M4A/ZIP_CD/MOV_NAKED confirmed as the D-60l registered
+  core-only anchors.
+
+- **Five census-doc label corrections** filed as CORPUS-ERRATA session-68
+  rows 10-14 (the corpus's own doc vs its binary: the DXF key, the WMF
+  std-header key, the PST !BDN key, the TTF-sfnt-vs-ICO/CUR conflation,
+  the FCPEvt SQLite binding).
+
+- **Board at this lane's filings:** 0 ACUTE · 0 SEVERE · **16 MAJOR ·
+  12 MINOR active** / 157 FIXED / 4 tracked-open (M-144 landed by the
+  racing S69 fix lane; N-212 this lane's addition).
+
+
 ## Session-73 S73 lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-audit lane absorbed; baseline suite 1496/1496 green on Linux before the first change; the racing S69/S70 audit lanes conceded per SA-9 with a disjoint slice taken), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
 
 - **M-144 FIXED (MAJOR, ext4)** — the 8 MiB single-shot GDT read cap at

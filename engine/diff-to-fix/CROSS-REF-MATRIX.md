@@ -1200,3 +1200,14 @@ their M-112).
 - **bench · driver-verification IOCTL codes (Q65/C22)**: **MATCH** — **N-195 FIXED**: the phantom-zero 0x6000244x pair righted to the contract's 0x6002440/0x6002448 (cr_rda.h fn 0x910/0x912); CrUi.BenchVerifyDriverIoctlCodesMatchContract RED->GREEN (the pin rides the same read_repo_file gate family as DriverWireCodesFreeOfPhantomZeroInDocs); `findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md`.
 
 - **grading · P15/P13/P65 (rawCount population + phantom resolution field)**: **MATCH** — **N-205 FIXED**: `raw_tail_zero` landed (the forced observe-only probe, pass 0 of grade_tree — the quick-scan-populate analog) + the raw_count census REGISTERED as D-146 [renumbered D-143->D-144->D-145->D-146 across the push-rebases: the racing windows' N-196/N-198/N-202 keep the lower seats per SA-9] + the M-134 phantom sentence repaired by addendum; `findings/FIXED/N-205-rawcount-population-semantics-og-validated-vs-core-carved-plus-phantom-raw-tail-zero.md`.
+
+
+## S68 session rows (2026-10-29 — the eighth continuation lane; audited `9be37b68`, corpus `be0cfe9`)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| carve · the u32 registry initializer, all 66 keys (A25/C19) | **MATCH** | the construct-then-insert decode (`RAWSearchDLL_decompiled.c:1440-:2520`, FUN_180006c80 = multimap insert); every key → the correct core row incl. the four formerly-ambiguous chains (0x1cd→FMT_SVG_CD01, 0xd302020→FMT_DXF, 0x4e444221→FMT_PST, 0x694c5153→FMT_SQLITE+N-089); evidence s68-lane-sheets/S68-L1 |
+| carve · the 15 long-magic acceptance boundaries (A1/C19) | **MATCH** | every og tier-1 completes exactly the core magic: PNG 8B / PDF 5B / ASF 16B (raw-asm) / RAR4 7B / SQLITE 15+1B (row 12B + validator tail) / 7Z 6B / TAR 5B@257 / MOBI 8B@0x3C / LZH family+buf[6] / VCF 11B; evidence S68-L1 §L2 |
+| carve · ASF acceptance band + extent source (A1/A27) | **DIVERGENCE-MINOR** | **N-212** — the count/size gates the og never reads (tier-1 raw-asm verified) + the FileProperties-declared-size extent vs the walked end |
+| carve · raw_signs.json content (C19/A27) | **MATCH** | 199 header + 62 tail signs byte-exact (offsets/bytes/conf×1000/fmt); min/max KiB→B ×1024 = the og's scan-time `<<10` (FUN_1800205b0); the 0x7d000 default documented; evidence S68-L1 §L3 |
+| carve · RawConfig [Filter] toggles (A25) | **MATCH** | 34 toggles covered by M-024 + row gates; STL/VPJ shipped-OFF correctly absent from core |
