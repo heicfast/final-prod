@@ -142,3 +142,10 @@ These constants feed the fix plan's step-3 eligibility-seam contract (the
 `CHKRepairFileSign`-equivalent gating which recovered rows carry the repair hint) and
 the rename semantics any fragment-rename surface must reproduce. No verdict change
 (extend-don't-refile; the register retires as I-035 ACKNOWLEDGED).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's S-050 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `CrUi.OutOfScopeRowsCarryTruthfulRegistrations` (the finding's own test idea executed: the SURFACE-INVENTORY row cites the REGISTERED state, CAPABILITY-MATRIX §3 carries the exclusion row with the Fixo provenance, PARITY-DELTAS D-137 exists — the systematic drift class now has its gate). Suite green at the merged tree.
+**Resolution notes:** The finding's decision-first step 1, option (b) taken: the repair line is formally REGISTERED OUT OF SCOPE in CAPABILITY-MATRIX §3 as a separate product line (not a recovery-engine capability), with the full rationale the finding's evidence set built: the Fixo source-tree provenance (the corpus's own `D:\Fixo\...` paths), the 9-binary product frame + remote-config flags, and the UI-layer handoff (a host composes repair as its own product feature over core recovery output — the engine exposes no repair verb, session record, or event). All three addenda are folded into the registration: the video engine (the corpus's deepest-decoded repair algorithm, `architecture/06-repair-chain.md` — its datarun-selection seam consuming tree::FileNode::extents is THE decoded integration point for any future implementer), the per-chunk feed + eligibility seam (registered in D-104's landing notes — the EUUserData channel serves the CHKRepairFileSign-adjacent surface truthfully), and the output-location contract + sample-file consent model (documented in D-137). The registration preserves the future implementer's decoded entry points rather than burying them. Leg 2 (the false citation) was already repaired at filing; this landing closes the formal-disposition leg the addendum tracked. The SURFACE-INVENTORY row re-truthed to cite the registration.

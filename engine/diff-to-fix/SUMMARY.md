@@ -186,7 +186,7 @@ cite) recorded in the sweep sheet for the N-180-family doc-truth batch.
 **Board at this push (filesystem truth at the pushed tree, the S52 lane's
 M-134 landing absorbed mid-push — CONVERGENT with this lane's OQ-S42-3
 probe; the same decode fed both lanes): 45 active — 5 SEVERE
-(S-040/S-050/S-059/S-060/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
+(S-040/**S-050-disposition-landed**/**S-059-fixed**/**S-060-fixed**/**S-062**) · 19 MAJOR (M-139/M-140 new; M-134
 FIXED at `290e9c16`) · 21 MINOR (N-189..N-192 new, N-186 retired) · 0 INFO
 (the tier folded per convention) / 107 FIXED / 5 tracked-open (OQ-S42-3
 resolved this lane, its remaining scope narrowed to the +0x72/+0x74

@@ -76,6 +76,40 @@
 
 ## 3. Explicit exclusions (standing)
 
+**The file-repair product line (S-050's formal disposition, registered
+2026-10-29):** the og's Fixo-provenance repair line — photo (JPEG/GIF/BMP/
+SVG/TIFF grammar walks + state machines), video (the weighted ISO-BMFF atom
+grammar, the two-scan architecture, sample-file moov substitution, per-format
+regroup for MP4/MOV/AVI/MTS/MXF — `architecture/06-repair-chain.md`, the
+corpus's deepest-decoded engine), office/PDF, HWP, X3F raw, the from-scratch
+7z next-header engine (password-aware, paired with the shipped Dict), and
+post-repair image enhancement (9 product binaries: EUImgRepair.exe /
+EUVideoRepair.dll / EUArchiveRepair.exe / EUAdobeRepair.exe / EURawImg.exe /
+EuOfficeRepairWin32.exe / EuOfficeTools.exe / EUHwpViewer.exe +
+EUHwpFilePathCheckerModule.dll; remote-config-flagged via enable_imgrepair /
+enable_docrepair) — is REGISTERED OUT OF SCOPE for the core engine as a
+SEPARATE PRODUCT LINE, not a recovery-engine capability. Rationale: (a) the
+corpus's own artifacts document it as the Fixo source tree bundled by the og
+installer (`D:\Fixo\01_Project\...` provenance), a distinct product beside
+the recovery engine; (b) its UI spine (the three row-controller families, the
+serialized FileRepairDataMgr queue, the TimeCritical thread fleet — UIUX/32)
+is a product surface, not an engine seam; (c) the core's adjacent surfaces
+are already truthful: the recovered-file repair ELIGIBILITY classification
+(the og's CHK/CHKRepairFileSign chain over EUUserData) is served by the
+user-signature channel's superset (D-104: the same EUUserData file feeds
+carve records + per-scan statistics via GetRawUserInfoMap's shape), and the
+engine-side per-candidate post-processor (M-021) plus the per-chunk feed
+decision are registered in D-104's landing notes. The UI-layer handoff: a
+host embedding the core's ABI composes repair as its own product feature
+consuming core recovery output — the engine exposes no repair verb, session
+record, or event for it (a future in-engine implementation would enter
+through cr/repair beside rawfixer with the video engine's datarun-selection
+seam — tree::FileNode::extents — as the decoded integration point; tracked
+in PARITY-DELTAS D-137 with the full amendment set). The repaired-file
+output-location contract (distinct from the recovery destination) and the
+Advanced Repair sample-file consent model are documented in D-137 for any
+future implementer.
+
 Cloud/NAS/remote recovery; BitLocker FVE-key DERIVATION from a recovery
 password or .BEK inside our stack (tracked-open OQ-S20-1: the FVE metadata
 datum grammar is not decoded in the corpus; in-STACK DECRYPTION ITSELF is

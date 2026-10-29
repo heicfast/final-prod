@@ -324,9 +324,12 @@ grammar byte-confirmed — no erratum needed).
   (`LostDir<record>` per-parent folders + the "File Path Lost" branch name;
   B5/B10/D12/A26 cells; the C2 "roles map 1:1" claim falsified for the lost
   branch).
-- **mom-capabilities/product-frame row, new cell**: **S-050** (the file-repair
-  line — 9 binaries, 8 artifacts, unimplemented AND untruthfully registered;
-  A42/Q68/I-010 cells).
+- **mom-capabilities/product-frame row, new cell**: **S-050 — FIXED (session-51 lane → the formal §3 exclusion registered:
+  CAPABILITY-MATRIX's standing-exclusions section now carries the repair
+  line with the Fixo-provenance rationale + the UI-layer handoff; D-137
+  preserves the future implementer's decoded entry points; the doc-truth
+  gate test lands; findings/FIXED/S-050)** (the file-repair
+  line — 9 binaries, 8 artifacts; A42/Q68/I-010 cells).
 - Executed MATCH recorded: the raw_signs.json regen sync (139/199/62
   byte-identical; the carve row's C19-C21 cells).
 - **The FIXED purge (L-A)**: findings/FIXED/ retired to history; all matrix

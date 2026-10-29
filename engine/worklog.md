@@ -1,3 +1,18 @@
+**Session-51 severe-first lane — S-050 landed (2026-10-29).**
+
+**S-050 FIXED (the repair-line registration, option (b) of the finding's own
+decision framework).** The file-repair line formally registered OUT OF SCOPE
+in CAPABILITY-MATRIX §3 as a separate product line (Fixo provenance, 9
+binaries, remote-config flags, the UI-layer handoff note). D-137 preserves
+the future implementer's decoded entry points — the video engine's
+datarun-selection seam (tree::FileNode::extents, the only repair engine that
+consumes the core's own scan results), the sample-file consent model, the
+output-location contract, the per-chunk feed decision. All three addenda
+folded in. The SURFACE-INVENTORY row re-truthed to cite the registration.
+The finding's own test idea executed: CrUi.OutOfScopeRowsCarryTruthfulRegistrations
+gates the OOS-citation drift class. The adjacent eligibility surface
+(CHKRepairFileSign/EUUserData) verified as the truthful D-104 channel.
+
 **Session-51 severe-first lane — S-059 landed + two hot-window franken-tests repaired (2026-10-29).**
 
 **S-059 FIXED (the sparse-hole export).** Corpus re-verified first-hand
