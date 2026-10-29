@@ -12455,3 +12455,89 @@ a loadable decoy, dead pointer); the full cr_ui_tests suite 89/89
 already included the phantom); clang-format 18.1.8 dry-run clean on all
 three touched files. Side effect: CORE-API-CURRENT.md:15's
 "91 definitions in cr_ui.cpp" claim — false at Phase 0 — is now true.
+---
+
+# Session 84 — the diff-to-fix execution lane (opened 2026-10-29)
+
+**Opened at core `27bda40e`, corpus `be0cfe9` (both first-hand).** The
+S84 lane's grant: the two-repo boundary (core modified + corpus read-only;
+the five driver-repo-resident findings stay untouchable per OQ-S10-3).
+The user's order this session: MAJOR/INFORMATIONAL first, one finding /
+one verified fix / one push, 20+ fixes, fixed findings to findings/FIXED/.
+
+**T1-T3 (the read-before-touching pass):** diff-to-fix/ read in full
+(SUMMARY, README, all 11 MAJOR + 4 MINOR + 1 INFO finding files, the 4
+tracked-open files, FIXED-LEDGER conventions, the modules index); the core
+tree surveyed (src/win, src/core, src/ui, src/app, tests/unit); the
+baseline build attempted FIRST — **main is RED at open**: `27bda40e` (the
+M-151 landing) committed unresolved merge conflict markers in
+`tests/unit/test_ntfs_volume.cpp` (two marker pairs at :5780/:5865, the
+A-016-vs-M-151 test collision), so the suite cannot build — the M-151
+commit message's "full suite 1634/1634" claim is false against its own
+tree (the M-120/N-210/M-155 class's FOURTH recurrence). Filed as N-219
+and repaired before any lane work (the red-main-repair-first precedent).
+
+**The lane's queue (the user's priority order):** N-219 (the red main)
+→ M-075 (chkdsk launch) → M-078 (BitLocker turn-off) → M-154 (autosave
+retention + pointer) → M-101 (Versions + Tags Extracted branches) →
+M-105 (DRWService: option a) → M-114 (system-restore purge plan item) →
+M-111 (browse scope decision) → M-107's members (CRW → DWG → WPG → WPD →
+PSP → SIT → APE → EPS → DXF → SWF-RECT, corpus decode each) → I-048 →
+N-178 → N-181 → the four OQs (S10-1/S10-3/S4-3/S79-1).
+
+## Session 84 — entry 1: N-219 FIXED (the red-main repair, before any lane work)
+
+**N-219 (MINOR, NEW — filed+fixed this session).** Main was RED at open:
+`27bda40e` (the M-151 landing) carries two committed conflict-marker pairs
+in `tests/unit/test_ntfs_volume.cpp` (:5780/:5865 — the A-016 test vs the
+M-151 block, sharing the walk_mft preamble), plus M-151's three re-truthed
+tests outside the markers. The union resolution keeps everything: the
+re-truthed pre-region, A-016's transparency pin in full, M-151's four-test
+battery in full. RED first-hand (the build fails at :5802); GREEN: suite
+**1562 / 1520 passed / 0 failed / 42 platform skips**; N-210 lint clean;
+clang-format clean; `git config core.hooksPath .githooks` re-asserted (the
+pusher's hook was evidently not installed — the gate would have caught
+this class). Trail: findings/FIXED/N-219 + ledger row + this entry.
+
+## Session 84 — entry 2: the racing window absorbed (M-154/M-111/M-114/I-048/N-178/N-181/CRW all landed by racing lanes; the FIFTH marker recurrence swept)
+
+The rebase at push time surfaced a large racing window: `1d7d31a6` (the
+M-151 marker repair — convergent with this lane's, conceded), `0cf6142d`
+(M-107's CRW member), `af5987d0`+rider (M-154), and `b2bc1970` (I-048
+ACKNOWLEDGED as D-155/D-160/D-161/D-162; M-111 closed by the D-158 scope
+decision; M-114 closed by the D-159 decline; M-154's hardening rider).
+N-178 (--pause-stdin + D-154) and N-181 (the carve-before-deep reorder)
+also landed in the same window per the ledger.
+
+**N-219's convergence + the fifth recurrence:** the racing `b2bc1970`
+committed markers in FIVE audit-trail files (worklog, ledger,
+PARITY-DELTAS ×2, matrix, I-048's Resolution) — swept at this lane's
+rebase with union resolutions (both sides preserved everywhere; the
+D-155-combined + D-160/161/162-split born-collided pair kept per the
+convention; the matrix's M-154 MATCH row kept over the stale DIVERGENCE
+row; the ledger's exact-duplicate rows deduped). The lane's remaining
+queue re-planned against the new board: M-075 (chkdsk launch), M-078
+(BitLocker turn-off), M-101 (Versions + Tags branches), M-105 (DRWService
+option a), M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE →
+EPS → DXF → SWF-RECT), the OQs.
+
+## Session 84 — entry 3: N-220 FIXED (the S-068 substitution repair, corpus-arbitrated)
+
+**N-220 (MINOR, NEW — filed+fixed this session).** The pre-push gate caught
+ctests red on the merged tree: `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
+`LastGoodHintUpdatesOnlyOnFileWalks` FAIL. Root cause: `9b4a9302` — the S79
+concession "trail" commit whose message says "No code change rides this
+commit" — substituted the S-068 re-base with the conceding variant, moving
+the og's 0x310000 retry-leg gate onto the first-chance re-base. Corpus
+arbitration (read first-hand this session): FATSearchDLL **:14753-55** — the
+first-chance re-base is gated ONLY on low-16-only + below-hint (no
+big-volume gate); **:14834-42** — 0x310000 belongs to the failed-raw-walk
+RETRY leg (a different trigger shape, + its :20184 twin). The S82
+convergence record's "open question 2" is settled by the direct read. The
+gate restored → FatEngine 92/92, the full suite **1529/0-fail**, cr_ui
+**87/87**; the window's format drift (rrecov.cpp ×4, cr_ui.cpp ×1) swept.
+The retry-leg shape itself (walk raw → on failure AND hint>0x310000 → walk
+re-based) remains unmodeled — recorded honestly in the code comment and the
+finding (it is the OR-shape of the two walks this engine already runs, a
+future refinement, not a parity break: both og sites borrow the same hint
+bits and validate through the same FUN_180012c00 class).
