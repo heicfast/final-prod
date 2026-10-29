@@ -130,6 +130,16 @@ public:
         u64 length;
         u32 codec = 0; /* cr::compress::Codec */
         u64 psize = 0; /* on-disk size (0 == length: raw) */
+        /* S-059: the extent's LOGICAL start within the file (the
+         * VCN/unit-derived position; 0 in the legacy shape - the
+         * writer's cumulative walk). A HOLE extent (offset == 0,
+         * hole == true) contributes `length` logical bytes of zeros -
+         * the og's type-2 zero chunk (DRWUI :875062-75: a full-sparse
+         * chunk writes a zeroed buffer with NO read). Old sessions read
+         * back with logical == 0 / hole == false and take the legacy
+         * cumulative walk - byte-identical to the pre-S-059 behavior. */
+        u64 logical = 0;
+        bool hole = false;
     };
     std::vector<Extent> extents;
     /* carving provenance (Origin::Carved nodes) */

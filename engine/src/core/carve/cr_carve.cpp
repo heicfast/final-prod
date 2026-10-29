@@ -1091,8 +1091,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                          * counts analyser detections the same way
                          * (GetRawUserInfoMap, FUN_18000ed00
                          * insert-or-increment). */
-                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
+                        /* N-171 (the two repair lanes converged: one
+                         * sign_hits + one validated tick - the repeated
+                         * hot-window re-duplications of the F-A3-6 class
+                         * closed at the THIRD merge) */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
                         continue;
                     }

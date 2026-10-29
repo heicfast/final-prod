@@ -97,6 +97,57 @@ TEST(Crsf, RoundTrip) {
     EXPECT_TRUE(all_zero);
 }
 
+TEST(Crsf, ExtentLogicalRoundTrip) {
+    /* S-059: the logical position + hole mark persist through the
+     * session wire (nflags bit 2048) - a stopped scan's sparse file
+     * reloads with its holes at the right logical offsets, and the
+     * writer's positioned walk resumes from them. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    t.refresh_stats();
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"holed.dat";
+    p->logical_size = 3 << 20;
+    tree::FileProperties::Extent e1{};
+    e1.offset = 0x100000;
+    e1.length = 1 << 20;
+    e1.logical = 0;
+    p->extents.push_back(e1);
+    tree::FileProperties::Extent eh{};
+    eh.offset = 0;
+    eh.length = 1 << 20;
+    eh.logical = 1 << 20;
+    eh.hole = true;
+    p->extents.push_back(eh);
+    tree::FileProperties::Extent e2{};
+    e2.offset = 0x200000;
+    e2.length = 1 << 20;
+    e2.logical = 2 << 20;
+    p->extents.push_back(e2);
+    (void)t.add_file(root, p);
+    p->release();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    tree::FileNode* holed = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "holed.dat")
+                holed = c;
+    ASSERT_NE(holed, nullptr);
+    ASSERT_EQ(u64(3), holed->props()->extents.size());
+    EXPECT_EQ(0x100000u, holed->props()->extents[0].offset);
+    EXPECT_EQ(0u, holed->props()->extents[0].logical);
+    EXPECT_FALSE(holed->props()->extents[0].hole);
+    EXPECT_TRUE(holed->props()->extents[1].hole) << "the hole mark survives the wire";
+    EXPECT_EQ(u64(1) << 20, holed->props()->extents[1].logical)
+        << "the hole's logical position survives the wire";
+    EXPECT_EQ(u64(2) << 20, holed->props()->extents[2].logical)
+        << "the tail extent lands past the hole";
+}
+
 TEST(Crsf, CorruptionSkipsForward) {
     MemFile mf;
     {

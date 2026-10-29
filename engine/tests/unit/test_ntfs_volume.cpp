@@ -2247,9 +2247,23 @@ TEST(NtfsVolume, CompressedDataRecoversRealContent) {
     for (size_t i = 0; i < 511; ++i)
         EXPECT_EQ('A', out[i]) << "at " << i;
 
-    /* holed.dat: the all-zero stored header = sparse unit: no extents */
+    /* holed.dat: the all-zero stored header = sparse unit. S-059
+     * RE-PIN: the hole unit now EMITS a hole extent (logical position
+     * kept, hole == true) - the og writes the full unit as a zeroed
+     * type-2 chunk (:875062-75) and the file reaches its full logical
+     * size; the pre-fix code emitted NOTHING, left-shifting every
+     * later extent over the gap (or failing the whole file with
+     * ERR_TRUNCATED when the hole was the tail). */
     ASSERT_NE(ho, nullptr) << "hole-compressed file must surface";
-    EXPECT_TRUE(ho->props()->extents.empty()) << "a hole unit emits no extents (content is zeros)";
+    ASSERT_EQ(u64(1), ho->props()->extents.size()) << "a hole unit emits exactly ONE hole extent";
+    {
+        const auto& he = ho->props()->extents[0];
+        EXPECT_TRUE(he.hole) << "the extent is a hole marker";
+        EXPECT_EQ(u64(0), he.offset) << "a hole has no disk offset";
+        EXPECT_EQ(ho->props()->logical_size, he.length)
+            << "the hole covers the unit's full logical span";
+        EXPECT_EQ(u64(0), he.logical) << "the hole starts at the file's logical 0";
+    }
 
     EXPECT_EQ(u64(0), stats.compressed_failed);
 }

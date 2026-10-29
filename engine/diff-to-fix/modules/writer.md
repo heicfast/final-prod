@@ -195,7 +195,7 @@ over the regression (1117/1117) because no test pins the wiring. Fix: re-land th
 Four new rows, all first-hand verified (worksheet:
 `../evidence/decompiled-quotes/s42-reconstruction-export-chain.md`):
 
-- **B2/F60 (recovery correctness under holes) — DIVERGENCE-SEVERE, S-059**: the og
+- **B2/F60 (recovery correctness under holes) — FIXED session-51 (S-059) → MATCH**: the og
   writes zero chunks for sparse runs and always produces the full logical size
   (DRWUI:875661-673 runlist path, :875062-75 chunked path); the core drops sparse
   runs (`cr_runlist.cpp:190`), has no per-extent logical offset
