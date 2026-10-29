@@ -25,6 +25,7 @@
 #include <cstdio>
 
 typedef unsigned long DWORD;
+typedef unsigned long long ULONGLONG; /* M-075's cr_fsck.cpp timeout arithmetic */
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
 typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
@@ -427,6 +428,17 @@ inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECUR
 }
 inline DWORD WaitForSingleObject(HANDLE, DWORD) {
     return WAIT_OBJECT_0;
+}
+/* M-075 (cr_fsck.cpp): the WoW64 redirection pair the og's WinChkdsk
+ * branch uses to launch the NATIVE chkdsk from a 32-bit host. Parse-gate
+ * stubs only - the Linux core never executes them. */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    if (old_value)
+        *old_value = nullptr;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void*) {
+    return 1;
 }
 inline BOOL GetExitCodeProcess(HANDLE, DWORD*) {
     return 1;
