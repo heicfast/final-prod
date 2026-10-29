@@ -1,4 +1,32 @@
 
+## Session-79 S79 lane — opens; the M-073 seat conceded; re-planned on the racing window (2026-10-29)
+
+- **Baseline:** opened at core `e17a4e6d` (S78's N-212 landing), corpus
+  `be0cfe9`; board at open per S78: 12 MAJOR / 8 MINOR / 167 FIXED.
+- **M-073 seat conceded to the racing lane** (`0ba5f14e` — landed while
+  this lane was implementing): this lane independently derived and
+  verified the same surface (the same corpus cites read first-hand:
+  UIUX/31:142 + the DRWUI.log FilterPath=/PushFolderFilter:84 pair; the
+  same architecture: ScanConfig.filter_folders + a pure prune module
+  reusing the query prefix family + the mid-tree detach primitive +
+  the ABI tail + --filter-folder + REC_SCAN_FILTER with resume
+  adoption + the carve-root exemption; 7 tests green locally incl. a
+  real-FAT16 integration, suites 1447+2/80/ABI-smoke). The racing
+  landing stands (their `detach_child`/`cr_folderfilter` names +
+  `ScanStats.folder_filtered` diagnostic + the pathless-root exemption
+  refinement). The convergence is corroborating evidence for the
+  decode (two lanes, one design); this lane's duplicate was dropped at
+  the rebase (never reached origin). The clean-tree baseline re-runs on
+  the new HEAD below.
+- **Re-planned on `023cee29`** (post-racing-window HEAD): the board is
+  now 1 SEVERE (S-068) · 15 MAJOR · 7 MINOR · 1 INFO / 179 FIXED /
+  4 tracked-open (the racing lanes consumed this lane's M-073/M-113/
+  N-144 queue items and filed S-068/M-149/M-150/M-151/M-152/M-154/
+  N-214/N-215/N-216/N-217 + OQ-S79-1). This lane's queue, severity
+  order: S-068 -> M-149 -> M-150 -> M-151 -> M-152 -> M-154 -> M-075
+  -> M-078 -> M-101 -> M-105 -> M-107 -> M-111 -> M-114 -> the MINOR
+  tail (N-145/N-178/N-181/N-182/N-216) -> the tracked-open resolvables.
+
 ## Session-80 S80 lane — opens; N-217 + S-067 land (2026-10-29)
 
 Opened at core `04fb5e88` with **main RED** (the ed501caa push's committed
