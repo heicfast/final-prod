@@ -364,6 +364,16 @@ public:
      * og's observable behavior on unchanged content. */
     bool graded() const { return graded_; }
     void set_graded() { graded_ = 1; }
+    /* M-135 (the S71 rider): the recovery-failure mark (the og's +0x73
+     * bit 1, set by the export recorder FUN_140541070 at :874087 when
+     * an item's copy fails - the runtime tree-paint the failed-files
+     * dialog reads). Runtime-only exactly like the og's: NOT persisted
+     * (the rsf grammar carries no failure bit; a reloaded session
+     * un-marks - the og's own observable behavior). Complements the
+     * report's read_error row: hosts holding the LIVE tree observe the
+     * mark without re-reading the report. */
+    bool recover_failed() const { return failed_; }
+    void mark_recover_failed() { failed_ = 1; }
     /* Direct field set (session deserialize round-trip ONLY - never a
      * rule application; the setter above is the graded path). */
     void set_grade_raw(Grade g) { grade_ = g; }
@@ -403,6 +413,7 @@ protected:
     Grade grade_ : 2 = Grade::Average; /* og engine default: grade 1 at emit */
     u8 overlap_ : 1 = 0;               /* og twin/overlap flag (bit 2 of +0x73) */
     u8 graded_ : 1 = 0;                /* M-134: the re-grade one-shot bit */
+    u8 failed_ : 1 = 0;                /* M-135: runtime recovery-failure mark (bit 1) */
     bool full_ = false;                /* FullNode marker (non-polymorphic discrimination) */
     u32 basis_ = 0;                    /* S-052: root's extent-basis id (0 = absolute) */
     u64 node_id_ = 0;

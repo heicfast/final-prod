@@ -167,6 +167,13 @@ struct WriterConfig {
      * and directory nodes are enqueueable so empty leaves materialize. */
     bool reconstruct_dirs = true;
     ConflictPolicy conflict = ConflictPolicy::Rename;
+    /* M-135 (the S71 rider): the og's settings-gated error-9 accounting
+     * skip (the recorder's FUN_1400b3c60()+0x10 probe at DRWUI
+     * :874072-874076: when the setting byte is set, error-9 items skip
+     * the failed-list accounting entirely). Default FALSE = account
+     * truthfully (the library posture; the og's gate is a host
+     * setting). */
+    bool suppress_read_error_accounting = false;
 };
 
 struct WriterStats {

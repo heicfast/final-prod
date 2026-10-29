@@ -428,7 +428,20 @@ u32 SafeWriter::commit_partial_(QueueItem& it, const tree::FileProperties* pr, c
     }
     it.state = ItemState::Done; /* the file IS committed; the failure is
                                  * the cause row, not a missing file */
-    ++stats.read_error;
+    /* M-135 (the S71 rider): the og's runtime tree-node mark (+0x73
+     * bit 1 at :874087) - hosts holding the LIVE tree observe the
+     * failure without re-reading the report; runtime-only like the
+     * og's (never persisted). */
+    if (it.node != nullptr)
+        it.node->mark_recover_failed();
+    /* M-135 (the S71 rider): the og's settings-gated accounting skip
+     * (FUN_1400b3c60()+0x10 at :874072-874076) - when the host sets
+     * the gate, error-9-class items skip the failed list and count as
+     * recovered; the default accounts truthfully. */
+    if (cfg_.suppress_read_error_accounting)
+        ++stats.done;
+    else
+        ++stats.read_error;
     if (log::enabled())
         log::write(log::Level::Error, "Failed to recover file: %s",
                    utf16_to_utf8_local(it.final_name).c_str());
@@ -1041,7 +1054,9 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     for (const auto& it : queue_)
         if (!it.is_dir && !it.resumed &&
             (it.state == ItemState::Error || it.state == ItemState::Refused || it.name_exhausted ||
-             it.cause_id != 0))
+             /* the read-error partial: failed-listed unless the host set
+              * the og's accounting-skip gate (the S71 rider) */
+             (it.cause_id != 0 && !cfg_.suppress_read_error_accounting)))
             failed_bytes += it.bytes_total;
     t.failed_bytes = failed_bytes;
     t.elapsed_ms = elapsed_ms;

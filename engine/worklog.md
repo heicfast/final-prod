@@ -10676,3 +10676,24 @@ before the first change; every fix RED-proven pre-fix and GREEN post-fix.
   Trail: findings/FIXED/M-148 + Resolution, ledger row, the new S72 matrix
   section (3 rows), SUMMARY board 13 MAJOR / 163 FIXED (filesystem truth),
   this entry.
+
+
+## Session-71 S71 lane — the M-135 convergence rider over the S72 seat (2026-10-29)
+
+The S72 racing lane landed M-135 first with a corpus CORRECTION this lane
+verifies and adopts (the cause list is SEVEN compiled-in entries at
+strings :30580-30596 — the finding's qm citation misread cause 4 and missed
+cause 7; FUN_1400ed760 refuted as the mapper, a %d formatter — the same
+refutation this lane reached independently). This lane's convergent landing
+was rebased over their seat; the six-cause shape dropped. The rider lands
+the two corpus-cited deltas their landing lacked: (1) the live-tree node
+mark `FileNode::recover_failed()` (the og's +0x73 bit 1 at :874087,
+runtime-only, hosts observe it on live trees); (2) the settings-gated
+accounting skip `suppress_read_error_accounting` (the og's
+FUN_1400b3c60()+0x10 probe at :874072-874076 — the gated skip also lifts
+failed_bytes, mirroring the og's +0x60 accumulator gate). Both pinned by
+new tests (ReadErrorMarksTheLiveNode, SettingsGateSkipsReadErrorAccounting);
+suite 1530/1530; the rebase-direction mistake (a --theirs that took the
+wrong side) was caught BEFORE the push and reset — main never carried the
+clobber. Trail: the finding's Resolution addendum + D-149's rider block +
+this entry.

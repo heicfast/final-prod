@@ -366,3 +366,75 @@ TEST(WriterReadPipe, ConstructionIsTheScanSubstrate) {
     EXPECT_EQ(calls_after_first, dev.calls()) << "the cache must absorb the repeat read";
     EXPECT_GE(dev.failed(), 1u) << "the retry layer must have absorbed the hiccup";
 }
+
+/* ---- the S71 rider over the S72 landing: the runtime node mark + the
+ * og's settings-gated error-9 accounting skip ---- */
+
+/* the og's +0x73 bit 1: the live tree node is marked when the item's
+ * copy fails (FUN_140541070 :874087) - a host holding the tree observes
+ * the failure without re-reading the report. */
+TEST(WriterReadPipe, ReadErrorMarksTheLiveNode) {
+    const u64 len = 1ull << 20;
+    std::vector<u8> img(4ull << 20, 0);
+    std::memset(img.data() + 0x100000, 0xEE, size_t(len));
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("mark.dat", 0x100000, len);
+    tree::FileNode* n = tree.add_file(found, pr);
+    pr->release();
+    tree.refresh_stats();
+    EXPECT_FALSE(n->recover_failed()); /* clean before the pass */
+
+    BadRangeDevice dev(img, 0x100000 + 0x2000, 512);
+    orchestrator::ReadPipe rp = orchestrator::build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    SafeWriter writer(io, rp.pipe, WriterConfig{});
+    writer.set_read_error_source(rp.retry);
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.read_error);
+    EXPECT_TRUE(n->recover_failed()) << "the og's runtime +0x73 bit 1";
+    /* sibling nodes stay clean (the root never carries the mark) */
+    EXPECT_FALSE(found->recover_failed());
+}
+
+/* the og's settings gate (FUN_1400b3c60()+0x10 at :874072-874076):
+ * when the host sets it, error-9-class items skip the failed-list
+ * accounting and count as recovered - the library default is the
+ * truthful accounting. */
+TEST(WriterReadPipe, SettingsGateSkipsReadErrorAccounting) {
+    const u64 len = 1ull << 20;
+    std::vector<u8> img(4ull << 20, 0);
+    std::memset(img.data() + 0x100000, 0x99, size_t(len));
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    tree::FileProperties* pr = file_props("gated.dat", 0x100000, len);
+    tree::FileNode* n = tree.add_file(found, pr);
+    pr->release();
+    tree.refresh_stats();
+
+    BadRangeDevice dev(img, 0x100000 + 0x4000, 512);
+    orchestrator::ReadPipe rp = orchestrator::build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    WriterConfig cfg;
+    cfg.suppress_read_error_accounting = true;
+    SafeWriter writer(io, rp.pipe, cfg);
+    writer.set_read_error_source(rp.retry);
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(0), stats.read_error) << "the gated skip";
+    EXPECT_EQ(u64(1), stats.done) << "accounted as recovered";
+    /* the row still tells the truth (the cause stays on the item) */
+    const auto items = writer.report_items();
+    ASSERT_EQ(size_t(1), items.size());
+    EXPECT_NE(u32(0), items[0].cause_id);
+    /* the failed-bytes accumulator skips it too (the og's +0x60 gate) */
+    const auto totals = writer.report_totals("s", "d", 0, stats);
+    EXPECT_EQ(u64(0), totals.failed_bytes);
+}
