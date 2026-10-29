@@ -196,14 +196,14 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     }
     n->node_id_ = nodes_.size();
     nodes_.push_back(n);
-    /* N-166: the live telemetry counters — every attached file counts
-     * once (the 1f9b2849 keep-both merge left the bump doubled; this
-     * repair restores the single increment), the raw/carved subset
-     * separately (carve stamps fs_kind=Raw before the attach; the
-     * structured engines stamp their own kinds). Relaxed atomics under
-     * the tree's own lock — the telemetry reader never takes the lock,
-     * so a mid-stage progress event can refresh its counters without
-     * contending the attach path. */
+    /* N-166: the live telemetry counters — every attached file counts,
+     * the raw/carved subset separately (carve stamps fs_kind=Raw before
+     * the attach; the structured engines stamp their own kinds). Relaxed
+     * atomics under the tree's own lock — the telemetry reader never
+     * takes the lock, so a mid-stage progress event can refresh its
+     * counters without contending the attach path. [red-main repair: the
+     * merge kept a second bare fetch_add above this comment - the
+     * double-tick (live_files()==10 after 5 attaches); one tick kept] */
     live_files_.fetch_add(1, std::memory_order_relaxed);
     if (n->props() && n->props()->fs_kind == u32(FsKindCode::Raw))
         live_raw_.fetch_add(1, std::memory_order_relaxed);
