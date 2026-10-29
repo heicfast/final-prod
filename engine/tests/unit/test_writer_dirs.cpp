@@ -18,8 +18,15 @@
 #include <functional>
 #include <map>
 #include <set>
+#ifdef _WIN32
+/* S-060 (the win-build repair): the metadata apply's Windows branch rides
+ * the production WinDestIo's own SDK surface (SetFileAttributesW /
+ * SetFileTime) - the POSIX-only utimensat/chmod shape was the MSVC red */
+#include <windows.h>
+#else
 #include <sys/stat.h>
 #include <fcntl.h> /* S-060: utimensat/AT_FDCWD in the FsIo metadata apply */
+#endif
 #include <string>
 #include <vector>
 
@@ -165,6 +172,39 @@ private:
                 c = '/';
         const std::string full = (root_ / fs::path(path)).string();
         u32 rc = OK;
+#ifdef _WIN32
+        /* the Windows branch: the metadata word IS the FILE_ATTRIBUTE set
+         * and the timestamps ARE FILETIME bits - the native SDK calls,
+         * exactly the production WinDestIo's own apply */
+        std::wstring wpath;
+        for (u16 c : final_path)
+            wpath.push_back(wchar_t(c));
+        for (wchar_t& c : wpath)
+            if (c == L'\\')
+                c = L'/';
+        const std::wstring wfull = (root_ / fs::path(wpath)).wstring();
+        if (meta.set_attributes) {
+            if (!SetFileAttributesW(wfull.c_str(), DWORD(meta.attributes)))
+                rc = ERR_WRITE_FAILED;
+        }
+        if (meta.set_accessed || meta.set_modified) {
+            HANDLE h = CreateFileW(wfull.c_str(), FILE_WRITE_ATTRIBUTES,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (h == INVALID_HANDLE_VALUE) {
+                rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+            } else {
+                const auto to_ft = [](u64 ft) {
+                    return FILETIME{DWORD(ft & 0xFFFFFFFFu), DWORD(ft >> 32)};
+                };
+                FILETIME fa = to_ft(meta.accessed), fm = to_ft(meta.modified);
+                if (!SetFileTime(h, nullptr, meta.set_accessed ? &fa : nullptr,
+                                 meta.set_modified ? &fm : nullptr))
+                    rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+                CloseHandle(h);
+            }
+        }
+#else
         if (meta.set_attributes) {
             struct stat st;
             if (::stat(full.c_str(), &st) == 0) {
@@ -201,6 +241,7 @@ private:
             if (::utimensat(AT_FDCWD, full.c_str(), ts, 0) != 0)
                 rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
         }
+#endif
         return rc;
     }
 
