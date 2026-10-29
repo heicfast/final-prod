@@ -1616,6 +1616,24 @@ CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
  * pre_scan_check) -> this endpoint -> the host's raw-carve fallback. */
 CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code);
 
+/* M-078 (diff-to-fix): turn BitLocker OFF on the volume mounted at
+ * `letter` ('A'..'Z') - the CBitlockerTurnOffOperation endpoint, the
+ * DESTRUCTIVE consent twin of the unlock surface. Explicit opt-in only:
+ * nothing in the scan/open path ever calls this (the D-16
+ * legitimate-unlock-only register is untouched - this is decrypt, not
+ * bypass). Dual command chain (PowerShell Disable-BitLocker primary,
+ * manage-bde -off fallback, the unlock surface's own duality); the OS
+ * decrypt continues in the background after the request is accepted
+ * (manage-bde's documented shape) - OK means ACCEPTED, not plaintext.
+ * progress (may be NULL): the cr_ui_progress_fn form, fired at request
+ * start and at the command's settle - the OS decrypt percentage is not
+ * observable through this surface (honest contract, the og's own
+ * pending-op queue is UI-layer chrome over the same verbs).
+ * Returns OK when the request was accepted, ERR_FVE_LOCKED when both
+ * command forms failed (the loud refusal), ERR_BAD_PARAMETER for a
+ * non-letter, ERR_UNSUPPORTED off-Windows. */
+CR_UI_API uint32_t cr_ui_turn_off_bitlocker(char letter, cr_ui_progress_fn progress, void* user);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

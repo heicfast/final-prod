@@ -13057,3 +13057,50 @@ code path is touched.
 **Verification:** zero markers in cr_ui.h; clang-format 18.1.8 clean;
 doc_truth_gate green; cr_ui_tests rebuilt clean; the Autosave/ResumeLast
 ABI tests 4/4 (12.4 s).
+---
+---
+
+## Session-85 S85 fix-lane — entry 3: M-107 member 5, the WPG zero-tail walk lands (2026-10-30)
+
+**The decode (first-hand):** the WPG chain — the tier-1 FUN_180014030
+("wpg\0" re-check, id 0x45); the factory FUN_180014090 (the 0x120
+WPGRawFileInfo child, min 20 / max 100 MB — already in the row); the
+processor FUN_180014160 (raw asm 0x180014160-0x1800142b0): **extent =
+chunk offset + zero_tail(chunk)**, return 1 after the first walked
+chunk. The zero-tail walk FUN_180042b30 (:50703-50750): a binary
+search for the first all-zero-tail position (+1); whole-buffer zero →
+0 (the decline); no zeros → the buffer length. The driver's chunk
+length = the DEVICE SECTOR SIZE (ctx+0xF0, :9192-95, default 0x200;
+the +0x20 dispatch at 0x18000d7ae).
+
+The landing: the trailing-zero-run position of the hit's 512-byte
+window (the registered model-divergence class). The deferral residue
+(the processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+RECORDED in the finding: if the gate defers the walk to a later sector
+the extent shifts by multiples of 512; the walk and the formula are
+byte-exact.
+
+**RED→GREEN via the stash dance:** all three Wpg* tests RED at the
+stand-in (the blind 64 MiB; the all-zero acceptance), GREEN with the
+walk. The carve suite 186/186. Trail: M-107's S85 addendum 3, the
+matrix row, modules/carve.md's S85 addendum 3, this entry.
+
+## Session-84 S84 fix-lane — entry 5: M-078 FIXED (2026-10-30)
+
+**M-078 FIXED (MAJOR, the BitLocker turn-off):** the
+CBitlockerTurnOffOperation endpoint. Corpus re-verified (the four
+citations; the exact verb undecoded — the finding's open question, the
+unlock duality the evidence class). The landing: turn_off in
+cr_bitlocker.cpp (PowerShell Disable-BitLocker primary + manage-bde
+-off fallback, 10-minute request bound, ERR_FVE_LOCKED on both failing
+— the loud refusal), the cr_ui_turn_off_bitlocker ABI export #93
+(request-phase progress, the accepted-not-plaintext contract), the CLI
+unlock --turn-off C: verb (a NEW verb, three-site lock + dispatch),
+D-163 registered (the request-vs-completion posture + the undecoded
+verb's reconciliation note), R-88 closed to the full family. Tests:
+TurnOffCommandConstruction / TurnOffIsTheConsentedDestructiveTwin /
+TurnOffRefusesLoudlyOnFailure (the Windows-lane seam battery); the
+export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
+defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
+Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
+

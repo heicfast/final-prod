@@ -328,7 +328,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 |---|---|---|---|
 | R-86 enumeration + refresh | `cr_ui_enumerate_disks/volumes` (§b.3); C++ `win::refresh_disk_properties` (S-029 IOCTL_DISK_UPDATE_PROPERTIES) exists but is NOT exported via cr_ui/CLI | PRESENT (pull model, registered) | **Each `cr_ui_enumerate_disks` call re-queries the OS — no cache, no retained state; calling again IS the refresh** (the N-098 contract sentence: cr_ui.h:472-484 + CORE-API-CURRENT's b.3 row). The og's modal refresh flow re-runs the same enumeration machinery; the modal chrome is host-side. The update-disk-metadata case (the OS seeing a changed disk) is the C++-only refresh IOCTL — deliberately unexported (apply-context only). |
 | R-87 hot-plug notify | none — pull-only enumeration | GAP | No WM_DEVICECHANGE-equivalent event; no device-arrival notification. |
-| R-88 BitLocker unlock | `cr_ui_open_volume` (auto-unlock → `ERR_FVE_LOCKED`), `cr_ui_open_volume_with_key` (M-033 FVEK XTS), `cr_ui_unlock_volume_with_dictionary` (N-064, 228+user dict), `try_auto_unlock(_offline)` (§b.2/§a win) | PRESENT | Strong parity incl. in-stack XTS-AES decrypt; dictionary unlock exceeds og's documented surface. **Missing: BitLocker-turn-off op** (`CBitlockerTurnOffOperation`) and any service-broker equivalent (ours reads FVE directly when privileged). |
+| R-88 BitLocker unlock | `cr_ui_open_volume` (auto-unlock → `ERR_FVE_LOCKED`), `cr_ui_open_volume_with_key` (M-033 FVEK XTS), `cr_ui_unlock_volume_with_dictionary` (N-064, 228+user dict), `try_auto_unlock(_offline)` (§b.2/§a win), `cr_ui_turn_off_bitlocker` (M-078, the CBitlockerTurnOffOperation endpoint) + CLI `unlock --turn-off C:` | PRESENT | Strong parity incl. in-stack XTS-AES decrypt; dictionary unlock exceeds og's documented surface. The turn-off op landed (M-078, 2026-10-30): the consented destructive twin (decrypt, never bypass; dual Disable-BitLocker/manage-bde -off chain, the unlock surface's own duality); the OS decrypt continues in the background (the accepted-not-plaintext contract). The service-broker equivalent stays a host concern (ours reads FVE directly when privileged). |
 | R-89 NAS connect/enumerate | none | GAP | No remote transports. |
 | R-90 Linux connect | none | GAP | — |
 | R-91 cloud drive scan | none | GAP | — |
@@ -427,7 +427,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | drive topology (R-85) | getdriverinfo:9-29 | enumerate_disks/volumes | PRESENT | — |
 | enumeration+refresh (R-86) | UIUX/13:14 | enumerate_*; refresh C++-only | PARTIAL | no standalone refresh export/verb |
 | hot-plug notify (R-87) | pending-op:43 | none | GAP | pull-only enumeration |
-| BitLocker unlock (R-88) | UIUX/15:33; DRWService:50-89 | open_volume/auto/FVEK/dict | PRESENT | missing only BitLocker-turn-off op |
+| BitLocker unlock (R-88) | UIUX/15:33; DRWService:50-89 | open_volume/auto/FVEK/dict/turn-off (M-078) | PRESENT | full family incl. the turn-off op |
 | NAS connect (R-89) | UIUX/15:8-25 | none | GAP | no remote transport |
 | Linux connect (R-90) | UIUX/15:27-29 | none | GAP | — |
 | cloud scan (R-91) | DRWUI arch:33 | none | GAP | — |

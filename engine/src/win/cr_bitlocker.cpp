@@ -148,6 +148,21 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     return OK;
 }
 
+/* M-078: the CBitlockerTurnOffOperation endpoint - the consented
+ * destructive op (decrypt, never bypass). The same dual-command shape as
+ * unlock(): PowerShell primary, manage-bde legacy fallback. The 10-minute
+ * bound is generous for the REQUEST (both verbs schedule the decrypt and
+ * return; the OS continues in the background - manage-bde's own
+ * documented shape, noted in the header contract). */
+u32 turn_off(wchar_t letter) {
+    int rc = run_command(detail::build_turn_off_command(letter, false), 600000);
+    if (rc != 0)
+        rc = run_command(detail::build_turn_off_command(letter, true), 600000);
+    if (rc != 0)
+        return ERR_FVE_LOCKED; /* the loud refusal - never a silent success */
+    return OK;
+}
+
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow. The EXPLICIT CONSENT ACTION: callers are the host's user-initiated
  * unlock surfaces only (CLI --bitlocker-dict / the cr_ui action); the
@@ -317,6 +332,17 @@ namespace detail {
 /* The unlock command builder (N-064 test seam; the command grammar is
  * unchanged from the S-014 landing - PowerShell primary, manage-bde legacy
  * fallback, key material quoted). */
+std::wstring build_turn_off_command(wchar_t letter, bool legacy_manage_bde) {
+    std::wstring mount;
+    mount.push_back(letter);
+    mount += L":";
+    if (!legacy_manage_bde)
+        return L"powershell -NoProfile -NonInteractive -Command \"Disable-BitLocker "
+               L"-MountPoint \"" +
+               quote(mount) + L"\"";
+    return L"manage-bde -off " + mount;
+}
+
 std::wstring build_unlock_command(wchar_t letter, int key_type, const std::wstring& key_or_path,
                                   bool legacy_manage_bde) {
     std::wstring mount;

@@ -31,6 +31,9 @@
  *         [--chkdsk C:] (the M-075 escalation endpoint: launch Windows
  *          chkdsk /f on a volume - the fix rung of the check ladder;
  *          no --disk needed: a volume-letter operation)
+ *   unlock --turn-off C: (the M-078 destructive consent twin of the
+ *          unlock surface: turn BitLocker OFF on a volume - decrypt,
+ *          never bypass; the OS decrypt continues in the background)
  *   apply --disk N --session file.crsf [--candidate N] [--apply]
  *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
  *
@@ -3534,6 +3537,48 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+/* M-078: the CBitlockerTurnOffOperation endpoint. The explicit-consent
+ * verb: turn BitLocker OFF on a volume (decrypt, never bypass). The
+ * refusal is loud on every path (bad letter, both command forms
+ * failing); the OS decrypt continues in the background after the
+ * request is accepted (manage-bde's own documented shape). */
+static int cmd_unlock(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    bool turn_off_req = false;
+    while (i < argc) {
+        if (wcscmp(argv[i], L"--turn-off") == 0 && i + 1 < argc && argv[i + 1][0]) {
+            v = argv[i + 1];
+            ++i;
+            turn_off_req = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown unlock option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!turn_off_req || v.empty()) {
+        wprintf(L"unlock needs --turn-off C: (the volume letter to turn BitLocker off on)\n");
+        return 1;
+    }
+    const wchar_t c0 = v[0];
+    if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+        wprintf(L"--turn-off needs a volume letter (e.g. --turn-off C:)\n");
+        return 1;
+    }
+    wprintf(L"turning BitLocker off on %c: (the decrypt continues in the background; check "
+            L"'manage-bde -status %c:' for progress)\n",
+            c0, c0);
+    const u32 rc = cr::win::bitlocker::turn_off(c0);
+    if (rc != OK) {
+        wprintf(L"turn-off refused (rc=%08x %hs) - the volume is unchanged, never a silent "
+                L"success\n",
+                rc, err_text(rc));
+        return 2;
+    }
+    wprintf(L"turn-off request accepted on %c:\n", c0);
+    return 0;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
     /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): the repair path
      * reads and writes the disk - driver-only (--no-rda is REMOVED,
@@ -3933,6 +3978,9 @@ int wmain(int argc, wchar_t** argv) {
             L"  rrecov fix --chkdsk C:  (launch Windows chkdsk /f on the volume -\n"
             L"                           the check ladder's fix endpoint, M-075; no\n"
             L"                           --disk needed: volume-letter operation)\n"
+            L"  rrecov unlock --turn-off C:  (turn BitLocker OFF on the volume - the\n"
+            L"                           M-078 consented destructive op: decrypt, never\n"
+            L"                           bypass; the OS decrypt continues in background)\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
             L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
             L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
@@ -3976,6 +4024,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")
         return cmd_health(argc, argv, i);
+    if (cmd == L"unlock")
+        return cmd_unlock(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
     if (cmd == L"apply")
