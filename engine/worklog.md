@@ -18,7 +18,6 @@ first-hand (the +0x20 code against the +0x80 plant: DwgR2004RandStruct
 WalkSetsExtent FAILED -> GREEN). The carve suite 286/286. The board:
 M-107 at members 1-5 of 11 (the racing window took PSP + WPG too).
 
-<<<<<<< HEAD
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
 - **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
