@@ -2385,6 +2385,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     orchestrator::ReadPipe rp =
         orchestrator::build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024);
     recovery::SafeWriter writer(io, rp.pipe, wcfg);
+    writer.set_read_error_source(rp.retry); /* S71 convergence: the Salvaged seam */
 
     /* destination validation + overlap refusal (F12 + N-013, restored per
      * S-054 after the 1ebd1bcc clobber): any path that resolves to a

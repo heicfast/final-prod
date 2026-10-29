@@ -10336,3 +10336,28 @@ directory-block surface as the og's two-branch journal classifier).
 
 **Commit SHA recorded in the finding file's Resolution section at push
 time.**
+
+## Session-71 S71 lane — M-136 landed (2026-10-29)
+
+**M-136 FIXED (MAJOR — the recovery read pipeline).** Corpus re-verified
+first-hand at the fix (arch/04:147-150 the stream-mediated export reads;
+DRWUI:873629-873671 the vt+0x78 GetStream dispatch — both read directly).
+Classification: CONFIRMED-DIVERGENCE. Landing: (1) rrecov.cpp's CLI recover
+handoff and cr_ui.cpp's `recovery_create` construct
+`orchestrator::build_read_pipe(src, 8 MiB, 256 KiB)` — the scan's own
+single-construction-point helper (M-058) — and hand the SafeWriter `rp.pipe`;
+the ReadPipe member outlives the writer. (2) The LDM basis family rides the
+same substrate: the session arm's Windows members each get their own pipe
+chain (`ldm_pipes`), the four enqueue sites arm with the recovery pipe. (3)
+The truthfulness seam: `SafeWriter::set_read_error_source(rp.retry)` — an
+item whose reads grew the retry layer's append-only error map commits
+Salvaged (the pipe's Skip-mode zero-fill never hides as Done; without it the
+fix would have silently downgraded M-135's accounting). Destination side
+unchanged (raw). Proof: WriterReadPipe 4/4 —
+TransientFailureRetriedNotZeroFilled (byte-identical, Done — the finding's
+case), HardFailureZeroFillsOnlyAfterRetriesSpent (>= 3 attempts before the
+zero-fill, Salvaged), ConstructionIsTheScanSubstrate (retry+cache seam),
+BareDeviceLegacyShapeZeroFillsTransients (the pre-fix shape pinned). Suite
+1507/1507; clang-format clean; win_syntax_check green. Trail: FIXED finding
++ Resolution, matrix MATCH row, modules/writer.md E35/R51 verdict, SUMMARY
+S71 delta, this entry.

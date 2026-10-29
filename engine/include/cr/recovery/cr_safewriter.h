@@ -19,6 +19,7 @@
 #include "../recovery/cr_report.h"
 #include "../crypto/cr_sha256.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_retry.h" /* M-136: RetryingDevice (the error-map source) */
 #include "../tree/cr_node.h"
 #include <set>
 #include <string>
@@ -221,6 +222,16 @@ public:
      * the absolute source. */
     void set_basis_table(const LdmBasisTable* bases) { bases_ = bases; }
 
+    /* M-136: the retry layer under the writer's source pipe (nullable -
+     * the degraded bare-slice path has none). When set, the per-item
+     * Salvaged accounting also consults the retry layer's append-only
+     * error map: a map that grew during an item's reads means the
+     * Skip policy zero-filled a hard-failure span, which must surface
+     * as had_unreadable exactly like the writer's own zero-fill branch
+     * (never a clean Done). The pointer is BORROWED and must outlive
+     * the writer (the ReadPipe that owns it does). */
+    void set_read_error_source(const RetryingDevice* retry) { retry_src_ = retry; }
+
     /*
      * set_destination - records the destination volume's disk extent.
      * Source slices report their absolute placement via slice_offset param.
@@ -284,6 +295,9 @@ private:
     IStorageDevice* source_;
     /* S-052: the multi-basis table (borrowed; may be null/empty) */
     const LdmBasisTable* bases_ = nullptr;
+    /* M-136: the pipe's retry layer (borrowed; null on the degraded
+     * bare-slice path and for legacy bare-device constructions) */
+    const RetryingDevice* retry_src_ = nullptr;
     WriterConfig cfg_;
     /* N-013: every armed destination span (multi-extent volumes). The
      * legacy single-extent pair is span[0] of this vector. */

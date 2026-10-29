@@ -134,6 +134,21 @@ Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+.
 
 # SUMMARY.md — executive summary (the S66 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
+# SUMMARY.md — executive summary (the S71 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-71 S71 lane delta (2026-10-29 — the user's MAJOR-first fix directive ["priority to major first", 20+ fixes]; opened at core `c736e9b3`, corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the lane's opening repair: N-210, the M-120 class recurrence — 4 files of committed conflict markers from the `f3da99f1` merge resolved per the stacked-history convention + the ci-local markdown marker lint)
+
+- **M-136 FIXED (MAJOR)** — the recovery reads ride the scan's retry+cache
+  pipe: both entry points (CLI recover + ABI `cr_ui_recovery` create) build
+  `orchestrator::build_read_pipe(source, 8 MiB, 256 KiB)` and hand the writer
+  the pipe (the ReadPipe outlives the writer beside it); the LDM basis arms
+  ride the same substrate (per-member pipes on Windows, the recovery pipe as
+  the arm/fallback source); `SafeWriter::set_read_error_source` keeps the
+  pipe's Skip-mode zero-fill visible as Salvaged (never a clean Done). RED:
+  the pre-fix bare-device shape is pinned as the executable contrast
+  (`BareDeviceLegacyShapeZeroFillsTransients` — the finding's falsifiable
+  case). GREEN: 4 new WriterReadPipe tests; suite 1507/1507.
+
 ## Session-66 S66 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `24e480c4` (the S60-B/S63 windows absorbed; baseline suite 1485/1485 green on Linux before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the S64/S65 racing seats absorbed at the rebase — their committed-conflict-marker SUMMARY repaired in the same push, the M-120 class)
 
 - **N-203 FIXED (MINOR)** — the resume round-trip keeps the candidate's

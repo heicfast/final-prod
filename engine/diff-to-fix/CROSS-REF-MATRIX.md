@@ -4,6 +4,7 @@
 
 | Parameter (module · surface) | Verdict | Evidence / finding |
 |---|---|---|
+| writer/orchestration · recovery read pipeline (#35/#47/#48/#60) | **MATCH** (findings/FIXED/M-136) | **M-136 FIXED** — both entry points build the scan's own `build_read_pipe` substrate over the source and hand the writer the pipe (CLI + ABI + the LDM basis arms); `set_read_error_source` keeps the pipe's Skip-mode zero-fill visible as Salvaged; 4 fail-shape tests, suite 1507/1507 |
 | audit-trail · committed conflict markers (Q68/the M-120 class) | **MATCH** (findings/FIXED/N-210) | **N-210 FIXED** — the `f3da99f1` merge residue (4 files: the matrix's closing-fix/S54 sections, I-033/N-135's addenda-vs-Resolutions, both s51 prompt variants) resolved per the stacked-history convention; the ci-local conflict-marker lint extended to markdown so the class cannot re-enter silently |
 
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the closing-fix lane on top — the INFO-first diff-to-fix execution per the user's directive; the prior lanes below)

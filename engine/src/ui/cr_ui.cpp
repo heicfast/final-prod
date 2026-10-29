@@ -923,6 +923,10 @@ struct CrSession {
     bool ldm_armed = false;
 #ifdef _WIN32
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-136: the per-member retry+cache pipes (the guid_map's values
+     * borrow these chains' pipe pointers; destroyed with the session,
+     * always after the last basis read). */
+    std::vector<orchestrator::ReadPipe> ldm_pipes;
 #endif
     std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices;
     std::unique_ptr<recovery::LdmBasisTable> ldm_basis;
@@ -2150,7 +2154,11 @@ static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
     table::LdmDiskResolver resolver;
 #ifdef _WIN32
     /* the scan-side arm_ldm_resolver enumeration, session-owned: every
-     * disk's PRIVHEAD GUID -> its open device */
+     * disk's PRIVHEAD GUID -> its open device. M-136: each member rides
+     * its own retry+cache pipe (build_read_pipe) - basis reads (recovery
+     * AND preview) get the same transient-error substrate the scan and
+     * the writer's source already have; the pipe chains live in the
+     * session (ldm_pipes) and outlive the devices' borrowers. */
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     win::PhysicalDiskList list;
     if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
@@ -2164,7 +2172,12 @@ static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
                 std::memcmp(sec, "PRIVHEAD", 8) == 0) {
                 table::LdmGuid g{};
                 std::memcpy(g.b, sec + 0x30, 16);
-                (*guid_map)[g] = dev.get();
+                orchestrator::ReadPipe mp =
+                    orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024);
+                if (mp.pipe != nullptr) {
+                    (*guid_map)[g] = mp.pipe;
+                    s->ldm_pipes.push_back(std::move(mp));
+                }
             }
             s->ldm_members.push_back(std::move(dev));
         }
@@ -4321,6 +4334,7 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
     r->read_pipe.reset(
         new orchestrator::ReadPipe(orchestrator::build_read_pipe(src, 8ull << 20, 256 * 1024)));
     r->writer.reset(new recovery::SafeWriter(*r->io, r->read_pipe->pipe, wcfg));
+    r->writer->set_read_error_source(r->read_pipe->retry); /* S71: the Salvaged seam */
     *out = reinterpret_cast<cr_ui_recovery*>(r);
     return ret_ok();
 }
@@ -4436,14 +4450,11 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
     /* S-052: basis-aware reads - arm the session's LDM devices (first
      * use) and route the writer through them. The table follows THIS
      * session (a recovery mixing sessions routes by the last enqueue's
-     * source - the borrowed-nodes contract class). */
-    {
-        IStorageDevice* asrc = r->dev->dev.get();
-        if (r->dev->volume_len != 0 && r->dev->hold)
-            asrc = r->dev->hold.get();
-        session_arm_ldm_basis(s, asrc);
-        r->writer->set_basis_table(s->ldm_basis.get());
-    }
+     * source - the borrowed-nodes contract class). M-136: the arm's
+     * fallback source is the recovery's read pipe (basis-0 and
+     * unresolved-basis items read through retry+cache too). */
+    session_arm_ldm_basis(s, r->read_pipe->pipe);
+    r->writer->set_basis_table(s->ldm_basis.get());
     const u32 eq = r->writer->enqueue(node, dir);
     return ret_(eq, "enqueue %s", err_text(eq)); /* overlap callers count by code */
 }
@@ -4460,14 +4471,10 @@ u32 recovery_enqueue_subtree_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint
         return ret_(ERR_BAD_PARAMETER, "node id %llu not found in the session tree",
                     static_cast<unsigned long long>(node_id));
     const std::u16string dir = r->dest_root + rel_dir_of(node);
-    /* S-052: the session's LDM basis (see enqueue_node) */
-    {
-        IStorageDevice* src = r->dev->dev.get();
-        if (r->dev->volume_len != 0 && r->dev->hold)
-            src = r->dev->hold.get();
-        session_arm_ldm_basis(s, src);
-        r->writer->set_basis_table(s->ldm_basis.get());
-    }
+    /* S-052: the session's LDM basis (see enqueue_node; M-136: the arm's
+     * fallback source is the recovery read pipe) */
+    session_arm_ldm_basis(s, r->read_pipe->pipe);
+    r->writer->set_basis_table(s->ldm_basis.get());
     /* self-enqueue files AND real directories (the writer turns dir nodes
      * into mkdir items); roots/virtuals are walked only - the CLI's
      * plan() starts at roots and never enqueues them */
@@ -4504,10 +4511,7 @@ u32 recovery_enqueue_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* snap, ui
     /* S-052: the snapshot's basis source - the session (lazy arm) or the
      * scan's live registry (the table built at capture) */
     if (w->src_session != nullptr) {
-        IStorageDevice* src = r->dev->dev.get();
-        if (r->dev->volume_len != 0 && r->dev->hold)
-            src = r->dev->hold.get();
-        session_arm_ldm_basis(w->src_session, src);
+        session_arm_ldm_basis(w->src_session, r->read_pipe->pipe);
         r->writer->set_basis_table(w->src_session->ldm_basis.get());
     } else if (w->src_scan != nullptr) {
         r->writer->set_basis_table(w->ldm_basis.get());
@@ -4532,10 +4536,7 @@ u32 recovery_enqueue_subtree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* 
     u64 queued = 0;
     /* S-052: the snapshot's basis source (see enqueue_snapshot) */
     if (w->src_session != nullptr) {
-        IStorageDevice* src = r->dev->dev.get();
-        if (r->dev->volume_len != 0 && r->dev->hold)
-            src = r->dev->hold.get();
-        session_arm_ldm_basis(w->src_session, src);
+        session_arm_ldm_basis(w->src_session, r->read_pipe->pipe);
         r->writer->set_basis_table(w->src_session->ldm_basis.get());
     } else if (w->src_scan != nullptr) {
         r->writer->set_basis_table(w->ldm_basis.get());

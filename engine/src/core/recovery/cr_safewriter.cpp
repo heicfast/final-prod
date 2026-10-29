@@ -324,6 +324,13 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
     /* S-052: the item's basis-resolved read source (enqueue_common
      * stamped it; basis 0 / unresolvable = the absolute source_) */
     IStorageDevice* const read_dev = it.read_src != nullptr ? it.read_src : source_;
+    /* M-136: the retry layer's error map BEFORE this item's reads - a
+     * growth by the commit point means the pipe's Skip policy zero-
+     * filled a hard-failure span during THIS item (the map is
+     * append-only; pre-existing entries never grow it), so the Salvaged
+     * accounting stays truthful through the pipe (without this check
+     * the retry layer's zero-fill would hide as a clean Done). */
+    const u64 err_before = retry_src_ != nullptr ? retry_src_->error_map().total_bytes() : u64(0);
     /* G-02b: node-based items read the live props; snapshot items read
      * the writer-owned value - exactly one of the two is non-null. */
     const tree::FileProperties* pr = it.node ? it.node->props() : it.value_props;
@@ -639,6 +646,8 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
     }
     it.state = ItemState::Done;
     ++stats.done;
+    if (retry_src_ != nullptr && retry_src_->error_map().total_bytes() > err_before)
+        it.had_unreadable = true; /* FB-R02 + M-136: the pipe zero-filled */
     if (it.had_unreadable)
         ++stats.salvaged; /* committed sub-bucket: partial-content commits
                              visible in the report (FB-R02) */

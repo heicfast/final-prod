@@ -226,6 +226,26 @@ Four new rows, all first-hand verified (worksheet:
   per-volume CStorageDeviceWithCache for candidates is the scan-side
   posture, not an export asymmetry).
 
+- **E35/R51 (the recovery read pipeline) — MATCH, M-136 FIXED (the S71 lane)**:
+  both entry points (the CLI recover handoff and the ABI `cr_ui_recovery`
+  create) now build the scan's own substrate over the source —
+  `orchestrator::build_read_pipe(slice, 8 MiB, 256 KiB)`: SliceShim →
+  RetryingDevice(3, Skip) → CachedReader — and hand the writer `rp.pipe`
+  (the pipe outlives the writer: a `ReadPipe` member beside it). The LDM
+  basis arms ride the same substrate (the session arm's Windows members each
+  get their own pipe chain; the non-Windows resolver and the enqueue-time
+  fallback source are the recovery pipe). Truthful accounting through the
+  pipe: `SafeWriter::set_read_error_source(rp.retry)` — an item whose reads
+  grew the retry layer's append-only error map commits Salvaged (the pipe's
+  Skip-mode zero-fill never hides as a clean Done). Proof:
+  `WriterReadPipe.TransientFailureRetriedNotZeroFilled` (byte-identical,
+  Done, not Salvaged — the finding's falsifiable case),
+  `WriterReadPipe.HardFailureZeroFillsOnlyAfterRetriesSpent` (>= 3 attempts
+  at the bad range before the zero-fill, Salvaged),
+  `WriterReadPipe.ConstructionIsTheScanSubstrate` (retry + cache-absorb
+  seam), `WriterReadPipe.BareDeviceLegacyShapeZeroFillsTransients` (the
+  pre-fix shape as the contrast pin). Suite 1507/1507.
+
 ## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
 
 **N-159 FIXED — the failed-files report's tree-classification axis.** The
