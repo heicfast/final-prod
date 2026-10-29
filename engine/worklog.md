@@ -9368,3 +9368,22 @@ closing-fix lane). This lane's open census above predates the window; the
 current board is read live before each fix. The lane plan drops the already-
 landed minors and proceeds: acceptance-band family (M-147 → M-145 → M-141 →
 M-142 → M-140 → M-146) first.
+
+---
+
+## Session-60 convergence record — N-199 (the racing-lane arbitration) (2026-10-29)
+
+This lane (opened at `98a5b139`, suite 1460/1460 baseline, mandate saved
+token-redacted at worklog/session-60-diff-fix-prompt.md) independently
+verified N-199 and built the identical OEM+FSRS gate at the same
+probe_family branch — the same corpus re-read (FUN_180003900, both
+compares verbatim) and its own RED proof (the stash-revert rebuild: the
+forged OEM dispatched Refs at the pre-fix tree; the duplicate test pair
+dropped per the superset rule — the winner's
+Refs.RecognitionRequiresFsrsMarker covers both legs). Per SA-9
+earlier-push-wins the remote lane's 36c34557 is the fix of record. This
+lane's unique supplements riding this push: the lost-partition comment
+re-truth at cr_candidates.cpp (the probe_family gate citation updated to
+the second signature, with the lost-side page-signature probe named the
+deeper proof) + this convergence record. Suite re-verified green after
+each rebase resolution.
