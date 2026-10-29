@@ -4150,3 +4150,34 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   :20748-20770 restore path are the decode inputs — cite I-046. Future
   documentation must stop describing the og's .dat pair as a persistent
   knowledge base (it is one process-generation old at most).
+
+### D-143 — the image-CREATE producer: flat raw only, no VHD/VHDX writers (S-040 registration, REGISTERED SCOPE EXCLUSION - the R-93 plan-of-record's own boundary)
+
+- **WHAT OG DOES:** ships a home-page "Create Image" flow
+  (DiskBackupDialog -> DiskBackupSaveDlg -> DiskBackProgressPage,
+  UIUX/07:36-37 + UIUX/06:27) whose imaging capability lives in
+  ToolsModule.dll (mom-module-system :87, linking libvmdk), and recommends
+  scanning the produced image as the damage posture (UIUX/11:17). The
+  exact on-disk format the og's create flow writes is NOT decoded in the
+  corpus beyond the libvmdk link; the og's own reader accepts flat images
+  (DRWUI :948237-948409, the S-030 reader dispatch).
+- **WHAT WE DO:** the producer half the core wholly lacked (S-040) is
+  landed as the FLAT raw form only: the portable copy loop
+  (`storage::create_image_stream`, cr_image.cpp) + the win-layer file
+  disposition (`win::create_image_file`: atomic temp+rename commit, the
+  `<path>.sha256` sidecar, the explicit `<path>.partial` on cancel or
+  failure) + `win::create_disk_image` over the RDA read view; ABI
+  `cr_ui_image_create` (append-only, 87 exports) + CLI `image --create`
+  (13 verbs, the four-site lock). VHD/VHDX/other-container WRITERS are
+  out of scope: the og's own reader accepts flat, and inventing a
+  container writer the corpus never decoded would be the silent-
+  approximation class this register exists to prevent.
+- **WHY:** the corpus grounds the flat form (the reader's flat fallback
+  is the og's own dispatch); a container writer has no decoded reference
+  to match.
+- **RISK:** hosts wanting .vhd/.vhdx output convert the flat image with
+  standard tools; no parity surface is lost (the scan side reads all
+  four container families).
+- **VERDICT: ACCEPTED** (scope exclusion, registered with S-040's
+  landing; the CLI refuses a container-extension --out honestly rather
+  than writing a flat file under a .vhd name).

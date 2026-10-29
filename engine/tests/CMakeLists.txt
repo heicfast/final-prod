@@ -112,6 +112,18 @@ if(WIN32)
     target_link_libraries(cr_bitlocker_tests PRIVATE cr::win GTest::gtest_main)
     cr_deploy_vcpkg_binaries(cr_bitlocker_tests)
     add_test(NAME bitlocker COMMAND cr_bitlocker_tests)
+
+    # S-040: the flat-raw image producer's file disposition contract
+    # (atomic temp+rename commit, .sha256 sidecar, the explicit .partial
+    # on cancel/failure; the class-(a) driver path rides the
+    # staged-scenarios lane)
+    add_executable(cr_image_create_tests unit/test_image_create_win.cpp)
+    target_link_libraries(cr_image_create_tests PRIVATE cr::win GTest::gtest_main)
+    target_include_directories(cr_image_create_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    target_compile_definitions(cr_image_create_tests PRIVATE
+        CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    cr_deploy_vcpkg_binaries(cr_image_create_tests)
+    add_test(NAME image_create COMMAND cr_image_create_tests)
 endif()
 
 # ---------------------------------------------------------------------------

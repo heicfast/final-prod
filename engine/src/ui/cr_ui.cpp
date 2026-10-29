@@ -47,7 +47,8 @@
 #include "cr/win/cr_winenv.h" /* win::ENUMERATE_DISK_BOUND: M-030's 200-disk space; MSVC include hygiene */
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
-#include "cr/win/cr_winenv.h" /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
+#include "cr/win/cr_image_create.h" /* S-040 */
+#include "cr/win/cr_winenv.h"       /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
 #include <psapi.h> /* N-062: PROCESS_MEMORY_COUNTERS/GetProcessMemoryInfo */
@@ -1697,6 +1698,70 @@ u32 device_geometry_impl(cr_ui_device* dev, cr_ui_geometry* out) {
     out->physical_sector = g.physical_sector;
     out->sector_count = g.sector_count;
     return ret_ok();
+}
+
+/* S-040: the image-create producer at the ABI. Class (a): the driver
+ * prerequisite is checked first, exactly like open_disk_impl - the
+ * ERR_DRIVER_* family is the refusal. Progress is the recovery-style
+ * cumulative-bytes bridge. */
+#ifdef _WIN32
+struct ImageCreateProgressBridge {
+    cr_ui_recovery_progress_fn progress = nullptr;
+    void* user = nullptr;
+};
+
+void image_create_progress_bridge(void* user, u64 done, u64 total) {
+    auto* b = static_cast<ImageCreateProgressBridge*>(user);
+    if (b && b->progress)
+        b->progress(b->user, done, total);
+}
+#endif
+
+u32 image_create_impl(uint32_t disk, const char* utf8_path, cr_ui_recovery_progress_fn progress,
+                      void* user) {
+    if (!utf8_path || !*utf8_path)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path");
+#ifdef _WIN32
+    /* the class-(a) gate: a non-Ready driver state is a classified
+     * refusal (the same gate as open_disk_impl) */
+    {
+        win::DriverStatus st;
+        if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
+            const win::DriverState ds = win::driver_state(st);
+            if (ds != win::DriverState::Ready) {
+                const u32 rc = win::driver_state_error(ds);
+                set_last_transport_error_(rc);
+                return ret_(rc,
+                            "driver prerequisite not met (state %s) - see "
+                            "docs/DRIVER-REQUIRED.md",
+                            win::driver_state_name(ds));
+            }
+        }
+    }
+    const std::u16string path = u8_to_u16(utf8_path);
+    if (path.empty())
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path (empty after decode)");
+    ImageCreateProgressBridge bridge{progress, user};
+    storage::ImageCreateStats stats{};
+    const u32 rc = win::create_disk_image(disk, win::kDefaultDriverService, path, nullptr,
+                                          image_create_progress_bridge, &bridge, &stats);
+    if (rc == OK)
+        return ret_ok();
+    if (rc == ERR_CANCELLED)
+        return ret_(rc,
+                    "image create cancelled: %llu bytes committed (partial kept as "
+                    "'%s.partial')",
+                    static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+    return ret_(rc,
+                "image create failed at %llu bytes (partial kept as '%s.partial' when "
+                "any bytes committed)",
+                static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+#else
+    (void)disk;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_image_create requires the Windows platform layer");
+#endif
 }
 
 u32 device_transport_impl(cr_ui_device* dev, char* buf, uint32_t cap, uint32_t* needed) {
@@ -4779,4 +4844,10 @@ extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_si
     out->sign_len = s.len;
     std::memcpy(out->bytes, s.bytes, sizeof(out->bytes));
     return OK;
+}
+
+/* S-040 (R-93): the image-create producer at the ABI (class (a)). */
+extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
+                                                 cr_ui_recovery_progress_fn progress, void* user) {
+    return guarded(image_create_impl, disk, utf8_path, progress, user);
 }

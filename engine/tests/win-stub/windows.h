@@ -544,3 +544,9 @@ inline BOOL QueryServiceStatus(SC_HANDLE, SERVICE_STATUS*) {
 inline BOOL CloseServiceHandle(SC_HANDLE) {
     return TRUE;
 }
+
+/* S-040 (cr_image_create.cpp): the UTF-16 -> UTF-8 sidecar-name path */
+inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int,
+                                const char*, BOOL*) {
+    return 0;
+}

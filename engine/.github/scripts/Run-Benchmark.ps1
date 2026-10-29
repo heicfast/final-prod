@@ -173,6 +173,48 @@ if ($healthExit -eq 0 -or $healthExit -eq 3) {
     Fail "health --disk ${multiDisk} exited $healthExit (expected 0 or 3)"
 }
 
+# S-040 image-create round-trip (class (a), the driver read view): the
+# produced flat image must hash byte-identical to the source device - the
+# digest was computed over the bytes READ FROM the device, so
+# sidecar-digest == Get-FileHash(image) proves the committed file equals
+# the device stream; the size must equal the disk size exactly; and a
+# scan --image of the produced file must exit 0 (the safe-scan posture,
+# UIUX/11:17)
+$imgPath = Join-Path $probeDir 'multi-gpt.img'
+$imgOut = & $RrecovExe image --create --disk $multiDisk --out $imgPath 2>&1
+$imgExit = $LASTEXITCODE
+$imgOut | Set-Content (Join-Path $probeEv 'image-create.txt') -Encoding utf8
+if ($imgExit -ne 0) {
+    Fail "image --create --disk ${multiDisk} exited $imgExit (expected 0)"
+} else {
+    $sidecarPath = "$imgPath.sha256"
+    if (-not (Test-Path $sidecarPath)) {
+        Fail "image create left no .sha256 sidecar at $sidecarPath"
+    } else {
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $imgPath).Hash.ToLower()
+        $sidecar = (Get-Content -LiteralPath $sidecarPath -Raw).ToLower()
+        if ($sidecar -notmatch [regex]::Escape($hash)) {
+            Fail "image hash mismatch: sidecar='$sidecar' file=$hash (the committed file must equal the device stream)"
+        } else {
+            $diskBytes = (Get-Disk -Number $multiDisk).Size
+            $imgBytes = (Get-Item -LiteralPath $imgPath).Length
+            if ($imgBytes -ne $diskBytes) {
+                Fail "image size $imgBytes != disk size $diskBytes"
+            } else {
+                $imgScan = Join-Path $probeDir 'multi-gpt-scan.crsf'
+                $scanOut = & $RrecovExe scan --image $imgPath --out $imgScan 2>&1
+                $scanExit = $LASTEXITCODE
+                $scanOut | Set-Content (Join-Path $probeEv 'image-scan.txt') -Encoding utf8
+                if ($scanExit -ne 0) {
+                    Fail "scan --image (of the created image) exited $scanExit"
+                } else {
+                    Write-Host ("PASS image-create round-trip: {0:N0} bytes, digest {1}.., scan --image exit 0" -f $imgBytes, $hash.Substring(0, 12))
+                }
+            }
+        }
+    }
+}
+
 # fix dry-run on an undamaged disk: REFUSED/clean is exit 0
 $fixOut = & $RrecovExe fix --disk $multiDisk 2>&1
 $fixExit = $LASTEXITCODE

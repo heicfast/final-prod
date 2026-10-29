@@ -92,3 +92,11 @@ land from this session's findings: `image` (S-040), `--filter-path-substr`/
 
 ## Session-8 lead-lane wave (audited `ff879f9`)
 - **N-123**: the "exactly 7 commands" row vs the 11-verb dispatch + the exit-4 row.
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**S-040 FIXED** — see the finding's Resolution in findings/FIXED/S-040:
+the disk-image CREATE producer landed (portable copy loop + win-layer
+disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
+cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
+flat-only boundary is registered as D-143.

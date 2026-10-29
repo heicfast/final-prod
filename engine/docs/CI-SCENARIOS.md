@@ -25,6 +25,12 @@
 > **Lane truth (M-088):** three of the consumer workflows named in the
 > historical table below were DELETED by the consolidation
 > (`driver-install.yml`, `core-install.yml`, `staged-scenarios.yml`) — the
+S-040 image-create probe (the closing-fix lane, 2026-10-29): Run-Benchmark.ps1
+phase 1 now proves the producer end-to-end on the staged multi-gpt disk —
+`image --create` exit 0, sidecar digest == Get-FileHash(image) (the
+byte-identity proof: the digest is computed over the device-read stream),
+image size == Get-Disk size, and `scan --image` of the produced file
+exits 0 (the corpus-recommended safe-scan posture, UIUX/11:17).
 > current consumers are `checks.yml` (the refusal contract's driverless
 > probes), `test-benchmark.yml` (the install chain + the scenario
 > matrix), and `installer.yml` (the S-038 gates). The table is preserved

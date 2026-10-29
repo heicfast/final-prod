@@ -36,6 +36,11 @@
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
  *   driver [--service NAME] [--json]      the driver-status surface
+ *   image --create --disk N --out file.img
+ *                                         the og home page's Create Image
+ *                                         flow (UIUX/07:36-37): flat raw
+ *                                         producer + .sha256 sidecar; cancel
+ *                                         keeps '<out>.partial' (S-040)
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
  * was given); list 1 on enumeration failure; list-carve-formats 1 on the
@@ -47,7 +52,8 @@
  * hits;
  * 4 = the driver prerequisite is not met (any driver-requiring verb; the
  * refusal names the exact ERR_DRIVER_* class on stderr - see
- * docs/DRIVER-REQUIRED.md).
+ * docs/DRIVER-REQUIRED.md); image 3 cancelled (the partial is kept as
+ * '<out>.partial' and reported) / 2 failed (partial kept, reported).
  *
  * Everything is logged in detail (stage timings, per-stage counts, error
  * maps) for testing, validation and benchmarking workflows.
@@ -75,10 +81,12 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
+#include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
+#include "cr/crypto/cr_sha256.h" /* S-040: the digest line */
 #include "cr/cr_text.h"            /* N-009c: --filter UTF-8 encoding */
 #include "cr/preview/cr_preview.h" /* M-116: the archive-list verb surfaces the inventory */
 #include <windows.h>
@@ -2632,6 +2640,108 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     return any_health_source ? 0 : 3;
 }
 
+/* S-040: case-insensitive suffix check over the ASCII container names
+ * (towlower per W1a - no CRT _wcsicmp dependency in the parse-gated
+ * layer; the stub set stays the exact SDK surface) */
+bool ends_with_ci(const std::wstring& s, const wchar_t* suffix) {
+    const size_t n = std::wcslen(suffix);
+    if (s.size() < n)
+        return false;
+    for (size_t i = 0; i < n; ++i)
+        if (towlower(s[s.size() - n + i]) != towlower(suffix[i]))
+            return false;
+    return true;
+}
+
+/* S-040: the image verb - the og home page's "Create Image" flow at the
+ * CLI (UIUX/07:36-37 + UIUX/06:27; the product then recommends scanning
+ * the produced image as the damage posture, UIUX/11:17). Driver class
+ * (a): require_driver() gates the data path first, exactly like
+ * bench/fix/apply. The stream copies the device 64 KiB at a time (the
+ * transport envelope) with live cumulative progress, Ctrl-C cancel, the
+ * SHA-256 sidecar, and the truth contract: a cancelled or failed create
+ * keeps '<path>.partial' and says so - never a silent success. */
+int cmd_image(int argc, wchar_t** argv, int& i) {
+    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): image create
+     * reads the disk data path - classification (a), like bench. */
+    {
+        const int drc = require_driver();
+        if (drc != 0)
+            return drc;
+    }
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    std::wstring out;
+    bool have_out = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--out", &v)) {
+            out = v;
+            have_out = true;
+            continue;
+        }
+        wprintf(L"unknown image option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk || !have_out) {
+        wprintf(L"image needs --disk N and --out file.img\n");
+        return 1;
+    }
+    if (!ends_with_ci(out, L".img") && !ends_with_ci(out, L".raw") && !out.empty()) {
+        /* the og's create ships FLAT images; vhd/vhdx/vmdk writers are out
+         * of scope (D-143) - name the container honestly instead of
+         * writing a flat file under a container extension */
+        wprintf(L"image --out writes the FLAT raw form only (see docs/PARITY-DELTAS.md "
+                L"D-143); use a .img/.raw path\n");
+        return 1;
+    }
+
+    /* live progress: one line per ~10% (throttled; the callback fires per
+     * 64 KiB chunk, printing all of them would dominate the stream) */
+    struct Ctx {
+        u64 next_mark = 0;
+    } ctx;
+    ctx.next_mark = 0;
+    auto progress = +[](void* user, u64 done, u64 total) {
+        auto* c = static_cast<Ctx*>(user);
+        if (done < c->next_mark && done != total)
+            return;
+        wprintf(L"image: %llu / %llu bytes (%llu%%)\n",
+                static_cast<unsigned long long>(done),
+                static_cast<unsigned long long>(total),
+                total ? static_cast<unsigned long long>(done * 100 / total) : 100ull);
+        const u64 mark = total / 10 ? total / 10 : 1;
+        c->next_mark = done + mark;
+    };
+
+    const std::u16string out16(out.begin(), out.end());
+    storage::ImageCreateStats stats{};
+    const u32 rc = win::create_disk_image(disk, L"RDA", out16, &g_cancel_token, progress, &ctx,
+                                          &stats);
+    const std::string hex = crypto::to_hex(stats.sha256, 32);
+    if (rc == OK) {
+        wprintf(L"image complete: %llu bytes, sha256 %hs\n",
+                static_cast<unsigned long long>(stats.bytes_written), hex.c_str());
+        wprintf(L"sidecar: %s.sha256\n", out.c_str());
+        return 0;
+    }
+    if (rc == ERR_CANCELLED) {
+        wprintf(L"image CANCELLED at %llu bytes (Ctrl-C); the partial image is kept as "
+                L"'%s.partial'\n",
+                static_cast<unsigned long long>(stats.bytes_written), out.c_str());
+        return 3;
+    }
+    wprintf(L"image FAILED at %llu bytes (rc=%08x): %hs\n",
+            static_cast<unsigned long long>(stats.bytes_written), rc, err_text(rc));
+    wprintf(L"the partial image is kept as '%s.partial'\n", out.c_str());
+    return 2;
+}
+
 int cmd_bench(int argc, wchar_t** argv, int& i) {
     /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): bench measures
      * the disk data path - driver-only. The --no-rda flag is REMOVED
@@ -3515,6 +3625,14 @@ int wmain(int argc, wchar_t** argv) {
             L"             (the driver-status surface: present/loaded/started/"
             L"authorized/healthy/version facets; exit 0 = ready, 4 = the\n"
             L"              driver prerequisite is not met - docs/DRIVER-REQUIRED.md)\n"
+            L"  rrecov image --create --disk N --out file.img\n"
+            L"             (the og home page's Create Image flow, UIUX/07:36-37 -\n"
+            L"              the safe-scan posture's producer: scan the image\n"
+            L"              instead of the live disk on damaged drives, UIUX/11:17;\n"
+            L"              flat raw only, VHD/VHDX writers out of scope -\n"
+            L"              docs/PARITY-DELTAS.md D-143; a .sha256 sidecar is\n"
+            L"              written; cancel keeps '<out>.partial', never a\n"
+            L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
             L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
@@ -3563,6 +3681,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_fix(argc, argv, i);
     if (cmd == L"apply")
         return cmd_apply(argc, argv, i);
+    if (cmd == L"image")
+        return cmd_image(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);
     if (cmd == L"driver")

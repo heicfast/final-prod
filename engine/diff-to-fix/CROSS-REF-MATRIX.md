@@ -6,6 +6,7 @@
 |---|---|---|
 | ext4 · unwritten-extent ee_len decode (Q68/B2) | **MATCH** (registered deliberate divergence — D-141; findings/FIXED/I-045) | **I-045 FIXED (ACKNOWLEDGED)** — the register landed: PARITY-DELTAS D-141 + the anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`; the core stays kernel-correct against the og's raw multiply (re-verified first-hand at EXT4SearchDLL :4044-4048) |
 | lost-partition/session · lostpart.dat lifecycle + resume granularity (#36/#34/#58) | **MATCH** (registered deliberate divergence — D-142; findings/FIXED/I-046) | **I-046 FIXED (ACKNOWLEDGED)** — the og-side lifecycle decoded and registered: per-process-generation cache (W1 delete latch), per-hit appends, W3 marker-restore scan-position resume; the core's M-042 stage-granular checkpoint architecture stays — D-142 carries the delta |
+| imaging/abi/cli · disk-image CREATE producer (P42/C24/F59/B8) | **MATCH** (S-040 landed; the flat-only boundary registered as D-143) | **S-040 FIXED** — the producer half: storage::create_image_stream + win::create_image_file/create_disk_image + ABI cr_ui_image_create (87 exports) + CLI verb 13 image --create; R-93 PARTIAL->PRESENT; the class-(a) driver gate + the truth contract (.partial kept and reported) pinned by tests |
 
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
 

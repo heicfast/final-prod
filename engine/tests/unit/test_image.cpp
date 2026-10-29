@@ -13,6 +13,7 @@
  */
 
 #include "cr/storage/cr_image.h"
+#include "cr/crypto/cr_sha256.h" /* S-040: the digest pins */
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/session/cr_records.h"
 #include <gtest/gtest.h>
@@ -1008,6 +1009,187 @@ TEST(Image, QemuVhdxCompat) {
     EXPECT_EQ(buf[0], 0xEF);
     ASSERT_EQ(dev->read_at(512 * 1024, buf, 512), OK);
     EXPECT_EQ(buf[0], 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* S-040: the image-CREATE producer (the portable copy loop)            */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* a controllable source device: deterministic content, optional geometry,
+ * an optional hard read failure at a given offset */
+class SrcDevice final : public IStorageDevice {
+public:
+    SrcDevice(u64 bytes, u32 logical_sector, u64 fail_after = ~0ull)
+        : data_(size_t(bytes)), fail_after_(fail_after) {
+        g_.logical_sector = logical_sector;
+        g_.physical_sector = logical_sector;
+        g_.total_bytes = bytes;
+        g_.sector_count = bytes / logical_sector + (bytes % logical_sector ? 1 : 0);
+        /* deterministic content: a byte pattern the digest can pin */
+        for (u64 i = 0; i < bytes; ++i)
+            data_[size_t(i)] = u8((i * 7 + 0x5B) & 0xFF);
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off >= fail_after_)
+            return ERR_READ_FAILED; /* the hard-failure plane */
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+    const std::vector<u8>& bytes() const { return data_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry g_{};
+    u64 fail_after_ = ~0ull;
+};
+
+/* an in-memory sink that remembers everything written */
+class MemSink final : public ImageCreateSink {
+public:
+    u32 write(const void* data, u32 len) override {
+        const u8* p = static_cast<const u8*>(data);
+        out_.insert(out_.end(), p, p + len);
+        return OK;
+    }
+    const std::vector<u8>& bytes() const { return out_; }
+
+private:
+    std::vector<u8> out_;
+};
+
+class FlagToken final : public CancelToken {
+public:
+    bool cancelled() const override { return on_; }
+    void flip() { on_ = true; }
+
+private:
+    bool on_ = false;
+};
+
+void expect_digest_of(const std::vector<u8>& data, const u8 got[32]) {
+    u8 want[32];
+    crypto::Sha256::digest(data.data(), data.size(), want);
+    EXPECT_EQ(0, std::memcmp(want, got, 32)) << "digest mismatch";
+}
+
+} // namespace
+
+TEST(ImageCreate, HashMatchesSource) {
+    /* 200 KiB + a short tail: two full 64 KiB chunks + one 7168-byte tail */
+    SrcDevice src(200 * 1024 + 7168, 512);
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream(src, sink, nullptr, nullptr, nullptr, &st));
+    /* the produced image is byte-identical to the source device */
+    ASSERT_EQ(src.bytes().size(), sink.bytes().size());
+    EXPECT_EQ(0, std::memcmp(src.bytes().data(), sink.bytes().data(), src.bytes().size()));
+    /* the stream digest equals an independent SHA-256 of the source */
+    expect_digest_of(src.bytes(), st.sha256);
+    EXPECT_EQ(src.bytes().size(), st.bytes_written);
+    EXPECT_FALSE(st.cancelled);
+}
+
+TEST(ImageCreate, ShortTailNotPadded) {
+    /* total is NOT a 64 KiB multiple: nothing may be padded or synthesized */
+    SrcDevice src(64 * 1024 + 12345, 512);
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream(src, sink, nullptr, nullptr, nullptr, &st));
+    EXPECT_EQ(u64(64 * 1024 + 12345), st.bytes_written);
+    ASSERT_EQ(size_t(64 * 1024 + 12345), sink.bytes().size());
+    expect_digest_of(sink.bytes(), st.sha256);
+}
+
+TEST(ImageCreate, FourKnGeometryStreamsUnpadded) {
+    /* 4Kn geometry: the loop must never assume 512-byte sectors or 64 KiB
+     * divisibility - a 4 KiB-aligned tail (64 KiB + 4 KiB) copies exactly */
+    SrcDevice src(64 * 1024 + 4096, 4096);
+    ASSERT_EQ(4096u, src.geometry().logical_sector);
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream(src, sink, nullptr, nullptr, nullptr, &st));
+    EXPECT_EQ(u64(64 * 1024 + 4096), st.bytes_written);
+    ASSERT_EQ(size_t(64 * 1024 + 4096), sink.bytes().size());
+    EXPECT_EQ(0, std::memcmp(src.bytes().data(), sink.bytes().data(), sink.bytes().size()));
+}
+
+TEST(ImageCreate, CancelMidStreamKeepsTruthfulPartialStats) {
+    /* cancel after the first chunk: the committed prefix is ONE 64 KiB
+     * chunk, reported exactly - never a full-size digest, never silent */
+    SrcDevice src(3 * 64 * 1024, 512);
+    MemSink sink;
+    FlagToken tok;
+    /* flip the token inside the FIRST chunk's progress callback: the
+     * second chunk's loop-head check then refuses to read */
+    auto progress = +[](void* user, u64, u64) {
+        static_cast<FlagToken*>(user)->flip();
+    };
+    ImageCreateStats st{};
+    const u32 rc = create_image_stream(src, sink, &tok, progress, &tok, &st);
+    ASSERT_EQ(ERR_CANCELLED, rc);
+    EXPECT_TRUE(st.cancelled);
+    EXPECT_EQ(u64(64 * 1024), st.bytes_written) << "exactly one chunk committed";
+    ASSERT_EQ(size_t(64 * 1024), sink.bytes().size());
+    expect_digest_of(sink.bytes(), st.sha256);
+    EXPECT_EQ(0, std::memcmp(src.bytes().data(), sink.bytes().data(), 64 * 1024));
+}
+
+TEST(ImageCreate, ReadFailureReportsCommittedPrefix) {
+    /* a hard read failure at the second chunk: the failed chunk is not
+     * emitted - the stats report the prefix before it, truthfully */
+    SrcDevice src(3 * 64 * 1024, 512, 64 * 1024 /* fail_after */);
+    MemSink sink;
+    ImageCreateStats st{};
+    const u32 rc = create_image_stream(src, sink, nullptr, nullptr, nullptr, &st);
+    ASSERT_EQ(ERR_READ_FAILED, rc);
+    EXPECT_FALSE(st.cancelled);
+    EXPECT_EQ(u64(64 * 1024), st.bytes_written);
+    ASSERT_EQ(size_t(64 * 1024), sink.bytes().size());
+    expect_digest_of(sink.bytes(), st.sha256);
+}
+
+namespace {
+struct Pctx {
+    u32 calls = 0;
+    u64 last_done = 0;
+};
+} // namespace
+
+TEST(ImageCreate, ProgressCallbackPerChunk) {
+    SrcDevice src(2 * 64 * 1024 + 100, 512);
+    MemSink sink;
+    Pctx ctx;
+    auto fn = +[](void* user, u64 done, u64 total) {
+        auto* c = static_cast<Pctx*>(user);
+        ++c->calls;
+        EXPECT_GE(done, c->last_done) << "progress must be monotonic";
+        EXPECT_EQ(u64(2 * 64 * 1024 + 100), total);
+        c->last_done = done;
+    };
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream(src, sink, nullptr, fn, &ctx, &st));
+    EXPECT_EQ(3u, ctx.calls) << "one callback per chunk (2 full + 1 tail)";
+    EXPECT_EQ(u64(2 * 64 * 1024 + 100), ctx.last_done);
+}
+
+TEST(ImageCreate, EmptyDeviceIsEmptyStream) {
+    SrcDevice src(0, 512);
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream(src, sink, nullptr, nullptr, nullptr, &st));
+    EXPECT_EQ(u64(0), st.bytes_written);
+    EXPECT_TRUE(sink.bytes().empty());
+    /* the well-known SHA-256 of the empty stream */
+    static const u8 kEmptySha[32] = {0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14,
+                                     0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24,
+                                     0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c,
+                                     0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55};
+    EXPECT_EQ(0, std::memcmp(kEmptySha, st.sha256, 32));
 }
 
 } // namespace test

@@ -35,7 +35,7 @@ proceed normally, and that is by design, not a fallback).
 | bench | CLI `bench` → `win::open_disk` | grammar path (`--no-rda` is REMOVED) |
 | LDM cross-disk member resolution | rrecov.cpp LDM resolver; `cr_ui` `arm_ldm_resolver` | `win::open_disk` per member |
 | scan-time repair writer | `scan --repair-apply` hooks | `open_disk_rw` |
-| image-create (planned, PLAN-API-EXPANSION Wave 4) | future CLI/ABI op | reads disk content |
+| image-create (S-040; PLAN-API-EXPANSION Wave 4) | CLI `image --create --disk N --out file.img`; ABI `cr_ui_image_create` (win::open_disk read view, 64 KiB envelope stream) | reads disk content |
 
 ### (b) Driver-independent — control path and file state (og evidence)
 

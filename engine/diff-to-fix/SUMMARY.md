@@ -7772,3 +7772,20 @@ undo); suite 1453/1453. Trail: findings/FIXED/S-063 + ledger row + ntfs.md
 grown for the metadata tail, the grading test's nested markers collapsed, the
 preview leak closed, the _TRUNCATE format drift) + the S53's convergent
 markers. Suite green throughout.
+
+**S-040 FIXED (SEVERE — the image-create producer, this lane's centerpiece):**
+the producer half the core wholly lacked: portable
+`storage::create_image_stream` (64 KiB envelope reads, SHA-256 over the
+stream, cancel at chunk heads, committed-prefix stats) + win-layer
+`win::create_image_file` (atomic `.crimg-tmp`→rename commit + the
+`.sha256` sidecar + the explicit kept `.partial` on cancel/failure —
+reported, never a silent success) + `win::create_disk_image` (class (a)
+over open_disk) + ABI `cr_ui_image_create` (87 exports, contract 7j,
+the ERR_DRIVER_* gate, honest ERR_UNSUPPORTED off-Windows) + CLI verb 13
+`image --create` (four-site lock; exit 3/2 with the kept-.partial
+reporting). Flat raw only — VHD/VHDX writers out of scope, registered
+D-143. 7 portable tests + 4 win-lane disposition tests + C-consumer
+rows; R-93 PARTIAL→PRESENT; a Windows-lane probe added to
+Run-Benchmark.ps1 (create → sidecar digest == Get-FileHash → size ==
+disk size → scan --image exit 0). Board after this push: 45 active —
+0 SEVERE · 23 MAJOR · 20 MINOR · 0 INFO — + 4 tracked-open; FIXED 141.

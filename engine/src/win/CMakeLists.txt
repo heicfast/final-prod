@@ -2,6 +2,7 @@
 add_library(cr_win STATIC
     cr_transport.cpp
     cr_image_win.cpp
+    cr_image_create.cpp
     cr_enumerate.cpp
     cr_bitlocker.cpp
     cr_health.cpp

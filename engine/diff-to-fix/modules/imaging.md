@@ -63,3 +63,11 @@ writer, no `image` verb; the og's home-page "Create Image" flow and the
 corpus's image-scan-first damage posture (UIUX/11:17) are unreachable; the
 reader half (S-030) is complete). Fix = a flat-image writer over the dest-I/O
 abstractions, driver class (a), SHA256 sidecar, cancel support.
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**S-040 FIXED** — see the finding's Resolution in findings/FIXED/S-040:
+the disk-image CREATE producer landed (portable copy loop + win-layer
+disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
+cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
+flat-only boundary is registered as D-143.

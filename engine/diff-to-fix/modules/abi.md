@@ -126,3 +126,11 @@ vs the actual 83 exports / 42+OK codes / 12 events — CORE-API-CURRENT's own :3
 banner carries the true 83), and bench/README's deleted-workflow citations. All
 ride N-150's S42 addendum (the original fix plan, scope-extended); evidence: the
 S42 decode pack §6.
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**S-040 FIXED** — see the finding's Resolution in findings/FIXED/S-040:
+the disk-image CREATE producer landed (portable copy loop + win-layer
+disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
+cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
+flat-only boundary is registered as D-143.

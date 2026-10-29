@@ -333,7 +333,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-90 Linux connect | none | GAP | — |
 | R-91 cloud drive scan | none | GAP | — |
 | R-92 WinPE media creation | none (we RUN under WinPE: `win_pe_environment` gate M-030, §e) | GAP | Media creation out of scope; PE-awareness present. |
-| R-93 disk-image creation | none — images are input-only: `cr_ui_open_image` (.vmdk/.vhd/.vhdx/.img/.dmg/.raw; S-030) (§b.2) | PARTIAL | Open/parse PRESENT (superset of og's libvmdk VMDK-only); **create-image op missing** (og's DiskBackup flow). |
+| R-93 disk-image creation | `cr_ui_image_create` (ABI, class (a)); CLI `image --create` (S-040); reader `cr_ui_open_image` (.vmdk/.vhd/.vhdx/.img/.dmg/.raw; S-030) (§b.2) | PRESENT | Open/parse PRESENT (superset of og's libvmdk VMDK-only); create-image PRESENT (S-040: flat-raw producer, atomic commit + .sha256 sidecar + truthful .partial; VHD/VHDX writers out of scope — D-143). |
 | R-94 WeChat recovery | none | GAP | Product scenario, out of scope. |
 | R-95 engine error codes | 34+OK error space across 9 families 0x5002..0x500A (§d.1) | PRESENT | Same HRESULT-family shape (0x5002xxxx engine errors) — parity by construction. |
 
@@ -432,7 +432,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | Linux connect (R-90) | UIUX/15:27-29 | none | GAP | — |
 | cloud scan (R-91) | DRWUI arch:33 | none | GAP | — |
 | WinPE media creation (R-92) | UIUX/15:35-37 | none (PE-aware run: M-030) | GAP | out of scope |
-| image create (R-93) | UIUX/07:36-37 | open_image (superset read) | PARTIAL | create-image op missing |
+| image create (R-93) | UIUX/07:36-37 | cr_ui_image_create + `image --create` (S-040; flat-raw, D-143 boundary) | PRESENT | create-image landed (S-040) |
 | WeChat (R-94) | DRWUI arch:64 | none | GAP | product scenario |
 | engine error codes (R-95) | scan-engine arch:61-70 | 34+OK codes 0x5002..0x500A | PRESENT | — |
 

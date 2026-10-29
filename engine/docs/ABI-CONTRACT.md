@@ -675,6 +675,39 @@ Contract:
 - No version bump: appended exports + new structs, no existing shape
   touched (§9).
 
+### 7j. The image-create producer (S-040 / R-93; PLAN-API-EXPANSION Wave 4)
+
+The og home page's "Create Image" flow (UIUX/07:36-37 + UIUX/06:27;
+the imaging capability lives in ToolsModule.dll, mom-module-system :87)
+and the product's damage posture - scan the produced image instead of
+the live disk (UIUX/11:17). The reader half is S-030
+(`cr_ui_open_image`); this is the producer the core wholly lacked.
+
+Contract:
+- `cr_ui_image_create(disk, utf8_path, progress, user)` — one-shot,
+  class (a) driver-required (DRIVER-REQUIRED.md): a non-Ready driver
+  state is a classified ERR_DRIVER_* refusal, the same gate as
+  `cr_ui_open_disk`.
+- Progress: the recovery-style cumulative-bytes callback (bytes done /
+  bytes total, once per 64 KiB chunk); may be NULL.
+- Truth contract (the finding's acceptance): streamed to
+  `<path>.crimg-tmp`, atomically renamed on completion, plus the
+  `<path>.sha256` sidecar (the standard `<hex>  <basename>` form). On
+  cancel or failure the partial image is KEPT as `<path>.partial` -
+  reported through the return code, never silently passed off as
+  complete. A sidecar write failure is reported while the image itself
+  stays committed.
+- Flat raw only: VHD/VHDX writers are out of scope (registered
+  divergence D-143); the og's own reader accepts flat and the corpus
+  does not decode the og's writer format beyond the libvmdk link.
+- The copy loop is portable core (`storage::create_image_stream`,
+  cr_image.cpp: 64 KiB envelope reads, SHA-256 over the stream, cancel
+  at chunk heads); the platform layer owns the file disposition
+  (`win::create_image_file`) and the device open (`win::create_disk_image`
+  over `win::open_disk`). Non-Windows lanes return ERR_UNSUPPORTED
+  (the honest platform answer).
+- No version bump: one appended export, no existing shape touched (§9).
+
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
 **This section previously specified a queryable SQLite sidecar index

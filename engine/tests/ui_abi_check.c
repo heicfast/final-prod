@@ -1130,6 +1130,13 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_enumerate_disks(&di, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_enumerate_volumes(NULL, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_health_read(0, &hr, NULL, 0, &ac), CR_UI_ERR_UNSUPPORTED);
+        /* S-040: the image-create producer is class (a) win-backed - the
+         * honest unsupported answer on this lane; the argument gate is
+         * platform-independent (checked first so the last-error text
+         * below reflects the unsupported call) */
+        CHECK_EQ_U64(cr_ui_image_create(0, NULL, NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create(0, "", NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create(0, "out.img", NULL, NULL), CR_UI_ERR_UNSUPPORTED);
         CHECK(strstr(cr_ui_last_error(), "Windows platform layer") != NULL);
     }
 #endif

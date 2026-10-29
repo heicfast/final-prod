@@ -1503,6 +1503,26 @@ CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                      cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                      uint32_t* attr_count);
 
+/* S-040 (R-93): create a flat raw disk image of physical disk N at
+ * utf8_path (the og home page's "Create Image" producer - the safe-scan
+ * posture's first step, UIUX/07:36-37 + UIUX/11:17; raw-flat only,
+ * VHD/VHDX writers out of scope - PARITY-DELTAS D-143).
+ *
+ * Classification (a) driver-required (DRIVER-REQUIRED.md): the call
+ * requires the RDA driver Ready like every disk-data-path verb, and
+ * refuses with the ERR_DRIVER_* class otherwise (the same gate as
+ * cr_ui_open_disk).
+ *
+ * progress (may be NULL) is the recovery-style cumulative-bytes callback.
+ * Disposition: streamed to `<path>.crimg-tmp`, atomically renamed on
+ * completion + a `<path>.sha256` sidecar (the standard "<hex>  <name>"
+ * form). On cancel or failure the partial image is KEPT as
+ * `<path>.partial` - reported, never silently passed off as complete.
+ * Win-backed: on non-Windows lanes returns ERR_UNSUPPORTED (the honest
+ * platform answer). */
+CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
+                                      cr_ui_recovery_progress_fn progress, void* user);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

@@ -1,3 +1,35 @@
+## Closing-fix lane — S-040 lands (the SEVERE zero; 2026-10-29)
+
+**S-040 FIXED (SEVERE, imaging/ABI/CLI)** — the disk-image CREATE
+producer (the og home page's "Create Image" flow; the corpus-recommended
+safe-scan posture, UIUX/11:17). Corpus re-verified first-hand
+(UIUX/07:36-37 + UIUX/06:27 + mom-module-system :87 — the exact written
+format stays undecoded beyond libvmdk; the flat-only boundary registered
+as PARITY-DELTAS D-143). The landing, exactly per the fix plan: portable
+storage::create_image_stream (cr_image.cpp: 64 KiB envelope reads, SHA-256
+over the emitted stream, cancel at chunk heads, the committed-prefix
+truth contract) + win::create_image_file (atomic .crimg-tmp -> rename
+commit + the .sha256 sidecar in the standard "<hex>  <basename>" form +
+the explicit kept .partial on cancel/failure) + win::create_disk_image
+(class (a) over open_disk) + ABI cr_ui_image_create (87 exports; contract
+7j; the ERR_DRIVER_* gate before the open; honest ERR_UNSUPPORTED
+off-Windows; the C-consumer rows prove the argument gates on every lane)
++ CLI verb 13 image --create (the four-site lock + truthful exit codes 3/2
++ the honest container-extension refusal). 7 portable tests (cr_tests) +
+4 win-lane disposition tests (cr_image_create_tests, MSVC lane; parse
+gate green locally) + the Run-Benchmark.ps1 phase-1 probe (create ->
+sidecar digest == Get-FileHash -> size == disk size -> scan --image exit
+0). R-93 PARTIAL->PRESENT (both REFERENCE-API-GAP rows); doc counts
+swept (87 exports / 13 verbs; the doc_truth_gate green); D-143 added
+(144 rows now). Finding moved to findings/FIXED/ with the full
+Resolution; ledger row landed; matrix + imaging/abi/cli module docs
+updated.
+
+Board after this push: 45 active — 0 SEVERE · 23 MAJOR · 20 MINOR ·
+0 INFO — + 4 tracked-open; FIXED archive 141. Next: the MAJOR ladder
+(the acceptance-band family M-141/M-142/M-145/M-146/M-147 is the most
+tractable cluster).
+
 ## Closing-fix lane — the INFO-first pair lands (2026-10-29)
 
 **Session start record:** opened at core `98a5b139` (63 commits after the
