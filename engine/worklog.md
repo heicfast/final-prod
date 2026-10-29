@@ -8723,7 +8723,6 @@ this entry. **Also this window: five main-red repairs** (the e1/e2 dangling vars
 duplicate test, the crossed grading assertions, the carve triple-tick, the win-stub S-060 gap,
 the test_carve comment splice — several converged with the parallel lanes' own repairs per
 SA-9), all verified at 1419/1419 before their pushes.
-<<<<<<< HEAD
 **S-058 CONVERGENT (SEVERE — the grading extension-table gate polarity).** This
 lane's independent verification + fix preceded its push by a full build/test
 cycle (the comparator pair :324923-324939, FUN_140256d00's set::find idiom
@@ -8758,7 +8757,7 @@ earlier win-gate repair (rrecov.cpp's PartitionSlice retype — convergent with
 the S53 lane's N-188; cr_ui.cpp's Level::Warn — this lane's unique half).
 Suite 1392/1392 green, win gate 10/10, format clean. The lane continues down
 the SEVERE queue (S-059 next).
-=======
+
 
 ## Session-46 minors lane — N-184 landed (2026-10-29)
 
@@ -8834,4 +8833,3 @@ N-203 (the v4 tail), N-206 (the ceil pair), N-204 (the F6 og-side cell).
 Convergence: the S54/S50 lanes' batteries and the S52/S48 grading decodes
 converge on every overlapping row — this lane's independent verification
 recorded per the S42/S42-B/S42-C precedent.
->>>>>>> 6c66d46c (audit(S55): the sixth continuation lane's filings - 5 lead-verified findings (N-203 the resume round-trip drops the candidate data-area extent [PartitionContext v3 carries no data fields, revalidate discards the re-deriving scratch, the og's 0x448 record replays the full image through {start,end,disk}]; N-204 the og's engine-layer carve geometry decoded first-hand [4 MiB blocks / 8 MiB double buffer / half-buffer look-back / sector-stride u32 probes - SCAN-ENGINE-DELTA F6's og-side cell was empty]; N-205 the rawCount population semantics [og: forced deep-read probe + FS-code size rule; core: Origin::Carved census] + the M-134 resolution's phantom raw_tail_zero field [grep-zero at HEAD]; N-206 the device sector-count ceil-vs-floor [og geometry-EX (L-1+ss)/ss vs core floor everywhere - truncated-image tails invisible]; I-046 the lostpart/partinfo lifecycle register [per-process-generation cache, first-search delete latch, interrupt markers, scan-position-granular marker-restore - NOT a cross-session knowledge base]) + OQ-S42-3 CLOSED (the flag-setter origins + vt+0xb8/vt+0x100 semantics decoded [0x23 ctor default in all eight SearchDLLs, 0xa8 no-writer-found = likely dead branch]; retired to findings/FIXED/) + the convergent 69-finding liveness battery (62 STILL / 3 PARTIAL / 2 FALSELY-ACTIVE [N-142-rsf=N-186 convergent, I-035 listing-stale] / zero phantom-fixed; OQ-S42-1/2 resolved-in-substance) + the no-stuck-or-freeze clean bill (every core walker capped; the og's Btrfs recursion has no visited set) + module addenda x5 + matrix/SUMMARY/README/ledger rows - evidence: s55-lane-sheets x5 + s55-liveness; board 60 active (5/24/30/1) / 121 FIXED / 4 tracked-open)
