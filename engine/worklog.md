@@ -33,6 +33,40 @@ Board after this landing (post-rebase over the S81 lane's N-211/N-215
 landings): **1 SEVERE (S-068) · 17 MAJOR · 10 MINOR · 1 INFO active /
 174 FIXED / 4 tracked-open** (N-217 + S-067 add two FIXED; N-211/N-215
 landed by the racing S81 lane).
+## Session-79 S79 lane — M-113 lands (2026-10-29)
+
+- **M-113 FIXED (MAJOR, boot-repair/reghive)** — the recovered-OS
+  boot-environment write-side surgery. All four corpus sites re-read
+  first-hand (:73731-73790 the TempSystem/MountedDevices chain;
+  :74837-74887 the TmpBCD {9dea862c} 23000003 -> 12000004 walk;
+  :73605-73621 the TmpSoftWare ProductName leg; :42845-42860 bootstat).
+  Two finding annotations corrected by the decode: the 12000004 write is
+  type 1 (REG_SZ) with wcslen*2 wide bytes (not REG_BINARY), and the
+  SOFTWARE-hive leg is a READ (covered by offlineos). Landed:
+  `reghive::HiveEditor` (cr_reghive_edit.{h,cpp} - the offline hive
+  value editor: rewrite-never-create, inline <= 4 bytes with bit 31,
+  in-place cell reuse, first-fit free-cell allocation with split
+  marking, whole-0x1000-block hbin growth, seq-pair bump + XOR checksum
+  refresh on every mutation; the use-after-realloc in the growth path
+  caught by the round-trip test and fixed pre-push) +
+  `reghive::surgery` (cr_surgery.{h,cpp} - rewrite_mounted_devices [the
+  12-byte \DosDevices\<letter>: family, all-located-before-first-write],
+  repoint_bcd_device_element [the self-reference refusal], the bootstat
+  contract constants). Architecture registered: direct hive-buffer
+  surgery vs the og's RegLoadKey - no live registry, no elevation,
+  dead-system images (the recovery context). Undo = the caller's
+  pre-image (pinned). The apply-chain CRUNDO01 rider + the Windows boot
+  drill are the recorded follow-ups; the BIOS twin's boot.ini path
+  resolution re-read (RecoveryModule :76898-76960 - D-90 territory, the
+  deeper write behavior still undecoded, the standing open question).
+  R-69 flipped PRESENT -> PARTIAL (truthful). Tests: HiveEdit.* (4) +
+  BootSurgery.* (7), RED as the compile-error class (the test battery
+  against the stash-reverted implementation - the M-118/N-100/N-140
+  precedent); **full suite 1607/1607**. Trail: findings/FIXED/M-113 +
+  Resolution, ledger row, matrix row, modules/boot-repair.md S79
+  addendum, REFERENCE-API-GAP R-69 PARTIAL, SUMMARY board (15 MAJOR
+  active / 171 FIXED), this entry.
+
 ## Session-79 S79 lane — M-073 lands (2026-10-29)
 
 - **M-073 FIXED (MAJOR, orchestration/query/ABI/CLI)** — the scan-time

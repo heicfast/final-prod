@@ -23,3 +23,29 @@ tool) against the core's staged port.
 - **M-113** (MAJOR): the recovered-OS boot-environment write-side surgery absent + unregistered — the og's genuefisystemfile.cpp chain (TempSystem MountedDevices rewrite; TmpBCD {9dea862c...}->23000003->device-element 12000004 re-pointing; TmpSoftWare CurrentVersion; SystemSetup/SystemPartition/bootstat). R-69's "PRESENT (bcdfix/nvramfix)" verdict covers only BCD-cell + NVRAM — a different, smaller mechanism. The BIOS twin (CGenBIOSSystemFile) is the fix lane's open decode.
 
 **N-121 (FIXED — registration):** the ESP auto-mount step (the og's CUpdateGptSystemBootPartition / MountGptPartition) is a REGISTERED HOST CONTRACT (PARITY-DELTAS D-90/N-121): the host discovers the ESP by type GUID, mounts it, passes the BCD path, unmounts after (exception-safe); the core's implementation needs the DeviceManager :49956 behavioral decode first — the registered next step.
+
+## Session-79 addendum (2026-10-29 — the MAJOR-first fix lane)
+
+**M-113 FIXED — the recovered-OS write-side surgery (core-side).** The
+genuefisystemfile family lands as two new reghive modules:
+`reghive::HiveEditor` (the offline hive VALUE editor - rewrite-never-
+create semantics, inline data <= 4 bytes, in-place cell reuse, first-fit
+free-cell allocation with proper split marking, whole-0x1000-block hbin
+growth, sequence+checksum refresh on every mutation) and
+`reghive::surgery` (`rewrite_mounted_devices` - the 12-byte
+\DosDevices\<letter>: REG_BINARY family with the all-located-before-
+first-write guarantee; `repoint_bcd_device_element` - the {9dea862c-...}
+23000003 walk and the referenced application's 12000004 rewrite with the
+og's exact type 1 REG_SZ wide-byte semantics [the finding's REG_BINARY
+annotation corrected by the :74875-78 decode]; the bootstat.dat contract
+[offset 10, byte 0x01]). Two more finding annotations corrected by the
+first-hand decode: the SOFTWARE-hive leg is a READ (offlineos covers
+it), and the MountedDevices per-value callback rule (DAT_180003c3d)
+stays the undecoded open question (the mapping-list form is the honest
+superset). Architectural registration: direct hive-buffer surgery vs the
+og's RegLoadKey - no live registry service, no elevation, works on
+dead-system images (the recovery context). The apply-chain pending-op
+integration (CRUNDO01 rider) + the Windows-lab drill are the recorded
+follow-ups. R-69: PRESENT -> PARTIAL (truthful - cell+nvram+hive-surgery
+landed, the apply-chain rider remains). 11 tests RED (compile-error
+class) -> GREEN; suite 1607/1607.

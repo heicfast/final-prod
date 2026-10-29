@@ -290,7 +290,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-66 found-partition present + recover | lost candidates + `cr_ui_apply_lost_partition` (S-029) (§b.5); CLI `apply` (§c.8) | PRESENT | Transactional apply + undo + consent default-deny. |
 | R-67 partition-table apply (transactional) | `apply::plan/execute/undo` + `CRUNDO01` persistence (§a/§b.5) | PRESENT | Direct parity (plan → consent → apply → undo). |
 | R-68 EPM editing vocabulary | only lost-partition table apply | GAP | Full editing ops (create/delete/resize/format/convert/copy/wipe) out of recovery scope; recorded as corpus-documented but out-of-mission. |
-| R-69 boot repair | `bcdfix`/`nvramfix` (M-040a/b) + CLI `apply --boot-fix/--boot-fix-bcd` (§a/§c.8) | PRESENT | BCD offset surgery + UEFI NVRAM Boot#### update, advisory failures. |
+| R-69 boot repair | `bcdfix`/`nvramfix` (M-040a/b) + `reghive::surgery` (M-113: MountedDevices rewrite, BCD device-element re-point, bootstat contract) + CLI `apply --boot-fix/--boot-fix-bcd` (§a/§c.8) | PARTIAL | BCD offset surgery + UEFI NVRAM Boot#### update + the offline hive-surgery family (the recovered-OS write side) landed; the apply-transaction pending-op integration and the Windows-lab boot drill are the recorded follow-ups (M-113's Resolution). |
 | R-70 LDM | `parse_ldm_database` + `LdmDiskResolver` + LDM member arm (§a engines) | PRESENT | Dynamic-disk decode present. |
 | R-71 RAID-5 rebuild | none | GAP | No RAID reconstruction. |
 
@@ -414,7 +414,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | found-partition recover (R-66) | UIUX/08:21-23 | apply_lost_partition (S-029) | PRESENT | — |
 | table apply txn (R-67) | mom-module-system:77-89 | apply::plan/execute/undo | PRESENT | — |
 | EPM editing ops (R-68) | pending-op:30-43 | none | GAP | out of recovery mission (corpus-documented) |
-| boot repair (R-69) | pending-op:41,59-61 | bcdfix/nvramfix (M-040) | PRESENT | — |
+| boot repair (R-69) | pending-op:41,59-61 | bcdfix/nvramfix (M-040) + reghive::surgery (M-113) | PARTIAL | the hive-surgery family landed core-side; the apply-chain rider + the boot drill remain |
 | LDM (R-70) | mom-module-system:59 | parse_ldm + resolver | PRESENT | — |
 | RAID-5 rebuild (R-71) | pending-op:64-65 | none | GAP | no RAID reconstruction |
 | file repair chain (R-72..78) | UIUX/12:22-55 | none (fix = FS repair, PRESENT vs RawFixer) | GAP | entire Fixo content-repair category missing |

@@ -177,9 +177,21 @@ M-155+, N-217+, I-049+, A-016+, D-150+.
   Carve/pathless roots exempt (the registered scoping decision); composes
   with M-018's junk pass. 15 tests RED (wiring-disabled) -> GREEN.
 
+- **M-113 FIXED (MAJOR, boot-repair/reghive)** — the recovered-OS
+  write-side surgery landed core-side: reghive::HiveEditor (the offline
+  hive VALUE editor - rewrite-never-create, inline/cell-reuse/new-hbin
+  semantics, seq+checksum discipline) + reghive::surgery
+  (rewrite_mounted_devices [12-byte DosDevices family, no-partial-write
+  guarantee], repoint_bcd_device_element [the {9dea862c} 23000003 walk;
+  REG_SZ wide bytes - the finding's REG_BINARY corrected by the decode],
+  the bootstat contract [offset 10, byte 1]). Two finding annotations
+  corrected by the first-hand decode (the BCD write type; the
+  SOFTWARE-hive leg is a READ). R-69 flipped PRESENT->PARTIAL (truthful).
+  11 tests RED (compile-error class) -> GREEN; suite 1607/1607.
+
 **Board after this landing (reconciled over the racing S69 audit lane's
 filings + the N-144/X3F landings absorbed at the push-rebase): 0 ACUTE ·
-2 SEVERE · 16 MAJOR · 12 MINOR · 1 INFO active / 170 FIXED / 4
+2 SEVERE · 15 MAJOR · 12 MINOR · 1 INFO active / 171 FIXED / 4
 tracked-open** (M-086/M-087/M-089 + N-107/N-127 driver-repo-resident per
 OQ-S10-3). Next free IDs: S-068+, M-155+, N-217+, I-049+, A-016+, D-150+.
 

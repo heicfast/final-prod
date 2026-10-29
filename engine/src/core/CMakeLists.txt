@@ -72,6 +72,8 @@ add_library(cr_core STATIC
     reghive/cr_reghive.cpp
     reghive/cr_offlineos.cpp
     reghive/cr_mountpoints2.cpp
+    reghive/cr_reghive_edit.cpp
+    reghive/cr_surgery.cpp
     bcdfix/cr_bcdfix.cpp
     nvramfix/cr_nvramfix.cpp
     refs/cr_refs_engine.cpp

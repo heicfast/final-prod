@@ -32,6 +32,7 @@ add_executable(cr_tests
     unit/test_ldm.cpp
     unit/test_lostpart.cpp
     unit/test_folderfilter.cpp
+    unit/test_reghive_edit.cpp
     unit/test_mountpoints2.cpp
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
