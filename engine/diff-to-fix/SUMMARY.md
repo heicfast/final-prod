@@ -89,12 +89,15 @@ IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
   BUILD_RC=2 at the stash-revert) → GREEN: **19 tests** in
   test_mountpoints2.cpp; full suite **1541/1541**.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 12 MAJOR · 11 MINOR · 0 INFO
-active / 161 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain
+**Board after this landing (re-truthed post-push from the filesystem, the
+racing lanes' N-131 + N-201 + M-135 + M-148 landings absorbed at the
+push-rebase): 0 ACUTE · 0 SEVERE · 12 MAJOR · 9 MINOR · 0 INFO active /
+166 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain
 driver-repo-resident per OQ-S10-3's two-repo grant boundary; the racing S76
-lane owns the MINOR ladder — this lane's queue continues: M-113 → M-105 →
-M-111 → M-114 → M-107 → M-135 → the driver/launcher/UI tail.) Next free IDs:
-S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
+lane owns the remaining MINOR ladder; M-135 and M-148 landed by the racing
+lanes; this lane's queue continues: M-113 → M-105 → M-111 → M-114 → M-107 →
+the driver/launcher/UI tail [M-073/M-075/M-078/M-101].) Next free IDs:
+S-068+, M-149+, N-213+, I-048+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
