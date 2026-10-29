@@ -593,3 +593,49 @@ pass both ways by design. The S-007 batch's SIT plant re-pinned (the '!'
 magic + the real 0x19-stride marker at bytes-12; the old filler's byte[7]=7
 would now correctly refuse). The full suite **1711/1711** (1705 + the six
 new tests). Remaining members: **APE, SWF-RECT**.
+
+---
+
+## Session-89 addendum 2 — the SWF-RECT member LANDED (member 11 of 11: the validation-only downgrade the finding's own open question 3 prescribed)
+
+**SWF-RECT FIXED (this session; the finding's open question 3 answered
+first-hand: the RECT parse is VALIDATION-ONLY — the extent is the
+FileLength u32@4 in BOTH paths, the caller's stamp at :29987-88; the walk
+never contributes to the extent).** The chain decoded first-hand from the
+raw asm:
+
+- **FWS (FUN_180026940)**: version byte@3 ∈ [3,20] (0x18002695b), the
+  FileLength >= 9 gate (0x180026969), then the RECT walk — nbits =
+  byte[8]>>3 must be >= 2 (0x18002697d); the four fields (Xmin Xmax Ymin
+  Ymax) each read sign-bit-first then (nbits-1) magnitude bits MSB-first
+  (the sign from the field's own first bit — byte[8]&4 for Xmin, raw-asm
+  0x180026ad1-0x180026ae8); value = sign ? -magnitude : magnitude (the
+  og's sign-magnitude arithmetic: the -0 form reads as 0 and PASSES the
+  gate — the og's own edge, pinned in the battery); the geometry gate
+  (0x180026b3e-0x180026b5b): both axes 0 <= min < max (min >= 0 via `js`,
+  max > 0 via `jle`, min < max via `jge` — any violation declines).
+- **CWS (FUN_180026b80)**: the version window is [6,20] (0x180026bb2
+  `sub $0x6; cmp $0xe` — the compressed form exists only from SWF 6; the
+  pre-fix core accepted [3,20] for both sigils — the discovered
+  divergence, FIXED), the zlib CMF low nibble must be 8 (0x180026bc4 —
+  the deflate method; byte 8 is the zlib stream's first byte in a CWS
+  file, FIXED), FileLength >= 9. The og then INFLATES the body and runs
+  the RECT walk on the decompressed stream (the zlib calls at
+  0x180054a90/0x180054c10) — the core keeps the GZ no-inflate precedent:
+  the inflate validation is the REGISTERED follow-up, the version + CMF
+  gates are the honest header-validation floor.
+
+RED→GREEN via the stash dance: **5/5 RED at the pre-fix tree**
+(SwfRectGeometryGateRejectsDegenerateRect /
+SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo /
+SwfCwsVersionGateIsSix / SwfCwsZlibCmfNibbleRequired), GREEN with the
+walk; the SWF plants re-pinned (the FWS plant carries the real nbits=11
+RECT 0,640/0,480; the CWS plant carries the 0x78 0x9C zlib CMF/FLG
+pair). The full suite **1721/1721**. Remaining members: **APE only**.
+
+The rider swept in the same change: the S91 racing window's duplicate
+WpdZeroSizeFieldDeclines definition (the N-210 class, NINTH occurrence —
+the rider survived its own concession's test-drop sweep; cr_tests could
+not build: `redefinition of Carve_WpdZeroSizeFieldDeclines_Test`,
+first-hand at the pre-fix tree) — the duplicate merged into the original
+:3434 definition with both rationales kept.

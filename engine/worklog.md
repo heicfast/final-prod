@@ -13714,3 +13714,25 @@ with the walk; the S-007 SIT plant re-pinned (the '!' magic + the real
 marker); the full suite **1711/1711**. Trail: M-107's Session-89 addendum,
 the matrix SIT row (member 10 of 11), modules/carve.md's S89 section, this
 entry. Remaining members: APE, SWF-RECT.
+**Fix #4 — M-107 member 11 (SWF-RECT) LANDED (the validation-only downgrade
+the finding's own open question 3 prescribed).** Decoded first-hand: the
+extent is the FileLength u32@4 in BOTH paths (the caller's stamp :29987-88 —
+the RECT parse never contributes to the extent, the open question answered).
+The FWS walk (FUN_180026940): the RECT geometry gate — nbits >= 2, the four
+sign-magnitude fields (sign-bit-first, then nbits-1 magnitude bits MSB-first;
+the -0 form reads as 0 and passes, the og's own edge), both axes 0 <= min <
+max. The CWS gates (FUN_180026b80): the version window [6,20] (the compressed
+form exists only from SWF 6 — the pre-fix core's [3,20] for both sigils was
+the discovered divergence, FIXED) + the zlib CMF low-nibble == 8 (the deflate
+method, FIXED); the og's inflate-then-RECT validation registered as the
+follow-up (the GZ no-inflate precedent). RED→GREEN via the stash dance: 5/5
+RED at the pre-fix tree (SwfRectGeometryGateRejectsDegenerateRect /
+SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo / SwfCwsVersionGateIsSix /
+SwfCwsZlibCmfNibbleRequired); the SWF plants re-pinned (the real nbits=11
+RECT + the 0x78/0x9C zlib pair); the full suite **1721/1721**. Rider swept:
+the S91 window's duplicate WpdZeroSizeFieldDeclines definition (the N-210
+class, NINTH occurrence — cr_tests could not build, first-hand: `redefinition
+of Carve_WpdZeroSizeFieldDeclines_Test`) merged into the :3434 original with
+both rationales kept. Trail: M-107's Session-89 addendum 2, the matrix SWF
+row (member 11 of 11), modules/carve.md's S89 entry 2, this entry.
+Remaining members: APE only.

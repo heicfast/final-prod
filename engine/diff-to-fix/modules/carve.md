@@ -1439,3 +1439,22 @@ WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
 >>>>>>> origin/main
+
+## Session-89 fix lane, entry 2 (2026-10-30 — the M-107 SWF-RECT member: the validation-only walk)
+
+- **M-107 member 11 (SWF-RECT) LANDED**: the finding's open question 3
+  answered first-hand — the RECT parse is VALIDATION-ONLY (the extent is
+  the FileLength in both paths, the caller's stamp). The FWS walk: the
+  RECT geometry gate (nbits >= 2, the four sign-magnitude fields, both
+  axes 0 <= min < max — raw-asm 0x180026b3e-0x180026b5b). The CWS
+  gates: the version window [6,20] (the compressed form exists only from
+  SWF 6 — the pre-fix core accepted [3,20], the discovered divergence)
+  + the zlib CMF low-nibble == 8 (the deflate method); the og's
+  inflate-then-RECT validation is the registered follow-up (the GZ
+  no-inflate precedent). Tests: SwfRectGeometryGateRejectsDegenerateRect
+  / SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo /
+  SwfCwsVersionGateIsSix / SwfCwsZlibCmfNibbleRequired (5/5 RED at the
+  pre-fix tree via the stash dance); the SWF plants re-pinned; the full
+  suite 1721/1721. Rider: the S91 window's duplicate
+  WpdZeroSizeFieldDeclines definition merged (the N-210 class, NINTH
+  occurrence). Remaining members: APE only.
