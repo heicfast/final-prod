@@ -457,3 +457,26 @@ compose). Directory detection follows the tree's two-shaped convention
 (FullNode folders + light nodes with the DOS 0x10 attribute — the FAT
 engines' shape). S31/D16/P42 → MATCH. 15 tests (module + pipeline + ABI),
 RED first-hand (the wiring-disabled variant) → GREEN; suite 1581/1581.
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-182 closes by registration)
+
+**N-182 FIXED** (the option-2 closure, the finding's own fix plan): the
+deep-range resolver's divergence is now the REGISTERED deliberate
+divergence — D-36's addendum in PARITY-DELTAS, wording corrected ("same
+target in the common case; the og's deep resolver derives type-6
+sub-ranges"). The decision evidence, gathered this session: every
+sub-rule decoded first-hand (FUN_14035a6d0 read in full — the 300 MB
+backward extension with the controller+0x118 flag, the matching-entry
+size, the ONE-following-FAT16 {0x0E,0x06} extension, the parent clamp,
+the FUN_1400d03e0 sub-device, the any-failure fallback), but the
+load-bearing device-type-6 gate's CLASS is undecoded after the probe
+round (Partition.mo's CDiskDeviceType defaults 4 with no 6-writer in
+any mo decompile; Device.mo's :546-611 listings are MOM wrappers; the
+controller-side FUN_14006db20 gate decoded as the plain controller+0xb8
+null check). Implementing without the gate would apply the extensions to
+every volume — a behavior the og never exhibits; a guessed type mapping
+is the same defect one layer down. The core's same-slice deep pass is
+output-equivalent on every non-type-6 device and conservative on
+type-6 shapes. The next probe (the concrete vtable +0xa8 getter
+mapping + the enumeration-chain 6-writer) is recorded in the D-36
+addendum for the implementing lane.

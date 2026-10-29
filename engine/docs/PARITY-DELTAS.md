@@ -891,6 +891,47 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED** (registered this session; previously an unregistered
   divergence — "a delta not in this registry is a bug").
 
+#### D-36 ADDENDUM (N-182's registration, 2026-10-29) — the deep-range resolver qualified
+
+- **THE QUALIFICATION (N-182, first-hand):** the wording above ("both
+  passes over the same surface") holds for the COMMON case only. The og's
+  deep pass resolves its target through FUN_14035a6d0
+  (DRWUI:575024-575170, re-read in full this session): mode 0 (quick)
+  returns the scan device verbatim; mode 1 (deep) — gated on
+  `context+0x6f2 == 0` AND `FUN_14006db20(controller+0xa8)` (a plain
+  null check at controller+0xb8, decoded this session) AND **device type
+  == 6** (the vtable+0xa8 getter) — derives a sub-range target over the
+  PARENT disk: the 300 MB backward extension (`start <
+  0x12C00000/sector_size` → `start = 0` + the controller+0x118 flag),
+  the matching partition entry's own size, the ONE-following-entry
+  extension when its FS code (+0x10) ∈ {0x0E, 0x06} (the FAT16 family),
+  the parent-sectors clamp, then FUN_1400d03e0 constructs the sub-device
+  (any failure → the original device: the fallback IS the common case).
+- **WHAT WE DO:** the deep stage runs over the identical slice the quick
+  pass used — no resolver, no derived sub-range.
+- **WHY DELIBERATE:** the derivation's every sub-rule is decoded EXCEPT
+  the load-bearing device-type-6 gate — WHAT device class type 6 names
+  is undecoded (Partition.mo's CDiskDeviceType ctor defaults +0x20 to 4,
+  the setter's 6-stamping site is not in the corpus's mo decompiles; the
+  enumeration-time stamping lives in the Windows storage enumeration
+  layer beyond this session's reach). Implementing the sub-rules without
+  the gate would apply them to EVERY volume — a behavior the og never
+  exhibits. The core's same-slice posture is output-equivalent on every
+  device class that is NOT type 6, and conservative (no backward
+  extension, no neighbor extension) on type-6-shaped devices.
+- **THE NEXT PROBE (recorded for the implementing lane):** map
+  CVolumeDevice/CWindowsStorageDevice's concrete vtable slot +0xa8 (the
+  Device.mo vftable arrays — the MOM wrapper listings at
+  Device_decompiled.c:546-611 are not the concrete tables) to the
+  CDiskDeviceType getter, then find the 6-writer in the enumeration
+  chain; with the type-6 class named, the four decoded sub-rules (the
+  300 MB backward extension, the entry-size + one-neighbor-FAT16
+  extension, the parent clamp, the fallback) land as a derived
+  sub-range device wrapping the deep pass.
+- **VERDICT: ACCEPTED** (the registered deliberate divergence, N-182's
+  fix-plan option 2; the coverage delta is bounded to rare device
+  shapes and conservative in direction).
+
 ### D-37 — Transport fallback superset (D-H/FB-T02): grammar-open failure falls back to direct
 
 - **WHAT OG DOES:** Device.mo duality — `\\.\PhysicalDriveN` direct vs

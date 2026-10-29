@@ -26,7 +26,7 @@
   order: S-068 -> M-149 -> M-150 -> M-151 -> M-152 -> M-154 -> M-075
   -> M-078 -> M-101 -> M-105 -> M-107 -> M-111 -> M-114 -> the MINOR
   tail (N-145/N-178/N-181/N-182/N-216) -> the tracked-open resolvables.
-=======
+
 ## Session-79 S79 lane — the M-073 seat conceded-verified; A-016 + N-218 filed+fixed (2026-10-29)
 
 - **M-073 CONCEDED-VERIFIED** — this lane built a convergent
@@ -11651,7 +11651,6 @@ lane contributed that their landing already carried better: the INDX
 floor constant; this lane's version of the same discovery is preserved
 in this entry for the history).
 
-<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 5: M-149 (2026-10-29)
 
 **M-149 FIXED (MAJOR, lost-partition):** the ghost-score two-pass form
@@ -11734,7 +11733,7 @@ Session.HostileCountBombRefused / CountAtWireBoundFailsCleanlyBeyondIt /
 TornTailGarbageCountStillFailsCleanly. Session suite 29/29; full suite
 1627/1627. Trail: findings/FIXED/M-150 + Resolution, matrix MATCH,
 modules/session.md S80 addendum, SUMMARY board.
-=======
+
 ---
 
 ## Session-80 S80 fix-lane — entry 6 (2026-10-29): N-145 lands
@@ -11752,7 +11751,6 @@ Three tests green (lifecycle incl. the crash shape, multi-disk
 idempotence, probe contracts); win_syntax_check green; suite 1540 /
 0-fail. Trail: findings/FIXED/N-145 + Resolution, ledger row, matrix
 MATCH, modules/apply.md addendum, this entry.
->>>>>>> f30b042d (fix(apply): N-145 — the cross-run in-flight journal lands (the og's pendingMarkedDisk semantics on the core's state-dir posture))
 
 ---
 
@@ -11768,3 +11766,23 @@ the :14834 retry re-anchoring the bounded scan at the hint's high 16).
 Both landed implementations probe only the hint's high 16; the stride
 sweep is the recorded refinement gap (the range-tree's occupancy semantics
 undecoded — the next pass reads the tree's producers first).
+
+## Session-80 S80 fix-lane — entry 7 (2026-10-29): N-182 closes by registration
+
+**N-182 FIXED (MINOR, orchestration — the option-2 closure):** the
+deep-range resolver registered as the deliberate divergence (D-36's
+addendum, wording corrected). The corpus probe round this session:
+FUN_14035a6d0 read in full (all four sub-rules verified); the
+controller gate FUN_14006db20 decoded (the controller+0xb8 null
+check); Partition.mo's CDiskDeviceType ctor/getter/setter read (default
+4, the 6-writer ABSENT from every mo decompile); Device.mo's vtable
+listings confirmed as MOM wrappers. The type-6 device class is
+undecoded — implementing the sub-rules without the gate would fire them
+on every volume (hallucinated parity), so the honest closure is the
+finding's own option 2: the registered divergence with the precise next
+probe recorded (the concrete vtable +0xa8 mapping + the enumeration
+6-writer). No code change; the finding's acceptance criterion for this
+posture met (the PARITY-DELTAS row with the corrected wording). Trail:
+findings/FIXED/N-182 + Resolution, ledger row, matrix
+DIVERGENCE-INFORMATIONAL, modules/orchestration.md addendum, D-36's
+addendum, this entry.
