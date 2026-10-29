@@ -12086,3 +12086,23 @@ undo-apply recovery path. The CWD-relative ini location declined
 (PARITY-DELTAS D-152). RED (compile-form) x4 → suite 1634/1634. Trail:
 findings/FIXED/N-145 + Resolution, matrix row, modules/apply.md
 addendum, PARITY-DELTAS D-152, ledger row.
+
+**The N-145 convergence + the M-151 red-window repair (the S81 lane's
+rebase landing):** the racing window's N-145 (inflight_begin/end/probe,
+the og's multi-disk list shape) keeps the seat per SA-9 — this lane's
+parallel sink-callback design conceded; the two design deltas recorded
+in the finding's convergence addendum (the armed-on-undo-failure nuance
+and the Begin-before-consent window). The racing M-151 landing
+(27bda40e) had pushed with committed conflict markers AGAIN — the third
+red window this session (test_ntfs_volume.cpp x2 blocks + the matrix x1;
+the win_syntax_check gate would have caught the test file's; not run
+before push) — AND the marker blocks interleaved two racing tests'
+bodies (the A-016 FolderFilterRootDotIsTransparent and the M-151
+TruncatedRunlistGrowsToValidRecords) beyond linear un-mixing. This
+landing: both markers swept, the A-016 test restored complete from
+e2ea4d50, the M-151 test reconstructed to its semantic intent (the
+max_record_no/read_record/walk assertions + the annexed-file surfacing),
+the matrix block resolved both-sides. Suite 1647/1647 at the repaired
+tree (the one parallel-run flake re-run clean). The syntax error in the
+racing N-145 CLI wiring (marks].identity — the dropped subscript) also
+repaired.
