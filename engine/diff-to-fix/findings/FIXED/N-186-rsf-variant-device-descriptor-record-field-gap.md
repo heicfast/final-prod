@@ -52,3 +52,41 @@ Corpus-derived (this session): the artifact excerpts quoted above (`rsf-format--
 ## Open questions
 
 The variant save path's TRIGGER (when does the og take the FUN_1403f1180 path over the standard writer — a one-caller decompile at fix time; not blocking for the field addition, but worth pinning so the core's "always write the descriptor" posture is a registered superset rather than an unexplained difference).
+
+---
+
+## Scope-correction addendum (S54 lane, 2026-10-29): the PERSISTENCE half of this finding is already landed — the live remainder is the restored-summary mirror
+
+The S54 liveness battery re-verified this finding (post-renumber to N-186) against
+the current tree and found the finding's persistence-layer claim STALE: the N-066
+v4 tail (`include/cr/session/cr_records.h:110-122`: `firmware[32]`, `wwn[32]`,
+`interface_desc[32]`, `boot_snapshot[512]`) IS the variant-record field set,
+serialized at `src/core/session/cr_records.cpp` (the v4 writer, ~:855-865 at
+`34d6cf10`) and round-trip-pinned by the N-066 tests (`tests/unit/test_session.cpp`
++ `tests/unit/test_image.cpp:806-812`'s v3/v4 tail pins). The fix (commit `4d3f0409`,
+2026-10-26) predates the finding's original filing pin.
+
+**The live remainder:** `VolumeSessionInfo` (the restored-session summary,
+`cr_records.h:203+`) mirrors VolumeInfo only through the v2 identity card — the
+v3/v4/v5 tails (image path, firmware/WWN/interface/boot-snapshot, save_unix) do
+not surface in the load path's summary struct. The finding's scope narrows to:
+(a) the restored-summary mirror gap, and (b) the variant-record TRIGGER question
+(unchanged, below). modules/session.md's parity-table row asserting the
+persistence-layer gap should be corrected to the narrowed scope (doc drift as of
+this addendum). Severity stays MINOR (the load path's consumers currently need
+none of the v4 fields; the gap becomes live the day a host wants the boot-snapshot
+diagnostic after resume).
+
+
+---
+
+## Residual note (S54 lane, absorbed at the push-rebase — does NOT re-open the retirement)
+
+The S54 lane's independent battery reached the same FALSE-ACTIVE verdict convergently
+(the persistence half landed as the N-066 v4 tail before the finding's pin). The one
+observation this lane adds beyond the Resolution: `VolumeSessionInfo` (the restored-
+session summary, `include/cr/session/cr_records.h:203+`) mirrors VolumeInfo only
+through the v2 identity card — the v3/v4/v5 tails do not surface in the load path's
+summary struct. No consumer needs them today (the retirement's "no code change owed"
+stands); recorded here so a future host that wants the boot-snapshot diagnostic after
+resume knows the mirror is the seam, not the persistence layer.

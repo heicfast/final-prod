@@ -507,7 +507,7 @@ Contract:
   (layer, ext, size bounds, base confidence, grammar-layer magic) — the
   parity-tooling surface (N-033's step 2).
 
-### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1)
+### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1; N-090 scope/width registration)
 
 `cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count)`
 (cr_ui.h:865-914) — the og's LastScanRecordView surface
@@ -541,8 +541,30 @@ Contract (ABI RULES-conformant):
 - **Fields**: `fs_family`/`stage_done_mask`/`configured_mask`/counts/
   `label` mirror `cr_ui_session_get_info` + `cr_ui_session_stats` exactly
   (the C-consumer gate cross-checks); `save_unix` is the EMBEDDED save
-time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
-  mtime then, never a fabricated time).
+  time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
+  mtime then, never a fabricated time). N-090 registrations: (a)
+  **SCOPE** — the listing enumerates EVERY `*.crsf` in the directory,
+  the REGISTERED SUPERSET over the og's home list (the og keeps only
+  names containing BOTH `auto_` and `.rsf` — FUN_140273940 at
+  DRWUI:432326-432333 + rsf-format §5.5; PARITY-DELTAS D-135): a manual
+  save is a resumable session too, and a host wanting the og's exact
+  home view filters client-side by name; (b) **LABEL WIDTH** —
+  `label_full[100]` (the ABI tail append, no version bump per §9)
+  carries the COMPLETE volume label at the og's record-2
+  `volumeName[100]` width (strncpy(…,99)); `label[32]` stays the
+  legacy 31-char prefix view so old callers see exactly what they
+  always saw; `label_full == label` on v1..v5 sessions (the uniform
+  degrade); (c) **SAVE-TIME RESOLUTION** — `save_unix` carries SECONDS
+  (the v5 tail contract); the og's record-2 carries local SYSTEMTIME
+  with milliseconds — the newest-first comparator needs second
+  resolution only (the og's own auto-save FILE NAMES are
+  second-granular: `auto_..._<HH>_<MM>_<SS>.rsf`), and equal-second
+  ties break by path bytes deterministically (N-116); (d)
+  **DEVICE TYPE** — the og's record-2 `deviceType` u32 (2 → "Desktop",
+  3 → "Recycle Bin", else the disk-info name at +0x120 — a UI display
+  classification) is NOT carried on this row; a host needing it
+  composes it client-side from its own disk enumeration (no core
+  consumer exists today; re-open with evidence when one does).
 - **Errors**: `CR_UI_ERR_BAD_PARAMETER` (null/empty args),
   `ERR_OPEN_FAILED` (the directory itself cannot be read — fail loud,
   never a silent empty list).

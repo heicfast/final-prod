@@ -314,3 +314,14 @@ Audited `869da779`-lineage (lane tip `d4776278`), corpus `be0cfe9`. Full decode:
   bitmap-test idiom sweep found no grade-consumer (the `>> 3` sites are
   pointer-array math); next probe: the allocation-file object's consumer walk
   (evidence §4).
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **M-142** (the VH validator gates the wrong
+fields: the og gates freeBlocks/journalInfoBlock ≤ totalBlocks — the frame-offset
+derivation is the evidence — the core gates the fork clamps; both corpus docs that
+carry the misread are filed as errata rows). Verified-MATCH this session: the sig/
+version/blockSize gates, the +0x0C/+0x28/+0x2C/+0x30 swapped-field map, the B-tree
+walk guards (core strictly guarded — the og's recursion is its own risk), and the
+fork clamps' status as a core-invented gate (not og behavior).

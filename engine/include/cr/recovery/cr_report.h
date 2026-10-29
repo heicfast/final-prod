@@ -75,6 +75,12 @@ struct Item {
      * the field is then omitted - additive-within-v1 per the schema
      * doc's own version contract). */
     std::string tree_class;
+    /* S-060: the metadata restoration outcome (the og's per-item
+     * SetFileAttributesW/SetFileTime tail). "restored" | "failed:<code>"
+     * | "unsupported" | "" (not attempted: dirs, refused items). The
+     * og logs both failures as traces and continues - the core reports
+     * the same non-fatal truth per row. */
+    std::string metadata;
 };
 
 struct Totals {

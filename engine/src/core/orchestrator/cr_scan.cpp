@@ -407,9 +407,18 @@ void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resum
     /* M-079: the label joins the adopted identity card (the SESS-2
      * pattern - a re-save without a new run preserves the loaded label;
      * a fresh run's derivation then sees it non-empty and leaves it). */
-    if (cfg_.volume_label[0] == '\0')
-        for (size_t i = 0; i < sizeof(cfg_.volume_label); ++i)
-            cfg_.volume_label[i] = resumed.label[i];
+    if (cfg_.volume_label[0] == '\0') {
+        /* N-090: the resumed session's full-width label (the v6 tail)
+         * re-enters the config; v1..v5 sessions fall back to the legacy
+         * card - the copy is bounded by the SOURCE (the 32-byte legacy
+         * field, never the widened destination). */
+        if (resumed.label_full[0] != '\0')
+            for (size_t i = 0; i < sizeof(cfg_.volume_label); ++i)
+                cfg_.volume_label[i] = resumed.label_full[i];
+        else
+            for (size_t i = 0; i < sizeof(cfg_.volume_label) && i < sizeof(resumed.label); ++i)
+                cfg_.volume_label[i] = resumed.label[i];
+    }
     if (cfg_.volume_model[0] == '\0')
         for (size_t i = 0; i < sizeof(cfg_.volume_model); ++i)
             cfg_.volume_model[i] = resumed.model[i];
@@ -555,6 +564,27 @@ void ScanController::emit_event_(event::Type type, u32 stage) const {
         e.stage_permille = st.permille;
         e.bytes_done = stage == 2 ? st.bytes_done : 0;
         e.bytes_total = stage == 2 ? st.units_total : 0;
+        /* N-166: live counter refresh on PROGRESS samples - the og's
+         * results grid tracks the live tree (~2 s cadence; the live
+         * capture's Reconstructed branch grows mid-scan); the core's
+         * stage-boundary stamps stay the authoritative close-of-stage
+         * sample (the boundary events above still carry the snapshot).
+         * The attach-time tree counter's delta over the boundary total
+         * is attributed to the ACTIVE stage's counter (carve growth ->
+         * carved_found, structured growth -> files_found); the clamp
+         * keeps it non-decreasing across a lost-candidate detach. */
+        if (type == event::Type::ScanProgress) {
+            const u64 live_total = tree_.live_files();
+            const u64 snap_total =
+                tel_.snap.files_found + tel_.snap.deleted_found + tel_.snap.carved_found;
+            if (live_total > snap_total) {
+                const u64 delta = live_total - snap_total;
+                if (stage == 2)
+                    e.carved_found += delta;
+                else
+                    e.files_found += delta;
+            }
+        }
     }
     event_fn_(e, event_user_);
 }
@@ -1368,7 +1398,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
          * reader through the global manager chain, FUN_14038c470
          * :606319-331; the completion pass's device is our equivalent).
          * One sector per not-in-table no-twin node, content-gated. */
-        gctx.reader.dev = slice; /* the run() scan device - the extents are rebased to it */
+        gctx.reader.dev = slice;     /* the run() scan device - the extents are rebased to it */
         gctx.reader.sector_size = 0; /* derive from the device geometry */
         tree::grading::grade_tree(tree_, gctx, stats.assistant);
     }
@@ -2126,12 +2156,10 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 for (const auto& c : dr.candidates) {
                     if (work.size() >= kLostInsertCap) {
                         if (cr::log::enabled())
-                            cr::log::write(
-                                cr::log::Level::Info,
-                                "lost partition insertion cap: %zu of %llu candidates "
-                                "scanned (the og's 10-target cap, DRWUI:904229-234)",
-                                work.size(),
-                                (unsigned long long)dr.candidates.size());
+                            cr::log::write(cr::log::Level::Info,
+                                           "lost partition insertion cap: %zu of %llu candidates "
+                                           "scanned (the og's 10-target cap, DRWUI:904229-234)",
+                                           work.size(), (unsigned long long)dr.candidates.size());
                         break;
                     }
                     emit_lost_candidate_(c); /* GAP-S6-10 */
@@ -2175,8 +2203,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         /* the no-FS-name fallback: the old LBA form */
                         role = u"Candidate @";
                         char buf[32];
-                        snprintf(buf, sizeof(buf), " %llu",
-                                 (unsigned long long)c.start_lba);
+                        snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
                         for (const char* p = buf; *p; ++p)
                             role.push_back(u16(u8(*p)));
                     }
@@ -2541,6 +2568,10 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     vi.physical_sector = vol_physical_sector_;
     for (size_t i = 0; i < sizeof(vi.label) - 1 && cfg_.volume_label[i]; ++i)
         vi.label[i] = cfg_.volume_label[i];
+    /* N-090: the complete label (the og's volumeName[100] width) rides
+     * the v6 tail; label[32] above stays the legacy prefix view. */
+    for (size_t i = 0; i < sizeof(vi.label_full) - 1 && cfg_.volume_label[i]; ++i)
+        vi.label_full[i] = cfg_.volume_label[i];
     /* identity card (SESS-2 v2 tail) */
     for (size_t i = 0; i < sizeof(vi.model) - 1 && cfg_.volume_model[i]; ++i)
         vi.model[i] = cfg_.volume_model[i];
@@ -2869,6 +2900,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     info.physical_sector = vi.physical_sector;
     for (size_t i = 0; i < sizeof(info.label); ++i)
         info.label[i] = vi.label[i];
+    for (size_t i = 0; i < sizeof(info.label_full); ++i) /* N-090: v6 tail */
+        info.label_full[i] = vi.label_full[i];
     for (size_t i = 0; i < sizeof(info.model); ++i)
         info.model[i] = vi.model[i];
     for (size_t i = 0; i < sizeof(info.serial); ++i)

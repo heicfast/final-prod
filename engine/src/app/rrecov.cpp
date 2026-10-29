@@ -2985,8 +2985,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s\n", k + 1,
                 static_cast<unsigned long long>(c.start_lba),
                 static_cast<unsigned long long>(c.sector_count), c.score, layout, dyn, tok,
-                label[0] ? L", label \"" : L"", label[0] ? label : L"",
-                label[0] ? L"\"" : L"",
+                label[0] ? L", label \"" : L"", label[0] ? label : L"", label[0] ? L"\"" : L"",
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {

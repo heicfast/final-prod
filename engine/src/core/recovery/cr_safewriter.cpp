@@ -553,6 +553,30 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
         return rc;
     }
     io_.close(it.item_id);
+    /* S-060: the og's per-item restoration tail - after the content
+     * copy succeeds, restore the DOS attributes (word & ~0x2) and the
+     * mask-gated timestamp trio (DRWUI :874686-718: SetFileAttributesW
+     * then CreateFileW + SetFileTime with NULL for the un-set fields,
+     * both failures ReleaseTrace'd and non-fatal). The per-field
+     * enables mirror which timestamps the engine actually emitted: a
+     * zero slot is the og's honest no-date (N-021/A-014 zero-FileTime)
+     * and passes as NULL, exactly the og's mask behavior. The
+     * destination path is the collision-resolved final (post-rename).
+     * Non-fatal by contract: a refusal never fails the item; the
+     * report row carries the code. */
+    if (!it.is_dir) {
+        DestIo::FileMeta meta;
+        meta.created = pr->times.created;
+        meta.accessed = pr->times.accessed;
+        meta.modified = pr->times.modified;
+        meta.attributes = pr->attributes & 0xfffdu; /* the og clears 0x2 */
+        meta.set_created = pr->times.created != 0;
+        meta.set_accessed = pr->times.accessed != 0;
+        meta.set_modified = pr->times.modified != 0;
+        meta.set_attributes = pr->attributes != 0;
+        const std::u16string final_path = it.dest_dir + it.final_name;
+        it.metadata_rc = io_.set_metadata(it.item_id, final_path, meta);
+    }
     it.state = ItemState::Done;
     ++stats.done;
     if (it.had_unreadable)
@@ -784,6 +808,18 @@ std::vector<report::Item> SafeWriter::report_items() const {
         r.sha256_hex = it.sha256_hex;
         r.hash_status = it.hash_status;
         r.tree_class = it.node != nullptr ? tree_class_of(it.node) : std::string();
+        /* S-060: the metadata restoration outcome per row (non-fatal
+         * truth; the default 0xFFFFFFFF marks "not attempted") */
+        if (it.metadata_rc == 0xFFFFFFFFu)
+            r.metadata = (it.is_dir || it.state != ItemState::Done) ? std::string()
+                                                                    : std::string("unsupported");
+        else if (it.metadata_rc == OK)
+            r.metadata = "restored";
+        else {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "failed:0x%x", it.metadata_rc);
+            r.metadata = buf;
+        }
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;
