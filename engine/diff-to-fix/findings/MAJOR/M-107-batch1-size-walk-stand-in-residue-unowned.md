@@ -596,6 +596,53 @@ new tests). Remaining members: **APE, SWF-RECT**.
 
 ---
 
+## Session-87 addendum 3 (the S87-continuation lane's SIT convergence record — the seat conceded per SA-9)
+
+This lane independently decoded and implemented the SIT member in the
+same window as the racing S89 lane's landing (`2214af90` — the earlier
+push holds the seat). The two decodes AGREE on: the 7-byte "StuffIt"
+tier-1, the processor's byte@+7 window ('!' = the SIT5 search arm; ' '
+= the classic arm; any other byte never finalizes — the racing lane's
+"acceptance-window repair" and this lane's routing are the same
+decode), the marker family 02 D7 0A XX 98 F6 42 88 (this lane's
+first-hand .data dump at 0x180067858/68/78 vs the racing lane's
+stack-constant read at 0x180044b17-0x180044b1e), and the WEBB AIKE
+66 66 EB B4 A3 74 BD 7B family form. The racing lane's walk is the
+FULLER decode: FUN_180044ae0's per-ENTRY marker walk (the stride table
+{0x19→4, 0x3B→5, else 6} past the marker end, the corrupt-entry
+terminal at the 512-aligned sector start, the new-header gate at the
+512-byte boundaries) — this lane had stopped at the processor's
+FUN_180015b60 chunk-level magic search and translated it directly;
+the racing seat's walk supersedes.
+
+**The convergence deltas this lane contributes for the future
+arbitration lane (both first-hand, neither contradicts the seat):**
+1. **The walk cap:** this lane's decode of the heuristic gate at
+   0x180015e69-0x180015e81 reads `len × rel < max × 10` — the child's
+   200,000,000 max scaled by ten (the asm's `lea (%rax,%rax,4)+add`)
+   = a 2 GB force-stamp boundary; the racing seat's bound is the
+   singleton-halved form. The two bounds differ by 10×; a future lane
+   reading FUN_180044ae0's own loop exit (vs the processor's
+   heuristic) settles which cap the og's walk actually carries.
+2. **The classic ' ' form's walk:** this lane decoded the processor's
+   else-branch re-validation as the ' ' form's ONLY terminator (the
+   next full StuffIt/WEBB-family header) — a real walk, not a
+   stand-in; the racing seat keeps the honest 64 MiB stand-in at
+   reduced confidence with the "primary's feeding walk" as the
+   recorded follow-up. A future lane decoding the primary chain's
+   feeding path settles whether the classic form walks.
+3. The stream-end drop (a candidate whose walk never completes before
+   the device ends) — this lane's translation (the decline) matches
+   the seat's torn-salvage posture only when the bound is reached;
+   the difference is unobservable below whichever cap is right.
+
+This lane's five SIT tests were withdrawn with the concession (they
+pin the processor-level translation the seat's fuller walk
+supersedes); the racing seat's seven-test battery stands as the
+member's proof.
+
+---
+
 ## Session-89 addendum 2 — the SWF-RECT member LANDED (member 11 of 11: the validation-only downgrade the finding's own open question 3 prescribed)
 
 **SWF-RECT FIXED (this session; the finding's open question 3 answered
@@ -639,3 +686,65 @@ the rider survived its own concession's test-drop sweep; cr_tests could
 not build: `redefinition of Carve_WpdZeroSizeFieldDeclines_Test`,
 first-hand at the pre-fix tree) — the duplicate merged into the original
 :3434 definition with both rationales kept.
+---
+
+## Session-89 addendum 3 — the SIT RECONCILIATION (the corpus-true arbitration of the two convergent landings: the ARCHITECTURE decides, not the push order)
+
+The S89 lane's SIT landing (this file's Session-89 addendum) and the racing
+S87/S91 lane's SIT5 landing (their 11a819c1) decoded DIFFERENT authorities:
+the FileSITAnalyser secondary (FUN_180044a10 — the stride table, the
+corrupt-entry terminal, the walked-bound torn salvage) vs the primary
+processor (FUN_180015d70 + the search FUN_180015b60 — the three full 8-byte
+end magics, the stream-end drop, the ' '-form next-header-only walk, the
+max×10 = 2 GB cap). Their merge (72b96a93) conceded the seat to the S89
+decode ("the fuller decode") — but the concession's premise was wrong, and
+this lane's reconciliation corrects it with the ARCHITECTURAL proof:
+
+**The SIT node's wrapper vtable (RawSpeed::SITAnalyser::vftable =
+0x180067890) carries the RETURN-0 STUB at +0x40** (the full .rdata
+node-vtable enumeration — only 8 node classes override +0x40 with the real
+getter FUN_180013700; SIT is not among them; the M-156/S83 precedent's own
+census re-verified). The magic-key dispatcher's secondary-first consult
+NEVER FIRES for a "Stuf" candidate: the FileSITAnalyser is never asked.
+The PRIMARY processor (the walker child's +0x20 slot, FUN_180015d70) is the
+scan-path authority — the racing lane's decode was the corpus-true one on
+every point the two landings disagreed:
+
+1. **The extent formula: the found magic's END** (the full 8-byte magic
+   search, FUN_180015b60's three compare loops over the .data constants at
+   0x180067858/68/78) — NOT the FileSIT stride table (marker + 8 + stride).
+   The stride table is the SECONDARY's own semantics — preserved in this
+   record, withdrawn from the scan path.
+2. **The stream-end drop**: a walk that finds neither magic nor next header
+   never stamps — the pending candidate drops (NO carve). The FileSIT's
+   loop-exit stamp (the walked bound) is again the secondary's detail.
+3. **The ' ' (pre-SIT5) form: the next-header-only walk** (the magic-search
+   flag [child+0x110] is set only on '!') — the S89 lane's "honest
+   stand-in" for that population is retired; the stream-end drop applies
+   when no header follows.
+4. **The 2 GB cap** (the child's 200,000,000 max × 10, the asm's
+   lea (%rax,%rax,4)+add at 0x180015e77-7b) — the force-stamp boundary; the
+   racing lane's row-max constant stands.
+
+The S89 landing's own contributions that survive the reconciliation: the
+**acceptance-window repair** (byte[7] ∈ {' ', '!'} — the processor's own
+gate; the pre-fix core accepted any byte[7]) and the **512-aligned
+next-header translation** (the chunk-head re-validation at the chunk
+granularity — both landings' readings agree in the whole-buffer model).
+
+The landing (this lane's rewrite on top of the merged tree): validate_sit
+now implements the primary's semantics with the surviving repairs; the
+corrupted merge artifact (the auto-merge had mangled the unified plant's
+body — `img]` lines, first-hand) rewritten as the flavor-aware plant (the
+magic at bytes-8). The batteries: the racing lane's five tests pass
+unchanged (Sit5MagicWalkSetsExtent / Sit5AllThreeMagicVariantsCarve /
+Sit5NoMagicNoHeaderDeclines / SitNextHeaderTerminatesTheWalk /
+SitWebbHeaderTerminatesTheWalk) + this lane's five rewritten pins
+(SitEntryMarkerWalkSetsExtent [the magic's END] /
+SitNewHeaderAtSectorBoundaryEndsTheWalk / SitBrokenMagicDrops [the
+corrupt-terminal withdrawal pin] / SitByteSevenOutsideTheWindowIsRefused /
+SitClassicSpaceFormDropsWithoutNextHeader) + the N-093 floor pin — **11/11
+green; the full suite 1729/1729**. The racing lane's withdrawn
+WpdZeroSizeFieldDeclines duplicate rider (the N-210 class, NINTH
+occurrence — cr_tests could not build at the merged tree, first-hand)
+merged into the original definition with both rationales kept.

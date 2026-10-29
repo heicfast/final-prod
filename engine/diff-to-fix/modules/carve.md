@@ -1388,7 +1388,6 @@ tree for the wrong reason (the 512 floor) - the fixture now carries
 2304-byte per-record ends so the counter gate is the only refusal under
 test.
 
-<<<<<<< HEAD
 ## Session-89 fix lane (2026-10-30 — the M-107 SIT member: the entry-marker walk + the acceptance-window repair)
 
 - **M-107 member 10 (SIT) LANDED**: the acceptance is now the og's processor
@@ -1410,7 +1409,8 @@ test.
   SitClassicSpaceFormKeepsTheRegisteredStandIn (5/7 RED at the stand-in
   tree via the stash dance); the S-007 SIT plant re-pinned; the full suite
   1711/1711. Remaining members: APE, SWF-RECT.
-=======
+---
+
 ---
 
 ## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
@@ -1438,6 +1438,10 @@ Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
 WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
+
+
+---
+
 >>>>>>> origin/main
 
 ## Session-89 fix lane, entry 2 (2026-10-30 — the M-107 SWF-RECT member: the validation-only walk)
@@ -1458,3 +1462,21 @@ The carve suite 190/190.
   suite 1721/1721. Rider: the S91 window's duplicate
   WpdZeroSizeFieldDeclines definition merged (the N-210 class, NINTH
   occurrence). Remaining members: APE only.
+## Session-89 fix lane, entry 3 (2026-10-30 — the SIT RECONCILIATION: the architecture decides)
+
+- **The SIT member re-landed per the corpus-true arbitration**: the SIT
+  node's wrapper vtable (0x180067890) carries the +0x40 STUB — the
+  secondary-first consult never fires for a "Stuf" candidate, so the
+  PRIMARY processor (FUN_180015d70 + the search FUN_180015b60) is the
+  scan-path authority. The racing lane's semantics land: the three full
+  8-byte end magics (the extent = the magic's END), the stream-end drop
+  (no magic + no next header → NO carve), the ' '-form next-header-only
+  walk (the stand-in retired), the 2 GB cap (max × 10). The S89 lane's
+  surviving repairs: the byte[7] ∈ {' ', '!'} acceptance window + the
+  512-aligned next-header translation. The FileSITAnalyser's stride
+  table and corrupt-entry terminal are the secondary's own semantics —
+  preserved in M-107's record, withdrawn from the scan path. The
+  corrupted merge artifact (the mangled plant body) rewritten as the
+  flavor-aware plant. 11/11 SIT tests green (both batteries); the full
+  suite 1729/1729. Rider: the racing window's duplicate
+  WpdZeroSizeFieldDeclines merged (the N-210 class, NINTH occurrence).
