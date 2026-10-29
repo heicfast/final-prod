@@ -2532,8 +2532,12 @@ size_t plant_ai(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_dxf(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "  0\r\nSECTION\r\n", 12);
-    for (size_t i = 12; i < 64; ++i)
+    /* N-189: the real 16-byte group-code covenant "  0\r\nSECTION\r\n  "
+     * (the tightened canonical gate - the og's two-qword compare); the
+     * old 12-byte prefix-only fixture was a synthetic shape the og's own
+     * gate refuses */
+    std::memcpy(img.data() + at, "  0\r\nSECTION\r\n  ", 16);
+    for (size_t i = 16; i < 64; ++i)
         img[at + i] = u8(i & 0xFF);
     return 64;
 }
@@ -9806,6 +9810,52 @@ TEST(Carve, GpxBomFormCarvesOnce) {
 /* (RAWSearchDLL :2722-2733) and the probe's leading-comment acceptance */
 /* (:42240-42290).                                                       */
 /* ===================================================================== */
+
+TEST(Carve, DxfCanonicalRequiresFullSixteenBytePattern) {
+    /* N-189: the og's canonical acceptance gate is the FULL 16-byte
+     * two-qword compare "  0\r\nSECTION\r\n  " (RAWSearchDLL
+     * FUN_1800376f0 :42258-42275, re-read first-hand:
+     * *p == 0x4345530a0d302020 && p[1] == 0x20200a0d4e4f4954) - the
+     * 8-byte prefix "  0\r\nSECTION" alone does NOT carve: a stream
+     * whose continuation is wrong is a prefix collision the og refuses.
+     * The pre-fix core memcmp'd only the first 8 bytes. */
+    {
+        /* the wrong continuation: the 8-byte prefix + "XWRONG" */
+        const char* doc = "  0\r\nSECTIONXWRONG\r\n  2\r\nHEADER\r\n";
+        std::vector<u8> img(256 * 1024, 0);
+        std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_TRUE(all.empty()) << "RED pre-fix: the 8-byte-prefix collision carved";
+    }
+    {
+        /* the real 16-byte form still carves (the canonical stamp) */
+        const char* doc = "  0\r\nSECTION\r\n  2\r\nHEADER\r\n  9\r\n$INSBASE\r\n"
+                          "  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+        std::vector<u8> img(256 * 1024, 0);
+        std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        ASSERT_EQ(all.size(), 1u) << "the canonical form is one file";
+        EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF));
+    }
+}
 
 TEST(Carve, Dxf999CommentHeaderLfCarves) {
     /* N-152: a comment-led DXF with LF line endings - the og's u16 "99"

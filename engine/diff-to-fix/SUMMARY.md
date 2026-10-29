@@ -526,6 +526,13 @@ trail update, push. One finding, one push. This block grows as the lane lands.
   signature bytes are driver-pad zeros) - the bound math is the honest
   divergence surface.
 
+- **N-189 FIXED (MINOR — the DXF canonical gate).** The og's two-qword 16-byte
+  compare (RAWSearchDLL:42258-42275 re-read first-hand) lands in validate_dxf:
+  "  0\r\nSECTION\r\n  " in full; the 8-byte-prefix collision class refused.
+  RED→GREEN: Carve.DxfCanonicalRequiresFullSixteenBytePattern; the S-007 batch
+  fixture re-truthed to the real covenant (the old 12-byte prefix-only shape
+  was a synthetic the og itself refuses). Suite 1453/1453.
+
 **Board after this merge (filesystem truth, re-censed): 69 active — 0 ACUTE · 9 SEVERE ·
 24 MAJOR · 29 MINOR · 0 INFO / 79 FIXED / 7 tracked-open** (the window's A-014 + M-124 +
 M-123 + M-132 + M-133 + N-161 + N-158 + N-174 + I-036 + I-040..I-044 retirements + the

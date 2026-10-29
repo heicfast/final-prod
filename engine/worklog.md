@@ -9109,3 +9109,15 @@ Image.FlatGeometryValidOnOddSizedImage, LostDiscovery.TailBoundUsesCeiledSectorC
 last-full-sector FVE candidate's fallback size covers the partial tail: 2 not 1). Full
 suite 1447/1447. Trail: findings/FIXED/N-206 + SUMMARY S57 block + this entry.
 
+
+## Session-57 lane — N-189 landed (the DXF 16-byte canonical gate) (2026-10-29)
+
+**N-189 FIXED (MINOR).** Classification: CONFIRMED-DIVERGENCE — the corpus re-read
+first-hand (RAWSearchDLL:42258-42275: the two-qword compare *p == 0x4345530a0d302020 &&
+p[1] == 0x20200a0d4e4f4954 - the full "  0\r\nSECTION\r\n  " covenant) and the tree
+re-verified (the 8-byte memcmp). The gate widened to the full 16 bytes (a <16-byte
+readable header falls to the 999 leg as the og's short-buffer probe does). Tests:
+Carve.DxfCanonicalRequiresFullSixteenBytePattern RED pre-fix (the SECTIONXWRONG collision
+carved) → GREEN; the S-007 plant_dxf fixture re-truthed to the real covenant (the old
+12-byte shape was a synthetic the og refuses). Suite 1453/1453. Trail: findings/FIXED/
+N-189 + SUMMARY + this entry.

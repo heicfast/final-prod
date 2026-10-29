@@ -5599,10 +5599,17 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
  * full probe window - the bound is this port's documented posture). */
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    /* N-189: the canonical gate is the og's FULL 16-byte two-qword
+     * compare "  0\r\nSECTION\r\n  " (RAWSearchDLL FUN_1800376f0
+     * :42258-42275: *p == 0x4345530a0d302020 && p[1] ==
+     * 0x20200a0d4e4f4954) - the 8-byte prefix alone is a collision
+     * class the og refuses; the pre-fix core carved it. A header
+     * truncated under 16 readable bytes falls to the 999 leg exactly
+     * as the og's short-buffer probe does. */
+    u8 h[16];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    bool ok = std::memcmp(h, "  0\r\nSECTION", 8) == 0;
+    bool ok = std::memcmp(h, "  0\r\nSECTION\r\n  ", 16) == 0;
     const char* note = "dxf-group-code-covenant+bounded-extent";
     if (!ok) {
         /* the 999-comment entry key's branch */

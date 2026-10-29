@@ -81,3 +81,10 @@ registry-row lineage).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S57 lane's N-189 landing; the ledger row carries the SHA)
+**Verified by:** Carve.DxfCanonicalRequiresFullSixteenBytePattern (RED pre-fix: the "  0\r\nSECTIONXWRONG" prefix collision carved; post-fix refused while the real 16-byte form still carves with the canonical FMT_DXF stamp) + the S-007 batch family re-verified green after its fixture was re-truthed. Full suite 1453/1453.
+**Resolution notes:** Corpus re-verified first-hand: RAWSearchDLL_decompiled.c:42258-42275 read live - the canonical branch is the two-qword compare (*p == 0x4345530a0d302020 && p[1] == 0x20200a0d4e4f4954), the full "  0\r\nSECTION\r\n  " 16-byte covenant, with the 999-comment leg entering separately (the N-152 parity, untouched). The fix is the finding's own plan: validate_dxf's canonical gate memcmps the full 16 bytes (a header truncated under 16 readable bytes falls to the 999 leg exactly as the og's short-buffer probe does). One fixture correction recorded: plant_dxf in the S-007 batch test planted only the 12-byte prefix + counter filler - a synthetic shape the og's own gate refuses; it now plants the real covenant (the test's intent, "DXF must carve", is served by a real-DXF-shaped fixture).
