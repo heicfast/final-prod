@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/cr_ui_tests.dir/link.d CMakeFiles/cr_ui_tests.dir/unit/test_cr_ui.cpp.o -o cr_ui_tests  -Wl,-rpath,/home/z/my-project/work/core_recovery/build2/src/ui ../src/ui/libcr_ui.so ../lib/libgtest_main.a ../lib/libgtest.a

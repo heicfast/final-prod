@@ -16,3 +16,4 @@ Testing/
 *.img.dest2/
 installer/payload/
 installer/dist/
+build2/
