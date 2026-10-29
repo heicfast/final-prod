@@ -5981,3 +5981,59 @@ TEST(NtfsVolume, MirrorFallbackUnaffectedByGrowthPass) {
     EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec))
         << "past the mirror span: refused, not fabricated by growth";
 }
+
+TEST(NtfsVolume, WalkStampsVersionGroup) {
+    /* M-101's walk-side pin (the falsification the finding names): a
+     * volume with two MFT records for the same $FILE_NAME in the same
+     * directory - the torn-overwrite shape - renders ONE Versions group;
+     * both records' nodes carry the SAME namespace-identity hash, and
+     * distinct names never collide. */
+    Image img;
+    build_image(img);
+    /* plant the torn sibling: a second record with the same (parent 16,
+     * name readme.txt) at an unused record slot (24; LCN MFT_LCN+48) */
+    {
+        RecBuilder r;
+        r.header(24, 0); /* DELETED - the stale record of the torn pair */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"readme.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 1024, 1024);
+        r.attr_data_runlist(240, 2, 1024); /* own clusters, bitmap-free */
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    /* collect the two readme.txt nodes (the live record 17 under Found,
+     * the stale record 24 under Deleted) and one other file */
+    std::vector<tree::FileNode*> readmes, others;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->is_full() && c->props()) {
+                if (c->name_utf8() == "readme.txt")
+                    readmes.push_back(c);
+                else if (c->name_utf8() == "deleted.dat")
+                    others.push_back(c);
+            }
+            collect(c);
+        }
+    };
+    collect(ra);
+    collect(rd);
+    ASSERT_EQ(readmes.size(), 2u) << "the live record and its torn stale sibling both surface";
+    ASSERT_NE(readmes[0]->props()->version_group, 0ull) << "structured NTFS nodes carry the id";
+    EXPECT_EQ(readmes[0]->props()->version_group, readmes[1]->props()->version_group)
+        << "the same (parent, name) pair derives the SAME namespace id";
+    for (tree::FileNode* o : others)
+        EXPECT_NE(o->props()->version_group, readmes[0]->props()->version_group)
+            << "a different pathname never joins the group";
+}

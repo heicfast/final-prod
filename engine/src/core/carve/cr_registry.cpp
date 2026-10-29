@@ -443,12 +443,18 @@ const Signature kTable[] = {
      * constant - the child walk's cap check at raw-asm 0x18002f5ee
      * (`imul $0x64,0x70(%rax)`): singleton+0x70 (0xbebc200 = 200 MB)
      * x 100 = 0x4A817C800 (20 GB). The 64 MiB stand-in value is gone. */
+    /* the S86 convergence rider: the row floor re-pinned to the og's
+     * registered 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword
+     * write at +0x110 - puVar1[0x22] = 0x15, the PNG/ONE ctor pattern
+     * [0x22]=min/[0x23]=max; the SAME write seeds the gen-1 walk cursor).
+     * The max stays the first landing's 0x4A817C800 (100 x the engine
+     * default 200 MB, the LAB_18002f5e9 sanity). */
     {FMT_DWG,
      "dwg",
      {'A', 'C', '1', '0'},
      4,
      0,
-     64,
+     0x15,
      0x4A817C800ull,
      620,
      validate_dwg,
@@ -971,14 +977,20 @@ const Signature kTable[] = {
      750,
      validate_tar,
      "TAR Archive"},
-    {FMT_EPS, "eps", {'%', '!'}, 2, 0, 4, 64ull << 20, 620, validate_eps, "PostScript"},
+    /* M-107 members 7/8/6: the row maxes carry the og walks' own cap
+     * constants - EPS: the CZeroEnd child's singleton+0x70 x 100 (the
+     * ctor FUN_180032c50's [obj+0x110]); AI: the tier-1 formula's cap
+     * (the same singleton x 100); DXF: the RAW singleton field
+     * 0xbebc200 = 200 MB (FUN_1800379c0's cap check, no multiplier).
+     * The 64 MiB stand-in values are gone from these rows. */
+    {FMT_EPS, "eps", {'%', '!'}, 2, 0, 11, 0x4A817C800ull, 620, validate_eps, "PostScript"},
     {FMT_AI,
      "ai",
      {0xC5, 0xD0, 0xD3, 0xC6},
      4,
      0,
-     8,
-     64ull << 20, /* N-148: the M-107-verified 64 MiB stand-in (was 16) */
+     0x1c,
+     0x4A817C800ull,
      620,
      validate_ai,
      "Adobe Illustrator"},
@@ -988,7 +1000,7 @@ const Signature kTable[] = {
      4,
      0,
      32,
-     64ull << 20,
+     0xbebc200ull,
      620,
      validate_dxf,
      "AutoCAD DXF",
