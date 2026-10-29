@@ -491,3 +491,27 @@ and fails cleanly at the truncated tail; one beyond it: instant
 refusal) / TornTailGarbageCountStillFailsCleanly (the M-131-class
 producer: garbage count over real bytes, process survives). Session
 suite 29/29; full suite 1627/1627.
+
+## S80 addendum — M-154 FIXED: the auto-session lifecycle (2026-10-29)
+
+**Retention-one + the pointer landed.** The og's lifecycle (all six
+DRWUI bands verified at the finding): before every auto-save, the
+previous auto session named by the pointer is DELETED (:442815-442833) —
+exactly one live auto session; the pointer carries [Info]'s four fields
+(SavePath/Name/Count/Time, :443060-443086); the pointed resume
+(FUN_140286390) restores SavePath; PathFileExistsA validates
+(:443209-443214). The core: session::LastScanInfo (the new
+cr_lastscan.cpp module — the last_scan.info sidecar in the autosave
+dir, PARITY-DELTAS D-152's registered location difference; the HKLM
+mirror dropped); the retention loop in BOTH autosave bands (cr_ui.cpp +
+rrecov.cpp); cr_ui_session_last_autosave_path as the pointed-resume ABI
+(ERR_RANGE_OUT_OF_BOUNDS on no-live-pointer — the honest absence the
+host's list fallback consumes). The auto_-name retention guard (a
+corrupted pointer naming a manual save is never deleted) is the
+registered safety superset. Tests: AutosaveRetentionDeletesPrevious
+AndPointerNamesIt (two rounds -> one file + the four fields; RED:
+BUILD-absent) / AutosaveManualSaveSurvivesRetention /
+AutosaveDeadPointerDoesNotBlock (the kill-out-of-band shape: the save
+proceeds, the resume reports absence) + the C consumer check; the
+S-044/S-057 trigger pins and the W1c/W1a surfaces stay green. Suite
+1651/1651.

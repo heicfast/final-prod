@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
+#include "cr/session/cr_lastscan.h"
 #include "cr/cr_log.h"
 /* S-009 pure-builder tests: the core symbols resolve from libcr_ui
  * (which embeds the core); these includes are for the types only. */
@@ -4997,4 +4998,146 @@ TEST(CrUi, PauseStdinReaderMapsKeysOntoTheToken) {
     /* the usage block documents the surface */
     EXPECT_NE(std::string::npos, src.find("[--pause-stdin]"))
         << "the usage block must list the flag";
+}
+
+/* ---- M-154: the auto-session lifecycle (retention-one + pointer) ------ */
+
+TEST(CrUi, AutosaveRetentionDeletesPreviousAndPointerNamesIt) {
+    /* M-154: the og's retention loop (DRWUI:442815-442833) - before
+     * writing a new auto session, the previous auto .rsf named by the
+     * LastScanInfo pointer is DELETED: exactly one auto session is ever
+     * live. Two consecutive auto-saving scans in one dir leave exactly
+     * ONE file, and the pointer names it (the og's [Info] four fields,
+     * :443060-443086 - the core's last_scan.info sidecar). */
+    const std::string img = write_fixture("m154ret");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/m154_ret_" + std::to_string(CR_TEST_PID());
+    std::filesystem::remove_all(adir);
+    std::filesystem::create_directories(adir);
+
+    for (int round = 0; round < 2; ++round) {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_EQ(st.autosaved, 1u) << "round " << round;
+    }
+    /* exactly ONE auto session remains - the second round's retention
+     * deleted the first's */
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 1u) << "retention-one: one live auto session after two rounds";
+    /* the pointer names it (the pointed resume) */
+    char pointed[1024] = {0};
+    ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), pointed, sizeof(pointed)), CR_UI_OK);
+    const std::string pointed_s(pointed);
+    EXPECT_NE(std::strstr(pointed_s.c_str(), "auto_"), nullptr)
+        << "the pointer names the auto session";
+    EXPECT_TRUE(std::filesystem::exists(pointed_s)) << "the pointed file is present";
+    /* the pointer's four fields: read the sidecar directly */
+    cr::session::LastScanInfo info;
+    ASSERT_TRUE(cr::session::last_scan_info_read(adir, info));
+    EXPECT_EQ(info.save_path, pointed_s);
+    EXPECT_NE(std::strstr(info.name.c_str(), "auto_"), nullptr);
+    EXPECT_GT(info.name.size(), 5u);
+    EXPECT_GT(info.count, 0u) << "the og's Count field carries the node count";
+    EXPECT_GT(info.time, 0ull) << "the og's Time field carries the save stamp";
+    EXPECT_TRUE(info.exists);
+}
+
+TEST(CrUi, AutosaveManualSaveSurvivesRetention) {
+    /* M-154: manual saves are NEVER deleted by the retention pass (the
+     * og's DeleteFileA targets the pointer's SavePath, which only ever
+     * names an auto_*.rsf the writer itself recorded; the core's
+     * auto_-name gate is the safety hardening - a corrupted pointer
+     * naming a manual save must not delete it). */
+    const std::string img = write_fixture("m154man");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/m154_man_" + std::to_string(CR_TEST_PID());
+    std::filesystem::remove_all(adir);
+    std::filesystem::create_directories(adir);
+
+    /* a manual save first (the explicit session sink) */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        const std::string manual = adir + "/manual_save.crsf";
+        EXPECT_EQ(cr_ui_scan_save_session(u.scan, manual.c_str()), CR_UI_OK);
+    }
+    /* then an auto-saving run: the retention must keep the manual file */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    }
+    EXPECT_TRUE(std::filesystem::exists(adir + "/manual_save.crsf"))
+        << "the manual save survives the retention pass";
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 2u) << "the manual file + the one live auto session";
+}
+
+TEST(CrUi, AutosaveDeadPointerDoesNotBlock) {
+    /* M-154: the og's PathFileExistsA validation (DRWUI:443209-443214)
+     * - a pointer whose SavePath is dead (the file deleted out-of-band)
+     * never blocks the new save; the pointed-resume surface reports
+     * absence honestly (the host falls back to the list). */
+    const std::string img = write_fixture("m154dead");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/m154_dead_" + std::to_string(CR_TEST_PID());
+    std::filesystem::remove_all(adir);
+    std::filesystem::create_directories(adir);
+
+    /* round 1: a live auto session + pointer */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    }
+    /* kill the pointed file out-of-band (the dead-pointer shape) */
+    char pointed[1024] = {0};
+    ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), pointed, sizeof(pointed)), CR_UI_OK);
+    std::filesystem::remove(pointed);
+    /* the pointed resume now reports absence */
+    char again[1024] = {0};
+    EXPECT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), again, sizeof(again)),
+              0x50020004u) /* ERR_RANGE_OUT_OF_BOUNDS: no live pointer */;
+    /* round 2: the dead pointer never blocks the new save */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_EQ(st.autosaved, 1u) << "the dead pointer never blocks the save";
+    }
+    /* the pointer now names the new session (the same-second shape can
+     * regenerate the identical name - the existence is the assertion) */
+    char fresh[1024] = {0};
+    ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), fresh, sizeof(fresh)), CR_UI_OK);
+    EXPECT_TRUE(std::filesystem::exists(fresh)) << "the pointer names the new session";
 }

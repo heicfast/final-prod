@@ -578,6 +578,20 @@ int main(int argc, char** argv) {
         free(sl_rows);
         /* the refusal contract: bad args + bad dir fail loud */
         CHECK_EQ_U64(cr_ui_session_list(NULL, NULL, NULL), 0x50030003u);
+        /* M-154: the pointed resume - the last-autosave path reads the
+         * pointer sidecar, not the directory enumeration. This dir holds
+         * no auto sessions (the file above was an explicit manual save),
+         * so the surface must report absence (the host falls back to the
+         * list); a NULL/zero-cap call is the bad-parameter contract. */
+        {
+            char last_path[1024];
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(NULL, last_path, sizeof(last_path)),
+                         0x50030003u); /* ERR_BAD_PARAMETER */
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(dir, NULL, 0), 0x50030003u);
+            /* no auto session was ever written to this dir: absence */
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(dir, last_path, sizeof(last_path)),
+                         0x50020004u); /* ERR_RANGE_OUT_OF_BOUNDS */
+        }
         CHECK_EQ_U64(cr_ui_session_list("no-such-dir-cgate", NULL, &ncount), 0x50020001u);
         /* N-128: the CWD dir lists BARE names - the caller's own CWD-relative
          * save path string-matches its row (the default-path invocation of

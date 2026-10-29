@@ -999,6 +999,21 @@ typedef struct cr_ui_session_row {
 CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
                                       uint32_t* count);
 
+/* ---- the pointed resume (M-154) --------------------------------------------
+ * The og's continue-last flow reads the LastScanInfo.ini pointer
+ * (SavePath, validated with PathFileExistsA at DRWUI:443209-443214)
+ * instead of enumerating the directory. The core's pointer is the
+ * last_scan.info sidecar in the autosave dir (the og's [Info] four
+ * fields, PARITY-DELTAS-registered location difference). Returns OK
+ * with the pointed session's UTF-8 path copied into out_path when the
+ * pointer exists AND the pointed file is present; ERR_NOT_FOUND when
+ * no live pointer names a present file (the host falls back to
+ * cr_ui_session_list). The returned path is directly loadable by
+ * cr_ui_session_load - the pointed-resume contract (FUN_140286390's
+ * SavePath-restore equivalent). */
+CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir, char* out_path,
+                                                    uint32_t cap);
+
 /* ---- session load progress + cancel (W1b / R-54) ---------------------------
  * The load-side twin of the N-060 save machinery. The og's RESTORE
  * reports progress inside the load window (40+50*done/(total+done),

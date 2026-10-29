@@ -76,6 +76,7 @@
 #include "cr/apply/cr_apply.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/session/cr_lastscan.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/table/cr_ldm.h"
@@ -2023,12 +2024,28 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         for (char c : name8)
             wide_name.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII names
                                                                   * (the sanitizer guarantees it) */
-        if (save_session_to(wide_name))
+        /* M-154 (diff-to-fix): the og's retention loop (DRWUI:442815-
+         * 442833) - delete the previous auto session before writing the
+         * new one (exactly one live auto session; the unbounded
+         * accumulation ends). Manual saves never touched; a dead
+         * pointer is a no-op. The pointer write follows a successful
+         * save (the og's [Info] four fields). */
+        (void)session::last_scan_retention_delete_previous(std::string(cfg.autosave_dir));
+        if (save_session_to(wide_name)) {
+            session::LastScanInfo info;
+            std::string full8;
+            for (wchar_t c : wide_name)
+                full8.push_back((c & 0x80) ? '?' : char(c)); /* ASCII dirs/names */
+            info.save_path = full8;
+            info.name = name8;
+            info.count = u64(stats.files_found) + stats.deleted_found + stats.carved_found;
+            info.time = u64(std::time(nullptr));
+            (void)session::last_scan_info_write(std::string(cfg.autosave_dir), info);
             wprintf(stopped_window ? L"session auto-saved (stopped): %s\n"
                                    : L"session auto-saved: %s\n",
                     wide_name.c_str());
-        else
-            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
+} else {
+            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str()); }
         return true;
     };
 

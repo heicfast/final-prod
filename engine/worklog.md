@@ -12018,3 +12018,25 @@ CarveStageBeginsBeforeDeepStage + DeepFirstWhenQuickDisabled...; suites
 1564 / 0-fail + 84/84. Trail: findings/FIXED/N-181 + Resolution,
 ledger row, matrix cell, modules/orchestration.md addendum 2, this
 entry.
+
+## Session-80 S80 fix-lane — entry 8: M-154 (2026-10-29)
+
+**M-154 FIXED (MAJOR, session/orchestrator):** the auto-session
+lifecycle — retention-one + the pointer + the pointed resume. The new
+session::LastScanInfo module (cr_lastscan.h/.cpp): the last_scan.info
+sidecar in the autosave dir carrying the og's [Info] four fields
+(SavePath/Name/Count/Time, DRWUI:443060-443086; the HKLM mirror dropped
+— PARITY-DELTAS D-152). The retention loop (:442815-442833) wired into
+BOTH autosave bands (cr_ui.cpp + the rrecov.cpp CLI twin): the previous
+auto session named by the pointer is deleted before every write —
+exactly one live auto session. cr_ui_session_last_autosave_path: the
+pointed-resume ABI (PathFileExistsA-validated, :443209-443214;
+ERR_RANGE_OUT_OF_BOUNDS on no-live-pointer). The auto_-name retention
+guard = the registered safety superset. Tests (RED: BUILD-absent):
+AutosaveRetentionDeletesPreviousAndPointerNamesIt /
+ManualSaveSurvivesRetention / DeadPointerDoesNotBlock + the C consumer
+check in ui_abi_check.c. Suite 1651/1651. ALSO this entry: the M-151
+push's committed conflict remnants in test_ntfs_volume.cpp repaired
+(the N-210 gate's ^<<<<<<< pattern misses >>>>>>>-only remnants — the
+gate-gap note recorded for the next lane). Trail: findings/FIXED/M-154,
+matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.

@@ -35,6 +35,7 @@
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/session/cr_lastscan.h"
 #include "cr/session/cr_records.h"
 #include "cr/table/cr_table_wire.h"
 #include "cr/tree/cr_snapshot.h"
@@ -2317,8 +2318,31 @@ static void autosave_if_due_(CrScan* s) {
                 label[k] = s->stats.volume_label[k];
         }
         const std::string name = session::auto_session_name(u8_to_u16(label)) + ".crsf";
-        const u32 arc = write_session_atomic(s, dir + sep + name, nullptr, nullptr);
+        const std::string full_path = dir + sep + name;
+        /* M-154 (diff-to-fix): the og's retention loop (DRWUI:442815-
+         * 442833) - before writing the new auto session, read the
+         * last-scan pointer and DELETE the previous auto .rsf, keeping
+         * exactly one live auto session (the og's bounded SaveScan
+         * lifecycle; the core previously accumulated every auto session
+         * forever). Manual saves are never touched (the auto_ name gate
+         * is the safety hardening); a dead/absent pointer is a no-op
+         * (the og's PathFileExistsA flag class, :443209-443214). */
+        (void)session::last_scan_retention_delete_previous(dir);
+        const u32 arc = write_session_atomic(s, full_path, nullptr, nullptr);
         s->autosaved = (arc == OK);
+        if (arc == OK) {
+            /* the pointer write (the og's [Info] SavePath/Name/Count/
+             * Time, DRWUI:443060-443086 - the HKLM mirror is the
+             * Windows-host convention, deliberately dropped,
+             * PARITY-DELTAS). Best-effort: the og's
+             * WritePrivateProfileStringA failure never fails the save. */
+            session::LastScanInfo info;
+            info.save_path = full_path;
+            info.name = name;
+            info.count = s->stats.files_found + s->stats.deleted_found + s->stats.carved_found;
+            info.time = u64(std::time(nullptr));
+            (void)session::last_scan_info_write(dir, info);
+        }
         if (s->event_fn) {
             cr_ui_event out;
             std::memset(&out, 0, sizeof(out));
@@ -3609,6 +3633,28 @@ extern "C" CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess,
 extern "C" CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
                                                  uint32_t* count) {
     return guarded(session_list_impl, utf8_dir, rows, count);
+}
+
+namespace {
+/* M-154: the pointed resume - the og's continue-last flow reads the
+ * pointer (SavePath, PathFileExistsA-validated) instead of enumerating
+ * (FUN_140286390's SavePath-restore, DRWUI:443092-443127). */
+u32 session_last_autosave_path_impl(const char* utf8_dir, char* out_path, uint32_t cap) {
+    if (!utf8_dir || !*utf8_dir || !out_path || cap == 0)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/out_path/cap");
+    session::LastScanInfo info;
+    if (!session::last_scan_info_read(utf8_dir, info) || !info.exists)
+        return ret_(ERR_RANGE_OUT_OF_BOUNDS, "no live last-scan pointer in %s", utf8_dir);
+    if (info.save_path.size() + 1 > cap)
+        return ret_(ERR_TRUNCATED, "path %zu bytes exceeds cap %u", info.save_path.size(), cap);
+    copy_cstr(out_path, cap, info.save_path.c_str());
+    return ret_ok();
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir,
+                                                                char* out_path, uint32_t cap) {
+    return guarded(session_last_autosave_path_impl, utf8_dir, out_path, cap);
 }
 
 /* =========================================================================

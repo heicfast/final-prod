@@ -4629,6 +4629,7 @@ step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 - **VERDICT: ACCEPTED** (the registered open modeling difference,
   N-178's leg 2 — revisit if a future decode surfaces the engine-side
   consumer).
+<<<<<<< HEAD
 
 ---
 
@@ -4652,3 +4653,29 @@ journal salvage is on): surfacing the filesystem's own journal as a lost
 "InodeN" entry would be FS-internal circular metadata noise, not user
 content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
+=======
+## D-152 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM
+
+**Surface:** the auto-session lifecycle (M-154). The og's pointer is
+`%APPDATA%\EaseUS\<sub>\LastScanInfo.ini` (WritePrivateProfileStringA,
+the [Info] four fields, DRWUI:443060-443086) with an HKLM
+`SOFTWARE\EASEUS\DRW` registry mirror (LastScanConfig/LastScanFile).
+The core's pointer is `last_scan.info` — a line-based sidecar IN the
+autosave dir (portable, self-contained: the pointer travels with the
+sessions it names).
+
+**Rationale:** the core is cross-platform (the Win7-inclusive gate
+notwithstanding, the Linux build is first-class); %APPDATA% and HKLM are
+Windows-host conventions with no portable equivalent. The SEMANTICS are
+preserved exactly: the og's four fields (SavePath/Name/Count/Time), the
+PathFileExistsA validation class (:443209-443214 — a dead pointer never
+blocks), the retention-one loop (:442815-442833), and the pointed-resume
+contract (FUN_140286390's SavePath-restore — cr_ui_session_last
+_autosave_path). The HKLM mirror's consumers (the og's installer/upgrade
+flows) have no core counterpart by architecture.
+
+**Evidence:** DRWUI:442815-443215 (all six bands read first-hand at the
+finding); the M-154 tests (RetentionDeletesPreviousAndPointerNamesIt /
+ManualSaveSurvivesRetention / DeadPointerDoesNotBlock) + the C consumer
+check pin the semantics.
+>>>>>>> 309f7af8 (fix(session): M-154 — the auto-session lifecycle lands: retention-one (the pointer-named previous auto session deleted before every write), the last_scan.info pointer (the og's [Info] four fields), and the pointed-resume ABI)

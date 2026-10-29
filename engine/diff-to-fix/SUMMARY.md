@@ -162,8 +162,8 @@ N-219+, I-049+, A-017+, D-151+.
   findings/FIXED/M-149, matrix MATCH, modules/lost-partition.md S80
   addendum.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 14 MAJOR · 10 MINOR ·
-1 INFO active / 178 FIXED / 4 tracked-open.** Next free IDs:
+**Board after this landing: 0 ACUTE · 0 SEVERE · 13 MAJOR · 10 MINOR ·
+1 INFO active / 179 FIXED / 4 tracked-open.** Next free IDs:
 S-069+, M-156+, N-218+, I-049+, A-016+, D-150+.
 
 # SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
@@ -232,6 +232,20 @@ M-156+, N-218+, I-049+, A-016+, D-150+.
   MirrorFallbackUnaffectedByGrowthPass; NTFS suite 95/95; suite
   **1634/1634**. Trail: findings/FIXED/M-151, matrix MATCH,
   modules/ntfs.md S80 addendum.
+
+- **M-154 FIXED (MAJOR, session/orchestrator)** — the auto-session
+  lifecycle: retention-one (the previous auto session named by the
+  pointer is deleted before every auto-save — both autosave bands; the
+  unbounded accumulation ends), the pointer (session::LastScanInfo with
+  the og's [Info] four fields, the last_scan.info sidecar —
+  PARITY-DELTAS D-152 registers the location convention; the HKLM
+  mirror dropped), and the pointed resume
+  (cr_ui_session_last_autosave_path, PathFileExistsA-validated). The
+  auto_-name retention guard = the registered safety superset. Tests:
+  AutosaveRetentionDeletesPreviousAndPointerNamesIt (RED: BUILD-absent)
+  / ManualSaveSurvivesRetention / DeadPointerDoesNotBlock + the C
+  consumer check; suite **1651/1651**. Trail: findings/FIXED/M-154,
+  matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.
 
 **Board after this landing: 0 ACUTE · 2 SEVERE · 18 MAJOR · 11 MINOR ·
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same

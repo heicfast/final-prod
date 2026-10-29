@@ -50,6 +50,7 @@ add_library(cr_core STATIC
     carve/cr_usersigns.cpp
     carve/cr_rawsigns_data.cpp
     session/cr_crsf.cpp
+    session/cr_lastscan.cpp
     session/cr_records.cpp
     recovery/cr_safewriter.cpp
     recovery/cr_report.cpp
