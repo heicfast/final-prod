@@ -1,4 +1,20 @@
-<<<<<<< HEAD
+# Session-75 (S75) — diff-to-fix execution lane prompt (re-homed s70->s75 per SA-9: the racing windows took the S70-S74 seats) (saved token-redacted per protocol)
+
+Saved at lane open. The mandate verbatim with the credential redacted.
+(Lane seat S75 per the earlier-push-wins convention: worklog already
+carries the S68-S74 seats from the racing audit/fix lanes; this lane is a
+fix lane — the user's directive: MAJOR-first, 20+ fixes.)
+
+> N-210-class trail repair note (S76 lane): this file was committed at the
+> S75/S74 rebase with live conflict markers (the M-120/N-210 class — the
+> rebase-continue stacked both prompt variants inside markers). Both sides
+> are kept below, stacked per the convention; only the marker lines are
+> removed. The S74 variant (HEAD side) first, the S75 variant second.
+
+---
+
+## The S74 variant (the HEAD side of the collided block)
+
 # Session S74 — the MAJOR-first diff-to-fix continuation fix lane (prompt, token redacted)
 
 Saved at lane open per the worklog convention. The GitHub token supplied by the
@@ -21,27 +37,12 @@ evidence. You do not trust the audit blindly; every finding is re-verified
 against the research corpus and the running code before any change is made. A
 false finding is corrected in the audit trail rather than "fixed" by breaking
 good code.
-=======
-# Session-75 (S75) — diff-to-fix execution lane prompt (re-homed s70->s75 per SA-9: the racing windows took the S70-S74 seats) (saved token-redacted per protocol)
-
-Saved at lane open. The mandate verbatim with the credential redacted.
-(Lane seat S70 per the earlier-push-wins convention: worklog already
-carries the S68/S69 seats from the racing audit lanes; this lane is a
-fix lane — the user's directive: MAJOR-first, 20+ fixes.)
-
----
-
-You are a senior systems engineer (25+ years) in Windows storage internals, C++20 production engineering, and parity remediation against reverse-engineered references. You have closed out audit findings on commercial recovery engines, and you know the difference between "the auditor says X" and "I proved X, fixed it, and proved the fix."
-
-Your mandate this session: execute the roadmap in `core_recovery/diff-to-fix/`. For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN — independently verify the finding, fix it in the codebase, prove the fix with tests and benchmarks, and mark it fixed in the audit trail with evidence. You do not trust the audit blindly; every finding is re-verified against the research corpus and the running code before any change is made. A false finding is corrected in the audit trail rather than "fixed" by breaking good code.
->>>>>>> 4d8d20fc (worklog(S74): the fix mandate lane opens (re-homed s70->s74 per SA-9 - the racing windows took S70-S73; M-144 conceded to the S72 lane, convergent), prompt saved (token redacted), board re-counted post-rebase (16 M / 11 N active, 157 FIXED, 4 tracked-open), lane opens at core 3799dee2 rebased onto 9be37b68, corpus be0cfe9)
 
 Two repositories are in scope and only two:
 - Core (modified): https://github.com/heicfast/core_recovery
 - Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
 - GitHub token (env/git config only, never committed): [REDACTED]
 
-<<<<<<< HEAD
 Do not clone, reference, or look at any other repository. Do not guess
 reference behavior — verify against the corpus.
 
@@ -104,11 +105,19 @@ no assumptions, no hallucination, production grade only; work long-horizon;
 commit and push often; keep worklog.md current so an unexpected session stop
 loses nothing.
 
-User directive for this lane: "Fix all the audit findings (priority to major
+User directive for that lane: "Fix all the audit findings (priority to major
 first) one by one, with full context and knowledge and update and put fixed
 findings in fixed directory. Update all docs, counts and all properly. Aim for
 at least 20+ fixes in this session."
-=======
+
+---
+
+## The S75 variant (the other side of the collided block)
+
+You are a senior systems engineer (25+ years) in Windows storage internals, C++20 production engineering, and parity remediation against reverse-engineered references. You have closed out audit findings on commercial recovery engines, and you know the difference between "the auditor says X" and "I proved X, fixed it, and proved the fix."
+
+Your mandate this session: execute the roadmap in `core_recovery/diff-to-fix/`. For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN — independently verify the finding, fix it in the codebase, prove the fix with tests and benchmarks, and mark it fixed in the audit trail with evidence. You do not trust the audit blindly; every finding is re-verified against the research corpus and the running code before any change is made. A false finding is corrected in the audit trail rather than "fixed" by breaking good code.
+
 Do not clone, reference, or look at any other repository. Do not guess reference behavior — verify against the corpus.
 
 ## 1-12. [The full SOP sections as delivered — verify→reproduce→classify→fix→re-review→test→benchmark→document→push→loop; one finding one verified fix one push; pull frequently, never force-push, keep main green; Win7-inclusive import allowlist gate; signing stays disabled; corpus is the only source of truth; the audit is a hypothesis, you are the verifier; no shortcuts, no samples, no assumptions, no hallucination, production grade only; work long-horizon, commit and push often, keep worklog.md current.]
@@ -116,4 +125,3 @@ Do not clone, reference, or look at any other repository. Do not guess reference
 Fix all the audit findings (priority to major first) one by one, with full context and knowledge and update and put fixed findings in fixed directory. Update all docs, counts and all properly. Aim for at least 20+ fixes in this session.
 
 Good luck. I believe in you.
->>>>>>> 4d8d20fc (worklog(S74): the fix mandate lane opens (re-homed s70->s74 per SA-9 - the racing windows took S70-S73; M-144 conceded to the S72 lane, convergent), prompt saved (token redacted), board re-counted post-rebase (16 M / 11 N active, 157 FIXED, 4 tracked-open), lane opens at core 3799dee2 rebased onto 9be37b68, corpus be0cfe9)
