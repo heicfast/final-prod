@@ -13349,3 +13349,38 @@ extended to N-224 + N-225, the SUMMARY S89 block opened (board: 6 MAJOR / 2
 MINOR / 0 INFO active / 207 FIXED / 4 tracked-open). No code change owed.
 
 <!-- S89 merge note: the racing window's session-84/85 handoff entries (their side) kept ahead of this lane's S89 open entry (ours); append-append both-sides-kept per the house convention. The window landed M-101 (findings/FIXED/), M-107's DXF/EPS/AI members (SIT/APE/SWF-RECT remain), the N-226 renumber, and the test_m101_branches repair — this lane re-verifies each before building on them. -->
+
+---
+
+## Session-84 — entry 8 (this lane): the build-break repair + the evidence directory; the decisive run (2026-10-30)
+
+**The dangling reference (the phantom-source class, caught first-hand):**
+`cmake --preset linux-release` at the 203304f9 tree FAILED at the
+generate step — tests/CMakeLists.txt:65 listed `unit/test_m101_branches.cpp`,
+which does not exist: the file had been committed unimplemented and swept
+as the N-210-class leak (708fad32), but the CMakeLists reference survived.
+Every fresh configure was broken (including the CI build job — the 203304f9
+run failed on it). The reference removed (M-101 remains ACTIVE in
+findings/MAJOR/; its lane re-adds file+reference together when the real
+branches battery lands). Post-repair: Release configure+build clean,
+0 errors / 0 warnings (logs in worklog/builds/).
+
+**The evidence directory:** `worklog/builds/README.md` + the
+linux-release configure/build logs — Debug (the suite builds), Release
+(the captured logs), the clang 18.1.8 fuzz lane (16 binaries), the
+environment's honest limits (4 GiB cgroup, the chunk discipline), and
+the Windows half pointing at the checks.yml job on fc7201c2.
+
+**The decisive run:** checks.yml on fc7201c2 — the first run whose tree
+passed this lane's full local chain (markers, doc_truth_gate,
+clang-format tree-wide at 18.1.8, Release build, the chunked suite)
+before the push. Its conclusion is recorded in the final entry.
+
+**The session's commit trail (this lane, through fc7201c2):** 10a6ec29
+(T1 rider) → a47419c7 (resume_last) → eb1b4e35+24edbb04 (the gate-red
+repair, honestly noted) → 78c60e89 (exit-5 docs) → 43a7bb26 (T3/T4
+registers) → the PARAMETERS/ABI-contract doc pair → b82f75b2+bfda625c
+(the marker miss + the N-223 retirement, honestly noted) → the D-165
+renumber + format sweeps → 56d27d86 (wr16) → adf91248 (T17 doc audit +
+recounts) → the M-107 format sweep → the dangling-reference repair →
+fc7201c2 (the integrated merge).
