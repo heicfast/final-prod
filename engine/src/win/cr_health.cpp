@@ -266,9 +266,9 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-        /* NVMe health log (log page 2) through the protocol-specific storage
-         * query (Windows 10 storage stack; the corpus DiskHealth uses the
-         * same route through its NVMe transport). */
+    /* NVMe health log (log page 2) through the protocol-specific storage
+     * query (Windows 10 storage stack; the corpus DiskHealth uses the
+     * same route through its NVMe transport). */
 #pragma pack(push, 1)
     struct {
         STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */

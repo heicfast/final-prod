@@ -6721,10 +6721,10 @@ static bool swf_rect_valid(const u8* h) {
     const u32 nbits = u32(h[8]) >> 3;
     if (nbits < 2)
         return false; /* 0x180026980: cmp $0x1,%eax; jbe reject */
-    u32 bitpos = 5; /* MSB-first, after the 5-bit Nbits field (stream bits
-                     * 0-4; the first sign bit = LSB-index bit 2 = the
-                     * asm's `bl & 4` sign check at 0x180026a03, and the
-                     * first magnitude bit = LSB bit 1, the traced shr $1) */
+    u32 bitpos = 5;   /* MSB-first, after the 5-bit Nbits field (stream bits
+                       * 0-4; the first sign bit = LSB-index bit 2 = the
+                       * asm's `bl & 4` sign check at 0x180026a03, and the
+                       * first magnitude bit = LSB bit 1, the traced shr $1) */
     auto read_bit = [&]() -> u32 {
         const u32 bit = (h[8 + (bitpos >> 3)] >> (7 - (bitpos & 7))) & 1u;
         ++bitpos;
