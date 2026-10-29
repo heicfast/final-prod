@@ -4473,3 +4473,11 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   `Writer.FailureCauseTableMatchesOgRuntimeStrings` (the corrected
   seven-entry table), `Report.ReadErrorOutcomeMarksTruncatedPartials`
   (the FB-R02 re-pin).
+
+- **S71 RIDER (the convergent reconciliation):** the live-tree node mark
+  `FileNode::recover_failed()` (the og's +0x73 bit 1 at :874087 — runtime-
+  only like the og's, observable on live trees without the report) and the
+  settings-gated accounting skip `WriterConfig::suppress_read_error_
+  accounting` (the og's FUN_1400b3c60()+0x10 probe at :874072-874076 —
+  when set, error-9 items count as recovered and skip failed_bytes; the
+  library default is the truthful accounting).
