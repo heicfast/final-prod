@@ -13499,3 +13499,47 @@ the session's meta-finding: the entry was invisible to my incremental
 builds because it post-dated my last full configure — CI's
 clean-configure lane is the only gate that sees this class, which is
 exactly why it must stay green for the right reason.
+
+---
+
+<!-- S89 merge arbitration (the second racing window): the racing lane's a34f7b8c removed
+the test_m101_branches.cpp REGISTRATION (their note: "M-101 remains ACTIVE ... its lane
+re-adds file+reference together when the real branches battery lands") — that premise is
+stale against the merged tree: their own window's b7d05b12 landed the M-101 implementation
+AND moved the finding to findings/FIXED/. This lane's convergent repair (the earlier
+N-227) restored the FILE byte-exact; this merge re-adds the REGISTRATION beside it — the
+battery is valid against the landed surface (5/5 green first-hand) and the M-101 landing
+keeps its test battery per the every-fix-paired-with-tests SOP. Both histories stand. -->
+
+---
+
+**Fix #2 — N-227 FIXED (MINOR, NEW — filed+fixed this session; the racing
+window's collision repaired).** The first pull of the lane found main RED: the
+window's 708fad32 sweep deleted tests/unit/test_m101_branches.cpp against its
+STALE tree (its own message's grep evidence predates b7d05b12), while b7d05b12
+(the M-101 implementation landing, 18:43 vs the sweep's 18:46) had registered
+the file in tests/CMakeLists.txt AND landed the full surface (version_group /
+tags_extracted / version_groups() — grep-verified present at HEAD). The merged
+HEAD: registration without the file — `cmake --preset linux-release` fails at
+generate ("Cannot find source file: unit/test_m101_branches.cpp"), cr_tests
+unbuildable, 0/1700 tests runnable (first-hand at d15d32a4). The repair: the
+file restored byte-exact from b7d05b12; GREEN — the M-101 battery 5/5, full
+suite 1700/1700 (127.7 s). Trail: findings/FIXED/N-227 + Resolution, the
+ledger row, the SUMMARY S89 block refreshed (board: 5 MAJOR / 2 MINOR / 0
+INFO active / 208 FIXED / 4 tracked-open; M-107's remaining members: SIT,
+APE, SWF-RECT — the window landed DXF/EPS/AI as members 7-9). The N-210
+class's EIGHTH occurrence; the sweep's history stands.
+**The second racing window absorbed + the arbitration (S89).** The window's
+a34f7b8c repaired the same dangling reference by REMOVING the registration
+(their premise: "M-101 remains ACTIVE; its lane re-adds file+reference
+together when the real branches battery lands") — stale against the merged
+tree: their own window's b7d05b12 landed the M-101 implementation (the
+version_group / tags_extracted / version_groups() surface, grep-verified)
+and moved the finding to findings/FIXED/. This lane's N-227 repair restored
+the FILE; this merge re-adds the REGISTRATION — the battery is valid against
+the landed surface (5/5 first-hand at the pre-merge tree) and the M-101
+landing keeps its test battery per the house SOP. The window also landed the
+M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
+now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
+DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
+the next fix.

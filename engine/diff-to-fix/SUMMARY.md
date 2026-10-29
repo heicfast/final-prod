@@ -46,19 +46,34 @@ board records. Next free IDs: S-069+, M-160+, N-227+, I-049+, A-017+, D-166+.
   ULONGLONG typedef, win_syntax_check 13/13, suite 1685/1685; the file
   moved, the ledger row added, the matrix Q68 stub-surface row extended.
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 6
-MAJOR · 2 MINOR · 0 INFO active / 207 FIXED / 4 tracked-open.** (Of the
+- **The racing window absorbed (M-101 FIXED by the S84 lane's b7d05b12 +
+  M-107's DXF/EPS/AI members by the S85 lane; SIT/APE/SWF-RECT remain on
+  M-107), and its collision repaired — N-227 FIXED (MINOR, NEW — filed+
+  fixed this session):** the window's 708fad32 "stash-abort sweep" deleted
+  `tests/unit/test_m101_branches.cpp` against a STALE tree (its own
+  evidence: "grep clean for version_group in include/" — the pre-b7d05b12
+  state), but the newer base had registered the file in
+  tests/CMakeLists.txt AND landed the full M-101 implementation. The
+  merged HEAD carried the registration without the file: cr_tests
+  unbuildable at CMake generate — **main RED at this lane's first
+  rebase** (the N-210 gate-skipping class, EIGHTH occurrence). The file
+  restored byte-exact from b7d05b12; RED first-hand (CMake generate
+  error, 0/1700 runnable) → GREEN: the M-101 battery 5/5, full suite
+  **1700/1700**.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 5
+MAJOR · 2 MINOR · 0 INFO active / 208 FIXED / 4 tracked-open.** (Of the
 active MAJORs, M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3
 — out of this grant's two-repo boundary; the 2 active MINORs,
 N-107/N-127, are the same driver-repo class. M-107 remains active for
-its SIX un-landed members — SIT, APE, EPS, AI, DXF, SWF-RECT — X3F,
-CRW, DWG, WPG, PSP, WPD landed as members 1-6. The in-scope fix queue:
-M-107's six members, M-101 (the Versions / Tags Extracted branches),
-M-105 (the DRWService lifecycle), OQ-S79-1 (the $LogFile decode),
-OQ-S4-3 (the Windows bench leg), the OQ-S10-1/OQ-S10-3 dispositions,
-plus the §8 discovered-findings protocol as the verification sweep
-runs.)
-Next free IDs: S-069+, M-160+, N-226+, I-049+, A-017+, D-166+.
+its THREE un-landed members — SIT, APE, SWF-RECT — X3F, CRW, DWG, WPG,
+PSP, WPD, DXF, EPS, AI landed as members 1-9. M-101 was landed by the
+racing window (verified + its collision repaired this lane). The
+in-scope fix queue: M-107's three members, M-105 (the DRWService
+lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench
+leg), the OQ-S10-1/OQ-S10-3 dispositions, plus the §8
+discovered-findings protocol as the verification sweep runs.)
+Next free IDs: S-069+, M-160+, N-228+, I-049+, A-017+, D-166+.
 
 ---
 # SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
