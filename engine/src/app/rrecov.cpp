@@ -2862,6 +2862,20 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     std::wstring out;
     bool have_out = false;
     while (i < argc) {
+        if (has_flag(argc, argv, i, L"--create")) {
+            /* S-040's documented invocation form (the usage header above,
+             * the -h block, docs/DRIVER-REQUIRED.md:38, PLAN-API-EXPANSION
+             * Wave 4, CI-SCENARIOS.md:30, REFERENCE-API-GAP.md:336/:435 and
+             * Run-Benchmark.ps1's image-create probe all specify
+             * `image --create --disk N --out file.img`): the create-mode
+             * selector - the verb's only mode. Accepted as a valueless
+             * flag so the documented command line parses; without it the
+             * documented form died at "unknown image option: --create"
+             * (exit 1) - the parser was the one site of the five-site
+             * surface (dispatch/-h/usage-header/docs/parse) never wired
+             * by 13fe7258. */
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
             have_disk = true;

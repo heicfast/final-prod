@@ -5140,3 +5140,30 @@ TEST(CrUi, AutosaveDeadPointerDoesNotBlock) {
     ASSERT_EQ(cr_ui_session_last_autosave_path(adir.c_str(), fresh, sizeof(fresh)), CR_UI_OK);
     EXPECT_TRUE(std::filesystem::exists(fresh)) << "the pointer names the new session";
 }
+
+/* Session-84 (coherence): the image verb's --create selector - the
+ * five-site surface (dispatch / -h / usage header / docs / the parser)
+ * was four-site until now: 13fe7258 landed the verb with the documented
+ * form `image --create --disk N --out file.img` (usage header :43, -h
+ * block, docs/DRIVER-REQUIRED.md:38, PLAN-API-EXPANSION Wave 4,
+ * CI-SCENARIOS.md:30, REFERENCE-API-GAP.md:336/:435, and
+ * Run-Benchmark.ps1's image-create probe) while cmd_image's parser only
+ * accepted --disk/--out - the documented invocation died at "unknown
+ * image option: --create" (exit 1). The parser site is pinned here the
+ * established source-truth way (M-079/N-074/N-071 pattern); the create
+ * flow itself is Windows-lane behavior (driver class (a)). */
+TEST(CrUi, CliImageCreateFlagParses) {
+    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(rrecov.empty());
+    /* the parser accepts the documented mode selector as a valueless flag */
+    EXPECT_NE(rrecov.find("has_flag(argc, argv, i, L\"--create\")"), std::string::npos)
+        << "cmd_image must accept the documented --create selector "
+           "(the five-site surface's parser site)";
+    /* the four pre-existing sites stay shipped: the usage header form,
+     * the -h form, the dispatch, and the --disk/--out pair */
+    EXPECT_NE(rrecov.find("image --create --disk N --out file.img"), std::string::npos)
+        << "the usage header's documented form must stay";
+    EXPECT_NE(rrecov.find("L\"image\""), std::string::npos) << "the dispatch site must stay";
+    EXPECT_NE(rrecov.find("image needs --disk N and --out file.img"), std::string::npos)
+        << "the missing-args refusal must stay (the parser still demands both)";
+}
