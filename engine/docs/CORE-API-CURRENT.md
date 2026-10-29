@@ -15,7 +15,7 @@ under `include/cr/**`; C ABI **93 exports** (96 `CR_UI_API` lines minus 3
 `#define` macros in cr_ui.h = 93 `extern "C" CR_UI_API` definitions in
 src/ui/cr_ui.cpp, recount matches; +2 from the N-140 lane's carve-tally pair); CLI **13 verbs** (rrecov.cpp — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
-fix, apply, image, bench, driver); error codes **43 + OK** (the enum-member
+fix, apply, image, bench, driver); error codes **44 + OK** (the enum-member
 census: 43 ERR_ members in cr_error.h — the long-standing "45" was the
 doc_truth_gate's file-wide 0x5-literal regex counting the truncated
 prefixes of the two og-corpus comment literals at cr_error.h:6; the
@@ -44,7 +44,7 @@ ABI event types **12** (the CR_EVT_* census).
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 93 exports / 13 verbs / 43+OK error codes / 12 ABI event types> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
+> counts: 93 exports / 13 verbs / 44+OK error codes / 12 ABI event types> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
 > doc_truth_gate guards these).
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
@@ -195,7 +195,7 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 |---|---|
 | `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:296) |
 | `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with the classified ERR_DRIVER_* code when the RDA driver is absent/not-started/unauthorized/version-incompatible/errored — NO direct-handle fallback (PLAN-DRIVER-ONLY); transport (always "rda") reported by device_transport (cr_ui.h:314). S-051: scanning a whole-disk target reads the partition list at scan setup and makes every used, non-container partition a scan target (the og's CDoScanPartition flow; architecture/04-recovery-workflow.md §3.4) — a host-set fs_hint keeps the single-dispatch slice assertion, an unasserted target with a table never silently yields nothing; per-volume skips are surfaced in ScanStats.table_volumes* |
-| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001); returns the volume slice on its parent disk (cr_ui.h:315) |
+| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001) or `CR_UI_ERR_FVE_ELEVATION_REQUIRED` (0x50060002, M-105: the ACL diagnosis - the store exists but the token cannot read it); returns the volume slice on its parent disk (cr_ui.h:315) |
 | `cr_ui_last_transport_error()` | M-030: surviving transport leg's error from the LAST cr_ui_open_disk on this process; advisory, process-global, never clears (cr_ui.h:309; impl cr_ui.cpp:1505) |
 | `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:391) |
 | `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:407) |
@@ -454,6 +454,7 @@ usage text in-binary remains the truth; the wmain dispatch is rrecov.cpp:2787-28
 | | 0x50050004 | `ERR_DEST_FULL` | destination full |
 | | 0x50050005 | `ERR_DEST_NAME_EXHAUSTED` | collision rename cap (og 10000) |
 | FVE 0x5006 | 0x50060001 | `ERR_FVE_LOCKED` | volume locked (FVE) |
+| FVE 0x5006 | 0x50060002 | `ERR_FVE_ELEVATION_REQUIRED` | FVE auto-unlock keys exist but require an elevated token (M-105 option (a): the no-service posture's diagnosis) |
 | health 0x5007 | 0x50070001 | `ERR_HEALTH_UNAVAILABLE` | health data unavailable |
 | repair 0x5008 | 0x50080001 | `ERR_REPAIR_REFUSED` | repair refused by policy |
 | | 0x50080002 | `ERR_REPAIR_UNDO_FAILED` | repair undo failed |

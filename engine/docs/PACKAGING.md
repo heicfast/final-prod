@@ -212,3 +212,24 @@ Three automated gates on the CI Windows lane, red-blocking the milestone:
 - Every REGISTERED divergence above carries its rationale; the two OPEN
   decisions (§2 technology, §8 telemetry) are closed and recorded (both
   confirmed at the contract's own defaults by the implementing session).
+
+## 13. The DRWService elevation-broker decision (CLOSED — option (a) NO-SERVICE; M-105, this session)
+
+The corpus decodes a complete SCM service lifecycle for BitLocker FVE
+key access (`DRWService.exe` = "Read FVE Server": CreateServiceA
+AUTO_START/OWN_PROCESS/LocalSystem, /install replace-on-install +
+immediate StartServiceA, stop-gated uninstall, per-use DRWUI
+orchestration, ~2 s transient lifetime). The core's decision — the
+M-105 finding's own recommended default, recorded in PARITY-DELTAS
+D-166 and scored in modules/driver-install.md's K-walk: **the core does
+NOT ship the service.** The in-process FVE harvest stays (S-014); the
+capability half the service existed for (a non-elevated host reading
+the SYSTEM-ACL'd FVEAutoUnlock store) is served by the honest
+diagnosis instead: the harvest's failure path distinguishes "no keys
+configured" (ERR_FVE_LOCKED) from "the store exists but this token
+cannot read it" (the new ERR_FVE_ELEVATION_REQUIRED, 0x50060002) via
+the cr_elevate TokenElevation probe. No SCM code, no /install verbs,
+no per-use orchestration, no plaintext auto.txt — the positive
+posture statement is in SECURITY.md. Revisit only if a non-elevated
+host surface becomes a product requirement (the finding's option (b)
+carries the full decoded contract to implement then).

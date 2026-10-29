@@ -12,6 +12,7 @@ add_library(cr_core STATIC
     health/cr_csmi.cpp
     health/cr_grade.cpp
     health/cr_family.cpp
+    health/cr_fve_policy.cpp
     storage/cr_devmap.cpp
     storage/cr_image.cpp
     storage/cr_slice.cpp

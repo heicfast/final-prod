@@ -42,6 +42,7 @@
 
 #ifdef _WIN32
 #include "cr/win/cr_bitlocker.h"
+#include "cr/health/cr_fve_policy.h" /* M-105: the FVE denial diagnosis text */
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
@@ -1430,11 +1431,21 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
                     "(typical for a locked volume); unlock and re-try",
                     letter);
     if (bst == win::bitlocker::Status::Locked) {
-        if (win::bitlocker::try_auto_unlock(wchar_t(letter)) != OK)
+        const u32 au = win::bitlocker::try_auto_unlock(wchar_t(letter));
+        if (au != OK) {
+            /* M-105 option (a): the ACL diagnosis - "keys exist but this
+             * token cannot read them" is ERR_FVE_ELEVATION_REQUIRED (the
+             * og bridges this ACL with its transient LocalSystem service;
+             * the core's registered no-service posture surfaces the
+             * elevation claim instead). */
+            if (au == ERR_FVE_ELEVATION_REQUIRED)
+                return ret_(ERR_FVE_ELEVATION_REQUIRED, "%c: locked - %s", letter,
+                            health::fve_denial_guidance(au));
             return ret_(ERR_FVE_LOCKED,
                         "%c: locked - unlock (Unlock-BitLocker -MountPoint %c: "
                         "-RecoveryPassword <key>) and re-try",
                         letter, letter);
+        }
     }
     u32 disk = 0;
     u64 start = 0, len = 0;

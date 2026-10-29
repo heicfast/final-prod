@@ -1,3 +1,70 @@
+# SUMMARY.md — executive summary (the S86 fix lane on top: M-105 landed under option (a); the prior lanes below, newest-first)
+
+## Session-89 S86 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one, with full context... update and put fixed findings in fixed directory... Aim for atleast 20+ fixes in this session"]; opened at core `32441353`, pulled through SIX racing windows (the windows landed M-107's DWG + PSP + WPG + WPD + DXF/EPS/AI members, M-075, M-078, M-159, N-223/N-224/N-225, the D-163..D-165 renumber wave); this lane's DWG landing CONCEDED to the racing window per SA-9 with two convergence riders carried; the S86 seat held (the racing window's own records renumbered onward in deference); corpus `be0cfe9` throughout)
+
+- **M-105 FIXED (MAJOR — option (a), the finding's own recommended
+  default):** the DRWService elevation-broker decision CLOSED as
+  NO-SERVICE (PACKAGING.md §13 + PARITY-DELTAS D-166 + the K-walk
+  DRWService rows [K71/K72/K73 absent-by-decision] + R-83's false note
+  corrected at both REFERENCE-API-GAP sites + SECURITY.md's
+  positive-posture section). The capability half the service existed
+  for is served by the diagnosis: the locked-volume harvest's failure
+  path now distinguishes "no keys configured" (ERR_FVE_LOCKED) from
+  "the store exists but this token cannot read it" (the new
+  ERR_FVE_ELEVATION_REQUIRED, 0x50060002, append-only in the FVE
+  family) via the cr_elevate TokenElevation probe — the pure rule in
+  the new cr/health/cr_fve_policy.h (the M-075 cr_fsck_launch
+  pattern), the live-open LSTATUS capture (ACCESS_DENIED = exists,
+  FILE_NOT_FOUND = absent) + the offline hive-file open capture
+  (harvest_offline_keys' open_err out-param), surfaced by open_volume.
+  RED first-hand (the compile-error class, the M-118/N-100/N-140
+  precedent) → GREEN: FvePolicy.* 4/4 both lanes +
+  Bitlocker.FveDiagnosisDistinguishesDenialFromAbsence on the Windows
+  lane; doc_truth_gate green at error codes=44; the win-stub grown
+  LSTATUS (win_syntax_check 13/13); the count claims swept 43→44.
+
+- **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
+  follow-the-data decode executed in full — the walk driver FUN_18001d460
+  (:23100-23160) discards its own out-params (frame locals, never read),
+  FREES the staged log buffer, and its only persistent effect is the
+  success flag at ctx+0x28, written (:756, volume+0x409) and cloned
+  (:40405) but never read (one write, zero readers, corpus-wide). The
+  per-record handler FUN_18002a0f0 (:33741+) builds the chkdntfs
+  recovery tables (transaction table state+0x14, the 0x16/0x15-pair
+  table state+0x2c, the page table state+0x1c with the
+  (sector_size²>>10)·*(int*)(rec+0x48) page-number computation, the
+  client-id maps state+0x20/+0x24) — no post-open querier exists. No
+  emission site anywhere: candidates 1/3 REFUTED, 2 CONFIRMED-stronger.
+  Filed as I-049 (ACKNOWLEDGED — the core's zero counterpart is the
+  correct deliberate non-adoption); the OQ retired to findings/FIXED/;
+  the matrix row UNVERIFIED → MATCH (REGISTERED).
+
+- **The S86 seat held** (the racing window's own records renumbered
+  S86→S89→S90 in deference to this lane's earlier push; the premature
+  renumber retracted, every reference restored to S86) (worklog header, the M-107 addendum, carve.md's addendum, the
+  M-105 rows, the pushed rider comments in
+  cr_analysers/cr_registry/test_carve).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+4 MAJOR · 3 MINOR · 0 INFO active / 209 FIXED / 3 tracked-open.**
+(The S86 lane's OQ-S79-1 resolution landed between the two counts: the
+$LogFile dead-machinery register I-049 [ACKNOWLEDGED at filing] + the
+OQ retired to findings/FIXED/ — M-101 also landed by the racing window
+since the prior count. Of the 4 active MAJORs, M-086/M-087/M-089 remain
+driver-repo-resident per OQ-S10-3; M-107 remains for SIT/APE/SWF-RECT +
+the gen-3 R2007 remainder, actively raced.) (Of
+the 5 active MAJORs, M-086/M-087/M-089 are driver-repo-resident per
+OQ-S10-3 — out of the two-repo grant; M-101 is mid-flight in a racing
+lane (its leaked test swept at 708fad32, the N-210 class); M-107
+remains active for its un-landed members — SIT, APE, SWF-RECT + the
+gen-3 R2007 remainder, after the window's members 1-9 landings and
+this lane's DWG riders.) Next free IDs: S-069+, M-160+, N-226+, I-049+,
+A-017+, D-167+.
+
+---
+
+
+
 # SUMMARY.md — executive summary (the S91 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-91 S91 fix-lane delta (re-homed S88 → S90 → S91 per SA-9 — the racing windows took S68-S90; 2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes"]; opened at core `ddab68b4` (clean clone — RED at open on two counts: the worklog markers and win_syntax_check), corpus `be0cfe9` throughout; re-homed S88 → S90 at the merge per SA-9 [the racing windows took S68-S89]; prompt saved token-redacted at worklog/session-diff-fix-s91-prompt.md; the N-number cascade: the worklog-marker repair born N-224 → N-227 → N-228 [the racing N-224/N-225/N-227 seats stand])
@@ -127,7 +194,6 @@ Next free IDs: S-069+, M-160+, N-228+, I-049+, A-017+, D-166+.
 
 ---
 # SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
-
 ## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)
 
 - **M-159 FIXED (MAJOR, NEW — filed+fixed this session):** the S-068

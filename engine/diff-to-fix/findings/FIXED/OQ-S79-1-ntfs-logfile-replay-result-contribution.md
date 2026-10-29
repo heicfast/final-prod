@@ -44,3 +44,52 @@ The user SOP: "Never assert a reference behavior you have not verified." The str
 - N-039 (FIXED — the USN $J tail-window harvest; the sibling journal surface that WAS decoded and ported).
 - S-012 (FIXED — the two-pass architecture + the rescue chain; the same-name adoption machinery candidate 1 would consume).
 - M-151 (this session — the truncated-MFT run-growth probe: the OTHER post-load volume-open salvage the og runs).
+
+---
+
+## Resolution (the S86 lane, 2026-10-30 — the probe list executed in full; the OQ closes)
+
+**Status:** RESOLVED — candidate 2 (volume-state-only), in fact PROVABLY DEAD
+machinery: no emission site exists anywhere in the og's chain. The follow-
+the-data walk completed this session, every probe first-hand:
+
+1. **The walk driver FUN_18001d460 (:23100-23160) discards its own
+   outputs.** Its two out-params (`&local_res10`, `local_res8` —
+   `undefined4 local_res8[2]`, both frame locals) are passed to EVERY
+   FUN_180029dd0 call and NEVER READ after the final call; the staged
+   log buffer is FREED at the driver's end (`free(puVar1[4]);
+   puVar1[5]=0; puVar1[6]=0`, :23146-23150); the function's only
+   persistent effect is the success flag at ctx+0x28 (:23158).
+2. **The success flag is never read.** The first open site stores it at
+   volume+0x409 (:756) — a corpus-wide grep finds exactly ONE write and
+   ZERO reads; the volume-clone path (:40403-40405) copies it (and the
+   second site's +0x208 twin) into the clone (+0x51/+0x41) — the clone's
+   copies have no readers either.
+3. **The record walker's accumulation is state-internal.** FUN_180029dd0
+   (:33577+) assembles page fragments into the state's buffer
+   (state[0xc..0xe]); the per-record handler FUN_18002a0f0 (:33741+)
+   builds the chkdntfs-style RECOVERY TABLES in the state — the
+   transaction table (state+0x14, FUN_18002ae10), the 0x16/0x15-pair
+   table (state+0x2c, FUN_18002af50), the page table (state+0x1c,
+   FUN_18002b090, with the page-number computation
+   `(sector_size^2>>10) * *(int*)(rec+0x48) + *(u16*)(rec+0x44)>>1`),
+   the two client-id maps (state+0x20/+0x24, FUN_18002ac20), the byte
+   counter (state[0xb]) — then RESETS the accumulation buffer
+   (state[0xc..0xe]=0). The tables persist in the state object but
+   NOTHING after the volume open queries them: the only LSN-table
+   lookup sites (FUN_18002abb0) are INSIDE the walker itself (:33777/
+   :33780).
+4. **No result-sink call anywhere in the chain**: no CNTFSFileProperties
+   creation, no tree add, no node emit — the corpus artifacts carry no
+   $LogFile row (the OQ's own grep, re-verified).
+
+The interpretation: the og's $LogFile machinery is inherited MOUNT-PATH
+code (the shared NTFS library's chkdntfs-style recovery: transaction
+table, dirty-page table, client tables) that runs at volume open, builds
+its tables, frees the log buffer, and is never consulted again — the
+scan's results come from the MFT walk (the S-012 two-pass architecture),
+not from the journal. Per the OQ's own probe list item 3, second half:
+**the INFORMATIONAL register is filed (I-049, the dead-machinery family —
+the I-040/I-041 precedent) and this OQ closes.** The core's zero
+counterpart is CORRECT — porting dead machinery would be the
+invented-path anti-pattern the mandate forbids.

@@ -1,3 +1,5 @@
+## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
+
 ## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
@@ -37,14 +39,13 @@ lane continues on the standing board: M-107's SIT/APE/SWF-RECT members,
 M-105, the tracked-open items, and the discovery sweep — see the
 following entries.
 
-## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 324413533; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
 ---
-
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
-The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
+The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`; the S86 seat HELD - the racing window's own records renumbered onward in deference, the premature renumber retracted).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
 this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
 18.1.8, cmake 4.4.4). The full entry record: the DWG concession + the
@@ -206,6 +207,41 @@ zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
 
+**The three tracked-open dispositions (this session):** OQ-S4-3
+pushed forward (the TTFR half is Windows-hardware-bound; the S37
+addendum's two stale doc references verified FIXED-ALREADY — the
+8943993 test-benchmark.yml re-point stands, no cron exists anywhere);
+OQ-S10-1 pushed forward (the BY-NAME refusals verified first-hand at
+cr_thumbnail.cpp:85-93 — HEIC/WebP/PDF/video honestly refused; the
+libheif-first step unchanged); OQ-S10-3's boundary re-affirmed for the
+seventh time (rda-driver untouched; the core-side halves re-verified —
+release.yml's FloorVersion consumption, the regdrv.reg contrast, the
+DRIVER-CONTRACT wire rows, the RDA-only install scripts).
+
+**OQ-S79-1 RESOLVED (this session):** the $LogFile dead-machinery
+register — the follow-the-data decode executed in full (FUN_18001d460's
+out-params discarded, the staged buffer freed, the success flag
+written+cloned but never read [one write, zero readers, corpus-wide],
+FUN_18002a0f0's chkdntfs recovery tables built and never queried, no
+emission site anywhere — candidates 1/3 REFUTED, 2 CONFIRMED-stronger).
+Filed as I-049 (ACKNOWLEDGED at filing — the core's zero counterpart is
+the correct deliberate non-adoption); the OQ retired to findings/FIXED/;
+the matrix row UNVERIFIED → MATCH (REGISTERED); ledger rows for both;
+the ntfs module note.
+
+**M-105 LANDED (option (a), this session):** the no-service posture —
+PACKAGING.md §13 + PARITY-DELTAS D-166 + the K-walk DRWService rows
+[K71/K72/K73 absent-by-decision] + R-83's false note corrected at both
+REFERENCE-API-GAP sites + SECURITY.md's positive-posture section +
+ERR_FVE_ELEVATION_REQUIRED (0x50060002, append-only) with the pure rule
+in the new cr/health/cr_fve_policy.h (the M-075 pattern), the
+live-open LSTATUS capture + the offline hive-file open capture
+(harvest_offline_keys' open_err), surfaced by open_volume's locked
+path. RED (the compile-error class) → GREEN: FvePolicy.* 4/4 both
+lanes + the Windows-lane seam; doc_truth_gate green at 44; the win-stub
+grown LSTATUS; the count claims swept 43→44. The finding retired to
+findings/FIXED/ with its Resolution.
+
 The version set tightens to the og's exact tables {12,13,14,15,18,21,
 24,27,32}; the sanity cap rides the row-max approximation (the X3F/CRW
 precedent, registered). RED→GREEN first-hand via the stash dance (4 walk
@@ -215,7 +251,6 @@ walkable shape). The carve suite 279/279. Trail: M-107's S84 addendum 3,
 the matrix row, modules/carve.md's S84 addendum 3, this entry.
 
 ---
-
 **The two riders LANDED (the rider commit, this session):** (A) the row
 floor 0x15 = 21 (the gen-1 walk's residual 512-byte floor removed +
 cr_registry's min re-pinned to 0x15) and (B) the id gate
@@ -13684,3 +13719,57 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+
+---
+
+## Session-91 S91 fix-lane — the Windows build's four /W4 /WX classes (2026-10-29; re-homed S85 → S88 → S91 per SA-9: the racing windows took S85 and S88 first)
+
+**The red:** checks.yml run 281+ (`Build + test (MSVC Release, vcpkg cache)`
+on 32441353) — the /WX build died on four warning classes the racing fix
+lanes had introduced, one per file. All four fixed in four commits, one root
+cause each, no suppressions, no behavior change.
+
+- **ea9bd420 (C4310):** test_ext4_m144_large_volume.cpp:84/:135 — the lo-word
+  splits of >4 GiB block counts truncated via bare `u32()` constant casts;
+  masked to `& 0xFFFFFFFFull` before the narrowing cast (identical bits).
+- **1dc6597d (C4127):** ui_abi_check.c:613 — `CHECK(0 && "...")` is a constant
+  conditional; replaced with the file's own progress_cb direct-report
+  convention (printf + g_failed; identical failure contract).
+- **324d0404 (C4267 x14):** test_cr_ui.cpp — z32(cd_len/cd_at) given explicit
+  `(unsigned long)` casts (the file's dentry convention) at :305/:306 and
+  :4729/:4730; the five FAT-chain loops switched to `unsigned` loop vars
+  (the file's own write_fixture_zip convention), values < 20 so no range
+  change.
+- **4691f152 (C4244):** rrecov.cpp:3377/:3628 — both N-145 journal paths used
+  the wstring-iterator range ctor for std::string (implicit wchar_t->char in
+  xutility's copy template); replaced with `narrow_bytes()` — the same
+  per-element low-byte conversion made explicit. Kept SEPARATE from
+  `narrow()` (whose '?' mapping would rename non-ASCII journals — a behavior
+  change); byte-identity with the range ctor proven by runtime assertion.
+
+**Verification (pre/post identical):** Linux gcc build zero warnings both
+sides; full ctest 1382/1382 pre-fix AND post-fix; the touched TUs clean under
+a gcc `-Wconversion` replay of their exact compile commands (the MSVC
+narrowing analogue — pre-existing int->size_t sign sites at :569/:589/:729-734
+left untouched: C4365 is /Wall-only, not /W4); clang-format 18.1.8 (the CI
+pin) clean on all four files. The MSVC lane's green build is the final
+compile proof for the Windows-only rrecov.cpp.
+
+---
+
+**Fix #3 — M-107 member 10 (SIT) LANDED (the FileSITAnalyser entry-marker
+walk + the acceptance-window repair).** Decoded first-hand from the raw asm:
+the acceptance union (the processor 0x180015d70's byte[7] ∈ {' ', '!'} gate —
+the node's 7-byte gate is wider and the mismatch population never finalizes
+in the og; the pre-fix core carved it blindly), the entry-marker walk
+(FUN_180044a10, vtable 0x18006d5b0 slot-0: the 02 D7 0A + 0x8842f698 marker,
+extent = marker + 8 + stride {0x19→4, ';'→5, else 6}, the corrupt-entry
+terminal at the 512-aligned sector start, the new-header gate — a following
+"StuffIt"/WEBBAIKE key at a 512-byte boundary, FUN_180044960 — torn → the
+walked bound), and the classic ' ' form's honest stand-in (the primary's
+feeding epilogue 0x180015f42 is the streaming artifact — the recorded
+follow-up). RED→GREEN via the stash dance: 5/7 RED at the stand-in tree, GREEN
+with the walk; the S-007 SIT plant re-pinned (the '!' magic + the real
+marker); the full suite **1711/1711**. Trail: M-107's Session-89 addendum,
+the matrix SIT row (member 10 of 11), modules/carve.md's S89 section, this
+entry. Remaining members: APE, SWF-RECT.
