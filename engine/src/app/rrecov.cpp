@@ -1620,6 +1620,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
      * for the whole scan. Non-LDM disks simply have no GUID entry and
      * never resolve. */
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-148: every member's reads ride the same retry+cache substrate the
+     * scan's own reads use (the og's engines read CStorageDeviceWithCache
+     * devices - NTFSSearchDLL:7167's RTTI check; the recovery side's
+     * session_arm_ldm_basis pipes members identically). The pipes own their
+     * chains beside the members they wrap and live for the whole scan. */
+    std::vector<orchestrator::ReadPipe> ldm_member_pipes;
     if (cfg.whole_disk && target.volume_len == 0) {
         table::LdmInfo probe;
         if (table::parse_ldm_database(target.device.get(), probe) == OK && probe.found) {
@@ -1639,7 +1645,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                         std::memcmp(sec, "PRIVHEAD", 8) == 0) {
                         table::LdmGuid g{};
                         std::memcpy(g.b, sec + 0x30, 16);
-                        (*guid_map)[g] = dev.get();
+                        /* M-148: the member reads through its own pipe -
+                         * raw members made multi-disk LDM scans lose files
+                         * to transient faults the primary volume retries */
+                        ldm_member_pipes.push_back(
+                            orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024));
+                        (*guid_map)[g] = ldm_member_pipes.back().pipe;
                     }
                     ldm_members.push_back(std::move(dev));
                 }

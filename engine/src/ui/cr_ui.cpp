@@ -905,6 +905,12 @@ struct CrScan {
     bool saw_progress = false;
 #ifdef _WIN32
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-148: the per-member retry+cache pipes for the SCAN-side resolver
+     * (arm_ldm_resolver's guid_map values borrow these chains' pipe
+     * pointers; destroyed with the scan handle, always after run()). The
+     * og's engines read CStorageDeviceWithCache devices for every volume
+     * they scan - multi-disk LDM members must not be the one bare path. */
+    std::vector<orchestrator::ReadPipe> ldm_member_pipes;
 #endif
 };
 
@@ -2115,7 +2121,13 @@ void arm_ldm_resolver(CrScan* s) {
         if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK && std::memcmp(sec, "PRIVHEAD", 8) == 0) {
             table::LdmGuid g{};
             std::memcpy(g.b, sec + 0x30, 16);
-            (*guid_map)[g] = dev.get();
+            /* M-148: the member reads through its own pipe - the scan's
+             * own substrate (the og's engines read CStorageDeviceWithCache
+             * devices; the recovery side's session_arm_ldm_basis wraps
+             * members identically). The pipes live beside the members. */
+            s->ldm_member_pipes.push_back(
+                orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024));
+            (*guid_map)[g] = s->ldm_member_pipes.back().pipe;
         }
         s->ldm_members.push_back(std::move(dev));
     }

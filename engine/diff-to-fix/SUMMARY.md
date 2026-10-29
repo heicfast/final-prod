@@ -88,7 +88,23 @@ driver-repo-resident per OQ-S10-3).
   link-failure with the implementation stashed + both re-pinned tests'
   first-hand failures; GREEN: 8 new/re-pinned tests; suite **1515/1515**.
 
-**Board after this landing (M-136 + M-135 this lane; M-144 the racing S73 lane's): 0 ACUTE · 0 SEVERE · 14 MAJOR · 11 MINOR · 0 INFO active / 159 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+ (D-148 taken by M-144's registration).
+- **M-148 FIXED (MAJOR, NEW — filed and fixed the same session per §8)** — the
+  read-substrate census during this lane's M-135 verification found the one bare
+  scan read path: the cross-disk LDM platform resolvers (the CLI's scan-arm block
+  + the UI's arm_ldm_resolver) handed RAW `win::open_disk` members to the LDM
+  volume engine walk, while single-disk LDM (the local fallback returns the pipe),
+  every other scan read (the primary, the S-051 table targets, the lost
+  candidates, carve), and the recovery side (d28244df's session arm) all ride
+  pipes — and the og's engines read CStorageDeviceWithCache devices for every
+  volume they scan (ntfs-engine--deep-dive §8 + DRWUI:919095 + NTFSSearchDLL:7167's
+  RTTI check, all re-read first-hand). The fix wraps each platform-resolved
+  member in its own build_read_pipe chain at both sites (the session-arm shape).
+  RED: the seam pin at the stash-revert (all three grep pins fire); GREEN: the
+  two-disk transient-fault fixture — the raw handoff loses the whole volume to
+  ONE transient fault (0 files, the silent loss), the pipe retries and finds
+  DOC.TXT; suite **1530/1530**.
+
+**Board after this landing (M-136 + M-135 + M-148 this lane; M-144 + M-143 the racing S73 lane's; N-200 the S70 lane's): 0 ACUTE · 0 SEVERE · 13 MAJOR · 11 MINOR · 0 INFO active / 163 FIXED / 4 tracked-open (filesystem truth at this push).** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-077+, M-149+, N-213+, I-049+, A-017+, D-150+.
 
 
 # SUMMARY.md — executive summary (the S73 MAJOR-first continuation fix lane on top; the prior lanes below, newest-first)

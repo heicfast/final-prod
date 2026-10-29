@@ -2980,3 +2980,185 @@ TEST(Orchestrator, TelemetryCountersMoveDuringCarveStage) {
      * lands: the last event's counters equal the scan's final stats */
     EXPECT_EQ(rec.rows.back().carved, stats.carved_found);
 }
+
+/* ---- M-148: cross-disk LDM members ride the pipe during scans ------ */
+
+/* a transient-fault member: the FIRST read touching [flaky_from, flaky_to)
+ * fails, every later attempt succeeds (the USB-hiccup class) */
+class FlakyFirstDevice final : public IStorageDevice {
+public:
+    explicit FlakyFirstDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    void flaky_range(u64 from, u64 to) {
+        flaky_from_ = from;
+        flaky_to_ = to;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (!armed_ && off < flaky_to_ && off + len > flaky_from_) {
+            armed_ = true;
+            return ERR_READ_FAILED;
+        }
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+    u64 flaky_from_ = 0, flaky_to_ = 0;
+    bool armed_ = false;
+};
+
+/* the two-disk spanned-LDM fixture with the concat order REVERSED: the
+ * volume's first member is DISK 2 (carrying the FAT16 volume), the second
+ * is disk 1 (the scanned disk, carrying the LDM database). A transient
+ * fault on disk 2's boot-sector read is the finding's falsifiable case. */
+TEST(Orchestrator, SpannedLdmTransientMemberFaultScans) {
+    using testfixture::LdmFixture;
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 6144; /* 3 MiB per member (the FAT fits) */
+    const char* G1 = "01020304-0506-0708-090A-0B0C0D0E0F10";
+    const char* G2 = "11121314-1516-1718-191A-1B1C1D1E1F20";
+
+    auto build_disks = [&](std::vector<u8>& img1, std::vector<u8>& img2) {
+        for (u32 i = 0; i < 2; i++) {
+            LdmFixture fx(20480);
+            fx.set_disk(1000 + i, i == 0 ? G1 : G2);
+            fx.add_dgr4(1, "TestPCDg0");
+            fx.add_dsk4(1000, "Disk1", G1);
+            fx.add_dsk4(1001, "Disk2", G2);
+            fx.add_volume({2000, "Span1", 3, PART_SIZE * 2, 1});
+            fx.add_component({3000, "Span1-01", cr::table::LDM_COMP_CONCAT, 2, 2000, 0, 0});
+            /* concat order REVERSED: disk 2 is the volume's FIRST member */
+            fx.add_partition({4001, "Disk2-01", PART_START, PART_SIZE, 0, 3000, 0, 1001});
+            fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, PART_SIZE, 3000, 1, 1000});
+            fx.finish();
+            if (i == 0)
+                img1 = fx.take();
+            else
+                img2 = fx.take();
+        }
+        /* the FAT16 volume plants at the START of the span = disk 2 */
+        auto fat = build_fat16();
+        assert(fat.size() <= PART_SIZE * 512);
+        std::memcpy(img2.data() + PART_START * 512, fat.data(), fat.size());
+    };
+
+    std::vector<u8> img1, img2;
+    build_disks(img1, img2);
+
+    /* the member GUIDs as the parser sees them (the fixture writes the
+     * GUID text bytes into PRIVHEAD+0x30 - parse, never hand-build) */
+    table::LdmGuid g1{}, g2{};
+    {
+        MemDevice probe_dev(img1);
+        table::LdmInfo probe_info;
+        ASSERT_EQ(OK, table::parse_ldm_database(&probe_dev, probe_info));
+        ASSERT_TRUE(probe_info.found);
+        ASSERT_EQ(size_t(2), probe_info.disks.size());
+        g1 = probe_info.disks[0].guid;
+        g2 = probe_info.disks[1].guid;
+    }
+
+    /* the raw-member leg (the PRE-FIX production shape): the probe's
+     * boot-sector read fails outright -> family Unknown -> the volume
+     * scans empty - the finding's silent loss */
+    {
+        MemDevice disk1(img1);
+        FlakyFirstDevice disk2(img2);
+        disk2.flaky_range(PART_START * 512, PART_START * 512 + 512);
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = true;
+        cfg.run_deep = false;
+        cfg.run_carve = false;
+        cfg.whole_disk = true;
+        cfg.ldm_resolver = [&disk1, &disk2, &g1, &g2](const table::LdmGuid& g) -> IStorageDevice* {
+            if (std::memcmp(g.b, g1.b, 16) == 0)
+                return &disk1;
+            if (std::memcmp(g.b, g2.b, 16) == 0)
+                return &disk2; /* RAW - the pre-fix member handoff */
+            return nullptr;
+        };
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&disk1, nullptr, nullptr, nullptr, stats));
+        u64 dyn_files = 0;
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->props())
+                        ++dyn_files;
+        EXPECT_EQ(u64(0), dyn_files)
+            << "the raw member handoff loses the whole volume to ONE transient fault";
+    }
+
+    /* the piped-member leg (the POST-FIX production shape): the same
+     * fault retries inside the member's own pipe - the boot sector
+     * reads on attempt 2, the FAT walk finds DOC.TXT */
+    {
+        MemDevice disk1(img1);
+        FlakyFirstDevice disk2(img2);
+        disk2.flaky_range(PART_START * 512, PART_START * 512 + 512);
+        orchestrator::ReadPipe member_pipe =
+            orchestrator::build_read_pipe(&disk2, 8ull << 20, 256 * 1024);
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = true;
+        cfg.run_deep = false;
+        cfg.run_carve = false;
+        cfg.whole_disk = true;
+        cfg.ldm_resolver = [&disk1, &member_pipe, &g1,
+                            &g2](const table::LdmGuid& g) -> IStorageDevice* {
+            if (std::memcmp(g.b, g1.b, 16) == 0)
+                return &disk1;
+            if (std::memcmp(g.b, g2.b, 16) == 0)
+                return member_pipe.pipe; /* the M-148 member pipe */
+            return nullptr;
+        };
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&disk1, nullptr, nullptr, nullptr, stats));
+        bool found_doc = false;
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->props() && c->name_utf8() == "DOC.TXT")
+                        found_doc = true;
+        EXPECT_TRUE(found_doc)
+            << "the member pipe must retry the transient fault and scan the volume";
+    }
+}
+
+TEST(Orchestrator, LdmMemberResolversConstructThroughBuildReadPipe) {
+    /* M-148's wiring pin (the M-136 grep precedent): BOTH platform
+     * resolver-arm sites construct the member's read chain through
+     * build_read_pipe - the same seam and constants the scan, the
+     * recovery writer, and the session-side LDM arm all use. The raw
+     * member handoff (`(*guid_map)[g] = dev.get()`) is the defect this
+     * pin forbids. */
+    const auto cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(cli.empty());
+    EXPECT_NE(std::string::npos,
+              cli.find("ldm_member_pipes.push_back(\n                            "
+                       "orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024))"))
+        << "the CLI LDM member resolver must wrap members through build_read_pipe";
+    EXPECT_EQ(std::string::npos, cli.find("(*guid_map)[g] = dev.get();"))
+        << "the raw member handoff must not return (M-148)";
+    const auto ui = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(ui.empty());
+    EXPECT_NE(std::string::npos,
+              ui.find("s->ldm_member_pipes.push_back(\n                "
+                      "orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024))"))
+        << "the UI LDM member resolver must wrap members through build_read_pipe";
+    /* the session-side arm (d28244df) also pipes - one shape everywhere */
+    EXPECT_NE(std::string::npos, ui.find("ldm_pipes.push_back("))
+        << "the session-side LDM arm keeps its member pipes";
+}

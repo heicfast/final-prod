@@ -1214,3 +1214,12 @@ their M-112).
 | carve · ASF acceptance band + extent source (A1/A27) | **DIVERGENCE-MINOR** | **N-212** — the count/size gates the og never reads (tier-1 raw-asm verified) + the FileProperties-declared-size extent vs the walked end |
 | carve · raw_signs.json content (C19/A27) | **MATCH** | 199 header + 62 tail signs byte-exact (offsets/bytes/conf×1000/fmt); min/max KiB→B ×1024 = the og's scan-time `<<10` (FUN_1800205b0); the 0x7d000 default documented; evidence S68-L1 §L3 |
 | carve · RawConfig [Filter] toggles (A25) | **MATCH** | 34 toggles covered by M-024 + row gates; STL/VPJ shipped-OFF correctly absent from core |
+
+
+## S72 session rows (2026-10-29 — the twelfth continuation fix lane; the M-136/M-135/M-148 landings + the read-substrate census)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| writer · the recovery read pipeline (E35/R51) | **MATCH** | **M-136 FIXED**: both recovery entry points construct the writer's source through the scan's `build_read_pipe` seam (Retry×3 Skip-mode + 8 MiB/256 KiB CachedReader, the M-058 constants); the transient-fault mock recovers byte-identical (Done, 0 Salvaged) where the bare-device handoff truncated; `findings/FIXED/M-136` (convergent with the racing S71 window's re-landing — their LDM member pipes + seam name kept, their Salvaged-asserting tests re-pinned by M-135) |
+| writer · the read-failure policy (E35, #35/#2/#13) | **MATCH** | **M-135 FIXED**: the og's error-9 family — truncate at the first unreadable byte, KEEP the partial, Outcome::ReadError + cause_id (the corrected SEVEN-entry compiled-in list) + first_failed_offset/bytes_written + the verbatim ReadSector log trio + the straddle clamp + the ERR_TRUNCATED delete replaced by the og's partial-keep; per failure class: undecodable-compressed keeps zero-fill+Salvaged; D-149 registers the byte-granular + semantics-mapped refinements; `findings/FIXED/M-135` |
+| orchestrator/storage · the LDM member read substrate (R51-adjacent, #47/48-adjacent, B1-adjacent) | **MATCH** | **M-148 FIXED (NEW, filed+fixed the same session)**: both platform resolver-arm sites wrap cross-disk members in `build_read_pipe` chains (the one bare scan read path; single-disk LDM, every other scan read, and the recovery side were already piped; the og's engines read CStorageDeviceWithCache devices — NTFSSearchDLL:7167's RTTI check); the two-disk transient-fault fixture pins both legs; `findings/FIXED/M-148` |

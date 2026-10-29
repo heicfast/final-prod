@@ -10651,3 +10651,28 @@ before the first change; every fix RED-proven pre-fix and GREEN post-fix.
 - Trail: findings/FIXED/N-201 (Resolution) + ledger row + matrix MATCH (the
   stale N-187 row annotated in-table) + modules/fat.md S70 addendum +
   SUMMARY + this entry.
+## Session-72 S72 lane — M-148 lands, filed the same session (2026-10-29)
+
+- **M-148 FIXED (MAJOR, NEW per §8)** — the cross-disk LDM member reads ride the
+  pipe. Discovered during this lane's M-135 verification (the read-substrate
+  census over every scan read path): the primary volume, the S-051 partition-
+  table targets, the lost-partition candidates, the carve stage, AND single-disk
+  LDM (the local fallback resolver returns the pipe) all read through the
+  M-058 substrate — the cross-disk platform resolvers were the one bare path,
+  handing raw win::open_disk members to the LDM volume engine walk while the
+  recovery side already piped the same members (d28244df's session arm). The
+  og's engines read CStorageDeviceWithCache devices for every volume they scan
+  (ntfs-engine--deep-dive §8 + the DRWUI:919095 ctor + NTFSSearchDLL:7167's
+  RTTI assertion, all re-read first-hand). The fix: both resolver-arm sites
+  (rrecov.cpp's scan-arm block + cr_ui.cpp's arm_ldm_resolver) wrap each
+  successfully-opened member in its own build_read_pipe chain, the pipes owned
+  beside the members (ldm_member_pipes) - the session-arm shape. Tests:
+  Orchestrator.LdmMemberResolversConstructThroughBuildReadPipe (RED at the
+  stash-revert: all three grep pins fire) + Orchestrator.
+  SpannedLdmTransientMemberFaultScans (the two-disk reversed-concat fixture:
+  the raw-member leg loses the whole volume to ONE transient fault, the piped
+  leg retries and finds DOC.TXT - both legs pinned, the resolver GUIDs parsed
+  from the database [info.disks[i].guid], never hand-built); suite 1530/1530.
+  Trail: findings/FIXED/M-148 + Resolution, ledger row, the new S72 matrix
+  section (3 rows), SUMMARY board 13 MAJOR / 163 FIXED (filesystem truth),
+  this entry.
