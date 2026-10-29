@@ -1,4 +1,48 @@
-# SUMMARY.md — executive summary (the S80 parity fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S79 MAJOR-first fix lane on top — the M-073 seat conceded to the racing window per SA-9 and re-verified; the prior lanes below, newest-first)
+
+## Session-79 S79 fix-lane delta (2026-10-29 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `e17a4e6`, corpus `be0cfe9` throughout; baseline suite green re-run first-hand at the open [1484/1442/0]; this lane's own M-073 implementation was CONCEDED to the racing window's landing at the push rebase per SA-9 — the seat's `cr_folderfilter` landing verified first-hand instead, and the verification CAUGHT TWO REAL DEFECTS, filed + fixed this session)
+
+- **A-016 FIXED (ACUTE, NEW — filed+fixed this session at the convergent
+  verification)** — the M-073 landing's folder-filter path walk treated
+  the NTFS volume-root "." node (MFT record 5, $FILE_NAME ".", reparented
+  to the Found root) as a path SEGMENT: every caller prefix turned
+  incompatible, the "." directory detached WITH the whole volume, and a
+  filtered NTFS scan returned an EMPTY tree with near-zero counters —
+  wrong recovery results on the dominant Windows filesystem, invisible to
+  the landing's FAT-only test battery (the FAT engines emit no "." node).
+  The fix: the transparency rule in `prune_children` — a directory whose
+  key is "." recurses with the PARENT's path (never a segment, never
+  evaluated, never detached; "." is a forbidden user name on Windows so
+  the rule cannot misfire). RED first-hand at `5291076`
+  (`NtfsVolume.FolderFilterRootDotIsTransparent`: kept_in_scope 0) →
+  GREEN (readme.txt/deleted.dat kept through the "." node, the $-meta
+  siblings correctly pruned, a partial prune never the whole volume); the
+  landing's 13 FolderFilter tests stay green.
+
+- **N-218 FIXED (MINOR, NEW — filed+fixed this session)** — both detach
+  paths (`detach_child` — the landing's primitive — and
+  `detach_subtree`) subtracted FullNode intermediates from `live_files_`,
+  which only `add_file` ever ticks (N-166's documented contract): a
+  detached subtree holding an intermediate folder (the session-loaded
+  marker=2 shape under the prunable roots) WRAPPED the unsigned counter
+  (18446744073709551615 in the reproduction), corrupting the mid-stage
+  telemetry samples. Both paths now subtract non-full nodes only.
+  RED (`NodeTree.DetachChildLiveCounterCountsOnlyAttachedFiles`) → GREEN
+  (0, node_count 1).
+
+- **M-073 CONCEDED-VERIFIED (the seat)** — this lane's convergent
+  `cr_scopefilter` implementation was dropped at the rebase per SA-9
+  (the racing window's `cr_folderfilter` landing took the seat); the
+  landing's corpus ground (DRWUI :567668-567690, UIUX/31:142) re-read
+  and its 13 tests + the full suite verified first-hand on the merged
+  tree — the verification is what surfaced A-016/N-218 above. The
+  lane's trail block is recorded at the finding file's history.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 1 SEVERE (S-068)
+· 17 MAJOR · 10 MINOR · 1 INFO active / 176 FIXED / 4 tracked-open.**
+(A-016 and N-218 were both filed AND fixed this session — they land on the
+FIXED side directly; the 10 active MINORs are the S81 board's set.)
+Next free IDs: S-069+, M-156+, N-219+, I-049+, A-017+, D-151+.
 
 ## Session-80 S80 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first", 20+ fixes]; opened at core `04fb5e88` — main was RED at open; the racing M-155 lane `6d74ec2c` + the S81 lane `9508b90b`/`567694e7`/`3dfb2a5a`/`59a431d3` landed mid-session and were absorbed at the rebases; corpus `be0cfe9` throughout)
 

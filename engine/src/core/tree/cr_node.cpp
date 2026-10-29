@@ -449,9 +449,17 @@ void ResultTree::detach_subtree(FileNode* root) {
     nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
                                 [&dead](FileNode* n) { return dead.count(n) != 0; }),
                  nodes_.end());
-    /* N-166: the live counter follows the removal (the telemetry delta
-     * clamps at zero, so a detached subtree can never push it negative) */
-    live_files_.fetch_sub(dead.size(), std::memory_order_relaxed);
+    /* N-166: the live counter follows the removal. N-218 correction:
+     * only NON-FULL nodes subtract - live_files_ is ticked by add_file
+     * alone (add_folder/add_root never tick), so a subtree holding
+     * FullNode intermediates (the carve skeleton, the session-loaded
+     * marker=2 folders) over-subtracted and WRAPPED the unsigned
+     * counter. */
+    u64 live_dropped_sub = 0;
+    for (FileNode* n : sub)
+        if (!n->full_)
+            ++live_dropped_sub;
+    live_files_.fetch_sub(live_dropped_sub, std::memory_order_relaxed);
     /* roots_: remove the root itself (a detached root always is one; the
      * loop guards against a future non-root call shape). */
     roots_.erase(std::remove(roots_.begin(), roots_.end(), root), roots_.end());
@@ -524,7 +532,16 @@ void ResultTree::detach_child(FileNode* parent, FileNode* child) {
     nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
                                 [&dead](FileNode* n) { return dead.count(n) != 0; }),
                  nodes_.end());
-    live_files_.fetch_sub(dead.size(), std::memory_order_relaxed);
+    /* N-218: subtract only NON-FULL nodes - live_files_ is ticked by
+     * add_file alone (add_folder/add_root never tick, N-166's own
+     * contract), so a subtree holding FullNode intermediates (the
+     * session-loaded marker=2 folders) over-subtracted and WRAPPED the
+     * unsigned counter, corrupting the mid-stage telemetry samples. */
+    u64 live_dropped = 0;
+    for (FileNode* n : sub)
+        if (!n->full_)
+            ++live_dropped;
+    live_files_.fetch_sub(live_dropped, std::memory_order_relaxed);
     child->first_child_ = nullptr;
     child->last_child_ = nullptr;
     for (FileNode* n : sub) {

@@ -940,6 +940,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | carve · CRW key attribution + validator grammar (B1/C19/A28) | DIVERGENCE-MAJOR | **M-081** — II/MM\x1A\x00 keys are Canon CIFF per the census; landed as "Minolta MRW" rows whose PRD gate rejects genuine CRW |
 | query · path_substring + state_mask axes (D16/P42) | DIVERGENCE-MAJOR | **M-072** — 5 of 7 og filter groups; no substring, no state mask (R-22) |
 | orchestration · scan-time folder filter (S31/D16) | **MATCH** | **M-073 FIXED (s79)** — PushFolderFilter landed: ScanConfig.filter_folders + the cr_folderfilter prune at every stage boundary (pre-checkpoint; counters follow the pruned tree) + ResultTree::detach_child + ABI append + CLI --filter-folder + REC_SCAN_FILTER session round-trip; carve/pathless roots exempt (the registered scoping decision) |
+| orchestration · folder-filter NTFS `.` transparency (S31/A11) | **MATCH (repaired)** | **A-016 FIXED** — the M-073 landing's path walk pruned the WHOLE volume under a filter (the `.` root node's segment made every prefix incompatible); the transparency rule landed + the N-218 detach-counter repair beside it |
 | writer · destination error classification (C23/D14) | DIVERGENCE-MAJOR | **M-074** — too-long/invalid/network collapse to ERR_DEST_UNWRITABLE (R-41) |
 | check · chkdsk launch endpoint (S35/P42) | DIVERGENCE-MAJOR | **M-075** — WinChkdsk launch absent; D-90 disposition superseded by the plan (R-65) |
 | health/enum · TRIM facet in rows (P42/X48) | DIVERGENCE-MAJOR | **M-076** — datum health-facet-only; no row fields/flag (R-63) |

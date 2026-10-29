@@ -26,6 +26,38 @@
   order: S-068 -> M-149 -> M-150 -> M-151 -> M-152 -> M-154 -> M-075
   -> M-078 -> M-101 -> M-105 -> M-107 -> M-111 -> M-114 -> the MINOR
   tail (N-145/N-178/N-181/N-182/N-216) -> the tracked-open resolvables.
+=======
+## Session-79 S79 lane — the M-073 seat conceded-verified; A-016 + N-218 filed+fixed (2026-10-29)
+
+- **M-073 CONCEDED-VERIFIED** — this lane built a convergent
+  `cr_scopefilter` implementation end-to-end (Suite 1493/1451/0,
+  RED proven); at the push rebase the racing window's own landing
+  (`cr_folderfilter` + `detach_child`) was already on main — the seat
+  conceded per SA-9 and the LANDED code verified first-hand instead
+  (corpus re-read, 13 tests, full suite on the merged tree).
+- **A-016 FIXED (ACUTE, NEW)** — the verification caught the landing's
+  folder filter pruning the WHOLE NTFS volume under any prefix: the
+  record-5 "." node contributed a path segment, turned every prefix
+  incompatible, and detached with the entire subtree (a filtered NTFS
+  scan returned an empty tree; the FAT fixtures carry no "." node so
+  the landing's battery stayed green). Fix: the "."-transparency rule
+  in prune_children (a directory whose key is "." recurses with the
+  parent's path — never a segment; "." is a forbidden user name).
+  `NtfsVolume.FolderFilterRootDotIsTransparent` RED first-hand at
+  `5291076` → GREEN.
+- **N-218 FIXED (MINOR, NEW)** — both detach paths subtracted FullNode
+  intermediates from `live_files_` (only add_file ever ticks it —
+  N-166's contract): a detached subtree holding a session-loaded
+  marker=2 folder wrapped the unsigned counter
+  (18446744073709551615 in the reproduction). Both `detach_child` and
+  `detach_subtree` now subtract non-full nodes only.
+  `NodeTree.DetachChildLiveCounterCountsOnlyAttachedFiles` RED →
+  GREEN.
+- Trail: findings/FIXED/A-016 + N-218 with Resolutions (filed+fixed
+  this session per the discovered-divergence SOP), FIXED-LEDGER rows,
+  matrix rows, SUMMARY block, this entry. Board: 0 A · 1 S (S-068) ·
+  17 M · 10 N · 1 I active / 176 FIXED / 4 tracked-open. Next: S-068
+  (the SEVERE tier precedes the MAJOR queue).
 
 ## Session-80 S80 lane — opens; N-217 + S-067 land (2026-10-29)
 

@@ -22,6 +22,7 @@
 #include "cr/storage/cr_device.h"
 #include "cr/session/cr_records.h"
 #include "cr/tree/cr_diskmap.h"
+#include "cr/orchestrator/cr_folderfilter.h"
 #include "cr/storage/cr_freemap.h"
 #include <array>
 #include <cstring>
@@ -5719,8 +5720,8 @@ TEST(NtfsVolume, RemnantAllocSizeFitCoversUsaRejects) {
     tree::ResultTree tree;
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
-    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, 2048, TOTAL_CLUSTERS, nullptr, nullptr,
-                               nullptr, tree, root_lost, stats);
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, 2048, TOTAL_CLUSTERS, nullptr, nullptr, nullptr,
+                               tree, root_lost, stats);
     ASSERT_EQ(rc, OK);
     for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
         if (c->name_utf8() == "smallfit.dat")
@@ -5749,8 +5750,8 @@ TEST(NtfsVolume, RemnantAllocSizeAboveFourKStillEmits) {
     tree::ResultTree tree;
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
-    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RS6K, TOTAL_CLUSTERS, nullptr, nullptr,
-                               nullptr, tree, root_lost, stats);
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RS6K, TOTAL_CLUSTERS, nullptr, nullptr, nullptr,
+                               tree, root_lost, stats);
     ASSERT_EQ(rc, OK);
     tree::FileNode* found = nullptr;
     for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
@@ -5758,4 +5759,71 @@ TEST(NtfsVolume, RemnantAllocSizeAboveFourKStillEmits) {
             found = c;
     ASSERT_NE(found, nullptr)
         << "the >4 KiB declared size stays accepted (the D-143 registered superset)";
+}
+
+TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
+    /* A-016: the NTFS volume-root "." node (record 5, $FILE_NAME ".",
+     * reparented to the Found root - cr_mftwalk :1162-1166, pinned at
+     * :1704) must be TRANSPARENT to the scan-time folder filter's path
+     * walk: its children's paths start at the volume content, exactly
+     * like the og's tree renders them ("\folder1", never "\.\folder1").
+     * A "." that contributes a path segment makes every prefix
+     * incompatible - the whole volume prunes and a filtered NTFS scan
+     * returns zero results (the M-073 landing's defect, caught at the
+     * convergent-verification pass). The prune here is the exact seam
+     * ScanController::apply_folder_filter_ runs (folderfilter::prune_root
+     * over the found/deleted roots). */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    /* the tree carries the "." root node under the Found root (the
+     * engine-shape premise this test pins) */
+    tree::FileNode* dot = nullptr;
+    std::function<void(tree::FileNode*)> find_dot = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == ".")
+                dot = c;
+            find_dot(c);
+        }
+    };
+    find_dot(ra);
+    find_dot(rd);
+    ASSERT_NE(dot, nullptr) << "the fixture's record-5 '.' must be in the tree";
+
+    /* filter to \folder1 - the exact prefixes form the CLI passes */
+    const folderfilter::PruneStats ps = folderfilter::prune_root(tree, ra, {"\\folder1"});
+    (void)folderfilter::prune_root(tree, rd, {"\\folder1"});
+
+    /* in-scope content survives THROUGH the "." node */
+    int kept_in_scope = 0;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "readme.txt" || c->name_utf8() == "deleted.dat")
+                ++kept_in_scope;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    EXPECT_GE(kept_in_scope, 2) << "a \\folder1 filter must keep folder1's content";
+    /* the out-of-scope direct children of "." (the $-meta files) prune */
+    int meta_left = 0;
+    for (tree::FileNode* c = dot ? dot->first_child() : nullptr; c; c = c->next_sibling())
+        if (c->name_utf8().size() > 1 && c->name_utf8()[0] == '$')
+            ++meta_left;
+    EXPECT_EQ(meta_left, 0) << "the $-meta files are out of the \\folder1 scope";
+    /* the prune is scoped, not total: the counters moved but the tree
+     * still holds nodes */
+    EXPECT_LT(ps.files, stats.emitted) << "a partial prune, never the whole volume";
 }

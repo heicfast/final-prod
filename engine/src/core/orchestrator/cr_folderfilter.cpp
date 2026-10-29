@@ -113,6 +113,19 @@ void prune_children(tree::ResultTree& tree, tree::FileNode* node, const std::str
     for (tree::FileNode* c = node->first_child(); c != nullptr;) {
         tree::FileNode* next = c->next_sibling();
         const std::string key = node_path_key(c);
+        /* A-016: the NTFS volume-root "." node is TRANSPARENT to the
+         * path walk - the og's tree renders the volume's content
+         * directly ("\folder1", never "\ .\folder1" - the root-dir
+         * $FILE_NAME is a structural marker, not a path segment), and a
+         * "." segment would make every prefix incompatible: the whole
+         * volume pruned, a filtered NTFS scan returning zero results.
+         * "." cannot be a user name on Windows (the object namespace
+         * forbids it), so the transparency is total for directories. */
+        if (node_is_dir(c) && key == ".") {
+            prune_children(tree, c, dir, prefixes, st);
+            c = next;
+            continue;
+        }
         const std::string path = dir.empty() ? key : (dir + "/" + key);
         if (node_is_dir(c)) {
             /* a folder: keep it only while some descendant could match */
