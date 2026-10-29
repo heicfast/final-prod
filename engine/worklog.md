@@ -55,6 +55,41 @@
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
 
+## Session-90 S90 lane, entry 2 — the SIT landing CONCEDED to the racing window (2214af90); the ×10-gate corroboration + the marker-scope correction carried (2026-10-30)
+
+This lane decoded the SIT member from the primary's pending-feed
+processor (FUN_180015d70: the ×10 stay-pending gate at 0x180015e69-
+0x180015ea6, the (pos−base+1)×sector_size epilogue at 0x180015f42-55,
+FUN_180015b60's inert marker gate) and landed it locally (1702/1702,
+RED proofs first-hand). The pull found the racing window had landed
+the SIT seat FIRST (2214af90) with the CORRECT authority: the
+FileSITAnalyser secondary's entry-marker walk FUN_180044a10 (the
+M-090/M-155 authority precedent) — the same 8-byte marker constants
+(02 D7 0A XX 98 F6 42 88) this lane had decoded in the dead gate,
+found alive in the secondary's walk with the stride table
+{0x19→4, 0x3b→5, else 6}, the corrupt-entry terminal, and the
+new-header gate. CONCEDED per SA-9 (their earlier push holds the seat).
+
+This lane's honest error, recorded: the "markers provably inert" claim
+was true only of FUN_180015b60's single short-circuited call site —
+the marker CONSTANTS are alive in FUN_180044a10. The unique carries:
+(1) the ×10 gate decode (the primary's pending cap = row_max × 10 =
+2 GB — complements the racing torn cap; the primary bounds the pending
+feeding, the secondary bounds the extent); (2) the independent
+byte[7] ' '/'!' split corroboration (the racing landing's acceptance
+window went further). This lane's SIT tests + the 2 GB row + the
+batch-caps re-pin dropped as superseded; the racing battery owns the
+coverage. The racing window's same-push landings absorbed: OQ-S79-1
+RESOLVED (the $LogFile machinery dead in the scan path; I-049 filed),
+M-105 FIXED (the DRWService lifecycle), N-228, the three OQ
+dispositions, the /W4 /WX warning fixes, the v0.6.0 release notes.
+
+## Session-86 S86 lane (the racing window's record, preserved) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
+
+[The racing S86 lane's full entry body: see its own record below and
+M-107's Session-86/89 addenda — the DWG concession, the two riders, and
+the M-105 option-(a) landing trail; preserved in the racing window's
+commits 053534c9-lineage.]
 ## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).

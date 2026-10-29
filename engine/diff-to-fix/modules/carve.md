@@ -1439,3 +1439,23 @@ WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
 
+
+>>>>>>> origin/main
+
+## Session-90 addendum 3 — the S90 lane's SIT concession (2026-10-30)
+
+The S90 lane's independent SIT decode (the PRIMARY's pending-feed
+processor: the ×10 stay-pending gate 0x180015e77-0x180015e7b, the
+(pos−base+1)×sector_size epilogue, FUN_180015b60's marker gate) was
+conceded to the racing 2214af90 landing (the earlier push holds the
+seat per SA-9) — the racing decode found the correct SIZE AUTHORITY:
+the FileSITAnalyser secondary's entry-marker walk FUN_180044a10 (the
+M-090/M-155 authority precedent), where the same 02 D7 0A XX 98 F6 42
+88 marker constants are ALIVE (this lane's "inert" claim was scoped to
+the dead gate's call site — the honest error recorded in M-107's
+Session-90 addendum 3). The unique carries: the ×10 gate decode (the
+primary bounds the pending feeding; the secondary bounds the extent)
+and the independent byte[7] ' '/'!' split corroboration. The remerge
+cleanup: the duplicate S84-generation WPD test block resolved (the S87
+battery owns the seats; WpdZeroProductWordWithGoodPairCarves kept —
+unique to that generation). Suite 1714/1714.
