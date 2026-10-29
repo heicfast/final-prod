@@ -12066,7 +12066,6 @@ matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.
 
 ---
 
-<<<<<<< HEAD
 ## Session-80 S80 fix-lane — entry 10 (2026-10-29): I-048 acknowledged
 
 **I-048 ACKNOWLEDGED (INFO):** the three registers verified against the
@@ -12132,7 +12131,7 @@ Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree — the
 stand-in carved 64 MiB and the entry walk did not exist). The 174-test
 carve suite green. Trail: M-107's S83 addendum 2, the matrix row, the
 carve module addendum, SUMMARY, this entry.
-=======
+
 ---
 
 # Session 82 — entry 6: M-151 conceded; I-048 + M-111 + M-114 + M-154 FIXED
@@ -12165,7 +12164,6 @@ module's win-lane tests as the Linux-runnable core trio.
 **Trail:** findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions;
 PARITY-DELTAS D-155..D-159; CORPUS-ERRATA E-9; the matrix rows; the
 ledger rows; modules/{session}.md addendum; this entry.
->>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-161 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-162 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)
 
 ---
 
@@ -12189,3 +12187,32 @@ recorded in the racing lanes' convergence addenda. The S83 CRW landing
 (0cf6142d) completed this lane's decode path (the vtable slot census, the
 three 07-28-{A8,B2,E4} needles, the {70,60,50} map — all carried into the
 landing's own evidence sheet).
+
+---
+
+## Session-84 S84 fix-lane — entry 0: N-220 FIXED (the fifth marker recurrence + the D-152 triple seat + the gate's `##`-form blind spot closed) (2026-10-30)
+
+**N-220 (MINOR, NEW — filed+fixed this session):** the S82 registration
+batch push `09a18f9f` left six trail files with live committed conflict
+markers (the matrix's M-154 row block, the ledger's nested double
+conflict + duplicate rows, the I-048 Resolution, PARITY-DELTAS's two
+conflicts, the worklog's Session-80/82 entry interleave) — the fifth
+recurrence of the M-120/N-210 class. All resolved corpus-truth-first:
+the matrix to the landed MATCH row, the ledger to the union of distinct
+rows, I-048 to the S82 registration, PARITY-DELTAS to the renumbered
+D-160/D-161/D-162 split, the worklog both-sides-kept. Beneath the
+markers: a born-collided D-152 TRIPLE seat (N-145's journal location
+[keeps the seat], the ext4 two-guards section, the last-scan pointer)
+that the doc_truth_gate never saw because its D-row pattern matched only
+`###`-form headings — the two colliding sections shipped as `##`-form
+rows. The seat repair followed the 67d2bf25 convention: the ext4
+journal-inode claim renumbered D-163 (its mode-gate half removed as
+D-153's duplicate), the last-scan pointer renumbered D-164, the
+cross-references swept (modules/ext4.md, modules/session.md, M-152's
+Resolution, SUMMARY's M-152/M-154 rows). The gate's pattern widened to
+`^(?:#{2,3}|\*\*)\s*D-(\d+)` — re-run green over 156 rows (the two
+formerly-invisible rows now counted). Trail-only change; the suite
+unaffected.
+
+**Trail:** findings/MINOR/N-220, the swept cross-references, the gate
+repair, this entry.

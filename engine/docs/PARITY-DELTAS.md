@@ -4653,17 +4653,11 @@ step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 
 ---
 
-## D-152 — the ext4 sweep's two registered guards (M-152's residue)
+### D-163 — the ext4 sweep's journal-inode claim (M-152's residue; RENUMBERED from the born-collided D-152 seat at the S84 repair — N-145's journal-location row took D-152 first; this section's old mode-gate half was the same registration as D-153 and is removed here as the duplicate)
 
-**(a) The mode gate.** The og's inode-table sweep filter is shape-only
-(FUN_180005e50, raw-asm 0x180005f5d-0x180005f87: size_lo != 0, EXTENTS_FL,
-the 0xF30A extent magic, eh_entries != 0 — no dtime, no links, and no
-mode check either). The core keeps the regular/dir mode gate on the sweep
-admissions: a FIFO/socket with a forged extent header would pass the og's
-filter and surface as recoverable content; the core refuses it. Registered
-as the deliberate hardening — pinned by `Ext4Engine.SweepModeGateHolds`.
-
-**(b) The journal-inode claim.** The journal inode (the SB's
+The mode-gate half of the old combined section lives at D-153 (the
+renumbered M-152 registration — same corpus cites, same rationale, same
+pin). What this seat carries is the claim half: The journal inode (the SB's
 s_journal_inum, dtime==0 && links!=0 on every real volume) passes the og's
 four-gate filter and lands in the harvest map; the og's finalize
 disposition of its own journal inode is UNDECODED (the claim-resolution
@@ -4674,13 +4668,10 @@ journal salvage is on): surfacing the filesystem's own journal as a lost
 content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
 
-<<<<<<< HEAD
-=======
 
 ---
 
->>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-156 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-157 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)
-## D-152 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM
+### D-164 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM (M-154 registration; RENUMBERED from the born-collided D-152 seat at the S84 repair — N-145's journal-location row took D-152 first)
 
 **Surface:** the auto-session lifecycle (M-154). The og's pointer is
 `%APPDATA%\EaseUS\<sub>\LastScanInfo.ini` (WritePrivateProfileStringA,
@@ -4704,43 +4695,6 @@ flows) have no core counterpart by architecture.
 finding); the M-154 tests (RetentionDeletesPreviousAndPointerNamesIt /
 ManualSaveSurvivesRetention / DeadPointerDoesNotBlock) + the C consumer
 check pin the semantics.
-<<<<<<< HEAD
-
-
-### D-155 — I-048's three registers (the S69 local-database deep dive: dead data, a remote-tunable layer, and an engine-faithful superset — INFORMATIONAL, ACKNOWLEDGED)
-
-- **Register A — FileFilter.xml's `Selected` fields are dead data (correct by
-  omission):** the shipped file carries the attribute/element pair at 16
-  sites, and the ONLY "Selected" string consumers in any decompiled binary
-  are Qt stylesheet states (`WSHover`/`WSNormal` theming, DRWUI:1209830/
-  :1209887) — no XML reader touches the field. The core's M-023 table
-  carries no such field: correct. Registered so no future lane burns time
-  decoding "Selected semantics" that do not exist.
-- **Register B — the summary-family groups are remote-tunable at runtime
-  (REPORTING-OOS):** DRWUI's results-config init reads `value_fastgoodfile`
-  and `value_sumaryfiletype` from the remote-config settings singleton
-  (DRWUI:319007-319022, both keys verified first-hand in the
-  remote_config_data cache). The core's N-132 tables are the static ini
-  snapshot — the og's groups can drift from the shipped ini at runtime and
-  the core's cannot. Acceptable under the prior remote-config REPORTING-OOS
-  disposition; the remote-vs-ini precedence question is undecoded and
-  immaterial under it.
-- **Register C — the og's lost-partition ext size is a 32-bit signed
-  product; its own engine is 64-bit (the engine-faithful superset is
-  deliberate):** PRD FUN_180003090 (PRD:1407-1414, re-verified first-hand:
-  `return *(int*)(param_2+4) * (int)uVar1;` — s_blocks_count as signed
-  int32, the product int×int; ≥2^31 sectors goes NEGATIVE) while the og's
-  engine validator uses the full 64-bit count (EXT4SearchDLL:3234). The og
-  is internally inconsistent; the core's probe uses the 64-bit form — the
-  engine-faithful superset, the D-50 calibration family (adopting the og's
-  own probe defect would be a down-fix). Preserved as deliberate.
-- **VERDICT: ACKNOWLEDGED** (all three registers verified against the
-  corpus this session — the PRD product form and the remote key reads
-  re-read first-hand; no code change; the divergences are intentional or
-  data-level and must be preserved in future work).
-=======
->>>>>>> 309f7af8 (fix(session): M-154 — the auto-session lifecycle lands: retention-one (the pointer-named previous auto session deleted before every write), the last_scan.info pointer (the og's [Info] four fields), and the pointed-resume ABI)
-=======
 
 ### D-160 — FileFilter.xml's `Selected="2"` fields are dead data, correctly omitted (I-048 register A, RENUMBERED from the born-collided D-155 seat — the racing lane's combined I-048 row took it; ACKNOWLEDGED DELIBERATE DIFFERENCE — no reader in any decompiled binary touches the field; the only "Selected" string consumers are Qt stylesheet states)
 
@@ -4860,4 +4814,3 @@ deliberate-divergence branch with the safety rationale). The finding's
 step-3 corpus erratum (the MainModule behavior was never documented in
 the corpus's own per-binary artifacts) is recorded in
 diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
->>>>>>> 09a18f9f (fix(session)+fix(docs): the S82 registration batch + the M-154 hardening rider — (1) I-048 ACKNOWLEDGED with the three PARITY-DELTAS registers landed verbatim (D-155 the FileFilter Selected=2 dead-data omission; D-156 the remote-tunable summary groups under the prior REPORTING-OOS disposition with the precedence question recorded; D-157 the engine-faithful 64-bit lost-partition ext size over the og's own 32-bit-signed probe defect [the D-50 family]); (2) M-111 CLOSED by the scope decision D-158 (for mounted volumes the og's own primary is the OS shell [ShellExecuteA — a host one-liner]; for unmounted/lost ones the in-app table's backend is the raw parsers behind the same interface, which the core's engines already are through the lost-partition result tree; the consumer trace is the future implementation map); (3) M-114 CLOSED by the posture decision D-159 (the consent-doctrine decline of the silent SR purge + the stale-points hazard registered for the host + the E-9 CORPUS-ERRATA row for the maintainers); (4) the M-154 HARDENING RIDER on the racing af5987d0 landing (conceded per SA-9 after an independent same-shape implementation): the retention gate now governs what is actually REMOVED — the name field refuses separators/traversal/a missing .crsf tail, and the removed path's basename must BE the gated name (a tampered sidecar whose save_path disagrees with its name is refused, never followed). RED->GREEN via the revert rebuild: AutosaveRetentionDeletesPreviousAutoOnly's hostile-save_path arm + AutoPointerNameGateRefusesSmuggledPaths both FAIL pre-rider (the manual file deleted, the smuggled path followed); the LastScanPointerFourFieldRoundTrip pin joins them as the Linux-runnable core trio. The full suite 1526 pass / 0 fail; the win syntax gate 12/12; clang-format clean. Trail: findings/FIXED/{I-048, M-111, M-114, M-154} + Resolutions/convergence addenda, PARITY-DELTAS D-155..D-159, CORPUS-ERRATA E-9, the matrix rows, the ledger rows, modules/session.md, worklog entries 6-7)

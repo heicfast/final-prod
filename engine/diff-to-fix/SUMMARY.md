@@ -95,7 +95,7 @@ Next free IDs: S-069+, M-156+, N-219+, I-049+, A-017+, D-151+.
   surfaces under the deleted root with its extents, the honest Active
   state, and the new orphan_inodes counter. The live-claim dedup and the
   mode-gate hardening pinned; the journal-inode claim registered
-  (PARITY-DELTAS D-152). RED→GREEN first-hand via the skip-line
+  (PARITY-DELTAS D-163/D-153). RED→GREEN first-hand via the skip-line
   reintroduction. Suite 49/49 ext4 + full suite green.
 
 - **M-107's CRW member LANDED (member 2 of 11 — this lane's third
@@ -248,14 +248,14 @@ M-156+, N-218+, I-049+, A-016+, D-150+.
   pointer is deleted before every auto-save — both autosave bands; the
   unbounded accumulation ends), the pointer (session::LastScanInfo with
   the og's [Info] four fields, the last_scan.info sidecar —
-  PARITY-DELTAS D-152 registers the location convention; the HKLM
+  PARITY-DELTAS D-164 registers the location convention; the HKLM
   mirror dropped), and the pointed resume
   (cr_ui_session_last_autosave_path, PathFileExistsA-validated). The
   auto_-name retention guard = the registered safety superset. Tests:
   AutosaveRetentionDeletesPreviousAndPointerNamesIt (RED: BUILD-absent)
   / ManualSaveSurvivesRetention / DeadPointerDoesNotBlock + the C
   consumer check; suite **1651/1651**. Trail: findings/FIXED/M-154,
-  matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-152.
+  matrix MATCH, modules/session.md S80 addendum, PARITY-DELTAS D-164.
 
 **Board after this landing: 0 ACUTE · 2 SEVERE · 18 MAJOR · 11 MINOR ·
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same
