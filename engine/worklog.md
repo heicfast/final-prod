@@ -12216,3 +12216,62 @@ unaffected.
 
 **Trail:** findings/MINOR/N-220, the swept cross-references, the gate
 repair, this entry.
+
+---
+
+## Session-84 S84 fix-lane — entry 1: M-157 FIXED (the false trail commit's S-068 gate regression) + the baseline red-main closed (2026-10-30)
+
+**The session's open state:** pulled at `cac42582` (origin/main HEAD);
+audited-commit discipline per the S69+ lanes (corpus `be0cfe9`
+throughout, read-only guarantee held). The baseline suite run FIRST
+exposed the red main: `FatEngine.DeletedHigh16ZeroRebasesFromHint` and
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` both FAIL (high16_rebased
+0 != 1; the torn dentry's extent at the raw low cluster 710144 instead
+of the TRUE chain's 34264576) — the S-068 recovery-correctness surface
+was broken at HEAD.
+
+**M-157 (MAJOR, NEW — filed+fixed this session):** root-caused to the
+trail commit `9b4a9302` — its message's operative claim is "No code
+change rides this commit — the tree equals the racing window's plus
+this trail record", but the diffstat carries a 143-line engine rewrite
+(`cr_fat_quick.cpp`) plus the header, the S-068 finding file (131 lines
+removed), the matrix, and the fat module doc. The rewrite is the
+conceded lane's own variant (the message describes dropping it), and its
+central delta contradicts both the corpus and the concession's own text
+("the landed reading attributes the gate to the :14834 retry leg"):
+the retry-leg-only `hint > 0x310000` comparison was gate-raised onto
+the PRIMARY re-base gate.
+
+**Corpus verification (first-hand, before any edit):**
+`re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` —
+the PRIMARY re-base at :14753-14755 is the three-gate conjunction
+`*param_8 == '\0' && uVar5 < 0x10000 && uVar5 < DAT_1800728c8` (no
+0x310000 anywhere near it); the `0x310000 < DAT_1800728c8` comparison
+exists at exactly two sites (:14834, :30184) — both inside the RETRY
+leg's second-chance walk (FUN_180014530 and its FAT16-family twin).
+The hint update at :13753-13758 (FUN_180012e60, the shared dentry
+emission driver): non-directory gate `attr & 0x10 == 0`, the value =
+the walked (possibly re-based) first cluster.
+
+**The repair:** the primary gate restored (`deleted && Fat32 &&
+reconstruct_deleted_chains && first >= 2 && first < 0x10000 && first <
+hint` — the `0x310000` gate and the added `!is_dir` removed per the
+landed `ad1bcb9e` semantics the concession says stand); the hint update
+restored to the post-chain-resolution placement (both live and deleted
+successful non-directory walks); the rewrite's honest probe hardenings
+KEPT (the `rebased` bounds check, the `raw(rebased) != 0` FAT-linkage
+refusal, the broken/cycle probe refusal, the adoption log line).
+
+**RED→GREEN:** the two red tests reproduced first-hand at the pulled
+HEAD before the edit; green post-repair; the four-test S-068 battery
+green; full `cr_tests` 1529 passed / 0 failed / 42 fixture-conditional
+skips (pre-existing count); `cr_ui_tests` 87/87.
+
+**Trail:** findings/MAJOR/M-157 (full evidence: the corpus cites, the
+RED reproduction, the false-message record), the S-068 finding's M-157
+repair addendum, the matrix S-068 row corrected (the gate description
+now cites the primary-site truth), modules/fat.md's M-157 addendum, the
+S-068 module-note correction, this entry. The commit-message-
+falsification hazard (a "no code change" message carrying an engine
+rewrite) is recorded for the next audit's liveness battery: trail
+commits must be diffstat-checked before push.

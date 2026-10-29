@@ -382,9 +382,11 @@ Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
 
 **S-068 FIXED** — the FAT32 deleted high-16 re-base landed: the
 `EmitCtx.last_good_first` hint (updated after every successful non-directory
-live walk, mirroring FATSearchDLL :13757-58; never moved by directories or
+walk, mirroring FATSearchDLL :13757-58; never moved by directories or
 volume labels), the deleted low-16-only detection (value < 0x10000, < hint,
-FAT32-only, hint > 0x310000 - the og's big-volume gate), the re-based probe
+FAT32-only — the PRIMARY-site gate set at :14753-14755; the `hint >
+0x310000` big-volume gate is the RETRY leg's own at :14834 and is NOT part
+of the primary adoption path), the re-based probe
 (hint's high 16 | the dentry's low word) adopted only when the re-based
 cluster is FAT-LINKED and the chain walks clean (a free re-based cluster is
 the freed-chain signature - adopting it would manufacture the wrong-bytes
@@ -394,3 +396,22 @@ GAP-S6-2 rule). 4 tests in tests/unit/test_fat_high16.cpp; RED proven both
 compile-level (the stash-reverted tree) and behaviorally (the gate-raising
 mutation: extents fall back to the raw cluster). Suite green: 1493 + 2 perf
 core, 83 UI ABI.
+
+
+## M-157 repair addendum (S84 fix lane, 2026-10-30)
+
+The false trail commit `9b4a9302` rewrote the S-068 engine while its own
+message claimed "no code change rides this commit" — its central delta
+gate-raised the retry-leg-only `0x310000` comparison onto the PRIMARY
+re-base gate, starving every FAT32 volume under ~3.1M clusters of the
+repair entirely (the landed fixture's own hint of 0x10000 fails the
+gate) and leaving `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` RED at origin/main. The
+M-157 repair (corpus re-verified first-hand: the primary site
+:14753-14755 carries the three-gate conjunction, the `0x310000`
+comparison exists only at the two retry-leg sites :14834/:30184)
+restored the primary gate set, restored the `reconstruct_deleted_chains`
+flag gate and the both-branches hint update, and KEPT the rewrite's
+honest probe hardenings (bounds, FAT-linkage refusal, cycle/break
+refusal). The four S-068 tests green; the full suite 1529/0 + 87/87.
+Finding: findings/MAJOR/M-157-9b4a9302-false-trail-commit-s068-gate-regression.md

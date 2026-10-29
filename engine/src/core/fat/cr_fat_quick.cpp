@@ -303,12 +303,16 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * word reads as a LOW-16-ONLY first cluster; the og borrows the
      * hint's high 16 bits, re-walks at the re-based cluster and adopts
      * it on success (FUN_180012c00 retry, the dentry write-back at
-     * :14830-48, the hint update at :14847). Gates, exactly as decoded:
-     * FAT32 only (the high word exists only there), deleted only, the
-     * low-16-only shape (value < 0x10000), the consistency check (value
-     * < hint), and the big-volume retry gate (hint > 0x310000 - a
-     * volume whose cluster numbers carry meaningful high bits). The
-     * probe walks the re-based cluster through the same deleted-chain
+     * :14830-48, the hint update at :14847). Gates, exactly as decoded
+     * at the primary site (FATSearchDLL :14753-14755): FAT32 only (the
+     * high word exists only there), deleted only, the low-16-only
+     * shape (value < 0x10000), and the consistency check (value <
+     * hint). The og's big-volume gate (hint > 0x310000) belongs to the
+     * RETRY LEG ONLY (:14834, FUN_180014530's second-chance walk) - it
+     * is NOT part of the primary adoption gate, and gate-raising it
+     * onto the primary site starves every small/medium volume of the
+     * re-base entirely (the M-157 regression, repaired). The probe
+     * walks the re-based cluster through the same deleted-chain
      * machinery; adoption requires a clean non-empty chain (no break,
      * no cycle - FUN_180012c00's success flag class); a failed probe
      * falls back to the raw walk unchanged (the og's first-leg
@@ -317,9 +321,9 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * inferred chain never grades Excellent - the GAP-S6-2 rule). */
     u32 first_cluster = first_cluster_raw;
     bool rebase_assumed = false;
-    if (deleted && !is_dir && ctx.p.flavor == Flavor::Fat32 && first_cluster_raw >= 2 &&
-        first_cluster_raw < 0x10000 && ctx.last_good_first > first_cluster_raw &&
-        ctx.last_good_first > 0x310000) {
+    if (deleted && ctx.p.flavor == Flavor::Fat32 && ctx.flags.reconstruct_deleted_chains &&
+        first_cluster_raw >= 2 && first_cluster_raw < 0x10000 &&
+        ctx.last_good_first > first_cluster_raw) {
         const u32 rebased = (ctx.last_good_first & 0xFFFF0000u) | first_cluster_raw;
         /* the re-based cluster must be FAT-LINKED (a torn delete left the
          * chain intact): a FREE entry reconstructs as a clean 1-cluster
@@ -351,12 +355,6 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     bool inferred_chain = false;
     if (!deleted) {
         chain = follow_chain(*ctx.table, first_cluster, 0x10000, ctx.cancel);
-        /* S-068: the last-good hint updates after every successful
-         * NON-DIRECTORY walk (the og's walk-driver gate :13757-58 -
-         * directories and volume labels never move it; labels are
-         * skipped before emission). */
-        if (!is_dir && !chain.cancelled && !chain.broken && !chain.cycle && !chain.clusters.empty())
-            ctx.last_good_first = first_cluster;
     } else if (ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
         chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters,
                                           ctx.cancel);
@@ -387,6 +385,16 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
+
+    /* S-068: the last-good hint updates after every successful
+     * NON-DIRECTORY walk - live or deleted (the og's walk-driver gate
+     * at FUN_180012e60 :13753-13758: `attr & 0x10 == 0`, the shared
+     * emission driver for both dentry kinds; directories and volume
+     * labels never move it - labels are skipped before emission). The
+     * adopted first cluster (post re-base) is the value, matching the
+     * landed S-068 contract. */
+    if (!is_dir && !chain.cancelled && !chain.broken && !chain.cycle && !chain.clusters.empty())
+        ctx.last_good_first = first_cluster;
 
     /* M-052: recycle-bin pairing inside the recognized bin roots (the
      * og's four-name _stricmp set, FATSearchDLL :1668-1677). $I<token>
