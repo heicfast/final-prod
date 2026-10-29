@@ -28,16 +28,19 @@
 - **N-223 moved to findings/FIXED/** (the fixed-directory directive —
   its own Resolution was FIXED but the file sat in MINOR/).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 7
-MAJOR · 2 MINOR · 0 INFO active / 204 FIXED / 4 tracked-open.** (M-159
-and N-224 were filed AND fixed this session — they land on the FIXED side
-directly. Of the 7 active MAJORs, M-086/M-087/M-089 are driver-repo-resident
-per OQ-S10-3 — out of this grant's two-repo boundary; the 2 active MINORs,
-N-107/N-127, are the same driver-repo class. M-107 remains active for its
-EIGHT un-landed members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT —
-X3F, CRW, and DWG landed as members 1-3). The in-scope fix queue after
-this push: M-101 (the Versions / Tags Extracted branches), M-107's
-members, then M-078/M-105, then the tracked-open resolutions.)
+**Board after this landing (filesystem truth, recounted Session-84
+2026-10-30): 0 ACUTE · 0 SEVERE · 6 MAJOR · 3 MINOR · 0 INFO active /
+205 FIXED / 4 tracked-open.** (M-159 and N-224 were filed AND fixed —
+they land on the FIXED side directly; M-078 also landed FIXED since the
+prior board. Of the 6 active MAJORs, M-086/M-087/M-089 are
+driver-repo-resident per OQ-S10-3 — out of this grant's two-repo
+boundary; of the 3 active MINORs, N-107/N-127 are the same driver-repo
+class and N-225 is the win-stub triple-convergence record. M-107 remains
+active for its SEVEN un-landed members (WPG, WPD, SIT, APE, EPS, DXF,
+SWF-RECT — X3F, CRW, DWG, and PSP landed as members 1-4). The in-scope
+fix queue after this push: M-101 (the Versions / Tags Extracted
+branches), M-107's members, then M-105, then the tracked-open
+resolutions.)
 Next free IDs: S-069+, M-160+, N-225+, I-049+, A-017+, D-165+.
 
 ---

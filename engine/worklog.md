@@ -13124,3 +13124,42 @@ noise plant re-pinned to the degenerate all-zero form.
 stand-in tree, GREEN with the walks. The carve suite 193/193. Trail:
 M-107's S85 addendum 4, the three matrix rows, modules/carve.md's S85
 addendum 4, this entry.
+
+---
+
+## Session-84 — entry 7 (this lane): T13/T15 evidence complete; T17 lands; the session's coherence picture (2026-10-30)
+
+**T13 (local suite, first-hand):** the full cr_tests suite green in 11
+chunked runs — **1,529 passed / 0 failed / 42 fixture-conditional skips**
+(qemu/mkfs/tiff-tooling dependent, pre-existing), matching the lanes' and
+CI's counts. Two environment notes recorded honestly: the 4 GiB cgroup
+cap OOM-killed one large single-process chunk (the suites pass when
+chunked; CycleGuardPerf passes solo in 2.3 s — an environment ceiling,
+not a code defect); the sandbox reaps detached processes (the first
+full-suite attempt died mid-run that way).
+
+**T15 (fuzz smoke, first-hand):** clang 18.1.8 installed from the LLVM
+release tarball (libtinfo5 from the Debian pool); the fuzz/Makefile
+build clean at `-fsanitize=fuzzer,address,undefined -Wall -Wextra
+-Werror` (after this lane's wr16 dead-helper fix — the clang-vs-gcc
+-Wunused-function divergence, committed with the fuzz evidence); the
+45s-per-target smoke over all 16 fuzzers: **~140M executions, zero
+crashes** (fuzz_container 22.9M, fuzz_reghive 65.9M, fuzz_image 13.8M,
+fuzz_exfat 7.4M, fuzz_zfs 6.8M, ... fuzz_thumbnail 60K).
+
+**T17 (doc audit):** `worklog/doc-audit.md` landed — every doc accurate,
+corrected, or archival-by-design at HEAD; the session's doc corrections
+commit-cited (API.md exit 5, rrecov docstring, PARAMETERS.md flags,
+cr_ui.h error contract, testing.md 1,717/72 recount, SUMMARY board
+6/3/0/205/4 refresh with M-078-landed and PSP=member-4); the racing
+lanes' count migrations (exports=93, error codes=43) independently
+verified.
+
+**The collision series closed:** N-219, N-221, D-163, N-223 — four
+born-collisions in one window, all resolved; the doc_truth_gate caught
+each one (the gate's own value proven); this lane's resolutions:
+24edbb04 (ledger), bfda625c (the m075 duplicate retirement, composed
+with the racing N-226 renumber). Two of this lane's own red pushes
+(eb1b4e35, f5cb2a60) are recorded with honesty notes in entries 4/6 —
+the verification-discipline lesson (gate must BLOCK the push, not just
+run) is now enforced in this lane's push script.
