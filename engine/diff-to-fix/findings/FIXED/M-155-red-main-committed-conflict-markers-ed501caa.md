@@ -28,3 +28,24 @@ FUN_1800535b0 (FileX3FAnalyser, read in full first-hand this session) is the siz
 **Fixed in commit:** the M-155 repair commit (this session; SHA in the Resolution footer of the commit)
 **Verified by:** the linux-release build (green, `-Werror`), `ctest -R carve` green, the N-210 lint clean at the repaired tree, and the corpus re-read quoted above
 **Resolution notes:** The conflict was resolved in favor of the S71 lane's FileX3FAnalyser walk (SECd + 0x4C + loop-exit salvage) on three independent grounds: (1) the full first-hand corpus read of FUN_1800535b0 — all three found-branches stamp +0x4C and the loop-exit stamps the walked prefix, the count field is never read by this walk; (2) the M-090 DMG precedent — the File*Analyser secondary of the dual registration is the established size-walk authority in the landed core; (3) the S71 commit is the later landing and explicitly frames itself as the decode-then-land re-read. The three S78 count-walk tests were REPLACED by corpus-true pins (the count-irrelevance pin, the decline-shape correction: no-directory = salvage, and the garbage-count irrelevance pin adapted from the old clamp test); the S71 tests stand. The M-107 finding file keeps BOTH addenda with the S78 X3F entry annotated SUPERSEDED-BY-S71 (the audit trail is history — the superseded decode stays visible, marked). The N-210 gate was re-run clean over the repaired tree.
+
+---
+
+## Convergence addendum (the S81 parallel fix lane, 2026-10-29 — the seat conceded per SA-9)
+
+A second fix lane (this one — the S81 lane, opened at the same `04fb5e88`
+pin minutes behind the M-155 landing lane) executed the identical repair
+independently before pulling: the same corpus arbitration (FUN_1800535b0
+read in full — SECd + 0x4C in all three found branches, the count never
+consumed, the loop-exit salvage), the same conflict resolution, the same
+coordinate-defect diagnosis (the hit-relative `off` vs the absolute
+`limit` in the landed walk's window sizing — independently reproduced via
+the re-pinned extent test returning the torn-salvage 261632 instead of
+the SECd+0x4C 2140 on a 256 KiB device), and the same three-test re-pin
+intent. The racing lane's landing (`6d74ec2c`) keeps the M-155 seat; this
+lane's corroborating build+suite verification at the landed tree
+(**1578/1578, first-hand**) and this file's move to `findings/FIXED/`
+(the S81 session's user directive: resolved findings live in the fixed
+directory) complete the trail. Two independent lanes reading the same
+corpus artifact and reaching the same decode is the strongest evidence
+class this trail carries.

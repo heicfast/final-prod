@@ -11219,3 +11219,19 @@ trio replaced by corpus-true pins
 X3fGarbageCountIsIrrelevantToExtent). Suite 1578/1578. Trail: M-155
 file + Resolution, matrix S80 row, modules/carve.md S80 addendum,
 SUMMARY lane block, this entry.
+
+---
+
+## Session-81 (S81) — the MINOR-first diff-to-fix execution, continued (2026-10-29)
+
+**The SA-9 reconciliation first:** this lane opened at `04fb5e88` minutes
+behind the racing S80 lane and executed the identical M-155 repair
+independently (same FUN_1800535b0 arbitration read in full — SECd + 0x4C
+in all three found branches, the count never consumed, the loop-exit
+salvage; same rel_limit coordinate fix, independently reproduced via the
+torn-salvage 261632 vs the SECd+0x4C 2140 extent test; same three-test
+re-pin intent) before pulling. The racing lane's `6d74ec2c` keeps the
+seat; this lane's convergence addendum + the move of the resolved
+finding to findings/FIXED/ + the landed-tree verification (suite
+1578/1578 first-hand) complete the trail. This lane proceeds under the
+S81 seat with the MINOR-first ladder.
