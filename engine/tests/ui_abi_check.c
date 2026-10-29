@@ -680,6 +680,12 @@ int main(int argc, char** argv) {
         /* truncated name buffer -> CR_UI_ERR_TRUNCATED with the full length */
         CHECK(cr_ui_snapshot_node(snap, (uint32_t)doc_idx, &info, name, 3) == CR_UI_ERR_TRUNCATED);
         CHECK_EQ_U64(info.name_len, 7u);
+        /* M-101 (plain-C visibility of the appended branch fields): the
+         * zero-init defaults read back as 0 on this FAT session (the
+         * seat stamps only structured NTFS nodes; no preview tag read
+         * has run). */
+        CHECK_EQ_U64(info.version_group, 0u);
+        CHECK_EQ_U64(info.tags_extracted, 0u);
     }
 
     /* ---- query (zero-init = match-all; then filters) ---- */
@@ -779,6 +785,21 @@ int main(int argc, char** argv) {
         CHECK(n_ids >= 1);
         CHECK_EQ_U64(cr_ui_session_regrade(sess, ids, (uint32_t)n_ids, &regraded), CR_UI_OK);
         CHECK(regraded <= 1); /* at most the single grade-1 node ran */
+    }
+
+    /* ---- M-101: the two branch axes map through the plain-C ABI ---- */
+    {
+        cr_ui_query q;
+        memset(&q, 0, sizeof(q));
+        q.version_group = 0x1234; /* a nonzero group filter: no members on a FAT session */
+        q.count_only = 1;
+        CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+        CHECK_EQ_U64(total, 0u);
+        memset(&q, 0, sizeof(q));
+        q.tags_only = 1; /* nothing read yet -> empty branch */
+        q.count_only = 1;
+        CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+        CHECK_EQ_U64(total, 0u);
     }
 
     /* ---- disk map (GAP-S6-11 data producer: session path, auto geometry) ---- */

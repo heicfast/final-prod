@@ -5577,6 +5577,20 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
         end = limit;
     if (end <= hit)
         return r;
+    /* the S91 sub-format rider: the og's tier-1 stamps the row's OWN id
+     * into result+0x18 and the ENGINE assigns the name - the CRawFileInfo
+     * child's +0x28 processor (0x18000b7a0) reads child+0x18, indexes the
+     * 9-byte-stride name table at 0x18008f070, and assigns the id's name
+     * string (WPD/WPG/SHW, first-hand decode). The core carries the split
+     * via format_override: the WPG pair onto the existing FMT_WPG row (the
+     * "wpg\0"-keyed row keeps its own zero-tail-walk entry semantics), the
+     * SHW pair onto the appended FMT_SHW row. The racing S87 landing's
+     * 'report-layer routing' framing is corrected by the +0x28 processor
+     * decode - the name assignment is engine-side, not UI-side. */
+    if (a == 0x00021601u && b == 0x00030000u)
+        r.format_override = u32(FMT_WPG); /* the og's id 0x45 */
+    else if (a == 0x00010f0fu && b == 0x00030000u)
+        r.format_override = u32(FMT_SHW); /* the og's id 0x3d */
     r.end = end;
     r.confidence = 650;
     r.note = "wpd-pair-table,declared-size";

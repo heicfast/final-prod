@@ -3493,8 +3493,12 @@ TEST(Carve, WpdSecondAndThirdRecordsCarve) {
     /* The table's other two records - the WPG-family WPC variant
      * (0x00021601, 0x00030000) and the third variant (0x00010f0f,
      * 0x00030000) - carve through the same walk at their own declared
-     * sizes (the type split is the og's report-layer routing; the
-     * family carve is the core's registered stance). */
+     * sizes, and carry their OWN sub-format ids: the og's engine (not
+     * the report layer) assigns the name - the CRawFileInfo child's
+     * +0x28 processor (0x18000b7a0) indexes the 9-byte-stride name
+     * table at 0x18008f070 by the tier-1's stamped id (the S91
+     * sub-format rider; the racing S87 'report-layer routing' framing
+     * corrected by the processor decode). */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at2 = 512, at3 = 16384; /* at3 beyond at2's extent (no
         mid-stream suppression: at2's carve ends at 512+0x3000) */
@@ -3532,8 +3536,12 @@ TEST(Carve, WpdSecondAndThirdRecordsCarve) {
     }
     ASSERT_NE(v2, nullptr) << "record 2 (the WPG-family WPC variant) must carve";
     EXPECT_EQ(v2->props()->logical_size, size_t(0x3000));
+    EXPECT_EQ(v2->props()->carve_format, u32(FMT_WPG))
+        << "the engine's name table stamps id 0x45 (WPG) for record 2";
     ASSERT_NE(v3, nullptr) << "record 3 (the third WPC variant) must carve";
     EXPECT_EQ(v3->props()->logical_size, size_t(0x5000));
+    EXPECT_EQ(v3->props()->carve_format, u32(FMT_SHW))
+        << "the engine's name table stamps id 0x3d (SHW) for record 3";
 }
 
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
@@ -3648,6 +3656,7 @@ TEST(Carve, WpdUnknownPairDeclines) {
  * WPD landing keeps the seat; this lane's independent decode —
  * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
  * confirms it and adds the two directions its battery lacks). */
+
 TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
     /* the og's chain never reads the product word at +4 - the old core's
      * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
