@@ -1493,3 +1493,18 @@ dance (the strengthened WpdSecondAndThirdRecordsCarve); the WPD
 battery 7/7; the full suite 1705/1705. **The A25/A27/A47 rows for the
 WPD slice stay MATCH — now with the sub-format ids faithful.**
 >>>>>>> origin/main
+
+## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
+
+The open question answered: the RECT walk NEVER changes the extent —
+the og's caller stamps FileLength unconditionally on the deep gate's
+acceptance (FUN_1800268a0). The landing adds the FWS deep gate
+(swf_rect_valid): Nbits = byte8 >> 3 (≥ 2), four sign-magnitude fields
+of Nbits bits from stream bit 5, accept iff Xmin < Xmax && Ymin < Ymax
+&& all four ≥ 0 — the exact bit-walk, raw-asm-cited
+(0x180026940-0x180026b79). The CWS deep gate (the inflate-validation,
+FUN_180026b80) is the finding's explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
+three rejection tests RED at the pre-fix tree). Suite 1724/1724.
+**The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
+the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**

@@ -4101,12 +4101,41 @@ size_t plant_emf(std::vector<u8>& img, size_t at) {
     return 0x800;
 }
 
+/* M-107's SWF member: the RECT writer (the og's layout, decoded
+ * first-hand from FUN_180026940's raw asm): the 5-bit Nbits field
+ * occupies bits 7..3 of byte 8 (MSB-first), then four fields of
+ * [1 sign bit + (Nbits-1) magnitude bits], sign-magnitude. */
+static void swf_write_rect(std::vector<u8>& img, size_t at, i32 xmin, i32 xmax, i32 ymin, i32 ymax,
+                           u32 nbits = 9) {
+    u32 bitpos = 0; /* absolute bit index from byte 8's MSB */
+    auto wr = [&](u32 val, u32 count) {
+        for (i32 i = i32(count) - 1; i >= 0; --i) {
+            const u32 bit = (val >> u32(i)) & 1u;
+            const size_t byte = at + 8 + (bitpos >> 3);
+            const u32 off = 7 - (bitpos & 7);
+            img[byte] = u8((u32(img[byte]) & ~(1u << off)) | (bit << off));
+            ++bitpos;
+        }
+    };
+    wr(nbits, 5);
+    const i32 f[4] = {xmin, xmax, ymin, ymax};
+    for (i32 v : f) {
+        const u32 mag = v < 0 ? u32(-v) : u32(v);
+        wr(v < 0 ? 1u : 0u, 1);
+        wr(mag, nbits - 1);
+    }
+}
+
 size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
     std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
     img[at + 3] = 6;            /* version inside the og's [3,20] gate */
     put32v(img, at + 4, 0x400); /* FileLength > 8 */
     for (size_t i = 8; i < 0x400; ++i)
         img[at + i] = u8((i * 7) & 0xFF);
+    /* M-107's SWF member: the plant carries a VALID RECT (the og's deep
+     * gate, FUN_180026940 - Xmin<Xmax, Ymin<Ymax, all four >= 0) so the
+     * FWS form carves through the validation */
+    swf_write_rect(img, at, 0, 200, 0, 150);
     return 0x400;
 }
 
@@ -4988,6 +5017,130 @@ TEST(Carve, S007NicheBatch2School1RejectsNoise) {
         EXPECT_FALSE(off == 20480 && fmt == FMT_3DS_NCSD) << "wrong-field NCSD rejected";
     }
     EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
+}
+
+/* ---- M-107's SWF member (the FWS RECT deep gate, decoded first-hand
+ * from FUN_180026940's raw asm) --------------------------------------- */
+
+TEST(Carve, SwfRectValidationRejectsInvertedBox) {
+    /* the og's deep gate (0x180026b3e-0x180026b5b): Xmin < Xmax must
+     * hold - an inverted box never finalizes. The pre-fix core accepted
+     * every readable FWS header (the RECT walk was the recorded
+     * follow-up). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at);
+    swf_write_rect(img, at, 100, 50, 0, 150); /* Xmin > Xmax: inverted */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
+                     c->props()->extents.front().offset == at)
+            << "an inverted RECT (Xmin > Xmax) must not carve";
+}
+
+TEST(Carve, SwfRectValidationRejectsNegativeField) {
+    /* the og's gate requires all four fields >= 0 (the js/cmovns pairs
+     * at 0x180026b4f-0x180026b5b): a negative Xmin (the sign bit set)
+     * never finalizes */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at);
+    swf_write_rect(img, at, -5, 200, 0, 150);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
+                     c->props()->extents.front().offset == at)
+            << "a negative RECT field must not carve";
+}
+
+TEST(Carve, SwfRectNbitsBelowTwoRejects) {
+    /* the og's first deep gate (0x180026980: cmp $0x1,%eax; jbe reject):
+     * Nbits = byte8 >> 3 must be >= 2 */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at);
+    swf_write_rect(img, at, 0, 200, 0, 150, 1); /* Nbits = 1 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ASSERT_FALSE(c->props() && !c->props()->extents.empty() &&
+                     c->props()->extents.front().offset == at)
+            << "Nbits < 2 must not carve";
+}
+
+TEST(Carve, SwfRectValidationAcceptsSaneBoxAtFileLength) {
+    /* the positive pin: a sane box (Xmin=0 < Xmax=200, Ymin=0 <
+     * Ymax=150, all >= 0) carves - and the extent is the FileLength
+     * (the og's caller stamps it unconditionally on acceptance:
+     * FUN_1800268a0's *(uint*)(param_2 + 2) - the RECT walk NEVER
+     * changes the extent; M-107's open question 3 answered) */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at); /* the default plant: the sane box */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* swf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            swf = c;
+    ASSERT_NE(swf, nullptr) << "the sane-box FWS must carve";
+    EXPECT_EQ(swf->props()->logical_size, size_t(0x400))
+        << "the extent is the FileLength - the RECT walk is validation-only";
+}
+
+TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
+    /* the CWS deep gate (FUN_180026b80) inflates the compressed body
+     * before validating - the finding's explicit recorded remainder.
+     * The pin locks the CURRENT contract: the CWS row keeps the shallow
+     * gates + the FileLength extent (which the og's caller also stamps
+     * for CWS), so a CWS header with a broken RECT still carves until
+     * the inflate-validation landing flips this pin deliberately. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at, true);
+    swf_write_rect(img, at, 100, 50, 0, 150); /* the inverted box */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* cws = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            cws = c;
+    ASSERT_NE(cws, nullptr) << "the CWS shallow gates stay (the deep gate is the recorded "
+                               "follow-up)";
+    EXPECT_EQ(cws->props()->carve_format, u32(FMT_SWF_CWS));
+    EXPECT_EQ(cws->props()->logical_size, size_t(0x400));
 }
 
 TEST(Carve, WmfPlaceableOgGrammarCarves) {

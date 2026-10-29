@@ -167,6 +167,40 @@ Corpus: be0cfe9, read-only guarantee held.
   APETAGEX backward tail scan) for the future landing lane. The
   carve suite 210/210.
 
+## Session-90 S90 lane, entry 3 — the SWF-RECT member lands (member 11: the FWS RECT validation gate — validation-only, the open question answered) (2026-10-30)
+
+**M-107's SWF-RECT member, decoded first-hand from the raw asm and
+landed ahead of the racing windows.** The caller (FUN_1800268a0
+:29970-29996): FWS/CWS only (ZWS NOT handled — the core's gate already
+matched); the deep gate runs and on acceptance the caller stamps size =
+u32@+4 (FileLength) unconditionally — the RECT walk NEVER changes the
+extent. The finding's open question 3 answered: the RECT parse is
+VALIDATION-ONLY. The FWS deep gate (FUN_180026940, raw-asm
+0x180026940-0x180026b79): version byte@+3 ∈ [3,20]
+(0x180026953-0x180026963); FileLength ≥ 9 (0x180026969); Nbits =
+byte8 >> 3, Nbits < 2 rejects (0x180026980-83); four signed fields of
+[1 sign bit + (Nbits−1) magnitude bits] MSB-first from stream bit 5
+(the first sign bit = LSB-index bit 2 — the `and $0x4,%bl` check at
+0x180026a03; the first magnitude bit = LSB bit 1, the traced shr $1),
+sign-magnitude (neg/cmove) — for every ACCEPTED file the fields are
+non-negative where sign-magnitude == two's complement; accept iff
+Xmin < Xmax && Ymin < Ymax && Xmin ≥ 0 && Ymin ≥ 0 && Xmax > 0 &&
+Ymax > 0 (0x180026b3e-0x180026b5b). The CWS deep gate (FUN_180026b80)
+inflates the body first — the explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp.
+
+The landing: swf_rect_valid (the exact bit-walk, the 25-byte window
+covering every Nbits ≤ 31) + the S-007 plant re-pinned (the bit-writer
+helper). RED→GREEN via the stash dance:
+SwfRectValidationRejectsInvertedBox / SwfRectValidationRejectsNegative
+Field / SwfRectNbitsBelowTwoRejects — all RED at the pre-fix tree (the
+core accepted every readable FWS header), GREEN with the gate;
+SwfRectValidationAcceptsSaneBoxAtFileLength pins the positive + the
+FileLength extent. Suite **1724/1724** (166 s); clang-format clean.
+Trail: M-107's Session-90 addendum 4, the matrix row (members 1-10 +
+the SWF-RECT gate; APE + DWG gen-3 R2007 stand), modules/carve.md's
+Session-90 addendum 4, SUMMARY's third-push block, this entry.
+
 ## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
 
 - **The SIT concession:** the racing S89 window's landing (2214af90 —

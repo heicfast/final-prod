@@ -283,3 +283,50 @@ walk, the authority.
    fall-through).
 The stand-in stays WITH this addendum as the owner (the honest
 posture until the walk lands whole).
+
+---
+
+## Session-90 addendum 4 — the SWF-RECT member LANDED (member 11 of 11: the FWS RECT validation gate — a VALIDATION-ONLY landing, the finding's open question 3 answered)
+
+**SWF-RECT FIXED (this session, the S90 lane; APE + the DWG gen-3 R2007
+remainder stay with the finding).** The walk decoded first-hand from the
+raw asm (objdump over RAWSearchDLL.dll):
+
+- **The caller (FUN_1800268a0 :29970-29996)**: FWS ("FW"+'S') or CWS
+  ("CW"+'S') only — ZWS is NOT handled; the deep gate runs
+  (FUN_180026940 for FWS, FUN_180026b80 for CWS) and **on acceptance
+  the caller stamps size = u32@+4 (the FileLength) unconditionally** —
+  the RECT walk NEVER changes the extent. **M-107's open question 3 is
+  answered: the RECT parse is VALIDATION-ONLY — the "member" downgrades
+  to a gate, exactly as the question anticipated.** The core's extent
+  (FileLength) was already correct.
+- **The FWS deep gate (FUN_180026940 :30001-30130, raw-asm
+  0x180026940-0x180026b79)**: version byte@+3 ∈ [3,20]
+  (0x180026953-0x180026963); FileLength ≥ 9 (0x180026969); **Nbits =
+  byte8 >> 3** (the top 5 bits, MSB-first), **Nbits < 2 rejects**
+  (0x180026980-83); four signed fields of [1 sign bit + (Nbits−1)
+  magnitude bits], MSB-first starting at stream bit 5 (the first sign
+  bit = LSB-index bit 2 — the asm's `and $0x4,%bl` sign check at
+  0x180026a03; the first magnitude bit = LSB bit 1, the traced `shr $1`),
+  sign-magnitude decoded (neg/cmove) — for every file the gate ACCEPTS
+  all four fields are non-negative, where sign-magnitude and the spec's
+  two's complement agree; **accept iff Xmin < Xmax && Ymin < Ymax &&
+  Xmin ≥ 0 && Ymin ≥ 0 && Xmax > 0 && Ymax > 0**
+  (0x180026b3e-0x180026b5b) — a bounding-box sanity gate.
+- **The CWS deep gate (FUN_180026b80) inflates the compressed body
+  before validating** (the zlib-family calls at 0x180026c25/0x180026c4c/
+  0x180026c7e) — the finding's explicit recorded remainder; the CWS row
+  keeps the shallow gates + the FileLength extent (which the og's
+  caller also stamps for CWS). Pinned by
+  `SwfCwsDeepGateIsTheRecordedFollowUp` so the future inflate-validation
+  landing flips the pin deliberately.
+
+The landing: validate_swf grows the FWS RECT gate (`swf_rect_valid`, the
+exact bit-walk, 25-byte header window covering every Nbits ≤ 31); the
+"RECT bit-walk is the recorded follow-up" comment is GONE. The S-007
+plant re-pinned (a valid RECT via the bit-writer helper). RED→GREEN
+first-hand via the stash dance: SwfRectValidationRejectsInvertedBox /
+SwfRectValidationRejectsNegativeField / SwfRectNbitsBelowTwoRejects all
+RED at the pre-fix tree (the core accepted every readable FWS header),
+GREEN with the gate; SwfRectValidationAcceptsSaneBoxAtFileLength pins
+the positive + the FileLength extent. Suite 1724/1724.

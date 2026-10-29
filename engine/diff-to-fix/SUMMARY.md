@@ -226,6 +226,37 @@ S-092+, M-160+, N-229+, I-049+, A-017+, D-166+.
 
 # SUMMARY.md — executive summary (the racing S90 fix lane (below); the prior lanes below, newest-first)
 
+## Session-90 S90 fix-lane delta, third push (2026-10-30 — the SWF-RECT member lands: the FWS RECT validation gate, a VALIDATION-ONLY landing that answers the finding's open question 3)
+
+- **M-107's SWF-RECT member LANDED (this lane's second unique seat,
+  decoded first-hand and landed ahead of the racing windows):** the og's
+  caller (FUN_1800268a0) stamps size = FileLength unconditionally on
+  the deep gate's acceptance — **the RECT walk NEVER changes the
+  extent**; the open question ("it may downgrade to a validation-only
+  change") is answered YES. The FWS deep gate (FUN_180026940,
+  raw-asm-decoded): version ∈ [3,20]; FileLength ≥ 9; Nbits = byte8 >>
+  3 (≥ 2); four sign-magnitude fields of Nbits bits from stream bit 5;
+  accept iff Xmin < Xmax && Ymin < Ymax && all four ≥ 0. The CWS deep
+  gate (FUN_180026b80, the inflate-validation) is the finding's
+  explicit recorded remainder — pinned by SwfCwsDeepGateIsTheRecorded
+  FollowUp. The landing: swf_rect_valid (the exact bit-walk) + the
+  re-pinned plant. RED→GREEN via the stash dance: the three rejection
+  tests RED at the pre-fix tree (the core accepted every readable FWS
+  header). Suite 1724/1724.
+- **This lane's earlier pushes:** the WPD/WPG/SIT seats conceded across
+  the racing windows (the corroboration records carried: the WPG
+  tier-1 decode, the SIT ×10-gate + the marker-scope correction).
+
+**Board after the SWF-RECT landing (filesystem truth): 0 ACUTE · 0
+SEVERE · 5 MAJOR (M-086 M-087 M-089 [driver-repo-resident per
+OQ-S10-3, outside the two-repo grant] M-107 [APE + the DWG gen-3 R2007
+remainder standing — members 1-10 + the SWF-RECT gate landed] M-105 was
+FIXED by the racing window — recount below) · 2 MINOR (N-107 N-127,
+driver-repo-resident) · 0 INFO active / 214 FIXED / 3 tracked-open.**
+Next free IDs: S-069+, M-160+, N-229+, I-050+, A-017+, D-167+.
+
+---
+
 ## Session-90 S90 fix-lane delta, second push (2026-10-30 — the SIT seat conceded to the racing window's deeper decode; the ×10-gate corroboration carried; the lane re-homed S86 -> S89 -> S90 at the pushes: the born-collided convention; opened at core `32441353`, corpus `be0cfe9` throughout)
 
 - **M-107's SIT seat conceded to the racing 2214af90 landing per
