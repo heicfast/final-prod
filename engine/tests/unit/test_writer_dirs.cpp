@@ -21,7 +21,9 @@
 #ifdef _WIN32
 /* S-060 (the win-build repair): the metadata apply's Windows branch rides
  * the production WinDestIo's own SDK surface (SetFileAttributesW /
- * SetFileTime) - the POSIX-only utimensat/chmod shape was the MSVC red */
+ * SetFileTime) - the POSIX-only utimensat/chmod shape was the MSVC red.
+ * NOMINMAX: the test body uses std::max/std::min (the macro collision). */
+#define NOMINMAX
 #include <windows.h>
 #else
 #include <sys/stat.h>
