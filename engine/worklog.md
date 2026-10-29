@@ -12347,3 +12347,32 @@ spot-verified first-hand by the coordinating lane before recording.
 **Phase 2 (cross-checks) consolidates next into
 `worklog/api-cli-mismatches.md` + `worklog/api-findings.md`; Phase 3
 fix order opens with the N-210 marker repair.**
+## Session-84 S84 fix-lane — entry 2: N-221 (the leak this lane uniquely caught) + the SA-9 concession (2026-10-29)
+
+**The concession first:** this lane's independent repair of the 27bda40e
+RED main (the both-sides-kept reconstruction, drafted before the pull)
+was overtaken by the racing S85 window's c7037bf3/f18ba226/1d7d31a6
+landings — the seat conceded per SA-9, the convergence addendum in
+their N-219 file. The lane's local M-157/N-219 drafts were dropped at
+the reset; the ID seats went to the racing lane's filings.
+
+**N-221 FIXED (MINOR, NEW):** the N-216 landing's
+SizeCapHidesOversizeNode lambda leaked its three FileProperties
+caller-side refs (the add_file REFERENCE contract, cr_node.h:473-476) —
+LSAN failed the suite at exit (1170 bytes / 6 allocations) behind a
+green gtest summary. RED re-verified at the remote tip eeddec57 (the
+leak survived the racing window's marker repairs — a file none of them
+touched); GREEN post-fix (exit 0, LSAN clean, FilterFolder 5/5). Born
+N-219 locally, renumbered to N-221 at the landing (the M-153
+born-collided-seat convention).
+
+**The matrix rider:** the racing repair's M-151 row carried a trailing
+`||` (the conflict side's broken table remnant) and the stale
+"initial bound" title — repaired with the run-growth probe's own title
+and the INITIAL-bound site note preserved for the next lane.
+
+**Board after this push: 8 MAJOR · 2 MINOR active / 196 FIXED / 4
+tracked-open** (M-086/M-087/M-089 + N-107/N-127 driver-repo-resident
+per OQ-S10-3). Next: the MAJOR queue — M-075 (chkdsk), M-078
+(BitLocker), M-101 (tree branches), M-105 (DRWService), then M-107's
+remaining members, then the OQ items.

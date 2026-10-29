@@ -3352,7 +3352,9 @@ TEST(FilterFolder, SizeCapHidesOversizeNode) {
         pr->name = text::utf8_to_u16_lossless(name);
         pr->logical_size = size;
         pr->attributes = 0x20;
-        return tree.add_file(root, pr);
+        tree::FileNode* n = tree.add_file(root, pr);
+        pr->release(); /* add_file takes a reference, not ownership */
+        return n;
     };
     add_file("huge.bin", (u64(2) << 40));         /* 2 TiB > the 1 TiB cap */
     add_file("boundary.bin", (u64(0x400) << 30)); /* exactly the cap: stays */
