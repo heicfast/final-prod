@@ -8723,6 +8723,7 @@ this entry. **Also this window: five main-red repairs** (the e1/e2 dangling vars
 duplicate test, the crossed grading assertions, the carve triple-tick, the win-stub S-060 gap,
 the test_carve comment splice — several converged with the parallel lanes' own repairs per
 SA-9), all verified at 1419/1419 before their pushes.
+<<<<<<< HEAD
 **S-058 CONVERGENT (SEVERE — the grading extension-table gate polarity).** This
 lane's independent verification + fix preceded its push by a full build/test
 cycle (the comparator pair :324923-324939, FUN_140256d00's set::find idiom
@@ -8777,3 +8778,60 @@ explicitly excluded, reproducing the og's extension-driven net behavior for
 text files). Tests: the five named pins, 4 pre-fix FAILs. Suite 1341 ran /
 1299 pass / 42 env-skips / 0 fail. Trail: findings/FIXED/N-184 + ledger row +
 matrix row + this entry.
+=======
+
+## Session-55 continuation audit lane — close-out (2026-10-29)
+
+**Pins:** battery at core `1fccb0a4`, filings verified at `9633d94f` (HEAD at
+filing), corpus `be0cfe9`. **READ-ONLY guarantee held** — the delta vs
+origin/main is `diff-to-fix/` + `worklog*` only (verified per commit).
+
+**The remove-the-fixed ask (convergent):** the 69-finding liveness battery —
+62 STILL-ACTIVE / 3 PARTIAL (N-154, N-170, N-185 — named legs in
+`evidence/s55-liveness.md`) / 2 FALSELY-ACTIVE (N-142-rsf, convergent with the
+S50 lane's retirement of the renumbered N-186; I-035, retired-with-bookkeeping
+listing-stale) / zero phantom-fixed. OQ-S42-1/2 resolved-in-substance with
+convergent re-decodes. Tier-1 (SEVERE+MAJOR): 36/36 STILL at the pin, every
+divergence re-located by symbol (the board-wide citation drift — up to +1700
+lines — absorbed; the doc_truth_gate cite-refresh observation registered).
+
+**The go-deeper ask (five parallel agents, every load-bearing claim
+lead-verified first-hand before filing):**
+- **Local database (the user's directive):** lostpart.dat (0x448
+  CSearchedPartitionInfo image) + partinfo.dat (0x18 live-table record)
+  fully decoded with offset tables; the W1 first-search delete latch, W2
+  per-hit append, W3 interrupt marker + the marker-restore path decoded —
+  **I-046** (INFO register: a per-process-generation cache, NOT a knowledge
+  base; the scan-position-granular resume capability registered as a known
+  deliberate divergence); **N-203** (the core's resume round-trip drops the
+  data-area extent — PartitionContext v3 carries no data fields, the load
+  restores none, revalidate discards the re-deriving scratch).
+- **Sector/scan math:** **N-204** (the og's engine-layer carve geometry
+  decoded — 4 MiB blocks in an 8 MiB double buffer, half-buffer look-back,
+  sector-stride u32 probes; F6's og-side cell was empty), **N-206** (the
+  device sector-count ceil-vs-floor on non-sector-multiple lengths), the
+  no-stuck-or-freeze clean bill (every core walker capped; the og's own
+  Btrfs recursion has no visited set — the core is the stricter side on
+  every engine pair; M-127 was the one complexity regression, fixed by the
+  parallel lane this window), the recovery-side extent math verified
+  u64-clean on both sides.
+- **Grading/calculation:** **N-205** (the rawCount population semantics +
+  the M-134 resolution's phantom `raw_tail_zero` field — grep-zero at HEAD),
+  the QSDE `(m/t+0.05)×10` score formula re-verified convergent with N-183,
+  **OQ-S42-3 CLOSED** (the flag-setter origins + vt+0xb8/vt+0x100 semantics
+  decoded; 0x23 is the ctor default in every SearchDLL; the 0xa8-producer
+  no-writer-found residual registered; retired to findings/FIXED/).
+
+**Filings:** N-203 / N-204 / N-205 / N-206 (MINOR ×4) + I-046 (INFO ×1) +
+the OQ-S42-3 closure + module addenda (lost-partition, session, carve, tree,
+storage) + the matrix S55 block + SUMMARY/README/ledger rows. Evidence: the
+five agent context sheets + `evidence/s55-liveness.md`.
+
+**Board at close (filesystem truth): 60 active — 5 SEVERE · 24 MAJOR · 30
+MINOR · 1 INFO / 121 FIXED / 4 tracked-open.** Recommended first fixes from
+this lane: N-205 (the phantom resolution claim is the audit-trail hazard),
+N-203 (the v4 tail), N-206 (the ceil pair), N-204 (the F6 og-side cell).
+Convergence: the S54/S50 lanes' batteries and the S52/S48 grading decodes
+converge on every overlapping row — this lane's independent verification
+recorded per the S42/S42-B/S42-C precedent.
+>>>>>>> 6c66d46c (audit(S55): the sixth continuation lane's filings - 5 lead-verified findings (N-203 the resume round-trip drops the candidate data-area extent [PartitionContext v3 carries no data fields, revalidate discards the re-deriving scratch, the og's 0x448 record replays the full image through {start,end,disk}]; N-204 the og's engine-layer carve geometry decoded first-hand [4 MiB blocks / 8 MiB double buffer / half-buffer look-back / sector-stride u32 probes - SCAN-ENGINE-DELTA F6's og-side cell was empty]; N-205 the rawCount population semantics [og: forced deep-read probe + FS-code size rule; core: Origin::Carved census] + the M-134 resolution's phantom raw_tail_zero field [grep-zero at HEAD]; N-206 the device sector-count ceil-vs-floor [og geometry-EX (L-1+ss)/ss vs core floor everywhere - truncated-image tails invisible]; I-046 the lostpart/partinfo lifecycle register [per-process-generation cache, first-search delete latch, interrupt markers, scan-position-granular marker-restore - NOT a cross-session knowledge base]) + OQ-S42-3 CLOSED (the flag-setter origins + vt+0xb8/vt+0x100 semantics decoded [0x23 ctor default in all eight SearchDLLs, 0xa8 no-writer-found = likely dead branch]; retired to findings/FIXED/) + the convergent 69-finding liveness battery (62 STILL / 3 PARTIAL / 2 FALSELY-ACTIVE [N-142-rsf=N-186 convergent, I-035 listing-stale] / zero phantom-fixed; OQ-S42-1/2 resolved-in-substance) + the no-stuck-or-freeze clean bill (every core walker capped; the og's Btrfs recursion has no visited set) + module addenda x5 + matrix/SUMMARY/README/ledger rows - evidence: s55-lane-sheets x5 + s55-liveness; board 60 active (5/24/30/1) / 121 FIXED / 4 tracked-open)

@@ -385,3 +385,15 @@ session: the .rsf field families re-walked against the persistence layer (the
 state/persistence surface corroborated — no NEW divergence beyond the filed set:
 the I-041/42/43 registers, S-057, N-090, the D-122 family all stand), the
 checkpoint/save-trigger set, and the load path's v1..v5 tolerance ladder.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the persistence deep dive)
+
+New on this module: **N-203** (the resume round-trip drops the candidate
+data-area extent — the save/load pair never carries
+data_start_lba/data_sector_count; the fix plan proposes the PartitionContext
+v4 tail + the revalidate scratch-enrichment for pre-v4 sessions). The .dat
+lifecycle register **I-046** records the og's persistence-owner truth for the
+parity tables (per-process-generation cache, not a knowledge base). The
+battery re-confirmed the standing session-family findings (N-090, N-131, the
+I-041/42/43 registers) at the `1fccb0a4` pin — all convergent with the S54
+lane's own battery.

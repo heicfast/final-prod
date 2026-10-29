@@ -335,3 +335,24 @@ with a mirror retry before accepting; the core scores-but-never-rejects).
 Verified-MATCH this session: the EBR/GPT partition-math families (re-walked in the
 sector-math axis — no new divergence beyond the filed M-123/M-124/N-161 set), the
 candidate scoring evidence set, and the lost-scan FAT bracket ladder.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the local-database deep dive)
+
+New active findings on this module: **N-203** (the resume round-trip drops the
+candidate's data-area extent — the og's 0x448 record replays the full
+CSearchedPartitionInfo image through the {start,end,disk} dedup key with the
+data-area-anchored EndSec; the core's PartitionContext v3 carries neither
+data_start_lba nor data_sector_count, the load restores neither, and
+revalidate_candidate discards the probe scratch that re-derives them — resumed
+candidates enter the dedup/containment/leader rules with [0,0) windows),
+**I-046** (the INFORMATIONAL lifecycle register: lostpart.dat/partinfo.dat are
+NOT a cross-session knowledge base — the first search of each process deletes
+both files and rebuilds partinfo from the live table [the generation latch];
+per-hit mid-scan appends; interrupt header-only progress-markers carrying the
+min(cur,end) scan-position LBA; the marker-restore path resumes the search at
+sector granularity across process restarts — a capability class the core's
+stage-granular session model deliberately does not replicate, per M-042's
+registered architecture). New first-hand decode evidence:
+`../evidence/s55-lane-sheets/S55-D1-localdb.md` (both record layouts with
+offset tables; the shipped samples hex-verified — the lostpart end-LBA
+validates arithmetically against the partinfo live entry).

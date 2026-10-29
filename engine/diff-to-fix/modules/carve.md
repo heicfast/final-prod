@@ -1034,6 +1034,7 @@ window's carve landings PARITY (S-048's 7-folder skeleton exact incl. the
 N-149 exempt set; N-152's 999 branch; N-139's OOM policy; N-172/N-173's
 FAT presentations — the sweep table rows 1-25).
 
+<<<<<<< HEAD
 **N-169 FIXED (session-46 lane addendum)** — the EUUserData duplicate-key
 semantics: the raw-file census re-measured (112 members, the duplicate asf
 at offsets 4770/16766 — same sign, mimes "application/vnd.ms-asf" then
@@ -1043,3 +1044,22 @@ PARITY-DELTAS D-137 (every member parses; each block's mime backfills its
 own signs; the og's parse-side append stays the recorded OQ); the shipped
 default's dedup documented (111/190, the LAST asf block's mime). Tests:
 UserSigns.DuplicateKeySemantics + ShippedCensusDedupTruth.
+=======
+## S55 addendum (2026-10-29 — the sixth continuation lane: the scan-math deep dive)
+
+New on this module: **N-204** (the og's engine-layer carve buffer geometry
+decoded for the first time — 4 MiB read blocks inside an 8 MiB double buffer,
+half-buffer look-back, sector-stride first-u32 probes, 8192-sector analyser
+base at 512 bps; SCAN-ENGINE-DELTA F6's og-side cell was empty of constants,
+leaving the registered core constants (1 MiB + 4 KiB) without a cited og
+baseline at the layer where carving reads — and the engine-layer 4 MiB
+conflated with the device-layer 4 MiB of M-030/OQ-S4-3). Verified-MATCH with
+new first-hand cites: the raw-sign layer's 512-stride probe grid
+(cr_carve.cpp:918 ≡ RAWSearchDLL:9494-9502's sector-stride u32 probe); the
+byte-granular grammar superset re-confirmed as ALREADY registered (D-59c —
+the lane's candidate verified covered by the lead, not re-filed); the
+no-stuck-or-freeze walk-bound matrix (every core walker carries explicit
+caps; the og's own Btrfs B-tree recursion has no visited set — the core's
+hardening is the D-14 family). Evidence:
+`../evidence/s55-lane-sheets/S55-D2-scanmath.md`.
+>>>>>>> 6c66d46c (audit(S55): the sixth continuation lane's filings - 5 lead-verified findings (N-203 the resume round-trip drops the candidate data-area extent [PartitionContext v3 carries no data fields, revalidate discards the re-deriving scratch, the og's 0x448 record replays the full image through {start,end,disk}]; N-204 the og's engine-layer carve geometry decoded first-hand [4 MiB blocks / 8 MiB double buffer / half-buffer look-back / sector-stride u32 probes - SCAN-ENGINE-DELTA F6's og-side cell was empty]; N-205 the rawCount population semantics [og: forced deep-read probe + FS-code size rule; core: Origin::Carved census] + the M-134 resolution's phantom raw_tail_zero field [grep-zero at HEAD]; N-206 the device sector-count ceil-vs-floor [og geometry-EX (L-1+ss)/ss vs core floor everywhere - truncated-image tails invisible]; I-046 the lostpart/partinfo lifecycle register [per-process-generation cache, first-search delete latch, interrupt markers, scan-position-granular marker-restore - NOT a cross-session knowledge base]) + OQ-S42-3 CLOSED (the flag-setter origins + vt+0xb8/vt+0x100 semantics decoded [0x23 ctor default in all eight SearchDLLs, 0xa8 no-writer-found = likely dead branch]; retired to findings/FIXED/) + the convergent 69-finding liveness battery (62 STILL / 3 PARTIAL / 2 FALSELY-ACTIVE [N-142-rsf=N-186 convergent, I-035 listing-stale] / zero phantom-fixed; OQ-S42-1/2 resolved-in-substance) + the no-stuck-or-freeze clean bill (every core walker capped; the og's Btrfs recursion has no visited set) + module addenda x5 + matrix/SUMMARY/README/ledger rows - evidence: s55-lane-sheets x5 + s55-liveness; board 60 active (5/24/30/1) / 121 FIXED / 4 tracked-open)

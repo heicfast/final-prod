@@ -156,3 +156,18 @@ carries that no prior lane had dispositioned — zero trail hits at this lane's 
   per-file failure log with function+line; the core's SafeWriter records per-item
   per-extent failures into the report (the S-052 model). Register datum (the N-048
   log-census family).
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the device-geometry deep dive)
+
+New on this module: **N-206** (the device sector-count rounding — the og's
+authoritative geometry-EX path CEILS the last partial sector
+((L−1+ss)/ss, Device_decompiled.c:56536-56538 with the 0x200 fallback), the
+core FLOORS everywhere (cr_transport.cpp:134/:139, cr_image.cpp:427) — the
+tail of a non-sector-multiple source is structurally invisible to the core
+while the og addresses it zero-padded; the device-tail bound consumers
+(disk->size()/ls sites) inherit the floor). Verified-MATCH with new cites:
+the geometry cascade 0x70000→0x74004→0x7405C decoded first-hand; the 4 MiB
+device chunk sizing (0x400000/ss at Device:56538-56545) re-pinned — the
+device-layer figure OQ-S4-3/M-030 register, now separated from the
+engine-layer 4 MiB of N-204. Evidence:
+`../evidence/s55-lane-sheets/S55-D2-scanmath.md` §3.

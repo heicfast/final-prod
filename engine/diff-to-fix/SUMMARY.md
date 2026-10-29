@@ -1,4 +1,76 @@
-# SUMMARY.md — executive summary (the S44 minors lane on top of the S47..S56 parallel window; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S55 continuation audit lane on top of the S47..S58 parallel window; the prior lanes below, newest-first)
+
+
+## Session-55 S55 lane delta (2026-10-29 — the SIXTH continuation audit lane of the user's second-session mandate: remove-the-fixed + go-deeper + mark-all-remaining, focus: sector numbers / scanning / accurate detection / calculation / no stuck or freeze / local database / state management; battery pinned at core `1fccb0a4`, filings verified at `9633d94f`, corpus `be0cfe9`)
+
+**Method:** five parallel agents (2 liveness tiers + local-database deep dive +
+scan/sector-math deep dive + grading deep dive) — context sheets at
+`evidence/s55-lane-sheets/` — with the lead re-verifying every load-bearing new
+claim first-hand before filing (the record builders, the W1 latch, the marker
+restore, the QSDE formula, the rawCount arm, the ceil/floor pair, the
+engine-layer buffer constants — all re-read at the decompile lines before the
+finding was written).
+
+**The liveness battery (convergent):** 69 active findings checked at the pin —
+62 STILL-ACTIVE / 3 PARTIAL (N-154, N-170, N-185) / 2 FALSELY-ACTIVE
+(N-142-rsf = the renumbered N-186, convergent with the S50 lane's own
+retirement; I-035, retired-with-bookkeeping) / zero phantom-fixed. OQ-S42-1/2
+resolved-in-substance (convergent re-decodes). The hot window's retirements
+(S-055..S-061, M-119/M-126..M-134/M-137, the minors, I-035) all landed AFTER
+this battery's pin — the S54/S50 batteries' verdicts converge on every
+overlapping row. Full tables: `evidence/s55-liveness.md`.
+
+**Five new findings filed (every one lead-verified first-hand):**
+
+- **N-203 (MINOR)** — the resume round-trip drops the candidate's data-area
+  extent: the og's lostpart.dat record replays the full CSearchedPartitionInfo
+  image ({start,end,disk} dedup, EndSec data-area-anchored); the core's
+  PartitionContext v3 carries no data-area fields, the load restores none, and
+  revalidate_candidate discards the scratch that re-derives them — resumed
+  candidates enter the dedup/containment/leader rules with [0,0) windows.
+- **N-204 (MINOR)** — the og's engine-layer carve buffer geometry decoded for
+  the first time (4 MiB blocks / 8 MiB double buffer / half-buffer look-back /
+  sector-stride u32 probes, RAWSearchDLL:9271-9622 first-hand) —
+  SCAN-ENGINE-DELTA F6's og-side cell was empty, leaving the registered core
+  constants without a cited og baseline, and the engine-layer 4 MiB conflated
+  with the device-layer 4 MiB.
+- **N-205 (MINOR)** — the recoverability rawCount counts different populations
+  (the og's forced deep-read probe ∧ FS-code size rule vs the core's
+  Origin::Carved census) + the landed M-134 resolution's claimed
+  `raw_tail_zero` AssistantStats member is phantom (grep zero hits at HEAD).
+- **N-206 (MINOR)** — the device sector-count rounding: the og CEILS the last
+  partial sector (geometry-EX path), the core FLOORS everywhere — truncated
+  images' tails are structurally invisible to the core.
+- **I-046 (INFO)** — the og's lostpart.dat/partinfo.dat lifecycle register:
+  NOT a cross-session knowledge base — a per-process-generation cache (the
+  first-search delete latch), per-hit mid-scan appends, interrupt
+  progress-markers, and the scan-position-granular marker-restore resume path.
+
+**OQ-S42-3 CLOSED** (retired to findings/FIXED/): the flag-setter origins +
+Q5's vt+0xb8/vt+0x100 semantics decoded (0x23 is the ctor default in every
+SearchDLL; 0xa8's producer has no writer in any decompiled module — the
+likely-dead-branch residual registered). The grading deep-read decode
+converges with the S48/S50/S52 lanes' products; this lane's unique additions
+are the setter origins, the FS-code field semantics, and the 0xa8 observation.
+
+**Verified-MATCH with new evidence:** the no-stuck-or-freeze clean bill (every
+core walker carries explicit caps; the og's own Btrfs recursion has no visited
+set — the core is the stricter side on every engine pair); the exFAT
+chain-walk bounds parity; the recovery-side extent math u64-clean on both
+sides; the byte-granular probe superset re-confirmed as already registered
+(D-59c — the candidate verified covered, not re-filed); the QSDE score
+formula `(m/t + 0.05) × 10` re-verified convergent with N-183's record.
+
+**Board after this push (filesystem truth at filing): 60 active — 5 SEVERE ·
+24 MAJOR · 30 MINOR · 1 INFO** (the S55 filings: +4 MINOR, +1 INFO; OQ-S42-3
+retired from the 5 tracked-open → 4 tracked-open). Next free IDs: S-067+,
+M-148+, N-207+, I-047+, A-015+.
+
+**Recommended fix-order contribution (this lane's top):** N-205 step 1+3 (the
+raw_tail_zero field + the resolution-truth repair — the phantom claim is the
+audit-trail hazard), N-203 (the v4 tail — small, the resume-fidelity win),
+N-206 (two one-line ceil divisions + the tail-read test), N-204 (the F6
+og-side cell — documentation-only).
 
 ## Session-44 minors-lane delta, entry 3 (2026-10-29 — the N-167 found-size aggregate + the hot-window repair set)
 

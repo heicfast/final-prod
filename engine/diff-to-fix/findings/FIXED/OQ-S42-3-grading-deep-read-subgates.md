@@ -1,7 +1,7 @@
 # OQ-S42-3 — the grading deep-read sub-gates: FUN_1401bc5a0's predicate, the +0x72-bit-7 / +0x74-bit-2 flags, vt+0x28's sector-size source, vt+0xb8 / vt+0x100's meaning, and the run-unit value local_b8[0]
 
 **Origin:** S42 continuation lane, grading focus battery (M-121's decode residue)
-**Status:** RESOLVED-IN-PART (session-48: 5/6 sub-gates decoded first-hand — Q1 addr-set membership, Q2 the claimed flag, Q3 the path-analysis name flag, Q4 GetSectorSize device geometry, Q6 the engine run-unit; Q5 narrowed to the C<X>VolumeAnalyze family with the no-binary blocker; only Q5's slot-23/32 backing fields remain)
+**Status:** RESOLVED (session-55 lane, 2026-10-29 — all six sub-gates decoded: Q1/Q3/Q4/Q6 by the S48/S50 lanes, Q2's and Q3's flag-SETTER origins + Q5's vt+0xb8/vt+0x100 semantics by the S55 lane [the S55 addendum below]; the single residual — the 0xa8 producer / the vt+0xb8 implementor bodies, a material decompile-availability blocker — is registered IN the closing addendum, not tracked as an open question. The file is retired to findings/FIXED/ per the OQ-S42-1 convention.)
 
 ## The precise questions
 
@@ -188,3 +188,72 @@ FUN_1401b3550 (:317506-317510, bit 7 of +0x72) and FUN_1403895a0
 flag-SETTER origins** (which pipeline stage writes bit7-of-+0x72 and
 bit2-of-+0x74 — the S52 note's props-builder byte-write search); the
 sub-gate decode itself is closed on both lanes' evidence.
+
+---
+
+## S55 addendum (2026-10-29 — the fifth continuation lane; the flag-setter origins DECODED + Q5's vt+0xb8/vt+0x100 semantics DECODED; the OQ's last open questions close)
+
+Pins: core `9633d94f`, corpus `be0cfe9`. All cites below re-read first-hand
+this session; worksheet `evidence/s55-lane-sheets/S55-D3-grading.md` §a.3
+(the full decode with every setter/consumer cited).
+
+**The flag-SETTER origins (the S50 lane's remaining scope) — both decoded:**
+
+- **Bit 7 of node+0x72** = the **quick-scan extend-map registration bit**.
+  Setter `FUN_140638400` (D:1037338-1037368): when a node passes the
+  controller's vt+8 check and its +0x50 key is not yet in the ctx's map →
+  store the node as current and `*(node+0x72) |= 0x80` (D:1037359), insert
+  the key. It is PERSISTED (writer D:133357-133358; reader D:133393/:133401).
+  Consumers: the QSDE split (D:331164-331170) and the pre-check gate B.
+  NOT a deletion-state bit.
+- **Bit 2 of node+0x74** = the **"original drive-letter path recovered" bit**.
+  Setters: exactly two sites, both in path-scanning functions that walk wide
+  strings for `':'`+`'\'` (X:\-style paths) then call FUN_140629120:
+  D:1028061 and D:1034509 (`*(node+0x74) |= 4`). Clone-copied with the other
+  flags (D:133508-133511). Gate C set → the deep read happens even when A
+  and B would skip it.
+
+**Q5's vt+0xb8 / vt+0x100 semantics — decoded (slots on the node's
+FS-controller object, the IFileSystemSearchController family in the
+SearchDLLs):**
+
+- `vt+0xb8()` (no-arg bool): ≠ 0 → **grade 0** (D:605901-605907 in the
+  background walk; D:605610-605625 in the type-3 insert path).
+- `vt+0x100()` (no-arg int): the **FS-code field**. `== 0xa8` → grade 0
+  (D:605902) + blocks the fixer-module auto-High (D:585049);
+  `!= 0xa8` enables the fixer-index insert + auto-High (D:585611-606616 region,
+  D:585050-585052); `== 0x23` selects the ≤0x77fffff size arm of
+  FUN_1401c76e0 (D:330974-330999; any other code → size ≥ one cluster).
+- **0x23 is the ctor DEFAULT** of this field, written identically in DRWUI
+  (D:134418) and in EVERY SearchDLL (NTFSSearchDLL:39787, FAT:33549,
+  exFAT:19915, ReFS:6393, Btrfs:11273, HFSPlus:17216, EXT4:13014, Zfs:39414);
+  the field is copied node→node (NTFSSearchDLL:40397). The 0xa8/0x23
+  partition-stride coincidence suspected in the OQ's original framing is
+  **disproved as coincidence-by-construction** — 0x23 is the default value of
+  a real code field, 0xa8 a rare value of the same field.
+- **The 0xa8 producer**: NO writer of 0xa8 exists in ANY decompiled module
+  (DRWUI + all eight SearchDLLs grepped). The grade-0 branch fires only if
+  some un-decompiled vtable implementor sets the field to 0xa8 or vt+0xb8
+  returns nonzero — with zero writers found, the branch is **likely dead in
+  the shipped product**. This is the single residual unknown, and it is a
+  material blocker (the implementor bodies are un-decompiled), so it is
+  registered here as the OQ's closing residue rather than chased further.
+
+**Q6's run-unit (local_b8[0]) — re-confirmed decoded:** the `unit` out-param
+of the FS object's `vt+0x30(FS, node, &base, &unit)` inside FUN_1401bb580
+(D:322054) — the node's data-run stride (sectors per unit), scaling the
+address key (`base + off + idx*unit`). The core's `kDeviceUnit = 2^40`
+stand-in changes only key scaling, not collision sets — the OQ's original
+suspicion confirmed independently.
+
+**Verdict: the OQ CLOSES.** All six questions are answered (Q1/Q3/Q4/Q6 by
+the S48/S50 lanes, Q2's setter + Q5's semantics + the flag-setter origins by
+this lane). The residue — the 0xa8 producer / the vt+0xb8 implementor bodies
+inside the SearchDLL controller classes — is a material decompile-availability
+blocker recorded above; if a future corpus drop ever decompiles the
+controller vtable bodies, the grade-0 gate's firing population (registered in
+N-205's related context as not blocking that finding) is the one probe left.
+The decode products feed: N-205 (the rawCount population that shares the
+walk), the stale "UNDECODED - not adopted" register at cr_grading.cpp:204-206
+(now decoded — a doc-truth residual owned by N-205's fix plan step 3 family),
+and M-146 (the probe-family gate mismatch).
