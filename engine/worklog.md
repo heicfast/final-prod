@@ -11415,3 +11415,64 @@ ExtJournalIndicatorsConsistentAccepted (the both-set control) green both
 sides. Suite 1497 / 1455 / 42-skip / 0-fail. Trail: findings/FIXED/N-214
 + Resolution, ledger row, matrix MATCH, modules/lost-partition.md
 addendum, SUMMARY counts, this entry.
+
+---
+
+# Session 82 — the S82 fix lane (the user's fix mandate; the X3F concession record + the fix queue)
+
+**Opened:** core `04fb5e88` (the RED tree — see N-217/M-155), **re-based at
+`d37840c4`** (the racing lanes' X3F repair [6d74ec2c + the S81 corroboration
++ the N-217 dispatcher decode], S-067 [d37840c4], N-211 [3dfb2a5a],
+N-215 [59a431d3], the S81 board re-count [567694e7], the build2 purge
+[9ddc2bbe], and the S80 convergent rider [113a5627] all absorbed at the
+rebase), corpus `be0cfe9` throughout.
+
+**The X3F arbitration — my concession, with the verification record.** This
+lane independently opened on the red tree, reproduced the build failure,
+and initially landed the OPPOSITE arbitration: a composite walk built on
+the census artifact's protocol prose (rawsearchdll--analyser-registry-
+census.md:37-43 — "two independent validators must both fail before a
+match is discarded" — read as modern-primary-first, legacy-on-rejection)
+plus first-hand reads of both og walks (FUN_1800404a0's entry-table
+arithmetic [SECd + 16 + count*12, the u32-wrapped product, the outer
+entry[0] gate, the return-1 decline] and FUN_1800535b0's fixed-tail
+salvage [SECd + 0x4C, the never-decline loop exit]). The composite was
+implemented and tested green (five X3F tests) — and its push was rejected
+because the remote had moved. Pulling the racing lanes' records, the
+decisive claim was their DISPATCHER decode; per the SOP I re-verified it
+myself in the corpus before conceding:
+
+- RAWSearchDLL :9849-9876 (the magic-key path): the dispatcher calls
+  `vtbl[+0x40]` (GetFallback) on the registry node's analyser; a non-null
+  secondary is invoked FIRST — `(*secondary->vtable[0])(secondary,
+  param_2, param_3, param_1[0x3c])` — the result-object-writing shape
+  FUN_1800535b0 implements; the primary's `vtbl[+0x10]` is only the
+  2-arg second chance. The same shape at :9900-9935 (the full-registry
+  sweep).
+- FUN_1800535b0 never declines (the size+id stamp at :63556-63558 is
+  unconditional), so the Brance count-walk never contributes to a carved
+  X3F extent. The FileX3F semantics are the carved-X3F truth.
+
+The wrong-order composite was withdrawn before it reached origin; the
+racing landing stands. N-217's S82 addendum carries the full convergence
+record (the third independent dispatcher read, the census-prose erratum
+confirmed). The lesson recorded for this lane: a corpus ARTIFACT's prose
+is a secondary derivation — never cite it as protocol authority against
+the dispatcher's own code.
+
+**The lane's fix queue from here (the user's order, MAJOR-priority):**
+S-068 (SEVERE — the FAT32 deleted high-16 rebase) first; then the MAJOR
+queue — M-149 (the lostpart scoring denominator fold), M-150 (the session
+count pre-alloc bomb), M-152 (the ext4 orphan-reserved skip), M-151 (the
+NTFS truncated-$MFT run growth), M-154 (the autosave retention), M-107's
+remaining members (CRW's CIFF heap chain next), M-073 (the scan-time
+folder filter), M-075 (chkdsk), M-078 (BitLocker turn-off), M-101
+(Versions/Tags branches), M-105 (the FVE service posture), M-111/M-113/
+M-114 (the scope decisions); then the MINOR queue — N-213 (the fixup
+band), N-214 (the ext journal XOR gate), N-216 (the MaxFileSize
+surface), N-145 (the apply in-flight journal), N-178 (the CLI pause),
+N-181 (the RAW-first ordering), N-182 (the deep-range resolver); then
+I-048's PARITY-DELTAS registers. Already landed by the racing lanes this
+window and therefore NOT re-fixed here: S-067, N-211, N-215. The
+driver-repo-resident quintet (M-086/M-087/M-089/N-107/N-127) stays pushed
+forward under OQ-S10-3 (the two-repo grant).

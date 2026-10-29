@@ -76,6 +76,30 @@ session; the +1 MAJOR is M-155 itself, closed on filing).
 
 # SUMMARY.md — executive summary (the S69 continuation audit lane on top; the prior lanes below, newest-first)
 
+## Session-82 S82 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to major first, 20+ fixes, one finding / one verified fix / one push"]; opened at core `04fb5e88` on the RED tree, re-based at `d37840c4` after the racing lanes' X3F/S-067/N-211/N-215 landings were absorbed; corpus `be0cfe9` throughout)
+
+- **The X3F arbitration conceded after first-hand dispatcher
+  verification:** this lane initially reached the OPPOSITE (composite,
+  modern-primary-first) arbitration from the census artifact's protocol
+  prose and its own reads of both walks; the racing lanes' dispatcher
+  decode (:9849-9876, :9900-9935) was re-verified directly in the corpus
+  before conceding — the secondary File*Analyser runs FIRST with the
+  result object, and FUN_1800535b0's never-decline stamp means the
+  Brance count-walk never contributes to a carved X3F extent. The
+  wrong-order composite was withdrawn pre-push (the push rejection was
+  the save); the convergence record + the census-prose erratum
+  confirmation are in N-217's S82 addendum (findings/FIXED/). No
+  code change by this lane on the X3F surface.
+- **The lane's plan (the user's order):** SEVERE first (S-068 the FAT32
+  high-16 rebase — S-067 was landed by the racing d37840c4), then the
+  MAJOR queue (M-149 the scoring fold, M-150 the count bomb, M-152 the
+  ext4 orphan skip, M-151 the NTFS run growth, M-154 the autosave
+  retention, M-107's remaining members [CRW next], M-073/M-075/M-078/
+  M-101/M-105/M-111/M-113/M-114), then the MINOR queue (N-213/N-214/
+  N-216/N-145/N-178/N-181/N-182 — N-211/N-215 landed by the racing
+  lanes), then I-048's registers — one finding, one verified fix, one
+  push.
+
 ## Session-69 S69 lane delta (2026-10-29 — the NINTH continuation audit lane of the user's second-session mandate [remove-the-fixed + go-deeper + mark-all-remaining, focus: sector numbers / scanning / accurate detection / calculation / mathematics / no stuck or freeze / local database / state management]; the S68 seat conceded to the racing citation-census lane per SA-9 — this lane executed the S61 seat's never-landed plan, a disjoint slice; opened at core `3799dee2`, findings verified there and re-verified LIVE at the rebase head `271f5d06` after absorbing the S71..S79 fix windows [M-118/M-135/M-136/M-143/N-140/N-212/N-131/N-200/N-210/OQ-S52-1 landed by the racing lanes — zero of this lane's filings collided], corpus `be0cfe9` throughout)
 
 - **The liveness battery (28/28 at the open pin):** every then-active

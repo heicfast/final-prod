@@ -45,3 +45,47 @@ code (corpus-first), stacked-history for docs.
 **Fixed in commit:** `6d74ec2c` (the M-155 lane's convergent repair — the landed code) + this lane's rebase landing (the dispatcher-decode addendum, the N-217 finding, the worklog)
 **Verified by:** `cmake --build build/linux-release` → builds clean at the post-rebase tree; `rg -l '^<<<<<<< HEAD' src/ diff-to-fix/ worklog/` → 0 hits; the X3F battery green on the landed semantics: `Carve.X3fExtentIsSecdPlusFixedTail` / `Carve.X3fNoSectionDirectorySalvagesWalkedPrefix` / `Carve.X3fGarbageCountIsIrrelevantToExtent` / `Carve.X3fSectionDirectoryWalkCarvesTrueEnd` / `Carve.X3fTornSalvagesTheWalkedPrefix`
 **Resolution notes:** The build break is gone and the X3F authority question is settled by dispatch evidence rather than precedent: the secondary-first call order at :9862-9876 (`vtbl[+0x40]` = GetFallback → the secondary's slot-0 with the result object → emit on acceptance; the primary's `vtbl[+0x10]` as the 2-arg second chance). The prevention half stands from N-210 (ci-local step 10 greps the text tree) — the recurrence's root cause is process (a racing lane pushing without running the gate, plus a false green claim in the commit message), not a missing check; recorded for the next audit's liveness battery. The false "suite 1570/1570" claim in ed501caa's message is noted here for the record: the tree at that commit cannot compile.
+
+---
+
+## S82 convergence addendum (2026-10-29 — a THIRD lane's independent dispatcher verification; the census-prose erratum independently confirmed; the wrong-order composite withdrawn before push)
+
+A third fix lane (the S82 lane) opened independently on the same red tree
+(`04fb5e88`), reproduced the build failure first-hand, and initially
+reached the OPPOSITE arbitration — a "modern-primary-first, legacy
+fallback" composite — built on the census artifact's protocol prose
+(`rawsearchdll--analyser-registry-census.md:37-43`, "two independent
+validators must both fail before a match is discarded") and its own
+first-hand reads of both walks (FUN_1800404a0's entry-table arithmetic and
+FUN_1800535b0's fixed-tail salvage). That composite was implemented,
+tested (five X3F tests green under it), and committed locally — and its
+push was REJECTED by the remote having moved. On pulling the racing
+lanes' records, this lane re-verified the decisive dispatcher site
+first-hand rather than conceding by authority:
+
+- **RAWSearchDLL :9849-9876, read directly this session:** the magic-key
+  path resolves the registry node's analyser (`plVar7 = puVar12[5]`), then
+  calls `vtbl[+0x40]` — the GetFallback slot. When it returns a non-null
+  secondary, the dispatcher invokes THE SECONDARY FIRST
+  (`(*secondary->vtable[0])(secondary, param_2, param_3, param_1[0x3c])`
+  — the result-object-writing shape FUN_1800535b0 implements) and emits
+  on its acceptance; the primary's `vtbl[+0x10]` runs only as the 2-arg
+  second chance. The full-registry sweep at :9900-9935 carries the same
+  shape.
+- **Consequence, verified:** FUN_1800535b0 never declines (the size+id
+  stamp is unconditional), so for X3F the Brance count-walk never
+  contributes to a carved extent. The FileX3F semantics (SECd + 0x4C in
+  all three found branches, the count never consumed, the loop-exit
+  walked-prefix salvage) are the og's carved-X3F truth. The composite's
+  primary-first order was inverted, and the census artifact's
+  "modern-first" prose is an ERRATUM (confirmed independently of the
+  S81 lane's record).
+
+The wrong-order composite was withdrawn before it ever reached origin
+(the rejected push, then the reset); the racing landing stands. What this
+lane adds to the record: the third independent read of the dispatcher
+(three lanes, same decode), the census-prose erratum confirmed twice,
+and the process observation that the census artifact — a secondary
+derivation — must not be cited as protocol authority against the
+dispatcher's own code. The X3F battery re-verified green at the landed
+tree by this lane's build (five tests, plus the full suite below).
