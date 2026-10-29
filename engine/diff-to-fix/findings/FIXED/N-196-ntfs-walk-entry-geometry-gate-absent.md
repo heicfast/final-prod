@@ -50,3 +50,10 @@ Decompiled evidence, lead-verified first-hand (both gates read in the S-063 trai
 ## Open questions
 
 None — both og gates are directly read; the only open item is the stance decision.
+
+## Resolution
+
+**Status:** FIXED (stance registered + pinned — option (a), the finding's recommended disposition)
+**Fixed in commit:** (this push; S60-B lane)
+**Verified by:** `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture opens, walks, and surfaces oddrec.txt — the og's 0x610016 refusal class; RED against any future walk-entry gate addition, forcing the register to be re-truthed first) + `NtfsVolume.OversizePositiveRecordOpensAndWalks` (the 17-device-sector 8704-byte stride opens and walks — the >16 half of the same stance) + the adjacent P1-4 cap pin re-verified (`BootNegativeExponentOverflowRejected`); full NtfsVolume family green.
+**Resolution notes:** Corpus re-verified first-hand: FUN_1800272b0's primary gate `((uVar8 & 1) != 0) || (0x10 < (byte)uVar8)) goto LAB_180027467` at :31620-31621 and the fallback's 512-rounded even/≤16 form at :31599-31600, both failing → 0x610016 — exactly as filed. Core re-verified: no geometry gate between open and walk; the P1-4 shift-UB guard (1 MiB, negative-exponent form) and the 0-result/sub-sector rules are the only record-size bounds. Disposition per the finding's own recommendation (a): the wider acceptance registered as PARITY-DELTAS **D-143** (accept-direction superset, both og gate sites cited, the per-record-validation safety rationale, the refusing-recoverable-volumes-is-worse calibration) + the two stance pins above. No behavior change — the registration and pins are the finding's deliverable.

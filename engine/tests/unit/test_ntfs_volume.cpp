@@ -2712,6 +2712,141 @@ TEST(NtfsVolume, BootNegativeExponentOverflowRejected) {
     EXPECT_EQ(nullptr, vol) << "sub-sector record size must reject";
 }
 
+/* ---- N-196: the walk-entry record-geometry stance ---------------------- */
+
+TEST(NtfsVolume, OddSectorRecordWalkScans) {
+    /* N-196 (registered deliberate superset, PARITY-DELTAS): the og's MFT
+     * walk entry refuses records whose device-sector count is odd or > 16
+     * (NTFSSearchDLL FUN_1800272b0 :31620-31621 primary, :31599-31600 the
+     * 512-rounded fallback form; both failing -> 0x610016). The core has
+     * NO walk-entry geometry gate: a 1536-byte record (3 x 512, the odd
+     * class) opens AND walks - the per-record validation (magic + fixup)
+     * is the safety mechanism, and refusing recoverable volumes is the
+     * worse direction per the board's history. This pin guards the stance:
+     * if a geometry gate is ever added, this test forces the register to
+     * be re-truthed first. */
+    Image img;
+    /* boot: cpr = 3 -> 1536-byte records (odd 3-device-sector class) */
+    {
+        RecBuilder b; /* reuse the writer helpers on the raw sector */
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
+        const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+        std::memcpy(boot->oem, oem, 8);
+        boot->bytes_per_sector = SEC;
+        boot->sectors_per_cluster = 1;
+        boot->media_descriptor = 0xF8;
+        boot->total_sectors = NSECTORS;
+        boot->mft_lcn = 4;
+        boot->mftmirr_lcn = 60;
+        boot->clusters_per_record = 3; /* 3 clusters = 1536 B, the odd class */
+        boot->clusters_per_index_block = 2;
+        boot->checksum = 0;
+        bs[510] = 0x55;
+        bs[511] = 0xAA;
+    }
+    constexpr u64 RS = 1536;
+    constexpr u64 MFT_SECTORS = 24; /* 8 records of 1536 B at spc = 1 */
+    /* record 0: $MFT, $DATA LCN 4 len 24 sectors */
+    {
+        RecBuilder r(RS);
+        r.header(0, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFT", FILE_NAME_WIN32, 0x06, MFT_SECTORS * CLUSTER,
+                         MFT_SECTORS * CLUSTER);
+        r.attr_data_runlist(4, MFT_SECTORS, MFT_SECTORS * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4), r.buf.data(), RS);
+    }
+    /* records 1..4: minimal meta (the walk skips them by number) */
+    for (u64 rn : {1u, 2u, 3u, 4u}) {
+        RecBuilder r(RS);
+        r.header(rn, RECORD_IN_USE);
+        r.attr_file_name(5, u"$Meta", FILE_NAME_WIN32, 0x06, 4 * CLUSTER, 4 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4 + rn * 3), r.buf.data(), RS);
+    }
+    /* record 5: root "." */
+    {
+        RecBuilder r(RS);
+        r.header(5, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(5, u".", FILE_NAME_POSIX, 0x00, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(4 + 5 * 3), r.buf.data(), RS);
+    }
+    /* record 6: oddrec.txt (parent 5, LCN 100 len 2) */
+    {
+        RecBuilder r(RS);
+        r.header(6, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"oddrec.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 1024, 1024);
+        r.attr_data_runlist(100, 2, 1024);
+        r.finish();
+        std::memcpy(img.sec(4 + 6 * 3), r.buf.data(), RS);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(1536u, vol->params().record_size);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(OK, walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                           root_deleted, root_lost, stats))
+        << "the og refuses this geometry at walk entry (0x610016); the core walks";
+    tree::FileNode* odd = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "oddrec.txt")
+                odd = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    ASSERT_NE(odd, nullptr) << "the 1536-stride walk must surface the user file";
+    EXPECT_EQ(odd->props()->logical_size, 1024u);
+}
+
+TEST(NtfsVolume, OversizePositiveRecordOpensAndWalks) {
+    /* N-196 (the >16-device-sector half of the same stance): cpr = 17 ->
+     * 8704-byte records (17 device sectors) - the og's walk entry refuses
+     * (> 0x10 device sectors, FUN_1800272b0 :31621). The core has no
+     * positive-cpr cap: the volume opens at the decoded stride and the
+     * walk runs, each record still validated individually (the safety
+     * mechanism the register documents). The og-side cap equivalent the
+     * core DOES carry is the P1-4 shift-UB guard (negative-cpr exponent
+     * cap 20 -> 1 MiB), pinned by BootNegativeExponentOverflowRejected
+     * above. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, 17); /* 17 x 1 x 512 = 8704 B, 17 device sectors */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(8704u, vol->params().record_size) << "positive cpr decodes uncapped";
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    /* the fixture's records are 1 KiB, so per-record validation rejects
+     * the misaligned strides - the point of the pin is the walk RUNS (no
+     * geometry refusal) and returns cleanly, not that files surface */
+    u32 rc = walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    EXPECT_EQ(OK, rc) << "no walk-entry geometry gate: the og's 0x610016 class";
+}
+
 TEST(NtfsVolume, BootUsableLargeRecordSizeKept) {
     /* cpr = -12 -> 4096: pow2 and sector-divisible - the og keeps the raw
      * value (buf = max(0x400, rs)); the ladder must not squash it */

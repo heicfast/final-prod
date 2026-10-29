@@ -28,6 +28,12 @@ tracked-open; FIXED archive 140.
 
 **N-195 convergence record:** this lane independently verified and fixed N-195 in the same window the S60 lane did (their 3fae0791 landing is the fix of record per SA-9 — both constants corrected identically, the pin test in the CrUi read_repo_file family). This lane's UNIQUE supplement rides its own push: **doc_truth_gate check 7** (`check_bench_ioctl_codes`, CI-wired at checks.yml:173) — every 0x6xxxxxxx-form CTL literal in bench/**/*.{ps1,cs,cpp} must byte-match a constant in include/cr/win/cr_rda.h, making the phantom-zero class a permanently-gated defect rather than a one-shot pinned one. RED exit-1 pre-fix (both violations named) → GREEN post-fix, first-hand.
 
+**Fixes landed by this lane:**
+
+- **N-196 FIXED (MINOR)** — the NTFS walk-entry record-geometry stance registered and pinned (option (a), the finding's recommendation): PARITY-DELTAS **D-143** carries the accept-direction superset (both og gate sites re-read first-hand — odd/>16-device-sector records refused 0x610016 at FUN_1800272b0 :31620-31621/:31599-31600; the core walks them, per-record validation carrying the safety). Pins: `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture surfaces its user file) + `OversizePositiveRecordOpensAndWalks` (the 17-sector stride); NtfsVolume family 73/73.
+
+**Board at this push (filesystem truth):** 45 active — 1 SEVERE · 23 MAJOR · 18 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 142 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196).
+
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
 **Board at lane open (re-counted first-hand; corrected in the N-195 push — the lane's first block overstated MINOR at 24):** 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4 tracked-open, findings/FIXED/ at 136 files. N-107/N-127 (with M-086/M-087/M-089) are driver-repo-resident (OQ-S10-3's two-repo grant boundary) — not fixable in this lane, counted as active-open.

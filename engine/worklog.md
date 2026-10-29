@@ -9341,6 +9341,7 @@ phantom-zero class permanently gated. Gate green (137 D-rows, bench check
 green). Board after the window: 19 MINOR · 23 MAJOR · 1 SEVERE active,
 141 FIXED files, 0 INFO active (the closing-fix lane took I-045/I-046).
 
+
 ## Session-60 diff-fix lane — opened (2026-10-29)
 
 **Setup:** both repos pulled clean. Core HEAD at lane open: `98a5b139`
@@ -9387,3 +9388,22 @@ re-truth at cr_candidates.cpp (the probe_family gate citation updated to
 the second signature, with the lost-side page-signature probe named the
 deeper proof) + this convergence record. Suite re-verified green after
 each rebase resolution.
+
+---
+
+## Session-60-B lane — N-196 landed (2026-10-29)
+
+**N-196 FIXED (MINOR — NTFS walk-entry record-geometry stance).** Corpus
+re-verified first-hand: FUN_1800272b0's primary gate (odd/>16 device-sector
+records bail to the fallback, :31620-31621) + the fallback's 512-rounded
+even/≤16 form (:31599-31600), both failing = 0x610016. Core re-verified: no
+geometry gate between open and walk (P1-4 shift-UB cap is the only record-size
+bound on the negative-exponent form; positive cpr decodes uncapped). Fix per
+the finding's recommended option (a): PARITY-DELTAS D-143 (accept-direction
+superset, both og sites cited, per-record-validation safety rationale) + two
+stance pins: NtfsVolume.OddSectorRecordWalkScans (1536-byte odd-stride
+fixture walks and surfaces oddrec.txt) and OversizePositiveRecordOpensAndWalks
+(17-sector stride opens and walks). NtfsVolume family 73/73. Trail: finding
+retired to findings/FIXED/N-196 + Resolution, ledger row, matrix MATCH (D-143),
+SUMMARY S60-B block, this entry.
+>>>>>>> 59ef6e4c (fix(ntfs): N-196 - the walk-entry record-geometry stance registered + pinned (option (a), the finding's own recommendation) - the og refuses odd/>16-device-sector MFT records at the walk entry (FUN_1800272b0 :31620-31621 primary + :31599-31600 the 512-rounded mirror-fallback form, both failing = 0x610016, re-verified first-hand); the core's wider acceptance is DELIBERATE (per-record validation [magic+fixup] is the safety; refusing recoverable volumes is the worse direction per the D-119 calibration family) - PARITY-DELTAS D-143 carries the registration; pins NtfsVolume.OddSectorRecordWalkScans [the 1536-byte odd-stride fixture walks and surfaces its user file - the og's refusal class] + OversizePositiveRecordOpensAndWalks [the 17-sector stride]; NtfsVolume family 73/73; trail: findings/FIXED/N-196 + ledger row + matrix MATCH + SUMMARY + worklog)
