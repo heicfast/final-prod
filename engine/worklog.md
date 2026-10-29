@@ -14861,3 +14861,78 @@ the final scope update. Every push rebased on the then-current origin,
 every window re-verified before the next.
 
 
+
+## Session-93 S93 fix-lane — the closing handoff (2026-10-30)
+
+**The lane's arc:** opened at `fc4ffdf4` (baseline 1692/1692 green
+first-hand); pushed through FIVE racing windows (52+35+5+1+1 commits
+absorbed at four merges, plus this close's fast-forward) to the
+landing head; corpus `be0cfe9` throughout (read-only guarantee held);
+the prompt archived token-redacted at
+worklog/session-diff-fix-s93-prompt.md (the concurrent S89 seat kept
+the s89 name per SA-9; this lane re-homed S89 → S93 at the first
+merge).
+
+**The session's net, honestly stated:** two of this lane's landings
+were CONCEDED to concurrent racing pushes (M-101 and M-107/APE) — both
+concessions executed cleanly at the merges with the records in the
+findings' Session-93 addenda, and both times the racing seat was the
+better decode on the disputed point (M-101: the FNV-1a identity hash
+vs this lane's counter ids; APE: the <3801 scan-bound reading of the
+raw :39134 reassignment). What this lane's own hands carried to main:
+(1) the M-101 Tags-Extracted PRODUCER (the seat's props flag had no
+stamping path anywhere — the no-disabled-surface class) + the ABI
+exposure the seat lacked entirely (cr_ui_query/cr_ui_query_row/
+cr_ui_node_info tail-appends, plain-C driven in ui_abi_check.c), both
+RED-proven at the pre-merge tree; (2) the ONE/3DS stale pre-M-106
+header retirement; (3) three format-gate sweeps of racing drift (the
+N-120 class, each caught by this lane's ci-local run and swept before
+push); (4) the merge repairs — the born-collided WPD test name, the
+duplicate auto-merge surfaces, the ledger dedupes, the worklog
+append-append resolutions; (5) the audit-trail truth-telling for every
+one of the above (the finding addenda, the matrix rows, the SUMMARY
+blocks, the ledger notes).
+
+**The board at this close (filesystem truth, verified by ls):** 3
+MAJOR (M-086/M-087/M-089 — driver-repo-resident per OQ-S10-3, out of
+the two-repo grant, each with its Resolution and the precise next
+step) · 2 MINOR (N-107/N-127 — the same boundary) · 0 ACUTE · 0
+SEVERE · 0 INFO active / 220 FIXED / 3 tracked-open (OQ-S10-1 the
+vendoring decision — libheif first with the import-surface inventory;
+OQ-S10-3 the driver-repo lane's five in the recorded order; OQ-S4-3 —
+see below). Every IN-SCOPE finding is resolved; v0.6.0 is tagged
+(897 commits, M-107 complete — the release lane's scope doc).
+
+**OQ-S4-3's TTFR execution, dispatched this session:** the Test &
+Benchmark workflow was dispatched via the API (204 accepted; the run
+rode the newest main, run 40956286997, profile smoke, modes
+quick/deep/deepcarve). At this handoff it is IN PROGRESS with the
+Windows MSVC build. The next lane's step: read the run's
+07-performance artifacts (the ttfr_ms/ttfr_first_files lines the
+rrecov probe emits) and transcribe them into OQ-S4-3 + M-030's
+Resolution addendum + SUMMARY's performance section; the og-side TTFR
+comparison then needs the new first-found probe in bench/og/
+og-driver.ps1 or an owner's scoped-closure decision (the OQ's own
+recorded choice).
+
+**The local verification at every push:** ci-local.sh GREEN (10/10:
+format, dead-surface, architecture, conflict-marker,
+warnings-as-errors build, ctest, report schema, Win7 PE gate,
+vcpkg, doc links, secrets, commit convention) + doc_truth_gate green;
+the full suite grew 1692 → 1742 across the session's windows; the
+Windows CI at the final head: the lint+parse gates completed SUCCESS,
+the MSVC build and the benchmark in flight at this handoff.
+
+**The meta-lesson for the next lane (this window was the hottest of
+the trail):** the pull-merge-resolve-gate-push loop must be fast and
+NEVER skip the gate — this lane caught three racing windows'
+format drift, a born-collided test name, and duplicate auto-merge
+surfaces precisely because ci-local ran before every push; and the
+concession discipline (SA-9) turned two lost races into two clean
+records with riders kept, not into rebase fights. The one process
+defect this lane hit: the first merge's worklog resolution script
+truncated the file tail (a `s[:i] + theirs + mine` that dropped
+`s[end:]`) — caught by the line-count check, repaired by re-extracting
+the entry from HEAD; the guard for the next lane: after ANY scripted
+conflict resolution, verify `wc -l` against the pre-merge file and
+grep the section headers you know were there.
