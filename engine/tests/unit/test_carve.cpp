@@ -7872,7 +7872,15 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
             flac_id = i;
             break;
-        }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
 
     MemDevice dev(std::move(img));
@@ -7905,7 +7913,15 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
             if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
                 fid = i;
                 break;
-            }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
         ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
         for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
             if (rawsigns::kHeaderSigns[hi].fmt == fid) {
@@ -7965,6 +7981,14 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "no user-sign reclaim past the built-in floor gate";
     EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
@@ -7999,6 +8023,14 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
@@ -8045,7 +8077,15 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
             cpl_id = i;
             break;
-        }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     ASSERT_NE(cpl_id, 0xFFFFFFFFu);
     for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
         if (rawsigns::kHeaderSigns[hi].fmt == cpl_id) {
@@ -8179,7 +8219,15 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "cpl: no user-sign record at the two-layer collision";
         EXPECT_EQ(1u, count_builtin_tagged(root))
             << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
-    }
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
     { /* wpl: the raw sign at +0 + the default user sign at +132 */
         std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
         plant_hex_bytes(img, 0x2000, "3C3F77706C2076657273696F6E3D22312E30223F3E");
@@ -9330,6 +9378,7 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
      * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
+<<<<<<< HEAD
      * red, repaired at the S54-window merge): the default user-sign set
      * carries lha "2,2D6C68" ("-lh" at +2) - with a set installed by an
      * earlier test, this fixture's prefix carves a device-end lha USER
@@ -9340,6 +9389,19 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * SET, not a default to assume) AND the surgical extension gate
      * (S-056's disabled_formats gates the user layer; "lha" has no stock
      * rows, the lzh grammar is a different extension). */
+=======
+     * red, closed two ways by two lanes): the default user-sign set's
+     * "lha" entry (2,2D6C68 - the og's own shipped sign) matches ANY
+     * "-lh" anchor at +2, so with a set installed by an earlier test
+     * this fixture carves a device-end lha USER record (the D-104
+     * out-of-box superset, by design). The no-carve assertion pins the
+     * no-user-sign world: this test resets the registry explicitly (the
+     * suite's per-process registry makes absence a state to SET, not a
+     * default to assume) AND gates the user layer's lha channel by
+     * extension (S-056's disabled_formats - the surgical belt to the
+     * clear()'s suspenders; either alone suffices, both document the
+     * interaction). */
+>>>>>>> origin/main
     ASSERT_EQ(OK, carve::usersigns::clear());
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;

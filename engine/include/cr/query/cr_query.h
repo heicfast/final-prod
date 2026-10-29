@@ -118,6 +118,55 @@ double progress_display_percent(u32 message_type, u64 done, u64 total);
  * message bypasses the guard with its forced 100). */
 double progress_display_publish(double current, double next);
 
+/* ---- M-126: the og's ETA model (DRWUI decode) ----
+ * FUN_1401af410 (DRWUI :314835-314887, re-read first-hand at the fix):
+ * on every progress message the og computes a remaining-time estimate -
+ * a whole-run base ETA, an EMA-smoothed rate (0.2 instant / 0.8
+ * history), a type-gated time-budget variant (x0.6), and a 1 Hz local
+ * countdown that ticks the label between computed refreshes
+ * (:1527650-1527768; runtime anchor "Remaining time: 07m43s" at 34%,
+ * dynamic-ground-truth :95). These helpers land the model as a pure
+ * query-layer surface so hosts render og-faithful estimates; the
+ * telemetry snapshot carries the smoothed rate so hosts need no state
+ * of their own (cr_scan.h - ScanTelemetrySnapshot.eta_*). */
+
+struct EtaModel {
+    /* the og's +0x100 field: -1 = the parameter-error class (done == 0,
+     * total < done, or total == 0 - FUN_1401af410's opening gate) */
+    long long eta_seconds = -1;
+    /* the EMA state (the og's +0x118): feed back as prev_smoothed on
+     * the next call; 0 = no history (the first sample passes through) */
+    unsigned long long smoothed_rate = 0;
+};
+
+/* The computation core, verbatim per the decode:
+ *   eta_s  = (total - done) * elapsed_ms / done / 1000   (whole-run)
+ *   rate   = (total - done) / eta_s
+ *   smooth = prev != 0 ? (2*rate + 8*prev) / 10 : rate   (EMA 0.2/0.8)
+ *   !time_budget_variant: eta_seconds = eta_s            (the type-0 leg)
+ *   time_budget_variant:  projected = max(1, total * elapsed_s / done)
+ *                         eta_seconds = (budget - budget * elapsed_s /
+ *                                        projected) * 0.6
+ * elapsed_s is INTEGER seconds (the og's tick math divides by 1000
+ * before the budget leg). Returns {-1, 0} for the parameter-error
+ * class; eta_seconds stays -1 when eta_s <= 0 (no estimate). */
+EtaModel eta_compute(unsigned long long done, unsigned long long total,
+                     unsigned long long elapsed_ms, unsigned long long prev_smoothed,
+                     bool time_budget_variant, unsigned long long budget_seconds);
+
+/* The label renderer: the computed refresh renders minutes and seconds
+ * zero-padded to two digits each - the runtime anchor's "07m43s" shape
+ * (the empty-label placeholder is the LITERAL "3m00s", :1527664-7669). */
+std::string eta_format_m_s(long long seconds);
+
+/* The 1 Hz countdown pair (:1527550-1527768): parse the label's
+ * "<minutes>m<seconds>s" (the og sections on 'm' then 's' - any
+ * non-digit padding like the leading zero is tolerated), subtract one
+ * second. Returns the ticked seconds, or -1 when the label does not
+ * parse or the countdown reached zero (the og's stop condition:
+ * minutes*60 - 1 + seconds < 0 -> the FUN_1409cb4e0 stop). */
+long long eta_countdown_tick(const std::string& label);
+
 /* The generated table's entry count (regeneration-drift guard:
  * Filter.TableCount pins it to the corpus unique count). */
 size_t filefilter_entry_count();

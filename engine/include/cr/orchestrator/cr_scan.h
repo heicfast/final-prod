@@ -513,6 +513,14 @@ struct ScanStats {
      * volumes. Diagnostic only; the table's own field carries the same
      * count for the parse that fed this scan. */
     u32 gpt_invalid_entries = 0;
+    /* N-167: the found-size truth - the total logical size of every file
+     * the scan attached to the tree (stamped from ResultTree::total_logical
+     * at every stage-boundary count refresh and at completion; distinct
+     * from bytes_scanned, which is I/O truth - carve-true bytes read -
+     * never claimed coverage). The og's completion headline renders
+     * "Files Found: N (X GB)" from exactly this aggregate
+     * (dynamic-ground-truth--scan-phase-captured.md:125). */
+    u64 bytes_found = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -543,6 +551,14 @@ struct ScanTelemetrySnapshot {
     u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
+    /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
+     * from (overall_permille, elapsed_ms) through the whole-run leg
+     * with the EMA-smoothed rate carried between snapshots; -1 = no
+     * estimate yet (the parameter-error or eta<=0 class). Hosts render
+     * og-faithful labels with query::eta_format_m_s + the countdown
+     * pair, no state of their own. */
+    long long eta_seconds = -1;
+    u64 eta_smoothed_rate = 0;
     bool paused = false;
     bool running = false;
     bool cancelled = false;
@@ -718,6 +734,7 @@ private:
         std::chrono::steady_clock::time_point run_t0{};
         std::chrono::steady_clock::time_point stage_t0{};
         u64 stage_pause_base = 0; /* run-wide paused_ms() at stage start */
+        u64 eta_prev_rate = 0;    /* M-126: the EMA state between snapshots */
     };
     /* Engine->stage progress bridge context (raw fn-pointer trampoline). */
     struct StageBridge {
@@ -732,7 +749,7 @@ private:
     void tel_stage_begin_(u32 stage, const CancelToken* cancel);
     void tel_stage_end_(u32 stage, const CancelToken* cancel);
     void tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units, const CancelToken* cancel);
-    void tel_counts_(const ScanStats& stats, const CancelToken* cancel);
+    void tel_counts_(ScanStats& stats, const CancelToken* cancel);
     /* Post-stamp overall permille (monotonic truth) for the boundary
      * progress calls - NEVER a hardcoded weighted() guess, which could
      * regress below what the bridge already forwarded mid-stage. */

@@ -1,3 +1,35 @@
+# SUMMARY.md — executive summary (the S44 minors lane on top of the S47..S56 parallel window; the prior lanes below, newest-first)
+
+## Session-44 minors-lane delta, entry 3 (2026-10-29 — the N-167 found-size aggregate + the hot-window repair set)
+
+**N-167 FIXED — the found-size aggregate.** The og's completion headline ("Files
+Found: N (X GB)", dynamic-ground-truth--scan-phase-captured.md:125 — the corpus
+capture pins 1,139,286 files / 147.12 GB on a 149.45 GB volume, the binary 1024^3
+divisor GB-labeled per the Windows convention) is now renderable from core stats:
+`ScanStats::bytes_found` stamped from `ResultTree::total_logical()` inside the
+count refresh (signature widened const → mutable) so the counters and the size
+ride the SAME observation points (boundary-stamped, staleness identical to
+files_found — N-166's live cadence extends both together when it lands); the
+session record grew to v3 (48 bytes, len-gated — v1/v2 load zeroed, the tree
+re-stamps at the first refresh after resume); the CLI completion line renders
+"N file(s) (X GB)" and the JSON summary carries bytes_found.
+RED via the stashed-stamp rebuild (bytes_found 0 while the tree carried 1500);
+GREEN: `ScanStats.BytesFoundAggregates` (the one-consistent-pair pin: the
+aggregate IS tree.total_logical(); both the active and deleted populations
+count) + `ScanStats.BytesFoundSessionRoundTrip`. Suite 1320/1320 (linux-release).
+
+**Hot-window repair set (this entry's merge residue, fixed at the cause):** the
+S-055-window re-landing re-introduced the N-171 double validated tick (collapsed
+to one, third convergence recorded in the comment); the merge recomposed
+Grading.ExtensionTableGatesDeepValidation's fixture rows against its assertions
+(restored the M-134 landing's shape) and left orphaned variables (the dotless
+pair's pin lives in its own test now); the S-055-window convergence resurrected
+the S53 lane's duplicate Ext4Engine.SizeExceedsBlocksSetsDamagedFlag (dropped per
+the superset rule). Suite verified green on the merged tree.
+
+**Board after this push (filesystem truth): 20 active on this lane's targets —
+0 ACUTE · 5 SEVERE · 19 MAJOR · 20 MINOR · 0 INFO — + 5 tracked-open / the FIXED
+archive at 109 files.**
 # SUMMARY.md — executive summary (the S47 INFO-first lane's block on top; the S44 minors lane + the prior lanes below, newest-first)
 
 
@@ -332,6 +364,15 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-126 FIXED** (`089b7cc8`) + the hot-window main-red repairs (`ae2f9206`): the
+  og's ETA model landed as the query-layer eta_* helper family (FUN_1401af410's
+  whole-run base, 0.2/0.8 rate EMA, x0.6 time-budget variant, "3m00s" placeholder,
+  1 Hz countdown) + ScanTelemetrySnapshot.eta_* (the EMA state server-side) + the
+  CLI remaining-time line; O39's wrong premise superseded. The repairs closed 4
+  defects the parallel lanes' merged landings left: the N-171 double-tick
+  (F-A3-6 class), the default-set registry leak (the LzhWrongDash order
+  dependency), the N-177 same-name convergence (renamed), the S-058 fixture swap.
+  5 Eta tests; suite 1280/1280.
 - **M-134 FIXED** (`9455f50a`) — the og's deep-read grade validation: the two
   decoded sector-content rules (first-32-zero/first-4-0xFF → Low; the previous
   sector's last-16-zero → High), the GradeReader threaded at the completion pass
@@ -384,7 +425,7 @@ before the change.
   (all RED pre-fix); suite 1164/1164.
 
 **Board after this push (filesystem truth, post the parallel lanes' retirements
-absorbed at the merges): 59 active — 0 ACUTE · 5 SEVERE · 19 MAJOR · 25 MINOR ·
+absorbed at the merges): 58 active — 0 ACUTE · 5 SEVERE · 18 MAJOR · 25 MINOR ·
 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 

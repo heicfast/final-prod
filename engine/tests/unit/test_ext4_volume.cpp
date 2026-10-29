@@ -531,6 +531,8 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * ifmt(mode)==0x8000) is the registered deliberate non-adoption
  * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
  * defect. */
+/* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
+
 
 TEST(Ext4Engine, LegacyAclDirSizeClean) {
     auto img = build_volume();
@@ -622,8 +624,11 @@ TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
     EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
 }
 
-TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
-    /* N-177 (diff-to-fix): the og's truncation-damage marker (node FLAGS
+TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {
+    /* N-177 (diff-to-fix): the S53 lane's CONVERGENT landing (the
+     * cb2abd42 convergence kept both lanes' bodies; the shared name
+     * broke the gtest registration - renamed, the 12c2f09e repair
+     * class). The og's truncation-damage marker (node FLAGS
      * 0x200, EXT4SearchDLL :6300-6303 - FUN_180007510's
      * i_blocks < size>>9 verdict) lands as NODE_FLAG_SIZE_EXCEEDS_BLOCKS
      * (the same numeric bit 9), FILES only, clean 64-bit compute (the

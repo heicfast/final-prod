@@ -1,3 +1,41 @@
+<<<<<<< HEAD
+**Session-44 minors lane — N-167 landed + the hot-window repair set (2026-10-29).**
+
+- **N-167 FIXED** — the found-size aggregate: `ScanStats::bytes_found` stamped from
+  `ResultTree::total_logical()` inside the count refresh (`tel_counts_` widened to a
+  mutable stats ref), so the og's "Files Found: N (X GB)" headline renders from core
+  stats; the session record grew to v3 (48-byte REC_SESSION_STATE, len-gated; v1/v2
+  load zeroed — the tree re-stamps at the first count refresh after resume); the CLI
+  completion line renders "N file(s) (X GB)" with the corpus-pinned binary 1024^3
+  divisor (147.12 GB on a 149.45 GB volume — the Windows GB labeling), and the JSON
+  summary carries bytes_found. RED via the stashed-stamp rebuild (bytes_found stayed
+  0 while the tree carried the fixture's 1500 bytes — the finding's falsifiable
+  claim executed first-hand); GREEN: `ScanStats.BytesFoundAggregates` (the
+  one-consistent-pair pin: the aggregate IS tree.total_logical(), active + deleted
+  both count) + `ScanStats.BytesFoundSessionRoundTrip`. Suite 1320/1320.
+- **Hot-window repair set (this entry's merges):** (1) the S-055-window re-landing
+  re-introduced the N-171 double validated tick — collapsed to one (three-lane
+  convergence recorded in the comment); (2) the merge recomposed
+  Grading.ExtensionTableGatesDeepValidation's fixture rows against its assertions
+  (a.doc/c.zzqx restored per the M-134 landing's own shape) and left orphaned e1/e2
+  variables (the dotless pair's pin lives in DotlessNamesSkipTwinDetection);
+  (3) the convergence resurrected the S53 duplicate
+  Ext4Engine.SizeExceedsBlocksSetsDamagedFlag — dropped per the superset rule.
+  Audit trail: N-167 Resolution + findings/FIXED/ move, matrix row, orchestration
+  module doc, SUMMARY entry-3, this entry.
+
+=======
+- **Main-red CONVERGENT (30c1cef7 dropped at the rebase)** — the N-171/S-055 window's
+  cross-test user-sign registry leak (Carve.LzhWrongDashByteRejects order-dependent:
+  install_default_usersigns() leaked the default set through g_active; the default set's
+  own lha sign [2,2D6C68] fired on the later test's '-lh' anchor). This lane's independent
+  root-cause chain: two-test filter reproduction -> debug-print pinned the LHA_000001.LHA
+  @0xFFFE0000 user-sign emission -> the naive snapshot/restore guard's silent failure
+  (install_set refuses the invalid empty set) -> the clear() API + the UserSignRestore
+  RAII guard at 15 installer tests. The parallel window's repair (their own clear() +
+  the self-defending test) pushed first and wins per SA-9 - their comment records the
+  convergence ("closed two ways by two lanes"). Suite verified green at the merged tree.
+
 **S56 lane — N-154 landed + the third collision rider (2026-10-29).**
 
 **N-154 FIXED (MINOR — the bookkeeping-truth batch #2).** The cr_log.cpp
@@ -164,6 +202,7 @@ position) carves a device-end lha USER record BY D-104 DESIGN. The test
 asserted a no-user-sign world it never set. Fix: usersigns::clear() (the
 explicit registry reset - install cannot take an empty set) + the test pins
 its world. Suite green.
+>>>>>>> db82b5e64567a16453c23d574413e6ccc6ce17c5
 **Session-44 minors lane — N-171 (CONVERGENT-DU, their 7be438c9 wins per SA-9 — byte-equivalent tick; this lane's session round-trip test + the N-188 discovery ride as the supplements) + N-188 (unique) landed (2026-10-29).**
 
 - **N-171 FIXED** — the user-sign carved_count undercount: the user-sign emission path
@@ -553,6 +592,25 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **main-red repairs** (`ae2f9206`) — four defects from the parallel lanes' merged
+  landings, all closed with the suite green 1280/1280: the N-171 validated tick
+  kept twice by the merge (the F-A3-6 double-count class); the S-055/S-056
+  default-set installs leaking 190 user signs into every later carve test (the
+  per-process registry contract; teardown at all 6 sites); the S53/7be438c9 N-177
+  convergence keeping both same-named tests (renamed the convergent copy, the
+  12c2f09e class); the grading hot-window edit's S-058 fixture swap + pinless
+  e1/e2.
+- **M-126 FIXED** (`089b7cc8`) — the og's ETA model: FUN_1401af410
+  (:314835-314887) re-read first-hand; the query-layer eta_compute (the whole-run
+  base, the 0.2/0.8 EMA, the x0.6 budget leg, integer math exact) +
+  eta_format_m_s ("07m43s" zero-padded; the literal "3m00s" placeholder) +
+  eta_countdown_tick (the section parse + the stop condition);
+  ScanTelemetrySnapshot.eta_seconds/eta_smoothed_rate computed live on every
+  snapshot read (the EMA state server-side — hosts need no state); the CLI
+  progress line prints "remaining: XmYs". O39's "UI-side formatting" premise
+  superseded. Tests: Eta.WholeRunModel (the worked example 40/100@400s -> 600s) /
+  EmaDamping (exact integer pins) / TimeBudgetVariant / PlaceholderAndCountdownFormat /
+  ParameterErrorClass. Suite 1280/1280.
 - **M-134 FIXED** (`9455f50a`) — the deep-read grade validation: FUN_14038c470
   (:606291-619) re-read first-hand; the two threshold rules exact (addr==0:
   first-32-zero or first-4-0xFF -> Low; addr>0: the previous sector's
