@@ -277,7 +277,7 @@ WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
 
 ---
 
-## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 with the earlier claim) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
 **The seat conceded.** This lane decoded the DWG walk independently
 (FUN_18002f320, the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
@@ -473,7 +473,7 @@ AiHeaderFormulaWalkSetsExtent), GREEN with the walks; the torn and
 degenerate arms pin the salvage/decline semantics. The carve suite
 193/193. Remaining: WPD, SIT, APE (three) + the DWG gen-3 remainder.
 
-### The riders landed (the S86 rider commit)
+### The riders landed (the S89 rider commit, this session)
 
 Rider A (the row floor): the row min 64 -> 0x15 (21), the gen-1 walk's
 residual 512-byte floor removed (cr_analysers.cpp's gen-1 tail +

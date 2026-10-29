@@ -318,7 +318,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 
 | Ref | Ours | Status | Delta |
 |---|---|---|---|
-| R-83 service install/start/stop/delete | none in core (driver install lives in CI/release scripts; CORE-API §f: no driver-status surface) | GAP | No SCM/service lifecycle ops in the core; og performs them from the app. Our install is release-asset + install.ps1 (driver repo). |
+| R-83 service install/start/stop/delete | the in-process FVE harvest + the elevation diagnosis (ERR_FVE_ELEVATION_REQUIRED, 0x50060002); no SCM/service lifecycle ops (M-105 option (a) — the registered no-service posture, PARITY-DELTAS D-166) | REGISTERED-GAP (M-105 disposition) | No SCM code in core by decision; the og's transient LocalSystem service ("Read FVE Server") bridged the FVEAutoUnlock ACL for non-elevated hosts — the core surfaces the elevation claim instead. The driver-repo scripts install the RDA driver service only (verified), NOT "Read FVE Server". |
 | R-84 driver registration / on-demand load | **PRESENT — the 6-facet `cr_ui_driver_status_t`** (`cr_ui_driver_status` export + `include/cr/win/cr_driver_status.h`'s facet classifier; the old boolean probe REMOVED at src/win/cr_transport.cpp:13 — N-150's re-verified flip; **no version query, no loaded/started/authorized distinction** (CORE-API-CURRENT.md §e/§f, :482-521) | PARTIAL | Presence probe exists; the status/detail surface is a documented core gap (N-041 deleted the client; wire structs doc-only). Note: the corpus does NOT document a UI driver-status query for the og either (see §d) — og's on-demand load is engine-internal. |
 | R-85 drive-topology query | `cr_ui_enumerate_disks/volumes` + two-stack C++ enumeration (§b.3) | PRESENT | Equivalent (and the og module is drive-letter topology, not driver info — naming trap). |
 
@@ -422,7 +422,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | activation (R-80) | licensing:9-20 | none | GAP | product layer |
 | quota counters (R-81) | licensing:24-30 | none | GAP | product layer |
 | update check (R-82) | arch/04:35-37 | none | GAP | product layer |
-| service lifecycle (R-83) | DRWService:9-30 | none in core | GAP | install lives in driver-repo CI scripts |
+| service lifecycle (R-83) | DRWService:9-30 | the elevation diagnosis (M-105); no service | REGISTERED-GAP (D-166, M-105 option (a)) | none in core; the driver-repo scripts install the RDA driver service, not "Read FVE Server" (the prior note here was false — corrected per M-105) |
 | driver status query (R-84) | getdriverinfo:23 | the 6-facet cr_ui_driver_status_t (present/attached/loaded/started/authorized + version) | PRESENT (N-150 flip) | the facet set covers the og's display axes; the version/loaded/started/authorized axes landed (M-102's surface) — but see §d: og exposes no UI driver-status query either |
 | drive topology (R-85) | getdriverinfo:9-29 | enumerate_disks/volumes | PRESENT | — |
 | enumeration+refresh (R-86) | UIUX/13:14 | enumerate_*; refresh C++-only | PARTIAL | no standalone refresh export/verb |

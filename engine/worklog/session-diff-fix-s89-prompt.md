@@ -1,4 +1,10 @@
-# Session-86 (S86) — the diff-to-fix fix lane prompt (saved per T1; token REDACTED)
+# Session-89 (S89) — the diff-to-fix fix lane prompt (saved per T1; token REDACTED)
+
+> Renumbered from the born-collided S86 seat (a racing lane re-homed S79→S86
+> with the earlier claim; this lane takes S89 — the M-153 renumber
+> precedent). Saved at session open from the user's mandate; the S89 plan
+> section below stands as written except the lane id.
+
 
 Saved at session open from the user's mandate. Corpus `be0cfe9` (read-only),
 core opened at `32441353` (the S84/S85-window head: the image `--create` flag

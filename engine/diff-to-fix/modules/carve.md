@@ -1260,7 +1260,7 @@ CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
 
 
-## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 first) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
 **The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
 ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
@@ -1375,7 +1375,7 @@ invented "version 1..64" gate dropped (dw@4 is a block start, not a
 version). Seven new tests (five RED at the stand-in); the carve suite
 193/193. Remaining members: WPD, SIT, APE + the DWG gen-3 remainder.
 
-### The S86 riders landed (the rider commit, this session)
+### The S89 riders landed (the rider commit, this session)
 
 Both convergence riders over the racing DWG landing: (A) the row floor
 0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed

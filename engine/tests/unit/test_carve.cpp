@@ -2952,8 +2952,8 @@ TEST(Carve, EpsAdobeCovenantRequired) {
         auto* root = tree.add_root(u"L");
         CarveFlags flags;
         CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats),
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
                   OK);
         tree::FileNode* eps = nullptr;
         for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
@@ -3002,8 +3002,8 @@ TEST(Carve, AiHeaderFormulaWalkSetsExtent) {
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at, "\xC5\xD0\xD3\xC6", 4);
-    put32v(img, at + 4, 0x100);   /* block A start */
-    put32v(img, at + 8, 0x2000);  /* block A length */
+    put32v(img, at + 4, 0x100);    /* block A start */
+    put32v(img, at + 8, 0x2000);   /* block A length */
     put32v(img, at + 0xC, 0x2800); /* block B start */
     put32v(img, at + 0x10, 0x800); /* block B length */
     put32v(img, at + 0x14, 0x40);  /* block C start */
@@ -3129,16 +3129,16 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
     }
 }
 
-/* ---- the S86 convergence riders over the racing DWG landing ---- */
+/* ---- the S89 convergence riders over the racing DWG landing (this lane renumbered from the
+ * born-collided S86 seat) ---- */
 
 TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
-    /* the S86 rider A: the og's registered row floor is 0x15 = 21 (the
-     * CDWGRawInfo factory FUN_18002ff20's qword write at +0x110 -
-     * puVar1[0x22] = 0x15, the PNG/ONE ctor pattern [0x22]=min). A
-     * one-record walk ending at exactly 21 bytes emits at 21: RED at
-     * the first landing's tree (the residual 512-byte floor refused it
-     * AND the min-64 row rejected it at the emit gate); GREEN with the
-     * rider (the 512 floor gone from gen-1, the row min re-pinned). */
+    /* the S89 rider A (renumbered from the born-collided S86 seat): the og's registered row floor
+     * is 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword write at +0x110 - puVar1[0x22] =
+     * 0x15, the PNG/ONE ctor pattern [0x22]=min). A one-record walk ending at exactly 21 bytes
+     * emits at 21: RED at the first landing's tree (the residual 512-byte floor refused it AND the
+     * min-64 row rejected it at the emit gate); GREEN with the rider (the 512 floor gone from
+     * gen-1, the row min re-pinned). */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 512;
     plant_dwg_header(img, at, "12");          /* R13 - a gen-1 member */
@@ -3160,13 +3160,12 @@ TEST(Carve, DwgRowCarriesTheOgsRegisteredFloor) {
 }
 
 TEST(Carve, DwgWalkSelfLimitsAt256Records) {
-    /* the S86 rider B: the og's id-sequence gate compares the id byte
-     * against the FULL 32-bit running counter (raw-asm 0x18002f40a:
-     * movzbl the id, `cmp %ecx,%eax` with ecx the counter) - no byte can
-     * match a counter >= 256, so the walk SELF-LIMITS at 256 records. A
-     * count>256 fixture with wrapped ids (record 256 carrying id 0) is
-     * accepted by the u8(i) truncation and refused by the og. RED at the
-     * first landing's tree (the fixture carved); GREEN with the rider. */
+    /* the S89 rider B (renumbered from the born-collided S86 seat): the og's id-sequence gate
+     * compares the id byte against the FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
+     * id, `cmp %ecx,%eax` with ecx the counter) - no byte can match a counter >= 256, so the walk
+     * SELF-LIMITS at 256 records. A count>256 fixture with wrapped ids (record 256 carrying id 0)
+     * is accepted by the u8(i) truncation and refused by the og. RED at the first landing's tree
+     * (the fixture carved); GREEN with the rider. */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     plant_dwg_header(img, at, "15");

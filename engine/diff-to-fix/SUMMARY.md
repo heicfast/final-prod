@@ -1,4 +1,47 @@
-# SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S89 fix lane on top: M-105 landed under option (a); the prior lanes below, newest-first)
+
+## Session-89 S89 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one, with full context... update and put fixed findings in fixed directory... Aim for atleast 20+ fixes in this session"]; opened at core `32441353`, pulled through SIX racing windows (the windows landed M-107's DWG + PSP + WPG + WPD + DXF/EPS/AI members, M-075, M-078, M-159, N-223/N-224/N-225, the D-163..D-165 renumber wave); this lane's DWG landing CONCEDED to the racing window per SA-9 with two convergence riders carried; this lane renumbered S86→S89 over the racing window's S79→S86 re-home; corpus `be0cfe9` throughout)
+
+- **M-105 FIXED (MAJOR — option (a), the finding's own recommended
+  default):** the DRWService elevation-broker decision CLOSED as
+  NO-SERVICE (PACKAGING.md §13 + PARITY-DELTAS D-166 + the K-walk
+  DRWService rows [K71/K72/K73 absent-by-decision] + R-83's false note
+  corrected at both REFERENCE-API-GAP sites + SECURITY.md's
+  positive-posture section). The capability half the service existed
+  for is served by the diagnosis: the locked-volume harvest's failure
+  path now distinguishes "no keys configured" (ERR_FVE_LOCKED) from
+  "the store exists but this token cannot read it" (the new
+  ERR_FVE_ELEVATION_REQUIRED, 0x50060002, append-only in the FVE
+  family) via the cr_elevate TokenElevation probe — the pure rule in
+  the new cr/health/cr_fve_policy.h (the M-075 cr_fsck_launch
+  pattern), the live-open LSTATUS capture (ACCESS_DENIED = exists,
+  FILE_NOT_FOUND = absent) + the offline hive-file open capture
+  (harvest_offline_keys' open_err out-param), surfaced by open_volume.
+  RED first-hand (the compile-error class, the M-118/N-100/N-140
+  precedent) → GREEN: FvePolicy.* 4/4 both lanes +
+  Bitlocker.FveDiagnosisDistinguishesDenialFromAbsence on the Windows
+  lane; doc_truth_gate green at error codes=44; the win-stub grown
+  LSTATUS (win_syntax_check 13/13); the count claims swept 43→44.
+
+- **The S86→S89 renumber** (the born-collided seat: the racing window
+  re-homed S79→S86 with the earlier claim); every THIS-lane reference
+  swept (worklog header, the M-107 addendum, carve.md's addendum, the
+  M-105 rows, the pushed rider comments in
+  cr_analysers/cr_registry/test_carve).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+5 MAJOR · 3 MINOR · 0 INFO active / 206 FIXED / 4 tracked-open.** (Of
+the 5 active MAJORs, M-086/M-087/M-089 are driver-repo-resident per
+OQ-S10-3 — out of the two-repo grant; M-101 is mid-flight in a racing
+lane (its leaked test swept at 708fad32, the N-210 class); M-107
+remains active for its un-landed members — SIT, APE, SWF-RECT + the
+gen-3 R2007 remainder, after the window's members 1-9 landings and
+this lane's DWG riders.) Next free IDs: S-069+, M-160+, N-226+, I-049+,
+A-017+, D-167+.
+
+---
+
+
 
 ## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)
 

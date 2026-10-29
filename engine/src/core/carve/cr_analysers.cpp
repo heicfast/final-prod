@@ -4648,9 +4648,9 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
              * FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
              * id into eax, `cmp %ecx,%eax` with ecx the counter) - so the
              * walk SELF-LIMITS at 256 records (no byte can match a
-             * counter >= 256). The S86 convergence rider: the u8(i)
-             * truncation of the first landing accepted count>256 fixtures
-             * with wrapped ids the og refuses (FUN_18002f320's loop,
+             * counter >= 256). The S89 convergence rider (this lane renumbered from the
+             * born-collided S86 seat): the u8(i) truncation of the first landing accepted count>256
+             * fixtures with wrapped ids the og refuses (FUN_18002f320's loop,
              * 0x18002f400-0x18002f441). */
             if (u32(rec[0]) != i) {
                 /* the og's only structural gate: number != index ->
@@ -4670,8 +4670,8 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         u64 end = hit + extent;
         if (end > limit)
             end = limit;
-        /* the S86 convergence rider: the residual 512-byte floor removed -
-         * the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
+        /* the S89 convergence rider (renumbered from the born-collided S86 seat): the residual
+         * 512-byte floor removed - the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
          * factory FUN_18002ff20's qword write at +0x110 - the SAME write
          * that seeds the walk cursor; the PNG/ONE ctor pattern
          * [0x22]=min/[0x23]=max), and the og's gen-1 walk has no other
@@ -6277,7 +6277,7 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
             if (found)
                 break;
             if (chunk < win.size())
-                break; /* short final read: the window is exhausted */
+                break;                 /* short final read: the window is exhausted */
             pos += chunk - (plen - 1); /* the straddle overlap */
         }
     }

@@ -1,7 +1,7 @@
-## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-89 S89 lane (renumbered from the born-collided S86 seat: the racing window re-homed S79→S86 with the earlier claim; this lane takes S89) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
-The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
+The prompt saved token-redacted (`worklog/session-diff-fix-s89-prompt.md`, renumbered from the born-collided s86 filename).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
 this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
 18.1.8, cmake 4.4.4).
@@ -61,6 +61,19 @@ endpoint), M-107 members 3 (DWG gen-1+gen-2), 4 (PSP ~BK), 5 (WPG
 zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
+
+**M-105 LANDED (option (a), this session):** the no-service posture —
+PACKAGING.md §13 + PARITY-DELTAS D-166 + the K-walk DRWService rows
+[K71/K72/K73 absent-by-decision] + R-83's false note corrected at both
+REFERENCE-API-GAP sites + SECURITY.md's positive-posture section +
+ERR_FVE_ELEVATION_REQUIRED (0x50060002, append-only) with the pure rule
+in the new cr/health/cr_fve_policy.h (the M-075 pattern), the
+live-open LSTATUS capture + the offline hive-file open capture
+(harvest_offline_keys' open_err), surfaced by open_volume's locked
+path. RED (the compile-error class) → GREEN: FvePolicy.* 4/4 both
+lanes + the Windows-lane seam; doc_truth_gate green at 44; the win-stub
+grown LSTATUS; the count claims swept 43→44. The finding retired to
+findings/FIXED/ with its Resolution.
 
 **The two riders LANDED (the rider commit, this session):** (A) the row
 floor 0x15 = 21 (the gen-1 walk's residual 512-byte floor removed +
