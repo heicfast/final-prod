@@ -299,6 +299,8 @@ halves of the polarity pin) and convergence addendum ride in the finding file;
 its redundant code/tests were dropped per the superset rule (the winning 23/23
 battery incl. S-061's ReFS/Btrfs insert-time pins stands).
 
+**Session-46 lane — wave 2 (2026-10-29):** the hot-window RED MAIN repaired before the landing (the N-177 convergence duplicate-TEST redefinition [build-breaking], the N-171 validated double-count, the 4d450da2 crossed grading assertions, and the S-055/S-056 battery's user-sign test-hygiene leak [the 190-sign default install never torn down — the og's weak "lha" '-lh' sign carved the wrong-dash LZH fixture; bisected first-hand; per-test teardowns]); **N-166 FIXED** (the live file-count telemetry: the tree-atomic attach counters + the emit-time monotonic refresh; deleted_found boundary-only [the post-attach truth]; the header contract re-truthed; TelemetryCountersMoveDuringCarveStage RED pre-fix; suite 1312 green).
+
 **Session-46 lane landings (the other MINOR-first seat, 2026-10-29):** **N-158 FIXED** (`78b9b7aa` — the OfficeTagFromXML five-branch typing tail: XMIND/MMAP/EDDX/WFP/DRP, the disassembly-decoded XMIND probe + the no-stop chain walk + D-134), **N-159 FIXED** (`035508fa` — the failed-files report's tree_class axis + failed_bytes split + the three register repairs), **N-163 FIXED** (`142a7f40` — the NTFS runlist truncate-and-keep tolerance + the torn flag + PartialRisk grading + D-135), **N-165 FIXED** (`7f4f30d4` — the FAT out-of-volume stance registered D-136 + the stance pin). Suites green at each push; the full Resolutions ride the finding files + ledger rows.
 
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
@@ -364,6 +366,13 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-127 FIXED** (`0a46063c`) — the FAT/exFAT chain cycle guard adopts the og's
+  range-tree shape (VisitedRuns, runs as intervals) in all three walkers: measured
+  62.18 s → 1.55 s on the 100 × 65,536-cluster fixture (40×, the no-freeze
+  directive's stall class closed); the caps and cancel checks untouched; the
+  semantic pin proves identical stop points; the self-loop sub-case documented as
+  unreachable through the og's whole-table validation. CycleGuardPerf RED pre-fix;
+  suite 1296/1296.
 - **M-126 FIXED** (`089b7cc8`) + the hot-window main-red repairs (`ae2f9206`): the
   og's ETA model landed as the query-layer eta_* helper family (FUN_1401af410's
   whole-run base, 0.2/0.8 rate EMA, x0.6 time-budget variant, "3m00s" placeholder,
@@ -425,7 +434,7 @@ before the change.
   (all RED pre-fix); suite 1164/1164.
 
 **Board after this push (filesystem truth, post the parallel lanes' retirements
-absorbed at the merges): 58 active — 0 ACUTE · 5 SEVERE · 18 MAJOR · 25 MINOR ·
+absorbed at the merges): 57 active — 0 ACUTE · 5 SEVERE · 17 MAJOR · 25 MINOR ·
 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 

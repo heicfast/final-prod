@@ -3639,8 +3639,7 @@ TEST(CrUi, OutOfScopeRowsCarryTruthfulRegistrations) {
     const std::string inv = cr_test::read_repo_file("diff-to-fix/SURFACE-INVENTORY.md");
     ASSERT_FALSE(inv.empty());
     /* the row itself must cite the REGISTERED state, not the audited-drift state */
-    EXPECT_NE(inv.find("REGISTERED OUT OF SCOPE (S-050 disposition"),
-              std::string::npos)
+    EXPECT_NE(inv.find("REGISTERED OUT OF SCOPE (S-050 disposition"), std::string::npos)
         << "the file-repair row cites the formal registration";
     const std::string cap = cr_test::read_repo_file("docs/CAPABILITY-MATRIX.md");
     ASSERT_FALSE(cap.empty());

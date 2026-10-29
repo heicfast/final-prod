@@ -2508,16 +2508,16 @@ TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
     u8* b = img.data();
     std::memcpy(b + 3, "MSWIN4.1", 8);
     put16(img, 0x0B, 512);
-    b[0x0D] = 1;              /* spc 1: 5000 data clusters (FAT16 bracket) */
-    put16(img, 0x0E, 2);      /* reserved */
-    b[0x10] = 2;              /* FAT count */
-    put16(img, 0x11, 0);      /* root entries 0 (FAT32 shape) */
-    put16(img, 0x13, 0);      /* total16 unused */
+    b[0x0D] = 1;         /* spc 1: 5000 data clusters (FAT16 bracket) */
+    put16(img, 0x0E, 2); /* reserved */
+    b[0x10] = 2;         /* FAT count */
+    put16(img, 0x11, 0); /* root entries 0 (FAT32 shape) */
+    put16(img, 0x13, 0); /* total16 unused */
     b[0x15] = 0xF8;
-    put16(img, 0x16, 0);      /* spf16 unused */
-    put32v(img, 0x20, 5514);  /* total32 */
-    put32v(img, 0x24, 256);   /* spf32 - the string branch's gate + the window floor */
-    put32v(img, 0x2C, 2);     /* root cluster 2 */
+    put16(img, 0x16, 0);     /* spf16 unused */
+    put32v(img, 0x20, 5514); /* total32 */
+    put32v(img, 0x24, 256);  /* spf32 - the string branch's gate + the window floor */
+    put32v(img, 0x2C, 2);    /* root cluster 2 */
     std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
@@ -2550,7 +2550,8 @@ TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
     tree::FileNode* n = find_node(tree, "STRFMT32.TXT");
     ASSERT_NE(n, nullptr);
-    EXPECT_EQ(n->props()->fs_kind, 2u) << "the FAT32 string drives flavor 2 under the FAT16 bracket";
+    EXPECT_EQ(n->props()->fs_kind, 2u)
+        << "the FAT32 string drives flavor 2 under the FAT16 bracket";
 }
 
 TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
@@ -2561,7 +2562,7 @@ TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
     std::vector<u8> img(u64(3000) * 512, 0);
     build_fat16_boot(img);
     put16(img, 0x13, 3000);
-    put16(img, 0x16, 12); /* spf 12: inside the Fat12 window [1,12] */
+    put16(img, 0x16, 12);                    /* spf 12: inside the Fat12 window [1,12] */
     std::memset(img.data() + 0x36, 0x20, 8); /* blank the FAT16 string */
     /* FAT12-shaped media words (family-tolerant validator); layout:
      * reserved 2 + 2x12 FAT + 32 root -> FAT2 at 14, root at 26, data 58 */
@@ -2931,4 +2932,145 @@ TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
     ASSERT_NE(z, nullptr) << "the 2107-dated dentry must be a result";
     EXPECT_EQ(z->props()->times.modified, 4354776000ULL * 10000000ULL + 116444736000000000ULL)
         << "the 2107 date converts fully (the og has no cutoff)";
+}
+
+/* ===================================================================== */
+/* M-127 (diff-to-fix): the chain cycle guard's data structure - the   */
+/* og's range tree (each contiguous run one interval, corpus            */
+/* fat-exfat-engine-algorithms-v2.md:43-56) vs the core's O(n^2)       */
+/* visited-vector scan (the 2.1e9-comparison stall class on maximal    */
+/* chains - the no-freeze directive's hit).                              */
+/* ===================================================================== */
+
+TEST(FatChain, RunCoalescingDetectsOverlap) {
+    /* the semantic pin: the run-tree guard stops EXACTLY where the
+     * vector guard stopped - the backward pointer, the A->B->A loop,
+     * the self-loop, and the re-entry into an earlier run. */
+    /* the TruncatedVolumeOverflow fixture's exact boot shape (the
+     * 66,562-sector FAT32 that loads clean), with the chain links added */
+    std::vector<u8> img(u64(66562) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put32v(img, 0x20, 66562);
+    put32v(img, 0x24, 512);
+    put32v(img, 0x2C, 2);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 8 * 512, FAT2 = 520 * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* A -> B -> A (the two-node loop) */
+    link32(100, 101);
+    link32(101, 100);
+    /* (a self-loop is unreachable through a validated table: the og's
+     * whole-table validation rejects v == i entries outright - the
+     * M-015 sweep - so the guard's self-loop semantics ride the same
+     * visit() re-entry path the backward pointer below exercises) */
+    /* the long run 300..400 then a backward pointer to 350 */
+    for (u32 c = 300; c < 400; ++c)
+        link32(c, c + 1);
+    link32(400, 350);
+    /* the clean long run (no cycle): 500..700 -> EOC */
+    for (u32 c = 500; c < 700; ++c)
+        link32(c, c + 1);
+    link32(700, 0x0FFFFFF8);
+
+    u8 boot[512];
+    std::memcpy(boot, b, 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(70000) * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+
+    ChainResult ab = follow_chain(t, 100, 0x10000, nullptr);
+    EXPECT_TRUE(ab.cycle);
+    ASSERT_EQ(2u, ab.clusters.size());
+
+    ChainResult back = follow_chain(t, 300, 0x10000, nullptr);
+    EXPECT_TRUE(back.cycle) << "the backward pointer into the run re-enters";
+    ASSERT_EQ(101u, back.clusters.size()) << "300..400 walked, 350 re-entered";
+
+    ChainResult clean = follow_chain(t, 500, 0x10000, nullptr);
+    EXPECT_FALSE(clean.cycle);
+    EXPECT_FALSE(clean.broken);
+    EXPECT_EQ(201u, clean.clusters.size());
+}
+
+TEST(FatChain, CycleGuardPerf) {
+    /* the finding's synthetic stall fixture: 100 maximal-length
+     * contiguous chains (65,536 clusters each) on a memory FAT - the
+     * pre-fix vector guard costs ~2.1e9 comparisons PER CHAIN (the
+     * 100+ s CPU class); the run-tree guard walks each chain in
+     * milliseconds. Budget: the whole fixture under 10 s wall (the
+     * pre-fix shape cannot come close - RED by >20x). */
+    const u32 CHAIN_LEN = 0x10000;
+    const u32 CHAINS = 100;
+    /* the geometry, reference-shaped: cluster ids up to 2 + 100*65,536 -
+     * 1; the FAT32 table covers them at 4 bytes/entry; spc = 1 keeps the
+     * image at a lazy-mapped ~3.4 GB (only the ~52 MB of FAT pages are
+     * ever touched - follow_chain reads no data). */
+    const u64 max_cluster_needed = 2 + u64(CHAINS) * CHAIN_LEN;
+    const u32 spf = u32((max_cluster_needed * 4 + 511) / 512) + 8;
+    const u64 total_secs = 8 + u64(2) * spf + 32 + max_cluster_needed;
+    std::vector<u8> img(total_secs * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put32v(img, 0x20, u32(total_secs));
+    put32v(img, 0x24, spf);
+    put32v(img, 0x2C, 2);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 8 * 512, FAT2 = (8 + spf) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* CHAINS disjoint maximal contiguous chains, each ending in EOC */
+    for (u32 ch = 0; ch < CHAINS; ++ch) {
+        const u32 base = 2 + u64(ch) * CHAIN_LEN;
+        for (u32 i = 0; i + 1 < CHAIN_LEN; ++i)
+            link32(base + i, base + i + 1);
+        link32(base + CHAIN_LEN - 1, 0x0FFFFFF8);
+    }
+    u8 boot[512];
+    std::memcpy(boot, b, 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, total_secs * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (u32 ch = 0; ch < CHAINS; ++ch) {
+        ChainResult r = follow_chain(t, 2 + u64(ch) * CHAIN_LEN, 0x10000, nullptr);
+        ASSERT_FALSE(r.cycle);
+        ASSERT_EQ(CHAIN_LEN, r.clusters.size()) << "chain " << ch;
+    }
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count();
+    /* measured at the M-127 landing: the pre-fix vector guard walks
+     * this fixture in 62.2 s (the stall class); the run-tree guard in
+     * 1.55 s - a 40x improvement. The 10 s budget fails the pre-fix
+     * shape by 6.2x and passes the fix with 6.4x headroom. */
+    EXPECT_LT(ms, 10000) << "100 maximal chains took " << ms << " ms - the stall class";
 }

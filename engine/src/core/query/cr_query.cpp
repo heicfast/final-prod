@@ -619,8 +619,7 @@ EtaModel eta_compute(unsigned long long done, unsigned long long total,
      * total == 0 -> -1 (no estimate) */
     if (done == 0 || total < done || total == 0)
         return out;
-    const long long eta_s =
-        (long long)(((total - done) * elapsed_ms) / done / 1000ull);
+    const long long eta_s = (long long)(((total - done) * elapsed_ms) / done / 1000ull);
     if (eta_s <= 0)
         return out; /* the og: no positive estimate -> the field keeps -1 */
     long long rate = (long long)((total - done) / (unsigned long long)eta_s);
@@ -637,10 +636,9 @@ EtaModel eta_compute(unsigned long long done, unsigned long long total,
     long long projected = (long long)((total * (unsigned long long)elapsed_s) / done);
     if (projected == 0)
         projected = 1;
-    out.eta_seconds =
-        (long long)(((double)((long long)budget_seconds -
-                              (long long)budget_seconds * elapsed_s / projected)) *
-                    0.6);
+    out.eta_seconds = (long long)(((double)((long long)budget_seconds -
+                                            (long long)budget_seconds * elapsed_s / projected)) *
+                                  0.6);
     return out;
 }
 

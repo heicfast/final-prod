@@ -1839,7 +1839,7 @@ TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
     tree::FileProperties* p = new tree::FileProperties();
     p->name = u"truncated.dat";
     p->fs_kind = u32(FsKindCode::Ext4);
-    p->flags = tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
+    p->flags = tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
     p->extents.push_back({4096, 1024});
     t.add_file(root, p);
     p->release();
@@ -1857,10 +1857,10 @@ TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
     ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
     tree::FileNode* g2 = t2.roots()[0]->first_child();
     ASSERT_NE(g2, nullptr);
-    EXPECT_NE(0, int(g2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_NE(0, int(g2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the damaged bit survives the save/load";
     tree::FileNode* q2 = g2->next_sibling();
     ASSERT_NE(q2, nullptr);
-    EXPECT_EQ(0, int(q2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+    EXPECT_EQ(0, int(q2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
         << "the clean node never gains the bit";
 }

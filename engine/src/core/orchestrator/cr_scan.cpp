@@ -551,9 +551,32 @@ void ScanController::tel_counts_(ScanStats& stats, const CancelToken* cancel) {
  * Emissions never hold the telemetry mutex (callbacks must not block and
  * must never be called under a core lock). */
 
+/* N-166 (diff-to-fix): refresh the file counters from the tree's LIVE
+ * atomics at every event emit. The og's "Files Found" tracks the tree
+ * continuously (~2 s cadence, DRWUI.log's matched/total lines; the
+ * dynamic-ground-truth capture shows the Reconstructed branch growing
+ * 1->16 live over 6 minutes); the pre-fix core froze the counters at
+ * stage boundaries — a 10-minute carve streamed progress events whose
+ * counts never moved. The refresh is monotonic (never regresses below
+ * what a boundary stamp or an earlier event already reported); the
+ * stage-boundary stamps stay the authoritative close-of-stage sample
+ * (tel_counts_ re-truths from ScanStats at every boundary). deleted_found
+ * stays boundary-only: the engines assign the deleted-state AFTER the
+ * attach, so it is not derivable at add time. */
+void ScanController::refresh_live_counts_() const {
+    std::lock_guard<std::mutex> lock(tel_.m);
+    const u64 raw = tree_.live_raw();
+    const u64 files = tree_.live_files() > raw ? tree_.live_files() - raw : 0;
+    if (files > tel_.snap.files_found)
+        tel_.snap.files_found = files;
+    if (raw > tel_.snap.carved_found)
+        tel_.snap.carved_found = raw;
+}
+
 void ScanController::emit_event_(event::Type type, u32 stage) const {
     if (event_fn_ == nullptr)
         return;
+    refresh_live_counts_(); /* N-166 */
     event::Event e;
     e.type = type;
     e.stage = stage;
@@ -599,6 +622,7 @@ void ScanController::emit_event_(event::Type type, u32 stage) const {
 void ScanController::emit_progress_event_(u32 stage) const {
     if (event_fn_ == nullptr)
         return;
+    refresh_live_counts_(); /* N-166: the counts ride every progress tick */
     /* coalesce: fire only when the overall permille advanced (<= 1000
      * events per scan plus stage flips - the documented sample cadence) */
     u32 overall;
@@ -738,8 +762,8 @@ ScanTelemetrySnapshot ScanController::telemetry() const {
      * reads - the time-budget variant is the type-gated display-side
      * leg hosts opt into via query::eta_compute directly. */
     {
-        const query::EtaModel em = query::eta_compute(
-            out.overall_permille, 1000ull, out.elapsed_ms, tel_.eta_prev_rate, false, 0);
+        const query::EtaModel em = query::eta_compute(out.overall_permille, 1000ull, out.elapsed_ms,
+                                                      tel_.eta_prev_rate, false, 0);
         out.eta_seconds = em.eta_seconds;
         out.eta_smoothed_rate = em.smoothed_rate;
         tel_.eta_prev_rate = em.smoothed_rate;

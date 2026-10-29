@@ -146,8 +146,7 @@ struct ProgressDisplay {
             const std::string m126 = query::eta_format_m_s(em.eta_seconds);
             std::mbstowcs(eta, m126.c_str(), 31);
         }
-        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct,
-                static_cast<long long>(ms) / 1000,
+        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct, static_cast<long long>(ms) / 1000,
                 em.eta_seconds > 0 ? eta : L"3m00s");
         return true;
     }
