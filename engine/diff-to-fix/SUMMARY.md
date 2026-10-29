@@ -220,6 +220,15 @@ driver-repo-resident per OQ-S10-3).
 
 - **M-136 FIXED (MAJOR, writer/orchestrator)** — the recovery pass reads through the scan's own pipe: both entry points (the CLI recover verb + the ABI recovery_open) construct the writer's source via `build_read_pipe(src, 8 MiB, 256 KiB)` — the M-058 single construction seam with the scan's exact constants (SliceShim identity → RetryingDevice ×3 Skip-mode → CachedReader), the chain owned by the entry context and provably outliving the writer (local-before-writer in the CLI; a `read_pipe` member declared before `writer` in CrRecovery). The og's export reads are stream-mediated (arch/04 §7.5 + FUN_140540670's props+0x30 → vt+0x78 GetStream dispatch at DRWUI:873629-873671, re-read first-hand) — never a bare device handle; a transient read error the scan retried past no longer zero-fills the same span at export. RED: the wiring pin at the stash-revert state (both grep pins npos); GREEN: 4/4 Writer tests + the negative control pinning the removed bare-device behavior; full suite **1507/1507**. The LDM basis devices keep raw member reads on BOTH sides (scan + export — no disagreement; the og's candidate-side cache is the scan's own posture).
 
+- **M-107 X3F FIXED (MAJOR, member 1 of 11 — the finding's own
+  decode-then-land order)** — the og's X3F size walk decoded first-hand
+  (FileX3FAnalyser FUN_1800535b0: the forward "SECd" section-directory
+  marker scan, extent = SECd + 0x4C — the directory's fixed 76-byte tail,
+  the file's end by construction); validate_x3f walks it (256 KiB windows,
+  3-byte straddle overlap); the torn shape salvages the walked prefix at
+  the row cap (the og's loop-exit). 2 tests (the true-end pin on a
+  100 MiB device + the torn salvage); suite 1570/1570.
+
 - **OQ-S52-1 RESOLVED (tracked-open closed)** — the ext-family kind
   classification: the analyser's rule decoded first-hand (the 0x2c0
   EXTENTS|64BIT|FLEX_BG ext4 gate with the desc_size companion; the

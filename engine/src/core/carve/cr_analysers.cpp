@@ -4998,9 +4998,20 @@ CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* X3F: "FOVb" key 0x62564f46 (:5504) -> X3F chain idx 108. Version at +4
- * is ASCII ("2.1" etc.); the section-directory walk lives at the file
- * footer (unreachable mid-slice) - the DWG-pattern bounded extent is the
- * sanctioned heuristic, the section walk is the recorded follow-up. */
+ * is ASCII ("2.1" etc.). M-107 (the X3F landing, the finding's own
+ * decode-then-land order): the og's size walk is FileX3FAnalyser
+ * FUN_1800535b0, decoded first-hand - a forward scan for the "SECd"
+ * section-directory marker (0x64434553), sector-stepped with 2-sector
+ * overlapping windows up to the device cap, and the extent is
+ * SECd_position + 0x4C (the directory's fixed 76-byte tail - the og's
+ * exact arithmetic in all three found-branch shapes). The directory sits
+ * at the file's END by construction (the writer appends sections then
+ * the directory), so SECd + 0x4C IS the file's natural end. The core
+ * batches the same coverage in 256 KiB windows (3-byte overlap so a
+ * marker straddling a window boundary is never missed - the og's
+ * 2-sector overlap serves the same role). A torn file (no SECd in
+ * range) salvages the walked prefix at reduced confidence - the og's
+ * loop-exit shape (the scan stops at its cap with the last offset). */
 CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5010,6 +5021,7 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (h[4] < '0' || h[4] > '9' || h[5] != '.')
         return r; /* ASCII version digit + point */
+<<<<<<< HEAD
     /* M-107: the og's section-directory size walk (Brance::X3FAnalyser,
      * RAWSearchDLL FUN_1800404a0 :48851-48910 + the magic finder
      * FUN_18003ffc0 :48624-48638, re-read first-hand this session): the
@@ -5078,6 +5090,39 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = 0;
     r.confidence = 0;
     r.note = "x3f-no-directory";
+=======
+    r.ok = true;
+    const u64 limit = probe_limit(s, hit, cap);
+    constexpr u64 X3F_DIR_TAIL = 0x4C; /* the og's fixed directory tail */
+    u8 win[256 * 1024];
+    bool found = false;
+    u64 sec_at = 0;
+    for (u64 off = 8; off + 4 <= limit && !found; off += sizeof(win) - 3) {
+        u64 want = std::min<u64>(sizeof(win), limit - off);
+        if (!rd(s, hit + off, win, u32(want)))
+            break;
+        for (u64 i = 0; i + 4 <= want; ++i) {
+            if (win[i] == 'S' && win[i + 1] == 'E' && win[i + 2] == 'C' && win[i + 3] == 'd') {
+                sec_at = off + i;
+                found = true;
+                break;
+            }
+        }
+        if (off + want >= limit)
+            break; /* the last window - no more data */
+    }
+    if (found) {
+        r.end = std::min(sec_at + X3F_DIR_TAIL, limit - hit) + hit;
+        r.confidence = 620;
+        r.note = "x3f-section-directory-walk";
+    } else {
+        /* torn: the walked prefix (bounded by the row cap) - the og's
+         * loop-exit salvage shape */
+        r.end = limit;
+        r.confidence = 550;
+        r.note = "x3f-torn-no-section-directory";
+    }
+>>>>>>> 475907ee (fix(carve): M-107's X3F member - the section-directory size walk replaces the 64 MiB stand-in (the finding's own decode-then-land order, member 1 of 11). The og's walk decoded first-hand from FileX3FAnalyser FUN_1800535b0 (RAWSearchDLL :63457-63560, read in full): a forward scan for the 'SECd' section-directory marker (0x64434553), sector-stepped with overlapping 2-sector windows, extent = SECd_position + 0x4C in ALL THREE found-branch shapes - the directory's fixed 76-byte tail, which by construction IS the file's end (the X3F writer appends the directory last; the FileRepair artifact x3f-repair--section-checkers-walk.md's directory-first repair model corroborates). Landing: validate_x3f scans 256 KiB windows (3-byte straddle overlap - the guard the og's overlapping windows serve) to the probe limit; found -> SECd + 0x4C (row-clamped); torn (no SECd in range) -> the walked prefix at the row cap with reduced confidence (the og's loop-exit salvage shape, never a refusal). The DWG-pattern stand-in and its 'recorded follow-up' comment are gone for X3F. Tests: Carve.X3fSectionDirectoryWalkCarvesTrueEnd (a 1 MiB true end on a 100 MiB device - the stand-in carved 64 MiB; RED by construction pre-fix) + Carve.X3fTornSalvagesTheWalkedPrefix; suite 1570/1570. The finding stays active for the remaining ten members (CRW's CIFF heap chain next). Trail: the finding's S71 addendum, matrix row, modules/carve.md S71 addendum, SUMMARY, worklog)
     return r;
 }
 

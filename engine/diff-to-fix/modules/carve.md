@@ -1158,3 +1158,21 @@ Carve.StatsPerFormatTally (the tally partitions `validated`; tree-walk
 cross-check) / Report.ScanAnalysisCarriesPerFormat /
 Orchestrator.CarveTallySessionRoundTrip / CrUi.ScanCarveTallyPerFormat;
 suite 1536/1536.
+
+## Session-71 addendum — the X3F size walk (M-107 member 1) (2026-10-29)
+
+**The X3F stand-in replaced.** The og's walk decoded first-hand
+(FileX3FAnalyser FUN_1800535b0, RAWSearchDLL :63457-63560): a forward scan
+for the "SECd" section-directory marker (0x64434553), sector-stepped with
+overlapping windows, extent = SECd_position + 0x4C (all three found-branch
+shapes carry the identical +0x4C — the directory's fixed 76-byte tail; the
+directory is the file's last section by construction, corroborated by the
+FileRepair artifact's directory-first repair model). Landing: validate_x3f
+scans 256 KiB windows (3-byte straddle overlap) to the probe limit; found →
+SECd + 0x4C (row-clamped); torn → the walked prefix at the row cap, reduced
+confidence (the og's loop-exit salvage). The 64 MiB stand-in + its
+"recorded follow-up" comment gone for X3F. Tests:
+Carve.X3fSectionDirectoryWalkCarvesTrueEnd (the 1 MiB true end on a
+100 MiB device — the stand-in carved 64 MiB) + Carve.X3fTornSalvages
+TheWalkedPrefix. Suite 1570/1570. The row: A25/A27 (X3F slice) MATCH;
+the finding stays active for the remaining ten members (CRW next).

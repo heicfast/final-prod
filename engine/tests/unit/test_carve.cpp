@@ -432,8 +432,7 @@ TEST(Carve, StatsPerFormatTally) {
     u64 walked_sum = 0;
     for (const auto& kv : walked) {
         walked_sum += kv.second;
-        ASSERT_LT(kv.first, stats.per_format_slots)
-            << "a tree row outside the counting space";
+        ASSERT_LT(kv.first, stats.per_format_slots) << "a tree row outside the counting space";
         EXPECT_EQ(stats.per_format[kv.first], kv.second)
             << "row " << kv.first << ": the tally must match the tree walk";
     }
@@ -12312,4 +12311,84 @@ TEST(UserSigns, ShippedCensusDedupTruth) {
     EXPECT_STREQ("asf", asf_sign->mime) << "the LAST block's mime survives the dedup";
     EXPECT_EQ(16u, asf_sign->len);
     EXPECT_EQ(0u, asf_sign->offset);
+}
+
+TEST(Carve, X3fSectionDirectoryWalkCarvesTrueEnd) {
+    /* M-107 (the X3F landing - the finding's decode-then-land order,
+     * X3F first): the og's size walk (FileX3FAnalyser FUN_1800535b0,
+     * decoded first-hand) scans forward for the "SECd" section-directory
+     * marker and stamps SECd + 0x4C - the directory's fixed 76-byte
+     * tail, which by construction IS the file's end (the writer appends
+     * the directory last). The 64 MiB DWG-pattern stand-in carved a
+     * 100 MiB device at 64 MiB for a 1 MiB file; the walk carves the
+     * true end exactly. */
+    const u64 payload = 1ull << 20; /* 1 MiB of sections before the dir */
+    const u64 at = 512;
+    std::vector<u8> img(100ull << 20, 0);
+    /* the FOVb header: magic + ASCII version "2.1" */
+    std::memcpy(img.data() + at, "FOVb", 4);
+    img[at + 4] = '2';
+    img[at + 5] = '.';
+    img[at + 6] = '1';
+    /* the section payload (SECi/SECm/SECp sections - content irrelevant
+     * to the walk; the marker is what matters) */
+    std::memcpy(img.data() + at + 0x1000, "SECi", 4);
+    std::memcpy(img.data() + at + 0x2000, "SECm", 4);
+    /* the section directory at payload's end */
+    const u64 sec_at = at + payload;
+    std::memcpy(img.data() + sec_at, "SECd", 4);
+    /* directory entries follow (content irrelevant - the og's +0x4C tail
+     * is fixed regardless of the entry count) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the FOVb hit carves";
+    EXPECT_EQ(nd->props()->carve_format, u64(FMT_X3F));
+    EXPECT_EQ(nd->props()->logical_size, size_t(payload) + 0x4C)
+        << "SECd + 0x4C - the og's exact walk end (not the 64 MiB stand-in)";
+}
+
+TEST(Carve, X3fTornSalvagesTheWalkedPrefix) {
+    /* M-107 (X3F): the torn shape - no SECd in range - salvages the
+     * walked prefix at the row cap (the og's loop-exit shape: the scan
+     * stops at its cap with the last stepped offset), never a silent
+     * refusal. On a 100 MiB device the walked prefix is the 64 MiB row
+     * bound (the probe limit); the confidence class drops (the
+     * no-directory salvage). */
+    const u64 at = 512;
+    std::vector<u8> img(100ull << 20, 0);
+    std::memcpy(img.data() + at, "FOVb", 4);
+    img[at + 4] = '2';
+    img[at + 5] = '.';
+    img[at + 6] = '1';
+    /* sections present but NO directory marker anywhere in range */
+    std::memcpy(img.data() + at + 0x1000, "SECi", 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the torn X3F still carves (the salvage)";
+    EXPECT_EQ(nd->props()->logical_size, size_t(64ull << 20))
+        << "the walked prefix at the row cap - the og's loop-exit salvage";
 }

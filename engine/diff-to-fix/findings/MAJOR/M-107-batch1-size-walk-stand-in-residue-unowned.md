@@ -101,6 +101,7 @@ device; the pin's fail-before proven by mutation: 32→16 MiB goes RED). The sit
 disposition: stand-in stays (the D-101 decline covers it); the registration gap that
 was N-146's actual defect is closed.
 
+<<<<<<< HEAD
 
 ---
 
@@ -130,3 +131,10 @@ was N-146's actual defect is closed.
    (x3f-repair--section-checkers-walk.md §2).
 2. **CRW — NEXT** (FUN_180052160, the CIFF heap chain).
 3. DWG, then WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT — pending.
+=======
+---
+
+## Session-71 addendum — the X3F landing (the finding's own decode-then-land order, member 1 of 11)
+
+**X3F FIXED** (this session; the remaining ten members stay with the finding): the og's X3F size walk is decoded first-hand from FileX3FAnalyser FUN_1800535b0 (RAWSearchDLL :63457-63560, read in full this session): a forward scan for the "SECd" section-directory marker (0x64434553), sector-stepped with overlapping 2-sector windows up to the device cap, with the extent = SECd_position + 0x4C in ALL THREE found-branch shapes (the sector-aligned hit `uVar7 += 0x4c; break;`, and both in-buffer search hits' `piVar5 + ... + 0x4c` forms — the directory's fixed 76-byte tail, which by construction IS the file's end: the X3F writer appends the directory last, corroborated by the FileRepair artifact x3f-repair--section-checkers-walk.md's directory-first repair model). The core's landing: `validate_x3f` scans 256 KiB windows (3-byte overlap — the straddle guard the og's 2-sector windows serve) from the header to the probe limit; found → `SECd + 0x4C` (clamped by the row bound); torn (no SECd in range) → the walked prefix at the row cap with the reduced confidence class (the og's loop-exit salvage shape — the scan stops at its cap with the last offset, never a refusal). The 64 MiB DWG-pattern stand-in and its "recorded follow-up" comment are GONE for X3F. Tests: `Carve.X3fSectionDirectoryWalkCarvesTrueEnd` (a 1 MiB true end on a 100 MiB device — the stand-in carved 64 MiB; RED by construction pre-fix) + `Carve.X3fTornSalvagesTheWalkedPrefix` (the loop-exit salvage at the row cap). Suite 1570/1570. Remaining members: CRW (FUN_180052160, the heap chain) next per the finding's order, then DWG/WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
+>>>>>>> 475907ee (fix(carve): M-107's X3F member - the section-directory size walk replaces the 64 MiB stand-in (the finding's own decode-then-land order, member 1 of 11). The og's walk decoded first-hand from FileX3FAnalyser FUN_1800535b0 (RAWSearchDLL :63457-63560, read in full): a forward scan for the 'SECd' section-directory marker (0x64434553), sector-stepped with overlapping 2-sector windows, extent = SECd_position + 0x4C in ALL THREE found-branch shapes - the directory's fixed 76-byte tail, which by construction IS the file's end (the X3F writer appends the directory last; the FileRepair artifact x3f-repair--section-checkers-walk.md's directory-first repair model corroborates). Landing: validate_x3f scans 256 KiB windows (3-byte straddle overlap - the guard the og's overlapping windows serve) to the probe limit; found -> SECd + 0x4C (row-clamped); torn (no SECd in range) -> the walked prefix at the row cap with reduced confidence (the og's loop-exit salvage shape, never a refusal). The DWG-pattern stand-in and its 'recorded follow-up' comment are gone for X3F. Tests: Carve.X3fSectionDirectoryWalkCarvesTrueEnd (a 1 MiB true end on a 100 MiB device - the stand-in carved 64 MiB; RED by construction pre-fix) + Carve.X3fTornSalvagesTheWalkedPrefix; suite 1570/1570. The finding stays active for the remaining ten members (CRW's CIFF heap chain next). Trail: the finding's S71 addendum, matrix row, modules/carve.md S71 addendum, SUMMARY, worklog)

@@ -11083,3 +11083,22 @@ evidence + trail sections + the three documented born-red repairs) + worklog* on
 The one exception class, recorded above: the five mechanical ABI count lines in
 docs/ (the A-ABI-3 repair, required by the never-push-a-red-commit rule). No
 source, header, test, build, or workflow file was modified.
+
+
+## Session-71 S71 lane — M-107's X3F member landed (2026-10-29)
+
+**M-107 X3F FIXED (MAJOR, member 1 of 11 — the finding's decode-then-land
+order: "X3F first — the only walk with a written grammar in the corpus").**
+The og's walk decoded first-hand (FUN_1800535b0, read in full): the forward
+"SECd" section-directory marker scan with the extent = SECd + 0x4C in all
+three found-branch shapes (the directory's fixed 76-byte tail — the file's
+end by construction; the FileRepair artifact's directory-first model
+corroborates). validate_x3f walks it (256 KiB windows, 3-byte straddle
+overlap, the probe-limit cap); the torn shape salvages the walked prefix at
+the row cap (the og's loop-exit shape). The stand-in + its follow-up comment
+gone. Tests: X3fSectionDirectoryWalkCarvesTrueEnd (the true-end pin — RED by
+construction pre-fix: the stand-in carved 64 MiB for a 1 MiB file on a
+100 MiB device) + X3fTornSalvagesTheWalkedPrefix; suite 1570/1570. The
+finding stays active for the remaining ten members (CRW's CIFF heap chain
+next per the order). Trail: the finding's S71 addendum, matrix row, carve.md
+S71 addendum, SUMMARY delta, this entry.
