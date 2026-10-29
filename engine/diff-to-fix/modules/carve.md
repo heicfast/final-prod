@@ -1063,7 +1063,10 @@ decoded for the first time — 4 MiB read blocks inside an 8 MiB double buffer,
 half-buffer look-back, sector-stride first-u32 probes, 8192-sector analyser
 base at 512 bps; SCAN-ENGINE-DELTA F6's og-side cell was empty of constants,
 leaving the registered core constants (1 MiB + 4 KiB) without a cited og
-baseline at the layer where carving reads — and the engine-layer 4 MiB
+baseline at the layer — **FIXED (session-60): the F6 og-side cell now carries
+the full decoded constant set with all five RAWSearchDLL cites, the
+engine-layer-vs-device-layer 4 MiB separation drawn explicitly, and the
+OQ-S4-3 acceptance-criterion cross-link; findings/FIXED/N-204** where carving reads — and the engine-layer 4 MiB
 conflated with the device-layer 4 MiB of M-030/OQ-S4-3). Verified-MATCH with
 new first-hand cites: the raw-sign layer's 512-stride probe grid
 (cr_carve.cpp:918 ≡ RAWSearchDLL:9494-9502's sector-stride u32 probe); the

@@ -63,3 +63,30 @@ Decompiled evidence, lead-verified first-hand: the analyser gate list and the Lo
 ## Open questions
 
 None — the corpus decode is complete (the FAT-side contrast proves the omission is intentional og behavior, not missing evidence).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S59 MAJOR-first fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on `NtfsVolume.TornPrimaryBackupBootScans`
+(RED pre-fix: ERR_BAD_MAGIC on the torn-signature primary; GREEN post: the
+primary opens directly, no backup consulted, full tree) and
+`NtfsVolume.TornSignatureWithIntactBackupStillFallsBack` (the D-99 interplay:
+a content-torn primary + a torn-signature but content-valid backup opens
+FROM the backup — the backup's BPB gates are its proof now). The FAT control
+(the og-parity 55AA gate there) is pinned by the existing FAT suite
+(`Fat.*` signature tests + `Orchestrator.ProbeFamily`'s signature-destroyed
+→ Unknown leg). Full suite 1465/1465.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand
+(the analyser conjunction FUN_180004900 :3568-3577 and LoadNtfsVolume
+:19292-19310 read in full — no +0x1FE access in either; the only 0x1fe
+touches in NTFSLib are the USA fixup walkers at :14000/:14071/:14433; the
+FAT-side contrast FUN_18002f970 :38056-38057 proves the omission is
+NTFS-specific). The fix: the `boot_signature_ok` requirement is removed
+from BOTH the primary path and the D-99 backup fallback (the fallback is
+core-only either way; its content gates are the real proof). The M-043
+backup fallback now triggers on CONTENT failure only — and a new
+MFT-load-failure retry rung (landed with M-141) keeps the torn-geometry
+class covered. `BackupBadFallsBackToRefusal` re-pinned from a
+signature-tear to an OEM-tear (the refusal trigger is content now). The
+FAT/exFAT signature gates are untouched (og parity there).

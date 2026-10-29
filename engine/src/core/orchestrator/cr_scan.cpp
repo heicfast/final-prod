@@ -903,14 +903,18 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         /* content proof failed: fall through (the FAT gates underneath
          * decide - the og's multi-analyser outcome) */
     }
-    /* ReFS: the og's classifier gates on BOTH boot signatures — the
-     * "ReFS" OEM at +3 AND the "FSRS" marker at +0x10 (Partition's
-     * FUN_180003900 :1747-1759, both compares verbatim: 0x53466552 @+3,
-     * 0x53525346 @+0x10; the classification-time volume-length capture at
-     * +0x18 is cosmetic here — the engine re-reads it at open). A forged
-     * OEM alone falls through to the next family test. */
-    if (std::memcmp(sec + 3, "ReFS", 4) == 0 && std::memcmp(sec + 0x10, "FSRS", 4) == 0)
+    /* ReFS: the classifier's double-signature gate - OEM "ReFS" at +3 AND
+     * "FSRS" (0x53525346) at +0x10, exactly the og's Partition classifier
+     * (FUN_180003900 :1753-1757: both compares verbatim; the volume length
+     * u64@+0x18 is captured at classification time there - mirrored here as
+     * the Info log line since the engine's own open re-reads it). The
+     * engine's full boot validator (bps ladder, version, geometry) stays
+     * the content proof; this is the dispatch-time pair the og requires. */
+    if (std::memcmp(sec + 3, "ReFS", 4) == 0 && std::memcmp(sec + 0x10, "FSRS", 4) == 0) {
+        log::write(log::Level::Info, "recognition: refs (OEM + FSRS, volume length %llu)",
+                   (unsigned long long)le64(sec + 0x18));
         return FsFamily::Refs;
+    }
     /* BitLocker: OEM "-FVE-FS-" (S-019; the og's type-0xB classifier gate,
      * PartitionRecoveryD_decompiled.c:2778-2785). Recognized explicitly so
      * encrypted content never falls through to the ext4-magic probe (a

@@ -50,3 +50,25 @@ Executed-verification-class evidence: the constants compared side-by-side (bench
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S60-B lane)
+**Verified by:** `doc_truth_gate` check 7 (the new `check_bench_ioctl_codes`) — RED pre-fix first-hand (exit 1, both violations named: `bench/ours/verify-driver.ps1:47 issues IOCTL 0x60002440` / `:55 issues IOCTL 0x60002448`, neither defined by any cr_rda.h constant) → GREEN post-fix (exit 0, "bench IOCTL literals match the contract (2 literal(s), all in cr_rda.h)"); the static side-by-side re-verified at the current tree (bench vs `include/cr/win/cr_rda.h:55-57`).
+**Resolution notes:** Both phantom-zero constants corrected to the contract forms (0x60002440 → 0x6002440 kIoctlGetInfo fn 0x910; 0x60002448 → 0x6002448 kIoctlGetVersion fn 0x912), with an in-place comment pinning the codes to the header. The class guard the finding's own fix plan prescribed landed as doc_truth_gate check 7 (`check_bench_ioctl_codes`, CI-wired at checks.yml:173): every 0x6xxxxxxx-form CTL literal in bench/**/*.{ps1,cs,cpp} must byte-match a constant in include/cr/win/cr_rda.h — the repo-wide sweep found no third site (the two corrected literals are the census). The driver-repo side of M-089's phantom-zero class stays tracked under OQ-S10-3 per the grant boundary; this closes the core-repo half the finding owns.
+
+
+---
+
+## Addendum II — the S60-B convergence record (2026-10-29)
+
+This lane independently verified and fixed the same two constants in the same
+window (identical correction; the ledger's second row). Per SA-9 the S60
+landing above is the fix of record. This lane's unique supplement rides its
+own push: **doc_truth_gate check 7** (`check_bench_ioctl_codes`, CI-wired at
+checks.yml:173) — every 0x6xxxxxxx-form CTL literal in bench/**/*.{ps1,cs,cpp}
+must byte-match a constant defined in include/cr/win/cr_rda.h. RED exit-1
+pre-fix first-hand (both violations named with file:line) → GREEN exit-0
+post-fix. The class guard makes the phantom-zero defect a gated one for every
+future bench script, beside the landed one-shot pin.

@@ -2679,18 +2679,91 @@ TEST(NtfsVolume, BootNoPow2RecordSizeAcceptedAtDecodedValue) {
     EXPECT_EQ(vol->params().record_size, 1536u); /* decoded value, unclamped */
 }
 
-TEST(NtfsVolume, BootRecordSizeZeroRejected) {
-    /* N-011b: cpr == 0 or a 0-result decodes to a zero record size and
-     * the og REJECTS the volume ("It is not a NTFS volume!",
-     * LoadNtfsVolume :19322/:19331). The M-001-era fallback-to-0x400 at
-     * OPEN was mis-scoped (its evidence was the walk function). */
+TEST(NtfsVolume, BootRecordSizeZeroDefaultsTo1024)
+{
+    /* M-147 (re-pin of BootRecordSizeZeroRejected): cpr == 0 takes the
+     * og's four-site scan-path DEFAULT - 1024-byte records (the analyser
+     * getter FUN_180004830 :3427-3440 `if (bVar1 == 0) return 0x400;`,
+     * NTFSSearchDLL FUN_18003f630, PartitionRecoveryD's parser pair
+     * FUN_180011a10/FUN_180011a90) - and the volume OPENS at that stride.
+     * The old core refused the whole volume on the single zeroed byte; the
+     * N-011b "0 rejects" reading came from NTFSLib's store-guards, which
+     * fall through to a shared exit either way (extraout_EAX - the
+     * register escape Ghidra could not resolve). The fixture's records
+     * are 1024 bytes, so the default stride is exactly the planted one. */
     Image img;
     build_image(img);
     patch_dbr_cpr(img, 0);
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    EXPECT_EQ(nullptr, vol) << "cpr == 0 must reject the volume (og parity)";
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->params().record_size, 1024u) << "the og's zero default";
+    /* the bootstrap actually reads record 0 at the default stride: the
+     * MFT walk must find the fixture's files */
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.active + stats.deleted, 5u);
+}
+
+TEST(NtfsVolume, BootCibZeroDefaultsTo4096IndexBlocks)
+{
+    /* M-147: cib == 0 is the og's 4096-byte default (the index getter
+     * FUN_180004870 :3443-3456 `if (bVar1 == 0) return 0x1000;`), never a
+     * refusal - the decoded value feeds no core walk (INDX extents ride
+     * $INDEX_ALLOCATION runs). RED pre-fix: ERR_BAD_PARAMETER at open. */
+    Image img;
+    build_image(img);
+    img.sec(0)[0x44] = 0; /* clusters_per_index_block = 0 */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+}
+
+TEST(NtfsVolume, BootCprZeroWithValidPrimaryDoesNotConsultBackup)
+{
+    /* M-147 + M-145 interplay: a VALID primary whose cpr byte is zeroed
+     * opens FROM THE PRIMARY (the default stride) - the volume-end backup
+     * (still carrying cpr=2) must NOT take over: boot_from_backup stays
+     * false (the D-99 fallback precedence pinned). */
+    Image img;
+    build_image(img);
+    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC); /* plant the backup */
+    patch_dbr_cpr(img, 0);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_FALSE(vol->params().boot_from_backup);
+    EXPECT_EQ(vol->params().record_size, 1024u);
+}
+
+TEST(NtfsVolume, BootRecordShiftFormDecodesAt1024) {
+    /* M-147 convergence addendum (session-60 MAJOR-first lane): the
+     * positive shift-form control the family landing's rejection tests
+     * (-30/-1) leave unpinned — cpr = -10 decodes 1 << 10 = 1024 bytes
+     * (the og getter's `1 << (~bVar1 + 1 & 0x1f)` produces the same
+     * 1024), so the shift acceptance path and the new zero-default path
+     * coexist at the same stride. The volume opens and record 0 reads at
+     * the decoded stride. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, -10);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(nullptr, vol) << "shift form must still decode; got err " << err_text(err);
+    EXPECT_EQ(1024u, vol->params().record_size);
 }
 
 TEST(NtfsVolume, BootNegativeExponentOverflowRejected) {
@@ -2710,6 +2783,186 @@ TEST(NtfsVolume, BootNegativeExponentOverflowRejected) {
     MemDevice dev2(img.raw(), img.geom());
     vol = ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev2)), &err);
     EXPECT_EQ(nullptr, vol) << "sub-sector record size must reject";
+}
+
+/* ---- N-196: the walk-entry record-geometry stance ---------------------- */
+
+TEST(NtfsVolume, OddSectorRecordWalkScans) {
+    /* N-196 (registered deliberate superset, PARITY-DELTAS): the og's MFT
+     * walk entry refuses records whose device-sector count is odd or > 16
+     * (NTFSSearchDLL FUN_1800272b0 :31620-31621 primary, :31599-31600 the
+     * 512-rounded fallback form; both failing -> 0x610016). The core has
+     * NO walk-entry geometry gate: a 1536-byte record (3 x 512, the odd
+     * class) opens AND walks - the per-record validation (magic + fixup)
+     * is the safety mechanism, and refusing recoverable volumes is the
+     * worse direction per the board's history. This pin guards the stance:
+     * if a geometry gate is ever added, this test forces the register to
+     * be re-truthed first. */
+    Image img;
+    /* boot: cpr = 3 -> 1536-byte records (odd 3-device-sector class) */
+    {
+        RecBuilder b; /* reuse the writer helpers on the raw sector */
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
+        const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+        std::memcpy(boot->oem, oem, 8);
+        boot->bytes_per_sector = SEC;
+        boot->sectors_per_cluster = 1;
+        boot->media_descriptor = 0xF8;
+        boot->total_sectors = NSECTORS;
+        boot->mft_lcn = 4;
+        boot->mftmirr_lcn = 60;
+        boot->clusters_per_record = 3; /* 3 clusters = 1536 B, the odd class */
+        boot->clusters_per_index_block = 2;
+        boot->checksum = 0;
+        bs[510] = 0x55;
+        bs[511] = 0xAA;
+    }
+    constexpr u64 RS = 1536;
+    constexpr u64 MFT_SECTORS = 24; /* 8 records of 1536 B at spc = 1 */
+    /* record 0: $MFT, $DATA LCN 4 len 24 sectors */
+    {
+        RecBuilder r(RS);
+        r.header(0, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFT", FILE_NAME_WIN32, 0x06, MFT_SECTORS * CLUSTER,
+                         MFT_SECTORS * CLUSTER);
+        r.attr_data_runlist(4, MFT_SECTORS, MFT_SECTORS * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4), r.buf.data(), RS);
+    }
+    /* records 1..4: minimal meta (the walk skips them by number) */
+    for (u64 rn : {1u, 2u, 3u, 4u}) {
+        RecBuilder r(RS);
+        r.header(rn, RECORD_IN_USE);
+        r.attr_file_name(5, u"$Meta", FILE_NAME_WIN32, 0x06, 4 * CLUSTER, 4 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4 + rn * 3), r.buf.data(), RS);
+    }
+    /* record 5: root "." */
+    {
+        RecBuilder r(RS);
+        r.header(5, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(5, u".", FILE_NAME_POSIX, 0x00, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(4 + 5 * 3), r.buf.data(), RS);
+    }
+    /* record 6: oddrec.txt (parent 5, LCN 100 len 2) */
+    {
+        RecBuilder r(RS);
+        r.header(6, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"oddrec.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 1024, 1024);
+        r.attr_data_runlist(100, 2, 1024);
+        r.finish();
+        std::memcpy(img.sec(4 + 6 * 3), r.buf.data(), RS);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(1536u, vol->params().record_size);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(OK, walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                           root_deleted, root_lost, stats))
+        << "the og refuses this geometry at walk entry (0x610016); the core walks";
+    tree::FileNode* odd = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "oddrec.txt")
+                odd = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    ASSERT_NE(odd, nullptr) << "the 1536-stride walk must surface the user file";
+    EXPECT_EQ(odd->props()->logical_size, 1024u);
+}
+
+TEST(NtfsVolume, OversizePositiveRecordOpensAndWalks) {
+    /* N-196 (the >16-device-sector half of the same stance): cpr = 17 ->
+     * 8704-byte records (17 device sectors) - the og's walk entry refuses
+     * (> 0x10 device sectors, FUN_1800272b0 :31621). The core has no
+     * positive-cpr cap: the volume opens at the decoded stride and the
+     * walk runs, each record still validated individually (the safety
+     * mechanism the register documents). The og-side cap equivalent the
+     * core DOES carry is the P1-4 shift-UB guard (negative-cpr exponent
+     * cap 20 -> 1 MiB), pinned by BootNegativeExponentOverflowRejected
+     * above. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, 17); /* 17 x 1 x 512 = 8704 B, 17 device sectors */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(8704u, vol->params().record_size) << "positive cpr decodes uncapped";
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    /* the fixture's records are 1 KiB, so per-record validation rejects
+     * the misaligned strides - the point of the pin is the walk RUNS (no
+     * geometry refusal) and returns cleanly, not that files surface */
+    u32 rc = walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    EXPECT_EQ(OK, rc) << "no walk-entry geometry gate: the og's 0x610016 class";
+}
+
+TEST(NtfsVolume, BootSpcShiftDecodeConventionPinned) {
+    /* N-197 (registered in PARITY-DELTAS D-52's addendum): the og decodes
+     * the spc byte three different ways across its own layers (the scan
+     * controller shifts only at high nibble 0xF - 0x85 -> 133 raw; NTFSLib
+     * and the analyser shift at >= 0x81; PartitionRecoveryD uses the raw
+     * byte). The core's chosen convention is the signed-byte form (the
+     * NTFSLib/analyser majority): positive -> direct count, negative ->
+     * 1 << ((-spc) & 31). This pin asserts the choice byte by byte; the
+     * boundary byte 0x80 (every og layer takes it raw 128; the signed
+     * form shifts to 1) is the registered single-byte nuance. */
+    BootSector bs{};
+    const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+    std::memcpy(bs.oem, oem, 8);
+    bs.bytes_per_sector = 512;
+    bs.clusters_per_index_block = 2;
+    bs.total_sectors = 1u << 28;
+    bs.mft_lcn = 1;
+    bs.mftmirr_lcn = 1;
+    bs.clusters_per_record = 2;
+
+    bs.sectors_per_cluster = 0x01;
+    EXPECT_EQ(1u, ntfs::sectors_per_cluster_from_dbr(bs)) << "positive: direct count";
+    bs.sectors_per_cluster = 0x40;
+    EXPECT_EQ(64u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0x40 -> 64 direct";
+    bs.sectors_per_cluster = 0x7F;
+    EXPECT_EQ(127u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0x7F -> 127 direct";
+    bs.sectors_per_cluster = 0xF6;
+    EXPECT_EQ(1024u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0xF6 (i8 -10) -> 2^10: the canonical real-world shift form";
+    bs.sectors_per_cluster = 0xFF;
+    EXPECT_EQ(2u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0xFF (i8 -1) -> 2";
+    bs.sectors_per_cluster = 0x85;
+    EXPECT_EQ(1ULL << 27, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0x85 -> shift 2^27 under the chosen convention (the scan "
+           "controller's 133-raw divergence is D-52's addendum record)";
+    bs.sectors_per_cluster = 0x80;
+    EXPECT_EQ(1u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "the boundary byte: every og layer takes raw 128; the signed "
+           "form shifts (exponent 128 & 31 = 0 -> 1) - the registered "
+           "single-byte nuance";
+    bs.sectors_per_cluster = 0x00;
+    EXPECT_EQ(0u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0 -> 0: validate_boot_sector's own reject rule";
 }
 
 TEST(NtfsVolume, BootUsableLargeRecordSizeKept) {
@@ -4549,15 +4802,16 @@ TEST(NtfsVolume, DeletedAttrlistChaseFollowsChildrenAtDepth1) {
 /* ===================================================================== */
 
 TEST(NtfsVolume, TornPrimaryBackupBootScans) {
-    /* primary DBR signature destroyed, volume-end backup intact: the
-     * volume must OPEN from the backup and the walk must find the files.
-     * Fail-before: open returned ERR_BAD_MAGIC (the backup was never
-     * read on the scan path). */
+    /* M-145 RE-PIN (was: signature-only tear + backup -> open from backup):
+     * the og's NTFS path never reads the DBR signature (FUN_180004900's
+     * gate list and LoadNtfsVolume both stop at OEM/BPB/product gates;
+     * only the og's FAT/exFAT paths check 0x55AA). A torn 2-byte signature
+     * on an otherwise-valid DBR therefore OPENS FROM THE PRIMARY - the
+     * backup is not even consulted. Fail-before (M-145): open returned
+     * ERR_BAD_MAGIC and needed the backup. */
     Image img;
     build_image(img);
-    /* the backup DBR: the volume's LAST sector (rawfixer's corpus-decoded
-     * `total - sector`, S-008; the og analyser's verified location) */
-    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
+    /* NO backup planted: the last sector stays zeros */
     img.sec(0)[510] = 0x00; /* tear the primary signature */
     img.sec(0)[511] = 0x00;
 
@@ -4565,7 +4819,8 @@ TEST(NtfsVolume, TornPrimaryBackupBootScans) {
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    EXPECT_TRUE(vol->params().boot_from_backup) << "the open must be flagged backup-sourced";
+    EXPECT_FALSE(vol->params().boot_from_backup)
+        << "content-valid primary: the backup must not take over";
     EXPECT_EQ(vol->params().record_size, RECORD_SIZE);
 
     std::unique_ptr<VolumeBitmap> bm;
@@ -4581,6 +4836,99 @@ TEST(NtfsVolume, TornPrimaryBackupBootScans) {
     ASSERT_EQ(rc, OK) << err_text(rc);
     /* the walk recovered the same file set as the healthy-volume case */
     EXPECT_GE(stats.active + stats.deleted, 5u);
+}
+
+TEST(NtfsVolume, TornSignatureWithIntactBackupStillFallsBack) {
+    /* M-145's D-99 interplay pin: the fallback triggers on CONTENT
+     * failure, not on the signature. Primary OEM + signature both torn,
+     * backup content-valid (its own signature also torn - the backup's
+     * BPB gates are its proof now): the open proceeds FROM THE BACKUP. */
+    Image img;
+    build_image(img);
+    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
+    img.sec(0)[510] = 0x00; /* tear the primary signature */
+    img.sec(0)[511] = 0x00;
+    std::memset(img.sec(0) + 3, 0x58, 8); /* destroy the primary OEM too */
+    img.sec(NSECTORS - 1)[510] = 0x00; /* the backup's signature also torn */
+    img.sec(NSECTORS - 1)[511] = 0x00;
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().boot_from_backup)
+        << "content-torn primary: the backup's BPB gates are the proof";
+    EXPECT_EQ(vol->params().record_size, RECORD_SIZE);
+}
+
+TEST(NtfsVolume, TornMftmirrLcnScansWithMirrorSkipped) {
+    /* M-141: the og has NO mftmirr bound in any layer (grep-verified
+     * across LoadNtfsVolume, the analyser, and the search DLL) - a torn
+     * mirror LCN (0xFFFFFFFF) demotes to mirror-invalid and the volume
+     * still scans from the primary. RED pre-fix: ERR_BAD_PARAMETER at
+     * validate_boot_sector (the whole-volume refusal). */
+    Image img;
+    build_image(img);
+    {
+        BootSector* boot = reinterpret_cast<BootSector*>(img.sec(0));
+        boot->mftmirr_lcn = 0xFFFFFFFFULL;
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().mirror_invalid) << "the torn mirror LCN is flagged";
+    EXPECT_FALSE(vol->params().boot_from_mftmirr) << "no mirror bootstrap happened";
+
+    /* the full tree still walks from the primary MFT */
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.active + stats.deleted, 5u);
+}
+
+TEST(NtfsVolume, MftLcnProductFormBoundaryAndHardening) {
+    /* M-141 unit pins on validate_boot_sector directly:
+     * (a) the FLOOR-BOUNDARY case - total = k*spc + r (r>0), mft_lcn = k:
+     *     the og's product form (spc x mft_lcn < total) ACCEPTS; the old
+     *     cluster-form compare refused (one cluster stricter);
+     * (b) the wrapped-huge case - mft_lcn near 2^62 where the og's i64
+     *     product wraps negative and PASSES: the core REFUSES (the
+     *     registered non-wrapping hardening, D-52). */
+    BootSector bs{};
+    const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+    std::memcpy(bs.oem, oem, 8);
+    bs.bytes_per_sector = 512;
+    bs.sectors_per_cluster = 8; /* spc = 8 */
+    bs.total_sectors = 100;     /* 100 = 12*8 + 4: non-integral total */
+    bs.mft_lcn = 12;            /* 12*8 = 96 < 100: the product form accepts */
+    bs.mftmirr_lcn = 2;
+    bs.clusters_per_record = 1; /* 8*512 = 4096-byte records */
+    bs.clusters_per_index_block = 1;
+    Geometry geom{};
+    geom.logical_sector = 512;
+    geom.sector_count = 100;
+    geom.total_bytes = 100 * 512;
+    VolumeParams out;
+    EXPECT_EQ(ntfs::validate_boot_sector(bs, geom, out), u32(OK))
+        << "floor boundary: the og's product form accepts mft_lcn = k";
+
+    /* one past the boundary: 13*8 = 104 >= 100 -> refused */
+    bs.mft_lcn = 13;
+    EXPECT_EQ(ntfs::validate_boot_sector(bs, geom, out), u32(ERR_BAD_PARAMETER));
+
+    /* the wrapped-huge case: the og's signed product wraps and passes;
+     * the core's overflow-free form refuses (registered hardening) */
+    bs.mft_lcn = 1ULL << 62;
+    EXPECT_EQ(ntfs::validate_boot_sector(bs, geom, out), u32(ERR_BAD_PARAMETER));
 }
 
 TEST(NtfsVolume, TornPrimaryShapeBackupBootScans) {
@@ -4605,12 +4953,12 @@ TEST(NtfsVolume, TornPrimaryShapeBackupBootScans) {
 }
 
 TEST(NtfsVolume, BackupBadFallsBackToRefusal) {
-    /* torn primary AND no valid backup: the open must still refuse (the
-     * fallback is a fallback, not a bypass). */
+    /* torn primary CONTENT (the OEM - M-145 removed the signature as a
+     * refusal trigger) AND no valid backup: the open must still refuse
+     * (the fallback is a fallback, not a bypass). */
     Image img;
     build_image(img);
-    img.sec(0)[510] = 0x00;
-    img.sec(0)[511] = 0x00;
+    std::memset(img.sec(0) + 3, 0x58, 8); /* destroy the OEM */
     /* no backup written: the last sector is zeros */
 
     MemDevice dev(img.raw(), img.geom());

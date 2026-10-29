@@ -880,8 +880,11 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                     c.fs = CandidateFs::GptTable;
                     pts = probe_gpt_header(effective, lba, c);
                 } else if (std::memcmp(oem, "ReFS", 4) == 0) {
-                    /* S-006: the ReFS DBR (OEM "ReFS", probe_family's gate)
-                     * fell into the FAT catch-all and was dropped as noise
+                    /* S-006: the ReFS DBR (the classifier's "ReFS" OEM;
+                     * probe_family now carries the og's second signature
+                     * "FSRS"@+0x10 - the lost-side probe's own content proof
+                     * is the page-signature window, deeper than both) fell
+                     * into the FAT catch-all and was dropped as noise
                      * before. Detected via the page-signature window probe. */
                     c.fs = CandidateFs::Refs;
                     pts = probe_refs(effective, lba, c);

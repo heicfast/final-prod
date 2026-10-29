@@ -443,6 +443,84 @@ TEST(Ext4Engine, SuperblockValidation) {
     EXPECT_FALSE(validate_superblock(raw, sb));
 }
 
+TEST(Ext4Engine, SbBandsPinned) {
+    /* N-202 (PARITY-DELTAS D-145): four superblock acceptance-band
+     * differences on garbage SBs, each a registered deliberate choice
+     * (near-zero real-volume impact - consolidated so none stays
+     * accidental):
+     *   (1) inode_size == 0 with rev >= 1: the og REJECTS (:3237's
+     *       (rev==0) || inode_size != 0 gate); the core falls back to
+     *       128 and accepts.
+     *   (2) log_bs 7..20: the og ACCEPTS (its 0x400 << log_bs int-sign
+     *       form only fails past 20 - 1 GiB blocks are an og defect
+     *       class, the I-045 family); the core rejects above 6.
+     *   (3) journal_inum: the og copies the field only when
+     *       feature_compat HAS_JOURNAL bit 2 is set (:3365-3367); the
+     *       core reads it unconditionally and defaults 0 -> 8.
+     *   (4) desc_size: the og clamps to [32,64] unconditionally
+     *       (:3397-3405); the core picks 64-iff-64BIT (32 otherwise) -
+     *       differs only on invalid combos.
+     * This pin asserts the four edges as DELIBERATE; if a band is ever
+     * changed, this test forces the register to be re-truthed first. */
+    u8 raw[1024];
+    SuperBlock sb;
+
+    /* (1) inode_size = 0 + rev 1: accepted with the 128 fallback */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0x58, 0); /* s_inode_size = 0 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb))
+            << "core accepts the og-rejected inode_size=0 (128 fallback)";
+        EXPECT_EQ(128u, sb.inode_size);
+    }
+    /* (2) log_bs = 7 (128 KiB blocks): refused - the og's int-sign form
+     * would accept up to 20 (1 GiB), an og defect class */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x14, 0); /* fdb = 0: isolate the log_bs cap
+                                         * (fdb=1 would trip the kernel
+                                         * fdb x log_bs rule first) */
+        put32(img.block(1) + 0x18, 7); /* s_log_block_size = 7 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_FALSE(validate_superblock(raw, sb))
+            << "log_bs > 6 refuses (the og accepts 7..20 - nonsense blocks)";
+    }
+    /* (3) journal_inum = 0 on a non-journal volume: read unconditionally,
+     * defaulted to 8 (the og leaves the field untouched without
+     * HAS_JOURNAL) */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0xE0, 0); /* s_journal_inum = 0, no HAS_JOURNAL */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(8u, sb.journal_inum)
+            << "the unconditional-read stance: 0 -> the default inode 8";
+    }
+    /* (4a) 64BIT + desc_size = 32: the core forces 64 (the og's clamp
+     * would keep 32); (4b) non-64BIT + desc_size = 64: the core keeps 32 */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0002 | 0x80); /* FILETYPE | 64BIT */
+        put16(img.block(1) + 0xFE, 32);             /* s_desc_size = 32 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(64u, sb.desc_size) << "64BIT forces the 64-byte descriptor";
+    }
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0xFE, 64); /* s_desc_size = 64, NO 64BIT flag */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(32u, sb.desc_size) << "non-64BIT keeps the 32-byte descriptor";
+    }
+}
+
 TEST(Ext4Engine, EndToEndWalk) {
     auto img = build_volume();
     MemDevice dev(img.raw());
@@ -731,6 +809,35 @@ TEST(Ext4Engine, UnwrittenExtentLenDecodedKernelCorrect) {
     EXPECT_EQ(u64(5 * BS), hello_node->props()->extents[0].length);
     /* NOT the og's raw product: 0x8005 * 1024 = 33,556,736 bytes of extent */
     EXPECT_NE(u64(0x8005) * BS, hello_node->props()->extents[0].length);
+
+    /* the S58 convergence lane's unique supplement: the DELETED path decodes
+     * the same kernel form - the dtime-marked Inode6's extent re-stamped
+     * ee_len 0x8001 (unwritten, 1 block) surfaces a 1-block content extent,
+     * never the og's 0x8001 * 1024 raw product. */
+    u8* gone6 = img.block(B_INODE_TABLE) + size_t((6 - 1) * INO_SZ);
+    put16(gone6 + 0x28 + 16, 0x8001); /* ee_len @ extent+4 */
+    MemDevice dev2(img.raw());
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    Ext4ScanFlags fl2;
+    Ext4ScanStats st2;
+    ASSERT_EQ(OK, scan_ext4(&dev2, fl2, nullptr, nullptr, nullptr, tree2, ra2, rd2, nullptr, st2))
+        << err_text(0);
+    const tree::FileNode* gone_node = nullptr;
+    std::function<void(const tree::FileNode*)> find2 = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "Inode6")
+                gone_node = c;
+            find2(c);
+        }
+    };
+    find2(ra2);
+    find2(rd2);
+    ASSERT_NE(nullptr, gone_node);
+    ASSERT_EQ(size_t(1), gone_node->props()->extents.size());
+    EXPECT_EQ(u64(1 * BS), gone_node->props()->extents[0].length)
+        << "unwritten ee_len 0x8001 decodes to 1 block, not 0x8001*1024";
 }
 
 TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {

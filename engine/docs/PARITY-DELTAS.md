@@ -1647,13 +1647,30 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 - **Boot ladder (N-011b):** volume open now mirrors NTFSLib
   `CNtfsVolume::LoadNtfsVolume` :19292-19344 exactly: bps 512-multiple
   (pow2 dropped; 256 now rejected like the og), spc signed-byte decode
-  (direct < 0x81 including non-pow2, shift form above), cpr==0 / 0-result /
-  sub-sector record REJECTED (the M-001 fallback ladder belongs to the walk
-  function), index-block byte 0 rejected, no 0x400 clamp at open, no 0xAA55
-  check. **Registered core hardening kept** (the og lacks all four): the
-  4096 bps cap (spec max), the P1-4 shift-UB exponent guard (1 MiB record
-  cap — the og computes a 1 GiB record for cpr=-30), the P1-3 declared-size
-  sanity, and the bps-vs-device-sector match with the 512e escape.
+  (direct < 0x81 including non-pow2, shift form above). **M-147
+  correction (2026-10-29):** cpr == 0 and cib == 0 are the og's
+  scan-path DEFAULTS (1024-byte records / 4096-byte index blocks) at four
+  independent sites (the analyser getters FUN_180004830 :3427-3440 /
+  FUN_180004870 :3443-3456, NTFSSearchDLL FUN_18003f630,
+  PartitionRecoveryD FUN_180011a10/FUN_180011a90) - the volume OPENS on
+  the zero byte; the earlier "0 rejects" premise was a misread of
+  NTFSLib's store-guards (both guarded and unguarded paths share one
+  exit; `extraout_EAX` was unresolvable). **M-141 (2026-10-29):** the
+  mft_lcn bound moved to the og's product form `spc x mft_lcn <
+  total_sectors` (sector space, floor-tolerant) evaluated overflow-free
+  as `mft_lcn > (total-1)/spc`; the mftmirr_lcn bound is DROPPED
+  entirely (no og layer bounds the mirror - a torn mirror LCN demotes to
+  mirror-invalid, the mirror reads skipped). **M-145 (2026-10-29):** no
+  0xAA55 check anywhere on the NTFS open ladder (the og's NTFS path
+  never reads +0x1FE; its FAT/exFAT paths do - the omission is
+  NTFS-specific). **Registered core hardening kept** (the og lacks all
+  of these): the 4096 bps cap (spec max), the P1-4 shift-UB exponent
+  guard (1 MiB record cap — the og computes a 1 GiB record for cpr=-30),
+  the P1-3 declared-size sanity, the bps-vs-device-sector match with the
+  512e escape, the sub-sector-record refusal, and the NON-WRAPPING
+  mft_lcn product evaluation (the og's signed i64 product wraps negative
+  and passes for huge corrupt LCNs - the core refuses; the og's own
+  defect class).
 - **Attributes source (N-012):** serialized from `$STANDARD_INFORMATION`
   dos_flags (:5351-5368, per-bit RO/hidden/system/archive + 0x400 OFFLINE),
   `$FILE_NAME` fallback when `$SI` is absent, mask widened 0xFF → 0x7FF.
@@ -1677,7 +1694,13 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 
 **Pin tests:** `NtfsVolume.AttributesFromSIWhenAvailable`,
 `AttributesFallBackToFileNameWhenSIAbsent`, `AttributesPreserveOfflineBit`,
-`ShortNameFieldRoundtrips` (incl. session roundtrip), `BootRecordSizeZeroRejected`,
+`ShortNameFieldRoundtrips` (incl. session roundtrip),
+`BootRecordSizeZeroDefaultsTo1024` (re-pinned from
+`BootRecordSizeZeroRejected` by M-147), `BootCibZeroDefaultsTo4096IndexBlocks`,
+`BootCprZeroWithValidPrimaryDoesNotConsultBackup`,
+`MftLcnProductFormBoundaryAndHardening`, `TornMftmirrLcnScansWithMirrorSkipped`,
+`TornPrimaryBackupBootScans` (re-pinned by M-145),
+`TornSignatureWithIntactBackupStillFallsBack`,
 `BootNoPow2RecordSizeAcceptedAtDecodedValue`, `BootNegativeExponentOverflowRejected`,
 `AdsDroppedInParityMode`, `AdsEmittedByDefaultSuperset`,
 `UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,
@@ -4181,3 +4204,129 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
 - **VERDICT: ACCEPTED** (scope exclusion, registered with S-040's
   landing; the CLI refuses a container-extension --out honestly rather
   than writing a flat file under a .vhd name).
+
+### D-143 — the NTFS walk-entry record-geometry gate declined: the core's wider acceptance band is deliberate (N-196 registration, REGISTERED DELIBERATE DIVERGENCE — accept-direction superset)
+
+- **WHAT OG DOES:** the MFT walk entry refuses records whose device-sector
+  count is odd or exceeds 16, in two layers (NTFSSearchDLL
+  FUN_1800272b0): the primary branch computes `record_bytes /
+  device_sector` and bails on `(count & 1) != 0 || (byte)count > 0x10`
+  (:31620-31621); the mirror-fallback branch recomputes the 512-byte-
+  rounded size and requires `(rounded & 1) == 0 && (byte)rounded < 0x11`
+  to proceed (:31599-31600); both failing sets the walk's refusal code
+  0x610016. A 3-sector 1536-byte record and a 17-sector 8704-byte record
+  are both refused at the walk entry (odd and >16 respectively), even
+  though the og ACCEPTS non-pow2 even sizes (3072/5120/6144 pass).
+- **WHAT WE DO:** no walk-entry geometry gate exists between open and
+  walk (`cr_bootstrap.cpp` — the P1-4 shift-UB guard caps the negative-
+  exponent decode form at 1 MiB and the sub-sector/0-result rules reject
+  degenerate sizes, but positive cpr decodes uncapped and no even/≤16
+  device-sector rule applies). The core opens and walks volumes in the
+  og's refusal band; per-record validation (magic + fixup + USA) is the
+  safety mechanism on every stride.
+- **WHY DELIBERATE:** refusing recoverable volumes is the worse direction
+  per the board's calibration history (the D-119 numeric-hygiene family):
+  a real formatter never emits an odd/>16-sector record size the way a
+  corrupt DBR does, but a torn volume whose DBR survived with an unusual
+  cpr still has recoverable records behind it — the core's per-record
+  validation rejects garbage strides individually while keeping the
+  volume walkable. The wider band is accept-direction only: no wrong-
+  content risk (every record is still validated before decode).
+- **EVIDENCE:** og gates re-read first-hand at the decompile lines above
+  (the S-063 verification trail's own sites); core stance pinned by
+  `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture
+  opens, walks, and surfaces its user file — the og's 0x610016 class)
+  and `NtfsVolume.OversizePositiveRecordOpensAndWalks` (the 17-sector
+  8704-byte stride opens and walks, per-record validation carrying the
+  safety) beside the adjacent P1-4 pin
+  (`NtfsVolume.BootNegativeExponentOverflowRejected`).
+
+### D-52 ADDENDUM — the spc shift-decode threshold: the og is internally inconsistent; the core's signed-byte form is the registered choice (N-197)
+
+- **THE OGRE'S OWN THREE FORMS (all four sites re-read first-hand):**
+  NTFSSearchDLL FUN_18003f5d0 (:51038-51049) shifts only when the high
+  nibble is 0xF — bytes 0x80..0xEF are taken as DIRECT sector counts
+  (0x85 -> 133 sectors/cluster), 0xF0 -> 1<<16, 0xFF -> 2. NTFSLib
+  (:19307, `bVar2 < 0x81 -> raw else 1 << (-bVar2 & 0x1f)`) and
+  NTFSFileSystemAnalyser FUN_1800048c0 (`0x80 < bVar1 -> shift`) shift
+  at >= 0x81 — the majority form the corpus artifacts document.
+  PartitionRecoveryD (:2323-2329) uses the RAW byte with no decode at
+  all (the lost-scan's 4-record MFT read computes MFT positions from the
+  raw count). The parent row's "spc signed-byte decode" wording cited
+  LoadNtfsVolume as *the* og form — an overclaim this addendum corrects.
+- **THE CORE'S REGISTERED CHOICE:** the signed-byte convention (the
+  NTFSLib/analyser majority): positive -> direct count, negative ->
+  `1 << ((-spc) & 31)`, extracted as the pure wire helper
+  `sectors_per_cluster_from_dbr` (cr_ntfs_wire.h) and pinned by
+  `NtfsVolume.BootSpcShiftDecodeConventionPinned` (0x01/0x40/0x7F direct;
+  0xF6 -> 1024 the canonical real-world shift form; 0xFF -> 2; 0x85 ->
+  2^27 under the chosen convention where the scan controller takes 133
+  raw). On a 0x80..0xEF spc byte with positive cpr, the og's own scan
+  controller computes different MFT addresses than the core — deep-edge
+  (shift-form spc implies >= 256-sector clusters; rare even in synthetic
+  images), wrong MFT addressing only on that geometry.
+- **THE 0x80 BOUNDARY NUANCE:** every og layer takes byte 0x80 raw (128);
+  the signed form shifts (exponent 128 & 31 = 0 -> 1). A nonsense byte
+  either way (no formatter emits it); registered here rather than
+  silently diverging.
+
+### D-144 — the exFAT boot-gate numeric bounds: core-only hardening the og's nonzero-form gates lack (N-198 registration, REGISTERED DELIBERATE DIVERGENCE — FP-suppression direction)
+
+- **WHAT OG DOES:** the complete exFAT boot gate conjunction
+  (exFATSearchDLL FUN_180021e80 :28180-28210) requires the four size
+  fields to be merely NONZERO — `fat_length(+0x54) != 0`,
+  `heap_offset(+0x58) != 0`, `fat_offset(+0x50) != 0`,
+  `volume_length(+0x48) != 0`, `cluster_count(+0x5c) != 0` — plus the
+  shift band, the numFATs ∈ {1,2} form, root-cluster > 1, and the
+  ordering/fit inequalities. NO numeric floors or ceilings on any size
+  field: a garbage boot with `fat_offset = 10` or `volume_length = 100`
+  (ordering-consistent) enters the og's engine, which then fails on the
+  FAT read.
+- **WHAT WE DO:** the core adds three bounds the og does not have
+  (`cr_exfat_dentry.cpp`): `volume_length >= 2048` sectors (+ device
+  fit), `cluster_count <= 0xFFFFFFF5`, `fat_offset >= 24` (the boot
+  region). Each refuses the nonsense-BPB noise earlier and cheaper than
+  the og's engine-level failure.
+- **WHY DELIBERATE:** core-stricter-in-the-FP-direction with zero real
+  population cost — no real formatter emits `fat_offset < 24` (the boot
+  region is 24 sectors by spec), `volume_length < 2048` (the spec
+  minimum volume), or `cluster_count > 0xFFFFFFF5` (the spec max,
+  2^32-11; the og's own ordering conjunction only admits counts that
+  large on devices past 2 TiB at 512 B clusters). The D-70 precedent
+  (core-stricter bounds with the og sites acknowledged and the
+  no-real-formatter rationale).
+- **EVIDENCE:** the og gate set re-read first-hand at the decompile
+  lines above; the three core bounds pinned as deliberate by
+  `ExfatEngine.HardeningBoundsPinned` (the volume_length and fat_offset
+  edges isolated on ordering-consistent garbage the og's full
+  conjunction ACCEPTS; the cluster_count edge pinned at the boundary
+  value with the reachability analysis in the test comment).
+
+### D-145 — ext4 superblock acceptance bands: four consolidated deliberate choices on garbage SBs (N-202 registration, REGISTERED DELIBERATE DIVERGENCE — both directions, near-zero real-volume impact)
+
+- **(1) inode_size == 0 with rev >= 1:** the og REJECTS (EXT4SearchDLL
+  :3237's `(rev == 0) || (short)inode_size != 0` gate, re-read first-hand);
+  the core falls back to 128 and accepts — the fallback is hardening (a
+  rev-1 SB with a zeroed inode-size field still has recoverable inodes at
+  the spec default), and the og's own rev-0 path hardcodes 128 anyway.
+- **(2) log_bs 7..20:** the og ACCEPTS (its `0x400 << (log_bs & 0x1f)`
+  int-sign form only fails when the shifted int goes negative — past 20,
+  i.e. 1 GiB blocks; 128 KiB..512 MiB blocks pass its gate); the core
+  rejects above 6 (64 KiB, the kernel's limit). The og's wide band is an
+  og defect class (the I-045 non-adoption family): 1 GiB block sizes are
+  nonsense; no kernel ever mounted them.
+- **(3) journal_inum:** the og copies the field only when
+  feature_compat's HAS_JOURNAL bit 2 is set (:3365-3367); the core reads
+  it unconditionally and defaults 0 -> 8. The unconditional read is
+  harmless on non-journal volumes (the salvage pass gates on the jsb
+  magic before touching inode 8) and keeps the field observable for
+  journal-bearing volumes whose compat flag was torn.
+- **(4) desc_size:** the og clamps to [32, 64] unconditionally
+  (:3397-3405); the core picks 64-iff-64BIT (32 otherwise). Differs only
+  on invalid combos (64BIT with ds < 64, or non-64BIT with ds = 64) —
+  the core's form matches the kernel's decoding of the same field.
+- **EVIDENCE:** all four og sites re-read first-hand at the cited lines;
+  the four core bands pinned by `Ext4Engine.SbBandsPinned` (the 128
+  fallback, the log_bs cap isolated from the fdb rule, the journal_inum
+  default, both desc_size combos). No behavior change — registration and
+  pins are the deliverable.
