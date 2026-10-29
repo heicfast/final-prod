@@ -1,3 +1,57 @@
+# SUMMARY.md — executive summary (the S92 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-92 S92 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to minor first) ... Aim for atleast 20+ fixes in this session"]; opened at core `390069ab` pre-window, pulled through FIVE racing windows to the landing head; corpus `be0cfe9` throughout; seats S89/S90/S91 all born-collided — this lane renumbered to S92)
+
+- **The racing-window reality this lane operated under:** five
+  windows landed mid-flight (M-101 FIXED b7d05b12; M-105 FIXED; the
+  OQ-S79-1 resolution + the three OQ dispositions; M-107's
+  DXF/EPS/AI members; the WPD seat 1ff8ae24; TWO convergent SIT
+  landings arbitrated at 72b96a93; N-226/N-227/N-228; the v0.6.0
+  release notes; three separate red-tree repairs). This lane's own
+  WPD landing (the same three-pair tier-1 + u32@+0x14 extent decode,
+  proven RED→GREEN locally) CONCEDED to the racing seat per SA-9 —
+  the concession and the convergence record ride the worklog's S92
+  entries and M-107's Session-92 addendum.
+- **The WPD SUB-FORMAT RIDER LANDED (this lane's unique code fix):**
+  the racing S87 landing's "the type split is the og's report-layer
+  routing ... the registered model-divergence stance" framing
+  corrected by the first-hand child-processor decode — the
+  CRawFileInfo child's +0x28 slot (0x18000b7a0) indexes the
+  9-byte-stride name table at 0x18008f070 by the tier-1's stamped id
+  and assigns WPD/WPG/SHW INSIDE THE ENGINE (not the report layer),
+  and the promised divergence registration never existed in any trail
+  file (the trail-truth class). The rider: the WPG pair carries via
+  format_override onto FMT_WPG; the SHW pair onto the appended FMT_SHW
+  row (the N-115 override-target pattern). RED→GREEN via the
+  validator-only stash dance (the strengthened
+  WpdSecondAndThirdRecordsCarve); full suite green at every push.
+- **N-230 FIXED (MINOR, NEW — filed this lane):** the duplicate
+  gtest name that left origin/main build-red (two racing WPD batteries
+  both defined Carve.WpdZeroSizeFieldDeclines; the window's style
+  sweep reformatted both copies without compiling — formatting is not
+  validation; the N-210 class's ninth occurrence). Converged with the
+  racing window's own repair (their deletion form holds the seat as
+  N-229's superset finding; this lane's rename form renumbered to
+  N-230 with both framings' coverage preserved in the record).
+- **The N-229/N-230 seat collision resolved + the fixed-directory
+  duty:** the racing N-229 (the SIT plant subscript corruption + the
+  duplicate test — the superset) moved into findings/FIXED/ with its
+  ledger row; this lane's N-230 cross-referenced.
+- **The APE member's decode IN PROGRESS (tracked-forward with the
+  precise continuation probes):** the node chain, the unconditional
+  tier-1, the 0x138 specialized child, the version window gate
+  (u16@+4 ∈ [1000,10000)), the 2 GB cap, the seek-table max
+  accumulator, and the extent stamp — all decoded first-hand and
+  recorded in M-107's Session-92 addendum with the exact instruction
+  addresses for the next lane's continuation.
+
+**Board at this lane's close (filesystem truth): 4 MAJOR (M-086/M-087/
+M-089 driver-repo-resident per OQ-S10-3 — out of the two-repo grant;
+M-107 for its APE + SWF-RECT members and the DWG gen-3 R2007
+remainder, the ONE/3DS slices owned by M-106's registered remainders)
+· 2 MINOR (N-107/N-127 driver-repo-resident) · 3 tracked-open · 214
+FIXED.** Next free IDs: S-069+, M-160+, N-231+, I-049+, A-017+, D-166+.
+
 # SUMMARY.md — executive summary (the S86 fix lane on top: M-105 landed under option (a); the prior lanes below, newest-first)
 
 ---

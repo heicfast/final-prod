@@ -236,3 +236,50 @@ that survives: the sub-format split the seat's own message saw
 ("-> type 0x44 / 0x45 / 0x3d") but routed away on the mistaken
 report-layer framing. The divergence registration the S87 message
 promised is thereby MOOT — the split is implemented, not diverged.
+
+---
+
+## Session-92 addendum — the APE member's decode IN PROGRESS (the frame walk's first half decoded first-hand; the precise continuation probes recorded)
+
+**APE's chain decoded this session (objdump over og-codebase/RAWSearchDLL.dll;
+RTTI via the COL walk):** the "MAC " key 0x2043414d (raw asm
+0x18000358b, the rolling alloc-then-bind) → the **BruteForce::CAPEAnalyser**
+node (vtable 0x18006bf88, RTTI-verified, id 0x51 = the name table's
+'APE'). The tier-1 (node+0x10 = FUN_180033090) is the MINIMAL form:
+`mov [r8+0x18], 0x51; mov eax, 1; ret` — accepts UNCONDITIONALLY,
+stamps the id, never touches result+0x10; the magic key IS the gate.
+The factory (node+0x38 = FUN_1800330a0) allocates a **0x138-byte
+specialized child**: the plain CRawFileInfo base ctor (0x18000b520)
+then the APE vtable override (0x18006bfd8) with +0x110/+0x118/+0x120
+zeroed (the walk's accumulators). The node's +0x40 is the return-0
+stub — no secondary; the child's +0x20 (FUN_180033180) is the frame
+walk, the authority.
+
+**The walk's decoded first half (0x180033180-0x180033478):**
+- **The version window gate** (:180033200-:180033240): u16@chunk+4
+  must satisfy 1000 ≤ v < 10000 (the 3920-3990 3.9x family fits
+  verbatim); outside → `mov [rbx+0x10], 0; return 1` — the extent-0
+  DECLINE.
+- **The cap**: singleton+0x70 × 10 = **2,000,000,000** (:1800331e7-:1800331f4,
+  `lea r12,[rcx+rcx*4]; add r12,r12` — the same cap family the SIT
+  walk decoded).
+- **The seek-table walk** (:180033440-:180033476): 4-byte entries from
+  the chunk's descriptor-referenced table, each entry < the cap and
+  nonzero, accumulating the running MAX into child+0x120.
+- **The extent stamp** (:180033494-:18003349b): child+0x120 (the
+  seek-table max) → result+0x10.
+- **The frame-header parse** (:18003329e-:180033321): the SIMD read of
+  the chunk's head, the descriptor offset s32@chunk+8, and the frame
+  size formula (u16@frame >> 3) × u16@frame+2 → child+0x12c.
+
+**The precise continuation probes (the next lane's start):**
+1. The frame loop at :1800334c4 onward (the `[r13+0x14] > r15d` gate,
+   the 0x18006bf70 .data constant, the byte-compare loop at
+   :1800334f6) — the per-frame advance and the walk's natural end.
+2. The second-chunk continuation at :180033421 (the child+0x118
+   path — the chunk-feeding protocol's resync).
+3. The terminal states: :1800335c1 (the cap boundary), :1800335c6
+   (the decline), :1800335d7 (the return), :180033604 (the post-gate
+   fall-through).
+The stand-in stays WITH this addendum as the owner (the honest
+posture until the walk lands whole).

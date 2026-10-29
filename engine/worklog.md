@@ -1,3 +1,50 @@
+## Session-92 S92 fix lane — the handoff (2026-10-30, the closing entry)
+
+**This lane's landings (all pushed, main green at every push):**
+1. The WPD sub-format rider (the engine-side name split — the +0x28
+   processor decode correcting the racing S87 landing's report-layer
+   framing; FMT_SHW appended, the WPG override, the strengthened
+   battery).
+2. N-230 (the duplicate-gtest red-main class record, converged with
+   the racing N-229 superset seat).
+3. The N-229/N-230 seat resolution + the fixed-directory duty + the
+   ledger rows.
+4. The APE decode-in-progress addendum (the precise continuation
+   probes for the next lane).
+
+**The suite at close:** 1719/1719 green first-hand at the final
+pushed head (linux-release, gcc 14.2 -Werror); markers clean;
+clang-format 18.1.8 clean; doc_truth_gate green.
+
+**The remaining scope (the next lane's start, in priority order):**
+1. **M-107's APE member** — the walk's first half is decoded
+   (M-107's Session-92 addendum carries the instruction addresses);
+   the continuation probes: the frame loop at :1800334c4 (the
+   [r13+0x14] gate, the 0x18006bf70 constant, the byte-compare loop),
+   the second-chunk resync at :180033421, and the four terminal
+   states. Then land the walk + the RED→GREEN battery.
+2. **M-107's SWF-RECT member** — the finding's open question 3 stands:
+   verify at FUN_180026940 whether the og's RECT parse changes the
+   extent or only the accept decision; scope accordingly (it may
+   downgrade to a validation-only change).
+3. **The DWG gen-3 (R2007) remainder** — the 0x3d8 accumulate + the
+   3×239 stride-3 de-interleave + FUN_18002ef50's record chain.
+4. The driver-repo five (M-086/M-087/M-089/N-107/N-127) stay
+   PUSHED-FORWARD under the OQ-S10-3 boundary — one driver-repo lane
+   takes all five per the recorded order.
+
+**The racing-lane lesson this lane adds to the record:** five windows
+in one session; every one of them landed at least one un-gated red
+tree (the duplicate test, the plant subscript corruption, the
+conflict-marker trails — N-226/N-227/N-228/N-229/N-230). The
+procedural fix is unchanged since N-210 and remains unimplemented by
+the racing lanes: run the gate (`ci-local.sh`, or at minimum one
+build) against the PULLED head immediately before every push.
+Formatting is not validation; a suite count claimed over a tree that
+does not compile is a false claim in the trail.
+
+---
+
 ## Session-92 S92 fix lane (renumbered from the born-collided S89/S91 — the racing windows took each seat) — opens (2026-10-30, the MINOR-first 20+ mandate)
 
 ---
