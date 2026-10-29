@@ -12,6 +12,29 @@ folded in. The SURFACE-INVENTORY row re-truthed to cite the registration.
 The finding's own test idea executed: CrUi.OutOfScopeRowsCarryTruthfulRegistrations
 gates the OOS-citation drift class. The adjacent eligibility surface
 (CHKRepairFileSign/EUUserData) verified as the truthful D-104 channel.
+**S56 lane — N-150 landed (2026-10-29).**
+
+**N-150 FIXED (MINOR — the API doc-truth batch).** The count sites re-derived
+in BOTH directions and now CI-guarded (the doc_truth_gate's check_abi_count_
+claims — derivation from the tree itself: 86 exports / 45+OK error codes
+[case-normalized — six uppercase-hex spellings; the check caught this lane's
+own lowercase-only grep miss mid-landing] / 12 event types / errmod 13 / 12
+verbs): API.md 83->86 + the two thumbnail rows; CORE-API-CURRENT 78/34/10 ->
+86/45/12 (+ the :38 banner); API-SURFACE-AUDIT 81->86 + A-ABI-3 RETIRED-
+EXECUTED (the class is automated now). R-84 flipped PRESENT (the 6-facet
+status surface re-verified on disk), R-37 reshaped PARTIAL (M-116's pointer),
+the status line recounted by real awk census (45/10/27 — the first-draft
+guess redone against the count, recorded as the anti-example). The phantom
+macro CR_UI_ERR_FVE_LOCKED -> ERR_FVE_LOCKED x4; the dead duplicate --label
+handler removed (dead from birth, the divergent ASCII semantics annotated,
+the live N-016b rule pinned at the ABI seam by N-090's test; no CLI harness
+exists — registered honestly); §7i FIXED-ALREADY (200 MB on disk); testing.md
+1,404 macros; bench/README's runtime-artifact truth; the API-DELTA stale
+rows annotated (M-072/M-074/M-017/S-038/OQ-SA-1). RED->GREEN: the gate's
+first run = 5 named count violations -> green. Suites: cr_tests 1,289/0
+failed + cr_ui_tests 77/77 (linux-release, the sibling window's red-main
+repair tree — convergent with this lane's own superseded repair). Trail:
+findings/FIXED/N-150 + ledger row + this entry.
 
 **Session-51 severe-first lane — S-059 landed + two hot-window franken-tests repaired (2026-10-29).**
 

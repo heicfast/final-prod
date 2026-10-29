@@ -217,12 +217,12 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
     auto* root = t.add_root(u"Found");
     /* the in-table DOC pair at one key (skips the deep path) */
     auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0x5000, 0x400);
+                       Origin::Structured, 0x5000, 0x400);
     auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
     /* the out-of-table ZZQX pair at another key (enters the deep path) */
     auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0x9000, 0x400);
+                       Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
     /* the dot-less pair (its pin moved to DotlessNamesSkipTwinDetection;

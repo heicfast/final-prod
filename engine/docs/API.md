@@ -89,7 +89,9 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 83 exported functions in the current header, all
+append-only-flat-C: 86 exported functions in the current header (the
+count re-derived 2026-10-29, the S56 lane: 89 `CR_UI_API` lines minus 3
+`#define` macros; CI-guarded by the doc_truth_gate count invariants), all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
 thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 
@@ -142,6 +144,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window (`cr_ui_snapshot_close` releases) |
 | `cr_ui_query_run` / `cr_ui_query_rows_free` / `cr_ui_query_apply_buckets` | the server-side query (filter/sort/page/bucket IDs, M-029) |
 | `cr_ui_preview_open_session` / `cr_ui_preview_open_snapshot` / `cr_ui_preview_read` / `cr_ui_preview_size` / `cr_ui_preview_metadata` / `cr_ui_preview_close` / `cr_ui_preview_unreadable` | budgeted content preview (caps honest, M-028) |
+| `cr_ui_thumbnail_generate(dev, sess, ...)` / `cr_ui_thumbnail_format_supported(utf8_format)` | the thumbnail surface (N-137's ABI landing): byte-identical thumbnail generation with the og's decode gates, + the per-format codec-support probe (the formats the shipped decoders cover; both rows added by N-150's truth pass - they were on the header but absent from this table since the M-102 landing) |
 
 ### 2.5 Recovery, repair, apply, unlock
 
