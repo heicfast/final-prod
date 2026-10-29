@@ -176,3 +176,22 @@ PARITY-OG-CORE-INVENTORY's usefullostfiles.xml row cross-linked so the
 two documents cannot drift apart again. The behavioral gap itself stays
 OOS-UI (display-tier demotion, never a drop — files are recovered
 regardless). #16/#46 rows: MATCH (attribution layer).
+
+## M-101 Resolution (the convergent landing, closed 2026-10-30)
+
+**M-101 FIXED** — the two missing distinguished branches landed (the
+racing lane's implementation keeps the seat: the FNV-1a
+namespace-identity `version_group` stamped at emission, the
+`query::version_groups()` >=2-live-member census, the exact-id
+`Filter::version_group` selector, the runtime `tags_extracted` flag
+stamped by the host's preview pass + the S84 compose rider [the carve
+analyser's S-049 EXIF walk stamps the flag at scan time — zero extra
+I/O], the safewriter's `lost_files_tags_extracted` report category
+[og kind 6], and the SnapNode/Row append-only carriers; the version id
+persists through the nflags bit-14 block). The S84 lane's convergent
+post-scan-pass variant conceded per SA-9; the case-sensitivity delta
+(the landed hash is case-SENSITIVE over name bytes; NTFS's $UpCase
+collation says the folded form groups more) recorded as the next probe
+in the Resolution. Tests: the M101Branches battery (5) + the S84
+convergent set (4, adapted to the landed surface). Finding:
+findings/FIXED/M-101-results-tree-branches-missing-versions-node-tags-extracted.md
