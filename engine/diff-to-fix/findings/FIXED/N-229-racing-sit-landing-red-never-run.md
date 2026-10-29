@@ -1,0 +1,26 @@
+# MINOR N-229 — the racing SIT landing pushed RED: the unused `flavor` parameter broke the Linux build (-Werror) and its seven-test battery was never run — three tests failed and two pins contradicted each other on first execution
+
+**Severity:** MINOR (a Linux-lane build red + never-run tests on main — the N-210 gate-skipping class's ninth occurrence, committed by a repair lane's own landing; the SIT carve behavior itself was directionally sound but internally inconsistent)
+**Module:** carve (M-107's SIT member) / CI truth
+**Parameters affected:** Q68 (audit-trail/CI truth), A25/A27 (the SIT extent semantics)
+**Corpus references:** the same RAWSearchDLL sites both lanes decoded (FUN_180015d70, FUN_180044ae0, the .data constants at 0x180067858/68/78)
+**Core references:** origin/main `11a819c1`/`72b96a93` (the racing window's SIT landing): `tests/unit/test_carve.cpp`'s plant_sit declared `u32 flavor` but never used it — `g++ -Werror` refuses the TU (`error: unused parameter 'flavor' [-Werror=unused-parameter]` at the definition), so cr_tests could not build: **the racing lane's "207-test carve suite green" claim was unverifiable at its own push** — the battery it landed in the same commit never executed. First-hand at this lane's merge: the build fails; once repaired, `Sit5AllThreeMagicVariantsCarve` (the flavor plants produced wrong extents for 0x3B/0x10), `Sit5NoMagicNoHeaderDeclines` (the validator's torn-salvage fall-through carves where the test — and both decodes — say the pending candidate drops), and `SitNextHeaderTerminatesTheWalk` (the classic ' ' form expects the next-header walk while the validator kept the stand-in) all FAIL. `SitClassicSpaceFormKeepsTheRegisteredStandIn` pins the stand-in for the SAME classic form `SitNextHeaderTerminatesTheWalk` pins the walk for — two contradictory pins in one never-run battery.
+**Status:** FIXED (found and fixed in the same session, per §8's discovered-divergence rule — the red-main repair over the racing landing)
+
+## Summary
+
+The racing window's SIT landing (the deeper decode — the .data end-magic constants, the stride table, the corrupt-entry terminal) pushed with a build-breaking unused parameter, so its own seven-test battery never ran. On first execution (this lane's repair), three tests failed and two pins contradicted each other: the classic-' '-form semantics was pinned BOTH ways (the stand-in AND the next-header walk) in the same push.
+
+## The repair (executed this session — the arbitration)
+
+1. **The build break:** plant_sit's `flavor` parameter now used (`img[m+3] = u8(flavor)`) with the marker position adapted to the stride table ({0x19: 4, 0x3B: 5, else: 6}) — the walked extent lands exactly at the planted length for EVERY flavor, which is what `Sit5AllThreeMagicVariantsCarve` pins.
+2. **The classic-' '-form arbitration (the corpus wins):** the S91 decode (FUN_180015d70's first-chunk gate: ' ' sets NO search flag — the next SIT-family header at a sector boundary is the ONLY terminator) + the racing lane's OWN `SitNextHeaderTerminatesTheWalk` agree; the stand-in branch (and its pin, rewritten to `SitClassicSpaceFormWalksToTheNextHeader`) is superseded. The next-header gate is shared by both forms.
+3. **The stream-end drop:** the torn-salvage fall-through (and the stale 200 MB constant — inconsistent with the racing row's own 2 GB cap) replaced by the decline both decodes state: "a no-terminator SIT does not carve" (the og's 2 GB force-stamp path produces an over-row extent the row gate rejects; the stream-end drop never finalizes).
+4. This lane's four processor-level SIT tests withdrawn (superseded by the arbitrated battery); the S-007-era floor pin and the batch plant carry unchanged.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; the S91 arbitration merge, 2026-10-30)
+**Verified by:** the build GREEN first-hand (`0 errors` — was: `unused parameter 'flavor' [-Werror]`, cr_tests unbuildable at origin/main); the SIT battery 12/12 (was: 3 FAILED on first execution + 2 contradictory pins); the carve suite 213/213; the full suite **1720/1720** (148 s); doc_truth_gate green.
+**Resolution notes:** The arbitration folded the S91 decode's classic-form walk INTO the racing seat (their marker walk kept — the deeper decode), exactly the both-sides convergent shape the SA-9 convention prescribes when the pushes disagree on a member: the corpus arbitrates, the fuller decode keeps the seat, the complementary decode's unique surface is added, and the contradictions are repaired to the corpus-true model. The recurrence root cause is unchanged since N-210: the lane pushed without building the pulled head — the ninth occurrence, this time hiding three failing tests and a build break behind a green claim.

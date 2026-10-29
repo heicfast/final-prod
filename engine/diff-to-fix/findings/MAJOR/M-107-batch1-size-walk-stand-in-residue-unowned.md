@@ -232,7 +232,7 @@ WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
 
 ---
 
-## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 with the earlier claim) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
 **The seat conceded.** This lane decoded the DWG walk independently
 (FUN_18002f320, the CDWGRawInfo feed, RAWSearchDLL_decompiled.c:
@@ -428,7 +428,7 @@ AiHeaderFormulaWalkSetsExtent), GREEN with the walks; the torn and
 degenerate arms pin the salvage/decline semantics. The carve suite
 193/193. Remaining: WPD, SIT, APE (three) + the DWG gen-3 remainder.
 
-### The riders landed (the S86 rider commit)
+### The riders landed (the S86 rider commit, this session)
 
 Rider A (the row floor): the row min 64 -> 0x15 (21), the gen-1 walk's
 residual 512-byte floor removed (cr_analysers.cpp's gen-1 tail +
@@ -589,3 +589,149 @@ ctx->[0x14] >= 5 + child->[0x110]) was read only at its gate structure
 — its inner entry-index parse is recorded as the evidence sheet's open
 question (a); the landing's terminator model is complete without it
 (it can only finalize earlier with the same walked-sector formula).
+
+---
+
+## Session-89 addendum — the SIT member LANDED (member 10 of 11: the FileSITAnalyser entry-marker walk + the acceptance-window repair)
+
+**SIT FIXED (this session; one member remains besides APE/SWF-RECT... — the
+enumeration after this landing: APE + SWF-RECT remain).** The chain decoded
+first-hand from the raw asm (objdump over og-codebase/RAWSearchDLL.dll):
+
+- **The acceptance gate is the family union the og's processor enforces**
+  (the primary processor 0x180015d70's gate, raw-asm 0x180015df3-0x180015e67:
+  `sub $0x20,%al; ja` — byte[7] must be 0x20 or 0x21 — plus the u16@4
+  0x4966 / byte@6 't' checks; the WEBBAIKE arm: u32@0 "WEBB" +
+  u64@4 0xB4EB6666454B4941 + u32@12 0x7bbd74a3). The node's own 7-byte
+  gate (the wrapper vtable 0x18006d5a8 slot+0x10 = FUN_180044940, the
+  tier-1 "Stuf"+"fI"+'t' OR the 16-byte WEBBAIKE key) is WIDER than the
+  processor's — a "StuffItX" candidate passes the node gate, is refused by
+  the processor, and rides the continuation until it dies: never carved.
+  The pre-fix core accepted ANY byte[7] with the blind extent (the
+  discovered acceptance defect, the M-156 X3F-ASCII-gate class inverted):
+  **FIXED — byte[7] ∈ {' ', '!'} or refuse.**
+- **The '!' form's walk = the FileSITAnalyser** (FUN_180044a10, vtable
+  0x18006d5b0 slot-0 — the File*Analyser one-function tier-1+size shape,
+  the M-090/WPD authority precedent; the +0x40 stub on the SIT node means
+  the secondary-first consult never fires on the magic-key path — the walk
+  is the whole-file expression of the same marker machinery the primary's
+  +0x110 pending flag triggers): the tier-1's own byte[7]=='!' gate
+  (0x180044a93 `cmpb $0x21,0x7(%rax)`); the windowed entry-marker search
+  — the 3-byte prefix 02 D7 0A (FUN_180044890's byte-scan) + the +4 u32
+  0x8842f698 validation; a full hit stamps **extent = marker + 8 +
+  stride** (stride: XX==0x19 → 4, XX==';' (0x3b) → 5, else 6; raw-asm
+  0x180044cab-0x180044cd2; the .rdata pattern table at 0x180067848 lists
+  the three 8-byte forms {0x10, 0x3b, 0x19}); a 3-byte prefix hit with a
+  mismatched +4 u32 is the **corrupt-entry terminal** (extent = the
+  512-aligned sector start containing it); the **new-header gate** (a
+  following 7-byte "StuffIt" or the 16-byte WEBBAIKE key at a 512-byte
+  boundary, FUN_180044960 — raw-asm-verified both arms) ends the walk at
+  that boundary; torn → the walked bound (the loop-exit stamps the
+  position; the og's cap is the singleton+0x70 halved bound the row max
+  200,000,000 mirrors — the X3F stance).
+- **The classic ' ' form**: extent 0 at the first feed
+  (raw-asm 0x180015dd6) with the size eventually stamped by the feeding
+  epilogue `(offset - stored + 1) * len` (0x180015f42) — a streaming
+  artifact with no decoded whole-file semantic. The honest stand-in stays
+  for that population (reduced confidence, the note naming the recorded
+  follow-up) — the same posture as the DWG gen-3 remainder.
+
+RED→GREEN via the stash dance (the validator reverted alone, the tests
+kept): **5 of 7 RED at the stand-in tree** (SitEntryMarkerWalkSetsExtent /
+SitMarkerStrideTable / SitNewHeaderAtSectorBoundaryEndsTheWalk /
+SitCorruptEntryTerminalStampsTheSectorStart /
+SitByteSevenOutsideTheWindowIsRefused), GREEN with the walk; the two
+pre-existing pins (SitMinimumIsTheOgFloor, the classic-form stand-in pin)
+pass both ways by design. The S-007 batch's SIT plant re-pinned (the '!'
+magic + the real 0x19-stride marker at bytes-12; the old filler's byte[7]=7
+would now correctly refuse). The full suite **1711/1711** (1705 + the six
+new tests). Remaining members: **APE, SWF-RECT**.
+
+---
+
+## Session-87 addendum 3 (the S87-continuation lane's SIT convergence record — the seat conceded per SA-9)
+
+This lane independently decoded and implemented the SIT member in the
+same window as the racing S89 lane's landing (`2214af90` — the earlier
+push holds the seat). The two decodes AGREE on: the 7-byte "StuffIt"
+tier-1, the processor's byte@+7 window ('!' = the SIT5 search arm; ' '
+= the classic arm; any other byte never finalizes — the racing lane's
+"acceptance-window repair" and this lane's routing are the same
+decode), the marker family 02 D7 0A XX 98 F6 42 88 (this lane's
+first-hand .data dump at 0x180067858/68/78 vs the racing lane's
+stack-constant read at 0x180044b17-0x180044b1e), and the WEBB AIKE
+66 66 EB B4 A3 74 BD 7B family form. The racing lane's walk is the
+FULLER decode: FUN_180044ae0's per-ENTRY marker walk (the stride table
+{0x19→4, 0x3B→5, else 6} past the marker end, the corrupt-entry
+terminal at the 512-aligned sector start, the new-header gate at the
+512-byte boundaries) — this lane had stopped at the processor's
+FUN_180015b60 chunk-level magic search and translated it directly;
+the racing seat's walk supersedes.
+
+**The convergence deltas this lane contributes for the future
+arbitration lane (both first-hand, neither contradicts the seat):**
+1. **The walk cap:** this lane's decode of the heuristic gate at
+   0x180015e69-0x180015e81 reads `len × rel < max × 10` — the child's
+   200,000,000 max scaled by ten (the asm's `lea (%rax,%rax,4)+add`)
+   = a 2 GB force-stamp boundary; the racing seat's bound is the
+   singleton-halved form. The two bounds differ by 10×; a future lane
+   reading FUN_180044ae0's own loop exit (vs the processor's
+   heuristic) settles which cap the og's walk actually carries.
+2. **The classic ' ' form's walk:** this lane decoded the processor's
+   else-branch re-validation as the ' ' form's ONLY terminator (the
+   next full StuffIt/WEBB-family header) — a real walk, not a
+   stand-in; the racing seat keeps the honest 64 MiB stand-in at
+   reduced confidence with the "primary's feeding walk" as the
+   recorded follow-up. A future lane decoding the primary chain's
+   feeding path settles whether the classic form walks.
+3. The stream-end drop (a candidate whose walk never completes before
+   the device ends) — this lane's translation (the decline) matches
+   the seat's torn-salvage posture only when the bound is reached;
+   the difference is unobservable below whichever cap is right.
+
+This lane's five SIT tests were withdrawn with the concession (they
+pin the processor-level translation the seat's fuller walk
+supersedes); the racing seat's seven-test battery stands as the
+member's proof.
+
+---
+
+## Session-91 addendum 3 — the SIT arbitration: the classic-form walk folded into the racing seat (N-229's repair record)
+
+The racing window landed a DEEPER SIT decode (the .data end-magic
+constants at 0x180067858/68/78, the stride table {0x19: 4, 0x3B: 5,
+0x10: 6}, the corrupt-entry terminal, the WEBB 16-byte key as the
+four-dword form {0x42424557, 0x454b4941, 0xb4eb6666, 0x7bbd74a3}) —
+their push keeps the seat per SA-9. **But their landing shipped RED**
+(N-229, findings/FIXED/): the unused `flavor` parameter broke the
+Linux build (-Werror), so their seven-test battery NEVER RAN — and on
+first execution three tests failed while two pins contradicted each
+other on the classic-' '-form semantics (the stand-in vs the
+next-header walk — both pinned in the same push).
+
+The arbitration (this lane's repair, corpus-first):
+1. The classic ' ' form walks to the next SIT-family header at a
+   sector boundary (this lane's FUN_180015d70 decode: the first-chunk
+   gate sets NO search flag for ' '; the racing lane's own
+   SitNextHeaderTerminatesTheWalk pins the same edge) — the stand-in
+   branch and its pin superseded (rewritten to
+   SitClassicSpaceFormWalksToTheNextHeader).
+2. The stream-end drop: a no-terminator SIT DECLINES (both decodes
+   agree: the og's 2 GB force-stamp extent row-rejects; the pending
+   candidate drops at the stream end) — the torn-salvage fall-through
+   and the stale 200 MB constant removed.
+3. The racing marker walk (the '!' form) kept as landed: the entry
+   marker (02 D7 0A + the u32@+4 validation 0x8842f698, the stride
+   table), the corrupt-entry terminal (the sector start), the
+   new-header boundary — with the shared next-header gate now serving
+   both forms.
+4. The flavor repair: the plant uses its parameter with the
+   stride-adapted marker position; Sit5AllThreeMagicVariantsCarve now
+   actually exercises the three variants (was: three copies of the
+   0x19 plant under a broken build).
+
+The SIT battery 12/12 at the arbitration head; the carve suite
+213/213; the full suite 1720/1720. This lane's four processor-level
+SIT tests withdrawn (superseded by the arbitrated battery). **SIT's
+member status: LANDED (the arbitration); two members remain: APE,
+SWF-RECT + the DWG gen-3 R2007 remainder.**

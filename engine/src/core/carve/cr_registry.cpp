@@ -443,8 +443,8 @@ const Signature kTable[] = {
      * constant - the child walk's cap check at raw-asm 0x18002f5ee
      * (`imul $0x64,0x70(%rax)`): singleton+0x70 (0xbebc200 = 200 MB)
      * x 100 = 0x4A817C800 (20 GB). The 64 MiB stand-in value is gone. */
-    /* the S86 convergence rider: the row floor re-pinned to the og's
-     * registered 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword
+    /* the S86 convergence rider: the row floor
+     * re-pinned to the og's registered 0x15 = 21 (the CDWGRawInfo factory FUN_18002ff20's qword
      * write at +0x110 - puVar1[0x22] = 0x15, the PNG/ONE ctor pattern
      * [0x22]=min/[0x23]=max; the SAME write seeds the gen-1 walk cursor).
      * The max stays the first landing's 0x4A817C800 (100 x the engine
@@ -872,7 +872,11 @@ const Signature kTable[] = {
      4,
      0,
      20480,
-     200000000,
+     2000000000ull, /* M-107 member 9 (SIT): the og walk's OWN cap - the
+                       child's 200,000,000 max scaled by ten (the asm's
+                       lea (%rax,%rax,4)+add at 0x180015e77-7b, the
+                       force-stamp boundary); the 64 MiB stand-in gone.
+                       The min keeps the ctor's 20480 floor (N-093). */
      620,
      validate_sit,
      "StuffIt Archive"},

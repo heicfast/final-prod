@@ -1260,7 +1260,7 @@ CRW slice) MATCH; the finding stays active for its remaining nine
 members (DWG's section-locator map next).**
 
 
-## Session-86 addendum — the S86 lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 first) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
 
 **The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
 ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
@@ -1375,7 +1375,7 @@ invented "version 1..64" gate dropped (dw@4 is a block start, not a
 version). Seven new tests (five RED at the stand-in); the carve suite
 193/193. Remaining members: WPD, SIT, APE + the DWG gen-3 remainder.
 
-### The S86 riders landed (the rider commit, this session)
+### The riders landed (the rider commit, this session)
 
 Both convergence riders over the racing DWG landing: (A) the row floor
 0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed
@@ -1388,11 +1388,34 @@ tree for the wrong reason (the 512 floor) - the fixture now carries
 2304-byte per-record ends so the counter gate is the only refusal under
 test.
 
+## Session-89 fix lane (2026-10-30 — the M-107 SIT member: the entry-marker walk + the acceptance-window repair)
+
+- **M-107 member 10 (SIT) LANDED**: the acceptance is now the og's processor
+  gate — "Stuf"+"fI"+'t' with byte[7] ∈ {' ', '!'} (raw-asm
+  0x180015df3-0x180015e67; the pre-fix core accepted any byte[7], the
+  discovered divergence: "StuffItX" never finalizes in the og). The '!'
+  form's size is the FileSITAnalyser walk (FUN_180044a10, vtable
+  0x18006d5b0 slot-0): the entry-marker search (02 D7 0A + the +4 u32
+  0x8842f698), extent = marker + 8 + stride (0x19→4 / ';'→5 / else 6), the
+  corrupt-entry terminal (the 512-aligned sector start), the new-header
+  gate (a following "StuffIt"/WEBBAIKE key at a 512-byte boundary ends the
+  walk), torn → the walked bound (the row max mirrors the og's halved
+  singleton cap). The classic ' ' form keeps the honest stand-in at reduced
+  confidence (the primary's feeding epilogue is the streaming artifact —
+  the recorded follow-up). Tests: SitEntryMarkerWalkSetsExtent /
+  SitMarkerStrideTable / SitNewHeaderAtSectorBoundaryEndsTheWalk /
+  SitCorruptEntryTerminalStampsTheSectorStart /
+  SitByteSevenOutsideTheWindowIsRefused /
+  SitClassicSpaceFormKeepsTheRegisteredStandIn (5/7 RED at the stand-in
+  tree via the stash dance); the S-007 SIT plant re-pinned; the full suite
+  1711/1711. Remaining members: APE, SWF-RECT.
+---
+
 ---
 
 ## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
 
-**The racing S84/S89 window's WPD landing keeps the seat** (the same
+**The racing S84/S86 window's WPD landing keeps the seat** (the same
 decode arrived at independently); this lane's riders (the two extra
 test directions) and the census-erratum record are what it adds. The og's "\xFFWPC" tier-1 (FUN_180041f50, raw-asm decoded
 first-hand; evidence: `../evidence/s88-lane-sheets/
