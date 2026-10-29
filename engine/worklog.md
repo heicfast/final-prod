@@ -10527,3 +10527,37 @@ read-failure semantics — re-scoped against the S71 landing's
 set_read_error_source seam) → M-073/M-075/M-078/M-101 (the driver/launcher/UI
 tail) → the 9 in-scope MINORs → the tracked-open set. Baseline suite green
 before the first change; every fix RED-proven pre-fix and GREEN post-fix.
+
+## Session-72 S72 lane — M-135 lands (2026-10-29)
+
+- **M-135 FIXED (MAJOR, writer)** — the og's read-failure semantics: truncate +
+  number + log + keep the partial. Corpus re-read first-hand, two corrections
+  to the finding's own citations: the cause list is the SEVEN compiled-in
+  entries (DRWUI strings_ascii.txt :30580-30596, RecoveryFailedInfo1..7) — the
+  qm-file citation misread cause 4 (runtime cause 4 = "The sector reading
+  location exceeds total sector number of the source partition", not the qm's
+  search-help "file name is most likely lost" string) and missed cause 7; and
+  FUN_1400ed760 (the finding's mapper candidate) is a %d string formatter —
+  refuted, the og's internal code→cause mapping stays corpus-undecoded (the
+  core maps by cause-string semantics, registered D-149). The runlist export
+  body re-read in full (:875620-875840): the straddle clamp (:875666-68), the
+  error-9 trio + break (:875684-875696), the outer-loop exit. Landing:
+  SafeWriter::set_error_map_source (the M-136 pipe's live map — the post-retry
+  hard-failure signal), the truncate-at-first-unreadable-byte policy (the
+  readable prefix of the failing chunk is written — D-149's registered
+  byte-granular refinement), commit_partial_ (hash over the committed prefix +
+  the S-060 metadata tail + stats.read_error), the straddle clamp + cause 4,
+  the ERR_TRUNCATED delete replaced by the partial-keep (cause 7), the
+  verbatim log trio via cr::log, report fields cause_id/first_failed_offset/
+  bytes_written + totals read_error (schema doc updated), and the CLI's
+  numbered-cause rendering. Per failure class: undecodable compressed blocks
+  keep zero-fill + Salvaged (the og's chunked-path class). Tests: 8
+  new/re-pinned (HardReadFailureTruncatesAndKeeps / ReadErrorLogTriFormat /
+  BeyondVolumeReadRecordsCauseFourAndClampsStraddle / ShortExtentMetadata
+  CommitsPartial / CompressedUndecodableBlockStillSalvages /
+  FailureCauseTableMatchesOgRuntimeStrings / ReadErrorOutcomeMarksTruncated
+  Partials [the FB-R02 re-pin] / BareDeviceTruncatesWhatThePipeRetries [the
+  M-136 negative control re-pinned]); RED = the stash-revert link failure +
+  both re-pins' first-hand failures; suite 1515/1515. Trail: findings/FIXED/
+  M-135 + Resolution, ledger row, matrix MATCH, modules/writer.md E35 → MATCH,
+  SUMMARY (14 MAJOR / 159 FIXED), PARITY-DELTAS D-149, schema doc, this entry.

@@ -41,6 +41,14 @@ enum class Outcome : u8 {
                            * size; the og emits no content for metadata-only
                            * entries (root-causes permanent_delete). Empty
                            * files (size 0) are real content and stay Done. */
+    ReadError = 8,        /* M-135: the og's error-9 family - the read failed
+                           * HARD (post-retry) and the item TRUNCATED at the
+                           * first unreadable byte; the PARTIAL FILE IS
+                           * COMMITTED (the og's runlist path breaks, keeps
+                           * what was written, and lists the file failed:
+                           * DRWUI :875684-875696 + the recorder :874072-
+                           * 874129). cause_id carries the numbered user-
+                           * facing cause; first_failed_offset the boundary. */
 };
 
 enum class HashStatus : u8 {
@@ -81,6 +89,30 @@ struct Item {
      * og logs both failures as traces and continues - the core reports
      * the same non-fatal truth per row. */
     std::string metadata;
+    /* ---- M-135: the og's per-file failure record (the numbered-cause
+     * taxonomy + the truncation boundary). ---- */
+    /* the og's numbered user-facing cause (RecoveryFailedInfo1..7, the
+     * COMPILED-IN defaults at DRWUI strings :30580-30596 - not the qm
+     * file's stale list): 1 insufficient storage space, 2 recovery path
+     * too long, 3 garbage characters in the name, 4 the sector reading
+     * location exceeds total sector number of the source partition,
+     * 5 the correct storage sector location cannot be found (the
+     * error-9 read-failure family), 6 exceeded the free quota (the og's
+     * licensing gate - the core never produces it), 7 other unknown
+     * reasons. 0 = no failure. The og's internal code->cause mapping
+     * function is corpus-UNDECODED (FUN_1400ed760 is a %d formatter,
+     * refuted first-hand); the core maps by the cause strings'
+     * semantics - failure_cause_text() in cr_safewriter.h renders the
+     * same numbering for the CLI. */
+    u32 cause_id = 0;
+    /* the committed byte count (the og's std::filesystem size probe at
+     * :874131-874205): equal to `bytes` for full commits; the truncation
+     * point for ReadError rows. Emitted in the report only when it
+     * differs from `bytes` (additive-within-v1). */
+    u64 bytes_written = 0;
+    /* the logical offset of the first unreadable byte (ReadError rows;
+     * 0 otherwise; emitted only when cause_id != 0). */
+    u64 first_failed_offset = 0;
 };
 
 struct Totals {
@@ -96,12 +128,16 @@ struct Totals {
     u64 nothing_to_recover = 0; /* GAP-S6-7: metadata-only items skipped
                                  * before any write (separate bucket, NOT a
                                  * done sub-bucket - nothing was written) */
-    u64 pending = 0;            /* never attempted in this pass (partial-run truth;
-                                 * queued == done + dirs + refused + errors +
-                                 * resumed + nothing_to_recover + pending, done
-                                 * subsumes the committed sub-buckets hash_mismatch
-                                 * and salvaged) */
-    u64 bytes = 0;              /* sum of committed file bytes */
+    /* M-135: committed-but-truncated items (the og's error-9 family:
+     * the partial IS on disk AND the file IS in the failed list -
+     * a separate bucket from done and errors). */
+    u64 read_error = 0;
+    u64 pending = 0; /* never attempted in this pass (partial-run truth;
+                      * queued == done + dirs + refused + errors +
+                      * resumed + nothing_to_recover + pending, done
+                      * subsumes the committed sub-buckets hash_mismatch
+                      * and salvaged) */
+    u64 bytes = 0;   /* sum of committed file bytes */
     /* N-159: the og's failed-files counters split - CSaveFailedFiles
      * WithHtml's collection slot accumulates the failed count + failed
      * BYTES separately from the committed totals (the results singleton

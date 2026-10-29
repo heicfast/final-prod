@@ -11,6 +11,7 @@
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_log.h"
 #include "cr/storage/cr_device.h"
 #include <cstring>
 #include <fstream>
@@ -384,11 +385,15 @@ TEST(Report, DestFullPreCheckRefusesUpfront) {
         EXPECT_EQ(Outcome::Pending, it.outcome);
 }
 
-TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
-    /* FB-R02 (W2-18): a committed item whose device read failed mid-stream
-     * is ZERO-FILLED (Skip policy) and must surface as outcome "salvaged"
-     * - never silently "done". Totals gain the salvaged sub-bucket; the
-     * pending count keeps the partial-run reconciliation truthful.
+TEST(Report, ReadErrorOutcomeMarksTruncatedPartials) {
+    /* FB-R02 (W2-18) re-pinned by M-135: a committed item whose device
+     * read failed mid-stream is NO LONGER zero-filled-and-salvaged - the
+     * og's runlist path BREAKS at the failing read, KEEPS the partial on
+     * disk (DRWUI :875684-875696), and the file lands in the failed list
+     * with its numbered cause. damaged.bin carries a readable 2048-byte
+     * first extent + a second extent inside the bad range: the partial
+     * commits 2048 bytes, outcome read_error, cause 5, the boundary at
+     * the first unreadable logical byte. Never silently "done".
      *
      * Writer cancel semantics (pinned by this test): the item IN FLIGHT
      * when the token fires becomes Error(ERR_CANCELLED); items after it
@@ -400,7 +405,14 @@ TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
     tree::ResultTree tree;
     auto* found = tree.add_root(u"Found");
     auto* clean = add_node(tree, found, "clean.txt", 0, 4);
-    auto* damaged = add_node(tree, found, "damaged.bin", 2048, 512);
+    /* damaged: extent 1 readable [0,2048), extent 2 in the bad range */
+    auto* damaged = new tree::FileProperties();
+    damaged->name = u"damaged.bin";
+    damaged->extents.push_back({0, 2048});
+    damaged->extents.push_back({2048, 512});
+    damaged->logical_size = 2560;
+    tree::FileNode* damaged_n = tree.add_file(found, damaged);
+    damaged->release();
     auto* victim = add_node(tree, found, "victim.bin", 512, 512);
     auto* never = add_node(tree, found, "never.bin", 0, 4);
     tree.refresh_stats();
@@ -410,47 +422,60 @@ TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
     SafeWriter writer(io, &dev, cfg);
     writer.set_destination(1ull << 40, 512); /* dest far away: no overlap */
     ASSERT_EQ(OK, writer.enqueue(clean, u"out\\"));
-    ASSERT_EQ(OK, writer.enqueue(damaged, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(damaged_n, u"out\\"));
     ASSERT_EQ(OK, writer.enqueue(victim, u"out\\"));
     ASSERT_EQ(OK, writer.enqueue(never, u"out\\"));
 
-    /* fires on victim's first streaming poll (poll #3: clean, damaged,
-     * victim each stream exactly one read chunk) */
-    struct FireOnThirdToken final : CancelToken {
+    /* fires on victim's first streaming poll (poll #4: clean streams
+     * one chunk, damaged streams TWO - its readable extent, then the
+     * failing read truncates it - so victim's first poll is #4) */
+    struct FireOnFourthToken final : CancelToken {
         mutable std::atomic<u64> polls{0};
-        bool cancelled() const override { return polls.load() >= 3; }
-        bool checkpoint() const override { return ++polls >= 3; }
+        bool cancelled() const override { return polls.load() >= 4; }
+        bool checkpoint() const override { return ++polls >= 4; }
     } tok;
 
     WriterStats stats;
     const u32 rc = writer.process(&tok, nullptr, nullptr, stats);
     EXPECT_EQ(ERR_CANCELLED, rc);
-    EXPECT_EQ(u64(1), stats.salvaged);
+    EXPECT_EQ(u64(1), stats.read_error);
 
     const std::vector<report::Item> items = writer.report_items();
     ASSERT_EQ(4u, items.size());
-    EXPECT_EQ(Outcome::Done, items[0].outcome);     /* clean.txt */
-    EXPECT_EQ(Outcome::Salvaged, items[1].outcome); /* damaged.bin: FB-R02 */
-    EXPECT_EQ(u32(0), items[1].reason);             /* the commit is clean;
-                                                       the content is not */
-    EXPECT_EQ(Outcome::Error, items[2].outcome);    /* victim: cancelled
+    EXPECT_EQ(Outcome::Done, items[0].outcome);      /* clean.txt */
+    EXPECT_EQ(Outcome::ReadError, items[1].outcome); /* damaged.bin: the
+                                                        og's error-9 family */
+    EXPECT_EQ(5u, items[1].cause_id);                /* the sector location cannot
+                                                        be found */
+    EXPECT_EQ(2048u, items[1].first_failed_offset);  /* the bad extent's
+                                                        logical position */
+    EXPECT_EQ(2048u, items[1].bytes_written);        /* the committed partial */
+    EXPECT_EQ(2560u, items[1].bytes);                /* the attempted size */
+    EXPECT_EQ(Outcome::Error, items[2].outcome);     /* victim: cancelled
                                                         mid-flight */
     EXPECT_EQ(u32(ERR_CANCELLED), items[2].reason);
     EXPECT_EQ(Outcome::Pending, items[3].outcome); /* never attempted */
 
     const Totals t2 = writer.report_totals("src", "dst", 9, stats);
-    EXPECT_EQ(u64(1), t2.salvaged);
+    EXPECT_EQ(u64(1), t2.read_error);
+    EXPECT_EQ(u64(0), t2.salvaged); /* nothing zero-filled here anymore */
     EXPECT_EQ(u64(1), t2.pending);
-    EXPECT_EQ(u64(2), t2.done);   /* clean + damaged: done subsumes the
-                                     salvaged sub-bucket (both are commits) */
-    EXPECT_EQ(u64(0), t2.errors); /* cancellation is not an error - the
-                                     victim's Error outcome carries
-                                     ERR_CANCELLED per-item instead */
-    EXPECT_EQ(4u, t2.queued);     /* truthful even for the aborted pass */
+    EXPECT_EQ(u64(1), t2.done);        /* clean only - the truncated partial
+                                          is NOT a done (the og's failed list) */
+    EXPECT_EQ(u64(0), t2.errors);      /* cancellation is not an error - the
+                                          victim's Error outcome carries
+                                          ERR_CANCELLED per-item instead */
+    EXPECT_EQ(3072u, t2.failed_bytes); /* damaged 2560 + the cancelled
+                                        * victim 512: every failed row's
+                                        * attempted size */
+    EXPECT_EQ(4u, t2.queued);          /* truthful even for the aborted pass */
 
-    /* the emitted JSON carries the new totals keys + "salvaged" outcome */
+    /* the emitted JSON carries the new totals keys + the failure row */
     const std::string doc = build_report(items, t2);
-    EXPECT_NE(std::string::npos, doc.find("\"salvaged\""));
+    EXPECT_NE(std::string::npos, doc.find("\"read_error\""));
+    EXPECT_NE(std::string::npos, doc.find("\"cause_id\":5"));
+    EXPECT_NE(std::string::npos, doc.find("\"first_failed_offset\":2048"));
+    EXPECT_NE(std::string::npos, doc.find("\"bytes_written\":2048"));
     EXPECT_NE(std::string::npos, doc.find("\"pending\""));
 }
 
@@ -756,12 +781,14 @@ TEST(Writer, ReadsRetryOnTransientFailure) {
     EXPECT_EQ(Outcome::Done, items[0].outcome);
 }
 
-TEST(Writer, BareDeviceZeroFillsWhatThePipeRetries) {
-    /* the negative control, pinning the exact writer-level behavior the
-     * M-136 entry-point fix removed from production: handed the BARE
-     * device, one transient fault becomes a permanent zero-filled span
-     * (Salvaged) - the scan and the export disagreeding about the same
-     * byte range was the finding's falsifiable claim */
+TEST(Writer, BareDeviceTruncatesWhatThePipeRetries) {
+    /* the negative control, re-pinned by M-135: handed the BARE device
+     * (no retry layer - the pre-M-136 production construction), one
+     * transient fault truncates the item at the failing read (the og's
+     * error-9 family: ReadError, cause 5) - the pipe path retries the
+     * same fault and completes Done. The scan-vs-export disagreement
+     * M-136 named is exactly this delta; the outcome contrast is the
+     * pin. */
     std::vector<u8> img(64 * 1024, 0xCD);
     TransientDevice dev(std::move(img));
     dev.flaky_range(8 * 1024, 12 * 1024);
@@ -778,10 +805,14 @@ TEST(Writer, BareDeviceZeroFillsWhatThePipeRetries) {
     ASSERT_EQ(OK, writer.enqueue(f, u"out\\"));
     WriterStats stats;
     ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
-    EXPECT_EQ(u64(1), stats.salvaged);
+    EXPECT_EQ(u64(1), stats.read_error);
+    EXPECT_EQ(u64(0), stats.salvaged);
     const auto items = writer.report_items();
     ASSERT_EQ(1u, items.size());
-    EXPECT_EQ(Outcome::Salvaged, items[0].outcome);
+    EXPECT_EQ(Outcome::ReadError, items[0].outcome);
+    EXPECT_EQ(5u, items[0].cause_id);
+    EXPECT_EQ(0u, items[0].bytes_written); /* the first read is the one
+                                              that failed */
 }
 
 TEST(Writer, RecoveryCacheServesSharedExtents) {
@@ -825,4 +856,237 @@ TEST(Writer, RecoveryEntryPointsConstructThroughBuildReadPipe) {
     ASSERT_FALSE(abi.empty());
     EXPECT_NE(std::string::npos, abi.find("build_read_pipe(src, 8ull << 20, 256 * 1024)"))
         << "the ABI recovery_open must construct the writer's source through build_read_pipe";
+}
+
+/* ---- M-135: the og's error-9 family (truncate + keep + cause) ------- */
+
+TEST(Writer, HardReadFailureTruncatesAndKeeps) {
+    /* the finding's headline case: through the M-136 pipe, a HARD read
+     * failure (all 3 retry attempts exhausted - the pipe's error map
+     * carries the range) truncates the item at the FIRST unreadable
+     * byte, commits the partial, and records cause 5. A 32 KiB file
+     * whose bad spot sits at 12 KiB commits exactly 12 KiB. */
+    std::vector<u8> img(64 * 1024, 0x7E);
+    std::unique_ptr<IStorageDevice> bare(new MemDevice(std::move(img)));
+    static_cast<MemDevice*>(bare.get())->fail_range(12 * 1024, 12 * 1024 + 512);
+
+    /* the production chain: build_read_pipe over the flaky device */
+    orchestrator::ReadPipe rp = orchestrator::build_read_pipe(bare.get(), 8ull << 20, 256 * 1024);
+    ASSERT_NE(nullptr, rp.pipe);
+    ASSERT_NE(nullptr, rp.retry);
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* f = add_node(tree, found, "holed.bin", 0, 32 * 1024);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, rp.pipe, cfg);
+    writer.set_read_error_source(rp.retry);
+    ASSERT_EQ(OK, writer.enqueue(f, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    /* the pass COMPLETES (WRITER-1) and the partial IS committed - the
+     * og's break-and-keep, never a delete and never a zero-fill */
+    EXPECT_EQ(u64(1), stats.read_error);
+    EXPECT_EQ(u64(0), stats.errors);
+    EXPECT_EQ(u64(0), stats.salvaged);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(Outcome::ReadError, items[0].outcome);
+    EXPECT_EQ(5u, items[0].cause_id);
+    EXPECT_EQ(u64(12 * 1024), items[0].first_failed_offset);
+    EXPECT_EQ(u64(12 * 1024), items[0].bytes_written);
+    EXPECT_EQ(u64(32 * 1024), items[0].bytes);
+}
+
+TEST(Writer, ReadErrorLogTriFormat) {
+    /* the og's three-line read-failure family, format strings verbatim
+     * (DRWUI :875684-875691): "Failed to ReadSector! " + the
+     * m_s64StartSector/pDataRuns64LCN/m_nSectorPerCluster line + the
+     * StartSector/ReadCount/SectorTotalSize line, then the recorder's
+     * "Failed to recover file: %s". Captured through the log sink. */
+    std::vector<std::pair<cr::log::Level, std::string>> lines;
+    cr::log::set_sink(
+        [](cr::log::Level lv, const char* line, void* user) {
+            static_cast<std::vector<std::pair<cr::log::Level, std::string>>*>(user)->emplace_back(
+                lv, line);
+        },
+        &lines);
+
+    std::vector<u8> img(64 * 512, 0);
+    MemDevice dev(std::move(img));
+    dev.fail_range(0, 512); /* the very first read fails (bare device) */
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* f = add_node(tree, found, "dead.bin", 0, 4096);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(f, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+
+    cr::log::set_sink(nullptr, nullptr);
+
+    /* the trio + the recorder line, in order, Error level */
+    ASSERT_GE(lines.size(), 4u);
+    EXPECT_EQ(cr::log::Level::Error, lines[0].first);
+    EXPECT_EQ("Failed to ReadSector! ", lines[0].second);
+    EXPECT_EQ(cr::log::Level::Error, lines[1].first);
+    EXPECT_NE(std::string::npos, lines[1].second.find("m_s64StartSector:0,"));
+    EXPECT_NE(std::string::npos, lines[1].second.find("pDataRuns64LCN:0,"));
+    EXPECT_NE(std::string::npos, lines[1].second.find("m_nSectorPerCluster:1"));
+    EXPECT_EQ(cr::log::Level::Error, lines[2].first);
+    EXPECT_NE(std::string::npos, lines[2].second.find("StartSector:0,"));
+    EXPECT_NE(std::string::npos, lines[2].second.find("ReadCount:8,"));
+    EXPECT_NE(std::string::npos, lines[2].second.find("SectorTotalSize:64"));
+    EXPECT_EQ(cr::log::Level::Error, lines[3].first);
+    EXPECT_NE(std::string::npos, lines[3].second.find("Failed to recover file: dead.bin"));
+}
+
+TEST(Writer, FailureCauseTableMatchesOgRuntimeStrings) {
+    /* the compiled-in cause list (DRWUI strings :30580-30596), seven
+     * entries, corrected first-hand: cause 4 is the sector-location
+     * string (NOT the qm file's "file name is most likely lost" - that
+     * is a search-help string) and cause 7 exists ("Other unknown
+     * reasons") - the finding's six-string citation corrected. */
+    EXPECT_EQ(nullptr, failure_cause_text(0));
+    EXPECT_STREQ("1.Insufficient storage space.", failure_cause_text(1));
+    EXPECT_STREQ("2.The recovery path is too long.", failure_cause_text(2));
+    EXPECT_STREQ("3.The file name contains garbage characters.", failure_cause_text(3));
+    EXPECT_STREQ("4.The sector reading location exceeds total sector number of the source "
+                 "partition.",
+                 failure_cause_text(4));
+    EXPECT_STREQ("5.The correct storage sector location cannot be found.", failure_cause_text(5));
+    EXPECT_STREQ("6.The data amount you want to recover has exceeded the free quota.",
+                 failure_cause_text(6));
+    EXPECT_STREQ("7.Other unknown reasons.", failure_cause_text(7));
+    EXPECT_EQ(nullptr, failure_cause_text(8));
+}
+
+TEST(Writer, BeyondVolumeReadRecordsCauseFourAndClampsStraddle) {
+    /* the og's boundary ladder: a read that STARTS inside the volume
+     * but ENDS past it reads the remaining tail (the :875666-68 count
+     * clamp) and the item CONTINUES - the next read starts at/after the
+     * end, the engine volume device's start gate fails (the S-052/M-119
+     * probe: `(0 <= start < length) && count <= length`), the runlist
+     * read fails, and the file truncates THERE: ReadError with cause 4
+     * ("the sector reading location exceeds total sector number of the
+     * source partition") keeping the in-volume tail. A read that starts
+     * BEYOND the end truncates at zero. Neither is a whole-item
+     * refusal and neither deletes the partial. */
+    std::vector<u8> img(8 * 1024, 0x33);
+    MemDevice dev(std::move(img)); /* 8 KiB volume */
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    /* straddler: [4 KiB, 12 KiB) - the clamp reads [4 KiB, 8 KiB), the
+     * next read starts at the end: ReadError at 4 KiB committed */
+    auto* straddler = add_node(tree, found, "straddler.bin", 4096, 8192);
+    /* beyond: starts past the end - cause 4, truncated at 0 bytes */
+    auto* beyond = add_node(tree, found, "beyond.bin", 12 * 1024, 4096);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(straddler, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(beyond, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+
+    const auto items = writer.report_items();
+    ASSERT_EQ(2u, items.size());
+    EXPECT_EQ(Outcome::ReadError, items[0].outcome); /* truncated at the
+                                                        volume end */
+    EXPECT_EQ(4u, items[0].cause_id);
+    EXPECT_EQ(u64(4096), items[0].bytes_written); /* the clamped tail
+                                                      IS committed */
+    EXPECT_EQ(u64(4096), items[0].first_failed_offset);
+    EXPECT_EQ(Outcome::ReadError, items[1].outcome);
+    EXPECT_EQ(4u, items[1].cause_id);
+    EXPECT_EQ(0u, items[1].bytes_written);
+}
+
+TEST(Writer, ShortExtentMetadataCommitsPartial) {
+    /* the old ERR_TRUNCATED refusal deleted the partial; the og's
+     * runlist path simply ENDS the file where the runs end (the loop
+     * drains, no failure on the og side - its engines never emit short
+     * runlists). The core commits the partial and records cause 7 (the
+     * report's superset truth: no og cause string names a metadata
+     * shortfall). */
+    std::vector<u8> img(8 * 1024, 0x44);
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* shortf = new tree::FileProperties();
+    shortf->name = u"short.bin";
+    shortf->extents.push_back({0, 2048}); /* logical 4096, extents 2048 */
+    shortf->logical_size = 4096;
+    tree::FileNode* short_n = tree.add_file(found, shortf);
+    shortf->release();
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(short_n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.read_error);
+    EXPECT_EQ(u64(0), stats.errors); /* the item is no longer a hard error */
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(Outcome::ReadError, items[1 - 1].outcome);
+    EXPECT_EQ(7u, items[0].cause_id);
+    EXPECT_EQ(2048u, items[0].bytes_written);
+    EXPECT_EQ(4096u, items[0].bytes);
+}
+
+TEST(Writer, CompressedUndecodableBlockStillSalvages) {
+    /* M-135 keeps the zero-fill policy for the class the og's chunked
+     * path itself zeroes: an undecodable COMPRESSED block zero-fills
+     * and the item completes at full logical size as Salvaged (FB-R02's
+     * surviving surface - the per-failure-class split the finding's fix
+     * plan step 1 prescribed). A zlib extent (codec 1) whose packed
+     * bytes are garbage. */
+    std::vector<u8> img(8 * 1024, 0);
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* comp = new tree::FileProperties();
+    comp->name = u"comp.bin";
+    tree::FileProperties::Extent e;
+    e.offset = 0;
+    e.length = 4096; /* logical */
+    e.psize = 512;   /* packed garbage */
+    e.codec = 1;     /* zlib - decompress_block fails on garbage */
+    comp->extents.push_back(e);
+    comp->logical_size = 4096;
+    tree::FileNode* comp_n = tree.add_file(found, comp);
+    comp->release();
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(comp_n, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.salvaged);
+    EXPECT_EQ(u64(0), stats.read_error);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(Outcome::Salvaged, items[0].outcome);
+    EXPECT_EQ(0u, items[0].cause_id);
 }

@@ -2385,7 +2385,11 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     orchestrator::ReadPipe rp =
         orchestrator::build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024);
     recovery::SafeWriter writer(io, rp.pipe, wcfg);
-    writer.set_read_error_source(rp.retry); /* S71 convergence: the Salvaged seam */
+    /* M-135 + M-136: the pipe's live error map is the post-retry
+     * hard-failure signal (Skip-mode reads return OK with zero-filled
+     * bad sectors) - the S71 convergence seam's name kept */
+    if (rp.retry != nullptr)
+        writer.set_read_error_source(rp.retry);
 
     /* destination validation + overlap refusal (F12 + N-013, restored per
      * S-054 after the 1ebd1bcc clobber): any path that resolves to a
@@ -2495,6 +2499,25 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             L", %llu salvaged (zero-filled spans), %llu nothing-to-recover (metadata-only)\n",
             wstats.done, wstats.refused, wstats.errors, wstats.hash_mismatch, wstats.salvaged,
             wstats.nothing_to_recover);
+    /* M-135: the og's failed-file list with its numbered causes - each
+     * truncated partial surfaces with the og's own cause string (the
+     * compiled-in RecoveryFailedInfo list, DRWUI strings :30580-30596) */
+    if (wstats.read_error != 0) {
+        wprintf(L"%llu file(s) kept as partial (read failed; the og's "
+                L"truncate-and-keep):\n",
+                wstats.read_error);
+        for (const auto& it : writer.queue()) {
+            if (it.cause_id == 0)
+                continue;
+            const char* cause8 = recovery::failure_cause_text(it.cause_id);
+            std::u16string name16 = it.final_name;
+            std::wstring namew(name16.begin(), name16.end());
+            wprintf(L"  %s - %llu/%llu bytes (cause %u: %hs)\n", namew.c_str(),
+                    static_cast<unsigned long long>(it.bytes_written),
+                    static_cast<unsigned long long>(it.bytes_total), it.cause_id,
+                    cause8 != nullptr ? cause8 : "unknown");
+        }
+    }
 
     /* G-09: machine-readable report (schema: docs/recovery-report-schema.md).
      * Emitted even when items failed - the per-item outcomes carry the

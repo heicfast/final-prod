@@ -4415,3 +4415,61 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   could request an arbitrary buffer; the core's raised cap keeps the
   guard while removing the capability cliff). The chunked-reader
   helper is the production-grade replacement for the silent refusal.
+
+### D-149 — the recovery read-failure family: byte-granular truncation + semantics-mapped causes, per failure class (M-135 registration, REGISTERED DELIBERATE DIVERGENCE — the og's exact internal code→cause mapping is corpus-undecoded and its truncation is read-geometry-granular)
+
+- **OG:** the runlist export path (CFileRecoverWorker::ReadAndWriteDataRunList,
+  DRWUI :875620-875840) truncates a file at its failing read (error 9, the
+  trio logged at :875684-875691), keeps the partial, and the per-item
+  recorder (:874031-874241) marks the tree node failed (runtime-only,
+  +0x73 bit 1), logs "Failed to recover file: %s", and probes the
+  destination size. The user-facing surface is the numbered cause list —
+  the COMPILED-IN defaults RecoveryFailedInfo1..7 (strings_ascii.txt
+  :30580-30596), seven entries (the qm translation file's list is stale:
+  its "4.The file name is most likely lost" is a search-help string; the
+  runtime cause 4 is "The sector reading location exceeds total sector
+  number of the source partition", and cause 7 "Other unknown reasons"
+  exists). The og's own two export paths DISAGREE: its chunked path
+  (:875045-875049) ignores read returns and writes zeros.
+- **CORE (M-135):** the writer implements the runlist semantics with two
+  registered refinements: (a) the truncation boundary is the FIRST
+  UNREADABLE BYTE, not the start of the failing read call — the M-136
+  retry pipe's bisection isolates bad sectors exactly, so every readable
+  byte before the first bad one is kept (the og truncates at its
+  failing 10-MiB-chunk read start, a read-geometry artifact, losing
+  real bytes the core keeps); (b) `cause_id` maps the core's failure
+  classes onto the og's numbered taxonomy by the cause STRINGS'
+  semantics (4 = the read location beyond the source; 5 = the
+  sector-location-not-found read failure; 7 = unknown incl. the
+  metadata shortfall; 1 = destination out of space) — the og's internal
+  code→cause mapping function is corpus-UNDECODED (FUN_1400ed760, the
+  finding's own candidate, is a %d string formatter — refuted
+  first-hand); the core never invents NTFS-specific log values (the
+  trio's m_s64StartSector/pDataRuns64LCN carry the extent's start
+  sector on both sides, m_nSectorPerCluster is the documented identity
+  1 for byte-granular extents).
+- **PER FAILURE CLASS (the finding's fix plan step 1):** hard read
+  failures (post-retry) truncate-and-keep (the og's runlist path);
+  undecodable COMPRESSED blocks keep zero-fill-and-continue + the
+  Salvaged marker (the og's chunked-path behavior — the class split is
+  deliberate); the short-extents metadata case commits the partial with
+  cause 7 (the og silently ends the file — no og cause string names a
+  metadata shortfall; the core's report is the truthful superset).
+- **WHY:** the og's truncation granularity is an artifact of its read
+  geometry, not a semantic choice — matching it byte-for-byte would
+  REQUIRE discarding readable data the core's bisection already
+  recovered. The cause mapping cannot be exact until the corpus yields
+  the og's mapping function; the strings' semantics are the strongest
+  decode available. Both refinements keep the og's observable contract:
+  partial file on disk, failed-list entry, numbered cause, the log
+  trio, and the pass continuing (WRITER-1).
+- **PINS:** `Writer.HardReadFailureTruncatesAndKeeps` (the 12-KiB
+  boundary), `Writer.BareDeviceTruncatesWhatThePipeRetries` (the
+  no-retry contrast), `Writer.ReadErrorLogTriFormat` (the verbatim
+  trio), `Writer.BeyondVolumeReadRecordsCauseFourAndClampsStraddle`
+  (the :875666-68 clamp + cause 4),
+  `Writer.CompressedUndecodableBlockStillSalvages` (the class split),
+  `Writer.ShortExtentMetadataCommitsPartial` (cause 7),
+  `Writer.FailureCauseTableMatchesOgRuntimeStrings` (the corrected
+  seven-entry table), `Report.ReadErrorOutcomeMarksTruncatedPartials`
+  (the FB-R02 re-pin).

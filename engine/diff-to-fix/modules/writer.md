@@ -209,11 +209,19 @@ Four new rows, all first-hand verified (worksheet:
   ("og never calls SetFileTime") is REFUTED**); the core's DestIo now carries the
   set_metadata surface, the writer restores post-commit with per-field enables
   mirroring the engine emission, non-fatal + reported per row (4 tests RED→GREEN).
-- **E35 (read-failure policy) — DIVERGENCE-MAJOR, M-135**: the og truncates at the
-  failing run, logs the StartSector/LCN/SPC + ReadCount trio, records error 9,
-  keeps the partial file, and surfaces six numbered causes; the core
-  zero-fills-and-continues (Salvaged) and deletes failed items wholesale; the
-  per-node runtime failure mark (+0x73 bit 1) has no analog.
+- **E35 (read-failure policy) — MATCH, M-135 FIXED**: the og's error-9 family
+  landed: a hard read failure (post-retry, via the M-136 pipe's error map, or
+  the raw non-OK read on bases) truncates at the first unreadable byte, KEEPS
+  the partial (commit, never delete — the old ERR_TRUNCATED refusal included),
+  records Outcome::ReadError + the numbered cause (the compiled-in SEVEN-entry
+  list, cause 4 corrected first-hand from the runtime strings) + the boundary,
+  fires the verbatim three-line ReadSector log trio + "Failed to recover file:",
+  and the pass continues. The straddle clamp (:875666-68) landed with cause 4
+  for beyond-volume starts. Per failure class (the finding's plan): undecodable
+  compressed blocks keep zero-fill + Salvaged (the og's chunked-path behavior).
+  The runtime failure mark is the QueueItem's cause row (runtime-only, the og's
+  +0x73 bit 1 posture — decision registered). D-149 registers the byte-granular
+  truncation + the semantics-mapped causes (the og's mapper is corpus-undecoded).
 - **E35/R51 (the recovery read pipeline) — MATCH, M-136 FIXED**: both recovery
   entry points construct the writer's source through the scan's own
   `build_read_pipe` seam (SliceShim identity → Retry(3×, Skip) → 8 MiB /

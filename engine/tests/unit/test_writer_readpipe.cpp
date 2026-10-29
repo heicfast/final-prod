@@ -242,10 +242,13 @@ TEST(WriterReadPipe, TransientFailureRetriedNotZeroFilled) {
     EXPECT_GT(dev.calls(), dev.failed()) << "the retries must have succeeded";
 }
 
-/* the hard-failure contract is preserved: a permanently bad range is
- * attacked by the full retry budget BEFORE the Skip policy zero-fills -
- * the device sees multiple attempts at the bad range, the span zeros,
- * the good data around it is intact, and the item commits Salvaged. */
+/* the hard-failure contract, re-pinned by the M-135 landing (the
+ * S72 lane's truncate-and-keep): a permanently bad range is attacked by
+ * the full retry budget, then the item TRUNCATES at the first
+ * unreadable byte - ReadError with cause 5, the partial committed, the
+ * readable prefix intact (the og's error-9 family; the zero-fill
+ * Salvaged shape this test originally pinned was the pre-M-135
+ * behavior). */
 TEST(WriterReadPipe, HardFailureZeroFillsOnlyAfterRetriesSpent) {
     const u64 len = 1ull << 20;
     std::vector<u8> img(4ull << 20, 0);
@@ -272,34 +275,42 @@ TEST(WriterReadPipe, HardFailureZeroFillsOnlyAfterRetriesSpent) {
     ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
     WriterStats stats;
     ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
-    ASSERT_EQ(u64(1), stats.done);
-    EXPECT_EQ(u64(1), stats.salvaged) << "a hard failure after retries is Salvaged";
+    /* M-135: the og's runlist path - truncate at the bad byte, keep the
+     * partial, record the numbered cause; NOT done, NOT Salvaged */
+    EXPECT_EQ(u64(0), stats.done);
+    EXPECT_EQ(u64(0), stats.salvaged);
+    EXPECT_EQ(u64(1), stats.read_error);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(recovery::report::Outcome::ReadError, items[0].outcome);
+    EXPECT_EQ(5u, items[0].cause_id);
+    EXPECT_EQ(0x10000u, items[0].first_failed_offset);
+    EXPECT_EQ(0x10000u, items[0].bytes_written); /* the readable prefix */
 
     /* the bad range was retried before being given up (>= the policy's
      * 3 attempts touch it - bisection may add more, never fewer) */
-    EXPECT_GE(dev.bad_calls(), 3u) << "the zero-fill must fire only after the retry budget";
+    EXPECT_GE(dev.bad_calls(), 3u) << "the truncation must fire only after the retry budget";
 
-    /* content: zeros in the bad span, 0xBB everywhere else */
+    /* content: the partial carries the 0xBB prefix up to the bad byte */
     std::error_code ec;
     const fs::path out = tmp.p / "out" / "bad.dat";
     ASSERT_TRUE(fs::exists(out, ec));
-    EXPECT_EQ(len, u64(fs::file_size(out, ec)));
+    EXPECT_EQ(0x10000u, u64(fs::file_size(out, ec))); /* the truncation */
     std::ifstream f(out, std::ios::binary);
     ASSERT_TRUE(f);
-    std::vector<u8> body(size_t(len), 1);
-    f.read(reinterpret_cast<char*>(body.data()), std::streamsize(len));
-    for (u64 i = 0; i < len; ++i) {
-        const bool in_bad = i >= 0x10000 && i < 0x10000 + bad_len;
-        ASSERT_EQ(in_bad ? 0x00 : 0xBB, body[size_t(i)])
-            << "body byte " << i << (in_bad ? " (the bad span must be zero)" : " (good data)");
-    }
+    std::vector<u8> body(0x10000, 1);
+    f.read(reinterpret_cast<char*>(body.data()), std::streamsize(body.size()));
+    for (size_t i = 0; i < body.size(); ++i)
+        ASSERT_EQ(0xBB, body[i]) << "good-data byte " << i << " must be the real prefix";
 }
 
-/* the pre-fix shape as a CONTRAST PIN (the BacktrackOff precedent): the
- * same transient failure against the BARE device (the pre-M-136 entry-
- * point handoff) zero-fills and commits Salvaged - the finding's
- * falsifiable case, kept executable so the pipe's value stays proven:
- * scan and export must agree about the readability of the same range. */
+/* the pre-fix shape as a CONTRAST PIN (the BacktrackOff precedent),
+ * re-pinned by the M-135 landing: the same transient failure against
+ * the BARE device (the pre-M-136 entry-point handoff) TRUNCATES the
+ * item at the failing read - ReadError, cause 5 - where the pipe
+ * retries it and completes Done (the finding's falsifiable case, kept
+ * executable so the pipe's value stays proven: scan and export must
+ * agree about the readability of the same range). */
 TEST(WriterReadPipe, BareDeviceLegacyShapeZeroFillsTransients) {
     const u64 len = 1ull << 20;
     std::vector<u8> img(4ull << 20, 0);
@@ -319,25 +330,16 @@ TEST(WriterReadPipe, BareDeviceLegacyShapeZeroFillsTransients) {
     ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
     WriterStats stats;
     ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
-    ASSERT_EQ(u64(1), stats.done);
-    /* the pre-fix defect, pinned: a retryable hiccup became a permanent
-     * zero span (Salvaged), the bytes the device COULD serve on attempt
-     * 2 never fetched */
-    EXPECT_EQ(u64(1), stats.salvaged);
-    std::error_code ec;
-    const fs::path out = tmp.p / "out" / "legacy.dat";
-    ASSERT_TRUE(fs::exists(out, ec));
-    std::ifstream f(out, std::ios::binary);
-    ASSERT_TRUE(f);
-    std::vector<u8> body(size_t(len), 1);
-    f.read(reinterpret_cast<char*>(body.data()), std::streamsize(len));
-    bool saw_zero = false;
-    for (size_t i = 0; i < body.size(); ++i)
-        if (body[i] == 0x00) {
-            saw_zero = true;
-            break;
-        }
-    EXPECT_TRUE(saw_zero) << "the legacy shape zero-filled the transient span";
+    /* the pre-fix defect, re-pinned by M-135: without the retry layer a
+     * retryable hiccup truncates the item at the failing read - the
+     * bytes the device COULD serve on attempt 2 never fetched */
+    EXPECT_EQ(u64(0), stats.done);
+    EXPECT_EQ(u64(0), stats.salvaged);
+    EXPECT_EQ(u64(1), stats.read_error);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(recovery::report::Outcome::ReadError, items[0].outcome);
+    EXPECT_EQ(5u, items[0].cause_id);
 }
 
 /* the construction-seam pin: the pipe the entry points build IS the

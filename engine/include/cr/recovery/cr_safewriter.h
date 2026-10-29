@@ -19,7 +19,7 @@
 #include "../recovery/cr_report.h"
 #include "../crypto/cr_sha256.h"
 #include "../storage/cr_device.h"
-#include "../storage/cr_retry.h" /* M-136: RetryingDevice (the error-map source) */
+#include "../storage/cr_retry.h" /* M-136/M-135: RetryingDevice (the error-map source) */
 #include "../tree/cr_node.h"
 #include <set>
 #include <string>
@@ -139,6 +139,13 @@ struct QueueItem {
     report::HashStatus hash_status = report::HashStatus::NotComputed;
     bool had_unreadable = false; /* FB-R02: a device/decompress failure
                                   * zero-filled a span (Outcome::Salvaged) */
+    /* ---- M-135: the og's per-file failure record ---- */
+    u32 cause_id = 0;            /* the numbered cause (cr_report.h's table);
+                                  * 0 = no failure */
+    u64 first_failed_offset = 0; /* logical offset of the first unreadable
+                                  * byte (valid when cause_id != 0) */
+    u64 bytes_written = 0;       /* the committed byte count (the og's
+                                  * std::filesystem size probe) */
     /* S-060: the post-commit metadata restoration outcome (the og's
      * SetFileAttributesW + mask-gated SetFileTime tail). 0 = restored;
      * a code = the backend's refusal (non-fatal - the item stays Done);
@@ -173,6 +180,10 @@ struct WriterStats {
     u64 dirs = 0;               /* G-08: directory nodes materialized */
     u64 nothing_to_recover = 0; /* GAP-S6-7: no-extent/no-resident items
                                  * skipped before any write */
+    /* M-135: committed-but-truncated items (the og's error-9 family -
+     * the partial IS on disk and the file IS in the failed list; a
+     * separate bucket from done and from hard errors). */
+    u64 read_error = 0;
     /* N-015: the pass aborted (or refused upfront) because the
      * destination ran out of space - remaining items stayed Pending. */
     bool dest_full = false;
@@ -222,14 +233,16 @@ public:
      * the absolute source. */
     void set_basis_table(const LdmBasisTable* bases) { bases_ = bases; }
 
-    /* M-136: the retry layer under the writer's source pipe (nullable -
-     * the degraded bare-slice path has none). When set, the per-item
-     * Salvaged accounting also consults the retry layer's append-only
-     * error map: a map that grew during an item's reads means the
-     * Skip policy zero-filled a hard-failure span, which must surface
-     * as had_unreadable exactly like the writer's own zero-fill branch
-     * (never a clean Done). The pointer is BORROWED and must outlive
-     * the writer (the ReadPipe that owns it does). */
+    /* M-136 + M-135: the retry layer under the writer's source pipe
+     * (nullable - the degraded bare-slice path has none). The M-135
+     * read-failure policy consults its live error map per read (a
+     * Skip-mode read that zero-filled bad sectors returns OK - the map
+     * is the ONLY post-retry hard-failure signal; an intersecting range
+     * truncates the item, the og's error-9 family). The M-136
+     * commit-time Salvaged check rides the same pointer for the
+     * compressed path (a valid decode of zero-filled packed bytes must
+     * never surface as a clean Done). The pointer is BORROWED and must
+     * outlive the writer (the ReadPipe that owns it does). */
     void set_read_error_source(const RetryingDevice* retry) { retry_src_ = retry; }
 
     /*
@@ -289,14 +302,29 @@ private:
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* timed body: recover_item stamps duration_ms on every exit path */
     u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
+    /* M-135: the og's error-9 truncation tail - commit the partial,
+     * record the numbered cause + the boundary. `hard_offset` is the
+     * logical offset the file ends at (bytes before it are already
+     * written); `hash` (nullable) finalizes over the committed prefix;
+     * returns the commit's rc (OK = partial committed). */
+    u32 commit_partial_(QueueItem& it, const tree::FileProperties* pr, crypto::Sha256* hash,
+                        u32 cause_id, u64 first_failed_offset, u64 hard_offset, WriterStats& stats);
+    /* M-135: the og's three-line read-failure log family
+     * (DRWUI :875686-875691, format strings verbatim; the values are
+     * the core's byte-granular analogs - documented in the .cpp). */
+    static void log_read_failure_(const tree::FileProperties* pr, size_t ext_i, u64 in_ext,
+                                  u64 read_len, const IStorageDevice* dev);
     /* G-08: create `dir` (recursive) once per unique directory per run */
     u32 ensure_dir_(const std::u16string& dir);
     DestIo& io_;
     IStorageDevice* source_;
     /* S-052: the multi-basis table (borrowed; may be null/empty) */
     const LdmBasisTable* bases_ = nullptr;
-    /* M-136: the pipe's retry layer (borrowed; null on the degraded
-     * bare-slice path and for legacy bare-device constructions) */
+    /* M-136/M-135: the pipe's retry layer (borrowed; null on the
+     * degraded bare-slice path and for legacy bare-device
+     * constructions). The M-135 read-failure policy reads its live
+     * error map (the post-retry hard-failure signal); the M-136
+     * commit-time Salvaged check rides the same pointer. */
     const RetryingDevice* retry_src_ = nullptr;
     WriterConfig cfg_;
     /* N-013: every armed destination span (multi-extent volumes). The
@@ -313,6 +341,15 @@ private:
      * collision source of truth, independent of destination state */
     mutable std::set<std::u16string> claimed_names_;
 };
+
+/* M-135: the og's numbered user-facing failure causes - the
+ * COMPILED-IN defaults (DRWUI.exe strings_ascii.txt :30580-30596,
+ * RecoveryFailedInfo1..7), corrected first-hand this session: the
+ * finding's six-string qm citation missed cause 7 and misread cause 4
+ * (the qm's "4.The file name is most likely lost" is a search-help
+ * string; the runtime list's 4 is the sector-location cause). Returns
+ * null for id 0 and out-of-range ids. */
+const char* failure_cause_text(u32 cause_id);
 
 } // namespace recovery
 } // namespace cr

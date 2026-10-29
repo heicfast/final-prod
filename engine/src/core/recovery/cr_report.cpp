@@ -143,6 +143,10 @@ const char* outcome_name(Outcome o) {
         return "salvaged";
     case Outcome::NothingToRecover:
         return "nothing_to_recover";
+    case Outcome::ReadError:
+        /* M-135: committed-but-truncated (the og's error-9 family - the
+         * partial exists on disk AND the file is in the failed list) */
+        return "read_error";
     }
     return "error";
 }
@@ -236,6 +240,7 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
     append_num(out, "resumed", t.resumed, true);
     append_num(out, "salvaged", t.salvaged, true);
     append_num(out, "nothing_to_recover", t.nothing_to_recover, true);
+    append_num(out, "read_error", t.read_error, true); /* M-135 */
     append_num(out, "pending", t.pending, true);
     append_num(out, "bytes", t.bytes, true);
     /* N-159: the og's failed-bytes split (CSaveFailedFilesWithHtml's
@@ -279,6 +284,15 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
          * report tells the same truth per row. */
         if (!it.metadata.empty())
             append_str(out, "metadata", it.metadata, true);
+        /* M-135: the per-file failure record (the og's numbered-cause
+         * list + the std::filesystem size probe) - emitted only on
+         * failed rows (additive-within-v1). */
+        if (it.cause_id != 0) {
+            append_num(out, "cause_id", it.cause_id, true);
+            append_num(out, "first_failed_offset", it.first_failed_offset, true);
+        }
+        if (it.bytes_written != 0 && it.bytes_written != it.bytes)
+            append_num(out, "bytes_written", it.bytes_written, true);
         out.push_back('}');
     }
     out.append(items.empty() ? "]\n}\n" : "\n  ]\n}\n");

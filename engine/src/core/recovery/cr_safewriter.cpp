@@ -8,6 +8,7 @@
 #include "cr/tree/cr_snapshot.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_text.h" /* N-016b: raw-name restore derivation */
+#include "cr/cr_log.h"  /* M-135: the og's read-failure log family */
 #include <chrono>
 #include <cstring>
 
@@ -310,6 +311,130 @@ u32 SafeWriter::ensure_dir_(const std::u16string& dir) {
     return OK;
 }
 
+/* the file-local UTF-16 -> UTF-8 helper (defined below in this file's
+ * anonymous namespace; the M-135 failure log rides it) */
+namespace {
+std::string utf16_to_utf8_local(const std::u16string& in);
+} // namespace
+
+/* M-135: the og's numbered user-facing failure causes - the
+ * COMPILED-IN defaults (DRWUI.exe strings_ascii.txt :30580-30596,
+ * RecoveryFailedInfo1..7), corrected first-hand this session: the
+ * finding's six-string qm citation missed cause 7 and misread cause 4
+ * (the qm's "4.The file name is most likely lost" is a search-help
+ * string; the runtime list's 4 is the sector-location cause). The
+ * og's internal code->cause mapping function is corpus-UNDECODED
+ * (FUN_1400ed760 is a %d string formatter, refuted first-hand); the
+ * core maps by the cause strings' own semantics. */
+const char* failure_cause_text(u32 cause_id) {
+    static const char* const kCauseText[8] = {
+        nullptr,
+        "1.Insufficient storage space.",
+        "2.The recovery path is too long.",
+        "3.The file name contains garbage characters.",
+        "4.The sector reading location exceeds total sector number of the "
+        "source partition.",
+        "5.The correct storage sector location cannot be found.",
+        "6.The data amount you want to recover has exceeded the free quota.",
+        "7.Other unknown reasons.",
+    };
+    return cause_id < 8 ? kCauseText[cause_id] : nullptr;
+}
+
+/* M-135: the og's three-line read-failure log family, format strings
+ * verbatim from the runlist export body (DRWUI :875684-875691, the
+ * CFileRecoverWorker::ReadAndWriteDataRunList failure branch; the
+ * strings sit adjacently in .rdata at strings_ascii.txt :35720-35722).
+ * The VALUES are the core's byte-granular analogs: m_s64StartSector =
+ * the extent ("run") start sector; pDataRuns64LCN = the same run start
+ * (the og logs the run's LCN + the volume base + spc; the writer's
+ * extents are byte-granular absolute placements, so the base is 0 and
+ * the identity spc is 1 - documented, never invented NTFS values);
+ * StartSector = the failing read's absolute start; ReadCount = its
+ * sector count; SectorTotalSize = the device's total sectors. */
+void SafeWriter::log_read_failure_(const tree::FileProperties* pr, size_t ext_i, u64 in_ext,
+                                   u64 read_len, const IStorageDevice* dev) {
+    if (!log::enabled() || pr == nullptr || ext_i >= pr->extents.size() || dev == nullptr)
+        return;
+    const u64 sec = dev->geometry().logical_sector != 0 ? u64(dev->geometry().logical_sector) : 512;
+    const u64 run_start = pr->extents[ext_i].offset;
+    const u64 read_start = run_start + in_ext;
+    log::write(log::Level::Error, "Failed to ReadSector! ");
+    log::write(
+        log::Level::Error, "m_s64StartSector:%llu,\tpDataRuns64LCN:%llu,\tm_nSectorPerCluster:%llu",
+        static_cast<unsigned long long>(run_start / sec),
+        static_cast<unsigned long long>(run_start / sec), static_cast<unsigned long long>(1));
+    log::write(log::Level::Error, "StartSector:%llu,\tReadCount:%llu,\tSectorTotalSize:%llu",
+               static_cast<unsigned long long>(read_start / sec),
+               static_cast<unsigned long long>((read_len + sec - 1) / sec),
+               static_cast<unsigned long long>(dev->size() / sec));
+}
+
+/* M-135: the og's error-9 truncation tail. The runlist path BREAKS at
+ * the failing read, LEAVES the partial on disk (no delete anywhere in
+ * the path - DRWUI :875684-875696), and the per-item recorder
+ * (:874072-874129) pushes the failure into the collection, marks the
+ * tree node failed (+0x73 |= 1 - runtime-only, matching this
+ * QueueItem-level record; the session never persists it, the og's
+ * rsf grammar does not either), logs "Failed to recover file: %s", and
+ * probes the destination size (:874131-874205). The pass CONTINUES
+ * (WRITER-1). */
+u32 SafeWriter::commit_partial_(QueueItem& it, const tree::FileProperties* pr, crypto::Sha256* hash,
+                                u32 cause_id, u64 first_failed_offset, u64 hard_offset,
+                                WriterStats& stats) {
+    it.cause_id = cause_id;
+    it.first_failed_offset = first_failed_offset;
+    it.bytes_written = hard_offset;
+    it.bytes_done = hard_offset;
+    /* the streamed digest covers exactly the committed prefix; no
+     * stored-hash comparison on the truncated stream (the truncation is
+     * the failure of record - the og computes no hash on this path) */
+    if (hash != nullptr) {
+        u8 digest[32];
+        hash->final(digest);
+        static const char* hexd = "0123456789abcdef";
+        char hex[65];
+        for (int i = 0; i < 32; ++i) {
+            hex[i * 2] = hexd[digest[i] >> 4];
+            hex[i * 2 + 1] = hexd[digest[i] & 0xF];
+        }
+        hex[64] = 0;
+        it.sha256_hex.assign(hex);
+        it.hash_status = report::HashStatus::Computed;
+    }
+    if (u32 rc = io_.commit(it.item_id)) {
+        io_.close(it.item_id);
+        it.state = ItemState::Error;
+        it.error = rc;
+        ++stats.errors;
+        return rc;
+    }
+    io_.close(it.item_id);
+    /* S-060's tail runs after every item (the only SetFileTime/
+     * SetFileAttributesW pair in the export body) - the partial keeps
+     * it; non-fatal by the same contract */
+    if (pr != nullptr && !it.is_dir) {
+        DestIo::FileMeta meta;
+        meta.created = pr->times.created;
+        meta.accessed = pr->times.accessed;
+        meta.modified = pr->times.modified;
+        meta.attributes = pr->attributes & 0xfffdu;
+        meta.set_created = pr->times.created != 0;
+        meta.set_accessed = pr->times.accessed != 0;
+        meta.set_modified = pr->times.modified != 0;
+        meta.set_attributes = pr->attributes != 0;
+        const std::u16string final_path = it.dest_dir + it.final_name;
+        it.metadata_rc = io_.set_metadata(it.item_id, final_path, meta);
+    }
+    it.state = ItemState::Done; /* the file IS committed; the failure is
+                                 * the cause row, not a missing file */
+    ++stats.read_error;
+    if (log::enabled())
+        log::write(log::Level::Error, "Failed to recover file: %s",
+                   utf16_to_utf8_local(it.final_name).c_str());
+    return OK;
+}
+
 u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
     /* G-09: per-item duration for EVERY exit path (report evidence) */
     const auto t0 = std::chrono::steady_clock::now();
@@ -480,11 +605,15 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
                 it.bytes_done = done;
                 continue;
             }
-            io_.close(it.item_id);
-            it.state = ItemState::Error;
-            it.error = ERR_TRUNCATED;
-            ++stats.errors;
-            return ERR_TRUNCATED;
+            /* M-135: the extents end before the logical size with no
+             * resident payload. The og's runlist path simply ENDS the
+             * file there (the loop drains the runs, the file stays, no
+             * failure is recorded - its engine never emits a short
+             * runlist); the old core REFUSED and deleted the partial.
+             * Parity on disk + core-report truth: commit the partial
+             * and record it (cause 7 - no og cause string names a
+             * metadata shortfall; the report is the core's superset). */
+            return commit_partial_(it, pr, &hash, 7, done, done, stats);
         }
         if (pr->extents[ext_i].hole) {
             /* S-059: a hole extent - `length` logical bytes of zeros at
@@ -561,12 +690,67 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
                 ++ext_i, ext_pos += lsize; /* consumed this extent */
             continue;
         }
-        const u32 got_raw = u32(want);
-        if (read_dev->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got_raw) != OK) {
-            /* zero-fill the unreadable span (Skip policy) and continue -
-             * the hash will intentionally mismatch on damaged content */
-            std::memset(chunk.data(), 0, got_raw);
-            it.had_unreadable = true; /* FB-R02: committed-but-partial */
+        u32 got_raw = u32(want);
+        const u64 read_off = pr->extents[ext_i].offset + in_ext;
+        u32 rrc = read_dev->read_at(read_off, chunk.data(), got_raw);
+        if (rrc == ERR_RANGE_OUT_OF_BOUNDS && read_off < read_dev->size()) {
+            /* M-135: the og's straddling-read clamp (DRWUI :875666-875668:
+             * a read that STARTS inside the volume but ends past it reads
+             * only the remaining tail - the og clamps ReadCount to
+             * SectorTotalSize - StartSector); only a start beyond the
+             * volume end is a failure (cause 4) */
+            got_raw = u32(read_dev->size() - read_off);
+            rrc = got_raw != 0 ? read_dev->read_at(read_off, chunk.data(), got_raw) : rrc;
+        }
+        if (rrc != OK) {
+            /* M-135: the og's error-9 family - a HARD read failure (the
+             * raw failure the pipe-less bases see; post-retry pipe
+             * failures surface through the error map below) truncates
+             * the item here, KEEPS the partial on disk, records the
+             * numbered cause (5 = the sector location cannot be found;
+             * 4 = the location exceeds the source partition), fires the
+             * log trio, and the pass continues (the runlist path's
+             * break semantics - never the old zero-fill-and-continue) */
+            log_read_failure_(pr, ext_i, in_ext, want, read_dev);
+            const u32 cause = (rrc == ERR_RANGE_OUT_OF_BOUNDS) ? 4 : 5;
+            return commit_partial_(it, pr, &hash, cause, done, done, stats);
+        }
+        if (retry_src_ != nullptr) {
+            /* M-135 + M-136: the Skip-mode pipe zero-fills bad sectors
+             * and returns OK - the live error map is the ONLY post-retry
+             * hard-failure signal. A mapped range intersecting this read
+             * window means real unreadable bytes (re-reads of a mapped
+             * range zero-fill again): truncate at the FIRST one, keeping
+             * the readable prefix (the og truncates at its failing
+             * read's start; the retry pipe's bisection knows the exact
+             * boundary - every byte before it is real data) */
+            const ReadErrorMap em = retry_src_->error_map_copy();
+            bool hit = false;
+            u64 first_bad = 0;
+            for (const auto& r : em.ranges()) {
+                if (r.offset < read_off + got_raw && read_off < r.offset + r.length) {
+                    const u64 b = r.offset > read_off ? r.offset : read_off;
+                    if (!hit || b < first_bad) {
+                        first_bad = b;
+                        hit = true;
+                    }
+                }
+            }
+            if (hit) {
+                log_read_failure_(pr, ext_i, in_ext, want, read_dev);
+                const u64 good = first_bad - read_off; /* the readable prefix */
+                if (good != 0) {
+                    if (u32 rc = io_.write(it.item_id, done, chunk.data(), u32(good))) {
+                        io_.close(it.item_id);
+                        it.state = ItemState::Error;
+                        it.error = rc;
+                        ++stats.errors;
+                        return rc;
+                    }
+                    hash.update(chunk.data(), u32(good));
+                }
+                return commit_partial_(it, pr, &hash, 5, done + good, done + good, stats);
+            }
         }
         if (u32 rc = io_.write(it.item_id, done, chunk.data(), got_raw)) {
             io_.close(it.item_id);
@@ -831,6 +1015,7 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     t.resumed = stats.resumed;
     t.salvaged = stats.salvaged;
     t.nothing_to_recover = stats.nothing_to_recover;
+    t.read_error = stats.read_error; /* M-135: committed-but-truncated */
     {
         /* partial-run truth: items still Pending at report time were
          * queued but never attempted - without this count, queued cannot
@@ -843,18 +1028,20 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     }
     u64 bytes = 0;
     for (const auto& it : queue_)
-        if (!it.is_dir && it.state == ItemState::Done && !it.resumed)
+        if (!it.is_dir && it.state == ItemState::Done && !it.resumed && it.cause_id == 0)
             bytes += it.bytes_total;
     t.bytes = bytes;
     /* N-159: the og's failed-bytes accumulator (+0x268) - the bytes of
-     * every file that did NOT commit (Error + Refused; the og's write
-     * failures + the core's destination-refusal family). Pending items
-     * are excluded (never attempted in this pass), as is
-     * NothingToRecover (no bytes ever moved). */
+     * every file that did NOT fully commit (Error + Refused + the
+     * M-135 ReadError partials - the og's failed list counts them;
+     * the og's write failures + the core's destination-refusal
+     * family). Pending items are excluded (never attempted in this
+     * pass), as is NothingToRecover (no bytes ever moved). */
     u64 failed_bytes = 0;
     for (const auto& it : queue_)
         if (!it.is_dir && !it.resumed &&
-            (it.state == ItemState::Error || it.state == ItemState::Refused || it.name_exhausted))
+            (it.state == ItemState::Error || it.state == ItemState::Refused || it.name_exhausted ||
+             it.cause_id != 0))
             failed_bytes += it.bytes_total;
     t.failed_bytes = failed_bytes;
     t.elapsed_ms = elapsed_ms;
@@ -900,6 +1087,14 @@ std::vector<report::Item> SafeWriter::report_items() const {
         } else if (it.nothing_to_recover) {
             /* GAP-S6-7: skipped before any write - metadata-only item */
             r.outcome = report::Outcome::NothingToRecover;
+        } else if (it.cause_id != 0) {
+            /* M-135: committed-but-truncated (the og's error-9 family -
+             * the partial exists AND the file is in the failed list with
+             * its numbered cause + the boundary + the committed size) */
+            r.outcome = report::Outcome::ReadError;
+            r.cause_id = it.cause_id;
+            r.first_failed_offset = it.first_failed_offset;
+            r.bytes_written = it.bytes_written;
         } else if (it.state == ItemState::Error) {
             r.outcome = report::Outcome::Error;
             r.reason = it.error;

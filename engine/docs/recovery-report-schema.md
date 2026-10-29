@@ -78,10 +78,16 @@ Top level:
   real files, not whole no-extent items (bench 40073093997: 991
   full-size zero-file false positives). The og emits no content for
   metadata-only entries.
+- `read_error` (M-135, additive-within-v1) — committed-but-truncated
+  files: the og's error-9 family (a hard read failure after retries
+  truncates the item at the first unreadable byte, the PARTIAL stays on
+  disk, and the file is in the failed list with its numbered cause -
+  DRWUI :875684-875696). A separate bucket from `done` (the og counts
+  these files failed) and from `errors` (the partial IS committed).
 - `pending` — never attempted in this pass (partial-run truth; the
   reconciliation is queued == done + dirs + refused + errors +
-  resumed + nothing_to_recover + pending, since done subsumes the
-  committed sub-buckets)
+  resumed + nothing_to_recover + read_error + pending, since done
+  subsumes the committed sub-buckets)
 - `bytes` — sum of `bytes_total` over committed (non-resumed) file items
 - `failed_bytes` (N-159, additive-within-v1) — the og's failed-files
   accumulator (+0x268 on the results singleton, DRWUI :642729-642746):
@@ -106,8 +112,26 @@ Top level:
   - `nothing_to_recover` — GAP-S6-7: skipped before any write (metadata-
     only item: no extents, no resident data, positive claimed size);
     no file was created and no bytes were attempted
+  - `read_error` (M-135) — committed-but-truncated: the read failed hard
+    (post-retry) and the item truncated at the first unreadable byte;
+    the partial file EXISTS on the destination and the row carries the
+    numbered cause (`cause_id`) + the boundary (`first_failed_offset`)
+    + the committed size (`bytes_written`) - the og's error-9 family
 - `reason` — `cr_error` code (hex value as integer); `0` for clean rows
 - `bytes` — logical size attempted (0 for dirs)
+- `cause_id` (M-135, additive-within-v1; `read_error` rows only) — the
+  og's numbered user-facing failure cause, the COMPILED-IN defaults
+  (RecoveryFailedInfo1..7, DRWUI strings :30580-30596): 1 insufficient
+  storage space, 2 recovery path too long, 3 garbage characters in the
+  name, 4 the sector reading location exceeds total sector number of
+  the source partition, 5 the correct storage sector location cannot be
+  found, 6 exceeded the free quota (never produced by the core), 7
+  other unknown reasons
+- `first_failed_offset` (M-135; `read_error` rows only) — the logical
+  offset of the first unreadable byte (the truncation boundary)
+- `bytes_written` (M-135; emitted when it differs from `bytes`) — the
+  committed byte count (the og's std::filesystem size probe,
+  DRWUI :874131-874205)
 - `duration_ms` — per-item processing time (0 for skipped/unprocessed)
 - `sha256` — lowercase hex of the streamed content digest; **empty** when
   not computed (refused/error/pending/resumed/dir rows)

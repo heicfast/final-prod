@@ -24,7 +24,28 @@ driver-repo-resident per OQ-S10-3).
 
 - **M-136 FIXED (MAJOR, writer/orchestrator)** — the recovery pass reads through the scan's own pipe: both entry points (the CLI recover verb + the ABI recovery_open) construct the writer's source via `build_read_pipe(src, 8 MiB, 256 KiB)` — the M-058 single construction seam with the scan's exact constants (SliceShim identity → RetryingDevice ×3 Skip-mode → CachedReader), the chain owned by the entry context and provably outliving the writer (local-before-writer in the CLI; a `read_pipe` member declared before `writer` in CrRecovery). The og's export reads are stream-mediated (arch/04 §7.5 + FUN_140540670's props+0x30 → vt+0x78 GetStream dispatch at DRWUI:873629-873671, re-read first-hand) — never a bare device handle; a transient read error the scan retried past no longer zero-fills the same span at export. RED: the wiring pin at the stash-revert state (both grep pins npos); GREEN: 4/4 Writer tests + the negative control pinning the removed bare-device behavior; full suite **1507/1507**. The LDM basis devices keep raw member reads on BOTH sides (scan + export — no disagreement; the og's candidate-side cache is the scan's own posture).
 
-**Board after this landing (M-136 + the racing S73 lane's M-144 absorbed at the rebase): 0 ACUTE · 0 SEVERE · 15 MAJOR · 11 MINOR · 0 INFO active / 158 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+ (D-148 taken by M-144's registration).
+- **M-135 FIXED (MAJOR, writer)** — the og's error-9 family landed: a hard read
+  failure (post-retry via the M-136 pipe's live error map — Skip-mode reads
+  return OK with zero-filled bad sectors, the map is the only hard-failure
+  signal; or the raw non-OK read on the pipe-less bases) truncates the item at
+  the FIRST unreadable byte, KEEPS the partial (commit, never delete), records
+  Outcome::ReadError + cause_id + first_failed_offset + bytes_written
+  (additive-within-v1), fires the verbatim three-line "Failed to ReadSector!"
+  trio through cr::log, and the pass continues. The straddling-read clamp
+  (:875666-68) landed (cause 4 for beyond-volume starts); the ERR_TRUNCATED
+  refusal is replaced by the og's partial-keep (cause 7 — the og silently ends
+  short runlists; the core's report is the truthful superset); the per-class
+  split keeps undecodable-compressed zero-fill + Salvaged (the og's chunked
+  path). The cause list CORRECTED first-hand: SEVEN compiled-in entries
+  (strings :30580-30596) — the finding's qm citation misread cause 4 (the
+  runtime cause 4 is the sector-location string, not "file name is most
+  likely lost") and missed cause 7; FUN_1400ed760 REFUTED as the mapper (a %d
+  formatter — the open question resolved-as-refuted); the core maps by cause
+  semantics, registered D-149. The CLI renders the numbered causes. RED: the
+  link-failure with the implementation stashed + both re-pinned tests'
+  first-hand failures; GREEN: 8 new/re-pinned tests; suite **1515/1515**.
+
+**Board after this landing (M-136 + M-135 this lane; M-144 the racing S73 lane's): 0 ACUTE · 0 SEVERE · 14 MAJOR · 11 MINOR · 0 INFO active / 159 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain driver-repo-resident per OQ-S10-3's two-repo grant boundary.) Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+ (D-148 taken by M-144's registration).
 
 
 # SUMMARY.md — executive summary (the S73 MAJOR-first continuation fix lane on top; the prior lanes below, newest-first)

@@ -4334,7 +4334,11 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
     r->read_pipe.reset(
         new orchestrator::ReadPipe(orchestrator::build_read_pipe(src, 8ull << 20, 256 * 1024)));
     r->writer.reset(new recovery::SafeWriter(*r->io, r->read_pipe->pipe, wcfg));
-    r->writer->set_read_error_source(r->read_pipe->retry); /* S71: the Salvaged seam */
+    /* M-135 + M-136: the pipe's live error map is the post-retry
+     * hard-failure signal (Skip-mode reads return OK with zero-filled
+     * bad sectors) - the S71 convergence seam's name kept */
+    if (r->read_pipe->retry != nullptr)
+        r->writer->set_read_error_source(r->read_pipe->retry);
     *out = reinterpret_cast<cr_ui_recovery*>(r);
     return ret_ok();
 }
