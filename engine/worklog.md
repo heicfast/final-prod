@@ -1,4 +1,5 @@
 
+<<<<<<< HEAD
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
 - **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
@@ -70,6 +71,36 @@
   CR_SANITIZER_LANE define on the ubsan preset + ci-local's tsan lane, so
   detector-slowed lanes can scope timing-sensitive assertions honestly
   (the pattern this lane's withdrawn test pioneered).
+=======
+## Session-84 S84 lane — M-107's DWG member landed (member 3 of 11; 2026-10-29/30)
+
+**The three-generation DWG walk decoded first-hand from the raw asm**
+(evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md; objdump over the
+corpus binary, vtables via pefile): BruteForce::CDWGAnalyser
+('AC10' idx 0x18, the 0x508-byte instance, vtable 0x18006bc50 slot +0x20 =
+FUN_18002f320; the factory's initial scan position 0x15 at 0x18002ff59 —
+the constant the prior lanes never decoded; no File*Analyser secondary —
+the walk IS the authority per the M-155/N-217 census).
+
+- Mode 1 (R12-R2000): count u32@+0x15; 9-byte records {index gate,
+  seeker@+1, size@+5}; extent = max(seeker+size); index mismatch →
+  extent 0 (the decline); device-end read failure → the extent-so-far
+  salvage.
+- Mode 2 (R2004-R2018): the 108-byte map at +0x80 XOR the MSVC-LCG
+  keystream (seed*0x343fd+0x269ec3, seed0=1, byte=(seed>>16)&0xFF); six
+  validation gates; extent = u64@+0x34 + 0x6C.
+- Mode 3 (AC1021/R2007): the recorded remainder — the bounded extent
+  stands in for it alone (FUN_18002fc50's interleave undecoded, the next
+  probe recorded).
+
+The version set tightens to the og's exact tables {12,13,14,15,18,21,
+24,27,32}; the sanity cap rides the row-max approximation (the X3F/CRW
+precedent, registered). RED→GREEN first-hand via the stash dance (4 walk
+tests RED at the stand-in tree, GREEN with the walk; DwgR2007StandsIn
+Bounded pins the remainder; the S-007 batch's plant re-pinned to the
+walkable shape). The carve suite 279/279. Trail: M-107's S84 addendum 3,
+the matrix row, modules/carve.md's S84 addendum 3, this entry.
+>>>>>>> 0508c013 (fix(carve): M-107's DWG member — the three-generation size walk replaces the blind 64 MiB stand-in (member 3 of 11, the finding's decode-then-land order))
 
 ## Session-84 S84 lane (the third convergent lane) — the audit-trail restoration's record (2026-10-29)
 

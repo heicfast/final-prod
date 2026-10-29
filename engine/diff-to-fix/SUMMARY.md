@@ -157,6 +157,26 @@ RED→GREEN first-hand at this lane's repaired tree (before the racing
 windows were found): the two RED tests green, FAT family 94/94, full
 suite 1657/1657; the suite re-verified green after every rebase.
 
+- **M-107's DWG member LANDED (member 3 of 11 — this lane's first
+  finding fix after the restoration):** the three-generation walk
+  (BruteForce::CDWGAnalyser, FUN_18002f320; the factory's initial scan
+  position 0x15 — the constant the prior lanes never decoded; evidence:
+  evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md). Mode 1
+  (R12-R2000): count u32@+0x15, 9-byte records {index gate, seeker@+1,
+  size@+5}, extent = max(seeker+size), the index-mismatch decline, the
+  device-end salvage. Mode 2 (R2004-R2018): the 108-byte section map at
+  +0x80 XOR the MSVC-LCG keystream, six validation gates, extent =
+  u64@+0x34 + 0x6C. Mode 3 (AC1021/R2007): the recorded remainder (the
+  bounded extent stands in for it alone). The version set tightens to
+  the og's exact tables {12,13,14,15,18,21,24,27,32}. RED→GREEN
+  first-hand via the stash dance (4 walk tests RED at the stand-in
+  tree); the carve suite 279/279.
+
+**Board after the DWG member (filesystem truth): 0 ACUTE · 0 SEVERE ·
+8 MAJOR active (M-075/M-078/M-086/M-087/M-089/M-101/M-105/M-107 — M-107
+at members 1-3 of 11 landed, 8 remain) · 2 MINOR · 0 INFO / 4
+tracked-open.**
+
 
 ---
 
