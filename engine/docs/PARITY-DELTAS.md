@@ -4270,3 +4270,32 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   edges isolated on ordering-consistent garbage the og's full
   conjunction ACCEPTS; the cluster_count edge pinned at the boundary
   value with the reachability analysis in the test comment).
+
+### D-145 — ext4 superblock acceptance bands: four consolidated deliberate choices on garbage SBs (N-202 registration, REGISTERED DELIBERATE DIVERGENCE — both directions, near-zero real-volume impact)
+
+- **(1) inode_size == 0 with rev >= 1:** the og REJECTS (EXT4SearchDLL
+  :3237's `(rev == 0) || (short)inode_size != 0` gate, re-read first-hand);
+  the core falls back to 128 and accepts — the fallback is hardening (a
+  rev-1 SB with a zeroed inode-size field still has recoverable inodes at
+  the spec default), and the og's own rev-0 path hardcodes 128 anyway.
+- **(2) log_bs 7..20:** the og ACCEPTS (its `0x400 << (log_bs & 0x1f)`
+  int-sign form only fails when the shifted int goes negative — past 20,
+  i.e. 1 GiB blocks; 128 KiB..512 MiB blocks pass its gate); the core
+  rejects above 6 (64 KiB, the kernel's limit). The og's wide band is an
+  og defect class (the I-045 non-adoption family): 1 GiB block sizes are
+  nonsense; no kernel ever mounted them.
+- **(3) journal_inum:** the og copies the field only when
+  feature_compat's HAS_JOURNAL bit 2 is set (:3365-3367); the core reads
+  it unconditionally and defaults 0 -> 8. The unconditional read is
+  harmless on non-journal volumes (the salvage pass gates on the jsb
+  magic before touching inode 8) and keeps the field observable for
+  journal-bearing volumes whose compat flag was torn.
+- **(4) desc_size:** the og clamps to [32, 64] unconditionally
+  (:3397-3405); the core picks 64-iff-64BIT (32 otherwise). Differs only
+  on invalid combos (64BIT with ds < 64, or non-64BIT with ds = 64) —
+  the core's form matches the kernel's decoding of the same field.
+- **EVIDENCE:** all four og sites re-read first-hand at the cited lines;
+  the four core bands pinned by `Ext4Engine.SbBandsPinned` (the 128
+  fallback, the log_bs cap isolated from the fdb rule, the journal_inum
+  default, both desc_size combos). No behavior change — registration and
+  pins are the deliverable.

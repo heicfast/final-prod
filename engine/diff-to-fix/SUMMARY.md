@@ -67,7 +67,9 @@ tracked-open; FIXED archive 140.
 
 - **N-198 FIXED (MINOR)** — the exFAT boot-gate numeric bounds registered as deliberate hardening: PARITY-DELTAS **D-144** (the og's nonzero-form conjunction re-read first-hand at :28180-28210; the no-real-formatter rationale; the > 2 TiB cluster_count reachability analysis) + `ExfatEngine.HardeningBoundsPinned` (the volume_length/fat_offset edges isolated on og-ACCEPTING ordering-consistent garbage, the cluster_count boundary pinned). ExfatEngine family 41/41; no behavior change.
 
-**Board at this push (filesystem truth):** 43 active — 1 SEVERE · 23 MAJOR · 16 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 144 files.
+- **N-202 FIXED (MINOR)** — the ext4 SB acceptance bands consolidated and registered: PARITY-DELTAS **D-145** (the four sub-items with the og sites re-read first-hand — the inode_size=0 128-fallback, the log_bs 7..20 og-defect band, the journal_inum unconditional-read stance, the desc_size 64BIT-form) + `Ext4Engine.SbBandsPinned` (the log_bs edge isolated from the adjacent fdb kernel rule; both desc_size combos). Ext4Engine family 44/44; no behavior change.
+
+**Board at this push (filesystem truth):** 35 active — 1 SEVERE · 20 MAJOR · 14 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 145 files (the MAJOR count absorbs the parallel window's M-141/M-145/M-147 landings).
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 

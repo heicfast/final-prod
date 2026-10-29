@@ -9552,3 +9552,18 @@ blocks, 0x8001 → exactly 1 block, offsets pinned) — **RED-proven load-bearin
 No production code change (the core is the registered deliberate non-adoption).
 Trail: findings/FIXED/I-045 (Resolution + moved) + FIXED-LEDGER row +
 modules/ext4.md ACKNOWLEDGED + SUMMARY S58 block + this entry.
+
+## Session-60-B lane — N-202 landed (2026-10-29)
+
+**N-202 FIXED (MINOR — ext4 SB band deltas consolidated).** All four og sites
+re-read first-hand: the :3237 inode-size gate, the 0x400<<log_bs int-sign
+form (:3232-3239), the HAS_JOURNAL-gated journal_inum copy (:3365-3367), the
+unconditional [32,64] desc_size clamp (:3397-3405). Per the fix plan:
+PARITY-DELTAS D-145 (four sub-items with rationales; the og's log_bs band
+recorded as its own defect class per the I-045 family) +
+Ext4Engine.SbBandsPinned (four edges; the log_bs edge isolated from the fdb
+kernel rule so the cap is the firing gate; both desc_size combos). No
+behavior change. Ext4Engine 44/44. Board truth re-counted at this push: 35
+active (1 S / 20 M / 14 N), the MAJOR count absorbing the parallel window's
+M-141/M-145/M-147. Trail: findings/FIXED/N-202 + Resolution, ledger row,
+matrix MATCH, SUMMARY, this entry.
