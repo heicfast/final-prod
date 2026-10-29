@@ -68,6 +68,18 @@ if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
 else
   ok "driver-only architecture lint clean (no rda_available/win_pe_environment/open_harddisk_volume/prefer_rda)"
 fi
+# N-210: committed conflict markers must never survive a merge in ANY text
+# file (the M-120 class recurred in markdown, which -Werror cannot see).
+# The one sanctioned carrier is M-120's own evidence quote.
+if MARKERS=$(grep -rln '^<<<<<<< ' --include='*.md' --include='*.cpp' --include='*.h' \
+     --include='*.c' --include='*.hpp' --include='*.yml' --include='*.txt' --include='*.sh' \
+     src include tests tools bench fuzz docs scripts diff-to-fix worklog worklog.md 2>/dev/null \
+     | grep -v 'M-120-committed-conflict-markers-red-main'); then
+  fail "live conflict markers committed (the M-120/N-210 class):"
+  echo "$MARKERS"
+else
+  ok "conflict-marker lint clean (M-120/N-210 class)"
+fi
 # No static analyzer (cppcheck) is configured in this repo's toolchain yet:
 # reported honestly, never as a silent pass (docs/CI-LOCAL.md section 4).
 info "static analysis: not configured in this repo yet (no cppcheck/clang-tidy config) - tracked, not silenced"

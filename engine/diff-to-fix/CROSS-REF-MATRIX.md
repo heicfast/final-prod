@@ -1,4 +1,11 @@
-<<<<<<< HEAD
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S71 fix lane on top — the MAJOR-first diff-to-fix execution per the user's directive; the prior lanes below)
+
+**Session-71 S71 lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `c736e9b3`, corpus `be0cfe9` throughout):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| audit-trail · committed conflict markers (Q68/the M-120 class) | **MATCH** (findings/FIXED/N-210) | **N-210 FIXED** — the `f3da99f1` merge residue (4 files: the matrix's closing-fix/S54 sections, I-033/N-135's addenda-vs-Resolutions, both s51 prompt variants) resolved per the stacked-history convention; the ci-local conflict-marker lint extended to markdown so the class cannot re-enter silently |
+
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the closing-fix lane on top — the INFO-first diff-to-fix execution per the user's directive; the prior lanes below)
 
 **Closing-fix lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `98a5b139`, corpus `be0cfe9` throughout):**
@@ -9,8 +16,6 @@
 | lost-partition/session · lostpart.dat lifecycle + resume granularity (#36/#34/#58) | **MATCH** (registered deliberate divergence — D-142; findings/FIXED/I-046) | **I-046 FIXED (ACKNOWLEDGED)** — the og-side lifecycle decoded and registered: per-process-generation cache (W1 delete latch), per-hit appends, W3 marker-restore scan-position resume; the core's M-042 stage-granular checkpoint architecture stays — D-142 carries the delta |
 | imaging/abi/cli · disk-image CREATE producer (P42/C24/F59/B8) | **MATCH** (S-040 landed; the flat-only boundary registered as D-147) | **S-040 FIXED** — the producer half: storage::create_image_stream + win::create_image_file/create_disk_image + ABI cr_ui_image_create (87 exports) + CLI verb 13 image --create; R-93 PARTIAL->PRESENT; the class-(a) driver gate + the truth contract (.partial kept and reported) pinned by tests |
 
-=======
->>>>>>> 592f4ae5c75e56ea081ca76c3518489af47ef48d
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
 
 **Session-54 S54 lane rows (2026-10-29 — the fifth continuation lane of the user's second-session mandate; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9, findings verified/filed at `34d6cf10`, corpus `be0cfe9`):**

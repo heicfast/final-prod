@@ -9986,3 +9986,35 @@ second-session mandate (2026-10-29).**
 - **Read-only guarantee:** this lane's delta = `diff-to-fix/` (new content)
   + `worklog*` only. No source, header, test, build, workflow, or doc file
   is modified.
+
+
+## Session-71 S71 lane — the MAJOR-first fix lane opens + N-210 (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-diff-fix-s71-prompt.md`, read twice. The user's directive:
+"Fix all the audit findings (priority to major first) one by one... Aim for
+atleast 20+ fixes in this session." Opening HEAD `c736e9b3`, corpus `be0cfe9`
+throughout. Baseline linux-release build + suite launched first-hand.
+
+**Board re-counted first-hand from the filesystem at open:** 0 ACUTE · 0
+SEVERE · 17 MAJOR · 11 MINOR · 0 INFO active / 156 FIXED / 4 tracked-open
+(M-086/M-087/M-089 + N-107/N-127 driver-repo-resident per the OQ-S10-3
+two-repo grant boundary — PUSHED-FORWARD, not fixable in core this session).
+Fixable set: 14 MAJOR + 9 MINOR + 4 tracked-open.
+
+**N-210 FIXED (MINOR — the M-120 class recurred).** Found at lane open: the
+`f3da99f1` merge committed live conflict markers into 4 audit-trail files
+(the matrix's closing-fix/S54 sections, I-033/N-135's addenda-vs-Resolutions,
+both s51 prompt variants). Repaired per the stacked-history convention (both
+sides kept, markers removed; the s51 seams annotated); the ci-local lint now
+greps every text tree for the class (markdown included — `-Werror` cannot see
+it); M-120's own evidence quote deliberately untouched. Verified: the repair
+script's post-check + the new lint GREEN at the post-repair tree. Filed per
+the discovered-divergence rule (new finding + fix in the same session).
+
+**Lane plan (MAJOR first, correctness before performance):** M-136 → M-135
+(the recovery read-pipe + failure-semantics pair), M-143/M-144 (ext4), M-118
+(lost-partition register channel), M-113/M-114 (boot surgery + restore-purge
+decision), M-075/M-078 (chkdsk + BitLocker turn-off), M-073 (scan-time folder
+filter), M-101 (Versions/Tags nodes), M-107 (the carve size-walk batch), then
+the 9 fixable MINORs, then the tracked-open set.
