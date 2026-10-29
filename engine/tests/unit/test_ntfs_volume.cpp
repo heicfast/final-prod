@@ -896,12 +896,10 @@ TEST(NtfsVolume, NonresidentAttrlistOnMft) {
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    /* the record gate now covers the extension (audit row 3). M-151: the
-     * growth probe ALSO annexed the standard fixture's physically-present
-     * records 16..22 at LCN 36..49 (valid FILE records past the truncated
-     * 32-cluster declaration - the og's greedy FUN_180007670 shape), so
-     * the covered span is the grown primary 46 clusters = 23 records, not
-     * the attrlist-only 20. */
+    /* the record gate now covers the extension (audit row 3); M-151: the
+     * growth probe annexes the physical tail's 3 validator-passing records
+     * past the extension's declared end (the fixture leaves them on disk) -
+     * the og's exact growth semantics, the boundary moves 20 -> 23 */
     EXPECT_EQ(vol->max_record_no(), 23u);
     std::vector<u8> rec;
     ASSERT_EQ(vol->read_record(18, rec), OK);
@@ -3193,12 +3191,11 @@ TEST(NtfsVolume, MirrorCoversRunlistSize) {
      * gate refused it even though the runlist covers 8 records */
     std::memcpy(img.sec(MIRR_LCN + 10), img.sec(MFT_LCN + 4), RECORD_SIZE);
     patch_mft_runlist_with_hole(img);
-    /* M-151: make the hole PHYSICAL - zero the holed region's bytes so
-     * the growth probe finds no valid records past run 0's end (the
-     * annexable tail would otherwise serve records 2.. from the primary
-     * and the mirror fallback this test pins would never run). The hole
-     * run starts at vcn 4 = LCN 8 (run 0 is 4 clusters at LCN 4); the
-     * zeroing stops at the mirror region (LCN 68). */
+    /* M-151: zero the holed primary extent - the physical tail's valid
+     * records would otherwise be annexed by the growth probe (this test's
+     * population is the MIRROR fallback, not the growth; the zeroed hole
+     * is the same fixture pattern MirrorFallbackUnaffectedByGrowthPass
+     * uses) */
     std::memset(img.sec(MFT_LCN + 4), 0, size_t(60 * CLUSTER));
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
@@ -3233,9 +3230,7 @@ TEST(NtfsVolume, MirrorResidentDataRejected) {
         attr[8] = 0;                       /* nonresident flag -> resident */
     }
     patch_mft_runlist_with_hole(img); /* primary hole forces the fallback */
-    /* M-151: the hole is PHYSICAL (the holed region zeroed, LCN 8..67)
-     * - the growth probe must find nothing annexable, keeping the
-     * mirror-fallback premise intact */
+    /* M-151: zero the holed extent (growth-proof, see MirrorCoversRunlistSize) */
     std::memset(img.sec(MFT_LCN + 4), 0, size_t(60 * CLUSTER));
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
