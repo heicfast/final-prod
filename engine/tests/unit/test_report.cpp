@@ -10,6 +10,7 @@
 #include "test_tmpdir.hpp"
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/orchestrator/cr_scan.h"
 #include "cr/storage/cr_device.h"
 #include <cstring>
 #include <fstream>
@@ -684,4 +685,144 @@ TEST(Report, TreeClassIsAdditiveWithinSchemaV1) {
     EXPECT_EQ(
         1u, u64(doc2.find("\"tree_class\":\"lost_files\"") != std::string::npos) +
                 u64(doc2.find("\"tree_class\":\"lost_files_reconstructed\"") != std::string::npos));
+}
+
+/* ---- M-136: the recovery pass reads through the scan's pipe --------- */
+
+/* a transient-fault device: the FIRST read overlapping [flaky_from,
+ * flaky_to) fails, every later attempt succeeds (the USB-hiccup / busy
+ * virtual-disk class the scan's RetryingDevice survives on attempt 2);
+ * successful reads are counted (cache-warmth pin) */
+class TransientDevice final : public IStorageDevice {
+public:
+    explicit TransientDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    void flaky_range(u64 from, u64 to) {
+        flaky_from_ = from;
+        flaky_to_ = to;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (!armed_ && flaky_from_ != flaky_to_ && off < flaky_to_ && off + len > flaky_from_) {
+            armed_ = true; /* exactly one transient failure, then readable */
+            return ERR_READ_FAILED;
+        }
+        ++reads_;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    u32 reads() const { return reads_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+    u64 flaky_from_ = 0, flaky_to_ = 0;
+    bool armed_ = false;
+    u32 reads_ = 0;
+};
+
+TEST(Writer, ReadsRetryOnTransientFailure) {
+    /* M-136: a span that fails ONCE (the transient class the scan's
+     * RetryingDevice retries past) recovers byte-identical through the
+     * recovery pipe - Done, zero Salvaged. Handed the bare device (the
+     * pre-fix construction), the same fault zero-fills the span. */
+    std::vector<u8> img(64 * 1024, 0xCD);
+    TransientDevice dev(std::move(img));
+    dev.flaky_range(8 * 1024, 12 * 1024);
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* f = add_node(tree, found, "flaky.bin", 0, 32 * 1024);
+    tree.refresh_stats();
+
+    orchestrator::ReadPipe rp = orchestrator::build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, rp.pipe, cfg);
+    ASSERT_EQ(OK, writer.enqueue(f, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(0), stats.salvaged);
+    EXPECT_EQ(u64(0), stats.errors);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(Outcome::Done, items[0].outcome);
+}
+
+TEST(Writer, BareDeviceZeroFillsWhatThePipeRetries) {
+    /* the negative control, pinning the exact writer-level behavior the
+     * M-136 entry-point fix removed from production: handed the BARE
+     * device, one transient fault becomes a permanent zero-filled span
+     * (Salvaged) - the scan and the export disagreeding about the same
+     * byte range was the finding's falsifiable claim */
+    std::vector<u8> img(64 * 1024, 0xCD);
+    TransientDevice dev(std::move(img));
+    dev.flaky_range(8 * 1024, 12 * 1024);
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* f = add_node(tree, found, "flaky.bin", 0, 32 * 1024);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(f, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.salvaged);
+    const auto items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ(Outcome::Salvaged, items[0].outcome);
+}
+
+TEST(Writer, RecoveryCacheServesSharedExtents) {
+    /* M-136: the CachedReader rides the writer's chain - two items over
+     * the same extent read the DEVICE once (the second item is served
+     * from the cache, the og's stream-mediated export posture) */
+    std::vector<u8> img(64 * 1024, 0x5A);
+    TransientDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* a = add_node(tree, found, "a.bin", 0, 16 * 1024);
+    auto* b = add_node(tree, found, "b.bin", 0, 16 * 1024);
+    tree.refresh_stats();
+
+    orchestrator::ReadPipe rp = orchestrator::build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    ReportIo io;
+    WriterConfig cfg;
+    cfg.verify_hash = false;
+    SafeWriter writer(io, rp.pipe, cfg);
+    ASSERT_EQ(OK, writer.enqueue(a, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(b, u"out\\"));
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(0), stats.salvaged);
+    /* one 256 KiB cache block fetch serves both items' 16 KiB reads */
+    EXPECT_EQ(1u, dev.reads());
+}
+
+TEST(Writer, RecoveryEntryPointsConstructThroughBuildReadPipe) {
+    /* M-136: both recovery entry points (the CLI recover verb + the ABI
+     * recovery_open) build the writer's source through the scan's own
+     * seam with the scan's constants - grep pin, the M-058/test_cached
+     * precedent for construction-site proofs */
+    const auto cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(cli.empty());
+    EXPECT_NE(std::string::npos,
+              cli.find("build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024)"))
+        << "the CLI recover verb must construct the writer's source through build_read_pipe";
+    const auto abi = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(abi.empty());
+    EXPECT_NE(std::string::npos, abi.find("build_read_pipe(src, 8ull << 20, 256 * 1024)"))
+        << "the ABI recovery_open must construct the writer's source through build_read_pipe";
 }

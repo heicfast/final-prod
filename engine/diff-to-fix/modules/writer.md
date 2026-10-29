@@ -214,10 +214,17 @@ Four new rows, all first-hand verified (worksheet:
   keeps the partial file, and surfaces six numbered causes; the core
   zero-fills-and-continues (Salvaged) and deletes failed items wholesale; the
   per-node runtime failure mark (+0x73 bit 1) has no analog.
-- **E35/R51 (the recovery read pipeline) — DIVERGENCE-MAJOR, M-136**: recovery
-  hands the writer the raw device (`rrecov.cpp:2080-2082`, `cr_ui.cpp:4027`)
-  while the scan's Retry(3×)+Cache pipe (`cr_scan.cpp:155-194`) goes unused —
-  one transient read error becomes a permanent zero span.
+- **E35/R51 (the recovery read pipeline) — MATCH, M-136 FIXED**: both recovery
+  entry points construct the writer's source through the scan's own
+  `build_read_pipe` seam (SliceShim identity → Retry(3×, Skip) → 8 MiB /
+  256 KiB CachedReader — `rrecov.cpp` recover + `cr_ui.cpp` recovery_open,
+  the chain owned by the entry context and outliving the writer); one
+  transient read error retries exactly as the scan's reads do — the og's
+  stream-mediated export posture (arch/04 §7.5, `FUN_140540670`'s GetStream
+  dispatch). The LDM basis devices keep their raw member reads on BOTH
+  sides of the scan/export boundary (consistent within the core; the og's
+  per-volume CStorageDeviceWithCache for candidates is the scan-side
+  posture, not an export asymmetry).
 
 ## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
 

@@ -978,6 +978,12 @@ struct CrPreview {
 
 struct CrRecovery {
     PausableToken token;
+    /* M-136: the recovery read chain (SliceShim identity -> RetryingDevice
+     * x3 Skip-mode -> 8 MiB / 256 KiB CachedReader - build_read_pipe, the
+     * M-058 seam the scan itself reads through). Declared BEFORE the
+     * writer so the chain outlives it (members destroy in reverse order);
+     * the og's export reads are stream-mediated, never a bare device. */
+    std::unique_ptr<orchestrator::ReadPipe> read_pipe;
     std::unique_ptr<recovery::DestIo> io;
     std::unique_ptr<recovery::SafeWriter> writer;
     CrDevice* dev = nullptr;  /* borrowed */
@@ -4307,7 +4313,14 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
-    r->writer.reset(new recovery::SafeWriter(*r->io, src, wcfg));
+    /* M-136: the writer's source reads go through the scan's own chain
+     * (build_read_pipe over the resolved ABSOLUTE source - the parent
+     * disk for volume scans, the device itself otherwise; the og's
+     * export reads ride the engine/scan-session stream, never a raw
+     * handle). The chain is owned by the handle and outlives the writer. */
+    r->read_pipe.reset(
+        new orchestrator::ReadPipe(orchestrator::build_read_pipe(src, 8ull << 20, 256 * 1024)));
+    r->writer.reset(new recovery::SafeWriter(*r->io, r->read_pipe->pipe, wcfg));
     *out = reinterpret_cast<cr_ui_recovery*>(r);
     return ret_ok();
 }

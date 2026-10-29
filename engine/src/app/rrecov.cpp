@@ -2372,7 +2372,19 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
 
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
-    recovery::SafeWriter writer(io, src.device.get(), wcfg);
+    /* M-136: the recovery pass reads through the SAME read chain the scan
+     * built (build_read_pipe - SliceShim identity over the absolute source
+     * -> RetryingDevice x3 Skip-mode -> 8 MiB / 256 KiB CachedReader, the
+     * M-058 single construction seam). The og's export reads are
+     * stream-mediated through the engine/scan-session reader
+     * (architecture/04 §7.5; FUN_140540670's props+0x30 -> vt+0x78
+     * GetStream dispatch at DRWUI:873629-873671) - never a bare device
+     * handle; a transient read error the scan retried past must not
+     * zero-fill the very same span during export. `rp` owns the chain and
+     * outlives the writer (declared first, destroyed last). */
+    orchestrator::ReadPipe rp =
+        orchestrator::build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024);
+    recovery::SafeWriter writer(io, rp.pipe, wcfg);
 
     /* destination validation + overlap refusal (F12 + N-013, restored per
      * S-054 after the 1ebd1bcc clobber): any path that resolves to a

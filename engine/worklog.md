@@ -10137,3 +10137,27 @@ decode-then-land order → the 9 in-scope MINORs in reverse board order
 (N-201, N-200, N-182, N-181, N-178, N-145, N-144, N-140, N-131).
 Baseline suite green before the first change; every fix RED-proven
 pre-fix and GREEN post-fix.
+
+## Session-72 S72 lane — M-136 lands (2026-10-29)
+
+- **M-136 FIXED (MAJOR, writer/orchestrator)** — the recovery reads ride the
+  scan's pipe. Corpus re-verified first-hand: architecture/04 §7.5's
+  stream-mediation statement + FUN_140540670's GetStream dispatch
+  (DRWUI:873629-873671). Both recovery entry points now construct the
+  writer's source through `build_read_pipe(src, 8ull << 20, 256 * 1024)`
+  — rrecov.cpp's recover verb (`orchestrator::ReadPipe rp` local, declared
+  before the writer so the chain outlives it) and cr_ui.cpp's recovery_open
+  (CrRecovery gains a `read_pipe` member declared before `writer`). The
+  finding's open question (the og's own export retry posture) stays
+  undecoded — the fix claims stream-mediation + scan-grade retry, both
+  verified. LDM bases keep raw member reads on both sides (scan_candidate
+  reads them bare too — consistency, the og's candidate-side cache is the
+  scan's posture, out of this finding's export scope). Tests:
+  Writer.RecoveryEntryPointsConstructThroughBuildReadPipe (RED at the
+  stash-revert: both grep pins npos) / ReadsRetryOnTransientFailure
+  (transient fault → Done, 0 Salvaged) / BareDeviceZeroFillsWhatThePipeRetries
+  (the negative control) / RecoveryCacheServesSharedExtents (device read
+  once for two shared-extent items); suite 1507/1507. Trail: finding +
+  Resolution moved to findings/FIXED/, ledger row, matrix MATCH,
+  modules/writer.md E35/R51 → MATCH, SUMMARY board 16 MAJOR / 157 FIXED,
+  this entry.
