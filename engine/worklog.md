@@ -9330,3 +9330,16 @@ same gate invocation). Census: the two literals were the only 0x6xxxxxxx forms
 in the bench family. Trail: finding retired to findings/FIXED/N-195 +
 Resolution, ledger row, matrix MATCH cell, SUMMARY S60-B block, this entry.
 >>>>>>> b9e040a0 (fix(bench): N-195 - the driver-verification bench's phantom-zero extended IOCTL codes righted (0x60002440/48 -> the contract's 0x6002440/0x6002448, byte-matching cr_rda.h kIoctlGetInfo/kIoctlGetVersion [fn 0x910/0x912]) - both calls could never reach the real handlers (unknown-IOCTL against any correct driver, the bench dead weight); the class guard the finding prescribed landed as doc_truth_gate check 7 check_bench_ioctl_codes [every bench CTL literal must byte-match a cr_rda.h constant; CI-wired] - RED exit-1 pre-fix with both violations named -> GREEN post-fix; the repo sweep found no third site; the OQ-S10-3 boundary keeps the driver-repo half of M-089's class; trail: findings/FIXED/N-195 + ledger row + matrix MATCH + SUMMARY S60-B block + worklog)
+
+## Session-60-B lane — the N-195 hot-window convergence absorbed (2026-10-29)
+
+The rebase over the S60/closing-fix window showed the S60 lane had landed
+their own N-195 (3fae0791) in the same window — identical two-constant fix +
+their CrUi read_repo_file pin. Per SA-9 their landing is the fix of record;
+this lane's rebase commit (1b4b2aa5) carries the convergence record: the
+ledger's second row, the finding's Addendum II, and this lane's UNIQUE
+supplement — doc_truth_gate check 7 (check_bench_ioctl_codes, CI-wired):
+every bench CTL literal must byte-match a cr_rda.h constant, making the
+phantom-zero class permanently gated. Gate green (137 D-rows, bench check
+green). Board after the window: 19 MINOR · 23 MAJOR · 1 SEVERE active,
+141 FIXED files, 0 INFO active (the closing-fix lane took I-045/I-046).
