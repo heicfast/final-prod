@@ -415,6 +415,69 @@ TEST(CarveStats, UserSignCarvedFoundSessionRoundTrip) {
     std::remove(path.c_str());
 }
 
+TEST(ScanStats, BytesFoundAggregates) {
+    /* N-167: the found-size truth - the og's completion headline renders
+     * "Files Found: N (X GB)" from the stats aggregate; the core had
+     * counts only (bytes_scanned is I/O truth, not found-size truth).
+     * The fixture's two files carry known logical sizes (DOC.TXT 1000,
+     * DELFILE.TXT 500 deleted) - the aggregate must include BOTH the
+     * active and the deleted population (the og counts what it found,
+     * deletion state is a separate column), and must equal the tree's
+     * own total_logical() (the stats-tree consistency: one observation
+     * pair, never two truths). */
+    MemDevice dev(build_fat16());
+    tree::ResultTree tree;
+    ScanController ctrl(tree, ScanConfig{});
+    ScanStats stats;
+    const u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(2u, stats.files_found) << "the fixture's two dentries both surface";
+    EXPECT_GE(stats.bytes_found, 1500u)
+        << "both known logical sizes (1000 + 500) count in the aggregate";
+    EXPECT_EQ(stats.bytes_found, tree.total_logical())
+        << "the stats aggregate IS the tree truth (one consistent pair)";
+}
+
+TEST(ScanStats, BytesFoundSessionRoundTrip) {
+    /* N-167 session leg: the found-size aggregate persists into the v3
+     * REC_SESSION_STATE record and re-reads identically on resume (v1/v2
+     * sessions load it zeroed - the tree re-stamps it at the first count
+     * refresh). */
+    const std::string path = tmp_session_path();
+    u64 runtime_bytes_found = 0;
+    {
+        MemDevice dev(build_fat16());
+        tree::ResultTree tree;
+        ScanController ctrl(tree, ScanConfig{});
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+        runtime_bytes_found = stats.bytes_found;
+        ASSERT_GE(runtime_bytes_found, 1500u);
+        tree.refresh_stats();
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(0x52434F56));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        EXPECT_EQ(runtime_bytes_found, stats.bytes_found)
+            << "the persisted bytes_found re-reads the found-size truth";
+    }
+    std::remove(path.c_str());
+}
+
 TEST(PauseResume, MaskIntegrityViolationRefusesResume) {
     /* Build a valid session, then re-serialize a TAMPERED SessionState
      * (carve done bit set while carve was never configured) - resume must

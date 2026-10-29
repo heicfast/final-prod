@@ -204,14 +204,15 @@ TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {
-    /* S-058 re-pin: the og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the
-     * iterator INEQUALITY comparator - the :605743 deep-validation block
-     * runs exactly when the 169-key set lookup MISSES; the control case
-     * at :585885-905 calibrates the direction). Two same-key files with
-     * OUT-OF-TABLE extensions -> twins; in-table -> the engine-default
-     * grade stands, no twin machinery. (The pre-fix pin ran the twins
-     * for the in-table pair - the s5 evidence's inverted polarity line,
-     * which this test had pinned.) */
+    /* S-058 re-pin (the CANONICAL form after three hot-window crossings
+     * - this block is rewritten whole per the 72a17b7c precedent): the
+     * og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the iterator
+     * INEQUALITY comparator - the :605743 deep-validation block runs
+     * exactly when the 169-key set lookup MISSES; the control case at
+     * :585885-905 calibrates the direction). The in-table DOC pair at
+     * one key skips the deep path (engine-default grade, no twin
+     * machinery); the out-of-table ZZQX pair at another key enters it
+     * (twins flagged + promoted). */
     ResultTree t;
     auto* root = t.add_root(u"Found");
     /* the in-table DOC pair at one key (skips the deep path) */
@@ -224,6 +225,8 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                         Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
+    /* the dot-less pair (its pin moved to DotlessNamesSkipTwinDetection;
+     * kept here as load - the "" quirk makes it IN-table -> skip) */
     (void)add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                    Origin::Structured, 0xD000, 0x400);
     (void)add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,

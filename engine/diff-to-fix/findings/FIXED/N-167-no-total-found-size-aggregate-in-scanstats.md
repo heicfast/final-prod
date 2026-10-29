@@ -60,3 +60,10 @@ directly; CLI summary read).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-167 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `ScanStats.BytesFoundAggregates` (RED pre-fix via the stashed-stamp rebuild: bytes_found stayed 0 while the tree carried the fixture's 1500 bytes — the finding's falsifiable claim executed; GREEN: the aggregate covers BOTH the active and the deleted population and equals tree.total_logical() — the one-consistent-pair pin) + `ScanStats.BytesFoundSessionRoundTrip` (the v3 REC_SESSION_STATE record persists the aggregate and re-reads it identically on resume). Suite 1320/1320 (linux-release).
+**Resolution notes:** The field landed as `ScanStats::bytes_found`, stamped from `ResultTree::total_logical()` inside `tel_counts_` (the signature widened const → mutable) so the counters and the size ride the SAME observation points — a host rendering the og's headline reads one consistent pair, and the staleness semantics match files_found exactly (boundary-stamped; N-166's live-cadence work extends both together when it lands). The session record grew to v3 (48 bytes; v1/v2 load zeroed — the tree re-stamps at the first count refresh after resume). The CLI completion line renders the og's shape ("N file(s) (X GB)") with the binary 1024^3 divisor GB-labeled — the corpus capture pins the convention (1,139,286 files / 147.12 GB on a 149.45 GB volume = the Windows binary-GB labeling); the JSON summary gained bytes_found alongside bytes_scanned. bytes_scanned's I/O-truth semantics untouched.

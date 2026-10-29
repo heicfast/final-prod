@@ -912,6 +912,9 @@ u32 serialize_session_state(const SessionState& st, std::vector<u8>& out) {
      * lack them (deserializer len-gates the reads) */
     put64(out, st.deleted_found);
     put64(out, st.carved_found);
+    /* v3 (N-167): the found-size aggregate - the og's "Files Found: N
+     * (X GB)" headline truth, restored on load */
+    put64(out, st.bytes_found);
     return OK;
 }
 
@@ -927,6 +930,11 @@ u32 deserialize_session_state(const u8* data, size_t len, SessionState& st) {
         st.deleted_found = c.g64();
     if (!c.fail && len >= 40)
         st.carved_found = c.g64();
+    /* v3 (N-167): the found-size aggregate - present only in 48-byte
+     * records; v1/v2 sessions leave it zeroed (the tree re-stamps it on
+     * the first count refresh after resume) */
+    if (!c.fail && len >= 48)
+        st.bytes_found = c.g64();
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 
