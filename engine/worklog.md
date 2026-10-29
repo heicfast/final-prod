@@ -1,10 +1,52 @@
-## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
+
+Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
+The prompt saved token-redacted (`worklog/session-diff-fix-s90-prompt.md`).
+Baseline suite green first-hand at the open: **1661/1661** (128 s).
+
+This lane independently decoded and implemented the WPD + WPG members
+(locally GREEN 1666/1666, RED proofs first-hand via the stash dance).
+**The pushes hit THREE convergent racing windows in sequence and every
+seat was conceded per SA-9:** (1) the S85 window's WPD pair-table
+landing (d20a8483) + the deeper WPG zero-tail walk (the +0x20 processor
+FUN_180014160, superseding this lane's tier-1-only zero-end
+classification); (2) the S84/S89 window's merge (M-101 + the DXF/EPS/AI
+members); (3) the S87 window's WPD version-table landing (1ff8ae24)
+with the 0xFFFFFFFF row max — the exact rider this lane had built at
+4 GiB, converged again (the S87 form is the more exact u32 ceiling and
+holds the seat). The final concession: no code delta from this lane
+survives — the main tree already implements every decode this lane
+derived; this lane's two rider tests were dropped as converged
+duplicates of the S87 battery (WpdOverCapSizeCarvesFull /
+WpdSecondAndThirdRecordsCarve).
+
+**The unique record this lane lands (the corroboration no other window
+carried): the WPG tier-1 decode closes the S85 zero-tail landing's own
+honest residue.** Byte-exact (FUN_180014030, objdump first-hand): the
+tier-1 stamps ONLY the id 0x45 — NO size; the size==0 acceptance cannot
+finalize in the scan loop (the :9564 emit gate fails), so the candidate
+rides the continuation path where the +0x20 processor computes the
+extent — the pending machinery (:9564-9591) is the racing processor's
+calling context, and the landing's recorded residue ("the ctx gate
+undecoded — the extent shifts by multiples of 512 if it defers") is the
+pending-list re-feed cadence, not an undecoded gate. Recorded in
+M-107's Session-90 addendum.
+
+Suite green at the racing head + this lane's trail (first-hand); the
+lane continues on the standing board: M-107's SIT/APE/SWF-RECT members,
+M-105, the tracked-open items, and the discovery sweep — see the
+following entries.
+
+## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
 The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
 this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
-18.1.8, cmake 4.4.4).
+18.1.8, cmake 4.4.4). The full entry record: the DWG concession + the
+two riders (the row floor 0x15 + the full-counter id gate) live in
+M-107's Session-86 addendum and the S84 entries below.
+
 ## Session-84 S84 lane — M-107's WPD member landed (member 6 of 11; 2026-10-30)
 
 **FileWPDAnalyser's walk decoded first-hand** (evidence/s84-lane-sheets/
@@ -21,6 +63,40 @@ WPD. RED->GREEN first-hand (WpdPairTableDeclaredSizeSetsExtent RED at
 the stand-in; WpdUnknownPairDeclines pins the decline); the carve suite
 288/288. Trail: M-107's S84 addendum 4, the matrix row, carve.md's
 S84 addendum 4, this entry.
+
+## Session-87 S87 fix lane (continuation, the MAJOR-first 20+ mandate) — opens; N-225 lands; M-107 member 6 (WPD) lands (2026-10-30)
+
+- **Baseline:** opened at core `ddab68b4` (clean tree; full ctest
+  1683/1683 green first-hand post-merge at `45fe3a9f`, corpus `be0cfe9`
+  throughout; the prompt re-saved token-redacted at
+  `worklog/session-diff-fix-s87-prompt.md`, superseding the earlier
+  S86-era draft at the older pin `b6801ade`).
+- **The open-pull state:** main at the open pin carried the M-075-era
+  win_syntax_check RED (cr_fsck.cpp's WoW64 pair + ULONGLONG never grown
+  into tests/win-stub/windows.h) — the racing window's three repair
+  lanes (9f5f0415 / a2a93573 / 90b787d6) had each landed the same stub
+  growth, leaving THREE definition sets on origin/main
+  (`322dbdc0`): every src/win file failed the parse gate with
+  redefinition errors. **N-225** filed and fixed in this lane's merge:
+  the stub deduped to ONE definition set, 13/13 parse, full ctest
+  green. This lane's independent stub growth (the born-collided local
+  N-224, `74f29341`) conceded per SA-9 to the racing filings.
+- **M-107 member 6 (WPD) FIXED** — the version-table walk
+  (FUN_180041f50, raw asm 0x180041f50-0x18004202e; the 36-byte table
+  at .rdata 0x18006ef40 + the movl $0x3d ninth int; the +0x20 vtable
+  slot; the extent!=0 engine gate at 0x18000d7e1): the og gates on
+  THREE version records — (u32@+8, u32@+0xe) against
+  (0x01020a01, 0x00050200)→0x44 / (0x00021601, 0x00030000)→0x45 /
+  (0x00010f0f, 0x00030000)→0x3d — and stamps extent = u32@+0x14
+  (the WPC common header's own file-size field) on any match; no
+  record → decline; zero size → the engine's decline. The row max
+  carries the u32 field's own ceiling 0xFFFFFFFF (the og's registry
+  node has no min/max); the type split is the report-layer routing
+  (the single-family carve keeps the registered stance); the +4
+  product-word gate retired (the og never reads +4). Five RED→GREEN
+  tests via the stash dance; the S-007 WPD plant re-pinned; the carve
+  suite 191/191. M-107 now at members 1-6 of 11 (remaining: SIT, APE,
+  EPS, DXF, SWF-RECT + the DWG gen-3 remainder).
 
 ## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
 
@@ -13222,3 +13298,204 @@ cr_analysers.cpp:6289 drift fixed in passing).
 the ledger row, the matrix row, modules/{query,tree}.md converged
 addenda, SUMMARY's S84 block refreshed, this entry. Corpus: be0cfe9,
 read-only guarantee held.
+
+## Session-84 S84 fix-lane — entry 6: M-101 FIXED (2026-10-30)
+
+**M-101 FIXED (MAJOR, the 5-branch results tree):** the two missing
+branches landed. Corpus re-verified first-hand (UIUX/09:27-36 — the five
+tr-verified roots with their coaching copy). The Versions node:
+FileProperties::version_group (the FNV-1a namespace-identity hash over
+the namespace-best link's parent+name; deterministic, no map, stamped at
+walk emission for structured NTFS nodes), persisted as the nflags bit-14
+append-only block, exposed as Row/Filter fields + query::version_groups()
+(the branch enumeration; junk-filtered nodes never members). Tags
+Extracted: the runtime tags_extracted flag (the host's preview pass
+stamps it; NOT persisted — the corpus shows the og persisting no tag
+state; the finding's own defer note) + the tags_only filter axis. The
+snapshot carries both axes append-only. Tests: the finding's four-test
+plan + two guards, 6/6 (the walk-side torn-sibling falsification — a
+planted second record for (16, readme.txt) — the branch semantics, the
+M-072 composition, the session round-trip, the tags grouping, the
+three-landed-branches regression pin). Full suite 1550/0 release, 1549/0
+ASan-clean. Honest note: the code rode b7d05b12 (the gate-repair
+commit's add -A sweep — the mishap recorded in the finding's Resolution);
+this commit lands the trail. The N-223/N-224/N-225/N-226 win-stub
+collision window also verified this session: the racing lane's finding
+against MY M-075 landing (the win-stub gap) was CORRECT, its repair
+verified first-hand, and the lesson absorbed (the full ctest —
+win_syntax_check included — is now a pre-push gate for this lane).
+Board: 5 MAJOR · 2 MINOR active / 199 FIXED / 4 tracked-open.
+
+---
+
+## Session-84 — the coherence session's final handoff (T20, 2026-10-30)
+
+**The mandate was post-remediation coherence; this is what it found and
+did, chronologically.** Baseline `cac42582` → final tree. The session
+ran concurrently with at least five other lanes (S84-fix, S85, S86,
+S87, S88 + the parity lanes) — the racing pattern is itself this
+repo's biggest coherence hazard and is reflected honestly below.
+
+**Phase 0 (the picture, T1-T2):** the five context sheets
+(`worklog/{build,api,cli,doc}-surface.md` + `recent-commits.md`, 2700
+lines, parallel agents A-E, all key claims spot-verified first-hand).
+Opening sweep: 5 files with committed conflict markers (the N-210
+class), later swept by the racing N-219 repairs.
+
+**Phase 2 (the cross-checks, T3-T5):**
+`worklog/api-cli-mismatches.md` + `worklog/api-findings.md`. The
+headline wiring bugs: `image --create` documented everywhere but never
+parsed by cmd_image (not even in the S-040 landing itself); the exit-5
+disconnect hint naming the nonexistent `rrecov resume` verb; the
+`$profile` ValidateSet collision and the array-`-match` carve-parity
+bug in Run-Benchmark.ps1 (both proven by the captured run-6 log); the
+doc_truth_gate's error-census counting comment literals (45 vs the
+enum's 43); the phantom `cr_ui_session_resume_last` export (91 declared
+vs 90 shipped at baseline — closed by the racing a47419c7 landing,
+verified post-hoc).
+
+**Phase 3 (the fixes, T6-T16) — every commit one root cause:**
+- `9b921ef8` format: the checks-281 lint red (3 files, 10 violations).
+- `8daf75dc` bench scripts: the two Run-Benchmark.ps1 bugs (the carve
+  -join fix rode the same commit through a staging misfire — recorded
+  honestly in worklog.md at the time).
+- `32441353` CLI: the `--create` wiring + the
+  CrUi.CliImageCreateFlagParses pin.
+- `d796f9df` CLI: the disconnect-hint verb fix + pin.
+- `7a6f6bb3` gate: the error-census truth repair (43+OK).
+- `65e0e2bd` ABI docs: ABI-CONTRACT typo + autosave_rc + the header's
+  nonexistent ERR_NOT_FOUND.
+- `25cdae33` status docs: BUILD-SUPPRESSIONS / F13 / architecture.
+- `c6fb5299` CI docs: CI-CURRENT phantoms + CONTRIBUTING's CI-shape.
+- `cb03b543` CLI docs: PARAMETERS/API verb table/-h flags/GAP-P1-1 +
+  the CrUi.CliHelpListsEveryScanFlag pin (the N-094 invariant extended
+  to flags).
+- `8b2971f5` the stale M-081 stand-in comment.
+- `4e522b11` + later format sweeps: the racing lanes' format
+  recurrences (the class landed FOUR times this window).
+- the win-stub Wow64/ULONGLONG extension (rebased away as redundant —
+  the racing 9f5f0415/45fe3a9f held the seats; the triple-stacked
+  duplicate copies were converged by the S87 merge).
+- the N-223 finding-ID collision repair (checks-310's red; the racing
+  window converged the same repair — conceded per SA-9).
+
+**Phase 4 (no behavior change):** the full suite re-run repeatedly —
+1661 → 1683 → 1691 → 1694 tests as the racing windows landed; 100%
+green at every one of this lane's pushes (evidence:
+`worklog/builds/linux-{release,ubsan}-*`; the UBSan lane exceeds the
+10-minute tool ceiling here — recorded honestly, the release lane +
+CI matrix are the evidence). Three pins added
+(ImageCreateFlag/DisconnectHint/HelpListsEveryScanFlag) — zero tests
+skipped, weakened, or renamed.
+
+**Phase 5 (docs, T17-T18):** `worklog/doc-audit.md` (this lane's full
+sheet merged as the addendum onto the racing lane's base — twin
+landings noted). The trail (diff-to-fix/) verified actively maintained
+by the fix lanes; only the N-223 status collision needed repair
+(conceded to the racing resolution). The corpus was never touched
+(be0cfe9 read-only throughout).
+
+**Final local evidence at this lane's last push:**
+ci-local.sh **GREEN — all 13 components**; clang-format 18.1.8
+tree-wide 0 violations; doc_truth_gate green (finding-ID uniqueness,
+ABI counts, D-numbering); full ctest 100%.
+
+**Deferred (the next session's starting points):**
+1. `worklog/api-findings.md` F3 — the N-145 every-startup journal
+   probe (the highest-value behavior finding: 3 doc/trail sites claim
+   a surface the code does not have).
+2. F2 — enumerate_volumes' dropped rc (the file's own FB-K01
+   principle violated 4 lines above).
+3. F7 — the doc_truth_gate's D-row regex is blind to ##-level rows
+   (the D-152 triple passed it); widen together with the next D-seat
+   repair.
+4. The local-gate gap: ci-local.sh does not run doc_truth_gate (the
+   CI lint job does) — the racing reds passed the local subset that
+   way; close the mirror gap.
+5. F4 — the fuzz campaign drift; the unpinned action refs; the ASan
+   preset run by no gate (all in build-surface.md).
+
+**The meta-lesson recorded for the maintainers:** every single red
+this session repaired was pushed by a lane that did not run the gate
+before pushing (format violations x4, the stub gap x3, the finding-ID
+collision, the committed markers x5 windows). The gates are good; the
+discipline is the gap. The never-push-a-red-commit rule in
+CONTRIBUTING.md is enforced only by the runner — the pre-push hook
+(`git config core.hooksPath .githooks`) exists for exactly this and
+was not installed in the racing lanes.
+
+---
+
+## Session-S89 (2026-10-30) — the MINOR-first fix lane over the remaining board (opened at `7953c5e8`; corpus `be0cfe9`; prompt archived token-redacted at worklog/session-diff-fix-s89-prompt.md)
+
+Lane opened with the S88-close tree (`7953c5e8`, the style sweep over the S87 racing
+window). Board at open (filesystem truth): **6 MAJOR (M-086 M-087 M-089 M-101 M-105
+M-107) · 3 MINOR (N-107 N-127 N-225) · 0 INFO active / 206 FIXED / 4 tracked-open.**
+Of those, M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3 (the
+two-repo grant excludes heicfast/rda-driver) — this lane's in-scope queue: **N-225
+(the fixed-directory move), M-107's six remaining members (SIT APE EPS AI DXF
+SWF-RECT), M-101 (the Versions / Tags Extracted branches), M-105 (the DRWService
+lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench leg), OQ-S10-1
++ OQ-S10-3 (the disposition re-affirmations), plus whatever the verification sweep
+discovers (the §8 new-finding protocol). Target ≥ 20 fixes. Baseline before any
+change: fresh build + full ctest green.
+
+**Fix #1 — N-225 moved to findings/FIXED/ (the fixed-directory directive).**
+Re-verified at `7953c5e8` first-hand: `tests/win-stub/windows.h` carries exactly
+ONE Wow64Disable/Revert pair (:301) + ONE ULONGLONG typedef (:28);
+`bash tools/win_syntax_check.sh` → 13/13 ok, zero FAIL; full suite 1685/1685 at
+the same tree. The file moved (git mv, history preserved), the Session-89
+disposition note added, the ledger row appended, the matrix Q68 stub-surface row
+extended to N-224 + N-225, the SUMMARY S89 block opened (board: 6 MAJOR / 2
+MINOR / 0 INFO active / 207 FIXED / 4 tracked-open). No code change owed.
+
+<!-- S89 merge note: the racing window's session-84/85 handoff entries (their side) kept ahead of this lane's S89 open entry (ours); append-append both-sides-kept per the house convention. The window landed M-101 (findings/FIXED/), M-107's DXF/EPS/AI members (SIT/APE/SWF-RECT remain), the N-226 renumber, and the test_m101_branches repair — this lane re-verifies each before building on them. -->
+
+---
+
+## Session-84 — entry 8 (this lane): the build-break repair + the evidence directory; the decisive run (2026-10-30)
+
+**The dangling reference (the phantom-source class, caught first-hand):**
+`cmake --preset linux-release` at the 203304f9 tree FAILED at the
+generate step — tests/CMakeLists.txt:65 listed `unit/test_m101_branches.cpp`,
+which does not exist: the file had been committed unimplemented and swept
+as the N-210-class leak (708fad32), but the CMakeLists reference survived.
+Every fresh configure was broken (including the CI build job — the 203304f9
+run failed on it). The reference removed (M-101 remains ACTIVE in
+findings/MAJOR/; its lane re-adds file+reference together when the real
+branches battery lands). Post-repair: Release configure+build clean,
+0 errors / 0 warnings (logs in worklog/builds/).
+
+**The evidence directory:** `worklog/builds/README.md` + the
+linux-release configure/build logs — Debug (the suite builds), Release
+(the captured logs), the clang 18.1.8 fuzz lane (16 binaries), the
+environment's honest limits (4 GiB cgroup, the chunk discipline), and
+the Windows half pointing at the checks.yml job on fc7201c2.
+
+**The decisive run:** checks.yml on fc7201c2 — the first run whose tree
+passed this lane's full local chain (markers, doc_truth_gate,
+clang-format tree-wide at 18.1.8, Release build, the chunked suite)
+before the push. Its conclusion is recorded in the final entry.
+
+**The session's commit trail (this lane, through fc7201c2):** 10a6ec29
+(T1 rider) → a47419c7 (resume_last) → eb1b4e35+24edbb04 (the gate-red
+repair, honestly noted) → 78c60e89 (exit-5 docs) → 43a7bb26 (T3/T4
+registers) → the PARAMETERS/ABI-contract doc pair → b82f75b2+bfda625c
+(the marker miss + the N-223 retirement, honestly noted) → the D-165
+renumber + format sweeps → 56d27d86 (wr16) → adf91248 (T17 doc audit +
+recounts) → the M-107 format sweep → the dangling-reference repair →
+fc7201c2 (the integrated merge).
+
+**The last repair (the build-break the fresh-configure caught):**
+checks.yml run 317's MSVC configure red — b7d05b12 registered
+`unit/test_m101_branches.cpp` in tests/CMakeLists.txt:65 at 18:43 while
+708fad32's sweep removed the leaked WIP .cpp at 18:46; the merged tree
+carried a registration for a file that no longer exists. The dangling
+line removed (the sweep's decision stands; M-101 stays ACTIVE);
+verified by full fresh local configure+build (0 warnings) + ctest
+1695/1695 + gate green + format clean — evidence
+`worklog/builds/linux-release-final{,-ctest}.log`. The lesson mirrors
+the session's meta-finding: the entry was invisible to my incremental
+builds because it post-dated my last full configure — CI's
+clean-configure lane is the only gate that sees this class, which is
+exactly why it must stay green for the right reason.
