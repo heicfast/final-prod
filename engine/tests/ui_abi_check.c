@@ -869,13 +869,20 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_thumbnail_format_supported("png"), 1u);
         CHECK_EQ_U64(cr_ui_thumbnail_format_supported("webp"), 0u);
         CHECK_EQ_U64(cr_ui_thumbnail_format_supported(NULL), CR_UI_ERR_BAD_PARAMETER);
-        /* the two-call pattern on the text node: the named refusal carries
-         * the family (DOC.TXT is not an image - the honest Unsupported) */
+        /* N-144 re-pin: the text node takes the TXT-SNAPSHOT path (the
+         * og's TxtViewFiles dispatch, DRWUI :422447-455) - the fixture's
+         * DOC.TXT carries printable content ("DOCDATA"), so the snapshot
+         * succeeds with the "txt" family on the full canvas; the null
+         * dev/sess refusals keep their contract */
         {
             cr_ui_thumbnail_info ti;
             memset(&ti, 0, sizeof(ti));
             CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, sess, doc_node_id, NULL, NULL, 0, &ti),
-                         CR_UI_ERR_UNSUPPORTED);
+                         CR_UI_OK);
+            CHECK_EQ_U64(ti.width, 256u);
+            CHECK_EQ_U64(ti.height, 256u);
+            CHECK_EQ_U64(ti.bytes_needed, 256u * 256u * 4u);
+            CHECK_EQ_U64(strcmp(ti.source_format, "txt"), 0u);
             CHECK_EQ_U64(cr_ui_thumbnail_generate(NULL, sess, doc_node_id, NULL, NULL, 0, &ti),
                          CR_UI_ERR_BAD_PARAMETER);
             CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, NULL, doc_node_id, NULL, NULL, 0, &ti),

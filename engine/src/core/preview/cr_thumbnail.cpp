@@ -84,7 +84,11 @@ const char* thumbnail_status_name(ThumbStatus s) {
 
 bool thumbnail_format_supported(std::string_view f) {
     return f == "jpeg" || f == "png" || f == "bmp" || f == "gif" || f == "tiff" ||
-           f == "raw" /* S-045: the TIFF-RAW half */ || f == "psd" || f == "pnm" || f == "hdr";
+           f == "raw" /* S-045: the TIFF-RAW half */ || f == "psd" || f == "pnm" || f == "hdr" ||
+           f == "txt" /* N-144: the text-snapshot family (the og's TxtViewFiles
+                        * thumbnails - eligibility itself is the caller's
+                        * textexts::eligible gate, exactly the og's
+                        * extension-membership dispatch) */;
 }
 
 /* ---------------------------------------------------------------- */
@@ -1503,6 +1507,139 @@ ThumbStatus make_thumbnail_status(PreviewReader& pr, Thumbnail& out,
     if (st == ThumbStatus::Ok || st == ThumbStatus::DecodeFailed)
         out.read_ok = !reader_gained_failures(fails_before, pr);
     return st;
+}
+
+/* ---------------------------------------------------------------- */
+/* N-144: the text-snapshot thumbnail (the og's TxtViewFiles render) */
+/* ---------------------------------------------------------------- */
+ThumbStatus make_text_snapshot(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out) {
+    if (caps.max_edge == 0 || caps.max_edge > 8192 || caps.max_read == 0 || caps.max_work == 0)
+        return ThumbStatus::BadParameter;
+    if (pr.size() == 0)
+        return ThumbStatus::Unsupported;
+
+    const auto fails_before = pr.unreadable_spans().ranges();
+    Budget b{caps.max_read, caps.max_work};
+
+    /* the og's cap: the first min(size, 100) bytes, fetched verbatim
+     * (FUN_1403d7ce0's plain copy into the zeroed 110-byte buffer) */
+    u8 head[100];
+    const u32 want = pr.size() < 100 ? u32(pr.size()) : 100;
+    const u32 n = bfetch(pr, b, 0, head, want);
+    if (n == 0)
+        return ThumbStatus::Unsupported;
+
+    /* the og's UTF-16 gate (FUN_1403d8840: len > 4 && the first two
+     * bytes are FF FE or FE FF -> FUN_1403d7e20's wide->narrow pass);
+     * every other head renders as its raw bytes (the ANSI string path) */
+    std::vector<unsigned> text;
+    if (n > 4 && ((head[0] == 0xFF && head[1] == 0xFE) || (head[0] == 0xFE && head[1] == 0xFF))) {
+        const bool be = head[0] == 0xFE;
+        for (u32 i = 2; i + 1 < n; i += 2) {
+            const unsigned cp = be ? (unsigned(head[i]) << 8) | head[i + 1]
+                                   : (unsigned(head[i + 1]) << 8) | head[i];
+            /* surrogate pairs: the og's conversion maps a lone/paired
+             * surrogate through the ANSI lossy path; the honest bounded
+             * projection takes the pair when well-formed, '?' otherwise */
+            if (cp >= 0xD800 && cp <= 0xDBFF && i + 3 < n) {
+                const unsigned lo = be ? (unsigned(head[i + 2]) << 8) | head[i + 3]
+                                       : (unsigned(head[i + 3]) << 8) | head[i + 2];
+                if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                    text.push_back(0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00));
+                    i += 2;
+                    continue;
+                }
+            }
+            text.push_back(cp >= 0x80 && cp <= 0x10FFFF ? '?' : cp);
+        }
+    } else {
+        for (u32 i = 0; i < n; ++i)
+            text.push_back(head[i]);
+    }
+
+    /* the og's EMPTY check (FUN_1400a6200 on the draw string: empty ->
+     * no thumbnail, the +0x28 promotion never fires) - the decoded text
+     * with every code point stripped of renderables (all controls / an
+     * all-BOM head) reads as empty exactly like the og's empty string */
+    bool any_renderable = false;
+    for (unsigned cp : text)
+        if (cp >= 0x20 && cp != 0x7F) {
+            any_renderable = true;
+            break;
+        }
+    if (!any_renderable) {
+        out.source_format = "txt";
+        return make_thumbnail_status(pr, out, fails_before, ThumbStatus::Unsupported);
+    }
+
+    /* the render: white canvas, black glyph cells, the embedded 6x12
+     * font at the thumbnail edge (the og draws Arial 13 on its fixed
+     * 200x200; the core's max_edge default is the configured-era shape
+     * the finding names as not-a-contract) */
+    const unsigned cw = thumbnail_font_cell_w();
+    const unsigned ch = thumbnail_font_cell_h();
+    const unsigned margin = 2;
+    const unsigned cols = caps.max_edge >= 2 * margin + cw ? (caps.max_edge - 2 * margin) / cw : 1;
+    const unsigned rows =
+        caps.max_edge >= 2 * margin + ch ? (caps.max_edge - 2 * margin) / ch : 1;
+    out.width = caps.max_edge;
+    out.height = caps.max_edge;
+    out.rgba.assign(size_t(out.width) * size_t(out.height) * 4, 0);
+    for (size_t i = 0; i + 3 < out.rgba.size(); i += 4) {
+        out.rgba[i] = 0xFF;
+        out.rgba[i + 1] = 0xFF;
+        out.rgba[i + 2] = 0xFF;
+        out.rgba[i + 3] = 0xFF; /* opaque white */
+    }
+    unsigned cx = 0, cy = 0;
+    for (unsigned cp : text) {
+        if (cp == 0x0A || cp == 0x0D) { /* LF/CR: line break (DrawText) */
+            cx = 0;
+            ++cy;
+            continue;
+        }
+        if (cp == 0x09) { /* TAB: next 8-column stop */
+            cx = (cx / 8 + 1) * 8;
+            if (cx >= cols) {
+                cx = 0;
+                ++cy;
+            }
+            continue;
+        }
+        if (cx >= cols) { /* wrap at the canvas edge (DrawText's DT_WORDBREAK class) */
+            cx = 0;
+            ++cy;
+        }
+        if (cy >= rows)
+            break; /* the canvas is full - the 100-byte budget bounds the loss */
+        if (cp < 0x20 || cp == 0x7F) {
+            /* the C0 controls + DEL: one blank advance, no glyph (GDI's
+             * control-glyph class renders nothing visible) */
+            ++cx;
+            continue;
+        }
+        if (cp > 0x7E)
+            cp = '?'; /* non-ASCII: the ANSI/CP_ACP lossy class */
+        const unsigned char* glyph = thumbnail_font_glyph(cp);
+        if (glyph != nullptr) {
+            const size_t px = size_t(margin) + size_t(cx) * cw;
+            const size_t py = size_t(margin) + size_t(cy) * ch;
+            for (unsigned gy = 0; gy < ch && py + gy < out.height; ++gy) {
+                const unsigned char row = glyph[gy];
+                for (unsigned gx = 0; gx < cw && px + gx < out.width; ++gx)
+                    if (row & (1u << (cw - 1 - gx))) {
+                        const size_t o = (py + gy) * size_t(out.width) * 4 + (px + gx) * 4;
+                        out.rgba[o] = 0;
+                        out.rgba[o + 1] = 0;
+                        out.rgba[o + 2] = 0;
+                    }
+            }
+        }
+        ++cx;
+    }
+    out.source_format = "txt";
+    out.truncated = n < want; /* the head fetch came up short (honesty) */
+    return make_thumbnail_status(pr, out, fails_before, ThumbStatus::Ok);
 }
 
 } // namespace preview

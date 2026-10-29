@@ -61,6 +61,7 @@ add_library(cr_core STATIC
     preview/cr_preview_text_exts.cpp
     preview/cr_preview_text_exts_data.cpp
     preview/cr_thumbnail.cpp
+    preview/cr_thumbnail_font.cpp
     query/cr_query.cpp
     query/cr_config_display_data.cpp
     query/cr_filefilter_data.cpp

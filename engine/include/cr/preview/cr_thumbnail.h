@@ -153,8 +153,38 @@ const char* thumbnail_status_name(ThumbStatus s);
 
 /* v1 decoder surface (honest capability reporting; the deferred phases are
  * documented in the module header). Accepts the canonical family names
- * above ("jpeg", "png", ...). */
+ * above ("jpeg", "png", ...) plus "txt" - the N-144 text-snapshot family
+ * (the og's TxtViewFiles thumbnails: the first <=100 bytes rendered as a
+ * text preview image, DRWUI FUN_1403d88e0 :652885-652959). */
 bool thumbnail_format_supported(std::string_view format);
+
+/* N-144: the og's text-snapshot thumbnail - the content-preview image the
+ * og renders for TxtViewFiles-eligible files (the results-grid surface;
+ * the preview-panel text VIEW is M-108's, a different surface). The og's
+ * decision sequence, decoded first-hand at FUN_1403d88e0: take the first
+ * min(size, 100) bytes verbatim (FUN_1403d7ce0 - a plain capped copy into
+ * the zeroed 110-byte buffer; the finding's "sanitize" characterization
+ * corrected: no substitution happens), decode UTF-16 when the head
+ * carries a BOM (FUN_1403d8840: len > 4 && (FF FE | FE FF), then the
+ * FUN_1403d7e20 wide->narrow conversion), refuse when the resulting text
+ * is EMPTY (:652938-941), else draw (Arial 13 via GDI, :652947-948) and
+ * promote (the M-112 trigger rides elsewhere). The core renders the
+ * decoded text onto a white max_edge x max_edge canvas with the embedded
+ * 6x12 bitmap font (cr_thumbnail_font.cpp - the Arial rasterization is a
+ * Windows font artifact the core cannot embed; the readable-preview
+ * CAPABILITY is the parity surface): LF/CR break lines, TAB advances to
+ * the next 8-column stop, non-printable bytes advance one blank cell,
+ * non-ASCII maps to '?' (the og's ANSI/CP_ACP lossy-conversion class).
+ * source_format = "txt"; read_ok follows the M-115 read-verdict rule. */
+ThumbStatus make_text_snapshot(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out);
+
+/* N-144: the embedded font surface (generated - scripts/gen_thumb_font.py).
+ * thumbnail_font_glyph answers 12 row-bytes for ASCII 32..126 (the low 6
+ * bits of each row = the pixel columns, bit 5 = leftmost) or nullptr for
+ * every other code; the cell metric pairs with it. */
+const unsigned char* thumbnail_font_glyph(unsigned int code);
+unsigned thumbnail_font_cell_w();
+unsigned thumbnail_font_cell_h();
 
 /* Generate one thumbnail from the node's logical content (the reader is
  * non-const on purpose: read_at accumulates the reader's diagnostics, same

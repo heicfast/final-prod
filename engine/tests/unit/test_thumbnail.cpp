@@ -118,6 +118,117 @@ TEST(Thumbnail, StatusNamesAreStable) {
     EXPECT_STREQ("bad-parameter", thumbnail_status_name(ThumbStatus::BadParameter));
 }
 
+/* ---------------- N-144: the text-snapshot family ---------------- */
+
+namespace {
+u64 ink_bits(unsigned code) {
+    const unsigned char* g = thumbnail_font_glyph(code);
+    if (g == nullptr)
+        return 0;
+    u64 n = 0;
+    for (unsigned y = 0; y < thumbnail_font_cell_h(); ++y)
+        for (unsigned x = 0; x < thumbnail_font_cell_w(); ++x)
+            if (g[y] & (1u << (thumbnail_font_cell_w() - 1 - x)))
+                ++n;
+    return n;
+}
+u64 dark_pixels(const Thumbnail& t) {
+    u64 n = 0;
+    for (size_t i = 0; i + 3 < t.rgba.size(); i += 4)
+        if (t.rgba[i] == 0 && t.rgba[i + 1] == 0 && t.rgba[i + 2] == 0)
+            ++n;
+    return n;
+}
+} // namespace
+
+TEST(Thumbnail, TextSnapshotRenders) {
+    /* N-144: a TxtViewFiles-eligible file renders a content-preview
+     * thumbnail - the og draws the first <=100 bytes as text (Arial 13
+     * via GDI, FUN_1403d88e0 :652885-652959); the core renders the same
+     * decision sequence with the embedded 6x12 font on the white
+     * max_edge canvas. RED pre-fix: text formats were refused by name
+     * at the thumbnail surface. */
+    EXPECT_TRUE(thumbnail_format_supported("txt"));
+
+    Node n(std::vector<u8>{'H', 'e', 'l', 'l', 'o', ',', ' ', 'p', 'r', 'e', 'v', 'i', 'e', 'w',
+                           '!'},
+           true);
+    Thumbnail t;
+    PreviewReader pr = n.reader();
+    ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr, ThumbnailCaps{}, t));
+    EXPECT_EQ(256u, t.width);
+    EXPECT_EQ(256u, t.height);
+    EXPECT_STREQ("txt", t.source_format.c_str());
+    /* white background, black glyphs: the exact ink is the five glyph
+     * cells' bitmap bits (deterministic - the font table is fixed) */
+    const u64 want = ink_bits('H') + ink_bits('e') * 2 + ink_bits('l') * 2 + ink_bits('o') +
+                     ink_bits(',') + ink_bits('p') + ink_bits('r') + ink_bits('e') +
+                     ink_bits('v') + ink_bits('i') + ink_bits('w') + ink_bits('!');
+    EXPECT_EQ(want, dark_pixels(t));
+    /* the canvas edge is untouched white */
+    expect_pixel(t, 0, 0, 255, 255, 255, 0);
+    expect_pixel(t, t.width - 1, t.height - 1, 255, 255, 255, 0);
+    /* the read verdict rides (M-115's rule: the fetch was clean) */
+    EXPECT_TRUE(t.read_ok);
+}
+
+TEST(Thumbnail, TextSnapshotHundredByteBound) {
+    /* the og's 100-byte cap (FUN_1403d88e0: 'if (100 < size) size=100'
+     * before the copy) - a 200-byte file renders ONLY its first 100
+     * bytes: 100 'A's render, the 100 'B's beyond the cap never do */
+    std::vector<u8> content(200, 'A');
+    std::fill(content.begin() + 100, content.end(), 'B');
+    Node n(std::move(content), true);
+    Thumbnail t;
+    PreviewReader pr = n.reader();
+    ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr, ThumbnailCaps{}, t));
+    EXPECT_EQ(100 * ink_bits('A'), dark_pixels(t))
+        << "exactly the first 100 glyphs' ink - the B's never render";
+}
+
+TEST(Thumbnail, TextSnapshotControlsAreBlankAndEmptyRefuses) {
+    /* the og's copy is VERBATIM (FUN_1403d7ce0 - a plain capped copy;
+     * the finding's 'sanitize' characterization corrected first-hand:
+     * no substitution exists); control bytes render no ink (GDI's
+     * control-glyph class -> a blank advance). The EMPTY check
+     * (:652938-941, FUN_1400a6200 on the draw string) refuses a head
+     * with no renderable byte - the +0x28 promotion never fires. */
+    std::vector<u8> content{'\x01', '\x02', '\t', 'H', 'i', '\x0A', '\x0D', '!', '\x7F'};
+    Node n(std::move(content), true);
+    Thumbnail t;
+    PreviewReader pr = n.reader();
+    ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr, ThumbnailCaps{}, t));
+    EXPECT_EQ(ink_bits('H') + ink_bits('i') + ink_bits('!'), dark_pixels(t))
+        << "controls advance blanks - only H, i, ! carry ink";
+
+    /* the all-control head: the og's empty-string branch -> no thumbnail */
+    Node e(std::vector<u8>{'\x01', '\x02', '\x03', '\x04', 0, 0, 0, 0}, true);
+    Thumbnail t2;
+    PreviewReader pr2 = e.reader();
+    EXPECT_EQ(ThumbStatus::Unsupported, make_text_snapshot(pr2, ThumbnailCaps{}, t2));
+    EXPECT_STREQ("txt", t2.source_format.c_str());
+}
+
+TEST(Thumbnail, TextSnapshotUtf16BomDecodes) {
+    /* the og's UTF-16 gate (FUN_1403d8840: len > 4 && FF FE | FE FF ->
+     * FUN_1403d7e20's wide conversion); the BOM is consumed, the wide
+     * text renders; a BE BOM decodes big-endian */
+    std::vector<u8> le{0xFF, 0xFE, 'H', 0x00, 'i', 0x00, '!', 0x00};
+    Node n(std::move(le), true);
+    Thumbnail t;
+    PreviewReader pr = n.reader();
+    ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr, ThumbnailCaps{}, t));
+    EXPECT_EQ(ink_bits('H') + ink_bits('i') + ink_bits('!'), dark_pixels(t))
+        << "the BOM never renders; the wide pairs decode";
+
+    std::vector<u8> be{0xFE, 0xFF, 0x00, 'H', 0x00, 'i'};
+    Node n2(std::move(be), true);
+    Thumbnail t2;
+    PreviewReader pr2 = n2.reader();
+    ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr2, ThumbnailCaps{}, t2));
+    EXPECT_EQ(ink_bits('H') + ink_bits('i'), dark_pixels(t2));
+}
+
 TEST(Thumbnail, FormatSupportIsTheDocumentedV1Matrix) {
     for (const char* f : {"jpeg", "png", "bmp", "gif", "tiff", "psd", "pnm", "hdr", "raw"})
         EXPECT_TRUE(thumbnail_format_supported(f)) << f; /* raw: S-045's TIFF-RAW half */

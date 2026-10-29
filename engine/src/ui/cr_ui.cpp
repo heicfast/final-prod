@@ -4251,8 +4251,29 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         src = d->hold.get();
     src = session_node_device(s, node, src);
     preview::PreviewReader reader(src, node->props());
+
+    /* N-144: the og's TxtViewFiles dispatch (DRWUI :422447-455) - a file
+     * whose EXTENSION is in the [Filter] TxtViewFiles list takes the
+     * text-snapshot render (the first <=100 bytes as a content-preview
+     * image, FUN_1403d88e0), never the image decode path; the same
+     * eligibility table M-108 landed for the preview panel (one shared
+     * table, two consumers - the finding's own plan). Extension-less
+     * names are not text-viewable (the consumers' empty-needle rule). */
+    const std::string nm = node->name_utf8();
+    const size_t dot = nm.rfind('.');
+    bool is_text_view = false;
+    if (dot != std::string::npos && dot + 1 < nm.size()) {
+        std::string ext = nm.substr(dot);
+        for (char& c : ext)
+            if (c >= 'A' && c <= 'Z')
+                c = char(c - 'A' + 'a'); /* the og's toupper fold, folded here */
+        is_text_view = preview::textexts::eligible(ext);
+    }
+
     preview::Thumbnail thumb;
-    const preview::ThumbStatus st = preview::make_thumbnail(reader, ecaps, thumb);
+    const preview::ThumbStatus st = is_text_view
+                                        ? preview::make_text_snapshot(reader, ecaps, thumb)
+                                        : preview::make_thumbnail(reader, ecaps, thumb);
     std::memset(info, 0, sizeof(*info));
 
     /* M-115: the og's promotion is READ-gated, not decode-gated

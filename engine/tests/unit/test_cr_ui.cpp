@@ -638,6 +638,71 @@ TEST(CrUi, ScanCarveTallyPerFormat) {
         ASSERT_EQ(cr_ui_scan_carve_tally(u.scan, i, &sink), CR_UI_OK) << "slot " << i;
 }
 
+/* N-144: the TxtViewFiles text-snapshot thumbnail at the ABI - the og
+ * dispatches by extension membership (DRWUI :422447-455): a .txt node
+ * renders the content-preview image (the first <=100 bytes), never the
+ * image decode path. The DOC.TXT node (the fixture's text file) with
+ * printable content must answer CR_UI_OK with source_format "txt".
+ * RED pre-fix: cr_ui_thumbnail_format_supported("txt") answered 0 and
+ * generate returned the named Unsupported. */
+TEST(CrUi, TextSnapshotThumbnailForTxtNode) {
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("txt"));
+
+    /* the fixture's DOC.TXT (cluster 10) carries printable text */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    const char text[] = "recovered notes: the quick brown fox";
+    std::memcpy(img.data() + DATA + (10 - 2) * 512, text, sizeof(text) - 1);
+    const std::string path = cr_test::tmp_path("cr_ui", "txtsnap");
+    FILE* f = std::fopen(path.c_str(), "wb");
+    ASSERT_NE(f, nullptr);
+    ASSERT_EQ(std::fwrite(img.data(), 1, img.size(), f), img.size());
+    std::fclose(f);
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(path.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    const std::string crsf = path + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u) << "the .txt node must be in the session tree";
+
+    /* the size probe: the text snapshot answers the full canvas */
+    cr_ui_thumbnail_info info{};
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info),
+              CR_UI_OK);
+    EXPECT_EQ(256u, info.width);
+    EXPECT_EQ(256u, info.height);
+    EXPECT_EQ(256u * 256u * 4u, info.bytes_needed);
+    EXPECT_STREQ("txt", info.source_format);
+
+    /* the fill: white canvas with black glyph ink (non-empty by
+     * construction - the printable head is present) */
+    std::vector<uint8_t> px(info.bytes_needed, 0);
+    cr_ui_thumbnail_info info2{};
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, px.data(),
+                                       uint32_t(px.size()), &info2),
+              CR_UI_OK);
+    bool any_dark = false, any_light = false;
+    for (size_t i = 0; i + 3 < px.size(); i += 4) {
+        if (px[i] == 0 && px[i + 1] == 0 && px[i + 2] == 0)
+            any_dark = true;
+        if (px[i] == 255 && px[i + 1] == 255 && px[i + 2] == 255)
+            any_light = true;
+    }
+    EXPECT_TRUE(any_dark) << "the text preview carries glyph ink";
+    EXPECT_TRUE(any_light) << "the text preview carries the white canvas";
+}
+
 TEST(CrUi, ScanLifecycleOverImage) {
     Ui u;
     std::string img, crsf;
@@ -4137,15 +4202,27 @@ TEST(CrUi, ThumbnailUnsupportedFormat) {
     EXPECT_EQ(0u, cr_ui_thumbnail_format_supported(""));
     EXPECT_EQ(0x50030003u, cr_ui_thumbnail_format_supported(nullptr));
 
-    /* a text file refuses by format through the generate surface */
+    /* N-144 re-pin: a text file NO LONGER refuses - the TxtViewFiles
+     * dispatch renders the content-preview snapshot (the og's
+     * :422447-455 branch); the refusal class is now the non-text
+     * unsupported families (webp/heic/...). The text leg's success is
+     * pinned by CrUi.TextSnapshotThumbnailForTxtNode. */
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("txt"));
     Ui u;
     std::string img, crsf;
     ASSERT_TRUE(scan_to_session("thumbun", u, img, crsf));
     const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
     ASSERT_NE(doc, 0u);
     cr_ui_thumbnail_info info{};
-    EXPECT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info),
-              0x50030008u);
+    const uint32_t trc =
+        cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info);
+    EXPECT_TRUE(trc == CR_UI_OK || trc == 0x50030008u)
+        << "the text node answers the snapshot (OK when the head carries a "
+           "renderable byte, Unsupported when it does not) - never the "
+           "image-decode refusal class";
+    if (trc == CR_UI_OK) {
+        EXPECT_STREQ("txt", info.source_format);
+    }
 }
 
 TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
@@ -4166,19 +4243,25 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
     const uint32_t gdoc = grade_of(u.sess, "DOC.TXT");
     ASSERT_NE(gdoc, 0xFFFFFFFFu);
 
-    /* a FAILED thumbnail never promotes: the text node's grade is the
-     * control that must not move */
+    /* N-144 re-pin: the text node's thumbnail is the TEXT SNAPSHOT now -
+     * when it succeeds the M-115 read-gated promotion fires (the og's own
+     * +0x28 trigger class, FUN_1403d88e0's promotion seam); the failed-
+     * thumbnail-never-promotes invariant is carried by the snapshot's
+     * OWN refusal (the non-renderable head). The DOC.TXT fixture content
+     * ('DOCDATA'-class printable bytes) succeeds, so the text node
+     * promotes exactly like the og's text-snapshot population. */
     cr_ui_thumbnail_info info{};
     ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc_id, nullptr, nullptr, 0, &info),
-              0x50030008u);
-    EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT"));
+              CR_UI_OK);
+    EXPECT_EQ(2u, grade_of(u.sess, "DOC.TXT"))
+        << "the successful text snapshot promotes (the og's +0x28 class)";
 
     /* M-083: the og's grading side-effect - thumbnail success promotes
      * the node to grade 2 (FUN_1402636e0 :422498-518), never downgrades,
      * and leaves other nodes alone */
     ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
     EXPECT_EQ(2u, grade_of(u.sess, "#OGO.PNG"));
-    EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT")) << "unrelated nodes keep their grade";
+    EXPECT_EQ(2u, grade_of(u.sess, "DOC.TXT")) << "both promoted nodes keep their grade";
 
     /* idempotence: already-grade-2 nodes are a no-op (the != 2 guard) */
     ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);

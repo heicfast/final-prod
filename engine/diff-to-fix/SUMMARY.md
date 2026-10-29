@@ -138,8 +138,24 @@ N-214+, I-048+, A-015+ (M-153 = the renumbered LDM seat from the born-collided r
   contract), RED as compile-errors on the reverted tree; suite
   **1536/1536**.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 13 MAJOR · 9 MINOR · 0 INFO
-active / 164 FIXED / 4 tracked-open** (M-086/M-087/M-089 + N-107/N-127
+- **N-144 FIXED (MINOR, preview/thumbnail)** — the TxtViewFiles
+  text-snapshot thumbnails landed: make_text_snapshot with the og's
+  exact decision sequence (the 100-byte verbatim cap [the finding's
+  "sanitize" claim corrected first-hand — FUN_1403d7ce0 substitutes
+  nothing], the UTF-16 BOM decode, the renderable-empty refusal, the
+  white-canvas render with the embedded generated 6x12 font), the ABI's
+  extension-membership dispatch (the M-108 shared table), "txt" in the
+  format matrix, and the M-115 promotion firing for successful
+  snapshots (the og's +0x28 class). RED→GREEN: 5 tests (the render, the
+  100-byte bound, the controls/empty classes, the BOM decode, the
+  full-stack ABI dispatch); three contract tests re-pinned (the text
+  node now succeeds by design); suite **1567/1567**.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 12 MAJOR · 7 MINOR · 0 INFO
+active / 168 FIXED / 4 tracked-open** (disk-truthed at the N-144 landing:
+the racing lanes' M-118 + one more MINOR landing absorbed at the N-140
+push-rebase are counted; M-086/M-087/M-089 + N-107/N-127
+driver-repo-resident per OQ-S10-3) (M-086/M-087/M-089 + N-107/N-127
 driver-repo-resident per OQ-S10-3; the racing S72 lane's M-135 landing
 absorbed at the N-131 push-rebase is counted in the 13 MAJOR). (M-086/M-087/M-089 + N-107/N-127
 driver-repo-resident per OQ-S10-3's two-repo grant boundary). The lane-open

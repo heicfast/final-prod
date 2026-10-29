@@ -11102,3 +11102,28 @@ construction pre-fix: the stand-in carved 64 MiB for a 1 MiB file on a
 finding stays active for the remaining ten members (CRW's CIFF heap chain
 next per the order). Trail: the finding's S71 addendum, matrix row, carve.md
 S71 addendum, SUMMARY delta, this entry.
+
+## Session-76 S76 lane — N-144 lands (2026-10-29)
+
+- **N-144 FIXED (MINOR — the TxtViewFiles text-snapshot thumbnails).**
+  The og's render chain re-decoded first-hand at the fix, CORRECTING the
+  finding's own text: FUN_1403d7ce0 is a plain 100-byte capped copy (no
+  "sanitize" substitution exists — controls render no ink in GDI's
+  control-glyph class); the UTF-16 gate is FUN_1403d8840's BOM check
+  with FUN_1403d7e20's wide decode; the empty refusal is FUN_1400a6200.
+  Landed: make_text_snapshot (the exact decision sequence + the render on
+  the white max_edge canvas) with the embedded 6x12 bitmap font
+  (scripts/gen_thumb_font.py, DejaVu Sans Mono base — license-noted; the
+  Arial-13 rasterization is a Windows artifact the core cannot embed);
+  the ABI dispatches TxtViewFiles-eligible extensions (the M-108 shared
+  table) to the snapshot before the image sniff; "txt" joins the format
+  matrix; the M-115 promotion fires for successful snapshots (the og's
+  +0x28 class — ThumbnailSuccessPromotesGradeTo2's text leg re-pinned).
+  RED→GREEN: Thumbnail.TextSnapshotRenders / HundredByteBound /
+  ControlsAreBlankAndEmptyRefuses / Utf16BomDecodes +
+  CrUi.TextSnapshotThumbnailForTxtNode (RED = compile-errors on the
+  stash-reverted tree); the C-consumer check + two contract tests
+  re-pinned to the new text-snapshot contract. Suite **1567/1567**.
+  Trail: findings/FIXED/N-144 + Resolution, ledger row, matrix MATCH,
+  modules/preview.md S76 addendum, SUMMARY board 12 M / 7 N / 168 FIXED,
+  this entry.
