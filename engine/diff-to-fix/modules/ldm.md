@@ -207,4 +207,4 @@ preview==recovery, the layouts+basis session round-trip) and
 `Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips` (the scan-side
 stamping + the save/load chain). GAP-S6-15 is CLOSED in CORE-GAP-LIST.md.
 The two registered divergences of the landing live in PARITY-DELTAS
-(D-106 missing-member policy, D-107 conservative overlap families).
+(D-138 missing-member policy [renumbered from the collided D-106 at N-207], D-139 conservative overlap families [renumbered from the collided D-107]).

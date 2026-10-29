@@ -45,7 +45,7 @@ Core (audited `67193b6` + concurrent fixes in tree): `src/core/orchestrator/cr_s
 - **O38 progress** — MATCH (M-125 FIXED, the S42 fix lane): the engine's weighted
   single-division permilles (per-stage monotonic, pause-compensated elapsed) stay the
   TRUTHFUL engine telemetry — the deliberate engine-side truth registered in
-  PARITY-DELTAS D-118 — and the og's DISPLAY math now lands as the query-layer helper
+  PARITY-DELTAS D-127 (renumbered at the N-191 repair) — and the og's DISPLAY math now lands as the query-layer helper
   family (`query::progress_display_remap/_percent/_publish`, cr_query.h:88-119):
   FUN_1401af820's five-segment piecewise remap verbatim (raw<11 → ×2; 11..30 →
   (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 → identity; the

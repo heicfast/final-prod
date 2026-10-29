@@ -1,5 +1,13 @@
 # PARITY-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
 
+<!-- N-191/N-207 (the S57 lane): the duplicate-D renumber pass. Earlier-push-wins on D-seats:
+     N-143 keeps D-118 (M-125's later row -> D-127); N-163 keeps D-135 (N-177 -> D-128, N-090 -> D-129);
+     S-060 keeps D-136 (N-165 -> D-130); S-050 keeps D-137 (N-169 -> D-131). The duplicate-number
+     invariant is gate-checked (tools/doc_truth_gate.py check 5).
+     The gate's first run surfaced four more born-collided seats: M-082 keeps D-107
+     (the S-047 TS null-packet row -> D-132); S-044 keeps D-105 (the embedded-fast-path
+     row -> D-133); N-105 keeps D-106 (the missing-member row -> D-138); the overlap-
+     mapping row -> D-139. -->
 > **Status: promoted from the parity-audit draft (docs/parity/PARITY-DELTAS-draft.md)
 > after auditor review.** Every entry carries WHAT OG DOES (corpus cite), WHAT WE DO
 > (file:line), WHY (rationale class), RISK, and VERDICT (ACCEPTED / NEEDS-WORK).
@@ -2290,7 +2298,7 @@ architecture). Pinned by ScanEvents.ErrorRangeCarriesModuleOperation-
 Attempts + CarveErrorRangeAttributesToCarveModule + ProbeBlockFailure-
 AttributesToOrchestrator + the Retry/DevMap/Errmod unit trio.
 
-### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
+### D-140 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported; renumbered from its born-collided D-75 seat at the N-207 repair: the M-033 BitLocker row keeps D-75)
 
 The og's analyser registry wires every magic key to a two-generation chain:
 a modern (namespaced) analyser plus — where one exists — a legacy
@@ -3376,7 +3384,7 @@ Verdict: ACCEPTED (layering-faithful staging, not a silent gap — the
 capability decision the finding's step 1 demanded is YES and is recorded
 here).
 
-### D-107 — the TS null-packet posture: the core tolerates null-packet-headed streams on both TS rows; the og's CM2TS probe rejects them (S-047 post-landing addendum, REGISTERED SUPERSET — recall over strictness)
+### D-132 — the TS null-packet posture (renumbered from its born-collided D-107 seat at the N-207 repair: the M-082 rider keeps D-107): the core tolerates null-packet-headed streams on both TS rows; the og's CM2TS probe rejects them (S-047 post-landing addendum, REGISTERED SUPERSET — recall over strictness)
 
 **WHAT OG DOES:** the CM2TS probe (FUN_180032670 :38556-38619) rejects candidates whose first two packets carry all-0xFF payload qwords (`param_2[1] == -1` or the second packet's +8 qword == -1) — even though the og's own size walk (FUN_180032460 :38472-75) marks and TOLERATES all-0xFF null packets mid-run, and the CMTS chain (the chunk handler FUN_18002e430) has no payload gate at all.
 
@@ -3474,7 +3482,7 @@ resolution order, if the corpus ever decodes it, flips this to parity work).
 
 ## V. Closing-fix session (2026-10-29) — the thumbnail orientation rule (S-043 rider)
 
-**D-105 — the embedded-fast-path orientation semantics.** The og's EXIF
+**D-133 — the embedded-fast-path orientation semantics.** (renumbered from its born-collided D-105 seat at the N-207 repair: the S-044 rider keeps D-105) The og's EXIF
 orientation behavior is corpus-decisive for the full-decode path only:
 `FUN_1402fcc30` reads GDI+ property 0x112 and RotateFlips the decoded
 bitmap immediately before `GdipGetImageThumbnail` (call order :652307 →
@@ -3501,7 +3509,7 @@ not carry; the spec-conformant case (the overwhelming norm) matches.
 
 ## W. The session-11 fix lane (2026-10-29) — S-052's registered divergences
 
-**D-106 — the missing-member recovery policy.** The og's recovery-side
+**D-138 — the missing-member recovery policy.** (renumbered from its born-collided D-106 seat at the N-207 repair: the N-105 deferral keeps D-106) The og's recovery-side
 behavior for an LDM member disk that is ABSENT at recovery time is not
 decoded in the corpus (the scan-side semantics are: reconstruction where
 the layout allows, loud failure where it does not). The core's recovery
@@ -3515,7 +3523,7 @@ undecoded og behavior; the honest failure is visible in the report.
 **VERDICT:** ACCEPTED (a corpus decode of the og's recovery-side
 missing-member behavior, if ever found, re-opens this as parity work).
 
-**D-107 — the overlap mapping's conservative families.** The S-052
+**D-139 — the overlap mapping's conservative families.** (renumbered from its born-collided D-107 seat at the N-207 repair) The S-052
 destination-overlap refusal maps LDM-basis extents to physical member
 spans before comparing: EXACT for spanned/striped (only the data chunks'
 spans are read), CONSERVATIVE for mirrored (every copy's spans — copies
@@ -3689,7 +3697,7 @@ Evidence: N-162's cites; the pin test `FatEngine.ClusterOffsetBeyond2TiB` (the
 spec-max cluster's exact u64 address, the wrapped form explicitly NOT equal).
 ## X. The S42 fix lane (2026-10-29) — the progress display layer (M-125)
 
-**D-118 — the engine's linear permille vs the og's display remap (progress
+### D-127 — the engine's linear permille vs the og's display remap (progress
 semantics, M-125):** the core's engine telemetry reports a TRUTHFUL linear
 weighted permille over the stage weights (cr_scan's `weighted_progress`,
 40/35/25 — the engine never lies in its telemetry), where the og's DRWUI
@@ -3950,7 +3958,7 @@ FileTime) and passes as NULL exactly like the og's mask gates.
 either fake Win32 semantics (wrong) or translate honestly (this). The
 translation is reported per row ("restored" / "failed:<code>" /
 "unsupported") — never a silent approximation.
-### D-135 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
+### D-128 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
 
 The og's truncation-damage verdict (EXT4SearchDLL FUN_180007510 :5455-5467)
 computes `size = (i_size_high << 32 | i_size_lo) + ((i_size_high >> 0x1F) & 0x1FF)`
@@ -3966,7 +3974,7 @@ bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
 Registered deliberate superset: the og's comparison defects are NOT adopted
 (the I-040 anti-down-fix doctrine).
 
-### D-136 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
+### D-130 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
 
 The og's FAT runlist factories destroy a file's whole runlist at SCAN time
 when a run's end passes the volume sector limit — "File overflows
@@ -3991,7 +3999,7 @@ scan-time grade stays the chain's own (FAT-verified intact chains grade
 Excellent; the truncation is a recovery-time disclosure, never a silent
 drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
 "fix" toward the og's destruction without re-registering this row.
-### D-135 — the session-list surface's registered deltas (N-090: the scope superset, the save-time second resolution, the deviceType non-carriage; the label width CLOSED by the v6 tail)
+### D-129 — the session-list surface's registered deltas (N-090: the scope superset, the save-time second resolution, the deviceType non-carriage; the label width CLOSED by the v6 tail)
 
 **WHAT:** three deliberate differences on the W1a session-list surface,
 each verified against the corpus first-hand this session: (a) the core
@@ -4057,7 +4065,7 @@ that consumes the core's own scan results); the sample-file consent model
 per-format grammar artifacts in `artifacts/FileRepair/` (8 files, all
 first-cited by S-050).
 
-### D-137 — the EUUserData duplicate-key resolution: the core MERGES every block (N-169 registration, REGISTERED DELIBERATE POSTURE — the og's parse-side semantics remain an honest OQ)
+### D-131 — the EUUserData duplicate-key resolution: the core MERGES every block (N-169 registration, REGISTERED DELIBERATE POSTURE — the og's parse-side semantics remain an honest OQ)
 
 The og's own shipped EUUserData carries a GENUINE duplicate `asf` block (112
 members; offsets 4770/16766; the SAME sign `0,3026B2758E66CF11A6D900AA0062CE6C`

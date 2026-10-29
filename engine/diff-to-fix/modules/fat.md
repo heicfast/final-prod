@@ -332,7 +332,7 @@ check, ReleaseTrace "File overflows partition!", the runlist destruction). The
 core's deferred-failure posture — the truncated-tail volume stays a
 first-class target, the overflow-tail file stays listed with its chain
 extents, the readable prefix recovers and the tail discloses as Salvaged at
-recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-130 (renumbered from the collided D-136 at N-207) and pinned by
 FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
 chain's own: the truncation is recovery-time knowledge). No behavior change,
 per the finding's own plan.

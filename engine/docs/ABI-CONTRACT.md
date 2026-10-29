@@ -546,7 +546,7 @@ Contract (ABI RULES-conformant):
   **SCOPE** — the listing enumerates EVERY `*.crsf` in the directory,
   the REGISTERED SUPERSET over the og's home list (the og keeps only
   names containing BOTH `auto_` and `.rsf` — FUN_140273940 at
-  DRWUI:432326-432333 + rsf-format §5.5; PARITY-DELTAS D-135): a manual
+  DRWUI:432326-432333 + rsf-format §5.5; PARITY-DELTAS D-129 [renumbered from the collided D-135 at N-207]): a manual
   save is a resumable session too, and a host wanting the og's exact
   home view filters client-side by name; (b) **LABEL WIDTH** —
   `label_full[100]` (the ABI tail append, no version bump per §9)

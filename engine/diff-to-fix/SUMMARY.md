@@ -539,6 +539,14 @@ trail update, push. One finding, one push. This block grows as the lane lands.
   per-string counter key. RED proven by the stash-revert rebuild (the whole 45-char
   tag named the file pre-fix). Suite 1454/1454.
 
+- **N-191 + N-207 FIXED (MINOR — the PARITY-DELTAS renumber batch).** N-191 as filed:
+  M-125's row -> D-127, N-143 keeps D-118; the duplicate-D invariant landed as
+  doc_truth_gate check 5 — and its first run surfaced NINE more born-collided seats
+  (D-105/106/107/135/136/137 — the N-207 extension, filed per §8 and fixed in the
+  same push: the later rows -> D-128/129/130/131/132/133/138/139/140, the stale
+  storage.md D-75 cite re-truthed to D-72, the gate's ADDENDUM exclusion).
+  Gate green: 135 unique D-rows.
+
 **Board after this merge (filesystem truth, re-censed): 69 active — 0 ACUTE · 9 SEVERE ·
 24 MAJOR · 29 MINOR · 0 INFO / 79 FIXED / 7 tracked-open** (the window's A-014 + M-124 +
 M-123 + M-132 + M-133 + N-161 + N-158 + N-174 + I-036 + I-040..I-044 retirements + the

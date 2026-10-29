@@ -9133,3 +9133,20 @@ RED proof via the stash-revert rebuild (CarveEngine.JpegExifPrefixCappedAtThirty
 the whole 45-char tag named the file pre-fix); GREEN post-fix; the OgNaming family
 green (fixtures < 39). Suite 1454/1454. Trail: findings/FIXED/N-190 + SUMMARY + this
 entry.
+
+## Session-57 lane — N-191 + N-207 landed (the PARITY-DELTAS renumber batch) (2026-10-29)
+
+**N-191 FIXED + N-207 FIXED (the discovered extension, one push).** The D-118 collision
+repaired per the finding's plan (M-125's later row -> D-127, N-143 keeps D-118,
+citations swept) AND the fix plan's gate invariant (doc_truth_gate check 5: every
+D-row heading unique) — whose FIRST RUN surfaced nine MORE born-collided seats the
+audit never mapped: D-105 x2, D-106 x2, D-107 x3, D-135 x3, D-136 x2, D-137 x2 (all
+the hot-window racing-lane failure mode) plus one stale live cite (storage.md's N-045
+cache row cited as D-75 where the row is D-72 since the registry's own errata).
+Filed as N-207 per the mandate's §8 and fixed in the same landing: the later rows
+renumbered to D-128/D-129/D-130/D-131/D-132/D-133/D-138/D-139/D-140 (earlier-push-wins,
+file-position order as the documented tiebreak), every live citation updated with a
+renumber note, the gate's ADDENDUM continuation exclusion added (the D-74 supersession
+form is one row's continuation, not a seat claim). Gate green: 135 unique D-rows,
+CI-wired (checks.yml:173). No code change — the registry + gate + citations are the
+deliverable.

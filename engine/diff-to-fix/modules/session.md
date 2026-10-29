@@ -286,7 +286,7 @@ PARITY-DELTAS).
 
 ## N-090 landed (the S56 lane, 2026-10-29) — the session-list scope + row shape
 
-- **The scope rule REGISTERED (D-135a):** the every-`*.crsf` listing is the deliberate
+- **The scope rule REGISTERED (D-129a — the row renumbered from its born-collided D-135 seat at the N-207 repair):** the every-`*.crsf` listing is the deliberate
   superset over the og's `auto_`+`.rsf` home-list filter (DRWUI:432326-432333 —
   substring pair, re-read first-hand). A manual save is a resumable session; hosts
   wanting the og's exact home view filter client-side. Pinned:
@@ -298,8 +298,8 @@ PARITY-DELTAS).
   `cr_ui_session_row` + `cr_ui_session_info` (no version bump; `label[32]` = the
   legacy prefix view). Pinned: `SessionListVolumeLabelFullWidthRoundTrips` (RED as
   the ABI-append compile failure, the house precedent).
-- **The save-time seconds contract (D-135b) + deviceType not-carried (D-135c):**
-  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-135 (the og's ms + its 2→Desktop/
+- **The save-time seconds contract (D-129b) + deviceType not-carried (D-129c):**
+  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-129 (the og's ms + its 2→Desktop/
   3→Recycle-Bin table recorded for the host that eventually asks).
 
 ## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)

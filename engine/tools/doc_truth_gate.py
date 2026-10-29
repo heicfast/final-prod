@@ -36,6 +36,12 @@ Four assertions the consolidation's drift proved necessary:
    slug, two rows - while two DIFFERENT slugs under one ID is the true
    collision the S41 lane raced into M-117).
 
+5. PARITY-DELTAS D-number uniqueness (N-191/N-207, the born-collided-seat class):
+   every D-<n> ROW heading in docs/PARITY-DELTAS.md (the "### D-<n>" and
+   "**D-<n>" line-start forms) must be unique - two lanes landing registry
+   rows on the same D-seat (D-118/D-135/D-136/D-137 at the hot-window
+   crossings) breaks every D-number cross-reference downstream.
+
 Exit 0 = truth holds; exit 1 with named violations otherwise.
 
 Licensed under the MIT license. See LICENSE.
@@ -407,6 +413,37 @@ def check_filed_as_citations():
     return ok
 
 
+
+def check_parity_delta_numbering():
+    """N-191/N-207: every PARITY-DELTAS D-row heading is unique."""
+    rows = []
+    p = DOCS / "PARITY-DELTAS.md"
+    if not p.exists():
+        print("doc_truth_gate: PARITY-DELTAS.md missing")
+        return False
+    for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        m = re.match(r"^(?:###|\*\*)\s*D-(\d+)\b", line)
+        # N-207: an ADDENDUM heading is the deliberate continuation of its
+        # parent row (the D-74 supersession form) - not a new seat claim
+        if m and "ADDENDUM" not in line:
+            rows.append((int(m.group(1)), i))
+    seen, dupes = {}, []
+    for num, line in rows:
+        if num in seen:
+            dupes.append((num, seen[num], line))
+        else:
+            seen[num] = line
+    if dupes:
+        for num, first, second in dupes:
+            print(
+                f"doc_truth_gate: PARITY-DELTAS duplicate D-{num}: "
+                f"rows at :{first} and :{second} (N-191/N-207 class)"
+            )
+        return False
+    print(f"doc_truth_gate: PARITY-DELTAS D-numbering unique ({len(rows)} rows)")
+    return True
+
+
 def main():
     ok = check_floorversion()
     ok = check_deleted_citations() and ok
@@ -414,6 +451,7 @@ def main():
     ok = check_finding_id_uniqueness() and ok
     ok = check_filed_as_citations() and ok
     ok = check_abi_count_claims() and ok
+    ok = check_parity_delta_numbering() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

@@ -77,3 +77,10 @@ SA-9/renumber-convention lineage).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S57 lane's N-191 landing; the ledger row carries the SHA)
+**Verified by:** tools/doc_truth_gate.py check 5 (the new duplicate-D invariant): the registry now carries 135 UNIQUE D-rows, zero duplicates; the acceptance grep (`rg "^### D-118|^\*\*D-118" docs/PARITY-DELTAS.md`) returns exactly one row (N-143's, :3651). The gate runs in CI (checks.yml's local-mirror lane) and locally (ci-local.sh step 2's doc-truth family).
+**Resolution notes:** Executed per the fix plan with one discovered extension (filed as N-207): M-125's later row renumbered to **D-127** (its `**D-118` heading normalized to the `### D-127 —` form), N-143's row keeps D-118 per earlier-push-wins; the live citations updated (M-125's finding file, modules/orchestration.md, the FIXED-LEDGER M-125 row) with renumber notes at every site. During verification the new gate invariant surfaced NINE more born-collided seats the audit had not mapped: D-105 x2 (the S-044 rider keeps; the embedded-fast-path row -> D-133), D-106 x2 (the N-105 deferral keeps; the missing-member row -> D-138), D-107 x3 (the M-082 rider keeps; the S-047 TS null-packet row -> D-132; the overlap-mapping row -> D-139), D-135 x3 (N-163 keeps; N-177 -> D-128; N-090 -> D-129), D-136 x2 (S-060 keeps; N-165 -> D-130), D-137 x2 (S-050 keeps; N-169 -> D-131) — all renumbered with their live citations (modules/{ext4,session,fat,carve,ldm}.md, ABI-CONTRACT.md, the five finding files, the FIXED-LEDGER rows). Two registry-truth repairs beyond the renumber: storage.md's N-045 cache-budget cite carried a stale D-75 (the row has been D-72 since the D-72-collision errata - re-truthed), and the gate's first form false-positived the DELIBERATE addendum continuation headings (the D-74 supersession form) - the invariant excludes ADDENDUM headings as row continuations, not seat claims. Historical worklog/SUMMARY prose left as history (the live registry + live docs are the cross-reference surface).

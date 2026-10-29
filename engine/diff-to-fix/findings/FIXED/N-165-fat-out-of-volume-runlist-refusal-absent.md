@@ -75,21 +75,21 @@ None.
 **Status:** FIXED
 **Fixed in commit:** (this session's N-165 landing, session-46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
 **Verified by:** `FatEngine.TruncatedVolumeOverflowChainStance` (the stance pin: the overflow-tail file stays LISTED with its full chain extents — the readable prefix plus the beyond-device tail — and the chain's own scan-time grade; the og's scan-time destruction registered, not adopted). Suite 1281/1281 linux-release (1239 pass / 42 env-skips / 0 fail).
-**Resolution notes:** Corpus re-verified first-hand: both factory gates re-read (FATSearchDLL :10865-10903 — the run-end check against the volume sector limit + `ReleaseTrace("File overflows partition!")` + the runlist release; the second factory :28040-28075 — the same check at the :28070 trace). The finding's own fix plan step 1 selected the core's deferred-failure posture (do NOT silently change behavior): the stance is now REGISTERED as PARITY-DELTAS D-136 — the truncated-tail volume (BPB claims more than the device holds; validate_boot's deliberate allowance) is a first-class recovery target; the readable prefix recovers and the beyond-device tail surfaces as the recovery-time Salvaged disclosure (FB-R02), never a scan-time destruction. Two truths the plan's test sketch assumed differently, corrected in the pin: (a) the scan-time grade is the chain's OWN grade (a FAT-verified intact chain grades Excellent — the truncation is not scan-time knowledge; the finding's "PartialRisk" wording described the recovery-time disclosure, which rides the Salvaged outcome); (b) the deleted-chain walk is bounded by the dentry's declared size (reconstruct_deleted_chain's expect bound), so the fixture sizes the chain honestly. No code change — the registration + the pin are the deliverable, exactly as the finding prescribed.
+**Resolution notes:** Corpus re-verified first-hand: both factory gates re-read (FATSearchDLL :10865-10903 — the run-end check against the volume sector limit + `ReleaseTrace("File overflows partition!")` + the runlist release; the second factory :28040-28075 — the same check at the :28070 trace). The finding's own fix plan step 1 selected the core's deferred-failure posture (do NOT silently change behavior): the stance is now REGISTERED as PARITY-DELTAS D-130 (renumbered from its born-collided D-136 seat at the N-191/N-207 repair: the S-060 row keeps D-136) — the truncated-tail volume (BPB claims more than the device holds; validate_boot's deliberate allowance) is a first-class recovery target; the readable prefix recovers and the beyond-device tail surfaces as the recovery-time Salvaged disclosure (FB-R02), never a scan-time destruction. Two truths the plan's test sketch assumed differently, corrected in the pin: (a) the scan-time grade is the chain's OWN grade (a FAT-verified intact chain grades Excellent — the truncation is not scan-time knowledge; the finding's "PartialRisk" wording described the recovery-time disclosure, which rides the Salvaged outcome); (b) the deleted-chain walk is bounded by the dentry's declared size (reconstruct_deleted_chain's expect bound), so the fixture sizes the chain honestly. No code change — the registration + the pin are the deliverable, exactly as the finding prescribed.
 
 ---
 
 ## S46 convergence addendum (the rebase reconciliation, SA-9 earlier-push-wins)
 
 The S46 MINOR-first lane independently re-read both og factory gates
-(:10865-10878 / :28060-28070, the ReleaseTrace pair), built the same D-136
+(:10865-10878 / :28060-28070, the ReleaseTrace pair), built the same D-130 (renumbered)
 registration, and additionally landed a scan-time honest-grade cap (overflow
 extents never Excellent) with its own RED→GREEN pin. At the reconciliation the
 winning stance above stands: the grade is the chain's own FAT-verified truth,
 the beyond-device tail is a recovery-time Salvaged disclosure. The S46 cap was
 DECLINED (the duplicate pin removed, the cap reverted). RETAINED from the S46
 landing: the `FatScanStats.overflow_chains` counter (additive observability
-counting the exact class D-136 describes — cited by neither pin, no behavioral
+counting the exact class D-130 describes — cited by neither pin, no behavioral
 surface), and this convergence record. The S46 lane also repaired the window's
 committed reds around these tests (the duplicate validated tick, the swapped
 grading expectations, the user-sign registry leak, the Lzh comment splice) —

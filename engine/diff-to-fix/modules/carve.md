@@ -442,7 +442,7 @@ B1/A28 verdicts: MATCH.
   gate's break/continue semantics preserved exactly (already-emitted
   break, suppress_overlap mid-stream skip, F9 dedup resolution). The
   two-generation `File*Analyser` fallback chain is REGISTERED as
-  PARITY-DELTAS **D-75** (legacy bodies undecoded in the corpus; the two
+  PARITY-DELTAS **D-140** (renumbered from the collided D-75 at N-207; legacy bodies undecoded in the corpus; the two
   fully-decoded legacy grammars — MKV vint walk, RAR4 fast validator —
   are already the core's validators). Tests:
   `CarveEngine.OverlapScorePrefersHigherConfidence` (fail-before: trial
@@ -846,7 +846,7 @@ The carve surface's size-walk residue now has owners:
 
 - **S-054** (SEVERE): the TS/M2TS cap at 2e9 is 10x the og's 200 MB clamp (the S-047 landing's refuted "x 10" provenance; unpinned).
 - **N-149** (MINOR): the filter's always-on set — the og exempts OLE/RIFF/ZIP from every filter (mask 0x1000801); the disable surface can switch them off.
-- **N-143** (MINOR): the ISpecial two-step dispatch with the id-8 generic continuation (the D-75 sibling).
+- **N-143** (MINOR): the ISpecial two-step dispatch with the id-8 generic continuation (the D-140 sibling).
 - **N-146** (MINOR): the FH11 zero-end stand-in unowned (S-037's purge residue; 32 MiB).
 - **M-112** (MAJOR, the S11B lane's convergent filing — this lane's draft N-147 dropped per extend-don't-refile): the CSL 0x44c size formula decoded-but-unported (FUN_180041950 :49749-49828, the span gate + the +0x118 cap check).
 - **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
@@ -970,7 +970,7 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   cites re-read first-hand (:9877-9883 the two-step, :10020-10039 the id-8
   stamp + chain-continue, :2235-2238 the dual vtables). The DECLINE branch:
   the generic id-8 fallback class stays absent (the honest-refusal doctrine),
-  registered as PARITY-DELTAS D-118 (the D-75 family). The pin:
+  registered as PARITY-DELTAS D-118 (the D-140 family). The pin:
   Carve.SpecialRejectPlainAcceptRefusedByName — the corrupt-RIFF form (the
   grammar-only family; no raw-sign key fires on RIFF — the layer-1 signs
   enumerated this session) is refused by name while the valid WAV control
@@ -1049,7 +1049,7 @@ semantics: the raw-file census re-measured (112 members, the duplicate asf
 at offsets 4770/16766 — same sign, mimes "application/vnd.ms-asf" then
 "asf"); the finding's decisive cite FUN_140077dca0 recorded as a citation
 erratum (absent from both decompiles); the core's MERGE registered as
-PARITY-DELTAS D-137 (every member parses; each block's mime backfills its
+PARITY-DELTAS D-131 (renumbered from the collided D-137 at N-207; every member parses; each block's mime backfills its
 own signs; the og's parse-side append stays the recorded OQ); the shipped
 default's dedup documented (111/190, the LAST asf block's mime). Tests:
 UserSigns.DuplicateKeySemantics + ShippedCensusDedupTruth.
