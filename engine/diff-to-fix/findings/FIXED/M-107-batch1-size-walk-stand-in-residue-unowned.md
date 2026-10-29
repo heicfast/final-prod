@@ -475,7 +475,6 @@ R2007 recorded remainder.
 
 ---
 
-<<<<<<< HEAD:diff-to-fix/findings/FIXED/M-107-batch1-size-walk-stand-in-residue-unowned.md
 ## Session-87 addendum 6 — the SWF-RECT member COMPLETED (the CWS deep gate lands over the racing FWS seat); the enumeration closes
 
 **SWF-RECT COMPLETE (this session — the racing window's FWS seat
@@ -554,7 +553,6 @@ phantom-30/missing-13 tier-1 table, the AI invented version gate, the
 EPS bare-%!PS acceptance, the SWF CWS shared-window acceptance. The
 DWG gen-3 R2007 remainder keeps its bounded extent with the precise
 decode scope registered — the never-silently rule honored.
-=======
 ## Session-86 addendum 2 — the gen-3 R2007 remainder: the decode PROGRESS (the rotation transform identified first-hand; the next lane's head start) (2026-10-30)
 
 The DWG gen-3 chain's remaining pieces, decoded this session to the depth
@@ -593,4 +591,3 @@ arbitration stays the next lane's first step):
 The bounded extent REMAINS for gen-3, pinned by the seat's tests. The
 evidence sheet carries the full head decode:
 evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md.
->>>>>>> origin/main:diff-to-fix/findings/MAJOR/M-107-batch1-size-walk-stand-in-residue-unowned.md
