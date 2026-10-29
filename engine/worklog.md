@@ -24,7 +24,7 @@
 
 - **Baseline:** core `24e480c4` at open (clean tree), corpus `be0cfe9`;
   linux-release build clean; suite **1485/1485** (90s). Prompt saved
-  token-redacted at `worklog/session-diff-fix-s65-prompt.md`. Board at open:
+  token-redacted at `worklog/session-diff-fix-s66-prompt.md`. Board at open:
   0 SEVERE · 20 MAJOR · 13 MINOR · 0 INFO active / 151 FIXED / 4 tracked-open.
   The informational-first directive verified: all 21 I- findings properly closed
   in findings/FIXED/ (ACKNOWLEDGED/INVALID/FIXED-ALREADY with evidence).
@@ -9756,7 +9756,7 @@ re-synced against their landings before each fix.
 **Session-64 S64 lane — the diff-to-fix execution lane (2026-10-29).**
 
 - **Lane open record:** prompt saved (token redacted) at
-  `worklog/session-diff-fix-s65-prompt.md`. The user's lane directive:
+  `worklog/session-diff-fix-s66-prompt.md`. The user's lane directive:
   MINOR-first, one finding one push, aim 20+ fixes. Opening HEAD
   `24e480c4` (the S60-B/S63 hot-window merge head), corpus `be0cfe9`.
   Baseline suite building (linux-release, gcc Werror); board re-counted
@@ -9788,3 +9788,40 @@ N-205 citations repaired to the D-146 terminal seat in the same pass
 (matrix row 1184, modules/tree.md, the ledger row's D-144). Dated
 worklog history stays. Gate green after the repair (exit 0, no
 duplicate rows).
+
+
+## Session-65 S65 lane — opened + N-194 landed (the second lane of the same user MINOR-first mandate; the S64 seat taken by the racing lane per SA-9 — convergent openings, disjoint fixes) (2026-10-29)
+
+Lane opened per the user's MINOR-first directive ("Fix all the audit findings
+(priority to minor first) one by one... Aim for at least 20+ fixes"; prompt
+saved token-redacted at worklog/session-diff-fix-s66-prompt.md). Core at open
+`24e480c4` (the S60-B/S63 windows absorbed: S-040 landed by the S63 lane —
+the board re-counted first-hand: 0 ACUTE · 0 SEVERE · 20 MAJOR · 13 MINOR ·
+0 INFO active / 151 FIXED / 4 tracked-open; N-107/N-127 + M-086/M-087/M-089
+driver-repo-resident per the OQ-S10-3 two-repo grant boundary). Baseline
+suite **1485/1485 green** (Linux build-local, full ctest) before the first
+change. Corpus pinned `be0cfe9`.
+
+**N-194 FIXED (MINOR — the two byte-size display formatters).** Corpus
+re-verified first-hand at the fix: FUN_140163580/FUN_140163650
+(DRWUI:264525-264583 — the log-side tiers `%.2f KB/MB/GB`, 1024-divisors,
+`param_1 < 1` writes nothing) and the tr-family UI formatter
+(DRWUI:1556295-1556400 — the 0x401/0x100001/0x40000001/0x10000000001 ladder,
+the `local_100 = 0` zero-bytes precision quirk, the `".%1".arg('0',prec)`
+replace-with-empty strip). Landing: `query::display_size_log` +
+`query::display_size_ui` in cr_query.h/.cpp beside the M-125/M-126
+display-math families; the CLI's four size prints (image info / disk list /
+volume list / unreadable-bytes) wired through the log-faithful form
+(rates stay MiB/s; no surface pinned the old forms — verified against
+workflows + tests). The UI-side strip decoded first-hand: a fraction that is
+all zeros across the FULL precision strips with its point; partial keeps.
+Residual noted: FUN_14064e240's locale char is register-opaque — the port's
+C-locale snprintf has no group separator to strip (observable string
+matches for a C-locale host). Proof: Display.SizeLogFormatterBoundaries +
+Display.SizeUiFormatterTiers + Display.SizeUiFormatterPrecisionAndStrip —
+RED (implementation stashed: link failure, Not-Run) → GREEN; families
+Query/Display/Error/CrUi 110/110; win_syntax_check green; clang-format
+(18.1.8, the CI pin) clean — the pristine rrecov carried 4 pre-existing
+violations under the pinned version, this landing cleans them. Trail: FIXED
+finding + Resolution, matrix row 38 MATCH, query.md S64 section, SUMMARY
+board recount, this entry.

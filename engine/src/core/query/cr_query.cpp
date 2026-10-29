@@ -676,5 +676,68 @@ long long eta_countdown_tick(const std::string& label) {
     return total - 1;
 }
 
+/* ---- N-194: the og's two byte-size display formatters ---- */
+
+std::string display_size_log(u64 bytes) {
+    /* FUN_140163580/FUN_140163650 verbatim (DRWUI :264525-264583): the
+     * og's opening gate is param < 1 on a SIGNED input - byte 0 (and,
+     * unrepresentable here, negatives) writes nothing and returns 0. */
+    if (bytes < 1)
+        return "";
+    const double v = double(bytes);
+    char buf[32];
+    if (bytes < 0x40000001ull) {
+        if (bytes < 0x100001ull)
+            std::snprintf(buf, sizeof(buf), "%.2f KB", v / 1024.0);
+        else
+            std::snprintf(buf, sizeof(buf), "%.2f MB", v / 1048576.0);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%.2f GB", v / 1073741824.0);
+    }
+    return std::string(buf);
+}
+
+std::string display_size_ui(u64 bytes, int precision) {
+    /* the tr-family formatter (DRWUI :1556295-1556400): B..TB tiers,
+     * 'f' format, caller precision; the zero-bytes quirk forces
+     * precision 0 AFTER the tier pick (the og's local_100 = 0 - "0 B"). */
+    if (precision < 0)
+        precision = 0;
+    double v;
+    const char* unit;
+    if (bytes >= 0x10000000001ull) {
+        v = double(bytes) / 1099511627776.0;
+        unit = "TB";
+    } else if (bytes >= 0x40000001ull) {
+        v = double(bytes) / 1073741824.0;
+        unit = "GB";
+    } else if (bytes >= 0x100001ull) {
+        v = double(bytes) / 1048576.0;
+        unit = "MB";
+    } else if (bytes >= 0x401ull) {
+        v = double(bytes) / 1024.0;
+        unit = "KB";
+    } else {
+        v = double(bytes);
+        unit = "B";
+    }
+    if (bytes == 0)
+        precision = 0;
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "%.*f %s", precision, v, unit);
+    std::string out(buf);
+    /* the og's strip tail: ".%1".arg('0', precision) - the all-zero
+     * fraction spanning the FULL precision - is replaced with "" in the
+     * final string ("5.00 KB" -> "5 KB"; a partial fraction is kept) */
+    if (precision > 0) {
+        std::string frac = ".";
+        frac.append(size_t(precision), '0');
+        size_t at = out.find(frac);
+        if (at != std::string::npos)
+            out.erase(at, frac.size());
+    }
+    return out;
+}
+
 } // namespace query
 } // namespace cr

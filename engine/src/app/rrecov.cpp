@@ -86,7 +86,7 @@
 #include "cr/win/cr_bootfix.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
-#include "cr/crypto/cr_sha256.h" /* S-040: the digest line */
+#include "cr/crypto/cr_sha256.h"   /* S-040: the digest line */
 #include "cr/cr_text.h"            /* N-009c: --filter UTF-8 encoding */
 #include "cr/preview/cr_preview.h" /* M-116: the archive-list verb surfaces the inventory */
 #include <windows.h>
@@ -432,8 +432,8 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
                  : lay == storage::Lba0Layout::Gpt ? L"GPT"
                                                    : L"unknown layout";
     }
-    wprintf(L"[image] %s (%s, %s, %llu MiB)\n", path.c_str(), fmt_name, layout,
-            static_cast<unsigned long long>(dev->size() >> 20));
+    wprintf(L"[image] %s (%s, %s, %hs)\n", path.c_str(), fmt_name, layout,
+            query::display_size_log(dev->size()).c_str());
     out.device = std::move(dev);
     out.is_image = true;
     out.image_path = path;
@@ -776,8 +776,9 @@ int print_disks(bool with_trim) {
             with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]") : L" [TRIM ?]")
                       : L"");
     for (const auto& d : list) {
-        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s%s\n", d.number, d.size_bytes >> 20,
-                d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
+        wprintf(L"  Disk %u: %hs (%s) %s [%s] %s%s\n", d.number,
+                query::display_size_log(d.size_bytes).c_str(), d.model.c_str(), d.serial.c_str(),
+                d.removable ? L"removable" : L"fixed",
                 d.table_ok
                     ? (d.table.layout == table::TableLayout::Gpt
                            ? L"GPT"
@@ -788,8 +789,9 @@ int print_disks(bool with_trim) {
                 trim_known ? (trim_on ? L" TRIM:ON" : L" TRIM:OFF") : L"");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
-                wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),
-                        v.label.c_str(), v.bytes >> 20, v.bitlocker ? L"[BitLocker]" : L"");
+                wprintf(L"    %c: %s %s %hs %s\n", v.letter, v.fs_name.c_str(), v.label.c_str(),
+                        query::display_size_log(v.bytes).c_str(),
+                        v.bitlocker ? L"[BitLocker]" : L"");
             }
         }
     }
@@ -1981,10 +1983,10 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         wprintf(L"[scan] volume header unreadable - filesystem family unknown because "
                 L"sector 0 could not be read (raw/deep recovery mode)\n");
     if (!stats.errors.ranges().empty())
-        wprintf(L"[scan] read errors: %u range(s), %.1f MiB unreadable - those regions were "
+        wprintf(L"[scan] read errors: %u range(s), %hs unreadable - those regions were "
                 L"NOT scanned; recovered content may be incomplete\n",
                 u32(stats.errors.ranges().size()),
-                double(stats.bytes_unreadable) / (1024.0 * 1024.0));
+                query::display_size_log(stats.bytes_unreadable).c_str());
     prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
@@ -2711,8 +2713,7 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
         auto* c = static_cast<Ctx*>(user);
         if (done < c->next_mark && done != total)
             return;
-        wprintf(L"image: %llu / %llu bytes (%llu%%)\n",
-                static_cast<unsigned long long>(done),
+        wprintf(L"image: %llu / %llu bytes (%llu%%)\n", static_cast<unsigned long long>(done),
                 static_cast<unsigned long long>(total),
                 total ? static_cast<unsigned long long>(done * 100 / total) : 100ull);
         const u64 mark = total / 10 ? total / 10 : 1;
@@ -2721,8 +2722,8 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
 
     const std::u16string out16(out.begin(), out.end());
     storage::ImageCreateStats stats{};
-    const u32 rc = win::create_disk_image(disk, L"RDA", out16, &g_cancel_token, progress, &ctx,
-                                          &stats);
+    const u32 rc =
+        win::create_disk_image(disk, L"RDA", out16, &g_cancel_token, progress, &ctx, &stats);
     const std::string hex = crypto::to_hex(stats.sha256, 32);
     if (rc == OK) {
         wprintf(L"image complete: %llu bytes, sha256 %hs\n",

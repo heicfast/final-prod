@@ -102,3 +102,20 @@ formatters — log-side KB/MB/GB binary tiers with the +1 flip boundaries, UI-si
 B..TB with caller precision — have no core counterpart; hosts cannot render
 og-faithful sizes; the M-125 `progress_display_*` family is the landed precedent
 for the fix).
+
+
+## S66 lane (2026-10-29): N-194 landed
+
+**N-194 FIXED** — the og's two byte-size display formatters landed beside the
+M-125/M-126 display-math families: `query::display_size_log` (the log side:
+KB/MB/GB only, `%.2f`, 1024-tier divisors under decimal labels, the +1 flip
+boundaries — 1 MiB renders "1024.00 KB", 2 TiB renders "2048.00 GB", bytes < 1
+writes nothing) and `query::display_size_ui` (the tr-family UI side: the full
+B..TB ladder at 0x401/0x100001/0x40000001/0x10000000001, caller precision, the
+zero-bytes forced-0 quirk, and the all-zero-full-precision fraction strip).
+Both corpus-verified first-hand at DRWUI:264525-264583 and :1556295-1556400 at
+the fix. The CLI's four size prints (image info, disk listing, volume listing,
+unreadable-bytes diagnostic) render through the log-faithful form; throughput
+rates stay rate-formatted. Pins: `Display.SizeLogFormatterBoundaries` /
+`Display.SizeUiFormatterTiers` / `Display.SizeUiFormatterPrecisionAndStrip`
+(RED: link-failure Not-Run with the implementation stashed; GREEN post-fix).

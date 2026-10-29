@@ -927,3 +927,54 @@ TEST(Query, CategoriesAppendOnlyGuard) {
     EXPECT_EQ(u8(Category::Bookmarks), u8(8));
     EXPECT_EQ(u8(Category::Unsaved), u8(9));
 }
+
+/* ---- N-194: the og's two byte-size display formatters ---- */
+
+TEST(Display, SizeLogFormatterBoundaries) {
+    /* FUN_140163580/650 (DRWUI :264525-264583) verbatim: three tiers,
+     * binary math under decimal labels, +1 flip boundaries, no B/TB
+     * tier, and the < 1 gate writing nothing. */
+    EXPECT_EQ("", query::display_size_log(0));        /* < 1: nothing written */
+    EXPECT_EQ("0.00 KB", query::display_size_log(1)); /* 1/1024 -> 0.00 */
+    EXPECT_EQ("512.00 KB", query::display_size_log(512ull * 1024));
+    EXPECT_EQ("1024.00 KB", query::display_size_log(1ull << 20));    /* 1 MiB stays KB */
+    EXPECT_EQ("1.00 MB", query::display_size_log((1ull << 20) + 1)); /* 0x100001 flips to MB */
+    EXPECT_EQ("2.00 MB", query::display_size_log(2ull << 20));
+    EXPECT_EQ("1024.00 MB", query::display_size_log(1ull << 30));    /* 1 GiB stays MB */
+    EXPECT_EQ("1.00 GB", query::display_size_log((1ull << 30) + 1)); /* 0x40000001 flips to GB */
+    EXPECT_EQ("1.50 GB", query::display_size_log(3ull << 29));       /* 1.5 GiB is GB */
+    EXPECT_EQ("4.00 GB", query::display_size_log(4ull << 30));
+    EXPECT_EQ("2048.00 GB", query::display_size_log(2ull << 40)); /* 2 TiB has no TB tier */
+    /* the runtime anchor (dynamic-ground-truth :95): 143.74 GB is a GiB
+     * count under a GB label */
+    const u64 anchor = u64(143.74 * 1073741824.0);
+    EXPECT_EQ("143.74 GB", query::display_size_log(anchor));
+}
+
+TEST(Display, SizeUiFormatterTiers) {
+    /* the tr-family formatter (DRWUI :1556295-1556400): the B..TB set
+     * with the +1 boundaries (0x401 / 0x100001 / 0x40000001 /
+     * 0x10000000001) and the zero-bytes forced-0 precision quirk. */
+    EXPECT_EQ("0 B", query::display_size_ui(0, 2)); /* zero forces precision 0 */
+    EXPECT_EQ("0 B", query::display_size_ui(0, 9));
+    EXPECT_EQ("512 B", query::display_size_ui(512, 2));             /* < 0x401: B, ".00" strips */
+    EXPECT_EQ("1024 B", query::display_size_ui(1024, 2));           /* 0x400: still B */
+    EXPECT_EQ("1 KB", query::display_size_ui(1025, 2));             /* 0x401: KB, 1.00 strips */
+    EXPECT_EQ("1024 KB", query::display_size_ui(1ull << 20, 2));    /* 0x100000: still KB */
+    EXPECT_EQ("1 MB", query::display_size_ui((1ull << 20) + 1, 2)); /* 0x100001 flips */
+    EXPECT_EQ("1024 MB", query::display_size_ui(1ull << 30, 2));    /* 0x40000000: still MB */
+    EXPECT_EQ("1 GB", query::display_size_ui((1ull << 30) + 1, 2));
+    EXPECT_EQ("1024 GB", query::display_size_ui(1ull << 40, 2)); /* 0x10000000000: still GB */
+    EXPECT_EQ("1 TB", query::display_size_ui((1ull << 40) + 1, 2));
+}
+
+TEST(Display, SizeUiFormatterPrecisionAndStrip) {
+    /* caller precision drives the fraction width */
+    EXPECT_EQ("1.5 KB", query::display_size_ui(1536, 1));
+    EXPECT_EQ("1.50 KB", query::display_size_ui(1536, 2));  /* non-zero fraction keeps */
+    EXPECT_EQ("5 KB", query::display_size_ui(5120, 2));     /* all-zero fraction strips */
+    EXPECT_EQ("5 B", query::display_size_ui(5, 3));         /* ".000" strips too */
+    EXPECT_EQ("1.001 KB", query::display_size_ui(1025, 3)); /* ".001" keeps */
+    /* negative precision clamps to 0 */
+    EXPECT_EQ("5 B", query::display_size_ui(5, -3));
+}

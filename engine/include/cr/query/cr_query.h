@@ -167,6 +167,36 @@ std::string eta_format_m_s(long long seconds);
  * minutes*60 - 1 + seconds < 0 -> the FUN_1409cb4e0 stop). */
 long long eta_countdown_tick(const std::string& label);
 
+/* ---- N-194: the og's two byte-size display formatters (DRWUI decode) ----
+ *
+ * display_size_log - FUN_140163580 (wide, DRWUI :264525-264550) and
+ * FUN_140163650 (ascii, :264552-264583), verbatim tier structure:
+ *   bytes < 1            -> nothing written (the og returns 0 with the
+ *                           caller's buffer untouched; the empty string
+ *                           is the C++ surface's "nothing written")
+ *   bytes < 0x100001     -> "%.2f KB", value = bytes / 1024.0
+ *   bytes < 0x40000001   -> "%.2f MB", value = bytes / 1048576.0
+ *   else                 -> "%.2f GB", value = bytes / 1073741824.0
+ * Binary (1024-tier) math under decimal KB/MB/GB labels, NO bytes tier,
+ * NO TB tier, and the +1 flip boundaries: exactly 1 MiB (0x100000)
+ * renders "1024.00 KB", exactly 1 GiB renders "1024.00 MB", 2 TiB
+ * renders "2048.00 GB". Runtime anchor: "Files Found: 1139157
+ * (143.74 GB)" - GiB under a GB label (dynamic-ground-truth :95). */
+std::string display_size_log(u64 bytes);
+
+/* display_size_ui - the tr-family formatter (DRWUI :1556295-1556400):
+ *   bytes < 0x401            -> "%1 B"   (value as-is)
+ *   bytes < 0x100001         -> "%1 KB", value = bytes / 1024.0
+ *   bytes < 0x40000001       -> "%1 MB", value = bytes / 1048576.0
+ *   bytes < 0x10000000001    -> "%1 GB", value = bytes / 1073741824.0
+ *   else                     -> "%1 TB", value = bytes / 1099511627776.0
+ * 'f' format with the CALLER's precision; bytes == 0 forces precision 0
+ * (the og's local_100 = 0 quirk - "0 B"); an all-zero fractional part
+ * that spans the FULL precision (".00" for precision 2) is stripped
+ * with its point ("5 KB", not "5.00 KB" - the og's replace(".%1 zeros",
+ * "") tail). Negative precision clamps to 0. */
+std::string display_size_ui(u64 bytes, int precision);
+
 /* The generated table's entry count (regeneration-drift guard:
  * Filter.TableCount pins it to the corpus unique count). */
 size_t filefilter_entry_count();
