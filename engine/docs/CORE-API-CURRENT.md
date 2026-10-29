@@ -44,7 +44,7 @@ ABI event types **12** (the CR_EVT_* census).
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 92 exports / 13 verbs / 45+OK error codes / 12 ABI event types> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
+> counts: 92 exports / 13 verbs / 43+OK error codes / 12 ABI event types> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
 > doc_truth_gate guards these).
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
