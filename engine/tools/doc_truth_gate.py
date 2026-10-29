@@ -463,7 +463,11 @@ def check_parity_delta_numbering():
         print("doc_truth_gate: PARITY-DELTAS.md missing")
         return False
     for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        m = re.match(r"^(?:###|\*\*)\s*D-(\d+)\b", line)
+        # M-157's gate repair: the heading form must cover BOTH `### D-<n>`
+        # AND `## D-<n>` (the S84 born-collided D-152s shipped as `##`-form
+        # rows the `###`-only pattern never counted - three lanes claimed
+        # the same seat under the gate's eye)
+        m = re.match(r"^(?:#{2,3}|\*\*)\s*D-(\d+)\b", line)
         # N-207: an ADDENDUM heading is the deliberate continuation of its
         # parent row (the D-74 supersession form) - not a new seat claim
         if m and "ADDENDUM" not in line:

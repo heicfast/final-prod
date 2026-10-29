@@ -502,7 +502,7 @@ exactly one live auto session; the pointer carries [Info]'s four fields
 (FUN_140286390) restores SavePath; PathFileExistsA validates
 (:443209-443214). The core: session::LastScanInfo (the new
 cr_lastscan.cpp module — the last_scan.info sidecar in the autosave
-dir, PARITY-DELTAS D-152's registered location difference; the HKLM
+dir, PARITY-DELTAS D-164's registered location difference; the HKLM
 mirror dropped); the retention loop in BOTH autosave bands (cr_ui.cpp +
 rrecov.cpp); cr_ui_session_last_autosave_path as the pointed-resume ABI
 (ERR_RANGE_OUT_OF_BOUNDS on no-live-pointer — the honest absence the

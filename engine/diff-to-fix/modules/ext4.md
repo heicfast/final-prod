@@ -345,7 +345,7 @@ extent/bitmap confidence grading; the orphan-actives carry the honest
 DeletedState::Active (no deletion evidence on the inode). The live-claim
 dedup holds (visited_inodes — the og resolves claims the same way); the
 mode gate stays as the registered hardening; the journal inode is claimed
-by the journal machinery (PARITY-DELTAS D-152's two rows). RED→GREEN
+by the journal machinery (PARITY-DELTAS D-163's claim row; the mode-gate half of the old D-152 combined section is D-153). RED→GREEN
 first-hand: the old skip line reintroduced alone fails
 OrphanActiveInodeSurfacesInSweep (:2500/:2506) and
 SweepStatsCountOrphanAdmissions (:2576); the fix lands all 49 Ext4Engine

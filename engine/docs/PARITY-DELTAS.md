@@ -4653,17 +4653,11 @@ step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 
 ---
 
-## D-152 — the ext4 sweep's two registered guards (M-152's residue)
+### D-163 — the ext4 sweep's journal-inode claim (M-152's residue; RENUMBERED from the born-collided D-152 seat at the S84 repair — N-145's journal-location row took D-152 first; this section's old mode-gate half was the same registration as D-153 and is removed here as the duplicate)
 
-**(a) The mode gate.** The og's inode-table sweep filter is shape-only
-(FUN_180005e50, raw-asm 0x180005f5d-0x180005f87: size_lo != 0, EXTENTS_FL,
-the 0xF30A extent magic, eh_entries != 0 — no dtime, no links, and no
-mode check either). The core keeps the regular/dir mode gate on the sweep
-admissions: a FIFO/socket with a forged extent header would pass the og's
-filter and surface as recoverable content; the core refuses it. Registered
-as the deliberate hardening — pinned by `Ext4Engine.SweepModeGateHolds`.
-
-**(b) The journal-inode claim.** The journal inode (the SB's
+The mode-gate half of the old combined section lives at D-153 (the
+renumbered M-152 registration — same corpus cites, same rationale, same
+pin). What this seat carries is the claim half: The journal inode (the SB's
 s_journal_inum, dtime==0 && links!=0 on every real volume) passes the og's
 four-gate filter and lands in the harvest map; the og's finalize
 disposition of its own journal inode is UNDECODED (the claim-resolution
@@ -4675,7 +4669,8 @@ content. If a future audit traces the og's finalize and finds the journal
 inode surfaces there, this row flips and the claim comes out.
 
 ---
-## D-152 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM
+
+### D-164 — the last-scan pointer's location: the autosave-dir sidecar, not %APPDATA%/HKLM (M-154 registration; RENUMBERED from the born-collided D-152 seat at the S84 repair — N-145's journal-location row took D-152 first)
 
 **Surface:** the auto-session lifecycle (M-154). The og's pointer is
 `%APPDATA%\EaseUS\<sub>\LastScanInfo.ini` (WritePrivateProfileStringA,

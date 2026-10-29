@@ -12204,8 +12204,6 @@ carve suite green. Trail: M-107's S83 addendum 2, the matrix row, the
 carve module addendum, SUMMARY, this entry.
 ---
 
----
-
 # Session 82 — entry 6: M-151 conceded; I-048 + M-111 + M-114 + M-154 FIXED
 
 **The registrations (three findings closed by decision per their own
@@ -12261,6 +12259,98 @@ three 07-28-{A8,B2,E4} needles, the {70,60,50} map — all carried into the
 landing's own evidence sheet).
 
 ---
+
+## Session-84 S84 fix-lane — entry 0: N-223 FIXED (the 09a18f9f trail-file marker residue + the D-152 triple seat + the gate's `##`-form blind spot closed; RENUMBERED from the born-collided N-220 seat at the merge — the racing S85 lane's 9b4a9302 finding landed N-220 first) (2026-10-30)
+
+**N-223 (MINOR, NEW — filed+fixed this session):** the S82 registration
+batch push `09a18f9f` left six trail files with live committed conflict
+markers (the matrix's M-154 row block, the ledger's nested double
+conflict + duplicate rows, the I-048 Resolution, PARITY-DELTAS's two
+conflicts, the worklog's Session-80/82 entry interleave) — the fifth
+recurrence of the M-120/N-210 class. All resolved corpus-truth-first:
+the matrix to the landed MATCH row, the ledger to the union of distinct
+rows, I-048 to the S82 registration, PARITY-DELTAS to the renumbered
+D-160/D-161/D-162 split, the worklog both-sides-kept. Beneath the
+markers: a born-collided D-152 TRIPLE seat (N-145's journal location
+[keeps the seat], the ext4 two-guards section, the last-scan pointer)
+that the doc_truth_gate never saw because its D-row pattern matched only
+`###`-form headings — the two colliding sections shipped as `##`-form
+rows. The seat repair followed the 67d2bf25 convention: the ext4
+journal-inode claim renumbered D-163 (its mode-gate half removed as
+D-153's duplicate), the last-scan pointer renumbered D-164, the
+cross-references swept (modules/ext4.md, modules/session.md, M-152's
+Resolution, SUMMARY's M-152/M-154 rows). The gate's pattern widened to
+`^(?:#{2,3}|\*\*)\s*D-(\d+)` — re-run green over 156 rows (the two
+formerly-invisible rows now counted). Trail-only change; the suite
+unaffected.
+
+**Trail:** findings/MINOR/N-223, the swept cross-references, the gate
+repair, this entry. (The N-220 seat was conceded to the racing S85
+lane's 9b4a9302-clobber finding — a different defect commit in the same
+red window; both findings stand.)
+
+---
+
+## Session-84 S84 fix-lane — entry 1: the S-068 gate regression repair — CONCEDED to the racing cd3479e7 byte-restore at the push rebase (the M-157 seat folded into the racing N-220; the convergence addendum landed there) (2026-10-30)
+
+**The session's open state:** pulled at `cac42582` (origin/main HEAD);
+audited-commit discipline per the S69+ lanes (corpus `be0cfe9`
+throughout, read-only guarantee held). The baseline suite run FIRST
+exposed the red main: `FatEngine.DeletedHigh16ZeroRebasesFromHint` and
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` both FAIL (high16_rebased
+0 != 1; the torn dentry's extent at the raw low cluster 710144 instead
+of the TRUE chain's 34264576) — the S-068 recovery-correctness surface
+was broken at HEAD.
+
+**The defect (independently found, filed as M-157, then conceded):** root-caused to the
+trail commit `9b4a9302` — its message's operative claim is "No code
+change rides this commit — the tree equals the racing window's plus
+this trail record", but the diffstat carries a 143-line engine rewrite
+(`cr_fat_quick.cpp`) plus the header, the S-068 finding file (131 lines
+removed), the matrix, and the fat module doc. The rewrite is the
+conceded lane's own variant (the message describes dropping it), and its
+central delta contradicts both the corpus and the concession's own text
+("the landed reading attributes the gate to the :14834 retry leg"):
+the retry-leg-only `hint > 0x310000` comparison was gate-raised onto
+the PRIMARY re-base gate.
+
+**Corpus verification (first-hand, before any edit):**
+`re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` —
+the PRIMARY re-base at :14753-14755 is the three-gate conjunction
+`*param_8 == '\0' && uVar5 < 0x10000 && uVar5 < DAT_1800728c8` (no
+0x310000 anywhere near it); the `0x310000 < DAT_1800728c8` comparison
+exists at exactly two sites (:14834, :30184) — both inside the RETRY
+leg's second-chance walk (FUN_180014530 and its FAT16-family twin).
+The hint update at :13753-13758 (FUN_180012e60, the shared dentry
+emission driver): non-directory gate `attr & 0x10 == 0`, the value =
+the walked (possibly re-based) first cluster.
+
+**The repair (this lane's variant, then conceded):** the primary gate
+restored (`deleted && Fat32 && reconstruct_deleted_chains && first >=
+2 && first < 0x10000 && first < hint` — the `0x310000` gate and the
+added `!is_dir` removed per the landed `ad1bcb9e` semantics); the hint
+update restored to the post-chain-resolution placement; the rewrite's
+probe hardenings KEPT (bounds, FAT-linkage refusal, broken/cycle
+refusal, the log line). At the push rebase, the racing `cd3479e7`
+byte-restore (back to the landed `ad1bcb9e` bytes exactly) had already
+landed — SA-9: the racing repair keeps the seat, this lane's variant
+withdrawn, the one implementation delta (the probe hardenings) recorded
+in the racing finding's convergence addendum for the next audit.
+
+**RED→GREEN:** the two red tests reproduced first-hand at the pulled
+HEAD before the edit; green post-repair; the four-test S-068 battery
+green; full `cr_tests` 1529 passed / 0 failed / 42 fixture-conditional
+skips (pre-existing count); `cr_ui_tests` 87/87.
+
+**Trail:** the racing findings/FIXED/N-220 (the seat) + this lane's
+convergence addendum (the identical decode, the identical repair gates,
+the probe-hardening delta), the S-068 finding's convergence record, the
+matrix S-068 row corrected (the gate description now cites the
+primary-site truth), modules/fat.md's convergence record + the
+module-note correction, this entry. The commit-message-falsification
+hazard (a "no code change" message carrying an engine rewrite) is
+recorded for the next audit's liveness battery: trail commits must be
+diffstat-checked before push.
 
 ## Session-84 — the post-remediation coherence session, opened (2026-10-29)
 
@@ -12450,6 +12540,43 @@ both evidenced in `worklog/ci-failures/test-benchmark-6.txt`; recorded here
 so the history stays truthful (no rewrite of pushed main).
 
 ---
+
+## Session-84 S84 fix-lane — the merge landing record (2026-10-30)
+
+**The rebase window:** this lane's two local commits (the N-223 trail
+repair + the S-068 gate repair) were built at `cac42582`; the push
+revealed the racing S85 lane had landed ten commits in the window
+(`8fe3542f` the format sweep, `15c59ee7` the N-219 marker repair,
+`b6801ade` N-221, `50a59f51` the gate repair, `8daf75dc` the bench
+profile fix, `9b921ef8` the lint fixes, `32441353` the image --create
+wiring, `cd3479e7` the S-068 byte-restore, `eeddec57` the racing N-220,
+plus the worklog/context commits). The merge resolution:
+
+- **cr_fat_quick.cpp:** the racing `cd3479e7` byte-restore keeps the
+  seat (byte-equal to the landed `ad1bcb9e` implementation modulo the
+  format sweep's line-wrap); this lane's variant withdrawn per SA-9,
+  the probe-hardening delta recorded in the racing N-220's convergence
+  addendum.
+- **The M-157 seat folded into the racing N-220** (the same defect:
+  the 9b4a9302 clobber) — the finding file removed unpushed, the
+  convergence addendum carrying the corroboration and the one delta.
+- **This lane's N-220 (the 09a18f9f six-trail-file marker residue +
+  the D-152 triple seat + the gate `##`-form blind spot) renumbered
+  N-223** — the racing lane's N-220 (the 9b4a9302 clobber) landed
+  first; different defect commits in the same red window, both
+  findings stand.
+- **The D-163/D-164 seat repair and the doc_truth_gate pattern fix
+  survive the merge** (the racing lane never touched the D-152 triple
+  collision — their 50a59f51 fixed the N-219 finding-ID collision
+  only). The gate is green over the merged tree.
+- **The matrix/ledger/I-048/PARITY-DELTAS conflicts** resolved to the
+  racing lane's later states where they carried more truth (their
+  ledger superset, their I-048 convergence Resolution), and to this
+  lane's states where this lane's repair is the only one (the D-164
+  renumbering; the matrix M-154 row).
+
+The post-merge verification: full suite + gate + format re-run below
+(in the next entry).
 
 ## Session-84 — entry 3 (this lane): the phantom export lands — cr_ui_session_resume_last implemented (2026-10-30)
 
