@@ -233,3 +233,12 @@ og's first-DWORD dispatch (:11692); the full-width memcmp stays as the
 grading signal (RefsInfo::signature_partial — corrupt-tail pages found,
 flagged, never silently dropped). The I-004 version-gate superset stays
 ACKNOWLEDGED (D-48b).
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **N-199** (the recognition gate lacks the og's
+second signature "FSRS"@+0x10 — Partition FUN_180003900 :1745-1759 gates
+"ReFS"@+3 AND 0x53525346@+0x10; one-line fix in probe_family's ReFS branch).
+Verified-MATCH this session: the ReFS engine's page math and version gates
+(re-walked; the S-061 retirement's insert-time grade work stands).

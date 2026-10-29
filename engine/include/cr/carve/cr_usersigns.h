@@ -46,10 +46,10 @@ namespace usersigns {
 constexpr u32 kMaxSignBytes =
     48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
 constexpr u32 kMaxEntries = 256;      /* N-170: the cap is enforced against TOTAL SIGNS
-                                         * (the loader's out.signs.size() check, cr_usersigns.cpp)
-                                         * - the og's shipped set carries 190 signs deduped (191 raw,
-                                         * the duplicate-asf merge; N-169), so 256 = 1.34x the raw
-                                         * count, the hostile-blob bound */
+                                       * (the loader's out.signs.size() check, cr_usersigns.cpp)
+                                       * - the og's shipped set carries 190 signs deduped (191 raw,
+                                       * the duplicate-asf merge; N-169), so 256 = 1.34x the raw
+                                       * count, the hostile-blob bound */
 constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
 constexpr u32 kMaxOffset = 1024; /* the og's max offset is 526 (zip "526,504B537058"); the og has no
                                   * probe-stride bound - 1024 keeps a hostile-input bound */

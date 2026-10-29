@@ -115,7 +115,12 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *  - Stage transitions fire in scan order, exactly once each. Progress
  *    samples fire when the overall permille advances (coalesced, <= 1000
  *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
- *    samples (the engines do not publish per-file increments); the
+ *    samples (the engines do not publish per-file increments) - but the
+ *    ScanProgress samples carry LIVE-refreshed counters (N-166: the
+ *    attach-time tree counter's delta over the boundary total is
+ *    attributed to the active stage's counter, so mid-stage counts MOVE
+ *    like the og's ~2 s grid cadence; the boundary stamps stay the
+ *    authoritative close-of-stage sample); the
  *    error-map delta carries the newest appended range plus the
  *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
  *    events fire per discovered candidate (deep stage, whole-disk scans).
@@ -252,7 +257,13 @@ struct ScanConfig {
      * on-disk label > image stem). An explicit --label or a live-volume
      * GetVolumeInformationW label is NOT derived (the OS label IS the
      * on-disk label for mounted volumes) and is never replaced. */
-    char volume_label[32] = {0};
+    /* N-090: the host label channel at the og's record-2
+     * volumeName[100] width (strncpy(...,99)) - a host-supplied label
+     * up to 99 UTF-8 bytes persists complete (the v6 record tail); the
+     * engine-decoded on-disk labels are inherently <= 32 bytes (the
+     * per-family decoders' own caps - FAT/exFAT 11, ext4 16, NTFS 32
+     * ASCII-substituted), so this width serves the host channel. */
+    char volume_label[100] = {0};
 
     /* S-048 (diff-to-fix): the scan target volume's drive letter
      * (UPPERCASE, 0 = absent) - the og's carve-tree volume grouping names

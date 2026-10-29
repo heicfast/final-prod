@@ -214,13 +214,15 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* the in-table DOC pair at one key (skips the deep path) */
+    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* the out-of-table ZZQX pair at another key (enters the deep path) */
+    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
     (void)add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                    Origin::Structured, 0xD000, 0x400);
@@ -690,8 +692,8 @@ TEST(Grading, DeepReadPrevSectorTailZeroGradesHigh) {
     ctx.reader.dev = &dev;
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* f = add_file(t, root, "padded.zzqx", 500, u32(FsKindCode::Fat16),
-                       DeletedState::Deleted, Origin::Structured, 2 * 512, 0x400);
+    auto* f = add_file(t, root, "padded.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 2 * 512, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, ctx, st);
     EXPECT_EQ(Grade::High, f->grade()) << "the zero tail of the previous sector promotes to High";
@@ -711,8 +713,8 @@ TEST(Grading, DeepReadSkipsOverlapFlagged) {
     auto* b = add_file(t, root, "twin2.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                        Origin::Structured, 0x5000, 0x400);
     /* the only file NOT twinned sits at byte 0 over zeroed content */
-    auto* solo = add_file(t, root, "solo.zzqx", 500, u32(FsKindCode::Fat16),
-                          DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    auto* solo = add_file(t, root, "solo.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                          Origin::Structured, 0, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, ctx, st);
     EXPECT_TRUE(a->overlap());
@@ -728,8 +730,8 @@ TEST(Grading, RegradeRunsFullTreeOnce) {
      * regrade re-ran forever (idempotent but unbounded). */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* avg = add_file(t, root, "avg.zzqx", 5000, u32(FsKindCode::Fat16),
-                         DeletedState::Deleted, Origin::Structured, 0x9000, 0x400);
+    auto* avg = add_file(t, root, "avg.zzqx", 5000, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                         Origin::Structured, 0x9000, 0x400);
     grading::AssistantStats st;
     /* no reader: the completion pass marks graded only through the deep
      * read loop - without a reader the node stays ungraded (the ABI
@@ -750,8 +752,8 @@ TEST(Grading, DeepReadReaderAbsentChangesNothing) {
     GradeMemDevice dev(u64(64) * 512);
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* f = add_file(t, root, "zeroed.zzqx", 500, u32(FsKindCode::Fat16),
-                       DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    auto* f = add_file(t, root, "zeroed.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0, 0x400);
     (void)dev;
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);

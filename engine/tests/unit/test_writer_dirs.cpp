@@ -130,8 +130,7 @@ public:
      * inject flag forces a refusal for the non-fatal path pin. The
      * POSIX translation also APPLIES times/attributes via
      * utimensat/chmod, so the on-disk state is verifiable too. */
-    u32 set_metadata(u64, const std::u16string& final_path,
-                     const FileMeta& meta) override {
+    u32 set_metadata(u64, const std::u16string& final_path, const FileMeta& meta) override {
         if (metadata_fail)
             return ERR_WRITE_FAILED;
         if (metadata_unsupported)
@@ -293,11 +292,11 @@ TEST(WriterDirs, RestoresTimestampsAndAttributes) {
     tree::ResultTree tree;
     auto* found = tree.add_root(u"Found");
     tree::FileProperties* pr = file_props("file0.txt", 0, 2);
-    pr->times.created = 130000000000000000ULL;   /* 2013-03-09 class */
+    pr->times.created = 130000000000000000ULL; /* 2013-03-09 class */
     pr->times.accessed = 131000000000000000ULL;
     pr->times.modified = 132000000000000000ULL;
-    pr->times.changed = 133000000000000000ULL;   /* NOT in the og's trio */
-    pr->attributes = 0x23u;                      /* R|H|dirty: 0x2 cleared */
+    pr->times.changed = 133000000000000000ULL; /* NOT in the og's trio */
+    pr->attributes = 0x23u;                    /* R|H|dirty: 0x2 cleared */
     tree::FileNode* n = tree.add_file(found, pr);
     (void)n;
     pr->release();
@@ -386,12 +385,15 @@ TEST(WriterDirs, MetadataFailureIsNonFatal) {
     const auto rows = writer.report_items();
     ASSERT_EQ(size_t(1), rows.size());
     EXPECT_EQ(report::Outcome::Done, rows[0].outcome);
-    EXPECT_EQ(std::string("failed:0x") + [&] {
-        char b[16];
-        std::snprintf(b, sizeof(b), "%x", u32(ERR_WRITE_FAILED));
-        return std::string(b);
-    }(),
-              rows[0].metadata) << "the report row carries the refusal code";
+    EXPECT_EQ(
+        std::string("failed:0x") +
+            [&] {
+                char b[16];
+                std::snprintf(b, sizeof(b), "%x", u32(ERR_WRITE_FAILED));
+                return std::string(b);
+            }(),
+        rows[0].metadata)
+        << "the report row carries the refusal code";
 }
 
 TEST(WriterDirs, MetadatalessBackendReportsUnsupported) {
@@ -423,12 +425,14 @@ TEST(WriterDirs, MetadatalessBackendReportsUnsupported) {
     EXPECT_EQ(u64(1), stats.done);
     const auto rows = writer.report_items();
     ASSERT_EQ(size_t(1), rows.size());
-    EXPECT_EQ(std::string("failed:0x") + [&] {
-        char b[16];
-        std::snprintf(b, sizeof(b), "%x", u32(ERR_UNSUPPORTED));
-        return std::string(b);
-    }(),
-              rows[0].metadata);
+    EXPECT_EQ(
+        std::string("failed:0x") +
+            [&] {
+                char b[16];
+                std::snprintf(b, sizeof(b), "%x", u32(ERR_UNSUPPORTED));
+                return std::string(b);
+            }(),
+        rows[0].metadata);
 }
 
 TEST(WriterDirs, StructureReconstructionWithEmptyLeaves) {

@@ -201,3 +201,17 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 |---|---|
 | volume-label decode — s_volume_name surface | **DIVERGENCE-MINOR — N-133** (the og strncpy's s_volume_name for the UI, algorithms-v2 §2 step 5; the core decodes it at cr_ext4_engine.cpp:200-201 into `Volume::volume_name` with ZERO consumers — dead code; the engine-side label is the image-scan source M-079's addendum now points at) |
 | class surface — CEXT4FileProperties / CEXT4QuickSearch / EXT4CatchBufferObj / Ext4Volume / CExt4DataRunList | **MATCH (semantic)** — the T3b class pass: props field set full-parity (I-006/I-007 + superset registered), quick/complete one-entry flags (I-016), the catch-buffer surface fully dispositioned (backtrack N-004/N-073; spawn S-027/D-59; buffering I-014-3/X51 — the og's 20 MiB window size is uncited but perf-only), the volume context and extent adapter mapped — evidence s10f-product-frame-register.md §5 |
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-065** (SEVERE — the indirect-block ladder
+unbounded: ~10⁹ reads / ~17 GB extents per poison deleted inode; the og bounds by
+file size — the no-stuck-or-freeze focus hit), **M-143** (the journal inode-image
+harvest branch absent — the S-004 sibling surface), **M-144** (the 8 MiB GDT cap
+refusing >16 TiB 64BIT volumes + MAX_GROUPS >128 TiB; the og unbounded),
+**N-193** (four SB acceptance-band deltas consolidated — register), **I-045** (the
+unwritten ee_len og-defect non-adoption register, batch #3). Verified-MATCH this
+session: the size-bounded indirect walk's og form (FUN_180005490), the journal
+dir-block classifier's '.'/'..' test, the GDT allocation math, and the
+extents-path budget (the S-065 gap is the non-extents path only).

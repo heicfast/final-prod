@@ -1,4 +1,4 @@
-# MINOR N-188 — the stock raw-sign layer never ticks `validated`: carved_found excludes the og's own layer-1 sign-table channel (the N-171 class, stock side)
+# MINOR N-193 — the stock raw-sign layer never ticks `validated`: carved_found excludes the og's own layer-1 sign-table channel (the N-171 class, stock side)
 
 **Severity:** MINOR
 **Module:** carve (stats)
@@ -6,6 +6,7 @@
 **Corpus references:** n/a — core-side stats-truth defect, the same frame as N-171 (the og's own counting surface is the GetRawUserInfoMap per-scan map, FUN_18000ed00 insert-or-increment, which counts every analyser detection; the core's `carved_found` headline is the count analog)
 **Core references:** `src/core/carve/cr_carve.cpp` (the stock raw-sign walk: `sign_hits`/`sign_validated` tick at the CANDIDATE site, before the F9 dedup; the emission path adds the node with no `validated` tick), `src/core/orchestrator/cr_scan.cpp:2362` (`stats.carved_found = cs.validated` — the sole consumer), `include/cr/carve/cr_carve.h:52` (`u64 validated = 0; /* grammar-confirmed */` — the design comment that baked the exclusion in)
 **Status:** FIXED (filed during N-171's fix verification — the §8 discovery protocol; fixed in the same session)
+**Renumber:** N-188 → **N-193** (two seats raced mid-repair: an active N-191 filing [the D-118-numbering-collision finding] and an active N-192 filing [clone-drops-short-name-on-fanout] pushed while this repair ran - N-193 is the verified next-free seat against the full board) (2026-10-29, the S56 lane's second collision repair: this file's landing `20c611a3` 23:25:42 UTC took the N-188 seat 3 minutes AFTER the m119-window lane's renumber INTO N-188 at `30348fa7` 23:22:29 UTC — the m119 window keeps N-188 per SA-9; the freedom check raced the push window again, now guarded by the doc_truth_gate's FIXED-dir uniqueness check)
 
 ## Summary
 

@@ -336,3 +336,20 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   insert-time High absent), M-138 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair), M-134 — FIXED (session-52: the deep-read grade + the one-shot full-tree re-grade landed; suite 1379/1379; the pre-check trio stays OQ-S42-3) (the deep-read
   validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
   Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings touching this module: **M-146** (probe_family's NTFS gate
+family mismatch — the dispatch layer's gate set re-derived from the analyser),
+**N-199** (the ReFS second signature FSRS@+0x10 absent in probe_family),
+**N-194** (the size display formatters absent — the query surface). Verified-MATCH
+this session (the state-management axis, the user's focus battery): the scan
+lifecycle states and every transition writer re-walked against cr_scan's
+single-owner model (the I-041/I-042/I-043/D-122 registers corroborated — no new
+state divergence), the watchdog's bounded teardown, the CUIScanProgressInfo
+monotonicity protocol, the telemetry clamp family (the 99→100 clamp kept distinct
+from the 98% classifier and the 99.99 display cap — three different constants,
+now each pinned), and the progress/stage weighting. The pause type-gate and the
+"Reading sector" ticker are recorded as precise next probes in
+`evidence/s54-deepdive-orchestration.md` (UNRESOLVED #1/#2).

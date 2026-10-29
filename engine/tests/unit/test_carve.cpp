@@ -7634,11 +7634,12 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         const char* magic_hex; /* the og's own shipped sign bytes */
     };
     const Case cases[] = {
-        {"amr", "2321414D52"},                     /* #!AMR (conf 870) */
-        {"class", "CAFEBABE"},                     /* cafe babe (conf 800) */
-        {"flac", "664C614300000022"},              /* fLaC.... (conf 940) */
-        {"msf", "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
-        {"pdb", "4D6963726F736F66742043"},        /* "Microsoft C" (the built-in 12) */
+        {"amr", "2321414D52"},        /* #!AMR (conf 870) */
+        {"class", "CAFEBABE"},        /* cafe babe (conf 800) */
+        {"flac", "664C614300000022"}, /* fLaC.... (conf 940) */
+        {"msf",
+         "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
+        {"pdb", "4D6963726F736F66742043"},      /* "Microsoft C" (the built-in 12) */
     };
     for (const Case& c : cases) {
         std::vector<u8> img(2ull << 20, 0);
@@ -7651,8 +7652,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         (void)magic;
         /* a user sign under a DIFFERENT ext for the same magic: if the
          * user layer ran first, this record would win the position */
-        std::string json = std::string("{\"") + c.ext +
-                           "u\": {\"signs\": [\"0," + c.magic_hex + "\"], \"mime\": \"x/test\"}}";
+        std::string json = std::string("{\"") + c.ext + "u\": {\"signs\": [\"0," + c.magic_hex +
+                           "\"], \"mime\": \"x/test\"}}";
         carve::usersigns::UserSignSet set;
         ASSERT_EQ(OK, carve::usersigns::parse(json.c_str(), json.size(), set)) << c.ext;
         ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set))) << c.ext;
@@ -7663,8 +7664,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK,
-                  carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << c.ext;
         u32 builtin = 0, user = 0;
         tree::FileNode* built_n = nullptr;
@@ -7797,6 +7798,21 @@ TEST(CarveEngine, UserSignFilesCountInCarvedFound) {
 namespace {
 /* Install the shipped default set; returns false when the file/parse
  * fails (callers ASSERT on it). */
+/* S-058-window hygiene: every test that installs the default (or any)
+ * set must restore the EMPTY registry on exit - the per-process global
+ * leaks into every later carve test in the binary (the CplWpl leak left
+ * the default set's lha sign "2,2D6C68" live, and the LzhWrongDash
+ * fixture's "-lh0x" at +2 then carved a device-end .LHA - correct og
+ * parity for the default set, but a poisoned world for tests that
+ * assert built-in-layer-only behavior). */
+struct UsersignTeardown {
+    ~UsersignTeardown() {
+        carve::usersigns::UserSignSet empty;
+        empty.valid = true;
+        (void)carve::usersigns::install_set(std::move(empty));
+    }
+};
+
 bool install_default_usersigns() {
     std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     if (!in.good())
@@ -7839,6 +7855,7 @@ u32 count_ext_records(tree::FileNode* root, const char* ext8) {
 } // namespace
 
 TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
+    UsersignTeardown usersign_teardown;
     /* The finding's falsifiable case: a FLAC header at a stride on the
      * DEFAULT configuration. Pre-fix: one device-end user-sign record
      * (tag 0xFFFE0000, conf 600, len = total - start). Post-fix: the
@@ -7873,6 +7890,7 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
 }
 
 TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* Every one of the 8 default-set formats that ALSO live in the
      * built-in table: each format's own built-in header sign is planted
      * at a stride; the built-in candidate must own the position and no
@@ -7924,6 +7942,7 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
 }
 
 TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
+    UsersignTeardown usersign_teardown;
     /* A built-in magic in a device smaller than the format's min_size
      * floor: the built-in arm matches but its floor gate declines, and
      * the user-sign arm does NOT reclaim the position (built-in-first
@@ -7949,6 +7968,7 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
+    UsersignTeardown usersign_teardown;
     /* The S-055 fix-lane decision, pinned: a magic the GRAMMAR layer
      * matched but rejected (truncated JPG - the default set carries jpg
      * signs, the built-in raw-sign table has no jpg row) is not
@@ -7982,6 +8002,7 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
+    UsersignTeardown usersign_teardown;
     /* The channel stays functional post-reorder: a magic NO layer
      * claims (not grammar, not built-in) still emits the user-sign
      * record. Same shape as UserSignatureProbedAtStride, re-pinned here
@@ -8124,6 +8145,7 @@ void plant_hex_bytes(std::vector<u8>& img, size_t at, const char* hex) {
 } // namespace
 
 TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* The two overlap formats whose collisions the offset-0 sign walk
      * cannot reach, each pinned with BOTH layers matching at one stride:
      *   cpl - the user sign DCDC at +0 AND the built-in sign at +12 (the

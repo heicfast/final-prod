@@ -71,7 +71,7 @@ public:
      * without a metadata surface keep the default (the writer reports
      * "not restored" truthfully). */
     struct FileMeta {
-        u64 created = 0;  /* 100ns since 1601 (the FileTimes wire unit) */
+        u64 created = 0; /* 100ns since 1601 (the FileTimes wire unit) */
         u64 accessed = 0;
         u64 modified = 0;
         u32 attributes = 0; /* the DOS attribute word (the og clears 0x2) */

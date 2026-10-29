@@ -153,9 +153,8 @@ u32 WinDestIo::set_metadata(u64 item_id, const std::u16string& final_path_utf16,
     u32 rc = OK;
     if (meta.set_attributes && !SetFileAttributesW(path, meta.attributes))
         rc = ERR_WRITE_FAILED; /* the og's "Failed to set file attribute" */
-    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
-                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE)
         return rc != OK ? rc : u32(ERR_WRITE_FAILED); /* "Failed to set file time" */
     FILETIME ft_create, ft_access, ft_write;

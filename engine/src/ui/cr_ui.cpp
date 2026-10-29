@@ -54,7 +54,7 @@
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
-#include <fcntl.h>   /* S-060: AT_FDCWD for utimensat */
+#include <fcntl.h> /* S-060: AT_FDCWD for utimensat */
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
@@ -2292,9 +2292,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2900,8 +2900,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3135,6 +3135,7 @@ u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* c
         row.elapsed_ms = s.volume.elapsed_ms;
         row.save_unix = s.volume.save_unix;
         copy_cstr(row.label, sizeof(row.label), s.volume.label);
+        copy_cstr(row.label_full, sizeof(row.label_full), s.volume.label_full);
     }
     /* the og's LastScanRecordView order: the record-2 SYSTEMTIME
      * comparator (FUN_140273550: SystemTimeToFileTime over row+0x20,
@@ -3170,6 +3171,7 @@ u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
     out->elapsed_ms = i.elapsed_ms;
     out->boot_hash = i.boot_hash;
     copy_cstr(out->label, sizeof(out->label), i.label);
+    copy_cstr(out->label_full, sizeof(out->label_full), i.label_full); /* N-090 */
     copy_cstr(out->model, sizeof(out->model), i.model);
     copy_cstr(out->serial, sizeof(out->serial), i.serial);
     return ret_ok();

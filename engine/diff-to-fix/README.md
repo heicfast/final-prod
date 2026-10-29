@@ -31,6 +31,30 @@ remaining scope narrowed to the +0x72/+0x74 flag-setter origins). Board at
 the pushed tree: **45 active (5 SEVERE · 19 MAJOR · 21 MINOR · 0 INFO) /
 107 FIXED / 5 tracked-open.**
 
+---
+
+**Session-54 S54 lane (2026-10-29 — the fifth continuation lane of the user's
+second-session mandate; opened `55e88af0`, renumbered from S52 per SA-9, findings
+lead-verified and filed at core `34d6cf10`, corpus `be0cfe9`):** the liveness
+battery (66 active → 55 LIVE / 5 PARTIAL / 6 UNCERTAIN / 1 falsely-active
+N-142→N-186 scope-corrected; the hot window's 26 retirements absorbed) + the focus
+deep dives on the user's named parameters (sector math / scanning / detection
+validators / calculations / hang safety / persistence / state) + 20 new filings
+(**S-063..S-066** SEVERE [the exFAT base−12 re-base renumbered S-062→S-066 at the
+push-rebase per SA-9 — the remote's S-062 pushed first]: the exFAT base−12 re-base,
+the NTFS $MFTMirr bootstrap fallback, the FAT string-vs-bracket flavor, the ext4
+unbounded ladder; **M-138, M-141..M-144 + M-145/M-146** [the 55AA and probe-family
+findings renumbered M-139/M-140→M-145/M-146 at the same rebase]
+MAJOR: the NTFS open-ladder acceptance-band family, the HFS+ wrong-field validator,
+the ext4 journal inode-image + volume caps; **N-187, N-188, N-193..N-195 + N-196..N-199** MINOR [the last four renumbered
+N-189..N-192→N-196..N-199 at the same rebase]; **I-045** INFO)
++ 3 addenda (M-126's ETA seed, N-178's pause type-gate, N-186's scope correction)
++ 4 corpus-errata rows. Every filing's evidence: `evidence/decompiled-quotes/s54-finding-quote-pack.md`
++ the six context sheets `evidence/s54-*.md`. **Board at the rebase-absorbed close: 65 active (0 ACUTE · 8 SEVERE · 26 MAJOR ·
+30 MINOR · 1 INFO) / 109 FIXED / 5 tracked-open. Next free: S-067+, M-147+,
+N-200+, I-046+, A-015+.** The audited commit for every S54 finding is
+`34d6cf10`; the session record and handoff are in `worklog.md` (S54 entries).
+
 **ID-allocation convention (N-160 item 5, enforced by `tools/doc_truth_gate.py` in CI):**
 a next-free-ID check must run against the FIXED-LEDGER's resolved rows AND the
 in-flight parallel lanes' claims, never the active board alone — the S41 lane's
