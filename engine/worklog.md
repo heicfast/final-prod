@@ -11476,3 +11476,22 @@ I-048's PARITY-DELTAS registers. Already landed by the racing lanes this
 window and therefore NOT re-fixed here: S-067, N-211, N-215. The
 driver-repo-resident quintet (M-086/M-087/M-089/N-107/N-127) stays pushed
 forward under OQ-S10-3 (the two-repo grant).
+
+## Session-80 S80 fix-lane — entry 3: the S-067 convergence arbitration (2026-10-29)
+
+The racing S81 lane landed S-067 first (`d37840c4`, the raw-boot-count
+boundary citing RAWSearchDLL:36750, BAD kept → 0). My independent
+corpus re-read found both points diverge from the og's PRIMARY
+constructor path: the bound is max(boot cc, fat_bytes/4) (:36793-36804
+— :36750 is the backup-rebase path), and the clamp subsumes BAD
+(0xFFFFFFF7 ≥ any legal bound at BOTH walk sites — the read-loop site
+:12905-12907 cited by neither lane's first landing). The correction
+commit (on top of the first landing, first-landing-wins + corpus
+arbitration): the primary-path formula at the FAT setup (saturating),
+follow_exfat_chain unified on the struct's bound (param retired), BAD →
+EOC, the cc+2 FREE-probe replaced by the og's bound on the continuation.
+ExactClusterCountEntryClampsToEoc re-pinned (boot-count entry FOLLOWED,
+two extents); ChainClampsAtFatAddressableBoundary (entry == 128 → clean
+end) + BadClusterEntryEndsChainCleanly (assumed_contiguous == 0) added.
+Suite 1598/1598. Trail: the finding's S80 correction addendum, ledger
+row parenthetical, modules/exfat.md correction block, this entry.

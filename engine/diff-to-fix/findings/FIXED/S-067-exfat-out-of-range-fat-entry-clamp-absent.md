@@ -105,3 +105,48 @@ None — both og sites and both core sites were read directly; the only engineer
 **Fixed in commit:** (this push; the S80 parity fix lane, 2026-10-29)
 **Verified by:** RED first-hand via the stash dance (the source fix stashed, rebuilt: `ExfatEngine.OutOfRangeFatEntryEndsChainCleanly` / `ExfatEngine.ExactClusterCountEntryClampsToEoc` / `ExfatEngine.ReservedFFF6EntryEndsChainCleanly` — 3/3 FAILED pre-fix; restored, rebuilt: 3/3 PASSED). Regression guards: the full exFAT suite 44/44 green (the one skip is the pre-existing mkfs.exfat tool pin), the EXFAT-2 family (`FreeEntryContiguousSalvage`) and the EXFAT-3 family (`EocFamilyTerminatesChain`) re-pinned green post-fix. The finding's own fixture note was corrected in flight: a 1-cluster plant never reaches the mid-chain entry (the walk's expect-bound caps members at ceil(data_len/cluster_bytes)), so the tests use the finding's specified 3-cluster shape with the garbage at the MID-CHAIN position (cluster 91's entry), where the wild member is reachable.
 **Resolution notes:** `ExfatFat` now carries `cluster_count` (set from `p.cluster_count` in `scan_exfat`'s setup — the og's volume-context +0x18, itself a verbatim copy of the boot's +0x5C field, RAWSearchDLL:36750 `*(undefined4 *)(puVar14 + 0x18) = *(undefined4 *)(param_3 + 0x5c)`, re-verified first-hand this session); `next()` clamps every entry `v >= cluster_count` to `EXFAT_EOC` after the existing FREE/BAD and EOC-family mappings (the family checks stay for clarity — they are subsets of the clamp once the count is known; `cluster_count == 0` means unknown and disables the clamp — the boot gates guarantee nonzero on every validated volume). `follow_exfat_chain`'s loop gains the og's belt-and-braces bound `c < 0xFFFFFFF6` (exFATSearchDLL:41315 `while (uVar30 < 0xfffffff6)`), redundant with the clamp but pinning the og's shape. Corpus evidence re-verified first-hand before the fix: the clamp at :41348-41351 (`if (*(uint *)(param_2 + 0x18) <= uVar15) uVar15 = 0xffffffff;`), the loop bound at :41315, and FUN_180021c60's FREE-continuation at LAB_180021e5d (:28158-28163). The safety-hardening posture is unchanged: no hardening surface sits near this walk.
+
+---
+
+## S80 correction addendum (2026-10-29 — the convergence arbitration: two lanes landed S-067; the corpus settles two divergences in the first landing)
+
+Two lanes converged on S-067 within minutes (the racing S81 lane's
+`d37840c4` first, this lane's commit rebased on top). The first landing
+carried the finding's original fix-plan boundary (the raw boot
+cluster_count, citing RAWSearchDLL:36750) and kept the BAD→0 mapping.
+This lane's independent corpus re-read found BOTH points diverge from
+the og's primary path:
+
+1. **The boundary is max(boot ClusterCount, FatLength_bytes/4), not the
+   raw boot count.** The og's volume constructor has TWO paths: the
+   PRIMARY path (the backup boot at +12 validates via FUN_18002bec0 →
+   nonzero) computes `uVar17 = (bytes_per_sector * fat_length) >> 2;
+   if (boot_cc < uVar17) cc = uVar17;` (:36793-36804); only the
+   BACKUP-REBASE path (the primary destroyed, base = anchor − 12)
+   copies the boot count verbatim (:36750 — the first landing's
+   citation). The core's scan models the primary construction, so the
+   max() formula is the parity surface. On the test fixture (cc=100,
+   1-sector FAT = 128 entries) the first landing clamped at 100; the
+   corpus-true bound is 128 — an entry of exactly 100 is an ordinary
+   in-FAT cluster the og FOLLOWS.
+2. **BAD 0xFFFFFFF7 is chain END.** The clamp subsumes the reserved
+   family (the bound ≤ 0xFFFFFFF5 by the boot gate, so 0xFFFFFFF6 AND
+   BAD are ≥ the bound at BOTH og walk sites — the run-list walk
+   :41346-41348 and the read loop :12905-12907, the second site neither
+   lane's first landing cited). The old BAD→0 routing fed BAD into the
+   EXFAT-2 FREE-salvage continuation — an assumed c+1 step past a
+   marked-bad cluster under the PartialRisk downgrade, where the og
+   ends the chain cleanly.
+
+The correction commit (this addendum's push): the bound is computed at
+the FAT setup as `max(p.cluster_count, fat_bytes/4)` (saturating) into
+`ExfatFat::cluster_count`; `follow_exfat_chain` unified on the struct's
+bound (the fourth parameter retired); BAD → EOC in `next()`; the old
+cc+2 FREE-boundary probe (a core invention setting `broken`) replaced
+by the og's own bound applied to the FREE continuation (clean end).
+Tests: `ExactClusterCountEntryClampsToEoc` corrected to the corpus-true
+shape (the boot-count entry FOLLOWED — two extents, the second at
+cluster 100); `ChainClampsAtFatAddressableBoundary` added (the entry ==
+fat_entries == 128 boundary → clean end, logical_size 1536 kept);
+`BadClusterEntryEndsChainCleanly` added (assumed_contiguous == 0, the
+clean partial file at Excellent). Suite 1598/1598.

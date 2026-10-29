@@ -38,18 +38,31 @@ struct ExfatFat {
     mutable std::vector<u8> win;    /* 1 MiB window cache (og: 0x100000) */
     mutable u64 win_first_byte = 0; /* FAT-relative start of the loaded window */
     mutable u32 refills = 0;        /* drained into stats at scan end */
-    /* S-067: the volume's cluster count (the og's volume-context +0x18,
-     * a verbatim copy of the boot +0x5C field - RAWSearchDLL:36750
-     * `*(undefined4 *)(puVar14 + 0x18) = *(undefined4 *)(param_3 + 0x5c)`).
+    /* S-067: the volume's chain-clamp bound (the og's volume-context
+     * +0xC0-bytes field). The og has TWO construction paths and they
+     * differ: the PRIMARY path (the backup boot at +12 validates,
+     * FUN_18002bec0 != 0) computes max(boot ClusterCount,
+     * FatLength_bytes/4) — RAWSearchDLL :36793-36804 (`uVar17 =
+     * (bytes_per_sector * fat_length) >> 2; if (uVar2 < uVar17)
+     * uVar8 = uVar17;`) — the boot count floored by the FAT's
+     * addressable entry count; the BACKUP-REBASE path (the primary
+     * destroyed, base = anchor - 12) copies the boot count verbatim
+     * (:36750). The core's scan models the primary construction — the
+     * max() formula is the parity surface (the rebase path's verbatim
+     * variant is an og internal inconsistency, recorded in the
+     * finding's S80 correction addendum). Saturating (the og's u32
+     * arithmetic can wrap on absurd fat_length values; saturation is
+     * the strictly-conservative superset for a garbage-entry clamp).
+     * Zero = unknown (no clamp; boot gates guarantee nonzero on every
+     * validated volume).
      * The og's walk loop clamps every FAT entry against it
      * (exFATSearchDLL:41348-41351: `if (*(uint *)(param_2 + 0x18) <=
-     * uVar15) uVar15 = 0xffffffff;` - an entry at or above the cluster
-     * count is EOC, the chain ends CLEANLY at the previous cluster).
-     * Garbage/stale entries in [cluster_count, 0xFFFFFFF7] must not be
+     * uVar15) uVar15 = 0xffffffff;` - an entry at or above the bound
+     * is EOC, the chain ends CLEANLY at the previous cluster).
+     * Garbage/stale entries in [bound, 0xFFFFFFF7] must not be
      * followed as raw cluster numbers - the third leg of the damaged-FAT
      * semantics family (after EXFAT-2 FREE-continuation and EXFAT-3
-     * EOC-family). Zero = unknown (no clamp; boot gates guarantee
-     * nonzero on every validated volume). */
+     * EOC-family). */
     u32 cluster_count = 0;
 
     bool windowed() const { return win_dev != nullptr; }
@@ -83,7 +96,7 @@ struct ExfatFat {
     }
     u32 next(u32 c) const {
         u32 v = entry(c);
-        if (v == EXFAT_FREE || v == EXFAT_BAD)
+        if (v == EXFAT_FREE)
             return 0;
         /* EXFAT-3 (AUDIT-FAT): the spec EOC family is 0xFFFFFFF8..0xFFFFFFFF
          * (and og treats the range as chain end); only exact 0xFFFFFFFF
@@ -91,13 +104,24 @@ struct ExfatFat {
          * numbers -> bounds failure -> broken chains on spec-legal volumes. */
         if (v >= EXFAT_EOC_MIN)
             return EXFAT_EOC;
+        /* S-067 correction (BAD): the og's clamp subsumes the reserved
+         * family — both og chain sites apply `entry >= chain bound ->
+         * EOC` (the run-list walk exFATSearchDLL :41346-41348, the read
+         * loop :12905-12907), and the bound <= 0xFFFFFFF5 (boot gate),
+         * so BAD 0xFFFFFFF7 is chain END there, never a FREE-style
+         * continuation. The old `v == EXFAT_BAD -> 0` mapping routed
+         * BAD into the EXFAT-2 salvage path — a chain that the og ends
+         * cleanly was instead extended one cluster past a marked-bad
+         * cluster under the assumed downgrade. */
+        if (v == EXFAT_BAD)
+            return EXFAT_EOC;
         /* S-067: the og's out-of-range clamp (exFATSearchDLL:41348-41351:
-         * entry >= the volume's cluster count -> EOC). A garbage or stale
-         * entry in [cluster_count, 0xFFFFFFF7] ends the chain cleanly at
+         * entry >= the volume's chain bound -> EOC). A garbage or stale
+         * entry in [bound, 0xFFFFFFF7] ends the chain cleanly at
          * the previous cluster instead of being followed as a raw cluster
          * number (out-of-volume member + broken-chain downgrade). The
          * EOC-family check above stays for clarity - it is a subset of
-         * this clamp once cluster_count is known. */
+         * this clamp once the bound is known. */
         if (cluster_count != 0 && v >= cluster_count)
             return EXFAT_EOC;
         return v;
@@ -111,8 +135,7 @@ struct ChainResult {
     bool assumed_contiguous = false; /* EXFAT-2: FREE-entry continuation */
 };
 
-ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
-                               u32 cluster_count = 0) {
+ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters) {
     ChainResult r;
     /* M-127: the run-coalescing guard (the og's range-tree shape - the
      * exFAT twin of follow_chain's fix; the FREE-continuation path can
@@ -145,16 +168,24 @@ ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
              * salvage heuristic for FAT-zeroed volumes - deletion zeroes
              * the chain). The old hard-break truncated extents and
              * downgraded confidence on damaged-but-recoverable volumes.
-             * Bounded by the data-length expectation (max_clusters) and the
-             * heap size. */
-            if (cluster_count != 0 && c + 1 >= cluster_count + 2) {
-                r.broken = true;
-                break;
-            }
+             * Bounded by the data-length expectation (max_clusters) and
+             * the heap size. */
             r.assumed_contiguous = true;
             n = c + 1;
         }
+        /* S-067 (the third damaged-FAT leg): the og's out-of-range clamp —
+         * `entry >= chain bound -> EOC` (both og walk sites: the run-list
+         * walk :41346-41348, the read loop :12905-12907, the clamp applied
+         * to the raw entry AND the FREE continuation alike). A garbage or
+         * stale entry at or beyond the bound ends the chain CLEANLY at
+         * the previous cluster: the walked prefix stands, no wild
+         * out-of-volume member is attached, no broken flag. This replaces
+         * the old cc+2 FREE-boundary probe (a core invention that flagged
+         * the chain broken where the og ends it cleanly at its own
+         * bound). */
         if (n >= EXFAT_EOC_MIN)
+            break;
+        if (fat.cluster_count != 0 && n >= fat.cluster_count)
             break;
         c = n;
     }
@@ -283,7 +314,7 @@ std::vector<u8> read_dir_chain(ScanCtx& ctx, u32 first, u32 max_bytes, bool* ok)
     *ok = false;
     ChainResult chain;
     if (ctx.have_fat)
-        chain = follow_exfat_chain(ctx.fat, first, 0x10000, ctx.p.cluster_count);
+        chain = follow_exfat_chain(ctx.fat, first, 0x10000);
     if (chain.clusters.empty() && first >= 2) {
         /* no FAT or FAT lost: try contiguous single cluster */
         chain = contiguous_chain(first, 1);
@@ -473,7 +504,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 std::memcpy(&be, f, sizeof(be));
                 if (be.first_cluster >= 2) {
                     ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, be.first_cluster,
-                                                                       0x10000, ctx.p.cluster_count)
+                                                                       0x10000)
                                                   : contiguous_chain(be.first_cluster, 1);
                     if (bc.clusters.empty())
                         bc = contiguous_chain(be.first_cluster, 1);
@@ -541,7 +572,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                  * checksum32 - the same ROL31+add the boot region and
                  * entry sets use */
                 ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, ue.first_cluster,
-                                                                   0x10000, ctx.p.cluster_count)
+                                                                   0x10000)
                                               : contiguous_chain(ue.first_cluster, 1);
                 if (bc.clusters.empty())
                     bc = contiguous_chain(ue.first_cluster, 1);
@@ -783,8 +814,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                     ++ctx.stats->no_fat_chains;
                 } else if (ctx.have_fat) {
                     chain = follow_exfat_chain(ctx.fat, first_cluster,
-                                               is_dir ? 0x10000 : (expect ? expect : 1),
-                                               ctx.p.cluster_count);
+                                               is_dir ? 0x10000 : (expect ? expect : 1));
                     if (chain.assumed_contiguous)
                         ++ctx.stats->assumed_contiguous;
                 } else {
@@ -1063,7 +1093,9 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     ctx.root_deleted = root_deleted;
     ctx.root_lost = root_lost;
     ctx.stats = &stats;
-    ctx.fat.cluster_count = p.cluster_count; /* S-067: the og's +0x18 clamp bound */
+    ctx.fat.cluster_count = p.cluster_count; /* S-067: provisional (the
+     * boot count); corrected to the og's primary-path formula at the
+     * FAT setup below, where fat_length is known */
 
     /* FAT load (if the volume has one). S-013: the whole-FAT fast path
      * covers small volumes; EVERY other case (FAT over 32 MiB, FAT
@@ -1076,6 +1108,19 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     if (p.fat_length != 0) {
         const u64 fat_base = u64(p.fat_offset) * p.bytes_per_sector;
         u64 fat_bytes = u64(p.fat_length) * p.bytes_per_sector;
+        /* S-067 correction: the og's primary-path clamp bound —
+         * max(boot ClusterCount, FatLength_bytes/4) (RAWSearchDLL
+         * :36793-36804, the volume constructor the primary scan takes
+         * when the backup boot validates). On this formula an entry
+         * below the FAT's addressable count is an ordinary cluster the
+         * og FOLLOWS even when it is at or above the boot count. */
+        {
+            const u64 fat_entries64 = fat_bytes >> 2;
+            const u32 fat_entries =
+                fat_entries64 >= 0xFFFFFFFFu ? 0xFFFFFFFFu : u32(fat_entries64);
+            if (fat_entries > ctx.fat.cluster_count)
+                ctx.fat.cluster_count = fat_entries;
+        }
         bool whole = false;
         if (fat_bytes <= (32u << 20) && fat_base + fat_bytes <= slice->size()) {
             ctx.fat.data.resize(size_t(fat_bytes));

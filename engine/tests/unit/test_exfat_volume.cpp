@@ -967,15 +967,20 @@ TEST(ExfatEngine, OutOfRangeFatEntryEndsChainCleanly) {
 }
 
 TEST(ExfatEngine, ExactClusterCountEntryClampsToEoc) {
-    /* S-067 boundary: the mid-chain entry equals the boot's cluster count
-     * field itself (100) - the og's `<=` comparison clamps it; the chain
-     * ends at the previous cluster. (Valid clusters are 2..cluster_count+1;
-     * the og deliberately clamps at the raw field - belt-and-braces on the
-     * reserved family AND every out-of-range value.) */
+    /* S-067 boundary, CORRECTED against the corpus (the S80 correction
+     * addendum): the og's primary-path volume constructor computes the
+     * clamp bound as max(boot ClusterCount, FatLength_bytes/4)
+     * (RAWSearchDLL :36793-36804) - on this fixture cc=100 but the FAT
+     * holds 1 sector = 128 entries, so the bound is 128. An entry of
+     * exactly 100 (the boot count) is BELOW the bound - an ordinary
+     * cluster the og FOLLOWS (100 is a legal in-FAT address); the
+     * boundary clamp fires at 128. The original landing pinned the
+     * verbatim-cc boundary - the BACKUP-REBASE path's formula
+     * (:36750), not the primary's. */
     auto img = build_exfat_image();
     const size_t FAT = 24 * 512;
     put32v(img, FAT + 90 * 4, 91);
-    put32v(img, FAT + 91 * 4, 100u); /* == cluster_count: the boundary */
+    put32v(img, FAT + 91 * 4, 100u); /* == boot cc: BELOW the og's bound */
     const size_t ROOT = 25 * 512;
     const size_t AT = ROOT + 576;
     SetBuilder sb;
@@ -997,9 +1002,54 @@ TEST(ExfatEngine, ExactClusterCountEntryClampsToEoc) {
         if (n->name_utf8() == "bound.dat")
             b = n;
     ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->props()->extents.size(), 1u);
-    EXPECT_EQ(b->props()->extents[0].offset, u64(25 + 88) * 512);
+    /* cluster 100 is FOLLOWED as an ordinary cluster: the chain runs
+     * [90,91,100] (the walk's expect-bound caps at 3 members) - TWO
+     * extents, the second at cluster 100, never a clamp at the boot
+     * count. The walk never reads FAT[100] (the size bound fires
+     * first), so no FREE salvage is involved. */
+    ASSERT_EQ(b->props()->extents.size(), 2u)
+        << "the boot-count entry is FOLLOWED (below the og's bound)";
+    EXPECT_EQ(b->props()->extents[0].offset, u64(25 + 88) * 512); /* cluster 90 */
     EXPECT_EQ(b->props()->extents[0].length, 1024u);
+    EXPECT_EQ(b->props()->extents[1].offset, u64(25 + 98) * 512); /* cluster 100 */
+    EXPECT_EQ(b->props()->extents[1].length, 512u);
+    EXPECT_EQ(stats.assumed_contiguous, 0u); /* the size bound caps first */
+}
+
+TEST(ExfatEngine, ChainClampsAtFatAddressableBoundary) {
+    /* S-067 boundary (the corpus-true one): an entry exactly at the
+     * FAT-addressable count (128 on this fixture = fat_bytes/4, the
+     * primary-path formula's max operand that dominates the boot count)
+     * ends the chain cleanly - the og's `<=` comparison. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 128u); /* == the FAT's entry count */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 1536);
+    sb.name_entry(u"fbound.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* fb = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "fbound.dat")
+            fb = n;
+    ASSERT_NE(fb, nullptr);
+    ASSERT_EQ(fb->props()->extents.size(), 1u);
+    EXPECT_EQ(fb->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(fb->props()->extents[0].length, 1024u);
+    EXPECT_EQ(fb->props()->logical_size, 1536u); /* the clean partial file */
 }
 
 TEST(ExfatEngine, ReservedFFF6EntryEndsChainCleanly) {
@@ -1038,6 +1088,47 @@ TEST(ExfatEngine, ReservedFFF6EntryEndsChainCleanly) {
     EXPECT_EQ(f->props()->extents[0].length, 1024u);
     EXPECT_EQ(stats.assumed_contiguous, 0u);
     EXPECT_EQ(stats.chains_broken, 0u);
+}
+
+TEST(ExfatEngine, BadClusterEntryEndsChainCleanly) {
+    /* S-067 correction (BAD): the og's clamp subsumes the reserved
+     * family (the bound <= 0xFFFFFFF5 by the boot gate, so BAD
+     * 0xFFFFFFF7 >= the bound at BOTH og walk sites) - BAD is chain
+     * END, cleanly. The original landing kept the old BAD -> 0 mapping:
+     * BAD routed into the EXFAT-2 FREE salvage (an assumed continuation
+     * at c+1 past a marked-bad cluster, under the PartialRisk assumed
+     * downgrade) - a chain the og ends was instead extended. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 0xFFFFFFF7u); /* BAD */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 9, 90, 1536);
+    sb.name_entry(u"badcl.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(stats.assumed_contiguous, 0u) << "BAD is chain END, never FREE salvage";
+    auto all = collect_all(tree);
+    tree::FileNode* badcl = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "badcl.dat")
+            badcl = n;
+    ASSERT_NE(badcl, nullptr);
+    ASSERT_EQ(badcl->props()->extents.size(), 1u);
+    EXPECT_EQ(badcl->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(badcl->props()->extents[0].length, 1024u);
+    EXPECT_EQ(badcl->props()->logical_size, 1536u); /* the clean partial file */
+    EXPECT_EQ(badcl->confidence(), tree::Confidence::Excellent);
 }
 
 TEST(ExfatEngine, BootGatesMatchOg) {
