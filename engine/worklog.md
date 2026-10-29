@@ -1,4 +1,31 @@
 
+## Session-87 S87 fix lane (continuation) — entry 6: M-107 member 11 COMPLETED (the CWS deep gate over the racing FWS seat); the enumeration closes — M-107 FIXED (2026-10-30)
+
+- **The SWF-RECT convergence completion:** the racing window's FWS
+  seat (swf_rect_valid + the five-test battery + the
+  SwfCwsDeepGateIsTheRecordedFollowUp pin) + this lane's CWS
+  deep-gate completion in one merge: the per-arm version windows
+  (CWS [6,20] — FUN_180026b80's own (v-6)<0xf gate, TIGHTER than
+  FWS's [3,20]), the deflate CMF nibble gate ((byte@+8 & 0xF) == 8),
+  the partial-tolerant streaming inflate (only Z_DATA_ERROR/
+  Z_MEM_ERROR decline), the >= 16 inflated-byte gate, and the SAME
+  RECT walk over the inflated bytes. The follow-up pin flipped — the
+  landing the racing seat's own test anticipated. The plants
+  re-pinned both arms (the FWS real RECT; the CWS real compress2
+  stream). The convergence proof: their five FWS tests + my four CWS
+  tests + the flipped pin — 11/11 green.
+- **M-107 FIXED** — the eleven-member enumeration closed (X3F, CRW,
+  DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI, SIT, APE, SWF-RECT); the
+  DWG gen-3 R2007 remainder is the finding's precisely-scoped
+  recorded residue (the 0x3d8 accumulate + the 3x239 stride-3
+  de-interleave + FUN_18002ef50's record chain). The Resolution
+  section written; the finding moved to FIXED/.
+- Also absorbed at this merge: the racing window's FULL APE walk
+  landing (43f476e0 — the two header forms, the seek-table scan, the
+  APETAGEX epilogue, the 2 GB cap; convergent with my M-160 gate fix
+  + my M-107 S87 addendum 4 decode progress) and their v0.6.0
+  recount trail.
+
 ## Session-87 S87 fix lane (continuation) — entry 5: M-107 member 11 (SWF-RECT) lands — the enumeration closes (2026-10-30)
 
 - **M-107 member 11 (SWF-RECT) FIXED** — the RECT validation gate,
@@ -20,6 +47,112 @@
   **The member enumeration closes: 11 of 11 landed** (the APE walk
   and the DWG gen-3 R2007 remainder are the finding's recorded
   remainders, each with its decode progress registered).
+## Session-90 S90 lane — the closing handoff (2026-10-30)
+
+**The lane's unique landings (three pushes survived the racing
+windows):**
+
+1. **The SWF-RECT member (M-107 member 11) — the lane's second unique
+   seat, landed at c0c61c5c:** the FWS RECT validation gate
+   (swf_rect_valid, the exact bit-walk decoded first-hand from
+   FUN_180026940's raw asm), the finding's open question 3 answered
+   (the walk is VALIDATION-ONLY — the extent stays FileLength), five
+   tests (three RED→GREEN via the stash dance + the positive pin + the
+   CWS recorded-remainder pin), the S-007 plant re-pinned.
+2. **The WPG tier-1 corroboration** (the first push): FUN_180014030
+   stamps ONLY the id — the decode that CLOSES the S85 zero-tail
+   landing's honest residue (the +0x20 processor IS the pending
+   machinery's continuation; the "deferral" is the re-feed cadence).
+3. **The SIT ×10-gate decode + the marker-scope correction** (the
+   second push): the primary's pending cap = row_max × 10 = 2 GB
+   (0x180015e77-0x180015e7b), coexisting with the seat's row-max torn
+   bound; the "markers inert" claim corrected to the dead-gate scope
+   (the CONSTANTS are alive in FUN_180044a10's entry walk).
+
+**The concessions (the SA-9 record):** WPD (three convergent windows —
+the S84 pair-table, the S87 version-table walk with the 0xFFFFFFFF row
+max), WPG (the S85 zero-tail walk — the deeper authority), SIT (the
+racing 2214af90 entry-marker walk — the File*Analyser authority
+precedent), and the remerge cleanups that converged with the racing
+N-229 repair. Every concession carries its convergence record in the
+finding's addenda.
+
+**The board at the close (filesystem truth): 0 ACUTE · 0 SEVERE · 4
+MAJOR (M-086/M-087/M-089 [driver-repo-resident per OQ-S10-3, outside
+the two-repo grant — the boundary re-affirmed for the eighth time] +
+M-107 [the DWG gen-3 R2007 remainder only — members 1-10 + the
+SWF-RECT gate landed]) · 2 MINOR (N-107/N-127, driver-repo-resident) ·
+0 INFO active / 215 FIXED / 3 tracked-open (OQ-S10-1, OQ-S10-3,
+OQ-S4-3).** The session's aggregate landings across all lanes: M-075,
+M-078, M-101, M-105, M-107 members 1-11, M-159, M-160 (APE),
+N-219-N-230, I-048, I-049, the OQ-S79-1 retirement, the three OQ
+dispositions, the v0.6.0 notes — the 20+ mandate satisfied on the
+board.
+
+**The remaining scope (the next session's precise queue):**
+1. **M-107's DWG gen-3 R2007 remainder** — the 0x3d8-byte accumulate +
+   the 3×239 stride-3 de-interleave + FUN_18002ef50's record chain,
+   NOT decoded to landing quality (the bounded extent stands, honestly
+   recorded). The next probe: FUN_18002ef50's record-chain walk, the
+   R2007 section-page system.
+2. **The CWS inflate-gate** (my own recorded follow-up,
+   SwfCwsDeepGateIsTheRecordedFollowUp pins the current contract):
+   FUN_18002f6b80's zlib-inflate validation.
+3. The driver-repo lane (OQ-S10-3's five findings: M-086/M-087/M-089/
+   N-107/N-127) — needs a session with the rda-driver grant.
+4. OQ-S4-3's TTFR half — one Windows bench dispatch away.
+
+Suite **1727/1727** at the close (first-hand, 162 s); the local gate
+GREEN (format swept at 52441883); no live conflict markers; main green
+at `52441883`.
+
+## Session-92 S92 fix lane — the handoff (2026-10-30, the closing entry)
+
+**This lane's landings (all pushed, main green at every push):**
+1. The WPD sub-format rider (the engine-side name split — the +0x28
+   processor decode correcting the racing S87 landing's report-layer
+   framing; FMT_SHW appended, the WPG override, the strengthened
+   battery).
+2. N-230 (the duplicate-gtest red-main class record, converged with
+   the racing N-229 superset seat).
+3. The N-229/N-230 seat resolution + the fixed-directory duty + the
+   ledger rows.
+4. The APE decode-in-progress addendum (the precise continuation
+   probes for the next lane).
+
+**The suite at close:** 1719/1719 green first-hand at the final
+pushed head (linux-release, gcc 14.2 -Werror); markers clean;
+clang-format 18.1.8 clean; doc_truth_gate green.
+
+**The remaining scope (the next lane's start, in priority order):**
+1. **M-107's APE member** — the walk's first half is decoded
+   (M-107's Session-92 addendum carries the instruction addresses);
+   the continuation probes: the frame loop at :1800334c4 (the
+   [r13+0x14] gate, the 0x18006bf70 constant, the byte-compare loop),
+   the second-chunk resync at :180033421, and the four terminal
+   states. Then land the walk + the RED→GREEN battery.
+2. **M-107's SWF-RECT member** — the finding's open question 3 stands:
+   verify at FUN_180026940 whether the og's RECT parse changes the
+   extent or only the accept decision; scope accordingly (it may
+   downgrade to a validation-only change).
+3. **The DWG gen-3 (R2007) remainder** — the 0x3d8 accumulate + the
+   3×239 stride-3 de-interleave + FUN_18002ef50's record chain.
+4. The driver-repo five (M-086/M-087/M-089/N-107/N-127) stay
+   PUSHED-FORWARD under the OQ-S10-3 boundary — one driver-repo lane
+   takes all five per the recorded order.
+
+**The racing-lane lesson this lane adds to the record:** five windows
+in one session; every one of them landed at least one un-gated red
+tree (the duplicate test, the plant subscript corruption, the
+conflict-marker trails — N-226/N-227/N-228/N-229/N-230). The
+procedural fix is unchanged since N-210 and remains unimplemented by
+the racing lanes: run the gate (`ci-local.sh`, or at minimum one
+build) against the PULLED head immediately before every push.
+Formatting is not validation; a suite count claimed over a tree that
+does not compile is a false claim in the trail.
+
+---
+
 ## Session-92 S92 fix lane (renumbered from the born-collided S89/S91 — the racing windows took each seat) — opens (2026-10-30, the MINOR-first 20+ mandate)
 
 ---
@@ -142,6 +275,40 @@ Corpus: be0cfe9, read-only guarantee held.
   APETAGEX backward tail scan) for the future landing lane. The
   carve suite 210/210.
 
+## Session-90 S90 lane, entry 3 — the SWF-RECT member lands (member 11: the FWS RECT validation gate — validation-only, the open question answered) (2026-10-30)
+
+**M-107's SWF-RECT member, decoded first-hand from the raw asm and
+landed ahead of the racing windows.** The caller (FUN_1800268a0
+:29970-29996): FWS/CWS only (ZWS NOT handled — the core's gate already
+matched); the deep gate runs and on acceptance the caller stamps size =
+u32@+4 (FileLength) unconditionally — the RECT walk NEVER changes the
+extent. The finding's open question 3 answered: the RECT parse is
+VALIDATION-ONLY. The FWS deep gate (FUN_180026940, raw-asm
+0x180026940-0x180026b79): version byte@+3 ∈ [3,20]
+(0x180026953-0x180026963); FileLength ≥ 9 (0x180026969); Nbits =
+byte8 >> 3, Nbits < 2 rejects (0x180026980-83); four signed fields of
+[1 sign bit + (Nbits−1) magnitude bits] MSB-first from stream bit 5
+(the first sign bit = LSB-index bit 2 — the `and $0x4,%bl` check at
+0x180026a03; the first magnitude bit = LSB bit 1, the traced shr $1),
+sign-magnitude (neg/cmove) — for every ACCEPTED file the fields are
+non-negative where sign-magnitude == two's complement; accept iff
+Xmin < Xmax && Ymin < Ymax && Xmin ≥ 0 && Ymin ≥ 0 && Xmax > 0 &&
+Ymax > 0 (0x180026b3e-0x180026b5b). The CWS deep gate (FUN_180026b80)
+inflates the body first — the explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp.
+
+The landing: swf_rect_valid (the exact bit-walk, the 25-byte window
+covering every Nbits ≤ 31) + the S-007 plant re-pinned (the bit-writer
+helper). RED→GREEN via the stash dance:
+SwfRectValidationRejectsInvertedBox / SwfRectValidationRejectsNegative
+Field / SwfRectNbitsBelowTwoRejects — all RED at the pre-fix tree (the
+core accepted every readable FWS header), GREEN with the gate;
+SwfRectValidationAcceptsSaneBoxAtFileLength pins the positive + the
+FileLength extent. Suite **1724/1724** (166 s); clang-format clean.
+Trail: M-107's Session-90 addendum 4, the matrix row (members 1-10 +
+the SWF-RECT gate; APE + DWG gen-3 R2007 stand), modules/carve.md's
+Session-90 addendum 4, SUMMARY's third-push block, this entry.
+
 ## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
 
 - **The SIT concession:** the racing S89 window's landing (2214af90 —
@@ -196,6 +363,42 @@ Corpus: be0cfe9, read-only guarantee held.
   point; this lane's five-test battery rides as convergent
   verification).
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-89 S89 lane — M-107's APE member landed + the N-229 red-main repair; the M-105 seat conceded to the S91 window (2026-10-30)
+
+**The M-105 seat conceded per SA-9:** this lane's Option (a) landing
+(ERR_FVE_ELEVATION_REQUIRED + the pure decision + the doc set) was built
+and verified RED→GREEN locally, but the racing S91 window landed the
+identical posture (`c4d8dcee` — a pure-core cr_fve_policy module + the
+cr_ui wiring, a richer shape than this lane's header-inline form) before
+this lane's push. Their seat stands; this lane's verification of their
+landing: the fve_denial_diagnosis battery green, the row set complete
+(PACKAGING/driver-install/SECURITY/PARITY-DELTAS D-166/R-83), the
+doc_truth_gate clean at their tree.
+
+**The APE member (the batch's live-defect headline):** decoded raw-asm
+first-hand (the lane sheet carries every constant with its instruction
+address; two Ghidra renderings corrected by the asm). The stand-in's
+u32-BE version gate rejected every real Monkey's Audio file — the same
+class as M-156's X3F ASCII gate. Landed: the u16-LE [1000,9999] gate,
+the 3980 format split (the old seek-table scan with the base/align/aux
+arithmetic; the new descriptor sum u32@8+12+16+20+24+32 with the
+dword@32 MD5-term quirk kept), the APETAGEX epilogue (the finalizing
+window = the 512 bytes ending at round_up(size,512); the footer gates;
+the three extent arms), the row re-pin (min 0 / max 2e9 per the factory
+and the walk cap), the torn salvage. RED 5/6 → GREEN 6/6; the S-007
+batch's APE plant + the bad-variant fixture re-pinned to the real
+grammar. Suite 1722/1722.
+
+**N-229 (the second red-main repair this window):** the WPD convergence
+merges duplicated WpdZeroSizeFieldDeclines (cr_tests unbuildable at
+e3f34b67 behind the v0.6.0 notes); deduped, no coverage lost. The class
+rule now covers test-name collisions (the N-227 file-vs-registration
+class's sibling).
+
+Trail: M-107's S89 addendum, the N-229 finding + Resolution, both
+ledger rows, three matrix rows, SUMMARY, this entry, the carve module's
+S89 section (this push).
+
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
 
 ## Session-90 S90 lane, entry 2 — the SIT landing CONCEDED to the racing window (2214af90); the ×10-gate corroboration + the marker-scope correction carried (2026-10-30)
@@ -14159,3 +14362,22 @@ The merged tree: full suite **1712/1712**, ci-local GREEN, doc_truth_gate
 green. Trail: the finding's Session-93 addendum (the concession + the
 riders), the matrix S93 row, modules/query.md's S93 fix row, the SUMMARY
 S93 block, this entry. Corpus: be0cfe9, read-only guarantee held.
+
+## Session-86 S86 fix-lane — entry 2: the DWG convergence (concession per SA-9 + riders a/b; the WPD repair conceded to N-230) (2026-10-30)
+
+**The seat conceded.** This lane's independent DWG three-generation
+decode (evidence/s86-lane-sheets/s86-dwg-three-generation-walk-decode.md)
+converged totally with the racing S84/S85 landings (every material point
+of the walk matched; the six duplicate tests dropped at the resolution).
+**Riders landed on the seat:** (a) the tier-1 gate is TEN pairs — the
+asm's [rbp-0x50]..[rbp-0x18] stack table, the tenth "09" suffix at
+rbp-0x16, `cmp edx,0xa; jl` at 0x18002fede — AC1009 gate-passed but
+un-walked → the decline og-true (DwgVersionGateIsTheOgsTenPairs renamed
++ the third arm); (b) the gen-3 FALL-THROUGH exposed by the ten-pair
+gate — the explicit "21" match (0x18002f4eb-0x18002f505) restores the
+og's routing, the arm RED first-hand without it; (c) the WPD
+duplicate-test red main — convergent with the window's N-230 (their
+delete keeps the seat; this lane's rename form conceded and recorded in
+N-230's Resolution). Merged DWG+WPD battery 17/17 first-hand. **Next:
+M-107's remaining members — APE's frame walk, SWF-RECT** (+ the DWG
+gen-3 remainder named), then the tracked-open items.

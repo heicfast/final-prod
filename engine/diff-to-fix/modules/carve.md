@@ -1511,3 +1511,53 @@ The plants re-pinned both arms (the real RECT + the real compress2
 stream). Five RED→GREEN tests + the happy-path pin; the carve suite
 216/216. The member enumeration closes: 11 of 11 landed (the APE
 walk and the DWG gen-3 remainder are the recorded remainders).
+## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
+
+The open question answered: the RECT walk NEVER changes the extent —
+the og's caller stamps FileLength unconditionally on the deep gate's
+acceptance (FUN_1800268a0). The landing adds the FWS deep gate
+(swf_rect_valid): Nbits = byte8 >> 3 (≥ 2), four sign-magnitude fields
+of Nbits bits from stream bit 5, accept iff Xmin < Xmax && Ymin < Ymax
+&& all four ≥ 0 — the exact bit-walk, raw-asm-cited
+(0x180026940-0x180026b79). The CWS deep gate (the inflate-validation,
+FUN_180026b80) is the finding's explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
+three rejection tests RED at the pre-fix tree). Suite 1724/1724.
+**The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
+the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+
+## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
+
+This lane's independent three-generation decode (evidence/s86-lane-sheets/
+s86-dwg-three-generation-walk-decode.md) converged totally with the racing
+S84/S85 landings. Riders landed on the seat: (a) the tier-1 table is TEN
+pairs, not nine — the asm's tenth "09" entry + `cmp edx,0xa; jl` at
+0x18002fede; AC1009 gate-passed-but-un-walked → the decline og-true;
+DwgVersionGateIsTheOgsTenPairs renamed + the third arm; (b) the gen-3
+fall-through exposed and fixed — the explicit "21" match
+(0x18002f4eb-0x18002f505) restores the og's routing. The WPD duplicate
+red-main repair converged with N-230 (the delete form conceded). The
+remaining members: APE's frame walk, SWF-RECT.
+## S89 section — the APE member landed (the batch's live-defect headline; 2026-10-30)
+
+| Parameter | Verdict | Finding |
+|---|---|---|
+| A25/A27/A47 · the APE size walk | **MATCH (M-107 S89 addendum — APE landed; SWF-RECT only remains)** | The CAPEAnalyser walk, raw-asm decoded first-hand (evidence/s89-lane-sheets/s89-l1-ape-cape-walk-decode.md): the registry key "MAC " → the tier-1 stamps ONLY the id 0x51 (the WPG class); the walk's version gate is the **u16 LE at +4 in [1000,9999]** (raw-asm $0x3e8/$0x2710) — the stand-in's u32-BE [300,5000] gate REJECTED every real Monkey's Audio file (the M-156 ASCII-gate class, third occurrence: the S-007 plant itself was tuned to the wrong gate and is re-pinned). The format split at 3980: the old seek-table dword scan (the base/align/aux arithmetic, entry[0] the bound, stop at 0/≥cap, the max the walked size) vs the new descriptor sum (u32@8+12+16+20+24+32, the dword@32 MD5-term quirk kept). The APETAGEX epilogue: the finalizing window = the 512 bytes ending at round_up(size,512); the footer gates (items ≤ 0xFFFF, the signed tag_size−0x20 ≤ 0x1000000, flags bit29 clear); the three extent arms (the footer end / round_up(size+span,512) / the +512 slack). The row re-pinned: min 0 (the CAPERawInfo factory), max 2,000,000,000 (the walk cap singleton+0x70×10). Torn → the walked size at reduced confidence (the SIT/X3F class). RED 5/6 → GREEN 6/6; the S-007 batch re-pinned; suite 1722/1722 |
+
+
+---
+
+## Session-87 addendum 5 — M-107 member 11 COMPLETED: the SWF-RECT CWS deep gate; the enumeration closes
+
+The SWF-RECT member completes over the racing FWS seat: the CWS
+arm's own deep gate (FUN_180026b80) lands — the per-arm version
+windows (FWS [3,20], CWS [6,20] — TIGHTER), the deflate CMF nibble
+gate, the zlib inflate into the 512-byte window with the >= 16
+inflated-byte gate, and the SAME RECT walk over the INFLATED bytes
+(the helper refactored to the RECT pointer — both arms feed one
+walk). The follow-up pin flipped (the landing the racing seat's own
+test anticipated). The convergence proof set: the seat's five FWS
+tests + this lane's four CWS tests + the flipped pin. **The
+eleven-member enumeration closes** (the DWG gen-3 R2007 remainder
+is the finding's precisely-scoped recorded residue). M-107 moves to
+FIXED/.
