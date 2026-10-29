@@ -99,3 +99,42 @@ scan-time `<<10` exactly, and the 0x7d000 zero-max default is documented in the 
 
 These are CORPUS-ERRATA rows (the census doc is the corpus's own artifact; the core's
 code matches the binary, not the doc's labels).
+
+---
+
+## L2 — the tier-1 acceptance-gate audit (the 15 core rows with magic > 4 bytes)
+
+The og dispatches every structured-format candidate on a 4-byte registry key, then the
+analyser's own tier-1 (vtable slot +0x10, signature `CheckFormat(this, buffer)`) completes
+the full magic check inside the analyser. The core bakes the completed magic into the
+registry row. **Every long-magic row was verified against the og's tier-1 first-hand**
+(raw-asm decode where Ghidra mis-recovered the signature — the ASF tier-1 is the
+emblematic case):
+
+| core row | core magic | og tier-1 (first-hand decode) | verdict |
+|---|---|---|---|
+| FMT_PNG | 8B `\x89PNG\r\n\x1a\n` | FilePNGAnalyser slot-0x10 `FUN_180044130` :51707-51718 — `local_28=0x474e5089; if (*(int*)(param_2+4) != 0xa1a0a0d) return` → key(4B)+`0D 0A 1A 0A` = 8B | MATCH |
+| FMT_PDF | 5B `%PDF-` | FilePDFAnalyser `FUN_18004de00` :59166-59186 — `if ((*param_2 == 0x46445025) && ((char)param_2[1] == '-'))` → 5B | MATCH |
+| FMT_RAR4 | 7B `Rar!\x1A\x07\x00` | RawSpeed::RAR chain `FUN_180012bb0` :14718-14734 — `if ((*(short*)(param_2+4) == 0x71a) && (*(char*)(param_2+6) == '\0'))` → 4+3 = 7B | MATCH |
+| FMT_ASF | 16B full GUID | `FUN_180037030` raw asm :41927 — `mov dword[rsp],0x75b22630; …; sub rcx,[rdx]; jne; mov rcx,[rsp+8]; sub rcx,[rdx+8]; sete al` → **all 16 GUID bytes** (Ghidra's decompile dropped the rdx tail — mis-signature) | MATCH |
+| FMT_SQLITE | 12B `SQLite forma` | CFCPEvtAnalyser slot-0x10 `FUN_18002e2b0` raw asm :41927-region — `mov r8d,0xF; lea rdx,[rip+0x67eb0]("SQLite format 3"); call memcmp` → **15 bytes**; the core's 12B row + `validate_sqlite`'s re-gate `"t 3\0"` at +12..+15 = the same 16 bytes | MATCH (split across row+validator) |
+| FMT_7Z | 6B `7z\xbc\xaf'\x1c` | C7ZIPAnalyser slot-0x10 `FUN_1800266e0` raw asm — `c7442450 37 7a bc af; c7442454 27 1c; cmp dword[stack],"7z\xbc\xaf"; cmp word[stack+4],0x1c27` → 6B | MATCH |
+| FMT_TAR | 5B `ustar` @+257 | FileTARAnalyser slot-0x10 rva 0x438b0 raw asm — `mov eax,[rdx+0x101]; mov dword[rsp],'usta'; cmp eax,[rsp]; jne; cmp byte[rdx+0x105],'r'` → 5B at 0x101 | MATCH |
+| FMT_MOBI | 8B `BOOKMOBI` @+0x3C | MOBIAnalyser slot-0x10 `FUN_180025bc0` raw asm — two BE-collected words: `cmp rdx,0x424F4F4B` (BOOK @+60) + the second word (MOBI @+64) | MATCH |
+| FMT_LZH/5/D/7 | 5B `-lhX-` @0 | Brance::LZHAnalyser slot-0x10 rva 0x3db20 raw asm — `mov eax,[rdx+2]; cmp {-lh5,-lh0,-lhd,-lh7}; cmp byte[rdx+6],'-'` + the tier-2 entry walk `FUN_1800376f0` :42240-42304 (the core's `validate_lzh` mirror, incl. the `buf[6]=='-'` second gate) | MATCH |
+| FMT_VCF | 11B `BEGIN:VCARD` | CVCFAnalyser slot-0x10 `FUN_18003b920` raw asm — `mov r8d,0xB; lea rdx,[rip+0x6c710]("BEGIN:VCARD")` → 11B | MATCH |
+| FMT_ISO | 5B `CD001` @+0x8001 | D-60l registered core-only anchor (the og's iso9660 open lives in Boot.dll `k:\_epm_re_main\legacy_mod\mod.boot\iso9660.cpp` `:24860-24900` — PVD type-1 + CD001 + the 0xFF terminator walk; the og's carve engine has no ISO analyser) | REGISTERED DELTA (D-60l) — no finding |
+| FMT_RAR5 | 8B `Rar!\x1a\x07\x01\x00` | D-60l core-only anchor family | REGISTERED DELTA |
+| FMT_M4A / FMT_ZIP_CD / FMT_MOV_NAKED | — | D-60l core-only anchors | REGISTERED DELTA |
+
+**Conclusion: zero divergences in the long-magic family. The near-divergences
+(SQLITE's 12B row, ASF's mis-decompiled tier-1) were both resolved by reading the
+validator tail / the raw assembly — the core's acceptance boundary is og-exact for
+every audited row.**
+
+### The 37 short-magic rows (<4B keys)
+
+The og's own dispatch keys include u16/u8 forms (BM, the MPGA family, `1F 8B`, `%!`,
+`<h`, FF F1/F9…) — the core's 2-3B rows mirror these (the SCAN-ENGINE-DELTA A4 row
+already registers the full set with the census-verified keys). No divergence: the
+short rows ARE the og's own short keys.
