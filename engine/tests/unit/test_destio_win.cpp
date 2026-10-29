@@ -63,8 +63,17 @@ TEST(WinDestIo, M074DestinationCodesDifferentiated) {
         WinDestIo io;
         std::u16string base = u16_from(cr_test::tmp_path("destio", "m074"));
         std::filesystem::create_directories(cr_test::tmp_path("destio", "m074"));
-        std::u16string long_name(300, u'x');
-        const u32 rc = io.create_temp(2, base + u"\\" + long_name, u".tmp");
+        /* N-239: the runner has long paths ENABLED - the 300-char shape
+         * is a VALID path there (release-357 red first-hand: the create
+         * proceeded past the length check and failed on a different
+         * axis, mapping to ERR_DEST_UNWRITABLE - the collapsed code
+         * this finding exists to prevent). Only > 32,767 chars - a
+         * deep chain of < 255-char components - guarantees
+         * ERROR_FILENAME_EXCED_RANGE on EVERY host configuration. */
+        std::u16string deep;
+        for (int i = 0; i < 140; ++i)
+            deep += u"\\" + std::u16string(240, u'x');
+        const u32 rc = io.create_temp(2, base + deep, u".tmp");
         EXPECT_EQ(u32(ERR_DEST_PATH_TOO_LONG), rc) << "ERROR_FILENAME_EXCED_RANGE classifies";
     }
     /* invalid path: the reserved-name / malformed shape */

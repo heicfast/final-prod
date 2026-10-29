@@ -59,7 +59,19 @@ public:
         geom_.total_bytes = data_.size();
     }
     void park_on_hit() { park_ = true; }
-    void unpark() { park_ = false; }
+    /* N-239: the far reads SLEEP instead of blocking - progress ticks
+     * keep flowing while the scan works the far region (a parked thread
+     * freezes the permille, and with it every later tick: no wait can
+     * ever observe a delta the coalescer attaches after the freeze -
+     * the release-27/28/357 Windows reds, all three shapes). */
+    void slow_far_on_hit() { slow_ = true; }
+    /* unpark releases BOTH modes: a released scan must finish fast
+     * (slow-far's per-read sleep over thousands of sector-granular
+     * tail reads is minutes - the 116 s joins first-hand) */
+    void unpark() {
+        park_ = false;
+        slow_ = false;
+    }
     bool hit() const { return hit_.load(std::memory_order_acquire); }
     u32 read_at(u64 off, void* buf, u32 len) override {
         const bool hits = off < bad_start_ + bad_len_ && bad_start_ < off + len;
@@ -67,10 +79,13 @@ public:
             hit_.store(true, std::memory_order_release);
             return ERR_READ_FAILED;
         }
-        if (hit_.load(std::memory_order_acquire) && park_.load(std::memory_order_acquire) &&
-            off > bad_start_ + bad_len_ + (1ull << 20)) {
+        const bool far = off > bad_start_ + bad_len_ + (1ull << 20);
+        if (far && hit_.load(std::memory_order_acquire) && park_.load(std::memory_order_acquire)) {
             while (park_.load(std::memory_order_acquire))
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } else if (far && hit_.load(std::memory_order_acquire) &&
+                   slow_.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
         if (off > data_.size() || len > data_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
@@ -85,6 +100,7 @@ private:
     Geometry geom_;
     std::atomic<bool> park_{false};
     std::atomic<bool> hit_{false};
+    std::atomic<bool> slow_{false};
 };
 
 void put16(std::vector<u8>& v, size_t at, u16 x) {
@@ -443,21 +459,45 @@ TEST(Telemetry, CountersMoveDuringStage) {
      * assertions fired before the carve stage even began (release-27:
      * last_carved=0 on the Windows runner; the same red at local -j4). */
     BadRegionDevice dev(img, 1800 * 512, 512);
-    dev.park_on_hit();
+    /* N-239: the far reads SLOW (never block) so ticks keep flowing
+     * while the carve results attach to the live tree; the park is
+     * ARMED BY THE OBSERVER at the first carved-carrying tick, ONE-
+     * SHOT. The freeze can then never hide the property - the release
+     * reds (27/28/357) were all the freeze racing the attach: the
+     * upfront park froze the permille at the last pre-attach tick and
+     * no later tick could ever fire while parked. A re-arming observer
+     * re-parks post-unpark and hangs the join (first-hand); the armed
+     * flag is mutex-guarded with the event vector. */
+    dev.slow_far_on_hit();
 
     std::mutex m;
     std::vector<event::Event> evts;
+    BadRegionDevice* dev_p = &dev;
+    std::mutex* m_p = &m;
+    std::vector<event::Event>* evts_p = &evts;
     tree::ResultTree tree;
     ScanConfig cfg;
+    struct Obs {
+        BadRegionDevice* dev;
+        std::mutex* m;
+        std::vector<event::Event>* evts;
+        bool armed = false;
+    } obs{dev_p, m_p, evts_p};
     cfg.event_fn = [](const event::Event& e, void* user) {
-        auto* vec = static_cast<std::vector<event::Event>*>(user);
-        /* the shim's own single-flight discipline is the bridge's job;
-         * this observer just records (mutex-free: single scan thread +
-         * workers serialized by the coalescer in practice; the assert
-         * below only reads monotone fields) */
-        vec->push_back(e);
+        auto* o = static_cast<Obs*>(user);
+        {
+            std::lock_guard<std::mutex> lock(*o->m);
+            o->evts->push_back(e);
+        }
+        if (e.type == event::Type::ScanProgress && e.carved_found >= 1) {
+            std::lock_guard<std::mutex> lock(*o->m);
+            if (!o->armed) {
+                o->armed = true;
+                o->dev->park_on_hit();
+            }
+        }
     };
-    cfg.event_user = &evts;
+    cfg.event_user = &obs;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
 
@@ -469,39 +509,45 @@ TEST(Telemetry, CountersMoveDuringStage) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     ASSERT_TRUE(hit);
-    /* settle: the carve stage reaches the far park region after the
-     * early JPEGs carved (the windows scan in order). N-235: the settle
-     * is a CONDITION-WAIT, not a fixed sleep - the sampler's cadence
-     * (~2 s) vs. the runner's load raced the fixed 1 s window at the
-     * v0.6.0 release validation (the first Windows execution of this
-     * battery: every post-v0.5.2 checks run died before ctest); the
-     * park guarantees the scan STAYS mid-stage, so waiting for a
-     * carved-carrying sample tests the SAME property (the attach-time
-     * delta reaches mid-stage progress) without the cadence race. The
-     * read discipline is the observer's own (monotone fields only). */
-    for (int i = 0; i < 7500; ++i) {
-        bool delta_seen = false;
-        for (const auto& e : evts)
-            if (e.type == event::Type::ScanProgress && e.carved_found >= 1)
-                delta_seen = true;
-        if (delta_seen)
-            break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    /* settle: wait for the carved-carrying tick (the observer arms the
+     * ONE-SHOT park at that moment), then a brief settle for the freeze
+     * to engage. If the delta never reaches a mid-stage tick, the scan
+     * runs to completion and the running assert below fails - the
+     * property stays guarded on every platform, without the cadence
+     * race (N-235's condition-wait form over N-239's arming design).
+     * The event vector is mutex-guarded: the observer records from the
+     * emitter thread while this poll reads concurrently. */
+    bool delta_seen = false;
+    for (int i = 0; i < 15000 && !delta_seen; ++i) {
+        {
+            std::lock_guard<std::mutex> lock(m);
+            for (const auto& e : evts)
+                if (e.type == event::Type::ScanProgress && e.carved_found >= 1)
+                    delta_seen = true;
+        }
+        if (!delta_seen)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
+    for (int i = 0; i < 150; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
 
     /* the last ScanProgress sample carries the carved delta */
     u64 last_carved = 0;
     bool saw_progress = false;
-    for (const auto& e : evts) {
-        if (e.type == event::Type::ScanProgress) {
-            saw_progress = true;
-            last_carved = e.carved_found; /* last-wins per sample */
+    {
+        std::lock_guard<std::mutex> lock(m);
+        for (const auto& e : evts) {
+            if (e.type == event::Type::ScanProgress) {
+                saw_progress = true;
+                last_carved = e.carved_found; /* last-wins per sample */
+            }
         }
     }
+    EXPECT_TRUE(delta_seen) << "a mid-stage tick carried the carved count "
+                               "(the attach-time delta, not the frozen snapshot)";
     EXPECT_TRUE(saw_progress) << "the carve stage emitted progress samples";
-    EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count "
-                                  "(the attach-time delta, not the frozen snapshot)";
+    EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count";
 
     dev.unpark();
     scan.join();
