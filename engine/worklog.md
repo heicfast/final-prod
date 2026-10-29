@@ -9902,3 +9902,28 @@ ResumeRevalidation 11/11; Session/LostDiscovery/Crsf 101/101;
 win_syntax_check green; clang-format 18.1.8 clean. Trail: FIXED finding +
 Resolution, matrix row 1179 MATCH, session.md + lost-partition.md S66
 sections, SUMMARY board (18 MAJOR / 11 MINOR active), this entry.
+
+---
+
+## Session-68 S68 lane — the EIGHTH continuation audit lane opens (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-68-continuation-audit-prompt.md`. The user's continuation
+directive: "This is second session of this work, first is already completed, now
+you have go look for other things which session 1 missed and continue working."
+Opening HEAD `f3da99f1` (the S67 window's N-203 + M-146 landings absorbed),
+corpus `be0cfe9` throughout. Read-only lane: only `diff-to-fix/` + `worklog*`
+written.
+
+**Board re-counted first-hand from the filesystem at open:**
+**0 ACUTE · 0 SEVERE · 17 MAJOR · 11 MINOR · 0 INFO active / 156 FIXED /
+4 tracked-open** (N-107/N-127 + M-086/M-087/M-089 driver-repo-resident per the
+OQ-S10-3 two-repo grant boundary — counted active-open, not fixable in core).
+
+**Lane plan (per the continuation mandate — find what prior sessions MISSED):**
+(1) coverage-gap analysis: corpus-file citation census vs the evidence base,
+matrix cells unstudied, parameters un-walked for each module; (2) liveness
+battery of the active board at the pin; (3) parallel deep dives on the uncovered
+seams (corpus files never cited, og functions never decoded); (4) lead
+verification of every candidate divergence first-hand before filing;
+(5) board re-truth + handoff.
