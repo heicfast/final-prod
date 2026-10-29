@@ -2466,5 +2466,109 @@ TEST(Ext4Engine, ContiguousPhysicalBlocksMergedToSingleExtent) {
     EXPECT_EQ(u64(4) * BS, gone->props()->extents.front().length);
 }
 
+/* ---- M-152 (diff-to-fix): the sweep's orphan-active population ---- */
+
+TEST(Ext4, OrphanActiveInodeSurfacesInSweep) {
+    /* The og's sweep filter (EXT4SearchDLL :4415-4421, re-verified
+     * first-hand) has NO deleted-state predicate: an extent-shaped inode
+     * with dtime == 0 && links != 0 that no directory references is
+     * harvested and surfaces under the lost/deleted root (the orphan
+     * finalize). The old `dtime == 0 && links != 0 -> skip` line dropped
+     * exactly this population. */
+    auto img = build_volume();
+    /* an orphan-regular: inode 7, live (links 1, dtime 0), extent-shaped,
+     * reachable from NO directory - the unlink-then-torn-journal shape */
+    write_inode(img, 7, 0x8000, 33, 20, 1, 1, 0);
+    memset(img.block(20), 'O', 33);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), u32(OK))
+        << err_text(OK);
+    /* the orphan surfaces with its extents under the deleted root */
+    tree::FileNode* orphan = nullptr;
+    std::function<void(tree::FileNode*)> find7 = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->record_ref == 7)
+                orphan = c;
+            find7(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find7(r);
+    ASSERT_NE(orphan, nullptr) << "the orphan-active inode must surface (the og harvests it)";
+    EXPECT_EQ(orphan->props()->logical_size, 33u);
+    ASSERT_FALSE(orphan->props()->extents.empty());
+    EXPECT_EQ(orphan->props()->extents.front().offset, u64(20) * 1024)
+        << "the orphan's extent anchors at its data block";
+    EXPECT_EQ(st.orphan_admitted, 1u) << "the new population is countable";
+    EXPECT_EQ(st.deleted_inodes, 2u) << "the deleted dtime-set inode + the orphan admission";
+}
+
+TEST(Ext4, OrphanSweepDedupsAgainstLiveTree) {
+    /* A live-tree-reachable inode (hello.txt: dtime == 0, links == 1)
+     * must NOT double-emit - the visited-inodes guard is the claim
+     * resolution. Only the unreachable orphan admits. */
+    auto img = build_volume();
+    write_inode(img, 7, 0x8000, 33, 20, 1, 1, 0);
+    memset(img.block(20), 'O', 33);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), u32(OK));
+    size_t hello_count = 0;
+    std::function<void(tree::FileNode*)> cnt = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == u"hello.txt")
+                ++hello_count;
+            cnt(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        cnt(r);
+    EXPECT_EQ(hello_count, 1u) << "the live-tree inode emits exactly once";
+    EXPECT_EQ(st.orphan_admitted, 1u) << "only the unreachable orphan admits";
+}
+
+TEST(Ext4, SweepModeGateHolds) {
+    /* The REGISTERED hardening (PARITY-DELTAS M-152): the og's filter is
+     * shape-only and would admit a FIFO/socket with a forged extent
+     * header; the core's regular/dir mode gate stays. */
+    auto img = build_volume();
+    write_inode(img, 7, 0x1000 /* S_IFIFO */, 33, 20, 1, 1, 0); /* FIFO "orphan" */
+    memset(img.block(20), 'F', 33);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), u32(OK));
+    tree::FileNode* fifo = nullptr;
+    std::function<void(tree::FileNode*)> find7 = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->record_ref == 7)
+                fifo = c;
+            find7(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find7(r);
+    EXPECT_EQ(fifo, nullptr) << "the FIFO stays excluded (the registered mode-gate hardening)";
+    EXPECT_EQ(st.orphan_admitted, 0u);
+}
+
 } // namespace ext4
 } // namespace cr

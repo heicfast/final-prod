@@ -11858,3 +11858,30 @@ the ghost-score math, M-150 the session count prealloc bomb, M-151 the
 truncated-$MFT probe, M-152 the ext4 orphan-reserved skip, M-154 the
 auto-session lifecycle), then M-107's remaining ten members (CRW's
 CIFF heap chain next), then the MINOR queue.
+>>>>>>> f30b042d (fix(apply): N-145 — the cross-run in-flight journal lands (the og's pendingMarkedDisk semantics on the core's state-dir posture))
+
+---
+
+# Session 82 — entry 4: M-152 FIXED (the ext4 sweep's orphan-active population)
+
+**M-152 (MAJOR).** The corpus filter re-verified first-hand
+(EXT4SearchDLL :4415-4421 — the finding's quote exact: the shape-only
+four gates, no dtime/links predicate), then the landing: the skip
+removed; the visited-inodes guard kept as the claim resolution; the
+journal inode claimed before the sweep (engine state — without the claim
+the new filter would surface the volume's own journal as an orphan);
+the mode gate kept as the REGISTERED D-150 hardening (PARITY-DELTAS);
+the new Ext4ScanStats.orphan_admitted counter (post-gate admissions
+only).
+
+**Tests (3, RED->GREEN via the engine-revert rebuild):**
+OrphanActiveInodeSurfacesInSweep (inode 7 — dtime 0, links 1,
+extent-shaped, no dirent — RED: never surfaced; GREEN: emits with its
+extents, orphan_admitted == 1, deleted_inodes == 2) /
+OrphanSweepDedupsAgainstLiveTree (hello.txt exactly once) /
+SweepModeGateHolds (the FIFO stays excluded). Ext4 family 56/56; the
+full suite 1509 pass / 0 fail; clang-format clean.
+
+**Trail:** findings/FIXED/M-152 + the Resolution; the D-150
+PARITY-DELTAS row; the ledger row; the matrix B1/B5 -> MATCH;
+modules/ext4.md's Session-82 addendum; this entry.

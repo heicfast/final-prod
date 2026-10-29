@@ -34,7 +34,12 @@ struct Ext4ScanStats {
     u64 files = 0;
     u64 dirs = 0;
     u64 deleted_inodes = 0;
-    u64 damaged_inodes = 0; /* unparseable extents / truncated records */
+    u64 damaged_inodes = 0;  /* unparseable extents / truncated records */
+    u64 orphan_admitted = 0; /* M-152 (diff-to-fix): sweep admissions with
+                              * dtime == 0 && links != 0 - the orphan-active
+                              * population the og's shape-only filter harvests
+                              * (no deleted-state predicate, EXT4SearchDLL
+                              * :4415-4421) */
     u64 journal_blocks = 0;
     u64 journal_salvaged = 0; /* names recovered from journal dir blocks */
     u64 block_groups = 0;

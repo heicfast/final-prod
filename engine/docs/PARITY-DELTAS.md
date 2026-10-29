@@ -4579,3 +4579,27 @@ honest representation of the og's unclamped double.
 exact — unmatched); the M-149 test
 `LostDiscovery.ScoringTableMatchBonusIsNumeratorOnly` pins the 1029
 permille leader (ln(2520)/ln(2020)) and the undeflated 537 runner-up.
+
+### D-150 — the ext4 sweep's mode gate over the og's shape-only filter (M-152 registration, REGISTERED SAFETY HARDENING — the og's sweep admits ANY inode whose fields carry the extent shape, including a FIFO/socket with a forged extent header; the core's regular/dir mode gate excludes that class)
+
+**Reference behavior** (EXT4SearchDLL :4415-4421, re-verified first-hand
+at the M-152 fix): the og's per-inode harvest filter gates on the content
+shape alone — `i_size_lo != 0`, `i_flags & 0x80000` (EXTENTS_FL), the
+inline extent magic 0xF30A, `eh_entries != 0` — with no deleted-state
+predicate and no mode test.
+
+**Core behavior** (post-M-152): the same population harvests (the
+orphan-active skip is gone), but the sweep's admission additionally
+requires `ifmt(mode) ∈ {regular, directory}`.
+
+**Rationale:** a forged extent header on a FIFO/socket inode produces a
+"recoverable file" whose extents point at arbitrary blocks — the
+false-positive class the mode gate refuses. The og's own filter is
+weaker here; the core keeps the gate as the conservative superset. The
+delta is observable only on that forged class (every real volume's
+orphan-actives are regular files or directories — the population both
+admit).
+
+**Registration trigger:** M-152's Resolution (the finding's fix-plan
+step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
+`orphan_admitted == 0`).

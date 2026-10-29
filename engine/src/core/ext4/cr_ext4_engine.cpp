@@ -1281,20 +1281,44 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         };
 
         const u64 sweep = v.sb.inodes_count < MAX_INODES ? v.sb.inodes_count : MAX_INODES;
+        /* M-152: the journal inode is ENGINE STATE, not a result - claim it
+         * before the sweep (the og's claim-resolution shape: the harvested
+         * map is resolved against the engines' claims before the orphan
+         * finalize) so the now-unfiltered sweep does not surface the
+         * volume's own journal as a recoverable orphan. */
+        ctx.visited_inodes.insert(v.sb.journal_inum);
         for (u32 ino = 1; ino <= sweep; ++ino) {
             if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             if ((ino & 0xFFF) == 0 && progress)
                 (void)progress(ino, sweep, progress_user);
             if (ctx.visited_inodes.count(ino))
-                continue; /* emitted in the live tree */
+                continue; /* emitted in the live tree (M-152: the claim
+                           * resolution - a live-tree-reachable inode never
+                           * double-emits, whatever its dtime/links shape) */
             InodeView iv;
             if (!read_inode(v, ino, iv) || iv.mode == 0)
                 continue;
-            if (iv.dtime == 0 && iv.links != 0)
-                continue; /* live but unreferenced (orphan-reserved) - skip */
+            /* M-152 (diff-to-fix): the og's sweep filter has NO
+             * deleted-state predicate - EXT4SearchDLL :4415-4421 gates on
+             * the content shape alone (i_size_lo != 0, the EXTENTS flag,
+             * the 0xF30A extent magic, eh_entries != 0) and the harvested
+             * set is resolved against the live tree, so orphan-actives
+             * (dtime == 0 && links != 0 - files whose parent metadata was
+             * damaged or whose dirent was lost without the link
+             * decrement) surface as recoverable entries. The old skip
+             * here dropped exactly that population. The mode gate below
+             * stays as the REGISTERED hardening (the og's filter is
+             * shape-only and would admit a FIFO/socket with a forged
+             * extent header; PARITY-DELTAS row M-152). */
             if (ifmt(iv.mode) != 0x8000 && ifmt(iv.mode) != 0x4000)
-                continue;
+                continue; /* the REGISTERED hardening (PARITY-DELTAS
+                           * M-152): the og's shape-only filter would
+                           * admit a FIFO/socket with a forged extent
+                           * header; the core keeps the mode gate */
+            if (iv.dtime == 0 && iv.links != 0)
+                ++stats.orphan_admitted; /* the countable new population -
+                                          * admissions only (post-gate) */
 
             ++stats.deleted_inodes;
             const bool is_dir = ifmt(iv.mode) == 0x4000;

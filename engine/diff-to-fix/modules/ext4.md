@@ -306,3 +306,22 @@ the 5 prior M-133 pins. Suite 1541/1541.
   the filter, the +0x4a8 map, and the finalize pattern — the fix plan's first test
   falsifies it end-to-end. Distinct from M-143's journal-inode harvest (the image branch).
   Evidence: `s79-lead-verification.md` §A.
+---
+
+## Session-82 addendum — M-152 FIXED: the orphan-active population surfaces (2026-10-29)
+
+**The sweep's orphan-reserved skip is gone.** The og's per-inode harvest
+filter (EXT4SearchDLL :4415-4421, re-verified first-hand) gates on the
+content shape alone — i_size_lo, EXTENTS_FL, the 0xF30A magic,
+eh_entries — with NO deleted-state predicate; the harvested set resolves
+against the live tree (the claim resolution), so orphan-actives (dtime
+0, links != 0, referenced by no directory — the lost-file population the
+deep scan exists for) surface as recoverable entries. The core's sweep
+now harvests the same population: the `dtime == 0 && links != 0` skip is
+removed, the visited-inodes guard is the claim resolution, the journal
+inode is claimed before the sweep (engine state, not a result), and the
+regular/dir mode gate stays as the registered D-150 hardening.
+**B1/B5: MATCH.** Tests: OrphanActiveInodeSurfacesInSweep /
+OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds (RED->GREEN);
+the new orphan_admitted counter surfaces the population; ext4 family
+56/56.
