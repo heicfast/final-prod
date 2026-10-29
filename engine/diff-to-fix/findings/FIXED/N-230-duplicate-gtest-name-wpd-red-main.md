@@ -1,4 +1,4 @@
-# MINOR N-229 — the duplicated gtest name left origin/main build-red: two racing lanes' WPD batteries both defined `Carve.WpdZeroSizeFieldDeclines` (cr_tests unbuildable at the 98bd30d6 head)
+# MINOR N-230 (renumbered from the born-collided N-229 at the push reconciliation — the racing window's superset finding [the plant_sit subscript corruption + the duplicate test] holds the N-229 seat) — the duplicated gtest name left origin/main build-red: two racing lanes' WPD batteries both defined `Carve.WpdZeroSizeFieldDeclines` (cr_tests unbuildable at the 98bd30d6 head)
 
 **Severity:** MINOR (the class convention — M-120 `db228b75`, N-210 `f3da99f1`, N-217 `ed501caa`, N-219 `27bda40e`, N-222 `f3da99f1`, N-227 `d15d32a4`, now `98bd30d6`'s parent window; the class's ninth occurrence, and the third to reach main build-red)
 **Module:** tests / the never-push-a-red-commit gate (the N-210 class)
@@ -18,6 +18,6 @@ The S87 seat's test keeps its name (the seat holder). The S91 rider's test is re
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (the racing window's own merge — 5ed0f07f's tree carries the count-1 form, first-hand; this lane's parallel rename repair conceded per SA-9 and recorded here)
+**Fixed in commit:** (the racing window's own merge — 5ed0f07f's tree carries the count-1 form, first-hand; this lane's parallel rename repair conceded per SA-9 and recorded here; the N-229 seat conceded to the racing superset finding — the plant_sit corruption half rides theirs)
 **Verified by:** `git show origin/main:tests/unit/test_carve.cpp | grep -c 'TEST(Carve, WpdZeroSizeFieldDeclines)'` → 1 (the racing fix, their form: the S91 rider's colliding test DELETED, the S87 seat's kept); this lane's convergent repair renamed it instead (WpdZeroSizePendingChildDeclines — both framings preserved) and proved GREEN first-hand at its own tree (full suite 1717/1717, the WPD battery 9/9) before the rebase found their landing; the merged tree builds clean and the suite is green (the final count recorded in this lane's closing worklog entry).
 **Resolution notes:** The ninth occurrence of the push-without-gate class, the third to reach main build-red. The recurrence root cause is unchanged since N-210: a lane pushing without running the local gate (`ci-local.sh` or at minimum a build) against the PULLED head immediately before the push. The style-sweep commit is the aggravator here: it ran a FORMATTER over a file it never compiled — formatting is not validation. Both racing batteries' coverage is preserved verbatim; the only delta is the colliding name.
