@@ -1,3 +1,14 @@
+- **Main-red CONVERGENT (30c1cef7 dropped at the rebase)** — the N-171/S-055 window's
+  cross-test user-sign registry leak (Carve.LzhWrongDashByteRejects order-dependent:
+  install_default_usersigns() leaked the default set through g_active; the default set's
+  own lha sign [2,2D6C68] fired on the later test's '-lh' anchor). This lane's independent
+  root-cause chain: two-test filter reproduction -> debug-print pinned the LHA_000001.LHA
+  @0xFFFE0000 user-sign emission -> the naive snapshot/restore guard's silent failure
+  (install_set refuses the invalid empty set) -> the clear() API + the UserSignRestore
+  RAII guard at 15 installer tests. The parallel window's repair (their own clear() +
+  the self-defending test) pushed first and wins per SA-9 - their comment records the
+  convergence ("closed two ways by two lanes"). Suite verified green at the merged tree.
+
 **S56 lane — N-154 landed + the third collision rider (2026-10-29).**
 
 **N-154 FIXED (MINOR — the bookkeeping-truth batch #2).** The cr_log.cpp
