@@ -299,9 +299,11 @@ struct FatScanStats {
     /* M-012/M-015 (diff-to-fix): damaged-FAT policy outcomes */
     u64 mirror_only_scan = 0;  /* FAT1 unreadable, scanned on the mirror */
     u64 fat_copy_rejected = 0; /* a FAT copy failed validation; another used */
-    /* S-068 (diff-to-fix): deleted FAT32 dentries re-based from the
-     * last-good hint (the og's DAT_1800728c8 machinery - the torn/stale
-     * high-word population). The assumed-flag population surfaced. */
+    /* S-068 (diff-to-fix): the og's FAT32 deleted high-16 re-base
+     * (FATSearchDLL :14753-55 + the :14826-48 retry) - deleted dentries
+     * whose first-cluster word read low-16-only (torn/stale +0x14 high
+     * word) re-based from the last-good hint and adopted. The assumed
+     * population surfaced in stats (the acceptance criterion). */
     u64 high16_rebased = 0;
 };
 

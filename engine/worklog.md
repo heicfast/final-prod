@@ -1,4 +1,27 @@
 
+## Session-79 S79 lane — the S-068 seat conceded (the FOURTH independent implementation; 2026-10-29)
+
+- **S-068 seat conceded to the racing window** (`ad1bcb9e` — the S80
+  lane's landing, itself already carrying TWO convergence concessions):
+  this lane independently derived and verified the same fix in the
+  same window (the identical three-site corpus decode, the identical
+  four-test plan from the finding, the same FAT-linked adoption gate —
+  independently discovered here via a gate-raising MUTATION test that
+  made the free-cluster false-adoption visible, then closed by the
+  `raw(rebased) != 0` linkage refusal — the same PartialRisk assumed
+  cap and the same raw-walk fallback). RED twice-proven locally
+  (compile-level stash-revert + behavioral mutation); suites 1493+2 /
+  83 / ABI-smoke green on this lane's variant. The one decode delta:
+  this lane gated the re-base on the finding's fix-plan `hint >
+  0x310000` (point 3); the landed reading attributes the 0x310000 gate
+  to the :14834 retry-with-write-back leg specifically — the delta is
+  already recorded as open question 2 in the finding's S82 addendum
+  (the landed reading is the closer site-2 decode; the discriminator
+  fixture class is recorded there). This lane's duplicate was dropped
+  at the push rebase (never reached origin); the landed fix stands.
+  The convergence count on this finding is now FOUR lanes - the
+  strongest corroboration class the trail records.
+
 ## Session-79 S79 lane — opens; the M-073 seat conceded; re-planned on the racing window (2026-10-29)
 
 - **Baseline:** opened at core `e17a4e6d` (S78's N-212 landing), corpus
