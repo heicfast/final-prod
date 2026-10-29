@@ -93,3 +93,18 @@ dispatch.
 **Status:** PUSHED-FORWARD (tracked-open OQ-S10-3)
 **Verified by:** bf17e55-lineage tree: the byte-level decode re-verified against the finding's grammar (the shipped scripts/winpe/regdrv-rda.reg is a DRIVER-repo path - heicfast/rda-driver scripts/winpe/regdrv-rda.reg:31; the corpus contrast og-codebase/BUILDPE/x64/regdrv.reg:35-36 carries the correct 10-byte UTF-16LE form).
 **Resolution notes:** The one-line fix (hex(7):72,00,64,00,61,00,00,00,00,00) + the .reg parse gate land in heicfast/rda-driver - outside this session's two-repo grant. Pushed forward as the driver-repo lane's next fix with the exact corrected byte sequence + the gate design recorded in the finding body.
+
+## Session-89 disposition note (2026-10-30, the S89 fix lane — boundary re-affirmed; core-side half re-verified at the current tree)
+
+This lane's grant carries the identical two-repo text as every session
+since S10 ("Two repositories are in scope and only two: core_recovery
+(modified) + easeus-drw-research (read-only)") — the entire fix surface
+of this finding remains in heicfast/rda-driver and stays untouchable.
+Core-side half re-verified first-hand at this lane's landing head
+(`fb6842c3`-lineage): DRIVER-CONTRACT.md's truth rows stand (§4.4 "the
+EUDCPEPM IoctlBase-normalized session protocol (19 codes)" + the
+§4.2 extended-IOCTL wire-truth rows 0x600244x with the CTL_CODE_RDA
+derivation note) — the integrator-facing corrections of exactly this
+finding's drift class. No core-side change owed; the next concrete step
+stands unchanged (OQ-S10-3's order: M-087 → M-089 → the N-107/N-127
+prose sweeps → M-086 — one driver-repo lane takes all five).

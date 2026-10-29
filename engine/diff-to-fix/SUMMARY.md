@@ -40,6 +40,25 @@ stand). Next free IDs: S-069+, M-161+, N-235+, I-050+, A-017+, D-168+.
 
 # SUMMARY.md — executive summary (the S87 MAJOR-first 20+ fix lane on top; the prior lanes below, newest-first)
 
+**Board at this lane's close (filesystem truth, reconciled with the
+racing S94 window's own close — the v0.6.0 tag seat conceded per SA-9,
+their cut stands): 0 ACUTE · 0 SEVERE · 3 MAJOR (M-086/M-087/M-089 —
+driver-repo-resident per OQ-S10-3, the two-repo grant's boundary) ·
+2 MINOR (N-107/N-127 — the same class) · 0 INFO active / 221 FIXED
+(the window's N-235 coverage restoration rides) / 3 tracked-open
+(OQ-S4-3's TTFR execution DISPATCHED — run 40956286997 in flight at
+the handoff; OQ-S10-1 the vendoring decision; OQ-S10-3 the
+driver-repo lane).** Every core-repo-resident finding on the board at
+this session's open is now FIXED: M-101 (the Versions/Tags-Extracted
+branches), M-105 (the DRWService no-service posture), M-107 (all
+eleven members + the recorded residues), M-159, M-160, N-224, N-225,
+N-226, N-227, N-228, N-229, N-230, N-231 (the lint gate), N-232 (the
+gate's include discovery), N-233 (the fifth red-main repair). The
+in-scope fix queue is EMPTY; the remaining work lives behind the
+two-repo boundary (the driver-repo five) or the external execution
+steps (the Windows bench leg, the vendoring decision). Next free IDs:
+S-069+, M-161+, N-234+, I-049+, A-017+, D-167+.
+
 ## Session-87 S87 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings(priority to major first) one by one... Aim for atleast 20+ fixes in this session, put fixed findings in fixed directory. Update all docs , counts and all properly"]; opened at core `ddab68b4` [clean tree], corpus `be0cfe9` throughout; five racing windows absorbed and reconciled at the pushes; prompt saved token-redacted at worklog/session-diff-fix-s87-prompt.md)
 
 - **M-107 CLOSED (the session's headline): the eleven-member

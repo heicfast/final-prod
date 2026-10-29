@@ -87,3 +87,18 @@ pin is deliberate on the wire side while the resource side moves.
 **Status:** PUSHED-FORWARD (tracked-open OQ-S10-3)
 **Verified by:** bf17e55-lineage tree: the core-side evidence re-verified — release.yml's driver tier consumes with -FloorVersion v0.2.4 (the floor is correct on the core side; the defect is the DRIVER repo's rda_version.h pin + unstamped release workflow + the install.ps1 derivation chain - all outside this session's two-repo grant). The finding stays ACTIVE on the board; the fix belongs to the driver-repo lane (the fix plan's steps 1-5 are all rda-driver files).
 **Resolution notes:** The core-side consumption is verified sound; the entire fix surface (rda_version.h, rda.rc, the driver release.yml stamping, install.ps1's tag derivation, the two-version coexistence drill) lives in heicfast/rda-driver - out of scope for this session's TWO-repo grant (core + corpus only). Pushed forward as the driver-repo lane's next fix; no core code change is honest here.
+
+## Session-89 disposition note (2026-10-30, the S89 fix lane — boundary re-affirmed; core-side half re-verified at the current tree)
+
+This lane's grant carries the identical two-repo text as every session
+since S10 ("Two repositories are in scope and only two: core_recovery
+(modified) + easeus-drw-research (read-only)") — the entire fix surface
+of this finding remains in heicfast/rda-driver and stays untouchable.
+Core-side half re-verified first-hand at this lane's landing head
+(`fb6842c3`-lineage): DRIVER-CONTRACT.md's truth rows stand (§4.4 "the
+EUDCPEPM IoctlBase-normalized session protocol (19 codes)" + the
+§4.2 extended-IOCTL wire-truth rows 0x600244x with the CTL_CODE_RDA
+derivation note) — the integrator-facing corrections of exactly this
+finding's drift class. No core-side change owed; the next concrete step
+stands unchanged (OQ-S10-3's order: M-087 → M-089 → the N-107/N-127
+prose sweeps → M-086 — one driver-repo lane takes all five).

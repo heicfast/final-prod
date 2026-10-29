@@ -67,3 +67,18 @@ Repo-wide grep this session for the count phrases + the range; the 19-count veri
 ## Open questions
 
 None.
+
+## Session-89 disposition note (2026-10-30, the S89 fix lane — boundary re-affirmed; core-side half re-verified at the current tree)
+
+This lane's grant carries the identical two-repo text as every session
+since S10 ("Two repositories are in scope and only two: core_recovery
+(modified) + easeus-drw-research (read-only)") — the entire fix surface
+of this finding remains in heicfast/rda-driver and stays untouchable.
+Core-side half re-verified first-hand at this lane's landing head
+(`fb6842c3`-lineage): DRIVER-CONTRACT.md's truth rows stand (§4.4 "the
+EUDCPEPM IoctlBase-normalized session protocol (19 codes)" + the
+§4.2 extended-IOCTL wire-truth rows 0x600244x with the CTL_CODE_RDA
+derivation note) — the integrator-facing corrections of exactly this
+finding's drift class. No core-side change owed; the next concrete step
+stands unchanged (OQ-S10-3's order: M-087 → M-089 → the N-107/N-127
+prose sweeps → M-086 — one driver-repo lane takes all five).

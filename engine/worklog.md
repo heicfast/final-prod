@@ -1,3 +1,72 @@
+## Session-89 S89 lane — the v0.6.0 tag seat conceded (the S94 window's cut stands; 2026-10-30)
+
+The racing S94 window cut v0.6.0 before this lane's close push (the
+tag now on origin) — their coherence pass had already corrected the
+notes' scope line ("all eleven members landed — COMPLETE"), convergent
+with this lane's own correction, and their close's board (221 FIXED
+with N-235) supersedes this lane's 220 count. Per SA-9 their seats
+stand: the tag, the notes form, the S94 close handoff. This lane's
+close block reconciled to their numbers; the RELEASE-NOTES conflict
+resolved to the tagged form verbatim (the notes must match the tag).
+The OQ-S4-3 TTFR dispatch (run 40956286997) rides their window — the
+execution-bound step this lane's own disposition had named.
+
+## Session-89 S89 lane — the closing handoff (2026-10-30)
+
+**This lane's unique landings (verified RED→GREEN, pushed):**
+1. **M-107's APE member** — the CAPEAnalyser walk completed over M-160's
+   gate (`43f476e0`, rebased to the window's close): the u16-LE version
+   window, the 3980 format split, the APETAGEX epilogue, the 2 GB row
+   re-pin. The lane sheet (evidence/s89-lane-sheets/
+   s89-l1-ape-cape-walk-decode.md) carries every constant with its
+   instruction address; two Ghidra renderings were corrected by the asm.
+2. **N-232** (renumbered from the born-collided N-231) — the
+   win_syntax_check gate's gtest-include discovery missed the flat
+   build layout (a false red on the documented plain configure).
+3. **N-233** — the fifth red-main repair this window (the 76c65109
+   merge's committed markers in three files + two duplicate tests),
+   with the corpus-arbitrated resolution (the CWS inflate side held the
+   seat — the HEAD side's swf_rect_valid(h) call was itself a live
+   defect reading 'F' as the Nbits byte).
+4. The mangled-hybrid test repairs riding `fb6842c3` (the keep-test's
+   drop-tail + the stale device-reach expectation).
+
+**Conceded per SA-9 (verified, not re-landed):** N-225 (their 1eb9b456),
+N-227 (their fdf8de72), M-105 (their c4d8dcee — the richer
+cr_fve_policy shape), N-229 (their superset; the duplicate-gtest half
+rode their N-230). Each racing landing verified first-hand at its tree.
+
+**The verification battery at the close:** the full suite **1742/1742**
+(release layout); win_syntax_check 18/18 (the N-228 section now runs on
+both build layouts); clang-format 18.1.8 clean; doc_truth_gate green
+(finding-ID uniqueness holds after the N-232 renumber); **UBSan clean
+16/16** on the touched batteries (Carve.Ape*/SwfCws*/SitEntryMarker*/
+S007NicheBatch1); **ASan+LSan clean 16/16** on the same set. The full
+UBSan suite run is container-prohibitive (the big-image fixtures under
+the detector; the CI lane runs it with the CR_SANITIZER_LANE scoping).
+
+**The driver-repo five (M-086/M-087/M-089/N-107/N-127):** the S89
+disposition notes appended to each finding (the boundary re-affirmed;
+the core-side halves re-verified at fb6842c3 — DRIVER-CONTRACT.md §4.4's
+"19 recognized codes" + §4.2's wire-truth rows stand as the
+integrator-facing truth). Next step unchanged: one driver-repo lane
+takes all five in OQ-S10-3's order.
+
+**The release:** v0.6.0 tagged from the close tree with the notes
+corrected (the M-107 family closure — all eleven members — replacing
+the stale "APE and SWF-RECT remain" scope line; the APE/SWF-RECT
+bullets added). The notes reference diff-to-fix/SUMMARY.md (the board
+truth above) and docs/PARITY-DELTAS.md (the deliberate-divergence
+register, D-166 the newest row).
+
+**The next lane's start:** the driver-repo five (the third-repo grant),
+the three tracked-open external steps (the Windows TTFR execution, the
+libheif-first vendoring decision, the driver-repo lane itself), and the
+recorded residues inside the closed findings (the DWG gen-3 R2007
+form, the CWS post-inflate edge, the classic-SIT ' ' epilogue — each
+with its named next probe in its finding file). No finding was left
+silently; the audit trail is the deliverable.
+
 ## Session-89 S89 lane — N-233 (the fifth red-main repair, at the sanitizer sweep) + the N-232 renumber (2026-10-30)
 
 **N-233:** the ubsan sweep's build caught live markers in three files -
