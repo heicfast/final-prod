@@ -32,7 +32,9 @@ tracked-open; FIXED archive 140.
 
 - **N-196 FIXED (MINOR)** — the NTFS walk-entry record-geometry stance registered and pinned (option (a), the finding's recommendation): PARITY-DELTAS **D-143** carries the accept-direction superset (both og gate sites re-read first-hand — odd/>16-device-sector records refused 0x610016 at FUN_1800272b0 :31620-31621/:31599-31600; the core walks them, per-record validation carrying the safety). Pins: `NtfsVolume.OddSectorRecordWalkScans` (the 1536-byte odd-stride fixture surfaces its user file) + `OversizePositiveRecordOpensAndWalks` (the 17-sector stride); NtfsVolume family 73/73.
 
-**Board at this push (filesystem truth):** 45 active — 1 SEVERE · 23 MAJOR · 18 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 142 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196).
+- **N-197 FIXED (MINOR)** — the spc shift-decode threshold registered: D-52's ADDENDUM documents the og's three internal forms (0xF0-nibble controller / >= 0x81 NTFSLib+analyser / raw PartitionRecoveryD — all four sites re-read first-hand) + the core's registered signed-byte choice + the 0x80 boundary nuance; the decode extracted to the pure wire helper `sectors_per_cluster_from_dbr` and pinned by `BootSpcShiftDecodeConventionPinned` (the eight-byte table). Behavior unchanged on every real-volume population.
+
+**Board at this push (filesystem truth):** 44 active — 1 SEVERE · 23 MAJOR · 17 MINOR · 0 INFO — + 4 tracked-open, FIXED archive at 143 files (the S60 block's 19-MINOR/2-INFO line above predates the closing-fix lane's I-045/I-046 retirement and this lane's N-196/N-197).
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 

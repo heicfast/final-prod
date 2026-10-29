@@ -56,3 +56,10 @@ Decompiled evidence, all four sites read first-hand this session (FUN_18003f5d0'
 ## Open questions
 
 None — the decode is complete on all four sites; the finding is a registration-completeness item.
+
+## Resolution
+
+**Status:** FIXED (registration + convention pin — the finding's prescribed disposition)
+**Fixed in commit:** (this push; S60-B lane)
+**Verified by:** `NtfsVolume.BootSpcShiftDecodeConventionPinned` (the eight-byte convention table: 0x01/0x40/0x7F direct, 0xF6 -> 1024, 0xFF -> 2, 0x85 -> 2^27, the 0x80 boundary -> 1, 0x00 -> 0) — the decode now lives in ONE pure wire helper (`sectors_per_cluster_from_dbr`, cr_ntfs_wire.h) that validate_boot_sector consumes, so the pin asserts the exact convention the engine runs; the full Boot* family green after the rewiring.
+**Resolution notes:** All four og sites re-read first-hand: FUN_18003f5d0's 0xF0-nibble gate (:51038-51049, the controller's 0x85 -> 133 raw form), NTFSLib :19307's `< 0x81` shift, the analyser's `0x80 <` shift, PartitionRecoveryD :2323-2329's raw byte — exactly as filed. Per the fix plan: D-52 gained its ADDENDUM (the og-internal three-form inconsistency + the core's registered signed-byte choice + the 0x80 boundary nuance where every og layer takes raw 128 and the signed form shifts to 1 — a nonsense byte either way, registered not silenced); the decode kept unchanged in behavior but extracted to the single testable helper; the pin test asserts the chosen convention byte by byte. No behavior change on any real-volume population.

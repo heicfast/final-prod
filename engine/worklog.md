@@ -9406,3 +9406,20 @@ fixture walks and surfaces oddrec.txt) and OversizePositiveRecordOpensAndWalks
 (17-sector stride opens and walks). NtfsVolume family 73/73. Trail: finding
 retired to findings/FIXED/N-196 + Resolution, ledger row, matrix MATCH (D-143),
 SUMMARY S60-B block, this entry.
+
+## Session-60-B lane — N-197 landed (2026-10-29)
+
+**N-197 FIXED (MINOR — spc shift-decode registration).** All four og sites
+re-read first-hand: NTFSSearchDLL FUN_18003f5d0 :51038-51049 (the 0xF0-nibble
+controller form — 0x85 decodes 133 raw), NTFSLib :19307 (< 0x81 shift),
+analyser FUN_1800048c0 (0x80 < shift), PartitionRecoveryD :2323-2329 (raw
+byte). Per the fix plan: D-52's ADDENDUM registers the og-internal
+three-form inconsistency + the core's signed-byte choice (the NTFSLib/
+analyser majority) + the 0x80 boundary nuance (every og layer raw 128; the
+signed form shifts to 1 — nonsense byte either way, registered not
+silenced). The decode extracted to the pure wire helper
+sectors_per_cluster_from_dbr (cr_ntfs_wire.h — the record_size_from_dbr
+pattern), validate_boot_segment rewired through it, pinned by
+NtfsVolume.BootSpcShiftDecodeConventionPinned (eight-byte table). Behavior
+unchanged. Trail: findings/FIXED/N-197 + Resolution, ledger row, matrix
+MATCH, SUMMARY, this entry.

@@ -2847,6 +2847,51 @@ TEST(NtfsVolume, OversizePositiveRecordOpensAndWalks) {
     EXPECT_EQ(OK, rc) << "no walk-entry geometry gate: the og's 0x610016 class";
 }
 
+TEST(NtfsVolume, BootSpcShiftDecodeConventionPinned) {
+    /* N-197 (registered in PARITY-DELTAS D-52's addendum): the og decodes
+     * the spc byte three different ways across its own layers (the scan
+     * controller shifts only at high nibble 0xF - 0x85 -> 133 raw; NTFSLib
+     * and the analyser shift at >= 0x81; PartitionRecoveryD uses the raw
+     * byte). The core's chosen convention is the signed-byte form (the
+     * NTFSLib/analyser majority): positive -> direct count, negative ->
+     * 1 << ((-spc) & 31). This pin asserts the choice byte by byte; the
+     * boundary byte 0x80 (every og layer takes it raw 128; the signed
+     * form shifts to 1) is the registered single-byte nuance. */
+    BootSector bs{};
+    const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+    std::memcpy(bs.oem, oem, 8);
+    bs.bytes_per_sector = 512;
+    bs.clusters_per_index_block = 2;
+    bs.total_sectors = 1u << 28;
+    bs.mft_lcn = 1;
+    bs.mftmirr_lcn = 1;
+    bs.clusters_per_record = 2;
+
+    bs.sectors_per_cluster = 0x01;
+    EXPECT_EQ(1u, ntfs::sectors_per_cluster_from_dbr(bs)) << "positive: direct count";
+    bs.sectors_per_cluster = 0x40;
+    EXPECT_EQ(64u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0x40 -> 64 direct";
+    bs.sectors_per_cluster = 0x7F;
+    EXPECT_EQ(127u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0x7F -> 127 direct";
+    bs.sectors_per_cluster = 0xF6;
+    EXPECT_EQ(1024u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0xF6 (i8 -10) -> 2^10: the canonical real-world shift form";
+    bs.sectors_per_cluster = 0xFF;
+    EXPECT_EQ(2u, ntfs::sectors_per_cluster_from_dbr(bs)) << "0xFF (i8 -1) -> 2";
+    bs.sectors_per_cluster = 0x85;
+    EXPECT_EQ(1ULL << 27, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0x85 -> shift 2^27 under the chosen convention (the scan "
+           "controller's 133-raw divergence is D-52's addendum record)";
+    bs.sectors_per_cluster = 0x80;
+    EXPECT_EQ(1u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "the boundary byte: every og layer takes raw 128; the signed "
+           "form shifts (exponent 128 & 31 = 0 -> 1) - the registered "
+           "single-byte nuance";
+    bs.sectors_per_cluster = 0x00;
+    EXPECT_EQ(0u, ntfs::sectors_per_cluster_from_dbr(bs))
+        << "0 -> 0: validate_boot_sector's own reject rule";
+}
+
 TEST(NtfsVolume, BootUsableLargeRecordSizeKept) {
     /* cpr = -12 -> 4096: pow2 and sector-divisible - the og keeps the raw
      * value (buf = max(0x400, rs)); the ladder must not squash it */

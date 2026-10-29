@@ -4186,3 +4186,32 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   8704-byte stride opens and walks, per-record validation carrying the
   safety) beside the adjacent P1-4 pin
   (`NtfsVolume.BootNegativeExponentOverflowRejected`).
+
+### D-52 ADDENDUM — the spc shift-decode threshold: the og is internally inconsistent; the core's signed-byte form is the registered choice (N-197)
+
+- **THE OGRE'S OWN THREE FORMS (all four sites re-read first-hand):**
+  NTFSSearchDLL FUN_18003f5d0 (:51038-51049) shifts only when the high
+  nibble is 0xF — bytes 0x80..0xEF are taken as DIRECT sector counts
+  (0x85 -> 133 sectors/cluster), 0xF0 -> 1<<16, 0xFF -> 2. NTFSLib
+  (:19307, `bVar2 < 0x81 -> raw else 1 << (-bVar2 & 0x1f)`) and
+  NTFSFileSystemAnalyser FUN_1800048c0 (`0x80 < bVar1 -> shift`) shift
+  at >= 0x81 — the majority form the corpus artifacts document.
+  PartitionRecoveryD (:2323-2329) uses the RAW byte with no decode at
+  all (the lost-scan's 4-record MFT read computes MFT positions from the
+  raw count). The parent row's "spc signed-byte decode" wording cited
+  LoadNtfsVolume as *the* og form — an overclaim this addendum corrects.
+- **THE CORE'S REGISTERED CHOICE:** the signed-byte convention (the
+  NTFSLib/analyser majority): positive -> direct count, negative ->
+  `1 << ((-spc) & 31)`, extracted as the pure wire helper
+  `sectors_per_cluster_from_dbr` (cr_ntfs_wire.h) and pinned by
+  `NtfsVolume.BootSpcShiftDecodeConventionPinned` (0x01/0x40/0x7F direct;
+  0xF6 -> 1024 the canonical real-world shift form; 0xFF -> 2; 0x85 ->
+  2^27 under the chosen convention where the scan controller takes 133
+  raw). On a 0x80..0xEF spc byte with positive cpr, the og's own scan
+  controller computes different MFT addresses than the core — deep-edge
+  (shift-form spc implies >= 256-sector clusters; rare even in synthetic
+  images), wrong MFT addressing only on that geometry.
+- **THE 0x80 BOUNDARY NUANCE:** every og layer takes byte 0x80 raw (128);
+  the signed form shifts (exponent 128 & 31 = 0 -> 1). A nonsense byte
+  either way (no formatter emits it); registered here rather than
+  silently diverging.

@@ -48,8 +48,7 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     const i8 spc_raw = static_cast<i8>(bs.sectors_per_cluster);
     if (spc_raw == 0)
         return ERR_BAD_PARAMETER;
-    const u64 sectors_per_cluster =
-        spc_raw > 0 ? u64(spc_raw) : (1ULL << (u64(-spc_raw) & 31)); /* og shift decode */
+    const u64 sectors_per_cluster = sectors_per_cluster_from_dbr(bs); /* N-197: the pinned decode */
     if (bs.bytes_per_sector != geom.logical_sector &&
         bs.bytes_per_sector != 512 /* 512e volumes report 512 in DBR */)
         return ERR_BAD_PARAMETER;
