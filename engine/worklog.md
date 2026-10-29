@@ -1,4 +1,31 @@
 
+## Session-65 S65 lane — M-146 lands (2026-10-29)
+
+- **M-146 FIXED (MAJOR, orchestrator/ntfs)** — probe_family's NTFS gate
+  family replaced with the og analyser's actual family. Corpus re-derived
+  first-hand: FUN_180004900 :3568-3577 (the frame-offset mapping redone:
+  uStack_20d covers +0x0B..+0x0E — the `>> 0x18` byte is +0x0E, NOT +0x0F,
+  the finding's annotation corrected; local_208 covers +0x10..+0x17 with
+  byte 5 (+0x15, media descriptor) skipped; the sweeps are
+  {+0x0E, +0x10..0x14, +0x16..0x17, +0x20..0x23}), spc != 0 as a raw
+  nonzero (no pow2 anywhere). FUN_180005470 :4292-4307's shape gates
+  (record % 512 == 0 && <= 4096, index != 0 && index % 4096 == 0) landed
+  via the M-147 getter twins — index_block_size_from_dbr added to
+  cr_ntfs_wire.h (the FUN_180004870 decode, the 0x1000 zero-default, the
+  registered P1-4 guard). The pow2-spc and mft_lcn!=0 gates dropped; the
+  misattributed comment re-truthed; the bps [512,4096] range kept as
+  D-52-registered hardening (the open question's recommendation). Two
+  fixtures' unrealistic cib=2 (512B clusters + 1024B index blocks — out of
+  the og's own band) corrected to the realistic 8 (test_ntfs_volume
+  build_image + the whole-disk FS-marker fixture). Tests 5/7 RED pre-fix:
+  RecognitionNonPow2SpcDispatches / ReservedBandNonzeroDeclines /
+  UnusedTailBandNonzeroDeclines / RecordSizeShapeGateDeclines /
+  IndexBlockShapeGateDeclines; boundary pins RecognitionUnsweptBandsStayAccepted
+  (+0x0F/+0x15/+0x18-0x1F/+0x24) + RecognitionShapeGateZeroDefaultsPass;
+  full suite 1496/1496. Trail: finding + Resolution moved to findings/FIXED/,
+  ledger row, matrix MATCH, modules/orchestration.md (3 sites), SUMMARY,
+  this entry.
+
 ## Session-65 S65 lane — M-140 lands (2026-10-29)
 
 - **M-140 FIXED (MAJOR, carve)** — the CSL/CD01 walker's decline

@@ -581,7 +581,11 @@ void build_image(Image& img) {
         boot->mft_lcn = MFT_LCN;
         boot->mftmirr_lcn = MIRR_LCN;
         boot->clusters_per_record = 2; /* 2 clusters = 1024B */
-        boot->clusters_per_index_block = 2;
+        /* M-146: cib = 8 (512B clusters x 8 = the 4096B index block every
+         * real formatter pairs; the old 2 decoded 1024B index blocks the
+         * og's FUN_180005470 shape gate declines - the fixture was
+         * unrealistic, not the gate). */
+        boot->clusters_per_index_block = 8;
         boot->checksum = 0;
         bs[510] = 0x55;
         bs[511] = 0xAA;
@@ -5008,6 +5012,131 @@ TEST(NtfsVolume, SpoofedOemRejectedEarly) {
     MemDevice dev2(img2.raw(), img2.geom());
     EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev2),
               cr::orchestrator::FsFamily::Ntfs);
+}
+
+/* ---- M-146: probe_family's NTFS gate family = the og analyser's ----
+ * The og's boot gates (FUN_180004900 :3568-3577, re-read first-hand with
+ * the frame-offset derivation): OEM "NTFS    ", bps % 512 == 0, the
+ * reserved-zero sweeps {+0x0E, +0x10..+0x14, +0x16..+0x17, +0x20..+0x23}
+ * (NOTE: +0x0F and +0x15 are NOT swept - the finding's "+0x0E-0x0F"
+ * annotation overstated by one byte; the decompile's byte set is the
+ * truth), spc != 0 as a RAW nonzero (no pow2 anywhere). Then the shape
+ * gates (FUN_180005470 :4292-4307): record % 512 == 0 && <= 4096,
+ * index != 0 && index % 4096 == 0 (the +0x40/+0x44 getters with the
+ * 0x400/0x1000 zero-defaults). The core's old bps-range + spc-POW2 +
+ * mft_lcn!=0 family is replaced. */
+TEST(NtfsVolume, RecognitionNonPow2SpcDispatches) {
+    /* RED pre-fix (M-146): spc = 3 was declined by the pow2 requirement;
+     * the og's raw-nonzero test accepts every real formatter value. The
+     * MFT record-0 sector is re-planted at the spc-3 offset. */
+    Image img;
+    build_image(img);
+    u8* bs = img.sec(0);
+    BootSector* boot = reinterpret_cast<BootSector*>(bs);
+    boot->sectors_per_cluster = 3; /* non-pow2 - real third-party output */
+    boot->mft_lcn = 8;             /* 8 x 3 x 512 = 12288: the new MFT byte offset */
+    boot->clusters_per_index_block = 8; /* 8 x 3 x 512 = 12288 = 3 x 4096: 4096-multiple */
+    /* re-plant record 0's first sector at the new offset */
+    std::memcpy(img.sec(24), img.sec(MFT_LCN), 512); /* 24 = 12288 / 512 */
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Ntfs)
+        << "a non-pow2 spc volume must dispatch (the og's raw-nonzero test)";
+}
+
+TEST(NtfsVolume, RecognitionReservedBandNonzeroDeclinesAtDispatch) {
+    /* M-146: the og's zero sweeps reject a DBR with garbage in the
+     * reserved bands BEFORE any record probe; the old core dispatched
+     * it. +0x11 sits in the +0x10..+0x14 sweep. */
+    Image img;
+    build_image(img);
+    img.sec(0)[0x11] = 0x01; /* a nonzero reserved byte */
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Unknown)
+        << "a nonzero reserved band (+0x10..+0x14) must decline at dispatch";
+}
+
+TEST(NtfsVolume, RecognitionUnusedTailBandNonzeroDeclinesAtDispatch) {
+    /* M-146: the +0x20..+0x23 unused-band sweep - the og declines; the
+     * old core dispatched. */
+    Image img;
+    build_image(img);
+    img.sec(0)[0x22] = 0x42; /* nonzero in the +0x20..+0x23 sweep */
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Unknown)
+        << "a nonzero unused band (+0x20..+0x23) must decline at dispatch";
+}
+
+TEST(NtfsVolume, RecognitionUnsweptBandsStayAccepted) {
+    /* M-146 boundary pin (the finding's annotation corrected): +0x0F,
+     * +0x15 (media descriptor), +0x18..+0x1F (CHS/hidden fields) and
+     * +0x24 (the 0x00800080 signature) are NOT in the og's sweep set -
+     * nonzero values there keep the dispatch alive. */
+    Image img;
+    build_image(img);
+    u8* bs = img.sec(0);
+    bs[0x0F] = 0x7F;  /* the reserved u16's high byte - unswept */
+    bs[0x15] = 0xF8;  /* media descriptor (already set by build_image) */
+    bs[0x18] = 0x3F;  /* sectors_per_track - unswept */
+    bs[0x1A] = 0xFF;  /* heads - unswept */
+    bs[0x1C] = 0x11;  /* hidden_sectors - unswept */
+    bs[0x24] = 0x80;  /* the signature dword's first byte - unswept */
+    bs[0x25] = 0x00;
+    bs[0x26] = 0x80;
+    bs[0x27] = 0x00;
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Ntfs)
+        << "the unswept bands (+0x0F/+0x15/+0x18..+0x1F/+0x24) never gate the og";
+}
+
+TEST(NtfsVolume, RecognitionRecordSizeShapeGateDeclinesAtDispatch) {
+    /* M-146: FUN_180005470's record shape gate - cpr = -1 decodes a
+     * 2-byte record (1 << 1), not a 512-multiple: the og declines BEFORE
+     * the USA probe. The old core dispatched (its gates never read
+     * +0x40). */
+    Image img;
+    build_image(img);
+    u8* bs = img.sec(0);
+    BootSector* boot = reinterpret_cast<BootSector*>(bs);
+    boot->clusters_per_record = -1; /* 2-byte records: out of the 512-band */
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Unknown)
+        << "a record size outside the 512-multiple band must decline at dispatch";
+}
+
+TEST(NtfsVolume, RecognitionIndexBlockShapeGateDeclinesAtDispatch) {
+    /* M-146: FUN_180005470's index shape gate - cib = 3 with spc = 1,
+     * bps = 512 decodes 1536 bytes: not a 4096-multiple -> the og
+     * declines (real formatters pair 512-byte clusters with cib = 8). */
+    Image img;
+    build_image(img);
+    u8* bs = img.sec(0);
+    BootSector* boot = reinterpret_cast<BootSector*>(bs);
+    boot->clusters_per_index_block = 3; /* 1536-byte index blocks: out of band */
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Unknown)
+        << "an index size outside the 4096-multiple band must decline at dispatch";
+}
+
+TEST(NtfsVolume, RecognitionShapeGateZeroDefaultsPassAtDispatch) {
+    /* M-146 + M-147: cpr = 0 and cib = 0 decode to the four-site
+     * defaults (1024 / 4096) - both IN-band; a zeroed pair of bytes never
+     * declines the dispatch. */
+    Image img;
+    build_image(img);
+    u8* bs = img.sec(0);
+    BootSector* boot = reinterpret_cast<BootSector*>(bs);
+    boot->clusters_per_record = 0;
+    boot->clusters_per_index_block = 0;
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Ntfs)
+        << "the 0x400/0x1000 zero-defaults are in-band at the shape gates";
 }
 
 /* ---- N-079 (new finding, filed during M-052's verification) ----------

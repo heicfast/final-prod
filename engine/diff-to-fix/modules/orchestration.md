@@ -352,8 +352,12 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 
 ## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
 
-New active findings touching this module: **M-146** (probe_family's NTFS gate
-family mismatch — the dispatch layer's gate set re-derived from the analyser),
+New active findings touching this module: **M-146 — FIXED (the S65 lane)**
+(probe_family's NTFS gate family landed: the analyser's zero sweeps + spc
+raw-nonzero + the FUN_180005470 record/index shape gates via the M-147 getter
+twins — index_block_size_from_dbr added to the wire header; the pow2-spc and
+mft_lcn gates dropped; the misattributed comment re-truthed; 5/7 tests RED
+pre-fix, suite 1496/1496),
 **N-199 — FIXED (S60 lane)** (the ReFS second signature FSRS@+0x10 landed in probe_family — both compares, Refs.RecognitionRequiresFsrsMarker),
 **N-194** (the size display formatters absent — the query surface). Verified-MATCH
 this session (the state-management axis, the user's focus battery): the scan

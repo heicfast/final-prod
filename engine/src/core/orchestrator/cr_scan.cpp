@@ -842,29 +842,53 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         return FsFamily::Unknown;
     if (std::memcmp(sec + 3, "NTFS    ", 8) == 0) {
         /* M-043 (the confirmed half): the og's analyser proves NTFS by
-         * content BEFORE the engine - the boot gates (bps 512-multiple
-         * <= 0x1000, SPC pow2 nonzero; FUN_180005470 :4292-4307, decode
-         * re-verified first-hand this session) then the first-records
-         * probe with per-record validation (FILE magic + USA count < 0x11
-         * + USA offset in [0x2a, 0x2a+0xd7); FUN_180005180 :4038-4058).
-         * The cheap form here: record 0's magic + USA bounds after a
-         * plausible-geometry check ($MFT LCN u64@0x30 per the spec-exact
-         * wire struct - kernel NTFS_BOOT_SECTOR layout: total_sectors
-         * occupies 0x28; spc u8@0x0D, bps u16@0x0B). A spoofed OEM on a non-NTFS sector no longer
-         * dispatches the engine - the og's analyser bails the same way
-         * (it never reaches result 4). Failure falls through to the
-         * remaining family probes. NOTE (M-043 corrected half, corpus-
-         * proven): the og has NO scan-path backup-boot fallback - the
-         * analyser only memcmp-verifies the volume-end backup against
-         * the primary and stores the verified location (+0x510) as the
-         * REPAIR input; neither it nor NTFSSearchDLL (zero backup reads
-         * in the decompile) ever scans from the backup. The core's
-         * consent-gated rawfixer owns that path. */
+         * content BEFORE the engine, then the first-records probe with
+         * per-record validation (FILE magic + USA count < 0x11 + USA
+         * offset in [0x2a, 0x2a+0xd7); FUN_180005180 :4038-4058).
+         * M-146 (diff-to-fix, the gate family re-derived from the
+         * decompile, first-hand): the analyser's boot gates are
+         * FUN_180004900 :3568-3577 - OEM "NTFS    ", bps % 512 == 0, the
+         * reserved-zero sweeps {+0x0E, +0x10..+0x14, +0x16..+0x17,
+         * +0x20..+0x23} (frame-offset derivation: uStack_20d covers
+         * +0x0B..+0x0E - the >> 0x18 byte is +0x0E, NOT +0x0F; local_208
+         * covers +0x10..+0x17 with byte 5 (+0x15, media descriptor)
+         * skipped), spc != 0 as a RAW nonzero test (no pow2 anywhere).
+         * FUN_180005470 :4292-4307 gates the RECORD/INDEX shapes before
+         * the USA probe: record % 512 == 0 && <= 4096, index != 0 &&
+         * index % 4096 == 0 (the +0x40/+0x44 getters FUN_180004830/870
+         * with the M-147 0x400/0x1000 zero-defaults - the OLD comment's
+         * bps/spc attribution of :4292-4307 was a misread, corrected
+         * here). Registered core hardening kept: the bps [512,4096]
+         * range (D-52, the same registration the engine open ladder
+         * carries; the og analyser has no bps upper bound) and the P1-4
+         * exponent guard inside the index getter. The old pow2-spc and
+         * mft_lcn != 0 gates are DROPPED (no og site requires either;
+         * mft_lcn 0 self-declines at the record probe). A spoofed OEM on
+         * a non-NTFS sector no longer dispatches the engine - the og's
+         * analyser bails the same way (it never reaches result 4).
+         * Failure falls through to the remaining family probes. NOTE
+         * (M-043 corrected half, corpus-proven): the og has NO scan-path
+         * backup-boot fallback - the analyser only memcmp-verifies the
+         * volume-end backup against the primary and stores the verified
+         * location (+0x510) as the REPAIR input; neither it nor
+         * NTFSSearchDLL (zero backup reads in the decompile) ever scans
+         * from the backup. The core's consent-gated rawfixer owns that
+         * path. */
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
         const u8 spc = sec[0x0D];
         const u64 mft_lcn = le64(sec + 0x30); /* $MFT LCN (0x28 is total_sectors) */
-        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 && (spc & (spc - 1)) == 0 &&
-            mft_lcn != 0) {
+        /* the analyser's zero sweeps, og-exact byte set */
+        const bool sweeps_zero = sec[0x0E] == 0 && sec[0x10] == 0 && sec[0x11] == 0 &&
+                                 sec[0x12] == 0 && sec[0x13] == 0 && sec[0x14] == 0 &&
+                                 sec[0x16] == 0 && sec[0x17] == 0 && sec[0x20] == 0 &&
+                                 sec[0x21] == 0 && sec[0x22] == 0 && sec[0x23] == 0;
+        /* FUN_180005470's shape gates via the M-147 getters */
+        const ntfs::BootSector& boot = *reinterpret_cast<const ntfs::BootSector*>(sec);
+        const u64 record_size = ntfs::record_size_from_dbr(boot, bps);
+        const u64 index_block = ntfs::index_block_size_from_dbr(boot, bps);
+        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 && sweeps_zero &&
+            record_size % 512 == 0 && record_size <= 4096 && index_block != 0 &&
+            index_block % 4096 == 0) {
             const u64 at = mft_lcn * u64(spc) * bps;
             u8 rec[512]; /* the USA fields live in record 0's first sector */
             if (slice->read_at(at, rec, sizeof(rec)) == OK && std::memcmp(rec, "FILE", 4) == 0) {

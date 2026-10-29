@@ -265,6 +265,29 @@ inline u64 sectors_per_cluster_from_dbr(const BootSector& bs) {
     return 0;
 }
 
+/* M-146 (diff-to-fix): the analyser's index-block getter twin
+ * (FUN_180004870 :3443-3456, re-read first-hand): the byte at +0x44
+ * decodes negative -> 1 << (-cib & 31) bytes, zero -> the DEFAULT 4096
+ * (the M-147 four-site family), positive -> cib x spc x bps. Feeds the
+ * probe_family shape gates (FUN_180005470 :4292-4307: index != 0 and
+ * index % 4096 == 0) - the decoded value governs no core walk (INDX
+ * extents ride $INDEX_ALLOCATION runs). The P1-4-family exponent guard
+ * (> 20 -> 0, a deliberate decline) is the registered core hardening the
+ * record twin carries; the og's own shift is unbounded (its 0x80000fff
+ * mask happens to admit the huge powers of two). */
+inline u64 index_block_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
+    const i8 cib = bs.clusters_per_index_block;
+    if (cib > 0)
+        return static_cast<u64>(static_cast<u8>(bs.sectors_per_cluster)) * bytes_per_sector *
+               static_cast<u64>(cib);
+    if (cib < 0) {
+        if (-cib > 20) /* the P1-4-family guard - registered hardening */
+            return 0;
+        return 1ULL << (-cib);
+    }
+    return 0x1000; /* the og's four-site zero default: 4096-byte index blocks */
+}
+
 inline bool boot_signature_ok(const u8* sector) {
     return sector[510] == 0x55 && sector[511] == 0xAA;
 }

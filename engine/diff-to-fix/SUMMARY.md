@@ -97,8 +97,17 @@ the MINOR/MAJOR ladders (the SEVERE/ACUTE tiers are empty).
   the success path and the non-CD01 legs guarded green; Carve family
   156/156.
 
-**Board after this landing:** 0 ACUTE · 0 SEVERE · 18 MAJOR · 13 MINOR · 0 INFO
-active / 153 FIXED / 4 tracked-open. (Lane name S65 — the racing window took
+- **M-146 FIXED (MAJOR, orchestrator/ntfs)** — probe_family's NTFS gate family
+  replaced with the og analyser's: the reserved-zero sweeps (frame-offset
+  derived, with the finding's +0x0F annotation corrected — +0x0F and +0x15 are
+  unswept), spc raw-nonzero (pow2 dropped), and FUN_180005470's record/index
+  shape gates via the M-147 getter twins (index_block_size_from_dbr added).
+  The misattributed comment re-truthed; bps range kept as registered
+  hardening; two fixtures' unrealistic cib corrected. 5/7 RED pre-fix; suite
+  1496/1496.
+
+**Board after this landing:** 0 ACUTE · 0 SEVERE · 17 MAJOR · 13 MINOR · 0 INFO
+active / 154 FIXED / 4 tracked-open. (Lane name S65 — the racing window took
 the S64 seat with its own worklog open; both lanes ride the same mandate.) (M-086/M-087/M-089/N-107/N-127 remain
 driver-repo-resident per OQ-S10-3's two-repo grant boundary.)
 

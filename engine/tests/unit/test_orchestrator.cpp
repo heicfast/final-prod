@@ -361,7 +361,8 @@ TEST(Orchestrator, WholeDiskFsMarkerNamesForeignVolume) {
     img[s2 * 512 + 0x30] = 100; /* $MFT LCN 100 */
     img[s2 * 512 + 0x38] = 108;
     b[0x40] = 2;
-    b[0x44] = 2;
+    b[0x44] = 8; /* M-146: the realistic 4096B index block (cib=2 decoded 1024B
+                    out of the og's FUN_180005470 4096-multiple band) */
     b[510] = 0x55;
     b[511] = 0xAA;
     const u64 rec = (s2 + 100) * 512;
