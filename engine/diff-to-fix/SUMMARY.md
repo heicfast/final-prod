@@ -217,6 +217,18 @@ TTFR dispatch attempt.
   to the S87-continuation form, no coverage lost. **M-107 now has ONE
   member remaining: SWF-RECT** (+ the DWG gen-3 recorded remainder).
 
+- **N-231 FIXED (MINOR, NEW — the gate false-red at the post-landing
+  verification):** the win_syntax_check gate's N-228 test-file section
+  discovered the gtest include only under the preset layout
+  (`build/*/_deps/...`); a direct `cmake -B build` configure (this
+  lane's own layout) drops FetchContent at `build/_deps/...` — the
+  gate FAILed on a healthy tree whose 13 src/win files all parse.
+  The flat-layout candidate added to the discovery loop (one line);
+  the not-found-is-failure posture unchanged; 18/18 ok on the flat
+  tree (the section's 5 test files now actually run). Lesson: a gate
+  that assumes one layout convention makes every other layout a false
+  red — and false reds teach lanes to bypass gates.
+
 - **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
   follow-the-data decode executed in full — the walk driver FUN_18001d460
   (:23100-23160) discards its own out-params (frame locals, never read),
