@@ -9700,3 +9700,23 @@ finding/M-134-addendum cites). Gate green; the registration pin re-verified
 post-sweep. The racing lanes (their MINOR-first S60-B + a MAJOR-first
 lane) are converging on the same board — this lane's remaining queue is
 re-synced against their landings before each fix.
+
+---
+
+**Session-64 S64 lane — the diff-to-fix execution lane (2026-10-29).**
+
+- **Lane open record:** prompt saved (token redacted) at
+  `worklog/session-diff-fix-s64-prompt.md`. The user's lane directive:
+  MINOR-first, one finding one push, aim 20+ fixes. Opening HEAD
+  `24e480c4` (the S60-B/S63 hot-window merge head), corpus `be0cfe9`.
+  Baseline suite building (linux-release, gcc Werror); board re-counted
+  first-hand from the filesystem at open: **0 ACUTE · 0 SEVERE · 20
+  MAJOR · 13 MINOR · 0 INFO active / 151 FIXED / 4 tracked-open** (S-040
+  landed by the S63 lane at `13fe7258`; N-107/N-127 driver-repo-resident
+  per OQ-S10-3's two-repo grant boundary — not fixable in core, counted
+  active-open).
+- **Lane plan (collision-aware):** the 11 in-scope MINORs first (N-194,
+  N-131, N-203, N-140, N-200, N-201, N-145, N-178, N-181, N-182, N-144),
+  then the 4 tracked-open items, then the bounded MAJORs outside the
+  parallel lanes' claimed families. Pull before every push; SA-9
+  convergence discipline on any raced landing.
