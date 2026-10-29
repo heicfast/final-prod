@@ -1462,3 +1462,75 @@ SitWebbAikeTerminatorStopsTheWalk (all RED at the stand-in via the
 stash dance) / SitTornAtDeviceEndSalvagesTheWalkedBound (the
 regression pin) / SitMinimumIsTheOgFloor (unchanged, green). The carve
 suite 206/206.
+
+---
+
+
+---
+
+## Session-87 addendum 3 — M-160: the APE version gate (the whole-family absence)
+
+The APE row's GATE moves to **MATCH**: the og's window is the u16 LE
+at +4 against [1000, 9999] (FUN_180033180's first check); the old
+core's u32-BE [300, 5000] read rejected every real Monkey's Audio
+file — the family was invisible to the carve (the S-007 class,
+discovered during M-107's APE-member verification). Fixed with the
+two-test battery; the S-007 plants re-pinned both directions (the
+real-form plant, the out-of-window noise). The row's EXTENT stays the
+M-107 recorded stand-in — the walk's decode progress (the 2 GB
+singleton+0x70×10 cap, the two header forms' alignment gates, the
+seek-table max walk, the APETAGEX backward tail scan) is recorded in
+M-107's S87 addendum 4 for the future landing lane.
+
+## Session-90 addendum 3 — the S90 lane's SIT concession (2026-10-30)
+
+The S90 lane's independent SIT decode (the PRIMARY's pending-feed
+processor: the ×10 stay-pending gate 0x180015e77-0x180015e7b, the
+(pos−base+1)×sector_size epilogue, FUN_180015b60's marker gate) was
+conceded to the racing 2214af90 landing (the earlier push holds the
+seat per SA-9) — the racing decode found the correct SIZE AUTHORITY:
+the FileSITAnalyser secondary's entry-marker walk FUN_180044a10 (the
+M-090/M-155 authority precedent), where the same 02 D7 0A XX 98 F6 42
+88 marker constants are ALIVE (this lane's "inert" claim was scoped to
+the dead gate's call site — the honest error recorded in M-107's
+Session-90 addendum 3). The unique carries: the ×10 gate decode (the
+primary bounds the pending feeding; the secondary bounds the extent)
+and the independent byte[7] ' '/'!' split corroboration. The remerge
+cleanup: the duplicate S84-generation WPD test block resolved (the S87
+battery owns the seats; WpdZeroProductWordWithGoodPairCarves kept —
+unique to that generation). Suite 1714/1714.
+
+---
+
+---
+
+## Session-92 addendum (renumbered from the born-collided S91) — the WPD member's sub-format rider (the engine-side name split) (2026-10-30)
+
+The racing S87 WPD landing (1ff8ae24) held the seat for the tier-1
+gate + the declared-size extent; its one framing error — "the type
+split is the og's report-layer routing" — is corrected by the child
+processor decode: the CRawFileInfo child's +0x28 slot (0x18000b7a0)
+indexes the 9-byte-stride name table at 0x18008f070 by the tier-1's
+stamped id and assigns WPD/WPG/SHW inside the ENGINE's result object.
+The rider lands the split: the WPG pair via format_override onto
+FMT_WPG, the SHW pair onto the appended FMT_SHW row (the N-115
+override-target pattern). RED→GREEN via the validator-only stash
+dance (the strengthened WpdSecondAndThirdRecordsCarve); the WPD
+battery 7/7; the full suite 1705/1705. **The A25/A27/A47 rows for the
+WPD slice stay MATCH — now with the sub-format ids faithful.**
+
+## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
+
+The open question answered: the RECT walk NEVER changes the extent —
+the og's caller stamps FileLength unconditionally on the deep gate's
+acceptance (FUN_1800268a0). The landing adds the FWS deep gate
+(swf_rect_valid): Nbits = byte8 >> 3 (≥ 2), four sign-magnitude fields
+of Nbits bits from stream bit 5, accept iff Xmin < Xmax && Ymin < Ymax
+&& all four ≥ 0 — the exact bit-walk, raw-asm-cited
+(0x180026940-0x180026b79). The CWS deep gate (the inflate-validation,
+FUN_180026b80) is the finding's explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
+three rejection tests RED at the pre-fix tree). Suite 1724/1724.
+**The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
+the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+>>>>>>> origin/main

@@ -592,6 +592,9 @@ question (a); the landing's terminator model is complete without it
 
 ---
 
+
+---
+
 ## Session-89 addendum — the SIT member LANDED (member 10 of 11: the FileSITAnalyser entry-marker walk + the acceptance-window repair)
 
 **SIT FIXED (this session; one member remains besides APE/SWF-RECT... — the
@@ -735,3 +738,232 @@ The SIT battery 12/12 at the arbitration head; the carve suite
 SIT tests withdrawn (superseded by the arbitrated battery). **SIT's
 member status: LANDED (the arbitration); two members remain: APE,
 SWF-RECT + the DWG gen-3 R2007 remainder.**
+---
+## Session-87 addendum 4 — the APE member's decode progress (the gate landed separately as M-160; the walk remains)
+
+**APE's size walk NOT yet landed (the member remains; the decode
+progress recorded here for the future lane).** This session's
+first-hand decode of the og's APE chain (BruteForce::CAPEAnalyser,
+the "MAC " key 0x2043414d → idx 0x51):
+
+- **The version gate — LANDED as M-160** (the discovered whole-family
+  defect: the og gates the **u16 LE at +4 against [1000, 9999]**
+  (FUN_180033180's first check); the core's u32-BE [300, 5000] read
+  rejected every real APE file. Fixed this session with the two-test
+  battery.)
+- **The walk's own cap:** `uVar4 = *(longlong *)(singleton + 0x70) * 10`
+  = 0xbebc200 × 10 = **2 GB** (the same singleton×N class as DWG's
+  ×100); the final clamp `if (uVar4 < extent) extent = uVar4`.
+- **The old form (< 3980):** the 32-byte header; the format flags
+  (u16 LE@+8): bit 2 → the data start 0x24 else 0x20; bit 4 (seek
+  elements) → a u32 read at the data start + 4; the u32@+0x10
+  (nHeaderBytes) nonzero → + 0x2c (the 44-byte WAV header); the
+  alignment = channels (u16 LE@+0xA) × bytes-per-sample (bit 3 → 3,
+  bit 0 → 8, else 2); the gates: alignment ≠ 0 AND channels ≤ 2 else
+  the extent-0 decline.
+- **The new form (≥ 3980):** the descriptor (the u32@+8
+  nDescriptorBytes → the header at +52); the u64 at header+0x10 =
+  nBitsPerSample | nChannels<<16 | nSampleRate<<32; the alignment =
+  (bitsPerSample >> 3) × channels with the same ≠ 0 / channels ≤ 2
+  gates; the data start = the descriptor's size-field sum.
+- **The seek-table walk (LAB_180033421):** the u32 entries from the
+  data start; each entry 0 or ≥ 2 GB breaks; the MAX accumulates at
+  +0x120 — the audio end. A zero/oversized first entry at the data
+  start → the extent-0 decline (no seek table).
+- **The APETAGEX tail scan:** backward from the chunk end for the u64
+  0x5845474154455041 ("APETAGEX"); on hit: the u32@+12 (the tag size)
+  and the flags byte @+0x17 bit 5 (the header-at-front); the extent
+  adjusts to include the tag (the old form: footer_pos + the tag
+  fields; the new form: the aligned sum); no tag → the block-alignment
+  rounding.
+
+The remaining landing work: the static translation of the seek walk +
+the tag scan over the exact field offsets above (the +0x118
+table-bound arithmetic is the one decode point still open — the loop's
+own 0/≥2 GB break is the walk's termination in the static model).
+## Session-90 addendum 3 (the S90 lane's SIT concession — the ×10-gate corroboration + the marker-scope correction)
+
+This lane's SIT landing (e0acb546, unpushed at the pull) was CONCEDED to
+the racing window's 2214af90 (the earlier push holds the seat per SA-9).
+The concession analysis: **the racing decode found the correct SIZE
+AUTHORITY** — the FileSITAnalyser secondary's one-function walk
+FUN_180044a10 (the M-090/M-155 File*Analyser authority precedent), whose
+entry-marker walk uses the SAME 8-byte marker constants this lane
+decoded. This lane had targeted the PRIMARY's pending-feed processor
+(FUN_180015d70) — the wrong authority for the extent (the same class of
+mistake the S78 X3F lane made and M-155 corrected).
+
+This lane's unique carries, recorded as corroboration:
+1. **The ×10 stay-pending gate** (raw-asm 0x180015e69-0x180015ea6, the
+   `lea (%rax,%rax,4),%rcx; add %rcx,%rcx` pair = row_max × 10 over the
+   SITRawFileInfo ctor's 200,000,000): the PRIMARY's feed-processor cap
+   is 2 GB — a true fact about the pending machinery the racing landing's
+   comment complements (their torn cap: "the singleton+0x70 halved bound
+   — the SITRawFileInfo row max 200,000,000"). The primary's cap and the
+   secondary's torn bound coexist: the primary's gate bounds the PENDING
+   feeding, the secondary's walk bounds the EXTENT.
+2. **The marker-scope correction (this lane's own error, honestly
+   recorded):** this lane's "the three stop markers are provably INERT"
+   claim was TRUE only of FUN_180015b60's single short-circuited call
+   site (0x180015e98 — one caller, the always-true size-high arm) — the
+   marker CONSTANTS are alive in FUN_180044a10's entry walk (the racing
+   decode). The inert claim is scoped to the dead gate, not the markers.
+3. The byte[7] ' '/'!' split: independently decoded both sides; the
+   racing landing went further (the acceptance window — any other byte
+   never finalizes in the og; the core refuses it outright).
+
+The racing landing's row max (200,000,000) stands — the secondary's
+walk is the extent authority and its torn bound IS the ctor value; this
+lane's 2 GB row was the primary's gate constant applied to the wrong
+surface. This lane's two SIT tests and the batch-caps re-pin were
+dropped as superseded; the racing battery (SitEntryMarkerWalkSetsExtent
+/ SitMarkerStrideTable / SitNewHeaderAtSectorBoundaryEndsTheWalk /
+SitCorruptEntryTerminalStampsTheSectorStart /
+SitByteSevenOutsideTheWindowIsRefused) owns the coverage.
+
+---
+
+---
+
+## Session-92 addendum (renumbered from the born-collided S92) — the WPD member's S92 SUB-FORMAT RIDER (the engine-side name split; the S87 landing's 'report-layer' framing corrected)
+
+**The rider (this lane's unique delta over the racing S87 seat):** the
+racing 1ff8ae24 landing kept the single FMT_WPD family carve for all
+three tier-1 rows, framing the id split as "the og's report-layer
+routing ... the registered model-divergence stance, the CRW precedent"
+— but the framing is factually wrong and the registration never landed
+in any trail file (PARITY-DELTAS.md carries no WPD row; the S87
+addendum's text names no divergence — the stance exists only in the
+commit message; the trail-truth class this session's doc sweep hunts).
+
+The first-hand decode that corrects it: the og's ENGINE assigns the
+sub-format name. The plain CRawFileInfo child's **+0x28 processor
+(0x18000b7a0)** — decoded this session: `mov eax,[rcx+0x18]` (the id
+the tier-1 stamped), `lea r9,[rax+rax*8]` + `0x18008f070` (the
+9-byte-stride name table), the strlen walk, the string-assign call —
+maps the stamped id (0x44/0x45/0x3d) to the name string WPD/WPG/SHW
+inside the engine's own result object. The "CRW precedent" citation is
+also a mis-citation: CRW II/MM are distinct 4-byte KEYS (registry
+dispatch), while the WPC split is post-key discrimination — the true
+precedents are N-111 (JP2 brands via format_override) and N-115/N-158
+(the office typing set).
+
+**The landing:** the WPG pair {0x00021601, 0x00030000} carries via
+`format_override` onto the existing FMT_WPG row (the "wpg\0"-keyed row
+keeps its own zero-tail-walk entry semantics — two paths, one format
+id, the og's shape); the SHW pair {0x00010f0f, 0x00030000} takes the
+appended **FMT_SHW** row (ext "shw", the og name table's id 0x3d) — an
+override target in the N-115 pattern, its kTrialOrder slot keeping the
+exhaustive-table static_assert true. The WPD row itself (min 16, max
+4 GiB — the racing S90 rider's house-pattern form) is untouched. The
+strengthened `WpdSecondAndThirdRecordsCarve` asserts both sub-format
+ids + both sizes: RED first-hand via the validator-only stash dance
+(the pre-rider tree stamps everything FMT_WPD), GREEN with the rider;
+the full WPD battery 7/7; the full suite 1705/1705.
+
+**The convergence record (this lane's seat history):** this lane
+independently decoded the WPD member pre-window (the three-pair
+tier-1, the u32@+0x14 extent, the +4 gate retirement — all agreeing
+with the racing S84/S87 landings; the local landing dropped at the
+rebase per SA-9 with the concession recorded in the worklog's S92
+entry). The racing S87 seat added the zero-size decline gate (the
+engine's extent!=0 gate at 0x18000d7e1) this lane's decode missed —
+their seat is the better base and holds. This rider is the one delta
+that survives: the sub-format split the seat's own message saw
+("-> type 0x44 / 0x45 / 0x3d") but routed away on the mistaken
+report-layer framing. The divergence registration the S87 message
+promised is thereby MOOT — the split is implemented, not diverged.
+
+---
+
+## Session-92 addendum — the APE member's decode IN PROGRESS (the frame walk's first half decoded first-hand; the precise continuation probes recorded)
+
+**APE's chain decoded this session (objdump over og-codebase/RAWSearchDLL.dll;
+RTTI via the COL walk):** the "MAC " key 0x2043414d (raw asm
+0x18000358b, the rolling alloc-then-bind) → the **BruteForce::CAPEAnalyser**
+node (vtable 0x18006bf88, RTTI-verified, id 0x51 = the name table's
+'APE'). The tier-1 (node+0x10 = FUN_180033090) is the MINIMAL form:
+`mov [r8+0x18], 0x51; mov eax, 1; ret` — accepts UNCONDITIONALLY,
+stamps the id, never touches result+0x10; the magic key IS the gate.
+The factory (node+0x38 = FUN_1800330a0) allocates a **0x138-byte
+specialized child**: the plain CRawFileInfo base ctor (0x18000b520)
+then the APE vtable override (0x18006bfd8) with +0x110/+0x118/+0x120
+zeroed (the walk's accumulators). The node's +0x40 is the return-0
+stub — no secondary; the child's +0x20 (FUN_180033180) is the frame
+walk, the authority.
+
+**The walk's decoded first half (0x180033180-0x180033478):**
+- **The version window gate** (:180033200-:180033240): u16@chunk+4
+  must satisfy 1000 ≤ v < 10000 (the 3920-3990 3.9x family fits
+  verbatim); outside → `mov [rbx+0x10], 0; return 1` — the extent-0
+  DECLINE.
+- **The cap**: singleton+0x70 × 10 = **2,000,000,000** (:1800331e7-:1800331f4,
+  `lea r12,[rcx+rcx*4]; add r12,r12` — the same cap family the SIT
+  walk decoded).
+- **The seek-table walk** (:180033440-:180033476): 4-byte entries from
+  the chunk's descriptor-referenced table, each entry < the cap and
+  nonzero, accumulating the running MAX into child+0x120.
+- **The extent stamp** (:180033494-:18003349b): child+0x120 (the
+  seek-table max) → result+0x10.
+- **The frame-header parse** (:18003329e-:180033321): the SIMD read of
+  the chunk's head, the descriptor offset s32@chunk+8, and the frame
+  size formula (u16@frame >> 3) × u16@frame+2 → child+0x12c.
+
+**The precise continuation probes (the next lane's start):**
+1. The frame loop at :1800334c4 onward (the `[r13+0x14] > r15d` gate,
+   the 0x18006bf70 .data constant, the byte-compare loop at
+   :1800334f6) — the per-frame advance and the walk's natural end.
+2. The second-chunk continuation at :180033421 (the child+0x118
+   path — the chunk-feeding protocol's resync).
+3. The terminal states: :1800335c1 (the cap boundary), :1800335c6
+   (the decline), :1800335d7 (the return), :180033604 (the post-gate
+   fall-through).
+The stand-in stays WITH this addendum as the owner (the honest
+posture until the walk lands whole).
+
+---
+
+## Session-90 addendum 4 — the SWF-RECT member LANDED (member 11 of 11: the FWS RECT validation gate — a VALIDATION-ONLY landing, the finding's open question 3 answered)
+
+**SWF-RECT FIXED (this session, the S90 lane; APE + the DWG gen-3 R2007
+remainder stay with the finding).** The walk decoded first-hand from the
+raw asm (objdump over RAWSearchDLL.dll):
+
+- **The caller (FUN_1800268a0 :29970-29996)**: FWS ("FW"+'S') or CWS
+  ("CW"+'S') only — ZWS is NOT handled; the deep gate runs
+  (FUN_180026940 for FWS, FUN_180026b80 for CWS) and **on acceptance
+  the caller stamps size = u32@+4 (the FileLength) unconditionally** —
+  the RECT walk NEVER changes the extent. **M-107's open question 3 is
+  answered: the RECT parse is VALIDATION-ONLY — the "member" downgrades
+  to a gate, exactly as the question anticipated.** The core's extent
+  (FileLength) was already correct.
+- **The FWS deep gate (FUN_180026940 :30001-30130, raw-asm
+  0x180026940-0x180026b79)**: version byte@+3 ∈ [3,20]
+  (0x180026953-0x180026963); FileLength ≥ 9 (0x180026969); **Nbits =
+  byte8 >> 3** (the top 5 bits, MSB-first), **Nbits < 2 rejects**
+  (0x180026980-83); four signed fields of [1 sign bit + (Nbits−1)
+  magnitude bits], MSB-first starting at stream bit 5 (the first sign
+  bit = LSB-index bit 2 — the asm's `and $0x4,%bl` sign check at
+  0x180026a03; the first magnitude bit = LSB bit 1, the traced `shr $1`),
+  sign-magnitude decoded (neg/cmove) — for every file the gate ACCEPTS
+  all four fields are non-negative, where sign-magnitude and the spec's
+  two's complement agree; **accept iff Xmin < Xmax && Ymin < Ymax &&
+  Xmin ≥ 0 && Ymin ≥ 0 && Xmax > 0 && Ymax > 0**
+  (0x180026b3e-0x180026b5b) — a bounding-box sanity gate.
+- **The CWS deep gate (FUN_180026b80) inflates the compressed body
+  before validating** (the zlib-family calls at 0x180026c25/0x180026c4c/
+  0x180026c7e) — the finding's explicit recorded remainder; the CWS row
+  keeps the shallow gates + the FileLength extent (which the og's
+  caller also stamps for CWS). Pinned by
+  `SwfCwsDeepGateIsTheRecordedFollowUp` so the future inflate-validation
+  landing flips the pin deliberately.
+
+The landing: validate_swf grows the FWS RECT gate (`swf_rect_valid`, the
+exact bit-walk, 25-byte header window covering every Nbits ≤ 31); the
+"RECT bit-walk is the recorded follow-up" comment is GONE. The S-007
+plant re-pinned (a valid RECT via the bit-writer helper). RED→GREEN
+first-hand via the stash dance: SwfRectValidationRejectsInvertedBox /
+SwfRectValidationRejectsNegativeField / SwfRectNbitsBelowTwoRejects all
+RED at the pre-fix tree (the core accepted every readable FWS header),
+GREEN with the gate; SwfRectValidationAcceptsSaneBoxAtFileLength pins
+the positive + the FileLength extent. Suite 1724/1724.

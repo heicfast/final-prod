@@ -443,6 +443,18 @@ enum FormatId : u32 {
     FMT_EDDX,  /* rels/_rels.xml | rels/page1_rels.xml -> 0x8c */
     FMT_WFP,   /* ProjectFolder/Anon/ | ProjectFolder/project_info.json -> 0x8d */
     FMT_DRP,   /* MediaPool/Master/MpFolder.xml -> 0x91 */
+    /* M-107 member 6's S91 sub-format rider: the WordPerfect family's
+     * third sub-format. The og's tier-1 (FUN_180041f50) stamps the
+     * row id into result+0x18 - WPD 0x44 / WPG 0x45 / SHW 0x3d - and
+     * the ENGINE (not the report layer) assigns the name: the plain
+     * CRawFileInfo child's +0x28 processor (0x18000b7a0) reads
+     * child+0x18, indexes the 9-byte-stride name table at
+     * 0x18008f070, and assigns the id's name string to the result
+     * (first-hand decode). The WPG pair carries via format_override
+     * onto the existing FMT_WPG row; SHW takes this appended row (the
+     * override target, the N-115 pattern). Id APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_SHW,
     FMT_COUNT
 };
 
@@ -508,6 +520,16 @@ struct CarveResult {
      * counter; the date-alone DOCX rows 1..19 across three different
      * dates). Empty = the per-format branch (dims/duration/plain). */
     std::string name_counter_key;
+    /* M-101: the extracted TAG FAMILY value — the og's Tags Extracted
+     * branch axis ("We classify and organize the found files by
+     * extracted tags to help you easily locate desirable files.",
+     * UIUX/09:27; the node-type 6 branch at DRWUI:642790). The EXIF
+     * Model string, else the EXIF Software string (the same priority
+     * the S-049 prefix derives — "GT-S7562", "Adobe Photoshop 7.0").
+     * Empty = no extracted tag (the file stays out of the branch). The
+     * emit site copies it onto FileProperties::tag_group (runtime-only
+     * per the finding's fix plan: the og does not persist tags). */
+    std::string tag_group;
     /* M-093: the og stamps the FORMAT ID at the probe, not at the
      * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
      * for the generic-XML marker regardless of which of its four keys

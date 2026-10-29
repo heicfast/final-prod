@@ -978,3 +978,59 @@ TEST(Display, SizeUiFormatterPrecisionAndStrip) {
     /* negative precision clamps to 0 */
     EXPECT_EQ("5 B", query::display_size_ui(5, -3));
 }
+
+TEST(Query, VersionsAndTagsExtractedBranchAxes) {
+    /* M-101 (adapted to the landed implementation): the exact-id
+     * version_group filter + the tags_only branch scope, composing with
+     * the existing filter dimensions. The landed design: version_group
+     * ids are the namespace-identity hash stamped at emission;
+     * query::version_groups() collects the >=2-live-member families;
+     * Filter::version_group selects one family; Filter::tags_only
+     * scopes the Tags Extracted branch (the flag the carve rider and
+     * the host preview pass both stamp). */
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    const u64 fam = 0xAABBCCDD11223344ull;
+    auto add = [&](const char* name, u64 version_group, bool tags) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = std::u16string(name, name + std::char_traits<char>::length(name));
+        p->logical_size = 100;
+        p->version_group = version_group;
+        p->tags_extracted = tags;
+        auto* f = t.add_file(found, p);
+        p->release();
+        return f;
+    };
+    add("dupe.doc", fam, false);
+    add("DUPE.DOC", fam, true);
+    add("plain.txt", 0, false);
+    add("photo.jpg", 0, true);
+    t.refresh_stats();
+
+    /* the family census: exactly the >=2-member family surfaces */
+    const auto groups = query::version_groups(t);
+    ASSERT_EQ(groups.size(), size_t(1));
+    EXPECT_EQ(groups[0].id, fam);
+
+    Query q;
+    q.filter.version_group = fam;
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the version family members";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.version_group, fam);
+
+    q.filter.version_group = 0;
+    q.filter.tags_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the tag-bearing files";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.tags_extracted, 1u);
+
+    /* the axes compose: the family member that ALSO carries the flag is
+     * the single intersection */
+    q.filter.version_group = fam;
+    q.filter.tags_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "the two branch axes intersect";
+}

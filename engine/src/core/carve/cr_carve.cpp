@@ -141,6 +141,11 @@ constexpr u32 kTrialOrder[] = {
      * the true id); these slots make the trial table exhaustive and
      * give the M-024 disable surface its per-row token */
     FMT_XMIND, FMT_MMAP, FMT_EDDX, FMT_WFP, FMT_DRP,
+    /* M-107 member 6's S91 sub-format rider: the SHW slot - an
+     * override target (the FMT_WPD row wins the shared \xFFWPC tie and
+     * the validator's override carries the og's id 0x3d); rides AFTER
+     * the family row, keeping the exhaustive-table static_assert true */
+    FMT_SHW,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -799,6 +804,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = file_len;
             props->carve_format = eff.id;
             props->carve_confidence = u16((eff.base_confidence + cr.confidence) / 2);
+            /* M-101 (the S84 convergence rider over the landed
+             * implementation): the carve analyser's EXIF walk already
+             * extracts the tag family (Model, else Software — the S-049
+             * naming source); a file whose tags were extracted AT SCAN
+             * stamps the branch flag here, composing with the landed
+             * host-preview-pass stamping (either path ORs the flag — a
+             * carved JPEG with an EXIF Model is in the branch without
+             * waiting for the host's pass). Runtime-only by design (the
+             * og does not persist tag state; the corpus shows the branch
+             * as runtime grouping). */
+            props->tags_extracted = !cr.tag_group.empty();
             /* N-089: the analyser's evidence note rides the node (the og's
              * CRAW second-string field +0x5A): the per-family evidence
              * ("page-math", "RIFF+AVI+hdrl", ...) and the FCP-event-database

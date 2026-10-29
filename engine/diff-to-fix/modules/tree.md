@@ -85,3 +85,15 @@ FUN_140638400), and the bit-2-of-+0x74 setters (the drive-letter-path
 recovered bit, two sites) — with the 0xa8-producer no-writer-found
 observation registered as the likely-dead-branch residual. Evidence:
 `../evidence/s55-lane-sheets/S55-D3-grading.md` (the full rule matrix).
+
+## M-101 addendum (the convergent landing, 2026-10-30)
+
+The tree model carries the og's two missing distinguished-branch axes
+(UIUX/09:27-36): `version_group` (the Versions node — the FNV-1a
+namespace-identity id the MFT walk stamps at emission; >= 2 live nodes
+sharing the id are the multi-version family `query::version_groups`
+surfaces; persisted nflags bit-14) and the runtime `tags_extracted`
+flag (the Tags Extracted branch — stamped by the host's preview pass
+OR the carve analyser's S-049 EXIF walk, the S84 compose rider; never
+persisted). The three landed branches are unchanged. Full record:
+findings/FIXED/M-101-results-tree-branches-missing-versions-node-tags-extracted.md

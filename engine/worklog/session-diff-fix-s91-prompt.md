@@ -1,105 +1,55 @@
-# Session-91 (S91) — diff-to-fix session prompt (re-homed S88 → S90 → S91 per SA-9: the racing windows took S68-S90) (token redacted)
+# Session-91 (S91) — the diff-to-fix fix mandate prompt (token redacted)
 
-Saved at session open per the mandate. Core at open: `ddab68b4` (main, clean
-clone); corpus `be0cfe9` throughout.
+[Seat note: born-collided on S89 — the racing windows took S89 (their
+prompt file + their worklog entries hold the seat) and S90; this lane
+renumbers to S91 per the convention.]
 
-## The mandate (condensed, full text below)
+Saved at the session open, 2026-10-30. The verbatim user mandate with the
+GitHub token redacted (the token never enters any repo file; it lives in
+the session env / the local credential store only).
 
-Senior systems engineer role. Execute the roadmap in `core_recovery/diff-to-fix/`.
-For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN —
-independently verify the finding, fix it, prove the fix with tests and
-benchmarks, and mark it fixed in the audit trail with evidence. Do not trust
-the audit blindly; a false finding is corrected in the audit trail rather than
-"fixed" by breaking good code.
+---
 
-Two repositories in scope and only two:
+You are a senior systems engineer (25+ years) in Windows storage internals, C++20 production engineering, and parity remediation against reverse-engineered references. You have closed out audit findings on commercial recovery engines, and you know the difference between "the auditor says X" and "I proved X, fixed it, and proved the fix."
+
+Your mandate this session: execute the roadmap in `core_recovery/diff-to-fix/`. For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN — independently verify the finding, fix it in the codebase, prove the fix with tests and benchmarks, and mark it fixed in the audit trail with evidence. You do not trust the audit blindly; every finding is re-verified against the research corpus and the running code before any change is made. A false finding is corrected in the audit trail rather than "fixed" by breaking good code.
+
+Two repositories are in scope and only two:
 - Core (modified): https://github.com/heicfast/core_recovery
 - Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
-- GitHub token: (REDACTED — env/git config only, never committed, never logged)
+- GitHub token (env/git config only, never committed): [REDACTED — ghp_***]
 
-## Session-specific directive
+Do not clone, reference, or look at any other repository. Do not guess reference behavior — verify against the corpus.
 
-Fix all the audit findings (priority to MAJOR first) one by one, with full
-context and knowledge; update and put fixed findings in the FIXED directory.
-Update all docs and counts properly. Aim for at least 20+ fixes in this
-session.
+[The full SOP sections 1–13 follow verbatim: read-before-touching; the
+verify→reproduce→classify→fix loop (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
+FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING); the Resolution template;
+fixing rules (re-implement from understanding, never paste decompiled code,
+never copy proprietary strings, fix the cause, every fix paired with a
+failing-then-passing test, safety hardenings preserved, no stubs or
+fallbacks); fix order ACUTE→SEVERE→MAJOR→MINOR→INFORMATIONAL→TRACKED-OPEN
+with the user's closing-line override "priority to minor first";
+performance fixes measured not guessed (the 4 KiB/64 KiB direct-I/O
+Windows rule); the test-adding rules; the audit-trail update rules
+(CROSS-REF-MATRIX → MATCH, modules/*.md, SUMMARY counts, worklog);
+discovered-divergence filing; CI gates (MSVC /W4 /WX, Win7-inclusive
+import allowlist, signing stays disabled); documentation duties; the 20
+TODOs; and the SOPs — verify → reproduce → classify → fix → re-review →
+test → benchmark → document → push → loop; one finding one verified fix
+one push; pull frequently, never force-push, leave main green.]
 
-## Operating rules (the SOPs, verbatim order)
+Final user line: "Fix all the audit findings (priority to minor first) one
+by one, with full context and knowledge and update and put fixed findings
+in fixed directory. Update all docs, counts and all properly. Aim for
+atleast 20+ fixes in this session."
 
-1. Read before touching anything: diff-to-fix/ in full (README, SUMMARY,
-   SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX, every finding, every module
-   doc, every evidence artifact); the corpus line-by-line where a finding
-   requires it; the core repository in full; record the audited commit.
-2. Independently verify each finding before fixing: reproduce the evidence,
-   re-verify against the corpus, classify
-   CONFIRMED-DIVERGENCE / ALREADY-FIXED / FALSE-POSITIVE / OUTDATED-EVIDENCE /
-   NEW-FINDING; only then fix.
-3. Fixing rules: re-implement from understanding (never paste decompiled
-   code); fix the cause not the symptom; match architecture and wiring; every
-   fix paired with a test that fails before and passes after; safety
-   hardenings are not slop — preserve them; no shortcuts, no fallbacks that
-   mask failure, no stubs/mocks/TODOs; no hallucinated parity; ReFS and LDM
-   remain first-class; do not break contracts without updating consumers in
-   the same change; pull frequently, never force-push; token hygiene.
-4. Fix order: ACUTE → SEVERE → MAJOR → MINOR → INFORMATIONAL → TRACKED-OPEN;
-   within each tier, correctness before performance, data integrity before
-   latency, silent-failure paths before observable inefficiencies.
-5. Performance fixes: measure, do not guess — baseline, fix, re-benchmark,
-   accept or revert; record numbers. Windows direct I/O: multiple of 4 KB,
-   multiple of 64 KB where possible.
-6. Adding tests: unit for logic, integration on seeded fixtures, fuzz for
-   parsers touched, TSan for threading, ASan/UBSan for memory, CLI contract
-   for grammar changes, ABI consumer for C ABI surfaces, benchmarks for
-   performance-tagged findings. Test names describe behavior, not finding IDs.
-7. Update the audit trail after every fix: Resolution section in the finding
-   file, CROSS-REF-MATRIX → MATCH, modules/<module>.md, SUMMARY.md counts,
-   README if needed, worklog.md.
-8. Discovered divergences: file new findings with full evidence, add matrix
-   rows, update SUMMARY, announce in commit messages. No silent fixes.
-9. CI and quality gates: Windows CI green (MSVC /W4 /WX, DLL smoke, CLI
-   contract, integration, C consumer, fuzz smoke, Win7-inclusive import
-   allowlist); Linux CI green (pure-core, CLI, sanitizers on touched tests,
-   fuzz smoke); no continue-on-error; main stays green; Win7-inclusive
-   loadability gate intact; signing stays disabled.
-10. Documentation: every fix documented in Resolution + worklog.md;
-    CAPABILITY-MATRIX / architecture / ground-truth-contracts /
-    error-fix-registry updated in the same commit; resolved TODOs removed;
-    PARITY-DELTAS for deliberate divergences.
-11. Deliverables: every finding in a terminal state; the audit trail is the
-    deliverable; one finding, one verified fix, one push.
-12. First 20 TODOs as listed in the mandate; spawn 20 more on completion.
-13. SOPs: verify → reproduce → classify → fix → re-review → test → benchmark
-    → document → push → loop. The audit trail is the deliverable.
+---
 
-## The session's board at open (from SUMMARY.md + findings/ enumeration)
-
-0 ACUTE · 0 SEVERE · 6 MAJOR (M-086, M-087, M-089 driver-repo-resident per
-OQ-S10-3; M-101, M-105, M-107 in-scope) · 3 MINOR (N-107, N-127
-driver-repo-resident; N-223 FIXED in-file but not yet in FIXED/) · 4
-tracked-open (OQ-S10-1, OQ-S10-3, OQ-S4-3, OQ-S79-1) · 202 FIXED.
-M-107 members landed so far: X3F (1), CRW (2), DWG gen-1/gen-2 (3), PSP (4),
-WPG (5) — remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT + the DWG gen-3
-R2007 remainder.
-
-## Re-homing note (added at the merges)
-
-First re-home: S88 -> S90 (the racing S88/S89). Second re-home at the
-push: S90 -> S91 (the racing window's OWN S90 concession lane —
-fce46d98 — pushed first and keeps that seat too). The N-number
-cascade: this lane's worklog-marker repair was born N-224, renumbered
-N-227 at the first merge, and now N-228 (the racing N-227 — the
-m101-test-restore — stands).
-
-This lane opened as S88 from core `ddab68b4`; the racing window's S88/S89
-pushed first and keeps those seats — this lane re-homes to S90. The
-N-224/N-225 born-collisions resolve the same way: the racing N-224 (the
-win-stub gap) and N-225 (the triple-definition repair) stand; this lane's
-worklog-marker repair renumbers to N-227 and its win-stub fix retires as
-the convergent twin (the fourth instance, recorded in FIXED/N-224's
-convergence addendum).
-
-## Defect found at open (the sixth N-223-class recurrence)
-
-`ddab68b4` itself committed live conflict markers into worklog.md:2-103 (the
-S87 N-181 concession entry vs the S84 DWG-member-3 entry) — filed as N-227
-(this lane's numbering, re-homed at the merge) and repaired both-sides-kept before any other work.
+**S91 seat note (renumbered from the born-collided S89):** opened at core `390069ab` (the S87/S88 racing windows'
+landing head; pulled through their N-224/N-225/M-159/DWG-gen-2 absorptions
+before this lane's first push), corpus `be0cfe9` (read-only guarantee
+held). Baseline verified first-hand at the open: linux-release build
+clean, full ctest **1683/1683 green**, marker sweep clean (the S87 window
+swept the worklog block this lane also found at its open — converged
+before any push; no concession needed). The racing lanes took seats
+S68–S88; this lane takes S89.
