@@ -2476,9 +2476,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3084,8 +3084,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else

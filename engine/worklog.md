@@ -1,4 +1,40 @@
 
+## Session-87 S87 fix lane (continuation) — the closing record (2026-10-30)
+
+**The session's final state (every push verified, main green
+throughout):**
+
+- ci-local.sh GREEN end-to-end (10/10 stages: format, the
+  N-041/architecture/marker lints, the N-231 test-name uniqueness
+  1755/0, the -Werror build, the full ctest, the schema + Win7 gates,
+  the manifest, the doc links, the secrets scan, the commit
+  convention).
+- The full suite 1738/1738 (the two known parallel-load perf flakes
+  pass serially; every full run re-verified after each merge).
+- The marker sweep clean repo-wide (the M-107 rename-aware resolution
+  — HEAD:FIXED vs origin:MAJOR paths — handled manually; the only
+  surviving markers are the sanctioned evidence quotes).
+- The board: 0 ACUTE · 0 SEVERE · 3 MAJOR · 2 MINOR active (all
+  driver-repo-resident per OQ-S10-3, PUSHED-FORWARD with the boundary
+  re-affirmed) / 219 FIXED / 3 tracked-open (OQ-S10-1, OQ-S10-3,
+  OQ-S4-3 — each with its precise next step recorded by the racing
+  windows: the libheif vendoring owner call, the two-repo boundary,
+  the one Windows execution for the Strat-Pair matrix).
+- The session's unique landings: M-107 closed (the WPD five-test
+  verification battery, the SIT decode + the concession deltas, the
+  SWF-RECT CWS deep-gate completion, the enumeration's closure
+  record); M-160 (the APE whole-family absence — the u16 LE window);
+  N-225 + N-229 (the two red-main repairs, each with the recurrence
+  class recorded); the fixed-directory moves (N-226, M-160, M-107);
+  the SUMMARY/board recount.
+- The handoff: the DWG gen-3 R2007 remainder is the one open carve
+  walk (the decode scope registered in M-107 + the racing windows'
+  FUN_18002eb10 rotation-transform identification); the
+  driver-repo-resident five need the third repository's grant; the
+  three tracked-open items need their named external steps. No
+  finding left silently; every convergence recorded with both sides'
+  work credited.
+
 ## Session-87 S87 fix lane (continuation) — entry 6: M-107 member 11 COMPLETED (the CWS deep gate over the racing FWS seat); the enumeration closes — M-107 FIXED (2026-10-30)
 
 - **The SWF-RECT convergence completion:** the racing window's FWS

@@ -330,7 +330,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t) - 1)
+#define _TRUNCATE ((size_t)-1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
