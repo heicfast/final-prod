@@ -27,6 +27,7 @@
 typedef unsigned long DWORD;
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
+typedef unsigned long long ULONGLONG; /* N-225: cr_fsck.cpp's timeout math (SDK: 64-bit tick count) */
 typedef long LONG;
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
@@ -411,6 +412,20 @@ struct PROCESS_INFORMATION {
 inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECURITY_ATTRIBUTES*,
                            BOOL, DWORD, void*, const wchar_t*, STARTUPINFOW*,
                            PROCESS_INFORMATION*) {
+    return 1;
+}
+/* ---- Wow64 file-system redirection (N-225: cr_fsck.cpp's native-System32 launch) ----
+ * SDK shapes: BOOL Wow64DisableWow64FsRedirection(PVOID* OldValue);
+ *             BOOL Wow64RevertWow64FsRedirection(PVOID OldValue);
+ * Present since Windows XP on x64; no-op (returns FALSE) when the process
+ * is not 32-bit-on-64-bit, which the stub models as always-succeeding for
+ * the parse gate's purposes. Declaration-only, not for linking. */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    if (old_value)
+        *old_value = nullptr;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void*) {
     return 1;
 }
 inline DWORD WaitForSingleObject(HANDLE, DWORD) {
