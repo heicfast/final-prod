@@ -1017,6 +1017,10 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         return rc;
     if (cancel && cancel->cancelled())
         return ERR_CANCELLED;
+    /* S-066: the recognition re-base is surfaced, never silent (the
+     * skip-honesty counter family) */
+    if (p.base_shift_sectors != 0)
+        ++stats.base_shifted;
 
     ScanCtx ctx;
     ctx.cancel = cancel; /* P2-8: cancellable walk */
