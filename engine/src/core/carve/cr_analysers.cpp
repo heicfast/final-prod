@@ -641,6 +641,16 @@ static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 
                                         v.pop_back(); /* NUL/space trim */
                                     if (v.empty())
                                         continue;
+                                    /* N-190: the og's strncpy(dst, src, 0x27)
+                                     * caps the tag value at 39 chars
+                                     * (RAWSearchDLL:40388-40389 the Software
+                                     * 0x131 branch, :40483-40484 the Model
+                                     * 0x110 twin - the 39th char KEPT, no NUL
+                                     * at exactly 39); the pre-fix core
+                                     * consumed the whole tag string into the
+                                     * prefix and the per-string counter key */
+                                    if (v.size() > 39)
+                                        v.resize(39);
                                     if (tag == 0x0110 && model.empty())
                                         model = v;
                                     else if (tag == 0x0131 && software.empty())

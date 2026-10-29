@@ -6688,6 +6688,108 @@ TEST(CarveEngine, OgNamingJpgSofDimensions) {
     EXPECT_TRUE(saw_jpg) << "the fixture's JPEG must carve";
 }
 
+TEST(CarveEngine, JpegExifPrefixCappedAtThirtyNine) {
+    /* N-190: the og's strncpy(dst, src, 0x27) caps the EXIF tag value at
+     * 39 chars (RAWSearchDLL:40388-40389 the Software branch, :40483-40484
+     * the Model twin - the 39th char kept) - a 60-char Software tag names
+     * the file by its FIRST 39 chars; the pre-fix core consumed the whole
+     * string into the prefix and the per-string counter key. */
+    const auto plant_exif_jpeg = [](std::vector<u8>& img, size_t at, const char* model,
+                                    size_t model_len, const char* software, size_t sw_len) {
+        /* SOI + APP1 Exif + TIFF/IFD0 with Model (0x0110) and/or
+         * Software (0x0131) + SOF0 + SOS + EOI */
+        img[at] = 0xFF;
+        img[at + 1] = 0xD8;
+        /* APP1 segment: len = 2 + 6 ("Exif\0\0") + 8 (TIFF header) +
+         * 2 (entry count) + 12*n + 4 (next-IFD) + the value strings
+         * (each NUL-terminated; they live INSIDE the segment - a value
+         * area past the segment end would collide with the next marker) */
+        const size_t entries = (model ? 1 : 0) + (software ? 1 : 0);
+        const size_t strings = (model ? model_len + 1 : 0) + (software ? sw_len + 1 : 0);
+        const size_t ifd = 8 + 2 + 12 * entries + 4;
+        const size_t app1_len = 2 + 6 + ifd + strings;
+        img[at + 2] = 0xFF;
+        img[at + 3] = 0xE1;
+        putbe16(img, at + 4, u16(app1_len));
+        std::memcpy(img.data() + at + 6, "Exif\0\0", 6);
+        const size_t t = at + 12; /* TIFF header */
+        img[t] = 'M';
+        img[t + 1] = 'M'; /* big-endian */
+        img[t + 2] = 0;
+        img[t + 3] = 42;
+        putbe32(img, t + 4, 8); /* IFD0 at +8 */
+        putbe16(img, t + 8, u16(entries));
+        size_t e = t + 10;
+        size_t str_at = e + 12 * entries + 4;
+        if (model) {
+            putbe16(img, e, 0x0110);
+            putbe16(img, e + 2, 2);
+            putbe32(img, e + 4, u32(model_len));
+            putbe32(img, e + 8, u32(str_at - t)); /* TIFF-relative */
+            std::memcpy(img.data() + str_at, model, model_len);
+            str_at += model_len + 1;
+            e += 12;
+        }
+        if (software) {
+            putbe16(img, e, 0x0131);
+            putbe16(img, e + 2, 2);
+            putbe32(img, e + 4, u32(sw_len));
+            putbe32(img, e + 8, u32(str_at - t));
+            std::memcpy(img.data() + str_at, software, sw_len);
+            e += 12;
+        }
+        putbe32(img, e, 0); /* next-IFD */
+        size_t p = at + 4 + app1_len;
+        /* SOF0: H=100, W=200 */
+        img[p] = 0xFF;
+        img[p + 1] = 0xC0;
+        putbe16(img, p + 2, 17);
+        img[p + 4] = 8;
+        putbe16(img, p + 5, 100);
+        putbe16(img, p + 7, 200);
+        img[p + 9] = 1;
+        img[p + 10] = 1;
+        img[p + 11] = 0x22;
+        img[p + 12] = 0;
+        p += 2 + 17;
+        img[p] = 0xFF;
+        img[p + 1] = 0xDA;
+        putbe16(img, p + 2, 12);
+        p += 2 + 12;
+        /* entropy filler: clear the registry's 512-byte min_size (the
+         * plant must be a carvable file, not a header-only stub) */
+        for (size_t k = 0; k < 480; ++k)
+            img[p + k] = 0x11;
+        p += 480;
+        img[p] = 0x22;
+        img[p + 1] = 0xFF;
+        img[p + 2] = 0xD9; /* EOI */
+    };
+    {
+        std::vector<u8> img(64 * 1024, 0);
+        const char* sw = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijkl"; /* 45 chars */
+        plant_exif_jpeg(img, 512, nullptr, 0, sw, 45);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats st;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+            OK);
+        bool saw = false;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == u32(FMT_JPG)) {
+                saw = true;
+                /* the first 39 chars of the 45-char tag */
+                EXPECT_EQ(c->props()->name,
+                          std::u16string(u"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abc_000001.JPG"))
+                    << "RED pre-fix: the whole 45-char tag named the file";
+            }
+        EXPECT_TRUE(saw) << "the long-tag JPEG must carve";
+    }
+}
+
 TEST(CarveEngine, OgNamingJpgExifModelAndSoftware) {
     /* S-049: the JPEG EXIF prefixes - Model (GT-S7562_000123.JPG) then
      * Software (Adobe Photoshop 7.0_N.JPG, GIMP 2.10.14, Android

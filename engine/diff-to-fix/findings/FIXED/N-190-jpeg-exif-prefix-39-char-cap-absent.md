@@ -79,3 +79,10 @@ S-049 (FIXED — the naming contract this path implements).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S57 lane's N-190 landing; the ledger row carries the SHA)
+**Verified by:** CarveEngine.JpegExifPrefixCappedAtThirtyNine (RED pre-fix, proven by the stash-revert rebuild: the whole 45-char tag named the file "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi_000001.JPG"; post-fix the 39-char cap "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abc_000001.JPG") + the OgNamingJpgExifModelAndSoftware family green (all its fixtures < 39 chars). Full suite 1454/1454.
+**Resolution notes:** Corpus re-verified first-hand: both strncpy(dst, src, 0x27) sites read live (RAWSearchDLL:40388-40389 the Software 0x131 branch, :40483-40484 the Model 0x110 twin). The cap lands at capture - the tag string is resized to 39 AFTER the NUL/space trim and BEFORE both the prefix_from_bytes consumption and the per-string counter key assignment, so the name and the counter key both ride the truncated value exactly as the og's strncpy feeds its composition. The 39th character is kept (resize, not truncate-to-38-plus-NUL) matching strncpy's semantics with a zeroed stack buffer.

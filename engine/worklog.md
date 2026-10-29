@@ -9121,3 +9121,15 @@ Carve.DxfCanonicalRequiresFullSixteenBytePattern RED pre-fix (the SECTIONXWRONG 
 carved) → GREEN; the S-007 plant_dxf fixture re-truthed to the real covenant (the old
 12-byte shape was a synthetic the og refuses). Suite 1453/1453. Trail: findings/FIXED/
 N-189 + SUMMARY + this entry.
+
+## Session-57 lane — N-190 landed (the EXIF prefix 39-char cap) (2026-10-29)
+
+**N-190 FIXED (MINOR).** Classification: CONFIRMED-DIVERGENCE — both corpus strncpy sites
+re-read live (RAWSearchDLL:40388-40389 Software / :40483-40484 Model, the 0x27 cap) and
+the core path re-verified (the untruncated model/software strings feeding both the name
+prefix and the counter key). The cap lands at capture: the tag string resizes to 39
+after the NUL/space trim, before prefix_from_bytes AND the per-string counter key.
+RED proof via the stash-revert rebuild (CarveEngine.JpegExifPrefixCappedAtThirtyNine:
+the whole 45-char tag named the file pre-fix); GREEN post-fix; the OgNaming family
+green (fixtures < 39). Suite 1454/1454. Trail: findings/FIXED/N-190 + SUMMARY + this
+entry.
