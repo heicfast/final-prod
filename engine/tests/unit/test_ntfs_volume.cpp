@@ -5777,7 +5777,6 @@ TEST(NtfsVolume, RemnantAllocSizeAboveFourKStillEmits) {
         << "the >4 KiB declared size stays accepted (the D-143 registered superset)";
 }
 
-<<<<<<< HEAD
 TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
     /* A-016: the NTFS volume-root "." node (record 5, $FILE_NAME ".",
      * reparented to the Found root - cr_mftwalk :1162-1166, pinned at
@@ -5800,7 +5799,51 @@ TEST(NtfsVolume, FolderFilterRootDotIsTransparent) {
     auto* ra = tree.add_root(u"a");
     auto* rd = tree.add_root(u"d");
     auto* rl = tree.add_root(u"l");
-=======
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    /* the tree carries the "." root node under the Found root (the
+     * engine-shape premise this test pins) */
+    tree::FileNode* dot = nullptr;
+    std::function<void(tree::FileNode*)> find_dot = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == ".")
+                dot = c;
+            find_dot(c);
+        }
+    };
+    find_dot(ra);
+    find_dot(rd);
+    ASSERT_NE(dot, nullptr) << "the fixture's record-5 '.' must be in the tree";
+
+    /* filter to \folder1 - the exact prefixes form the CLI passes */
+    const folderfilter::PruneStats ps = folderfilter::prune_root(tree, ra, {"\\folder1"});
+    (void)folderfilter::prune_root(tree, rd, {"\\folder1"});
+
+    /* in-scope content survives THROUGH the "." node */
+    int kept_in_scope = 0;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "readme.txt" || c->name_utf8() == "deleted.dat")
+                ++kept_in_scope;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    EXPECT_GE(kept_in_scope, 2) << "a \\folder1 filter must keep folder1's content";
+    /* the out-of-scope direct children of "." (the $-meta files) prune */
+    int meta_left = 0;
+    for (tree::FileNode* c = dot ? dot->first_child() : nullptr; c; c = c->next_sibling())
+        if (c->name_utf8().size() > 1 && c->name_utf8()[0] == '$')
+            ++meta_left;
+    EXPECT_EQ(meta_left, 0) << "the $-meta files are out of the \\folder1 scope";
+    /* the prune is scoped, not total: the counters moved but the tree
+     * still holds nodes */
+    EXPECT_LT(ps.files, stats.emitted) << "a partial prune, never the whole volume";
+}
+
 /* ---- M-151: the truncated-$MFT run-growth probe (FUN_180007670) -------
  * The og walks each run's declared END and counts fixup-valid FILE
  * records outward in 4 KiB windows; a runlist that LOADS but
@@ -5857,52 +5900,10 @@ TEST(NtfsVolume, TruncatedRunlistGrowsToValidRecords) {
     auto* ra = tree.add_root(u"Found");
     auto* rd = tree.add_root(u"Deleted");
     auto* rl = tree.add_root(u"Lost");
->>>>>>> 9647e8b0 (fix(ntfs): M-151 — the truncated-$MFT run-growth probe lands: each run's declared end is probed outward for fixup-valid records, annexing the torn/stale runlist's invisible tail)
     WalkerFlags wf;
     WalkStats stats;
     ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
               OK);
-<<<<<<< HEAD
-    /* the tree carries the "." root node under the Found root (the
-     * engine-shape premise this test pins) */
-    tree::FileNode* dot = nullptr;
-    std::function<void(tree::FileNode*)> find_dot = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == ".")
-                dot = c;
-            find_dot(c);
-        }
-    };
-    find_dot(ra);
-    find_dot(rd);
-    ASSERT_NE(dot, nullptr) << "the fixture's record-5 '.' must be in the tree";
-
-    /* filter to \folder1 - the exact prefixes form the CLI passes */
-    const folderfilter::PruneStats ps = folderfilter::prune_root(tree, ra, {"\\folder1"});
-    (void)folderfilter::prune_root(tree, rd, {"\\folder1"});
-
-    /* in-scope content survives THROUGH the "." node */
-    int kept_in_scope = 0;
-    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == "readme.txt" || c->name_utf8() == "deleted.dat")
-                ++kept_in_scope;
-            find(c);
-        }
-    };
-    find(ra);
-    find(rd);
-    EXPECT_GE(kept_in_scope, 2) << "a \\folder1 filter must keep folder1's content";
-    /* the out-of-scope direct children of "." (the $-meta files) prune */
-    int meta_left = 0;
-    for (tree::FileNode* c = dot ? dot->first_child() : nullptr; c; c = c->next_sibling())
-        if (c->name_utf8().size() > 1 && c->name_utf8()[0] == '$')
-            ++meta_left;
-    EXPECT_EQ(meta_left, 0) << "the $-meta files are out of the \\folder1 scope";
-    /* the prune is scoped, not total: the counters moved but the tree
-     * still holds nodes */
-    EXPECT_LT(ps.files, stats.emitted) << "a partial prune, never the whole volume";
-=======
     bool saw_partial = false, saw_ads = false;
     std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -5984,5 +5985,4 @@ TEST(NtfsVolume, MirrorFallbackUnaffectedByGrowthPass) {
     EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4));
     EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec))
         << "past the mirror span: refused, not fabricated by growth";
->>>>>>> 9647e8b0 (fix(ntfs): M-151 — the truncated-$MFT run-growth probe lands: each run's declared end is probed outward for fixup-valid records, annexing the torn/stale runlist's invisible tail)
 }
