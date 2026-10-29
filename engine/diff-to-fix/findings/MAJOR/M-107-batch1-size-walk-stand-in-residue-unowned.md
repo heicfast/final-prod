@@ -640,3 +640,48 @@ This lane's five SIT tests were withdrawn with the concession (they
 pin the processor-level translation the seat's fuller walk
 supersedes); the racing seat's seven-test battery stands as the
 member's proof.
+
+---
+
+## Session-87 addendum 4 — the APE member's decode progress (the gate landed separately as M-160; the walk remains)
+
+**APE's size walk NOT yet landed (the member remains; the decode
+progress recorded here for the future lane).** This session's
+first-hand decode of the og's APE chain (BruteForce::CAPEAnalyser,
+the "MAC " key 0x2043414d → idx 0x51):
+
+- **The version gate — LANDED as M-160** (the discovered whole-family
+  defect: the og gates the **u16 LE at +4 against [1000, 9999]**
+  (FUN_180033180's first check); the core's u32-BE [300, 5000] read
+  rejected every real APE file. Fixed this session with the two-test
+  battery.)
+- **The walk's own cap:** `uVar4 = *(longlong *)(singleton + 0x70) * 10`
+  = 0xbebc200 × 10 = **2 GB** (the same singleton×N class as DWG's
+  ×100); the final clamp `if (uVar4 < extent) extent = uVar4`.
+- **The old form (< 3980):** the 32-byte header; the format flags
+  (u16 LE@+8): bit 2 → the data start 0x24 else 0x20; bit 4 (seek
+  elements) → a u32 read at the data start + 4; the u32@+0x10
+  (nHeaderBytes) nonzero → + 0x2c (the 44-byte WAV header); the
+  alignment = channels (u16 LE@+0xA) × bytes-per-sample (bit 3 → 3,
+  bit 0 → 8, else 2); the gates: alignment ≠ 0 AND channels ≤ 2 else
+  the extent-0 decline.
+- **The new form (≥ 3980):** the descriptor (the u32@+8
+  nDescriptorBytes → the header at +52); the u64 at header+0x10 =
+  nBitsPerSample | nChannels<<16 | nSampleRate<<32; the alignment =
+  (bitsPerSample >> 3) × channels with the same ≠ 0 / channels ≤ 2
+  gates; the data start = the descriptor's size-field sum.
+- **The seek-table walk (LAB_180033421):** the u32 entries from the
+  data start; each entry 0 or ≥ 2 GB breaks; the MAX accumulates at
+  +0x120 — the audio end. A zero/oversized first entry at the data
+  start → the extent-0 decline (no seek table).
+- **The APETAGEX tail scan:** backward from the chunk end for the u64
+  0x5845474154455041 ("APETAGEX"); on hit: the u32@+12 (the tag size)
+  and the flags byte @+0x17 bit 5 (the header-at-front); the extent
+  adjusts to include the tag (the old form: footer_pos + the tag
+  fields; the new form: the aligned sum); no tag → the block-alignment
+  rounding.
+
+The remaining landing work: the static translation of the seek walk +
+the tag scan over the exact field offsets above (the +0x118
+table-bound arithmetic is the one decode point still open — the loop's
+own 0/≥2 GB break is the walk's termination in the static model).

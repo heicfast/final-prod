@@ -1,4 +1,24 @@
 
+## Session-87 S87 fix lane (continuation) — entry 4: M-160 lands (the APE version gate — a whole-family recovery absence) (2026-10-30)
+
+- **M-160 FIXED (MAJOR, NEW — discovered during M-107's APE-member
+  verification):** the og's APE version gate is the u16 LE at +4
+  against [1000, 9999] (FUN_180033180's first check); the core's
+  u32-BE [300, 5000] read matched NO real APE file — every real
+  Monkey's Audio archive was REJECTED by the carve (the family
+  invisible in recovery results, the S-007 class). Both directions
+  verified first-hand: the real-form plant (u16 LE 3980) RED at the
+  old gate; the core's own BE-form plant would be rejected by the
+  og's gate (its u16 LE read is 0). The fix: the og's exact window;
+  the two-test battery (ApeRealFormVersionGateCarves +
+  ApeVersionWindowIsTheOgsThousandWindow — both edges, both
+  outsides); the S-007 plants re-pinned both directions. The APE
+  size WALK stays M-107's member — this lane's decode progress
+  recorded in M-107's S87 addendum 4 (the 2 GB singleton cap, the
+  two header forms' alignment gates, the seek-table max walk, the
+  APETAGEX backward tail scan) for the future landing lane. The
+  carve suite 210/210.
+
 ## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
 
 - **The SIT concession:** the racing S89 window's landing (2214af90 —

@@ -3348,6 +3348,64 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
             << "the all-zero window is the og's extent-0 decline";
 }
 
+/* ---- M-160: the APE version gate (the u16 LE [1000, 9999] window) -- */
+
+size_t plant_ape(std::vector<u8>& img, size_t at);
+
+TEST(Carve, ApeRealFormVersionGateCarves) {
+    /* The og's gate (FUN_180033180): the u16 LE at +4 in [1000, 9999].
+     * The old core's u32-BE [300, 5000] read rejected EVERY real APE
+     * file (the version field is the u16 LE; the BE read of a real
+     * header is ~0x820F0000) - the whole-family absence this finding
+     * filed. RED at the old gate: this exact plant was rejected. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_ape(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* ape = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            ape = c;
+    ASSERT_NE(ape, nullptr) << "a real-form APE (u16 LE version 3980) must carve";
+    EXPECT_EQ(ape->props()->carve_format, FMT_APE);
+}
+
+TEST(Carve, ApeVersionWindowIsTheOgsThousandWindow) {
+    /* The window's both edges and both outsides: 1000 and 9999 carve;
+     * 999 and 10000 decline - the og's exact bounds. */
+    for (int k = 0; k < 4; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        std::memcpy(img.data() + at, "MAC ", 4);
+        const u16 ver = (k == 0) ? 1000 : (k == 1) ? 9999 : (k == 2) ? 999 : 10000;
+        put16(img, at + 4, ver);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* ape = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                ape = c;
+        if (k < 2)
+            EXPECT_NE(ape, nullptr) << "version " << ver << " is inside [1000, 9999] - must carve";
+        else
+            EXPECT_EQ(ape, nullptr)
+                << "version " << ver << " is outside [1000, 9999] - the og declines";
+    }
+}
+
 /* ---- M-107 member 6 (WPD): the version-table walk
  * (FUN_180041f50) ------------------------------------------ */
 
@@ -3691,9 +3749,15 @@ size_t plant_gz(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_ape(std::vector<u8>& img, size_t at) {
+    /* M-160: the real APE form - the version is the u16 LE at +4 (the
+     * Monkey's Audio header: "MAC " + u16 version, 3980 = 0x0F8C ->
+     * bytes 8C 0F). The old plant wrote the version as a u32 BE (00 00
+     * 0F 8C) - the byte order no real APE file carries, and one the
+     * og's own gate rejects (its u16 LE read of 00 00 is 0). */
     std::memcpy(img.data() + at, "MAC ", 4);
-    putbe32(img, at + 4, 3980); /* release integer */
-    putbe16(img, at + 8, 2000); /* compression level */
+    put16(img, at + 4, 3980); /* the u16 LE release integer */
+    put16(img, at + 6, 2000); /* compression level (the old form's field) */
+    put16(img, at + 8, 2000); /* old-form compression level placement */
     for (size_t i = 10; i < 64; ++i)
         img[at + i] = u8(i & 0xFF);
     return 64;
@@ -4362,9 +4426,11 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     std::memcpy(img.data() + 49152 + 4, "\x00\x00HEAP\x00\x00", 8);
     std::memcpy(img.data() + 49152 + 0xA, "CCDR", 4);
     img[49152 + 0xE] = 3; /* wrong version */
-    /* MAC with an out-of-band version @ 18432 */
+    /* MAC with an out-of-window version @ 18432 (M-160: the u16 LE form
+     * - 500 < 1000, the og's decline; the old BE-999999 plant read as
+     * u16 LE = 3840, INSIDE the og's window) */
     std::memcpy(img.data() + 18432, "MAC ", 4);
-    putbe32(img, 18432 + 4, 999999);
+    put16(img, 18432 + 4, 500);
     /* .snd with encoding 99 @ 20480 */
     std::memcpy(img.data() + 20480, ".snd", 4);
     putbe32(img, 20480 + 4, 24);

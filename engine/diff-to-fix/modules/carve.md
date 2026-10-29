@@ -1439,3 +1439,19 @@ WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
 
+
+---
+
+## Session-87 addendum 3 — M-160: the APE version gate (the whole-family absence)
+
+The APE row's GATE moves to **MATCH**: the og's window is the u16 LE
+at +4 against [1000, 9999] (FUN_180033180's first check); the old
+core's u32-BE [300, 5000] read rejected every real Monkey's Audio
+file — the family was invisible to the carve (the S-007 class,
+discovered during M-107's APE-member verification). Fixed with the
+two-test battery; the S-007 plants re-pinned both directions (the
+real-form plant, the out-of-window noise). The row's EXTENT stays the
+M-107 recorded stand-in — the walk's decode progress (the 2 GB
+singleton+0x70×10 cap, the two header forms' alignment gates, the
+seek-table max walk, the APETAGEX backward tail scan) is recorded in
+M-107's S87 addendum 4 for the future landing lane.

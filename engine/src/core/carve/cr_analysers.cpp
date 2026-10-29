@@ -5851,8 +5851,12 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* APE: "MAC " key 0x2043414d (:5653) -> CAPEAnalyser idx 81 (frame-sync
- * school, no index). Version is the BE u32 at +4 (3.9x releases carry
- * 3920-3990); bounded extent stands in for the undecoded frame walk. */
+ * school, no index). M-160: the og's version gate is the u16 LE at +4
+ * against [1000, 9999] (FUN_180033180's first check - the release
+ * integers; the walk's own branches split at 3980/3801); the old core's
+ * u32-BE [300, 5000] read matched no real APE file. Bounded extent
+ * stands in for the undecoded frame walk (the M-107 member; this lane's
+ * decode progress recorded in M-107's S87 addendum 4). */
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5860,10 +5864,20 @@ CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h, "MAC ", 4) != 0)
         return r;
-    const u32 v = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
-    if (v < 300 || v > 5000)
-        return r; /* release integers 3.90-4.x */
+    /* M-160: the og's version gate (FUN_180033180, the CAPERawFileInfo
+     * processor): the u16 LE at +4 against [1000, 9999] - the release
+     * integers (the walk's own branches split at 3980 and 3801). The
+     * old core's u32-BE [300, 5000] read matched NO real APE file (the
+     * version field is the u16 LE; a real header's BE read is ~0x820F0000)
+     * - every real Monkey's Audio archive was rejected. */
+    const u32 v = u16_from_bytes_le(h + 4);
+    if (v < 1000 || v > 9999)
+        return r;
     r.ok = true;
+    /* the extent remains the M-107 APE member's recorded stand-in (the
+     * walk's decode progress in M-107's S87 addendum 4: the 2 GB
+     * singleton+0x70*10 cap, the two header forms' alignment gates, the
+     * seek-table max walk, the APETAGEX backward tail scan) */
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "ape-version-gate+bounded-extent";
