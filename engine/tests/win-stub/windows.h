@@ -566,3 +566,47 @@ inline BOOL CloseServiceHandle(SC_HANDLE) {
 inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int, const char*, BOOL*) {
     return 0;
 }
+
+/* ---- N-178 (rrecov.cpp's --pause-stdin): the console-input surface ----
+ * (WORD/WCHAR are stub-local: the real SDK defines them in minwindef/;
+ * this stub keeps its dependency set minimal)
+ * Declaration-only stubs per the gate's contract (a new SDK symbol in
+ * src/app grows the stub). The reader polls the console input buffer;
+ * the shapes mirror the real SDK (INPUT_RECORD/KEY_EVENT_RECORD with
+ * UnicodeChar at the SDK position, the bKeyDown flag, the event-type
+ * discriminator). */
+typedef unsigned short WORD;
+typedef wchar_t WCHAR;
+
+#define STD_INPUT_HANDLE ((DWORD)-10)
+#define STD_OUTPUT_HANDLE ((DWORD)-11)
+#define KEY_EVENT 0x0001
+typedef struct _KEY_EVENT_RECORD {
+    BOOL bKeyDown;
+    WORD wRepeatCount;
+    WORD wVirtualKeyCode;
+    WORD wVirtualScanCode;
+    union {
+        WCHAR UnicodeChar;
+        char AsciiChar;
+    } uChar;
+    DWORD dwControlKeyState;
+} KEY_EVENT_RECORD;
+typedef struct _INPUT_RECORD {
+    WORD EventType;
+    union {
+        KEY_EVENT_RECORD KeyEvent;
+    } Event;
+} INPUT_RECORD;
+inline HANDLE GetStdHandle(DWORD) {
+    return (HANDLE)0;
+}
+inline BOOL GetConsoleMode(HANDLE, DWORD*) {
+    return 0;
+}
+inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
+    return 0;
+}
+inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
+    return (HANDLE)0;
+}

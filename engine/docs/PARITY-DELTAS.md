@@ -4603,3 +4603,29 @@ admit).
 **Registration trigger:** M-152's Resolution (the finding's fix-plan
 step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 `orphan_admitted == 0`).
+
+### D-150 — the pause surface's engine-notification leg (N-178's registration): the og notifies engines of pause; the core's pause is a token wait
+
+- **WHAT OG DOES:** the pause machinery (DRWUI:314388-314490) calls the
+  ENGINE's vtable+0x88 with 1 on pause (:314401-314404) and 0 on resume
+  (:314482-314484), beside the +0xf8 gate — the engine is an explicit
+  participant in the pause transition. WHAT the engine does with the
+  notification is NOT decoded anywhere in the corpus (no pause-specific
+  engine code found in any SearchDLL decompile).
+- **WHAT WE DO:** pause is a pure PausableToken condition-variable wait
+  (cr_device.h: the engines' loop heads poll checkpoint(); a paused
+  token blocks there) — the engines observe pause implicitly through
+  the blocked poll, never through a notification. The CLI leg of N-178
+  landed (--pause-stdin maps the keyboard onto the same token); the ABI
+  pair (cr_ui_scan_pause/resume) was already landed and tested.
+- **WHY REGISTERED, NOT MIRRORED:** there is no decoded og engine-side
+  consumer to mirror — inventing an engine notification hook would be
+  speculative surface with no behavioral evidence behind it. The token
+  wait achieves the same observable outcome (the scan suspends; the
+  elapsed-time compensation runs via paused_ms()).
+- **EVIDENCE:** the call pair decoded at the cited lines; the absent
+  consumer verified by the finding's corpus sweep (zero pause-specific
+  engine code in the SearchDLL decompiles).
+- **VERDICT: ACCEPTED** (the registered open modeling difference,
+  N-178's leg 2 — revisit if a future decode surfaces the engine-side
+  consumer).

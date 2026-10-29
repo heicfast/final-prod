@@ -12,10 +12,14 @@
  *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
  *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
  *         [--resume file.crsf] [--autosave-dir D] [--label s] [--json]
- *         [--log file] [--csv]
+ *         [--log file] [--csv] [--pause-stdin]
  *         [--filter s] [--deleted-only] [--bitlocker-fvek hex]
  *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
  *         [--repair-apply] [--repair-undo file] [--check]
+ *         (--pause-stdin: N-178's keyboard pause surface - 'p'/SPACE
+ *          pauses the scan, 'r'/Enter resumes, Ctrl-C still cancels; the
+ *          same PausableToken the ABI's pause pair drives. No-op when
+ *          stdin is redirected - a console input buffer is required.)
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
  *   archive-list --in file.crsf (--disk N | --image file) --node ID
  *                                         the browse-inside inventory (the og's
@@ -181,6 +185,51 @@ BOOL WINAPI ctrl_c_handler(DWORD type) {
         return TRUE;
     }
     return FALSE;
+}
+
+/* ---------------------------------------------------------------------------
+ * N-178: the CLI pause surface (--pause-stdin). The og ships a
+ * pixel-verified Pause control on its bottom bar (UIUX/35:175-176; the
+ * paused state "Scan Paused" + the frozen gauge, :182) driven through
+ * the ABI's pause pair (cr_ui_scan_pause/resume -> the PausableToken).
+ * The CLI's only control was Ctrl-C (cancel - the S-057/A-013 loss
+ * paths); --pause-stdin maps the keyboard onto the SAME token: 'p' or
+ * SPACE pauses, 'r' or ENTER resumes, the transitions print, Ctrl-C
+ * stays cancel. The reader polls the Win32 console input buffer with a
+ * timeout (never a blocking read - the process can always exit on
+ * cancel) and terminates when the token cancels or the scan ends.
+ * ------------------------------------------------------------------------- */
+DWORD WINAPI pause_stdin_reader(LPVOID) {
+    const HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    if (in == INVALID_HANDLE_VALUE || in == nullptr)
+        return 0;
+    for (;;) {
+        if (g_cancel_token.cancelled())
+            return 0;
+        if (WaitForSingleObject(in, 200) != WAIT_OBJECT_0)
+            continue; /* poll loop: cancel stays responsive */
+        INPUT_RECORD recs[8];
+        DWORD n = 0;
+        if (!ReadConsoleInputW(in, recs, 8, &n) || n == 0)
+            continue;
+        for (DWORD k = 0; k < n; ++k) {
+            if (recs[k].EventType != KEY_EVENT || !recs[k].Event.KeyEvent.bKeyDown)
+                continue;
+            const WCHAR ch = recs[k].Event.KeyEvent.uChar.UnicodeChar;
+            if (ch == L'p' || ch == L'P' || ch == L' ') {
+                if (!g_cancel_token.paused()) {
+                    g_cancel_token.pause();
+                    wprintf(L"\n[pause] scan paused - press 'r' or Enter to resume "
+                            L"(Ctrl-C still cancels)\n");
+                }
+            } else if (ch == L'r' || ch == L'R' || ch == L'\r' || ch == L'\n') {
+                if (g_cancel_token.paused()) {
+                    g_cancel_token.resume();
+                    wprintf(L"[pause] scan resumed\n");
+                }
+            }
+        }
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1390,6 +1439,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     bool json = false;
     bool repair = false, repair_apply = false;
     TreePrintFlags print_flags;
+    bool pause_stdin = false; /* N-178: the keyboard-driven pause surface */
 
     while (i < argc) {
         std::wstring v;
@@ -1506,6 +1556,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
+        /* N-178: the CLI pause surface - maps the keyboard onto the SAME
+         * PausableToken the ABI pair drives ('p'/SPACE pause, 'r'/ENTER
+         * resume; Ctrl-C stays cancel). The reader thread starts below,
+         * only for the scan verb, only when a console is attached. */
+        if (wcscmp(argv[i], L"--pause-stdin") == 0) {
+            pause_stdin = true;
+            ++i;
+            continue;
+        }
         /* [N-150] a second, ASCII-truncating --label handler lived here -
          * dead from birth (the live handler above matched first and
          * `continue`d), a rebase leftover whose semantics DIVERGED from
@@ -1800,6 +1859,21 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         ctrl.reset(new orchestrator::ScanController(tree, cfg));
     }
     ProgressDisplay prog;
+    /* N-178: the pause reader rides only when asked for and a console is
+     * attached (a redirected stdin has no console input buffer - the flag
+     * is a no-op there, the scan runs exactly as without it). Detached on
+     * purpose: the loop exits on the token's cancel or at process exit;
+     * the scan thread never waits on the reader. */
+    HANDLE pause_reader = nullptr;
+    if (pause_stdin) {
+        DWORD console_mode = 0;
+        if (GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &console_mode)) {
+            pause_reader = CreateThread(nullptr, 0, pause_stdin_reader, nullptr, 0, nullptr);
+            if (pause_reader != nullptr)
+                wprintf(L"[pause] keyboard control active: 'p' or SPACE pauses, 'r' or Enter "
+                        L"resumes, Ctrl-C cancels\n");
+        }
+    }
     log_line("scan start");
     const u32 rc = ctrl->run(
         target.device.get(), &g_cancel_token,
@@ -1807,6 +1881,11 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
         },
         &prog, stats);
+    if (pause_reader != nullptr) {
+        g_cancel_token.cancel(); /* the reader's exit signal */
+        WaitForSingleObject(pause_reader, 1000);
+        CloseHandle(pause_reader);
+    }
     if (ck_sink_live) {
         /* A-013: checkpoints done; the staging tmp is removed (the final
          * save reopens fresh through its own tmp+rename) - the final

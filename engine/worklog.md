@@ -11906,3 +11906,20 @@ RunGrowthStopsAtFirstInvalidRecord / MirrorFallbackUnaffectedByGrowth
 Pass. NTFS suite 95/95; full suite 1634/1634. Trail:
 findings/FIXED/M-151 + Resolution, matrix MATCH, modules/ntfs.md S80
 addendum, SUMMARY board.
+
+## Session-80 S80 fix-lane — entry 8 (2026-10-29): N-178 lands
+
+**N-178 FIXED (MINOR, cli/orchestration):** the pause surface's CLI
+legs. Leg 1 — scan --pause-stdin: the console-input reader maps
+'p'/SPACE → pause and 'r'/ENTER → resume onto the same PausableToken
+the ABI pair drives; Ctrl-C stays cancel; the 200 ms poll never
+blocks; redirected stdin = the documented no-op. Leg 2 — the
+engine-notification modeling difference registered as D-150 (the og's
+vtable+0x88 pair decoded; zero pause-specific engine code in the
+SearchDLL decompiles — no consumer to mirror; revisit condition
+recorded). The S54 addendum's when-porting condition dispositioned in
+the Resolution. CrUi.PauseStdinReaderMapsKeysOntoTheToken (the
+source-contract pin) green; win_syntax_check green (the console stubs
+grown per the gate's own contract); suite 1550 / 0-fail. Trail:
+findings/FIXED/N-178 + Resolution, ledger row, modules/cli.md addendum,
+PARITY-DELTAS D-150, this entry.

@@ -100,3 +100,18 @@ the disk-image CREATE producer landed (portable copy loop + win-layer
 disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
 cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
 flat-only boundary is registered as D-147.
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-178's CLI leg lands)
+
+**N-178 FIXED (the CLI leg):** `scan --pause-stdin` — the keyboard
+pause surface. 'p'/SPACE pauses, 'r'/ENTER resumes, Ctrl-C stays
+cancel; the same PausableToken the ABI pair drives. The reader polls
+the Win32 console input buffer with a 200 ms timeout (never a blocking
+read — the process can always exit on cancel), spawns only when a
+console is attached (a redirected stdin is a documented no-op), and
+terminates on the token's cancel or at scan end. The engine-notification
+leg registered as D-150 in PARITY-DELTAS (no decoded og engine-side
+consumer exists to mirror). Tests:
+CrUi.PauseStdinReaderMapsKeysOntoTheToken (the source-contract pin) +
+the existing pause family; win_syntax_check green (the SDK stubs grew
+the console surface); suite 1550 ran / 0 FAILED.

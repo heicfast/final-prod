@@ -4956,3 +4956,38 @@ TEST(CrUi, PreviewPaneNeverPromotes) {
     EXPECT_EQ(g0, grade_of(u.sess, "#AD.JPG"))
         << "the preview surface never promotes - the pane doctrine";
 }
+
+TEST(CrUi, PauseStdinReaderMapsKeysOntoTheToken) {
+    /* N-178's CLI leg (the exe is Windows-only, so this pins the verb's
+     * source per the N-116 convention): --pause-stdin must map the
+     * keyboard onto the SAME PausableToken the ABI pair drives - 'p' or
+     * SPACE pauses, 'r' or Enter resumes, Ctrl-C stays cancel, and the
+     * reader terminates on the token's cancel (never a blocking read:
+     * the process can always exit). */
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t reader = src.find("DWORD WINAPI pause_stdin_reader(");
+    ASSERT_NE(std::string::npos, reader) << "the pause reader must exist";
+    const std::string body = src.substr(reader, 2400);
+    /* the pause keys */
+    EXPECT_NE(std::string::npos, body.find("ch == L'p' || ch == L'P' || ch == L' '"))
+        << "'p'/SPACE must pause";
+    EXPECT_NE(std::string::npos, body.find(".pause();"))
+        << "the pause key must drive the token's pause()";
+    /* the resume keys */
+    EXPECT_NE(std::string::npos, body.find("ch == L'r' || ch == L'R' || ch == L'\\r'"))
+        << "'r'/Enter must resume";
+    EXPECT_NE(std::string::npos, body.find(".resume();"))
+        << "the resume key must drive the token's resume()";
+    /* the never-blocking posture: the console poll with a timeout */
+    EXPECT_NE(std::string::npos, body.find("WaitForSingleObject(in, 200)"))
+        << "the reader must poll with a timeout, never block";
+    EXPECT_NE(std::string::npos, body.find("g_cancel_token.cancelled()"))
+        << "the reader must terminate on the token's cancel";
+    /* the flag parses into the scan verb */
+    EXPECT_NE(std::string::npos, src.find("--pause-stdin"))
+        << "--pause-stdin must be a scan flag";
+    /* the usage block documents the surface */
+    EXPECT_NE(std::string::npos, src.find("[--pause-stdin]"))
+        << "the usage block must list the flag";
+}
