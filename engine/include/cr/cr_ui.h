@@ -325,7 +325,7 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
  * by cr_ui_device_transport). A failure with a Ready driver is a target
  * error (ERR_OPEN_FAILED et al). open_volume mirrors the CLI: BitLocker
  * state is probed first - a locked volume is refused with
- * CR_UI_ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the
+ * ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the
  * returned device is the volume's slice on its parent disk (kept alive
  * internally). */
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
@@ -404,7 +404,7 @@ CR_UI_API uint32_t cr_ui_driver_status(cr_ui_driver_status_t* out);
  * the GetFullVolumeEncryptionKey output shape). ERR_BAD_PARAMETER on
  * malformed/weak key material; ERR_UNSUPPORTED off-Windows; the
  * no-key refusal contract of cr_ui_open_volume is unchanged (locked
- * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
+ * without a key stays ERR_FVE_LOCKED - legitimate unlock only). */
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                               cr_ui_device** out);
 
@@ -415,10 +415,10 @@ CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_
  * user-typed password. THE EXPLICIT CONSENT ACTION: the host calls it only
  * from its user-initiated unlock surface (the og's BitlockerUnlockDialog
  * analog); cr_ui_open_volume NEVER tries passwords by itself - a locked
- * volume stays CR_UI_ERR_FVE_LOCKED until the user acts.
+ * volume stays ERR_FVE_LOCKED until the user acts.
  * utf8_user_passwords: optional extra candidates tried AFTER the shipped
  * set (may be NULL with count 0). Returns OK when a candidate unlocked the
- * volume, CR_UI_ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
+ * volume, ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
  * off-Windows. Attempt lines carry the candidate index only (never the
  * password) through the engine log seam. */
 CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(char letter,

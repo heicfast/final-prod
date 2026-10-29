@@ -233,7 +233,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-34 preview caps | `Caps` config in `cr_preview.h:108` (§a) with shipped defaults (N-180 re-truth per M-077: `max_file_bytes = 100 MiB` / `max_decode_ms = 15000`, cr_preview.h:125-126) | PRESENT | The 100 MB / 15 s lines ship as defaults (M-077); trial gating = licensing (absent by scope). |
 | R-35 damage-aware grading | node `Grade`/`Confidence` survives preview failure; `cr_ui_preview_unreadable` (§b.10) | PRESENT | Same bridge (grade + failure coexist). |
 | R-36 preview during scan | `cr_ui_preview_open_snapshot` mid-scan (§b.10) | PRESENT | G-02 designed for this. |
-| R-37 archive browse-inside preview | none — preview reads file bytes only | GAP | No archive-content enumeration (would need an archive-listing preview mode). |
+| R-37 archive browse-inside preview | the ENGINE surface exists: cr_preview.h's format/enumeration inventory (the archive analyser family); the real gap is the ABI/CLI exposure | PARTIAL (N-150's re-shape) | the archive-list verb + cr_ui_archive_entry_count/at LANDED (M-116: the handle-cached extraction over the ABI; the rrecov archive-list verb; ABI-CONTRACT §5's archive flow) — the residual is the browse-inside PREVIEW depth (inner-file preview through the inventory), tracked by M-116's follow-up (would need an archive-listing preview mode). |
 | R-38 media helper IPC | none | GAP | No media-helper process/protocol (video/audio decode out of core scope; flag for UI-shim planning). |
 | R-39 external viewer processes | none (library API only) | GAP | Deliberate: process spawning is a UI/CLI concern; note for the shim (it will own viewer launching). |
 
@@ -319,7 +319,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | Ref | Ours | Status | Delta |
 |---|---|---|---|
 | R-83 service install/start/stop/delete | none in core (driver install lives in CI/release scripts; CORE-API §f: no driver-status surface) | GAP | No SCM/service lifecycle ops in the core; og performs them from the app. Our install is release-asset + install.ps1 (driver repo). |
-| R-84 driver registration / on-demand load | `win::rda_available` probe ONLY — boolean + GLE; **no version query, no loaded/started/authorized distinction** (CORE-API-CURRENT.md §e/§f, :482-521) | PARTIAL | Presence probe exists; the status/detail surface is a documented core gap (N-041 deleted the client; wire structs doc-only). Note: the corpus does NOT document a UI driver-status query for the og either (see §d) — og's on-demand load is engine-internal. |
+| R-84 driver registration / on-demand load | **PRESENT — the 6-facet `cr_ui_driver_status_t`** (`cr_ui_driver_status` export + `include/cr/win/cr_driver_status.h`'s facet classifier; the old boolean probe REMOVED at src/win/cr_transport.cpp:13 — N-150's re-verified flip; **no version query, no loaded/started/authorized distinction** (CORE-API-CURRENT.md §e/§f, :482-521) | PARTIAL | Presence probe exists; the status/detail surface is a documented core gap (N-041 deleted the client; wire structs doc-only). Note: the corpus does NOT document a UI driver-status query for the og either (see §d) — og's on-demand load is engine-internal. |
 | R-85 drive-topology query | `cr_ui_enumerate_disks/volumes` + two-stack C++ enumeration (§b.3) | PRESENT | Equivalent (and the og module is drive-letter topology, not driver info — naming trap). |
 
 ### Misc
@@ -342,7 +342,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 ## (c) SUMMARY TABLE
 
 Status counts over the 88 inventory rows (R-01..R-95, minus 3 copy-only rows):
-**PRESENT 41 · PARTIAL 15 · GAP 29** (of which ~14 are product-layer/licensing/monetization or
+**PRESENT 45 · PARTIAL 10 · GAP 27** (recounted 2026-10-29, the S56 lane, by the awk verdict-column census — the table's own rows; R-84 flipped to PRESENT, R-37 reshaped to PARTIAL; of which ~14 are product-layer/licensing/monetization or
 process/UI concerns deliberately out of core scope — flagged below).
 
 | Op (R#) | Reference evidence (corpus) | Ours | Status | Gap delta (one line) |
@@ -423,7 +423,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | quota counters (R-81) | licensing:24-30 | none | GAP | product layer |
 | update check (R-82) | arch/04:35-37 | none | GAP | product layer |
 | service lifecycle (R-83) | DRWService:9-30 | none in core | GAP | install lives in driver-repo CI scripts |
-| driver status query (R-84) | getdriverinfo:23 | rda_available boolean only | PARTIAL | no version/loaded/started/authorized (CORE-API §f) — but see §d: og exposes no UI driver-status query either |
+| driver status query (R-84) | getdriverinfo:23 | the 6-facet cr_ui_driver_status_t (present/attached/loaded/started/authorized + version) | PRESENT (N-150 flip) | the facet set covers the og's display axes; the version/loaded/started/authorized axes landed (M-102's surface) — but see §d: og exposes no UI driver-status query either |
 | drive topology (R-85) | getdriverinfo:9-29 | enumerate_disks/volumes | PRESENT | — |
 | enumeration+refresh (R-86) | UIUX/13:14 | enumerate_*; refresh C++-only | PARTIAL | no standalone refresh export/verb |
 | hot-plug notify (R-87) | pending-op:43 | none | GAP | pull-only enumeration |
