@@ -78,6 +78,13 @@ enum Err : u32 {
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,
+    /* M-105 option (a): the FVE auto-unlock harvest's ACL diagnosis - the
+     * store exists (ERROR_ACCESS_DENIED, not FILE_NOT_FOUND) but this
+     * token cannot read it. The og bridges this ACL with its transient
+     * LocalSystem service ("Read FVE Server"); the core's registered
+     * posture keeps the in-process harvest and surfaces the elevation
+     * claim instead (PARITY-DELTAS D-16x, the no-service posture). */
+    ERR_FVE_ELEVATION_REQUIRED = 0x50060002,
 
     /* --- health / repair --- */
     ERR_HEALTH_UNAVAILABLE = 0x50070001,

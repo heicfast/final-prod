@@ -654,6 +654,24 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             continue;
         }
 
+        /* M-101: the Versions-branch identity - FNV-1a 64 over the
+         * namespace-best link's (parent record, name). Deterministic per
+         * pathname: every record holding the same name in the same
+         * directory derives the SAME id at emission (no map, no second
+         * pass); the query layer's group enumeration surfaces the
+         * multi-member sets (the og's Versions node population). */
+        auto version_group_id = [](u64 parent, const std::u16string& name) -> u64 {
+            u64 h = 0xCBF29CE484222325ull;
+            const u8* pb = reinterpret_cast<const u8*>(&parent);
+            for (size_t i = 0; i < sizeof(parent); ++i)
+                h = (h ^ u64(pb[i])) * 0x100000001B3ull;
+            for (char16_t c : name) {
+                h = (h ^ u64(u8(c & 0xFF))) * 0x100000001B3ull;
+                h = (h ^ u64(u8((c >> 8) & 0xFF))) * 0x100000001B3ull;
+            }
+            return h ? h : 1ull; /* 0 = not-a-member; FNV never yields 0, belt+braces */
+        };
+
         /* pick the best-namespace name; collect distinct parents (hard links) */
         const FileNameInfo* best = &names[0];
         for (const FileNameInfo& n : names)
@@ -906,6 +924,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = u32(FsKindCode::Ntfs); /* corpus factory code */
         props->name = best->name;
+        /* M-101: the namespace-identity hash (the Versions-branch axis;
+         * the comment at the helper above - same parent + same name
+         * across records = versions of one file). */
+        props->version_group = version_group_id(best->parent_record, best->name);
         /* N-011a: capture a distinct DOS-namespace $FILE_NAME as the 8.3
          * short name (the og's props short-name field). Only when a
          * SEPARATE DOS name exists - a single WIN32_AND_DOS name is the
@@ -1707,44 +1729,6 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 ++stats.size_zero_rescued;
                 break;
             }
-        }
-    }
-
-    /* ---- phase F (M-101): the Versions grouping pass ----
-     *
-     * The og's results tree surfaces same-(parent, name) record siblings
-     * as the "Versions" branch (UIUX/09:34 — "It is another version of
-     * the file in the same directory. You can view different versions
-     * of the same file"; the branch-type id 3 tooltip decode, DRWUI
-     * FUN_140aeaec0). The main walk emits that population as unlinked
-     * siblings (two records for one $FILE_NAME — the torn-overwrite
-     * family); this pass stamps the queryable branch relation: every
-     * emitted node whose (parent record, name) key collides with
-     * another record's carries the same nonzero version_group id.
-     * Hard links never collide on the key (one record's links carry
-     * distinct parents; the fan-out's per-parent emission keys differ),
-     * so the groups are exactly the multi-version record families.
-     * Deterministic: map iteration over the emission set, ids assigned
-     * in first-appearance order, 1-based; 0 stays "no sibling". */
-    {
-        std::map<std::pair<u64, std::u16string>, std::vector<tree::FileNode*>> by_parent_name;
-        for (const EmittedNode& e : emitted) {
-            if (e.node == nullptr || e.node->props() == nullptr)
-                continue;
-            const std::u16string& nm = e.node->props()->name;
-            if (nm.empty())
-                continue; /* unnamed records never form a group */
-            by_parent_name[{e.parent_record, nm}].push_back(e.node);
-        }
-        u32 next_group = 1;
-        for (const auto& kv : by_parent_name) {
-            if (kv.second.size() < 2)
-                continue;
-            for (tree::FileNode* n : kv.second) {
-                if (n->props() != nullptr && n->props()->version_group == 0)
-                    n->props()->version_group = next_group;
-            }
-            ++next_group;
         }
     }
 

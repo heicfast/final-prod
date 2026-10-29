@@ -29,6 +29,10 @@ typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) *
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
 typedef long LONG;
+typedef LONG LSTATUS; /* M-105's FVE diagnosis: RegOpenKeyExW's return type
+                         (the SDK's LONG status; the APE/SIT windows are
+                         the parse gate's own charter - a new SDK symbol in
+                         src/win grows the stub here) */
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
 typedef unsigned int UINT;

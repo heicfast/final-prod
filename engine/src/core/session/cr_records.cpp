@@ -189,7 +189,7 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             if (pr && pr->fat_parent_cluster != 0)
                 nflags |= 8192; /* N-131: the FAT parent-directory anchor (+0x42) */
             if (pr && pr->version_group != 0)
-                nflags |= 16384; /* M-101: the Versions sibling-group id block */
+                nflags |= 16384; /* M-101: the Versions-branch namespace id */
             if (pr)
                 for (const auto& e : pr->extents)
                     if (e.hole || e.logical != 0) {
@@ -327,16 +327,13 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * construction — the og's volume-root node anchors at 0). */
         if (nflags & 8192)
             put32(out, pr->fat_parent_cluster);
-        /* M-101 (nflags bit14): the Versions sibling-group id — the og's
-         * "Versions" results-tree branch relation (UIUX/09:34). 4-byte
-         * append-only block; the bit fires only when the carrier is
-         * nonzero, so pre-M-101 sessions stay shape-identical. The
-         * Tags Extracted mark is deliberately NOT here: it is a runtime
-         * node bit (the og derives the branch at model-build time from
-         * its tag reader and persists no tag field — rsf-format grep
-         * clean). */
+        /* M-101 (nflags bit14): the Versions-branch namespace-identity
+         * hash - 8-byte append-only block, firing only when the carrier
+         * is nonzero (pre-M-101 sessions stay shape-identical; the group
+         * relation is re-derivable from the walk, the persistence is the
+         * session's completeness contract). */
         if (nflags & 16384)
-            put32(out, pr->version_group);
+            put64(out, pr->version_group);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -569,8 +566,8 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             if (c.fail)
                 break;
         }
-        if (nflags & 16384) { /* M-101: the Versions sibling-group id */
-            props->version_group = c.g32();
+        if (nflags & 16384) { /* M-101: the Versions-branch namespace id */
+            props->version_group = c.g64();
             if (c.fail)
                 break;
         }

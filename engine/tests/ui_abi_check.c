@@ -610,7 +610,12 @@ int main(int argc, char** argv) {
             for (sk = 0; sk < dot_cap; ++sk) {
                 if (strchr(dot_rows[sk].path, '/') != NULL ||
                     strchr(dot_rows[sk].path, '\\') != NULL) {
-                    CHECK(0 && "N-128: the CWD dir lists bare names");
+                    /* direct report (the progress_cb convention, lines above):
+                     * CHECK(0 && "...") is a constant conditional - MSVC /W4
+                     * C4127 - while the failure contract is identical (message
+                     * + g_failed -> exit 1) */
+                    printf("FAIL %s:%d: N-128: the CWD dir lists bare names\n", __FILE__, __LINE__);
+                    g_failed = 1;
                 }
                 if (dot_cap && strcmp(dot_rows[sk].path, "cr_ui_abi_check.img.crsf") == 0)
                     dot_found = 1;
@@ -676,8 +681,9 @@ int main(int argc, char** argv) {
         CHECK(cr_ui_snapshot_node(snap, (uint32_t)doc_idx, &info, name, 3) == CR_UI_ERR_TRUNCATED);
         CHECK_EQ_U64(info.name_len, 7u);
         /* M-101 (plain-C visibility of the appended branch fields): the
-         * zero-init defaults read back as 0 on this FAT session (no NTFS
-         * version groups; no preview tag read has run). */
+         * zero-init defaults read back as 0 on this FAT session (the
+         * seat stamps only structured NTFS nodes; no preview tag read
+         * has run). */
         CHECK_EQ_U64(info.version_group, 0u);
         CHECK_EQ_U64(info.tags_extracted, 0u);
     }
@@ -785,12 +791,12 @@ int main(int argc, char** argv) {
     {
         cr_ui_query q;
         memset(&q, 0, sizeof(q));
-        q.versions_only = 1; /* no version groups on a FAT session */
+        q.version_group = 0x1234; /* a nonzero group filter: no members on a FAT session */
         q.count_only = 1;
         CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
         CHECK_EQ_U64(total, 0u);
         memset(&q, 0, sizeof(q));
-        q.tags_extracted_only = 1; /* nothing read yet -> empty branch */
+        q.tags_only = 1; /* nothing read yet -> empty branch */
         q.count_only = 1;
         CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
         CHECK_EQ_U64(total, 0u);

@@ -302,8 +302,11 @@ std::vector<unsigned char> build_stash_zip() {
     z16(0);
     z16(3);
     z16(3);
-    z32(cd_len);
-    z32(cd_at);
+    /* EOCD size/offset fields are u32 zip fields: the fixture values are
+     * tiny, the explicit (unsigned long) matches z32's parameter (the
+     * dentry size-cast convention below) and silences MSVC C4267 */
+    z32((unsigned long)cd_len);
+    z32((unsigned long)cd_at);
     z16(0);
     return zip;
 }
@@ -1999,13 +2002,16 @@ TEST(CrUi, PreviewSessionAndSnapshot) {
 }
 
 TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
-    /* M-101: the Tags Extracted branch at the ABI surface. A real EXIF
-     * read through preview_metadata marks the live session node; the
-     * query axis + row fields + snapshot node_info observe the mark; a
-     * non-EXIF neighbor stays unmarked; the session's close invalidates
-     * the mark path (the preview's private copy still serves metadata -
-     * nothing is marked on a dead session); the versions axis maps and
-     * zero-inits safely (no FAT node groups - the branch is NTFS-scoped). */
+    /* M-101 (this lane's rider over the racing seat): the Tags Extracted
+     * PRODUCER + the ABI exposure. The seat landed the carrier (the props
+     * flag + query::tags_only + session bit-14) but no stamping path and
+     * no ABI surface; this rider is both. A real EXIF read through
+     * preview_metadata marks the live session node's props (the seat's
+     * documented semantics: orientation/datetime, duration/codec,
+     * dimensions); the query axis + row fields + snapshot node_info
+     * observe the mark; a text neighbor stays unmarked; session close
+     * invalidates the mark path (the private copy still serves metadata);
+     * the versions axis maps (the seat's u64 hash filter). */
     /* the fixture: PHOTO.JPG carrying a minimal EXIF APP1 (Orientation 6)
      * - 40 bytes at the file's cluster, the pattern tail stays behind it */
     auto img = build_fat16();
@@ -2057,7 +2063,7 @@ TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
     /* before the read: the axis is empty (zero-init safe) */
     {
         cr_ui_query q{};
-        q.tags_extracted_only = 1;
+        q.tags_only = 1;
         q.limit = 50;
         cr_ui_query_row* rows = nullptr;
         uint32_t n = 0;
@@ -2082,7 +2088,7 @@ TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
      * (no FAT groups -> empty) and zero-inits off */
     {
         cr_ui_query q{};
-        q.tags_extracted_only = 1;
+        q.tags_only = 1;
         q.limit = 50;
         cr_ui_query_row* rows = nullptr;
         uint32_t n = 0;
@@ -2092,7 +2098,8 @@ TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
         ASSERT_EQ(n, 1u);
         EXPECT_STREQ(rows[0].name, "PHOTO.JPG");
         EXPECT_EQ(rows[0].tags_extracted, 1u);
-        EXPECT_EQ(rows[0].version_group, 0u) << "FAT files carry no group (NTFS-scoped)";
+        EXPECT_EQ(rows[0].version_group, 0u)
+            << "FAT files carry no group (the seat: NTFS-scoped stamping)";
         cr_ui_query_rows_free(rows, n);
     }
     {
@@ -2108,21 +2115,25 @@ TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
                 EXPECT_EQ(rows[i].tags_extracted, 1u);
             }
             if (std::strcmp(rows[i].name, "DOC.TXT") == 0) {
-                EXPECT_EQ(rows[i].tags_extracted, 0u) << "the non-EXIF neighbor stays unmarked";
+                EXPECT_EQ(rows[i].tags_extracted, 0u)
+                    << "a text file yields no tag-family datum: unmarked";
                 EXPECT_EQ(rows[i].version_group, 0u);
             }
         }
         cr_ui_query_rows_free(rows, n);
     }
     {
-        cr_ui_query q{}; /* the versions axis maps at the ABI */
-        q.versions_only = 1;
+        cr_ui_query q{}; /* the versions axis maps at the ABI: a nonzero
+                          * group filter over an all-zero session (the
+                          * seat stamps only structured NTFS nodes) */
+        q.version_group = 0x1234ull;
         q.limit = 50;
         cr_ui_query_row* rows = nullptr;
         uint32_t n = 0;
         uint64_t total = 0;
         ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
-        EXPECT_EQ(total, 0u) << "no version groups on a FAT session (the axis is NTFS-scoped)";
+        EXPECT_EQ(total, 0u)
+            << "no group members on a FAT session (the seat: NTFS-scoped stamping)";
         cr_ui_query_rows_free(rows, n);
     }
 
@@ -2140,6 +2151,9 @@ TEST(CrUi, M101TagsExtractedMarkAndBranchAxes) {
                 photo_idx = int(i);
                 EXPECT_EQ(info.tags_extracted, 1u) << "the mark rides the snapshot rows";
                 EXPECT_EQ(info.version_group, 0u);
+            }
+            if (std::strcmp(name, "DOC.TXT") == 0) {
+                EXPECT_EQ(info.tags_extracted, 0u) << "text: unmarked through the snapshot rows";
             }
         }
         ASSERT_GE(photo_idx, 0);
@@ -4211,7 +4225,10 @@ static const unsigned char kQuad32x24JpgTrunc[] = {
 std::vector<unsigned char> build_fat16_png() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    /* unsigned loop var (the file's write_fixture_zip convention): the FAT
+     * chain values 41+i fit unsigned, so put16's (size_t, unsigned) params
+     * see no narrowing (MSVC C4267 on the size_t ternary) */
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), false);
@@ -4226,7 +4243,7 @@ std::vector<unsigned char> build_fat16_png() {
 std::vector<unsigned char> build_fat16_png_deleted() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), true);
@@ -4238,7 +4255,7 @@ std::vector<unsigned char> build_fat16_png_deleted() {
 std::vector<unsigned char> build_fat16_jpg_trunc() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24JpgTrunc) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO2   JPG", 0x20, 40, (unsigned long)sizeof(kQuad32x24JpgTrunc), false);
@@ -4255,7 +4272,7 @@ std::vector<unsigned char> build_fat16_jpg_trunc() {
 std::vector<unsigned char> build_fat16_png_damaged() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     /* DELETED entry: deleted non-carved files take the generic grading
@@ -4312,7 +4329,7 @@ static const unsigned char kJpgNoSof[] = {
 std::vector<unsigned char> build_fat16_jpg_corrupt() {
     auto img = build_fat16();
     const size_t need = (sizeof(kJpgNoSof) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "BAD     JPG", 0x20, 40, (unsigned long)sizeof(kJpgNoSof), true);
@@ -4887,8 +4904,8 @@ TEST(CrUi, ArchiveEntryHostileBound512) {
     z16(0);
     z16(700);
     z16(700);
-    z32(cd_len);
-    z32(cd_at);
+    z32((unsigned long)cd_len);
+    z32((unsigned long)cd_at);
     z16(0);
 
     /* the FAT fixture: STASH.ZIP on cluster 60 (the write_fixture_zip

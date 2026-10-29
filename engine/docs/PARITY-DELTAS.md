@@ -4823,8 +4823,7 @@ step-3 corpus erratum (the MainModule behavior was never documented in
 the corpus's own per-binary artifacts) is recorded in
 diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
 
-### D-165 — the BitLocker turn-off is a REQUEST-surfaced op (RENUMBERED from the born-collided D-165 seat at the Session-84 coherence repair — the ext4 journal-inode seat took D-165 first, per the 67d2bf25 first-landing-keeps convention): the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
-
+### D-165 — the BitLocker turn-off is a REQUEST-surfaced op (RENUMBERED TWICE from the born-collided D-163 seat: the racing lane's M-152 journal-inode claim took D-163 first, and the M-154 pointer registration holds D-164 — the doc_truth_gate's uniqueness check caught both collisions at this lane's push): the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
 **CONTEXT:** M-078 landed the CBitlockerTurnOffOperation endpoint
 (`cr_ui_turn_off_bitlocker` + CLI `unlock --turn-off C:` + the win layer's
 `turn_off`). The corpus decodes the operation's EXISTENCE, its
@@ -4852,3 +4851,45 @@ turn-off is decrypt, never bypass; the consent contract is the
 dictionary-unlock class (explicit host opt-in; nothing in the scan/open
 path calls it — pinned by Bitlocker.TurnOffIsTheConsentedDestructiveTwin
 and the TurnOffRefusesLoudlyOnFailure refusal contract).
+
+### D-166 — the DRWService install lifecycle: the core keeps the in-process FVE harvest and surfaces the elevation claim instead of shipping a transient LocalSystem service (M-105, option (a); REGISTERED DIVERGENCE-INFORMATIONAL — the no-service posture)
+
+- **WHAT OG DOES:** ships `DRWService.exe` — a 40,168-byte GUI-subsystem
+  binary with an asInvoker manifest — and orchestrates it per key fetch
+  from DRWUI (FUN_140270640: pre-uninstall no-op, `CreateNamedPipeA`
+  `\\.\Pipe\DRWBitlocker`, `/install` (uninstall-first, replace-on-
+  install, "Service already installed" hard bail), immediate
+  `StartServiceA`, pipe harvest, auto.txt rewrite, 2 s sleep,
+  `/uninstall` (stop-gated: `DeleteService` only from STOPPED,
+  "Service not installed" clean no-op)); the service itself is
+  CreateServiceA-pinned ("Read FVE Server" name+display,
+  WIN32_OWN_PROCESS, SERVICE_AUTO_START, ERROR_NORMAL, ALL_ACCESS,
+  LocalSystem, ImagePath = its own module path, description
+  "DRW read registry key value.") — the decoded contract in
+  M-105's corpus citations (DRWService_decompiled.c:1205-1330, 1661-1718;
+  floss_strings.txt:236-264). The service exists so a standard-user/
+  non-elevated host can read the SYSTEM-ACL'd FVEAutoUnlock store.
+- **WHAT WE DO:** the in-process harvest (S-014: live + offline hive,
+  the og's caps applied) with the ACL diagnosis the service existed to
+  provide: the harvest's failure path now distinguishes "no keys
+  configured" (ERR_FVE_LOCKED, the loud refusal) from "the store exists
+  but this token cannot read it" (ERR_FVE_ELEVATION_REQUIRED, the new
+  0x50060002) via the cr_elevate TokenElevation probe —
+  health::fve_denial_diagnosis (include/cr/health/cr_fve_policy.h, the
+  M-075 cr_fsck_launch pattern), surfaced by open_volume's locked-volume
+  path. No SCM code, no service, no /install verbs, no packaging row.
+- **WHY:** the K71-K73 DRWService slice was unscored while the og's
+  decoded surface stayed unowned (SURFACE-INVENTORY §9's exact class);
+  option (a) is the finding's own recommended default (the corpus's own
+  rationale is contradictory - the service claims standard-user support
+  while DRWUI's manifest is requireAdministrator, D-60a; the
+  conservative reading keeps the in-process harvest).
+- **RISK:** a non-elevated host integrator gets the elevation claim
+  (ERR_FVE_ELEVATION_REQUIRED) instead of the og's silent LocalSystem
+  bridge — an honest diagnosis, not a capability regression; elevated
+  runs harvest identically (the og's own behavior for its always-
+  elevated UI).
+- **VERDICT:** ACCEPTED (the finding's fix plan step 1 option (a); the
+  K-walk rows in modules/driver-install.md now carry the DRWService
+  slice as absent-or-registered; R-83's false "driver-repo CI scripts"
+  note corrected; SECURITY.md carries the positive posture sentence).

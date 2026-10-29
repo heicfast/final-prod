@@ -42,6 +42,7 @@
 
 #ifdef _WIN32
 #include "cr/win/cr_bitlocker.h"
+#include "cr/health/cr_fve_policy.h" /* M-105: the FVE denial diagnosis text */
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
@@ -1469,11 +1470,21 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
                     "(typical for a locked volume); unlock and re-try",
                     letter);
     if (bst == win::bitlocker::Status::Locked) {
-        if (win::bitlocker::try_auto_unlock(wchar_t(letter)) != OK)
+        const u32 au = win::bitlocker::try_auto_unlock(wchar_t(letter));
+        if (au != OK) {
+            /* M-105 option (a): the ACL diagnosis - "keys exist but this
+             * token cannot read them" is ERR_FVE_ELEVATION_REQUIRED (the
+             * og bridges this ACL with its transient LocalSystem service;
+             * the core's registered no-service posture surfaces the
+             * elevation claim instead). */
+            if (au == ERR_FVE_ELEVATION_REQUIRED)
+                return ret_(ERR_FVE_ELEVATION_REQUIRED, "%c: locked - %s", letter,
+                            health::fve_denial_guidance(au));
             return ret_(ERR_FVE_LOCKED,
                         "%c: locked - unlock (Unlock-BitLocker -MountPoint %c: "
                         "-RecoveryPassword <key>) and re-try",
                         letter, letter);
+        }
     }
     u32 disk = 0;
     u64 start = 0, len = 0;
@@ -3797,7 +3808,7 @@ u32 snapshot_node_impl(cr_ui_snapshot* snap, uint32_t index, cr_ui_node_info* ou
     out->carve_confidence = n.carve_confidence;
     out->hash_valid = n.hash_valid ? 1u : 0u;
     std::memcpy(out->sha128, n.sha128, 16);
-    out->version_group = n.version_group;             /* M-101 */
+    out->version_group = n.version_group;             /* M-101 (the seat's u64 hash) */
     out->tags_extracted = n.tags_extracted ? 1u : 0u; /* M-101 */
     const std::string name = u16_to_u8(n.name);
     out->name_len = u32(name.size());
@@ -3885,8 +3896,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
     cq.filter.state_mask = q->state_mask ? q->state_mask : 0xFu; /* M-072 */
     cq.filter.deleted_only = q->deleted_only != 0;
     cq.filter.origin_mask = q->origin_mask ? q->origin_mask : 0xFu;
-    cq.filter.versions_only = q->versions_only != 0;             /* M-101 */
-    cq.filter.tags_extracted_only = q->tags_extracted_only != 0; /* M-101 */
+    cq.filter.version_group = q->version_group; /* M-101 (the seat's axis) */
+    cq.filter.tags_only = q->tags_only != 0;    /* M-101 */
     switch (q->sort) {
     case 1:
         cq.sort = query::SortKey::Name;
@@ -3942,8 +3953,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         arr[i].confidence = r.confidence;
         arr[i].category = r.category;
         arr[i].grade = r.node ? u32(r.node->grade()) : 1u;
-        arr[i].version_group = r.version_group;             /* M-101 */
-        arr[i].tags_extracted = r.tags_extracted ? 1u : 0u; /* M-101 */
+        arr[i].version_group = r.version_group;   /* M-101 (the seat's u64) */
+        arr[i].tags_extracted = r.tags_extracted; /* M-101 (the seat's row field) */
         if (!arr[i].name || !arr[i].path) {
             for (u32 k = 0; k <= i; ++k) {
                 std::free(arr[k].name);
@@ -4215,16 +4226,24 @@ u32 preview_metadata_impl(cr_ui_preview* pv, cr_ui_metadata* out) {
         return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
     auto* p = reinterpret_cast<CrPreview*>(pv);
     const preview::Metadata m = preview::extract_metadata(*p->reader, preview::Caps{});
-    /* M-101: the Tags Extracted mark - the tag reader is the source
-     * (UIUX/09:31, branch-type id 0). Fired when the extraction yielded
-     * EXIF tags (orientation/datetime - the reader's tag set); stamped on
-     * the live session node so the query grouping axis, the snapshot
-     * rows, and the ABI node_info observe it. The watch gates the
-     * session's lifetime: post-close, nothing is marked. */
-    if (p->watch && p->watch->alive && (!m.orientation.empty() || !m.datetime.empty())) {
+    /* M-101 (this lane's rider over the seat's carrier): the Tags
+     * Extracted PRODUCER - the seat's props flag had no stamping path
+     * ("stamped by the host's preview/metadata pass" with no stamping
+     * code anywhere - a dead flag, the no-disabled-surface class). This
+     * is that pass, at the seat's own documented semantics (cr_node.h:
+     * "when extract_metadata() produced tag data (EXIF orientation/
+     * datetime, media duration/codec, dimensions)"): fires when the
+     * extraction yielded any tag-family datum, stamped on the live
+     * node's PROPS (the seat's carrier - the query axis, the snapshot
+     * rows, and the ABI node_info all read it from there). The watch
+     * gates the session's lifetime: post-close, nothing is marked; the
+     * handle's private props copy still serves metadata either way. */
+    if (p->watch && p->watch->alive &&
+        (!m.orientation.empty() || !m.datetime.empty() || m.duration_ms != 0 || !m.codec.empty() ||
+         m.width != 0 || m.height != 0)) {
         tree::FileNode* n = find_node(p->watch->sess->tree, p->watch_node_id);
-        if (n != nullptr)
-            n->mark_tags_extracted();
+        if (n != nullptr && n->props() != nullptr)
+            n->props()->tags_extracted = true;
     }
     std::memset(out, 0, sizeof(*out));
     bool fit = true;

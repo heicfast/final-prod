@@ -234,64 +234,6 @@ TEST(Crsf, TreeRoundTrip) {
     EXPECT_EQ(readme->props()->extents[0].offset, 4096u);
 }
 
-TEST(Crsf, VersionsRoundTrip) {
-    /* M-101: the Versions sibling-group id persists through the session
-     * wire (nflags bit-14, the append-only extras block) - a reloaded
-     * session must still surface the branch relation. The tag mark is
-     * runtime-only by design (the og derives it at model-build time and
-     * persists no tag field), so only the group id is asserted here. */
-    tree::ResultTree t;
-    auto* root = t.add_root(u"Volume C");
-    t.refresh_stats();
-    tree::FileProperties* p1 = new tree::FileProperties();
-    p1->name = u"doc.txt";
-    p1->record_ref = 1000;
-    p1->logical_size = 512;
-    p1->version_group = 5; /* the group id under test */
-    auto* f1 = t.add_file(root, p1);
-    p1->release();
-    f1->mark_tags_extracted(); /* runtime-only: must NOT survive */
-    tree::FileProperties* p2 = new tree::FileProperties();
-    p2->name = u"doc.txt"; /* the prior version - same group */
-    p2->record_ref = 1001;
-    p2->logical_size = 448;
-    p2->version_group = 5;
-    f1->set_deleted_state(tree::DeletedState::Deleted);
-    (void)t.add_file(root, p2);
-    p2->release();
-    tree::FileProperties* p3 = new tree::FileProperties();
-    p3->name = u"solo.bin";
-    p3->logical_size = 10;
-    (void)t.add_file(root, p3);
-    p3->release(); /* version_group stays 0 */
-
-    std::vector<u8> blob;
-    ASSERT_EQ(serialize_tree(t, blob), OK);
-
-    tree::ResultTree t2;
-    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
-    tree::FileNode *live = nullptr, *prior = nullptr, *solo = nullptr;
-    for (tree::FileNode* r : t2.roots())
-        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == "doc.txt" && c->deleted_state() == tree::DeletedState::Deleted)
-                prior = c;
-            else if (c->name_utf8() == "doc.txt")
-                live = c;
-            else if (c->name_utf8() == "solo.bin")
-                solo = c;
-        }
-    ASSERT_NE(live, nullptr);
-    ASSERT_NE(prior, nullptr);
-    ASSERT_NE(solo, nullptr);
-    EXPECT_EQ(live->props()->version_group, 5u) << "the live version's group id survives";
-    EXPECT_EQ(prior->props()->version_group, 5u) << "the prior version's group id survives";
-    EXPECT_EQ(live->props()->version_group, prior->props()->version_group)
-        << "the group relation is intact after reload";
-    EXPECT_EQ(solo->props()->version_group, 0u) << "un-grouped nodes stay 0";
-    EXPECT_FALSE(live->tags_extracted())
-        << "the tag mark is runtime-only: a reloaded session un-marks (the og's own posture)";
-}
-
 /* SESS-4 (GAP-W3-9b): the reference compresses EVERY chunk and stores only
  * when deflate does not shrink it. The old `take >= 64` carve-out kept tiny
  * tails stored unconditionally - this pins the tiny-tail deflate behavior

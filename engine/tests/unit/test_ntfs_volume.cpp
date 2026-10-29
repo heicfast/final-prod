@@ -1883,112 +1883,6 @@ TEST(NtfsVolume, HardLinkFanOutClonesKeepShortName) {
         << "short_name must survive the session roundtrip on a cloned link";
 }
 
-TEST(NtfsVolume, VersionsNodeGroupsTornSiblings) {
-    /* M-101: the og's "Versions" results-tree branch (UIUX/09:34 - the
-     * torn-overwrite population: prior record versions of the same
-     * pathname surfaced as siblings the UI groups as versions of one
-     * file). The walk must stamp the queryable relation: two records
-     * carrying the same (parent, name) - one live, one the deleted prior
-     * version - share one nonzero version_group; a same-name record
-     * under a DIFFERENT parent never joins (hard links never collide on
-     * the key); everything else stays 0. */
-    Image img;
-    build_image(img);
-    /* record 26: the live "doc.txt" under root(5); record 27: the deleted
-     * prior version (torn overwrite), same name+parent; record 28: a
-     * same-name sibling under folder1(16) - a different directory, so no
-     * version relation; record 29: an unrelated name. */
-    {
-        RecBuilder r;
-        r.header(26, RECORD_IN_USE);
-        r.attr_si(0x20);
-        r.attr_file_name(5, u"doc.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
-        r.attr_data_runlist(211, 1, 512);
-        r.finish();
-        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
-    }
-    {
-        RecBuilder r;
-        r.header(27, 0); /* NOT in use: the deleted prior version */
-        r.attr_si(0x20);
-        r.attr_file_name(5, u"doc.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 448, 448);
-        r.attr_data_runlist(212, 1, 448);
-        r.finish();
-        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
-    }
-    {
-        RecBuilder r;
-        r.header(28, RECORD_IN_USE);
-        r.attr_si(0x20);
-        r.attr_file_name(16, u"doc.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 256, 256);
-        r.attr_data_runlist(213, 1, 256);
-        r.finish();
-        std::memcpy(img.sec(MFT_LCN + 56), r.buf.data(), RECORD_SIZE);
-    }
-    {
-        RecBuilder r;
-        r.header(29, RECORD_IN_USE);
-        r.attr_si(0x20);
-        r.attr_file_name(5, u"solo.bin", FILE_NAME_WIN32_AND_DOS, 0x20, 128, 128);
-        r.attr_data_runlist(214, 1, 128);
-        r.finish();
-        std::memcpy(img.sec(MFT_LCN + 58), r.buf.data(), RECORD_SIZE);
-    }
-    MemDevice dev(img.raw(), img.geom());
-
-    u32 err = 0;
-    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    std::unique_ptr<VolumeBitmap> bm;
-    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
-
-    tree::ResultTree tree;
-    auto* root_active = tree.add_root(u"Found (NTFS)");
-    auto* root_deleted = tree.add_root(u"Deleted");
-    auto* root_lost = tree.add_root(u"Lost Files");
-    WalkerFlags wf; /* defaults: parity mode, one node per record */
-    WalkStats stats;
-    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
-                       root_deleted, root_lost, stats),
-              u32(OK));
-
-    /* the two root "doc.txt" records are one version group */
-    const auto docs = nodes_named(tree, "doc.txt");
-    ASSERT_EQ(docs.size(), 3u) << "26 (live), 27 (deleted prior), 28 (folder1)";
-    const tree::FileNode *g_live = nullptr, *g_prior = nullptr, *g_other = nullptr;
-    for (tree::FileNode* n : docs) {
-        ASSERT_NE(n->props(), nullptr);
-        /* split by the emitting root: 26 under Found, 27 under Deleted,
-         * 28 under the folder1 directory node */
-        if (n->deleted_state() == tree::DeletedState::Deleted)
-            g_prior = n;
-        else if (n->parent() != nullptr && n->parent()->name_utf8() == "folder1")
-            g_other = n;
-        else
-            g_live = n;
-    }
-    ASSERT_NE(g_live, nullptr);
-    ASSERT_NE(g_prior, nullptr);
-    ASSERT_NE(g_other, nullptr);
-    ASSERT_NE(g_live->props()->version_group, 0u) << "the live version carries a group id";
-    ASSERT_NE(g_prior->props()->version_group, 0u)
-        << "the deleted prior version carries a group id";
-    EXPECT_EQ(g_live->props()->version_group, g_prior->props()->version_group)
-        << "same (parent, name): ONE group - the Versions branch relation";
-    EXPECT_EQ(g_live->parent(), g_prior->parent())
-        << "the torn siblings sit in the same directory (the branch's frame)";
-    EXPECT_EQ(g_other->props()->version_group, 0u)
-        << "same name under a different parent is NOT a version (hard links never group)";
-    /* an unrelated name never groups */
-    const auto solo = nodes_named(tree, "solo.bin");
-    ASSERT_EQ(solo.size(), 1u);
-    EXPECT_EQ(solo[0]->props()->version_group, 0u);
-    /* the pre-existing populations stay ungrouped (no accidental keys) */
-    EXPECT_EQ(nodes_named(tree, "hard.txt").size(), 1u);
-    EXPECT_EQ(nodes_named(tree, "hard.txt")[0]->props()->version_group, 0u);
-    EXPECT_EQ(nodes_named(tree, "readme.txt")[0]->props()->version_group, 0u);
-}
-
 TEST(NtfsVolume, RecycleBinMapping) {
     Image img;
     build_image(img);
@@ -6086,4 +5980,60 @@ TEST(NtfsVolume, MirrorFallbackUnaffectedByGrowthPass) {
     EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4));
     EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec))
         << "past the mirror span: refused, not fabricated by growth";
+}
+
+TEST(NtfsVolume, WalkStampsVersionGroup) {
+    /* M-101's walk-side pin (the falsification the finding names): a
+     * volume with two MFT records for the same $FILE_NAME in the same
+     * directory - the torn-overwrite shape - renders ONE Versions group;
+     * both records' nodes carry the SAME namespace-identity hash, and
+     * distinct names never collide. */
+    Image img;
+    build_image(img);
+    /* plant the torn sibling: a second record with the same (parent 16,
+     * name readme.txt) at an unused record slot (24; LCN MFT_LCN+48) */
+    {
+        RecBuilder r;
+        r.header(24, 0); /* DELETED - the stale record of the torn pair */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"readme.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 1024, 1024);
+        r.attr_data_runlist(240, 2, 1024); /* own clusters, bitmap-free */
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    /* collect the two readme.txt nodes (the live record 17 under Found,
+     * the stale record 24 under Deleted) and one other file */
+    std::vector<tree::FileNode*> readmes, others;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->is_full() && c->props()) {
+                if (c->name_utf8() == "readme.txt")
+                    readmes.push_back(c);
+                else if (c->name_utf8() == "deleted.dat")
+                    others.push_back(c);
+            }
+            collect(c);
+        }
+    };
+    collect(ra);
+    collect(rd);
+    ASSERT_EQ(readmes.size(), 2u) << "the live record and its torn stale sibling both surface";
+    ASSERT_NE(readmes[0]->props()->version_group, 0ull) << "structured NTFS nodes carry the id";
+    EXPECT_EQ(readmes[0]->props()->version_group, readmes[1]->props()->version_group)
+        << "the same (parent, name) pair derives the SAME namespace id";
+    for (tree::FileNode* o : others)
+        EXPECT_NE(o->props()->version_group, readmes[0]->props()->version_group)
+            << "a different pathname never joins the group";
 }
