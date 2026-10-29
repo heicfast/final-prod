@@ -138,3 +138,26 @@ Evidence: `evidence/s69-lane-sheets/S69-C-sectormath.md` §4.b.
 **Fixed in commit:** the M-151 S80-lane commit (this session; SHA in the commit footer)
 **Verified by:** NtfsVolume.TruncatedRunlistGrowsToValidRecords / RunGrowthPartialWindowCountsValidPrefix — RED first-hand via the stash dance (2/2 FAILED at the pre-fix tree: the annexed records were ERR_RANGE_OUT_OF_BOUNDS), GREEN post-fix; RunGrowthStopsAtFirstInvalidRecord (the zero-growth termination pin); MirrorFallbackUnaffectedByGrowthPass (the S-063 interplay re-pin) + the re-pinned MirrorCoversRunlistSize / MirrorResidentDataRejected (physical-hole fixtures) and NonresidentAttrlistOnMft (max_record_no 20→23: the growth annexed the fixture's physically-present records 16..22 past the truncated declaration — the og's greedy shape); NTFS suite 91/91 + 4 new; full suite 1634/1634.
 **Resolution notes:** NtfsVolume::grow_mft_runs_to_valid_records() landed, wired at volume-open after the successful primary bootstrap (the og's :5554 post-load call site): per non-sparse run, 4 KiB windows probed at the run's declared end; consecutive records validated through the walk's own chain (FILE magic + fixup_validate, which carries N-213's family-keyed pre-gate band — FUN_180041bb0's validator chain); the run's length grows by the validated byte count floored to clusters (the vcn mapping's granularity — a fractional trailing record-worth stays unannexed, the conservative floor); termination per the og: the first invalid record in a window (the partial prefix still counts — the uVar10 < uVar12 break), a failed device read, the next run's physical start (the core's registered difference: the og's map tolerates middle-run overlap, the core's vector-based vcn mapping needs the guard — the growth's population is the LAST run), or the device end. The mirror-fallback tests' holes made PHYSICAL (the holed bytes zeroed) so the growth finds nothing annexable on the S-063 population and the mirror path stays the service — the intended interplay, now pinned. The cancel-responsiveness pin: the og's open-path loop has no cancellation either (no checkpoint in FUN_180007670); the pass is bounded by the first-invalid termination and the device end — registered as the og-equal posture rather than inventing a cancel surface the open path has no token for. The S69 addendum's device-end initial-bound site (FUN_18000ecb0) is the og's registration-list construction path (a stream whose declared size is absent); the core's runlist path always carries a declared size, and the growth loop subsumes the addendum's population (it grows to the actual valid records — the tighter bound) — recorded as covered-by-construction. Files: src/core/ntfs/cr_bootstrap.cpp, include/cr/ntfs/cr_bootstrap.h, tests/unit/test_ntfs_volume.cpp.
+
+---
+
+## S82 convergence addendum (2026-10-29 — the fourth independent implementation conceded per SA-9; one delta recorded)
+
+A fifth lane (S82, this one) implemented the growth probe independently
+and had its three-test battery RED->GREEN locally (the same translated
+contract: 4 KiB windows at the record-aligned run end, the walk's own
+validator chain, run-length extension by the valid prefix, the
+partial/read-failure terminations) when the push revealed `27bda40e`
+already on origin. Withdrawn pre-push; the racing landing keeps the
+seat. One implementation delta recorded for the next audit: this lane
+ran the growth AFTER the mirror STREAM load (the growth then also covers
+a mirror-bootstrapped volume's loaded run map); the landed form runs it
+immediately after the primary bootstrap chain (the S-063
+mirror-bootstrapped volumes grow whichever run map the successful
+bootstrap produced — the same population either way, the ordering differs
+only for the mirror-STREAM's own runs, which the growth never touches in
+the landed form). The three-test reconciliation this lane had prepared
+(the attrlist dual-mapping re-pin 20->23; the two mirror tests'
+trash-primary-tail companion restoring their routing/abort intents under
+the growth era) was landed by the racing window's own repair chain
+(c7037bf3/f18ba226) — the identical three re-pins, independently derived.

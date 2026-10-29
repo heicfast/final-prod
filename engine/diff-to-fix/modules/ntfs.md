@@ -693,3 +693,24 @@ InvalidRecord (zero growth past non-record bytes) / RunGrowthPartial
 WindowCountsValidPrefix (the 2048-byte prefix of a mixed window) /
 MirrorFallbackUnaffectedByGrowthPass. NTFS suite 95/95; full suite
 1634/1634.
+
+---
+
+---
+
+## Session-82 addendum — M-151 FIXED: the torn-tail run-growth probe (2026-10-29)
+
+**The truncated-$MFT salvage landed.** At volume-open, after the $MFT
+load (and the mirror load), each non-sparse run of the $DATA runlist is
+probed at its declared end: 4 KiB windows, the record-stride counting of
+FILE-magic + fixup-valid records (the walk's own validator — the N-213
+pre-gate band inherited), and the run-length extension by each window's
+valid prefix (a partially-valid window grows by the prefix and stops; a
+failed read or the first invalid record ends the run's growth). The
+og's loop: FUN_180007670 :5617-5700 (re-verified first-hand). The
+walk's max_record_no grows with the runs — the records beyond a
+truncated/stale runlist (the recently-created files at the MFT tail)
+become reachable. **B2/B6/A26: MATCH.** Tests:
+TruncatedRunlistGrowsToValidRecords / RunGrowthStopsAtFirstInvalidRecord /
+IntactRunlistUnchangedByGrowthPass (RED->GREEN); the three adjacent
+re-pins documented in the Resolution; NTFS family 95/95.

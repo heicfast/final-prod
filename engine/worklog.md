@@ -11968,3 +11968,31 @@ Session-83 addendum (both lanes' evidence preserved: their decompile-line
 cite + my raw-asm instruction-address verification at
 0x180005f5d-0x180005f87 — the four content gates, byte-exact, NO
 dtime/links read). Two independent lanes, same corpus filter, same fix.
+
+---
+
+---
+
+# Session 82 — entry 5: M-151 CONCEDED to the racing 27bda40e (the convergence record)
+
+The growth probe was implemented and verified locally (the three-test
+battery RED->GREEN: TruncatedRunlistGrowsToValidRecords /
+RunGrowthStopsAtFirstInvalidRecord / IntactRunlistUnchangedByGrowthPass,
+plus the three adjacent re-pins — the attrlist dual-mapping 20->23 and
+the two mirror tests' trash-primary-tail companion) when the push
+revealed `27bda40e` already on origin with the same translated contract.
+Withdrawn per SA-9; the racing landing keeps the seat. The convergence
+addendum in findings/FIXED/M-151 records the one implementation delta
+(the growth's position relative to the mirror STREAM load) and notes
+that the racing window's own repair chain landed the identical three
+re-pins this lane had prepared. The S82 session's tally after five
+racing windows: 2 landed (M-152's union contribution + the N-217
+dispatcher verification), 4 conceded with recorded decode deltas
+(the X3F composite, S-068, M-150's bound, M-151's ordering), every
+concession carrying evidence the next audit can use rather than a
+silent drop.
+
+The lane's next targets (the surviving board): M-101 (the
+Versions/Tags branches — the biggest remaining code feature), M-107's
+CRW member (the deep-decode lane), M-075/M-078 (the win layer),
+M-105/M-111/M-114 (the scope decisions), I-048 (the registers).
