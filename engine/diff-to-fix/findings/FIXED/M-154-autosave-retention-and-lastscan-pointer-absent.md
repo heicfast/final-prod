@@ -111,3 +111,27 @@ landed retire:
 - The Linux-runnable core trio re-targeted onto the landed API
   (LastScanPointerFourFieldRoundTrip + the two above) complements the
   win-lane tests af5987d0 landed in test_cr_ui.cpp.
+
+## Convergence addendum (this lane — the S80 parity-fix lane's concession record)
+
+This lane independently implemented option (a) in the same window (the
+session-layer pointer pair with the og's four fields and ini grammar, the
+retention-before-write with the dead-pointer no-op, the
+belt-and-braces name-shape deletion guard [only auto_* names ever deleted],
+the pointed resume as the CLI's --resume-last, the PARITY-DELTAS
+registration for the co-located ini + the dropped HKLM mirror; the ABI
+integration test RED pre-fix behavioral via the stash dance — the
+accumulation broke the one-file pin — plus four session units and the CLI
+contract pin) before the push met the racing landing — the seat conceded
+per SA-9. The racing implementation re-verified first-hand post-concession:
+the retention + manual-survives tests green, the build clean. The two
+implementations are semantic twins independently derived from the fix plan
+— the same four-field pointer, the same retention ordering, the same
+name-shape guard (their `name_is_auto` = this lane's
+`auto_session_name_shape`), the same dead-pointer no-op class. Two deltas,
+both immaterial to the semantics: (a) the sidecar's name (their
+`last_scan.info` vs this lane's `LastScanInfo.ini` — the og's filename is
+a host-convention half either way, registered in the PARITY-DELTAS row);
+(b) the pointed-resume surface (their ABI entry vs this lane's CLI
+--resume-last flag — complementary halves of the same FUN_140286390
+restore; the ABI entry is the stronger surface and stands).
