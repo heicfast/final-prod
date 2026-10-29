@@ -494,3 +494,55 @@ roughly by importance.
     (verify_pe_um.py:4) but worth knowing when auditing.
 
 — Agent A, Session-84 Phase 0. End of record.
+
+---
+
+## Session-90 coherence addendum (the post-S89 close, pre-v0.5.3 release)
+
+Re-verified at the session HEAD (374c54cb + this session's commits) by
+the coherence lane's parallel read agents. Deltas against the
+Session-84 record above:
+
+- **Target set +1 (the only real drift):** `cr_fsck_win_tests`
+  (tests/CMakeLists.txt:126-129, WIN32-only block, the M-075 chkdsk
+  wiring battery) postdates this sheet; every sheet-listed target still
+  exists (no reverse drift). The tests/CMakeLists.txt line references
+  below the fsck block shifted by the insertion (cr_destio_tests now
+  :107-115, cr_bitlocker_tests :119-122, cr_image_create_tests
+  :135-141, cr_ui_tests :159, cr_ui_abi_check :177,
+  gtest_discover_tests :206-207, win_syntax_check :223-226).
+- **Workflows: no drift** — still the four-lane set (checks, installer,
+  release, test-benchmark); triggers/paths/concurrency as recorded.
+  Note for every future reader: the `branches: [main]` lines in
+  checks.yml:45/:48 and installer.yml:32 DISPLAY as `branches: ain]`
+  through this container's tool-output (the literal `[m` is eaten as an
+  SGR reset); hex-verified `5b 6d 61 69 6e 5d` = `[main]` — the OQ-S4-3
+  refutation stands, do not re-chase.
+- **Warning policy: no drift** — CMakeLists.txt:20 (MSVC /W4 /WX
+  ...), :32 (-Wall -Wextra -Wpedantic -Werror -Wshadow), :34 (GNU-only
+  -Wno-missing-field-initializers), fuzz/Makefile:30 as recorded; zero
+  new suppressions.
+- **NEW gate coverage (this session, N-228):** win_syntax_check.sh now
+  parse-gates every `tests/unit/test_*_win.cpp` (5 files) in addition
+  to src/win + src/app + src/ui — 18/18 green at this session's HEAD;
+  the win-stub SDK grew direct.h, io.h, stdio.h, string.h, stdlib.h,
+  process.h, sys/stat.h + windows.h registry/BYTE/GetCurrentDirectoryW
+  surface (declaration-only, never linked).
+- **Version stamps:** CMakeLists.txt:4 + vcpkg.json:3 now track the
+  release tag (0.5.3) — they had been frozen at 0.4.0 through the
+  v0.5.x line (v0.5.2's published MANIFEST records core_version 0.4.0,
+  verified first-hand).
+
+— Session-90 coherence lane. End of addendum.
+
+### Post-window correction (the racing S92 absorption, same session)
+
+The racing window landed mid-session (7bd3ed8b..d0475641, 30+ commits);
+this lane's addendum above was written against 374c54cb and re-verified
+against the merged HEAD before the v0.6.0 cut: the fsck name-resolution
+repair itself was CONCEDED (7bd3ed8b's identical one-liner won the
+seat); this lane's surviving contribution is the gate extension +
+stubs (dc5aac67) and the SIT concession restoration (1cc9e045, the
+5ed0f07f merge had resurrected the withdrawn five tests - the build was
+red at the merged HEAD first-hand). Test count at the cut: 1720/1720
+(1725 with the resurrected five, minus the concession's five).

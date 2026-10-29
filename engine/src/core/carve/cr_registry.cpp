@@ -883,14 +883,18 @@ const Signature kTable[] = {
     /* N-093: the og's registered caps (GZRawFileInfo :15824-15829: min 20,
      * max 400,000,000) - min 18 -> 20 and the 512 MiB superset retired. */
     {FMT_GZ, "gz", {0x1F, 0x8B}, 2, 0, 20, 400000000, 600, validate_gz, "gzip"},
+    /* M-107 (the APE member): the og's own constants - the CAPERawInfo
+     * factory (FUN_1800330a0) writes min 0 ([0x22]); the walk's cap is
+     * singleton+0x70 x 10 = 2,000,000,000 (raw-asm 0x1800331ec-:1f4) -
+     * the 256 MiB stand-in max and the 32-byte floor are gone. */
     {FMT_APE,
      "ape",
      {'M', 'A', 'C', ' '},
      4,
      0,
-     32,
-     256ull << 20,
-     620,
+     0,
+     2000000000,
+     650,
      validate_ape,
      "Monkey's Audio"},
     {FMT_AU, "au", {'.', 's', 'n', 'd'}, 4, 0, 24, 256ull << 20, 800, validate_au, "Sun Audio"},
@@ -1078,14 +1082,26 @@ const Signature kTable[] = {
      700,
      validate_emf,
      "Enhanced Metafile"},
-    {FMT_SWF, "swf", {'F', 'W', 'S'}, 3, 0, 16, 64ull << 20, 700, validate_swf, "Shockwave Flash"},
+    /* M-107 member 11 (SWF-RECT): the og stamps the FileLength u32@+4
+     * verbatim (FUN_1800268a0) - the field's own ceiling is the row max
+     * (the WPD precedent); the RECT walk is validation-only */
+    {FMT_SWF,
+     "swf",
+     {'F', 'W', 'S'},
+     3,
+     0,
+     16,
+     0xFFFFFFFFull,
+     700,
+     validate_swf,
+     "Shockwave Flash"},
     {FMT_SWF_CWS,
      "swf",
      {'C', 'W', 'S'},
      3,
      0,
      16,
-     64ull << 20,
+     0xFFFFFFFFull,
      700,
      validate_swf,
      "Shockwave Flash (compressed)"},
