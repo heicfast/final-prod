@@ -79,6 +79,28 @@ struct CarveStats {
      * near-free on zeros and keeps running (the finding's own profile
      * rule). */
     u64 zero_strides_skipped = 0;
+
+    /* N-140: the per-format tally — the og's GetRawUserInfoMap per-scan
+     * carve-statistics map<extension,count> (RAWSearchDLL's user-info
+     * singleton +0x90, FUN_18000ed00's insert-or-increment fed by the
+     * ~60 analyser detection sites, cleared at every searcher init
+     * [per-scan lifetime]; DRWUI's post-scan report builder renders the
+     * "found N .jpg / M .png" breakdown from it, DRWUI :227538-227625).
+     * The core's bounded projection: a fixed array over the unified
+     * format-id space — grammar FormatId rows [0, registry_size()),
+     * raw-sign rows [registry_size(), registry_size()+kFormatCount) (the
+     * same bound cr_ui_carve_format_count exposes), and ONE aggregate
+     * user-sign slot at [registry_size()+kFormatCount] (the og's map
+     * keys user-sign detections by their dynamic, unbounded extension
+     * strings; the aggregate is the honest fixed-table projection).
+     * Ticked at the same emission sites the `validated` counter ticks —
+     * no map allocation in the hot path. per_format_slots is the LIVE
+     * bound (0 = no carve stage ran); per_format_overflow counts formats
+     * beyond capacity (future registry growth - never a silent drop). */
+    static constexpr u32 kFormatTallyCapacity = 512;
+    u64 per_format[kFormatTallyCapacity] = {};
+    u32 per_format_slots = 0;
+    u64 per_format_overflow = 0;
 };
 
 struct CarveFlags {

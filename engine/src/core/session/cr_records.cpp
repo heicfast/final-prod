@@ -1091,6 +1091,39 @@ u32 serialize_assistant_stats(const tree::grading::AssistantStats& st, std::vect
     return OK;
 }
 
+u32 serialize_carve_tally(const CarveTallyRecord& t, std::vector<u8>& out) {
+    out.clear();
+    const u32 n = t.slots < 512 ? t.slots : 512;
+    put32(out, n);
+    put64(out, t.overflow);
+    for (u32 i = 0; i < n; ++i)
+        put64(out, t.counts[i]);
+    return OK;
+}
+
+u32 deserialize_carve_tally(const u8* data, size_t len, CarveTallyRecord& t) {
+    Cursor c{data, len};
+    t.slots = 0;
+    t.overflow = 0;
+    for (u32 i = 0; i < 512; ++i)
+        t.counts[i] = 0;
+    const u32 n = c.g32();
+    t.overflow = c.g64();
+    if (c.fail)
+        return u32(0x50040001);
+    /* the count may exceed this build's 512-row view (a newer writer):
+     * read every row so the cursor stays truthful, keep the in-capacity
+     * prefix, report the record's own bound */
+    u32 i = 0;
+    for (; i < n && !c.fail; ++i) {
+        const u64 v = c.g64();
+        if (i < 512)
+            t.counts[i] = v;
+    }
+    t.slots = n;
+    return c.fail ? u32(0x50040001) : u32(OK);
+}
+
 u32 deserialize_assistant_stats(const u8* data, size_t len, tree::grading::AssistantStats& st) {
     Cursor c{data, len};
     st.total_file_count = c.g64();

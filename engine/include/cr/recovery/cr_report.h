@@ -175,6 +175,17 @@ struct ScanAnalysis {
     u64 gauge_total = 0;
     u32 score = 0;
     u64 ntfs_device_index_high = 0;
+    /* N-140 (append-only): the per-format carve tally - the og's
+     * GetRawUserInfoMap per-extension breakdown (DRWUI :227538-227625
+     * renders it on the post-scan screen). Unified format-id space:
+     * grammar rows [0, carve::registry_size()), raw-sign rows
+     * [registry_size(), +kFormatCount), the aggregate user-sign slot at
+     * the end. Emitted as "carve_formats": [{"id": i, "count": n}, ...]
+     * in id order, NONZERO rows only; absent (slots == 0) when no carve
+     * stage ran or the session predates the tally. */
+    u32 carve_format_slots = 0;
+    u64 carve_format_overflow = 0;
+    u64 carve_format_counts[512] = {};
 };
 
 /* Serialize as a complete JSON document (trailing newline, UTF-8).

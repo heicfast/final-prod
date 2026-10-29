@@ -3052,6 +3052,36 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, cr_ui_telem
 extern "C" CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     return guarded(scan_stats_impl, scan, out);
 }
+
+namespace {
+u32 scan_carve_tally_count_impl(cr_ui_scan* scan) {
+    /* the count-style ABI (cr_ui_carve_format_count's shape): the value
+     * IS the return; a null scan reads as 0 (no carve stage ran) */
+    if (!scan)
+        return 0;
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    return s->stats.carve_per_format_slots;
+}
+u32 scan_carve_tally_impl(cr_ui_scan* scan, u32 index, u64* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    if (index >= s->stats.carve_per_format_slots ||
+        index >= carve::CarveStats::kFormatTallyCapacity)
+        return ret_(ERR_BAD_PARAMETER, "carve tally index %u out of range (%u)", index,
+                    s->stats.carve_per_format_slots);
+    *out = s->stats.carve_per_format[index];
+    return ret_ok();
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_scan_carve_tally_count(cr_ui_scan* scan) {
+    return guarded(scan_carve_tally_count_impl, scan);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_carve_tally(cr_ui_scan* scan, uint32_t index,
+                                                     uint64_t* out) {
+    return guarded(scan_carve_tally_impl, scan, index, out);
+}
 extern "C" CR_UI_API uint32_t cr_ui_scan_assistant(cr_ui_scan* scan, cr_ui_assistant_stats* out) {
     return guarded(scan_assistant_impl, scan, out);
 }

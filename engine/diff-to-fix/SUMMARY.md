@@ -21,8 +21,25 @@
   RED as compile-errors on the stash-reverted tree (the N-100 new-carrier
   precedent); suite **1526/1526**.
 
-**Board after this landing: 0 ACUTE · 0 SEVERE · 14 MAJOR · 10 MINOR · 0 INFO
-active / 162 FIXED / 4 tracked-open** (M-086/M-087/M-089 + N-107/N-127
+- **N-140 FIXED (MINOR, carve/report/query)** — the per-extension
+  carve-result aggregation surface (the og's GetRawUserInfoMap + the
+  post-scan "found N .jpg / M .png" breakdown) landed at every layer:
+  the fixed-table tally in CarveStats (512 slots over the unified
+  format-id space: grammar + raw-sign rows + one user-sign aggregate,
+  ticked at the three `validated` emission sites, atomic, with an
+  overflow counter), the ScanStats seam copy, the report's
+  scan_analysis "carve_formats" rows, the ABI pair
+  cr_ui_scan_carve_tally_count/cr_ui_scan_carve_tally, and the optional
+  REC_CARVE_TALLY session record (a reloaded session answers the
+  breakdown without a tree walk). RED→GREEN: 4 tests (engine tally +
+  tree-walk cross-check / report rows / session round-trip / ABI
+  contract), RED as compile-errors on the reverted tree; suite
+  **1536/1536**.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 13 MAJOR · 9 MINOR · 0 INFO
+active / 164 FIXED / 4 tracked-open** (M-086/M-087/M-089 + N-107/N-127
+driver-repo-resident per OQ-S10-3; the racing S72 lane's M-135 landing
+absorbed at the N-131 push-rebase is counted in the 13 MAJOR). (M-086/M-087/M-089 + N-107/N-127
 driver-repo-resident per OQ-S10-3's two-repo grant boundary). The lane-open
 board re-truth corrected the `1ec36d6c` rebase message's own "10 N" off-by-one
 (disk truth was 11 MINOR files; the S70 block carried the same 10). Next free

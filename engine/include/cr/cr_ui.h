@@ -1156,6 +1156,27 @@ CR_UI_API uint32_t cr_ui_carve_format_count(void);
 /* Row `index` [0, count()) into *out. BAD_PARAMETER on out-of-range. */
 CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out);
 
+/* ---- N-140: the per-format carve tally (the og's GetRawUserInfoMap) ------
+ * The og serves its per-scan carve-statistics map<extension,count> through
+ * the GetRawUserInfoMap export (RAWSearchDLL :72213-72221; FUN_18000ed00's
+ * insert-or-increment feeds it from every analyser detection; DRWUI's
+ * post-scan report renders the "found N .jpg / M .png" breakdown,
+ * :227538-227625). The core's equivalent: per-slot counts over the SAME
+ * unified format-id space cr_ui_carve_format_count() enumerates (grammar
+ * rows first, then raw-sign rows), plus ONE aggregate user-sign slot at
+ * the end (index == cr_ui_carve_format_count(); the og's map keys user
+ * signs by their dynamic extension strings - unbounded - so the aggregate
+ * is the honest fixed-table projection).
+ *
+ * cr_ui_scan_carve_tally_count: the live slot bound (0 = no carve stage
+ * ran or the session predates the tally). cr_ui_scan_carve_tally: the
+ * count at `index` into *out (BAD_PARAMETER on null/out-of-range). The
+ * format identity for index < cr_ui_carve_format_count() is
+ * cr_ui_carve_format_info(index, ...); the last slot is the user-sign
+ * aggregate. No tree walk required. */
+CR_UI_API uint32_t cr_ui_scan_carve_tally_count(cr_ui_scan* s);
+CR_UI_API uint32_t cr_ui_scan_carve_tally(cr_ui_scan* s, uint32_t index, uint64_t* out);
+
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---------
  * The og's EUUserData surface: the host registers user-taught file
  * signatures (the og's JSON shape verbatim:

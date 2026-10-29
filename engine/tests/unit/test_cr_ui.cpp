@@ -532,6 +532,112 @@ TEST(CrUi, CarveFormatRegistryEnumeration) {
     EXPECT_GT(std::strlen(cr_ui_last_error()), 0u);
 }
 
+/* N-140: the per-format carve tally at the ABI - the og's GetRawUserInfoMap
+ * surface (per-extension counts served pre-computed; DRWUI renders the
+ * post-scan "found N .jpg" breakdown). A scan with a grammar-layer JPEG
+ * planted in a FREE cluster (carve-visible; live files are free-map
+ * suppressed, M-005) must answer the breakdown through the tally pair
+ * without a tree walk. RED pre-fix: the exports did not exist. */
+TEST(CrUi, ScanCarveTallyPerFormat) {
+    /* a JPEG plant in free cluster 100 (unlinked in the FAT - carve
+     * visible on both layers) */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    {
+        unsigned char* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = (unsigned char)('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 8;
+        for (int i = 0; i < 8; ++i)
+            at[p + 4 + i] = 0x11;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9;
+    }
+    const std::string path = cr_test::tmp_path("cr_ui", "tally");
+    FILE* f = std::fopen(path.c_str(), "wb");
+    ASSERT_NE(f, nullptr);
+    ASSERT_EQ(std::fwrite(img.data(), 1, img.size(), f), img.size());
+    std::fclose(f);
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(path.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+
+    /* the counting space: the same rows cr_ui_carve_format_count()
+     * enumerates, plus the aggregate user-sign slot */
+    const uint32_t want_slots = cr_ui_carve_format_count() + 1;
+    const uint32_t slots = cr_ui_scan_carve_tally_count(u.scan);
+    EXPECT_EQ(slots, want_slots) << "grammar rows + raw-sign rows + the user-sign aggregate";
+
+    /* the JPG row answers with a nonzero count (the free-cluster plant) */
+    uint32_t jpg_id = UINT32_MAX;
+    for (uint32_t i = 0; i < cr_ui_carve_format_count(); ++i) {
+        cr_ui_carve_format fi{};
+        ASSERT_EQ(cr_ui_carve_format_info(i, &fi), CR_UI_OK);
+        if (std::strcmp(fi.ext, "jpg") == 0 && fi.layer == 0) {
+            jpg_id = i;
+            break;
+        }
+    }
+    ASSERT_NE(jpg_id, UINT32_MAX) << "the grammar registry must enumerate jpg";
+    uint64_t jpg_count = 0;
+    ASSERT_EQ(cr_ui_scan_carve_tally(u.scan, jpg_id, &jpg_count), CR_UI_OK);
+    EXPECT_GE(jpg_count, 1u) << "the carved JPEG must tick its row";
+
+    /* the contract: out-of-range and null are BAD_PARAMETER, never a
+     * fabricated count */
+    uint64_t sink = 0;
+    EXPECT_EQ(cr_ui_scan_carve_tally(u.scan, slots, &sink), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_scan_carve_tally(u.scan, 0, nullptr), CR_UI_ERR_BAD_PARAMETER);
+    /* every in-range slot answers OK (zeros included - an empty map row,
+     * the og's GetRawUserInfoMap shape) */
+    for (uint32_t i = 0; i < slots; ++i)
+        ASSERT_EQ(cr_ui_scan_carve_tally(u.scan, i, &sink), CR_UI_OK) << "slot " << i;
+}
+
 TEST(CrUi, ScanLifecycleOverImage) {
     Ui u;
     std::string img, crsf;

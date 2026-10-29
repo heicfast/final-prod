@@ -14,6 +14,7 @@
 #include <fstream>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <vector>
 
 using namespace cr;
@@ -343,6 +344,92 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
     ASSERT_NE(docx_node, nullptr);
     EXPECT_EQ(docx_node->props()->logical_size,
               size_t(30u + 19u + 46u + 19u + 22u)); /* 136: own EOCD */
+}
+
+TEST(Carve, StatsPerFormatTally) {
+    /* N-140: the per-format carve tally - the og's GetRawUserInfoMap
+     * per-scan map<extension,count> (RAWSearchDLL's user-info singleton
+     * +0x90, FUN_18000ed00 insert-or-increment fed by every analyser
+     * detection, cleared per scan; DRWUI renders the "found N .jpg /
+     * M .png" post-scan breakdown, :227538-227625). The engine surface
+     * must answer the breakdown WITHOUT a tree walk: the fixed tally
+     * over the unified format-id space (grammar rows, then raw-sign
+     * rows, then the user-sign aggregate) counts every emitted record at
+     * the same sites `validated` ticks. RED pre-fix: the fields did not
+     * exist (compile-error on the reverted tree). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    ASSERT_GE(stats.validated, 5u); /* jpg, png, zip, docx + the jfif raw-sign row */
+
+    /* the live bound: grammar rows + raw-sign rows + the user-sign
+     * aggregate slot - the same counting space cr_ui_carve_format_count
+     * enumerates, plus one */
+    EXPECT_EQ(stats.per_format_slots, u32(registry_size()) + rawsigns::kFormatCount + 1u)
+        << "the unified counting space + the user-sign aggregate";
+    EXPECT_EQ(stats.per_format_overflow, 0u);
+
+    /* the grammar rows tick once per emitted record */
+    EXPECT_EQ(stats.per_format[FMT_JPG], 1u);
+    EXPECT_EQ(stats.per_format[FMT_PNG], 1u);
+    EXPECT_EQ(stats.per_format[FMT_ZIP], 1u);
+    EXPECT_EQ(stats.per_format[FMT_DOCX], 1u);
+    /* the jfif raw-sign row (the layer-1 emission at 12288): the row
+     * index is registry_size() + the raw-sign format id; the tree's
+     * carve_format tag 0xFFFF0000+fmt maps to the same slot */
+    bool saw_raw_row = false;
+    for (u32 i = u32(registry_size()); i < registry_size() + rawsigns::kFormatCount; ++i)
+        if (stats.per_format[i] != 0)
+            saw_raw_row = true;
+    EXPECT_TRUE(saw_raw_row) << "the raw-sign layer's jfif emission must tick its row";
+
+    /* the tally's total == validated: every emitted record counted
+     * exactly once, no layer double-counting (the F-A3-6 class guard) */
+    u64 sum = 0;
+    for (u32 i = 0; i < stats.per_format_slots && i < CarveStats::kFormatTallyCapacity; ++i)
+        sum += stats.per_format[i];
+    EXPECT_EQ(sum, stats.validated) << "the per-format tally must partition `validated`";
+
+    /* cross-check against a manual tree walk: every carved node's
+     * carve_format maps to exactly one tally row. The walk counts
+     * DETECTIONS (parent records): archive inventory children (S-032)
+     * carry the parent's format tag but are inner entries of ONE
+     * analyser detection - the og's map ticks per analyser accept, so
+     * nodes whose parent is a FileNode (inner entries) are skipped. */
+    std::map<u32, u64> walked;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->parent() != nullptr && !c->parent()->is_full()) {
+                collect(c); /* an inner entry - not a detection */
+                continue;
+            }
+            const u32 fmt = c->props()->carve_format;
+            if (fmt < 0xFFFF0000u)
+                walked[fmt]++;
+            else if (fmt >= 0xFFFF0000u + rawsigns::kFormatCount)
+                walked[0xFFFE0000u]++; /* the user-sign aggregate class */
+            else
+                walked[u32(registry_size()) + (fmt - 0xFFFF0000u)]++;
+            collect(c);
+        }
+    };
+    collect(root);
+    u64 walked_sum = 0;
+    for (const auto& kv : walked) {
+        walked_sum += kv.second;
+        ASSERT_LT(kv.first, stats.per_format_slots)
+            << "a tree row outside the counting space";
+        EXPECT_EQ(stats.per_format[kv.first], kv.second)
+            << "row " << kv.first << ": the tally must match the tree walk";
+    }
+    EXPECT_EQ(walked_sum, stats.validated);
 }
 
 TEST(CarveEngine, CarvesMidSectorStart) {

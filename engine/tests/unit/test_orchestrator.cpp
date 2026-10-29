@@ -1593,6 +1593,168 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     EXPECT_TRUE(saw_psd) << "the raw-sign-layer candidate is in the family";
 }
 
+TEST(Orchestrator, CarveTallySessionRoundTrip) {
+    /* N-140: the per-format carve tally survives the session file - the
+     * og's GetRawUserInfoMap outlives the scan into the report (the map
+     * is the post-scan surface, not a scan-time transient). A scan with
+     * a grammar-layer JPEG + a raw-sign-layer PSD saves REC_CARVE_TALLY;
+     * a reloaded session answers the per-format breakdown without a
+     * tree walk. RED pre-fix: the record did not exist. */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    {
+        /* the grammar-layer JPEG (cluster 100) - the same shape the
+         * naming-family fixture plants */
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 8;
+        for (int i = 0; i < 8; ++i)
+            at[p + 4 + i] = 0x11;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9;
+    }
+    {
+        /* the raw-sign-layer PSD (cluster 300) */
+        u8* at = img.data() + DATA + (300 - 2) * 512;
+        std::memcpy(at, "8BPS", 4);
+        at[4] = 0;
+        at[5] = 1;
+        at[12] = 0;
+        at[13] = 1;
+        at[14] = 0;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 64;
+        at[18] = 0;
+        at[19] = 0;
+        at[20] = 0;
+        at[21] = 48;
+        at[22] = 0;
+        at[23] = 8;
+        at[24] = 0;
+        at[25] = 1;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
+    ASSERT_GE(stats.carved_found, 2u);
+    ASSERT_NE(stats.carve_per_format_slots, 0u) << "the carve stage sets the live bound";
+    /* snapshot the live tally for the round-trip comparison */
+    std::vector<u64> live(stats.carve_per_format, stats.carve_per_format + 512);
+    u64 live_sum = 0;
+    for (u32 i = 0; i < stats.carve_per_format_slots; ++i)
+        live_sum += live[i];
+    EXPECT_EQ(live_sum, stats.carved_found) << "the tally partitions carved_found";
+
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    bool saw_tally = false;
+    for (u32 i = 0; i < r.record_count(); ++i) {
+        session::Record rec;
+        ASSERT_EQ(r.read_record(i, rec), OK);
+        if (rec.type != session::REC_CARVE_TALLY)
+            continue;
+        saw_tally = true;
+        session::CarveTallyRecord tr;
+        ASSERT_EQ(session::deserialize_carve_tally(rec.data.data(), rec.data.size(), tr), OK);
+        ASSERT_EQ(tr.slots, stats.carve_per_format_slots);
+        ASSERT_EQ(tr.overflow, stats.carve_per_format_overflow);
+        u64 re_sum = 0;
+        for (u32 k = 0; k < tr.slots && k < 512; ++k) {
+            EXPECT_EQ(tr.counts[k], live[k]) << "slot " << k << " must round-trip";
+            re_sum += tr.counts[k];
+        }
+        EXPECT_EQ(re_sum, stats.carved_found);
+    }
+    EXPECT_TRUE(saw_tally) << "the session must carry REC_CARVE_TALLY";
+
+    /* the record-level edge: a truncated payload is a parse failure,
+     * never a silent zero tally */
+    {
+        session::CarveTallyRecord tr;
+        const u8 junk[3] = {1, 2, 3};
+        EXPECT_NE(session::deserialize_carve_tally(junk, sizeof(junk), tr), u32(OK));
+    }
+}
+
 TEST(Orchestrator, CarveVolumeGroupTreeShape) {
     /* S-048: the og's persisted carve tree - the "Reconstructed" root
      * with the 7 empty category folders (Pictures/Documents/Archives/

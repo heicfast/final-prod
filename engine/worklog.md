@@ -10768,3 +10768,23 @@ repaired in passing — the same class trail-repaired as N-210).
 FIXED-LEDGER row; CROSS-REF-MATRIX S77 lane row (B1/A25/A30/O37/P5 →
 MATCH); modules/lost-partition.md S77 addendum; SUMMARY board (12 MAJOR
 active / 161 FIXED); this entry.
+
+## Session-76 S76 lane — N-140 lands (2026-10-29)
+
+- **N-140 FIXED (MINOR — the per-extension carve-result aggregation
+  surface).** Corpus re-verified first-hand at the fix (the +0x90
+  singleton map, FUN_18000ed00's insert-or-increment, the per-scan clear,
+  DRWUI's report reader — all four cites re-read). Landed: the 512-slot
+  fixed tally in CarveStats over the unified format-id space (grammar
+  rows, raw-sign rows, one user-sign aggregate — the og's dynamic
+  user-sign extension keys are the honest bounded projection), ticked at
+  the three `validated` emission sites; ScanStats seam copy; the report's
+  scan_analysis "carve_formats" rows + overflow; the ABI pair
+  cr_ui_scan_carve_tally_count/cr_ui_scan_carve_tally; the optional
+  REC_CARVE_TALLY session record. RED→GREEN: Carve.StatsPerFormatTally +
+  Report.ScanAnalysisCarriesPerFormat +
+  Orchestrator.CarveTallySessionRoundTrip + CrUi.ScanCarveTallyPerFormat
+  (RED = compile-errors on the stash-reverted tree). Suite **1536/1536**.
+  Trail: findings/FIXED/N-140 + Resolution, ledger row, matrix MATCH,
+  modules/carve.md S76 addendum, SUMMARY board 13 M / 9 N / 164 FIXED,
+  this entry.

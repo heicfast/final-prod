@@ -81,6 +81,15 @@ enum RecordType : u32 {
      * basis ids that resolve to nothing (recovery then fails the reads
      * honestly per-extent). Payload: serialize_ldm_layouts. */
     REC_LDM_LAYOUTS = 10,
+    /* N-140 (diff-to-fix): the per-format carve tally - the og's
+     * GetRawUserInfoMap per-scan statistics (map<extension,count> served
+     * pre-computed to the host; DRWUI renders the post-scan per-extension
+     * breakdown). OPTIONAL with the same skip-unknown-types rule: sessions
+     * saved before the tally (or by a build without a carve stage) simply
+     * lack it and the breakdown reads as zeros on load. Payload:
+     * serialize_carve_tally (u32 slots, u64 overflow, then slots u64
+     * counts in unified format-id order). */
+    REC_CARVE_TALLY = 11,
 };
 
 /* In-memory record. */

@@ -209,6 +209,24 @@ static void append_analysis(std::string& out, const ScanAnalysis& a) {
     append_num(out, "score", a.score, false);
     out.append(",\n");
     append_num(out, "ntfs_device_index_high", a.ntfs_device_index_high, false);
+    out.append(",\n");
+    /* N-140: the per-format carve tally - the og's post-scan per-extension
+     * breakdown (GetRawUserInfoMap), nonzero rows in unified id order */
+    out.append("    \"carve_formats\": [");
+    bool first_row = true;
+    for (u32 i = 0; i < a.carve_format_slots && i < 512; ++i) {
+        if (a.carve_format_counts[i] == 0)
+            continue;
+        out.append(first_row ? "" : ", ");
+        first_row = false;
+        out.append("{\"id\": ");
+        out.append(std::to_string(i));
+        out.append(", \"count\": ");
+        out.append(std::to_string(a.carve_format_counts[i]));
+        out.append("}");
+    }
+    out.append("],\n");
+    append_num(out, "carve_format_overflow", a.carve_format_overflow, false);
     out.append("\n  },\n");
 }
 

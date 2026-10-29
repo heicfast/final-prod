@@ -708,6 +708,40 @@ TEST(Report, ContainsAssistantStatistics) {
     EXPECT_NE(std::string::npos, small.find("\"small_result\":1"));
 }
 
+TEST(Report, ScanAnalysisCarriesPerFormat) {
+    /* N-140: the per-format carve breakdown rides the scan_analysis
+     * block - the og's GetRawUserInfoMap post-scan rendering (DRWUI
+     * :227538-227625). The rows are nonzero-only in unified id order;
+     * zero rows stay absent; slots==0 omits the counts (an absent
+     * carve stage). RED pre-fix: the fields did not exist. */
+    recovery::report::ScanAnalysis a;
+    a.total_file_count = 7;
+    a.carve_format_slots = 300; /* a live bound (grammar+raw+usersign) */
+    a.carve_format_counts[3] = 405; /* e.g. the JPG grammar row */
+    a.carve_format_counts[200] = 42; /* a raw-sign row */
+    a.carve_format_counts[299] = 7;  /* the user-sign aggregate slot */
+    recovery::report::Totals t;
+    const std::string doc = recovery::report::build_report({}, t, &a);
+    EXPECT_NE(std::string::npos, doc.find("\"carve_formats\""));
+    EXPECT_NE(std::string::npos, doc.find("{\"id\": 3, \"count\": 405}"));
+    EXPECT_NE(std::string::npos, doc.find("{\"id\": 200, \"count\": 42}"));
+    EXPECT_NE(std::string::npos, doc.find("{\"id\": 299, \"count\": 7}"));
+    EXPECT_NE(std::string::npos, doc.find("\"carve_format_overflow\":0"));
+    /* the zero rows never render: id 4 has count 0 */
+    EXPECT_EQ(std::string::npos, doc.find("{\"id\": 4,"));
+    /* no carve stage: slots 0 -> an empty array, no fabricated rows */
+    recovery::report::ScanAnalysis b;
+    b.carve_format_slots = 0;
+    const std::string plain = recovery::report::build_report({}, t, &b);
+    EXPECT_NE(std::string::npos, plain.find("\"carve_formats\": []"));
+    /* the overflow counter is surfaced, never silently dropped */
+    b.carve_format_slots = 2;
+    b.carve_format_counts[0] = 1;
+    b.carve_format_overflow = 3;
+    const std::string ofl = recovery::report::build_report({}, t, &b);
+    EXPECT_NE(std::string::npos, ofl.find("\"carve_format_overflow\":3"));
+}
+
 /* ===================================================================== */
 /* M-134 (diff-to-fix): the og's deep-read grade validation              */
 /* (FUN_14038c470 :606291-619, decoded) - a bounded ONE-SECTOR content  */

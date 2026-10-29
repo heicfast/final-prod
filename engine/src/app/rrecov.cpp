@@ -2571,6 +2571,13 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         analysis.matched = stats.assistant.matched;
         analysis.total = stats.assistant.total;
         analysis.small_result = stats.assistant.small_result;
+        /* N-140: the per-format carve breakdown (the og's GetRawUserInfoMap
+         * surface; rides the session record so a reloaded session reports
+         * it without a tree walk) */
+        analysis.carve_format_slots = stats.carve_per_format_slots;
+        analysis.carve_format_overflow = stats.carve_per_format_overflow;
+        for (u32 k = 0; k < stats.carve_per_format_slots && k < 512; ++k)
+            analysis.carve_format_counts[k] = stats.carve_per_format[k];
         const std::string doc = recovery::report::build_report(
             writer.report_items(),
             writer.report_totals(narrow(in_path), narrow(to_dir),

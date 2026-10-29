@@ -2581,6 +2581,12 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */
     stats.carve_zero_strides = cs.zero_strides_skipped;         /* N-031 */
     stats.carve_occupancy_skipped = cs.occupancy_skipped;       /* M-039 */
+    /* N-140: the per-format tally rides the same seam (the og's
+     * GetRawUserInfoMap outlives the scan into the report) */
+    stats.carve_per_format_slots = cs.per_format_slots;
+    stats.carve_per_format_overflow += cs.per_format_overflow;
+    for (u32 i = 0; i < cs.per_format_slots && i < carve::CarveStats::kFormatTallyCapacity; ++i)
+        stats.carve_per_format[i] += cs.per_format[i];
     if (rc == OK)
         carve_done_ = true;
     tel_stage_end_(2, cancel);
@@ -2622,6 +2628,22 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     if (session::serialize_assistant_stats(stats.assistant, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ASSISTANT_STATS, blob.data(), u32(blob.size())))
             return rc;
+
+    /* N-140: the per-format carve tally (optional record - the og's
+     * GetRawUserInfoMap outlives the scan into the report; a reloaded
+     * session answers the breakdown without a tree walk). Saved only
+     * when a carve stage produced a live bound (slots > 0) - a session
+     * without a carve stage lacks the record entirely. */
+    if (stats.carve_per_format_slots != 0) {
+        session::CarveTallyRecord tr;
+        tr.slots = stats.carve_per_format_slots;
+        tr.overflow = stats.carve_per_format_overflow;
+        for (u32 i = 0; i < tr.slots && i < 512; ++i)
+            tr.counts[i] = stats.carve_per_format[i];
+        if (session::serialize_carve_tally(tr, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_CARVE_TALLY, blob.data(), u32(blob.size())))
+                return rc;
+    }
 
     session::VolumeInfo vi;
     vi.fs_kind = u32(cfg_.fs_hint); /* FsFamily on the wire (D-1 truth) */
@@ -2879,6 +2901,16 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
             (void)session::deserialize_assistant_stats(rec.data.data(), rec.data.size(),
                                                        stats.assistant);
             break;
+        case session::REC_CARVE_TALLY: { /* N-140: the per-format breakdown */
+            session::CarveTallyRecord tr;
+            if (session::deserialize_carve_tally(rec.data.data(), rec.data.size(), tr) == OK) {
+                stats.carve_per_format_slots = tr.slots;
+                stats.carve_per_format_overflow = tr.overflow;
+                for (u32 ti = 0; ti < tr.slots && ti < 512; ++ti)
+                    stats.carve_per_format[ti] = tr.counts[ti];
+            }
+            break;
+        }
         case session::REC_VOLUME_INFO:
             if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)
                 have_vi = true;

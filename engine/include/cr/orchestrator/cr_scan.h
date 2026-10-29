@@ -427,6 +427,22 @@ struct ScanStats {
      * partition-write path, never scanned). */
     u64 lost_candidates_inserted = 0;
 
+    /* N-140: the per-format carve tally — the og's GetRawUserInfoMap
+     * per-scan map<extension,count> served pre-computed to the host (the
+     * post-scan "found N .jpg / M .png" breakdown; DRWUI :227538-227625).
+     * Bounded projection over the unified format-id space (grammar rows
+     * [0, carve::registry_size()), raw-sign rows
+     * [registry_size(), +carve::rawsigns::kFormatCount), one aggregate
+     * user-sign slot at the end — the og's map keys user signs by their
+     * dynamic extension strings, unbounded; the aggregate is the honest
+     * fixed-table projection). per_format_slots = the live bound (0 = no
+     * carve stage ran); copied from the carve stage's CarveStats at the
+     * same seam as carved_found; persisted (REC_CARVE_TALLY) so a reloaded
+     * session answers the breakdown without a tree walk. */
+    u64 carve_per_format[carve::CarveStats::kFormatTallyCapacity] = {};
+    u32 carve_per_format_slots = 0;
+    u64 carve_per_format_overflow = 0;
+
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 

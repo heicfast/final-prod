@@ -1123,3 +1123,26 @@ Evidence: `../evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`
 (L1: the initializer decode; L2: the tier-1 audit; L3: the raw-signs
 verification). Five census-doc label corrections recorded in
 CORPUS-ERRATA (session-68 rows 10-14).
+
+## S76 addendum (2026-10-29 — the MINOR-first fix lane; N-140 landed)
+
+**N-140 FIXED** — the per-extension carve-result aggregation surface landed
+at every layer: the fixed 512-slot tally in CarveStats over the unified
+format-id space (grammar rows [0, registry_size()), raw-sign rows
+[registry_size(), +kFormatCount), one aggregate user-sign slot — the og's
+map keys user signs by their dynamic extension strings, unbounded, so the
+aggregate is the honest fixed-table projection), ticked at the same three
+emission sites `validated` ticks (grammar/raw-sign/user-sign), atomic for
+the parallel fan-out, with a per_format_overflow counter (future registry
+growth surfaces, never silently drops). Surfaces: the ScanStats seam copy
+(carved_found's seam), the report's scan_analysis "carve_formats"
+[{id,count}] nonzero rows in registry order + carve_format_overflow, the
+ABI pair cr_ui_scan_carve_tally_count / cr_ui_scan_carve_tally (hosts
+render the og's post-scan breakdown without a tree walk; the format
+identity rides cr_ui_carve_format_info), and the optional REC_CARVE_TALLY
+session record (the og's GetRawUserInfoMap outlives the scan into the
+report — a reloaded session answers the breakdown). Tests:
+Carve.StatsPerFormatTally (the tally partitions `validated`; tree-walk
+cross-check) / Report.ScanAnalysisCarriesPerFormat /
+Orchestrator.CarveTallySessionRoundTrip / CrUi.ScanCarveTallyPerFormat;
+suite 1536/1536.

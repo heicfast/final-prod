@@ -176,6 +176,23 @@ struct ScanCtx {
     std::atomic<u64> bytes_scanned{0};
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
+    /* N-140: the per-format tally (the og's GetRawUserInfoMap
+     * map<ext,count> — bounded projection over the unified format-id
+     * space; see CarveStats::per_format). Atomic: the parallel worker
+     * fan-out shares the ctx. Slots >= tally_slots tick the overflow
+     * counter (never a silent drop). */
+    std::atomic<u64> per_format[CarveStats::kFormatTallyCapacity] = {};
+    std::atomic<u64> per_format_overflow{0};
+    u32 tally_slots = 0; /* the live counting-space bound (set by carve_slice) */
+    u32 tally_raw_base = 0;  /* registry_size(): raw-sign rows start here */
+    u32 tally_usersign_slot = 0; /* the aggregate user-sign slot */
+
+    void tally(u32 slot) {
+        if (slot < tally_slots && slot < CarveStats::kFormatTallyCapacity)
+            per_format[slot].fetch_add(1, std::memory_order_relaxed);
+        else
+            per_format_overflow.fetch_add(1, std::memory_order_relaxed);
+    }
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
     /* N-031: all-zero sign-window strides skipped at the raw-sign layer
      * (the og's zero-sector fast-skip analog) */
@@ -892,6 +909,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                    : tree::Confidence::MetadataOnly);
             }
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
+            ctx.tally(u32(sig.id)); /* N-140: the per-format breakdown */
             emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
                                               winner's start; the raw-sign layer must
                                               not re-probe it) */
@@ -1095,6 +1113,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                          * FUN_18000ed00 insert-or-increment). */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
                         ctx.validated.fetch_add(1, std::memory_order_relaxed);
+                        ctx.tally(ctx.tally_usersign_slot); /* N-140: the user-sign aggregate */
 
                         emitted_at.insert(start_abs);
                         continue;
@@ -1304,6 +1323,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * counting. Ticked HERE (post-dedup, on emission), not at the
              * candidate site — sign_hits keeps its candidate semantics. */
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
+            ctx.tally(ctx.tally_raw_base + best->fmt); /* N-140: the raw-sign row */
             emitted_at.insert(start_abs);
         }
     }
@@ -1464,6 +1484,26 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
          * record carries it (the og's per-record formatted timestamp). */
         ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
 
+        /* N-140: the per-format tally's counting-space bounds — grammar
+         * rows [0, registry_size()), raw-sign rows
+         * [registry_size(), +kFormatCount), the user-sign aggregate at
+         * registry_size()+kFormatCount; capped at the fixed capacity (a
+         * future registry beyond capacity ticks per_format_overflow —
+         * never a silent drop). The og's map is cleared at every
+         * searcher init (per-scan lifetime) — the fresh ctx gives the
+         * same per-scan semantics. */
+        ctx.tally_raw_base = u32(registry_size());
+        ctx.tally_usersign_slot = ctx.tally_raw_base + rawsigns::kFormatCount;
+        ctx.tally_slots = ctx.tally_usersign_slot + 1;
+        if (ctx.tally_slots > CarveStats::kFormatTallyCapacity) {
+            ctx.tally_slots = CarveStats::kFormatTallyCapacity;
+            /* the user-sign slot is the first casualty when the space
+             * overflows the capacity: the aggregate ticks overflow (the
+             * honest bound), grammar/raw rows below capacity keep their
+             * per-format counts */
+            ctx.tally_usersign_slot = CarveStats::kFormatTallyCapacity;
+        }
+
         const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
         const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;
 
@@ -1549,6 +1589,14 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         stats.sign_hits += ctx.sign_hits.load();
         stats.sign_validated += ctx.sign_validated.load();
         stats.windows_skipped += ctx.windows_skipped.load();
+        /* N-140: the per-format tally rides (the og's map outlives the
+         * scan into the report; slots/overflow copied first so a
+         * mid-aggregation reader cannot see counts without a bound) */
+        stats.per_format_overflow += ctx.per_format_overflow.load();
+        for (u32 i = 0; i < ctx.tally_slots && i < CarveStats::kFormatTallyCapacity; ++i)
+            stats.per_format[i] += ctx.per_format[i].load();
+        if (ctx.tally_slots > stats.per_format_slots)
+            stats.per_format_slots = ctx.tally_slots;
         /* N-031: the zero-skip telemetry */
         stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
         /* M-005: gate telemetry */

@@ -227,6 +227,22 @@ u32 deserialize_disk_layout(const u8* data, size_t len, std::vector<DiskLayoutEn
  * matched + total + graded + small_result flag. */
 u32 serialize_assistant_stats(const tree::grading::AssistantStats& st, std::vector<u8>& out);
 u32 deserialize_assistant_stats(const u8* data, size_t len, tree::grading::AssistantStats& st);
+
+/* N-140: the per-format carve tally (REC_CARVE_TALLY) - the unified-space
+ * counts (grammar rows, raw-sign rows, the user-sign aggregate slot) plus
+ * the live bound and the overflow counter. The serializer writes at most
+ * min(slots, kFormatTallyCapacity) counts; the reader takes slots from
+ * the record and zeroes anything beyond capacity (a future reader reading
+ * an older, smaller-capacity build's record stays safe; a newer record
+ * with a larger bound than this build's capacity loses only the rows
+ * beyond - never a parse failure). */
+struct CarveTallyRecord {
+    u32 slots = 0;
+    u64 overflow = 0;
+    u64 counts[512] = {};
+};
+u32 serialize_carve_tally(const CarveTallyRecord& t, std::vector<u8>& out);
+u32 deserialize_carve_tally(const u8* data, size_t len, CarveTallyRecord& t);
 u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& pc);
 
 /* ---- restored session summary (G-14/G-23: what load_session gives back

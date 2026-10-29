@@ -160,6 +160,28 @@ Top level:
   .rdata-unresolved (N-159's open question) — the wire values are the
   stable snake_case forms, never an invented compound.
 
+## The optional scan_analysis block
+
+`scan_analysis` (present when the run had a grading context — the CLI's
+recover verb copies it from the loaded session) carries the og
+RecoveryAssistant's post-scan statistics plus the per-format carve
+breakdown (N-140 — the og's `GetRawUserInfoMap` surface, RAWSearchDLL
+:72213-72221; DRWUI renders the "found N .jpg / M .png" breakdown at
+:227538-227625):
+
+- The 8 file-count counters, `categories` (the 8 query categories), the
+  gauge pair, `score`, `ntfs_device_index_high` — the S-023 fields.
+- `carve_formats` — an array of `{"id": i, "count": n}` rows in unified
+  format-id order (grammar registry rows first, then raw-sign rows, then
+  the aggregate user-sign slot), NONZERO rows only. `id` maps through
+  `cr_ui_carve_format_info` for every id below
+  `cr_ui_carve_format_count()`; the final id is the user-sign aggregate.
+  Absent (empty array) when no carve stage ran or the session predates
+  the tally (additive-within-v1; consumers must tolerate the key's
+  absence in older documents).
+- `carve_format_overflow` — formats beyond the fixed tally capacity
+  (future registry growth; 0 today — surfaced, never silently dropped).
+
 ## Truth rules (non-negotiable)
 
 1. A hash is reported **only** where the writer actually computed one —
