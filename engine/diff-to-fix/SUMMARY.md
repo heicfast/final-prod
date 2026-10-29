@@ -172,6 +172,46 @@ S-092+, M-160+, N-229+, I-049+, A-017+, D-166+.
 
 # SUMMARY.md — executive summary (the racing S90 fix lane (below); the prior lanes below, newest-first)
 
+## Session-90 S90 fix-lane delta, second push (2026-10-30 — the SIT seat conceded to the racing window's deeper decode; the ×10-gate corroboration carried; the lane re-homed S86 -> S89 -> S90 at the pushes: the born-collided convention; opened at core `32441353`, corpus `be0cfe9` throughout)
+
+- **M-107's SIT seat conceded to the racing 2214af90 landing per
+  SA-9:** this lane's SIT decode targeted the PRIMARY's pending-feed
+  processor (FUN_180015d70 — the ×10 stay-pending gate 0x180015e77-
+  0x180015e7b, the (pos−base+1)×sector_size epilogue, FUN_180015b60's
+  inert marker gate) while the racing decode found the correct SIZE
+  AUTHORITY: the FileSITAnalyser secondary's entry-marker walk
+  FUN_180044a10 (the M-090/M-155 authority precedent) — the same
+  02 D7 0A XX 98 F6 42 88 marker constants, alive in the secondary's
+  walk with the stride table {0x19→4, 0x3b→5, else 6}, the
+  corrupt-entry terminal, and the new-header gate. This lane's honest
+  error recorded: the "markers provably inert" claim was true only of
+  FUN_180015b60's single short-circuited call site — the CONSTANTS are
+  alive in FUN_180044a10. The unique carries: (1) the ×10 gate decode
+  (the primary's pending cap = 2 GB — complements the racing torn cap;
+  the primary bounds the pending feeding, the secondary bounds the
+  extent); (2) the independent byte[7] ' '/'!' split corroboration.
+  This lane's SIT tests + the 2 GB row + the batch-caps re-pin dropped
+  as superseded; the racing battery owns the coverage.
+- **Earlier this lane (the first push):** the WPD/WPG seats conceded
+  across THREE convergent racing windows (the S85/S87/S89 lanes); the
+  unique carry — the WPG tier-1 corroboration closing the S85 zero-tail
+  landing's honest residue (FUN_180014030 stamps id only; the +0x20
+  processor IS the pending machinery's continuation) — recorded in
+  M-107's Session-90 addendum.
+
+**Board (filesystem truth, absorbed from the racing windows' same-push
+landings): 0 ACUTE · 0 SEVERE · 3 MAJOR (M-086 M-087 M-089
+[driver-repo-resident per OQ-S10-3, outside the two-repo grant] M-107
+[APE, SWF-RECT + the DWG gen-3 R2007 remainder standing — members 1-10
+of 11 landed]) · 2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO
+active / 214 FIXED / 3 tracked-open (OQ-S79-1 retired).** The racing
+windows' same-push landings: M-105 FIXED (option (a) — the elevation
+diagnosis + the doc rows), OQ-S79-1 RESOLVED (I-049 dead-machinery
+register), SIT/DXF/EPS/AI members, N-228, the three OQ dispositions,
+the /W4 /WX fixes, the v0.6.0 notes. Next free IDs: S-069+, M-160+, N-229+, I-050+, A-017+, D-167+.
+
+---
+
 ## Session-90 S90 fix-lane delta (the lane re-homed S86 -> S89 -> S90 at the pushes — the born-collided convention; opened at core `32441353`, corpus `be0cfe9` throughout; baseline 1661/1661 green first-hand at the open)
 
 - **M-107's WPD/WPG work conceded to the racing windows per SA-9 (THREE

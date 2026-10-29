@@ -1672,6 +1672,25 @@ const Signature kTable[] = {
      validate_office_zip,
      "DRP",
      true},
+    /* M-107 member 6's S91 sub-format rider: the SHW row - an override
+     * TARGET (the N-115 pattern). The FMT_WPD row wins the shared
+     * \xFFWPC trial tie (it rides earlier in kTrialOrder) and the
+     * validator's format_override carries the og's id 0x3d for the
+     * {0x00010f0f, 0x00030000} pair; this slot keeps the trial table
+     * exhaustive and gives the M-024 disable surface its row. The
+     * bounds mirror the family row (the og's analyser object carries
+     * no FileInfo bounds of its own - the declared u32@+0x14 with the
+     * device-end clamp). */
+    {FMT_SHW,
+     "shw",
+     {0xFF, 'W', 'P', 'C'},
+     4,
+     0,
+     16,
+     4ull << 30,
+     600,
+     validate_wpd,
+     "WordPerfect Shell Show"},
 };
 } // namespace
 

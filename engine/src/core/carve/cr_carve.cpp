@@ -141,6 +141,11 @@ constexpr u32 kTrialOrder[] = {
      * the true id); these slots make the trial table exhaustive and
      * give the M-024 disable surface its per-row token */
     FMT_XMIND, FMT_MMAP, FMT_EDDX, FMT_WFP, FMT_DRP,
+    /* M-107 member 6's S91 sub-format rider: the SHW slot - an
+     * override target (the FMT_WPD row wins the shared \xFFWPC tie and
+     * the validator's override carries the og's id 0x3d); rides AFTER
+     * the family row, keeping the exhaustive-table static_assert true */
+    FMT_SHW,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
