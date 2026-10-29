@@ -77,6 +77,15 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-126 FIXED** (`089b7cc8`) + the hot-window main-red repairs (`ae2f9206`): the
+  og's ETA model landed as the query-layer eta_* helper family (FUN_1401af410's
+  whole-run base, 0.2/0.8 rate EMA, x0.6 time-budget variant, "3m00s" placeholder,
+  1 Hz countdown) + ScanTelemetrySnapshot.eta_* (the EMA state server-side) + the
+  CLI remaining-time line; O39's wrong premise superseded. The repairs closed 4
+  defects the parallel lanes' merged landings left: the N-171 double-tick
+  (F-A3-6 class), the default-set registry leak (the LzhWrongDash order
+  dependency), the N-177 same-name convergence (renamed), the S-058 fixture swap.
+  5 Eta tests; suite 1280/1280.
 - **M-134 FIXED** (`9455f50a`) — the og's deep-read grade validation: the two
   decoded sector-content rules (first-32-zero/first-4-0xFF → Low; the previous
   sector's last-16-zero → High), the GradeReader threaded at the completion pass
@@ -129,7 +138,7 @@ before the change.
   (all RED pre-fix); suite 1164/1164.
 
 **Board after this push (filesystem truth, post the parallel lanes' retirements
-absorbed at the merges): 59 active — 0 ACUTE · 5 SEVERE · 19 MAJOR · 25 MINOR ·
+absorbed at the merges): 58 active — 0 ACUTE · 5 SEVERE · 18 MAJOR · 25 MINOR ·
 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 

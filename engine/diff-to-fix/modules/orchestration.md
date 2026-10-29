@@ -1,5 +1,7 @@
 # modules/orchestration.md — scan orchestrator audit verdicts
 
+**S47 addendum (2026-10-29):** M-126 FIXED (`089b7cc8`) — the og's ETA model landed (FUN_1401af410's whole-run base + 0.2/0.8 rate EMA + the x0.6 time-budget variant + the '3m00s' placeholder + the 1 Hz countdown): the query-layer `eta_compute`/`eta_format_m_s`/`eta_countdown_tick` helper family beside the M-125 progress-display math, `ScanTelemetrySnapshot.eta_seconds`/`eta_smoothed_rate` computed live (the EMA state server-side), and the CLI's remaining-time line. O39's 'UI-side formatting' premise is superseded — the decode shows a computed model, and it is now a core surface. #38/#39 → MATCH.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — progress/ETA mathematics + state management)
 
 New active findings on this module: **M-125** (the og's piecewise progress remap +

@@ -321,6 +321,25 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **main-red repairs** (`ae2f9206`) — four defects from the parallel lanes' merged
+  landings, all closed with the suite green 1280/1280: the N-171 validated tick
+  kept twice by the merge (the F-A3-6 double-count class); the S-055/S-056
+  default-set installs leaking 190 user signs into every later carve test (the
+  per-process registry contract; teardown at all 6 sites); the S53/7be438c9 N-177
+  convergence keeping both same-named tests (renamed the convergent copy, the
+  12c2f09e class); the grading hot-window edit's S-058 fixture swap + pinless
+  e1/e2.
+- **M-126 FIXED** (`089b7cc8`) — the og's ETA model: FUN_1401af410
+  (:314835-314887) re-read first-hand; the query-layer eta_compute (the whole-run
+  base, the 0.2/0.8 EMA, the x0.6 budget leg, integer math exact) +
+  eta_format_m_s ("07m43s" zero-padded; the literal "3m00s" placeholder) +
+  eta_countdown_tick (the section parse + the stop condition);
+  ScanTelemetrySnapshot.eta_seconds/eta_smoothed_rate computed live on every
+  snapshot read (the EMA state server-side — hosts need no state); the CLI
+  progress line prints "remaining: XmYs". O39's "UI-side formatting" premise
+  superseded. Tests: Eta.WholeRunModel (the worked example 40/100@400s -> 600s) /
+  EmaDamping (exact integer pins) / TimeBudgetVariant / PlaceholderAndCountdownFormat /
+  ParameterErrorClass. Suite 1280/1280.
 - **M-134 FIXED** (`9455f50a`) — the deep-read grade validation: FUN_14038c470
   (:606291-619) re-read first-hand; the two threshold rules exact (addr==0:
   first-32-zero or first-4-0xFF -> Low; addr>0: the previous sector's
