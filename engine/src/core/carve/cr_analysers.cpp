@@ -5621,9 +5621,33 @@ CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* SIT: "Stuf" key 0x66757453 (:5840) -> SIT chain idx 93 (index-first
- * archive family). The 7-byte "StuffIt" covenant is the strong form of
- * the key; bounded extent stands in for the undecoded index walk. */
+/* M-107 member 7 (SIT): the og's walk decoded first-hand from the raw
+ * asm (evidence: diff-to-fix/evidence/s91-lane-sheets/
+ * s91-l2-sit-entry-walk-decode.md). The registry: key "Stuf" (0x66757453)
+ * -> node {vtable 0x180067890, idx 0x5d}, +0x40 = the return-0 stub (no
+ * secondary consult). The tier-1 (FUN_180015a20): the full 7-byte
+ * "StuffIt" gate - "Stuf" + u16@4 == 0x4966 ("fI") + byte@6 == 't' -
+ * stamps ONLY the id 0x5d (NO size): the WPG pattern, the extent comes
+ * from the child processor. The factory (FUN_180015a90): the 0x120
+ * child, vtable 0x180067828, min 0x5000 (20480) at +0xd8, max
+ * 0xbebc200 (200 MB) at +0x118 - the N-093 caps in their native slots.
+ * The processor (FUN_180015d70, the +0x20 slot, fed per 512-byte
+ * chunk): the first chunk reads the format byte @7 (' ' = 0x20 -> size
+ * 0; '!' = 0x21 -> the bang-format flag; both continue); the LATER
+ * chunks gate the terminator at the CHUNK START (sector-aligned):
+ *   (a) u32@0 == "Stuf" && u16@4 == "fI" && byte@6 == 't' && byte@7 in
+ *       {0x20, 0x21}  (the next archive's classic 8-byte header), or
+ *   (b) u32@0 in {"Stuf","WEBB"} && u64@4 == 0x454b4941 ("AIKE" + four
+ *       NULs) && u32@0xc == 0x7bbd74a3 (the WEBB/AIKE wrapper family).
+ * The walk cap: sector_size * (chunk - hit) >= 10 * max = 2 GB ->
+ * FINALIZE with the walked chunk end (an extent the row gate then
+ * rejects - a no-terminator SIT does not carve in the og). On
+ * FINALIZE: size = (chunk_index - hit_index + 1) * sector_size - the
+ * end of the sector containing the terminator. The core's single-shot
+ * translation: the sector-stepped terminator search from hit+512; the
+ * device-end torn case takes the walked-bound salvage at the probe
+ * limit (the X3F/CRW loop-exit family posture, registered in the
+ * evidence sheet's open question (c)). */
 CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[7];
@@ -5631,10 +5655,39 @@ CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h, "Stuf", 4) != 0 || std::memcmp(h + 4, "fIt", 3) != 0)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 walked = limit > hit ? limit - hit : 0;
+    constexpr u64 kSector = 512;
+    bool torn = false;
+    for (u64 off = kSector; off + 16 <= walked; off += kSector) {
+        u8 t[16];
+        if (!rd(s, hit + off, t, sizeof(t))) {
+            torn = true; /* the straddling terminator: the walked bound salvages */
+            break;
+        }
+        /* (a) the classic next-archive header: "StuffIt " / "StuffIt!" */
+        const bool classic = std::memcmp(t, "Stuf", 4) == 0 && t[4] == 'f' && t[5] == 'I' &&
+                             t[6] == 't' && (t[7] == 0x20 || t[7] == 0x21);
+        /* (b) the WEBB/AIKE wrapper family */
+        u64 q4 = 0;
+        std::memcpy(&q4, t + 4, sizeof(q4));
+        const bool webb = (std::memcmp(t, "Stuf", 4) == 0 || std::memcmp(t, "WEBB", 4) == 0) &&
+                          q4 == 0x454b4941ull && u32_from_bytes_le(t + 0xc) == 0x7bbd74a3u;
+        if (classic || webb) {
+            r.ok = true;
+            r.end = hit + off + kSector; /* the walked sector's end */
+            r.confidence = 650;
+            r.note = "sit-next-entry-walk";
+            return r;
+        }
+    }
+    /* no terminator in the probe window: the walked-bound salvage (the
+     * og's own 2 GB cap path row-rejects; the device-end torn case is
+     * the pending machinery's walked bound - the registered posture) */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 620;
-    r.note = "sit-magic+bounded-extent";
+    r.end = limit;
+    r.confidence = torn ? 550 : 600;
+    r.note = torn ? "sit-next-entry-walk,torn-salvage" : "sit-next-entry-walk,walked-bound";
     return r;
 }
 

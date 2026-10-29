@@ -13625,3 +13625,26 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+
+## Session-91 S91 fix-lane — entry 4: M-107 member 9, the SIT next-entry walk lands (2026-10-30)
+
+**The decode (first-hand, raw asm):** the "Stuf" binding → node
+{vtable 0x180067890, idx 0x5d, no secondary}; the tier-1
+FUN_180015a20 = the 7-byte "StuffIt" gate stamping ONLY the id (the
+WPG pattern); the factory's child {vtable 0x180067828, min 20480 at
++0xd8, max 200 MB at +0x118 — the N-093 caps in their native slots};
+the processor FUN_180015d70 (fed per 512-byte chunk): the terminator
+gate at each sector-aligned chunk start — (a) the classic 8-byte
+"StuffIt "/"StuffIt!" next-archive header or (b) the {Stuf/WEBB +
+"AIKE" + 4 NULs + checksum 0x7bbd74a3} wrapper family — the walk cap
+10 × max = 2 GB (the no-terminator exit row-rejects: a no-terminator
+SIT does not carve in the og), size = (chunk − hit + 1) × 512 on
+finalize.
+
+**RED→GREEN via the stash dance:** three extent tests RED at the
+stand-in (the blind 64 MiB), GREEN with the walk; the torn-salvage
+regression pin + the unchanged floor test. The carve suite 206/206.
+Trail: M-107's S91 addendum 2, the matrix member row, modules/carve.md's
+S91 addendum 2, this entry. Evidence: diff-to-fix/evidence/
+s91-lane-sheets/s91-l2-sit-entry-walk-decode.md (the bang-format
+sub-check FUN_180015b60's inner parse recorded as open question (a)).

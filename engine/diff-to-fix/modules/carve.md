@@ -1415,3 +1415,27 @@ Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
 WpdZeroProductWordWithGoodPairCarves (the first, second and the
 re-pinned S-007 batch plant RED at the stand-in via the stash dance).
 The carve suite 190/190.
+
+## S91 addendum 2 — M-107 member 9: the SIT next-entry walk (2026-10-30)
+
+**SIT LANDED** (three members remain: APE, SWF-RECT + the DWG gen-3
+R2007 remainder). The og's walk (raw-asm decoded first-hand; evidence:
+`../evidence/s91-lane-sheets/s91-l2-sit-entry-walk-decode.md`): the
+tier-1 (FUN_180015a20) is the 7-byte "StuffIt" gate stamping ONLY the
+id — the extent comes from the child processor (FUN_180015d70, fed per
+512-byte chunk): the walk gates the terminator at each sector-aligned
+position — the classic 8-byte "StuffIt "/"StuffIt!" next-archive
+header or the {Stuf/WEBB + "AIKE" + checksum 0x7bbd74a3} wrapper
+family — with the walk cap 10 × max = 2 GB and **size = (chunk − hit +
+1) × 512** on finalize (the end of the sector containing the
+terminator). A no-terminator SIT does not carve in the og (the 2 GB
+cap extent row-rejects); the device-end torn case salvages the walked
+bound.
+
+Row verdict: A25/A27/A47 for SIT **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: SitNextEntryWalkSetsExtent /
+SitUnalignedNextEntryDoesNotStopTheWalk /
+SitWebbAikeTerminatorStopsTheWalk (all RED at the stand-in via the
+stash dance) / SitTornAtDeviceEndSalvagesTheWalkedBound (the
+regression pin) / SitMinimumIsTheOgFloor (unchanged, green). The carve
+suite 206/206.

@@ -536,3 +536,56 @@ later sector the extent shifts by multiples of 512") is thereby
 EXPLAINED: the "deferral" is the pending-list re-feed cadence (each
 re-feed advances the chunk by one sector), not an undecoded gate in the
 walk itself. The tier-1 id-only stamp is WHY the +0x20 processor exists.
+
+---
+
+## Session-91 addendum 2 — the SIT member LANDED (member 7 of 11: the next-entry walk)
+
+**SIT FIXED (this session; three members remain: APE, SWF-RECT + the
+DWG gen-3 R2007 remainder).** The walk decoded first-hand from the raw
+asm (objdump over RAWSearchDLL.dll; evidence:
+`evidence/s91-lane-sheets/s91-l2-sit-entry-walk-decode.md`):
+
+- The registry: key "Stuf" (0x66757453, the insert at 0x180003a7c) →
+  node {primary vtable 0x180067890, idx 0x5d, secondary at +0x10
+  {vtable 0x18006d5a8, idx 0x5d}}; the primary's +0x40 is the
+  return-0 stub — no secondary consult.
+- The tier-1 (FUN_180015a20): the full 7-byte "StuffIt" gate ("Stuf" +
+  u16@4 == 0x4966 + byte@6 == 't') — the core's existing gate,
+  byte-exact — stamps ONLY the id 0x5d (NO size): the WPG pattern, the
+  extent comes from the child processor.
+- The factory (FUN_180015a90): the 0x120 child {vtable 0x180067828,
+  min 0x5000 (20480) at +0xd8, max 0xbebc200 (200 MB) at +0x118} — the
+  N-093-decoded caps in their native slots.
+- The processor (FUN_180015d70, the child's +0x20, fed per 512-byte
+  chunk): the first chunk reads the format byte @7 (' ' → size 0; '!'
+  → the bang flag; both continue); the later chunks gate the terminator
+  at the CHUNK START (sector-aligned): (a) the classic 8-byte
+  "StuffIt "/"StuffIt!" next-archive header, or (b) the wrapper family
+  {u32@0 ∈ {"Stuf","WEBB"}, "AIKE" at +4, four NULs, the 0x7bbd74a3
+  checksum at +0xc}. The walk cap = 10 × max = 2 GB → FINALIZE with
+  the walked chunk end (an extent the row gate then rejects — a
+  no-terminator SIT does not carve in the og). On FINALIZE:
+  **size = (chunk_index − hit_index + 1) × sector_size** — the end of
+  the sector containing the terminator.
+
+The landing: `validate_sit` keeps the 7-byte tier-1 gate and replaces
+the blind 64 MiB stand-in with the sector-stepped terminator search
+(512-byte steps from hit+512, both terminator families, the
+sector-alignment requirement pinned); found → the walked sector's
+end; the device-end torn case → the walked-bound salvage (the
+X3F/CRW loop-exit family posture — the og's own 2 GB cap path
+row-rejects, the registered model translation in the evidence sheet's
+open question (c)). RED→GREEN first-hand via the stash dance:
+SitNextEntryWalkSetsExtent + SitUnalignedNextEntryDoesNotStopTheWalk +
+SitWebbAikeTerminatorStopsTheWalk all RED at the stand-in tree (3
+FAILED — the stand-in's blind extents), GREEN with the walk;
+SitTornAtDeviceEndSalvagesTheWalkedBound pins the torn salvage
+(agrees with the stand-in at the device end — the regression pin);
+SitMinimumIsTheOgFloor unchanged and green (the device-end salvage
+lands exactly on the 20480 floor). The 206-test carve suite green.
+The honest residue: the bang-format sub-check FUN_180015b60 (gated on
+ctx->[0x14] >= 5 + child->[0x110]) was read only at its gate structure
+— its inner entry-index parse is recorded as the evidence sheet's open
+question (a); the landing's terminator model is complete without it
+(it can only finalize earlier with the same walked-sector formula).

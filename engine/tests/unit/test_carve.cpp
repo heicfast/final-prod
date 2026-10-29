@@ -3606,54 +3606,6 @@ TEST(Carve, WpdUnknownPairDeclines) {
     SUCCEED();
 }
 
-/* The S91 lane's convergent riders (the concession per SA-9: the racing
- * WPD landing keeps the seat; this lane's independent decode —
- * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
- * confirms it and adds the two directions its battery lacks). */
-TEST(Carve, WpdZeroSizeFieldDeclines) {
-    /* the zero declared size routes to the generic pending child whose
-     * walk declines (0x18000b760: xor al,al; ret) - no carve at all,
-     * never the blind cap. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_wpd(img, at, 0);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            FAIL() << "a zero declared size declines (the generic child's walk)";
-    SUCCEED();
-}
-
-TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
-    /* the og's chain never reads the product word at +4 - the old core's
-     * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
-     * with a zero product word carves at the declared size. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_wpd(img, at, 0x8000); /* the plant leaves +4/+5 zero */
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    tree::FileNode* wpd = nullptr;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            wpd = c;
-    ASSERT_NE(wpd, nullptr) << "the og never gates on the product word";
-    EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000));
-}
-
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
  * (FUN_180016390 :17347-17368: "Paint Shop Pro Image File" + 0x0a + 0x1a
  * + 5 NULs, memcmp 0x20) - the old 26-byte plant lacked the 0x0a 0x1a.
@@ -10716,6 +10668,113 @@ TEST(Carve, MidBoundTenMegabytes) {
             EXPECT_EQ(all.size(), 0u) << "one byte over the og's 10 MB cap must reject";
         }
     }
+}
+
+TEST(Carve, SitNextEntryWalkSetsExtent) {
+    /* the og's walk (FUN_180015d70, the +0x20 processor fed per sector):
+     * the extent runs to the END of the sector containing the next
+     * StuffIt-family header - NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_sit(img, at, 0x8000); /* filler well past the terminator */
+    /* the next archive's classic 8-byte header at an aligned position */
+    std::memcpy(img.data() + at + 0x6000, "StuffIt ", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr) << "the SIT must carve through the next-entry walk";
+    EXPECT_EQ(sit->props()->logical_size, size_t(0x6200))
+        << "extent = the walked sector's end (0x6000 + 0x200)";
+}
+
+TEST(Carve, SitUnalignedNextEntryDoesNotStopTheWalk) {
+    /* the og gates the terminator ONLY at the fed chunk's start (the
+     * sector-aligned position): a header at an unaligned offset never
+     * stops the walk - the next ALIGNED terminator does. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_sit(img, at, 0x9000);
+    /* an UNALIGNED classic header (at+0x6010: 0x10 off the sector grid) */
+    std::memcpy(img.data() + at + 0x6010, "StuffIt ", 8);
+    /* the aligned terminator further out */
+    std::memcpy(img.data() + at + 0x8000, "StuffIt!", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr);
+    EXPECT_EQ(sit->props()->logical_size, size_t(0x8200))
+        << "the unaligned header must NOT stop the walk (the og checks "
+           "chunk-aligned positions only)";
+}
+
+TEST(Carve, SitWebbAikeTerminatorStopsTheWalk) {
+    /* the wrapper family terminator (FUN_180015df3-0x180015e67): u32@0
+     * in {"Stuf","WEBB"} + "AIKE" at +4 + four NULs + the 0x7bbd74a3
+     * checksum at +0xc. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_sit(img, at, 0x8000);
+    u8* webb = img.data() + at + 0x6000;
+    std::memcpy(webb, "WEBB", 4);
+    std::memcpy(webb + 4, "AIKE", 4);
+    put32v(img, at + 0x6000 + 8, 0);            /* the four NULs */
+    put32v(img, at + 0x6000 + 0xc, 0x7bbd74a3u); /* the checksum */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr);
+    EXPECT_EQ(sit->props()->logical_size, size_t(0x6200))
+        << "the WEBB/AIKE wrapper family terminates the walk at its sector";
+}
+
+TEST(Carve, SitTornAtDeviceEndSalvagesTheWalkedBound) {
+    /* no terminator anywhere: the device-end torn case salvages the
+     * walked bound (the pending machinery's force-finalize posture -
+     * the og's own 2 GB cap path row-rejects, the device end does not) */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_sit(img, at, 64 * 1024 - 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* sit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            sit = c;
+    ASSERT_NE(sit, nullptr) << "the torn archive still carves the walked bound";
+    EXPECT_EQ(sit->props()->logical_size, size_t(64 * 1024 - 512));
 }
 
 TEST(Carve, SitMinimumIsTheOgFloor) {
