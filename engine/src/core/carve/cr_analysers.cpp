@@ -5543,9 +5543,9 @@ CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     /* the og's exact 32-byte compare (FUN_180016390's seven locals) */
-    static const u8 kSig[32] = {'P', 'a', 'i', 'n', 't', ' ', 'S', 'h', 'o', 'p', ' ', 'P',
-                                'r', 'o', ' ', 'I', 'm', 'a', 'g', 'e', ' ', 'F', 'i', 'l',
-                                'e', 0x0a, 0x1a, 0, 0, 0, 0, 0};
+    static const u8 kSig[32] = {'P', 'a', 'i', 'n',  't',  ' ', 'S', 'h', 'o', 'p', ' ',
+                                'P', 'r', 'o', ' ',  'I',  'm', 'a', 'g', 'e', ' ', 'F',
+                                'i', 'l', 'e', 0x0a, 0x1a, 0,   0,   0,   0,   0};
     if (std::memcmp(h, kSig, sizeof(kSig)) != 0)
         return r;
     const u64 limit = probe_limit(s, hit, cap);
