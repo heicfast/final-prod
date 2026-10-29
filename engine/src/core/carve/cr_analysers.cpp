@@ -6889,8 +6889,11 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
  * validating - the recorded follow-up (the finding's explicit
  * remainder; the CWS row keeps the shallow gates + the FileLength
  * extent, which the og's caller also stamps for CWS). */
-static bool swf_rect_valid(const u8* h) {
-    const u32 nbits = u32(h[8]) >> 3;
+static bool swf_rect_valid(const u8* rect) {
+    /* the rect pointer: the FWS arm's raw +8 window, or the CWS arm's
+     * INFLATED buffer (FUN_180026b80's tail runs the same four-field
+     * walk over the inflated bytes) */
+    const u32 nbits = u32(rect[0]) >> 3;
     if (nbits < 2)
         return false; /* 0x180026980: cmp $0x1,%eax; jbe reject */
     u32 bitpos = 5;   /* MSB-first, after the 5-bit Nbits field (stream bits
@@ -6898,7 +6901,7 @@ static bool swf_rect_valid(const u8* h) {
                        * asm's `bl & 4` sign check at 0x180026a03, and the
                        * first magnitude bit = LSB bit 1, the traced shr $1) */
     auto read_bit = [&]() -> u32 {
-        const u32 bit = (h[8 + (bitpos >> 3)] >> (7 - (bitpos & 7))) & 1u;
+        const u32 bit = (rect[bitpos >> 3] >> (7 - (bitpos & 7))) & 1u;
         ++bitpos;
         return bit;
     };
@@ -6923,15 +6926,52 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[25];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
+    const bool cws = h[0] == 'C';
+    if ((!cws && h[0] != 'F') || h[1] != 'W' || h[2] != 'S')
         return r; /* FWS | CWS only (the registry keys, re-checked) */
-    if (h[3] < 3 || h[3] > 20)
-        return r; /* the og's version gate */
+    const u32 ver = h[3];
+    if (cws ? (ver < 6 || ver > 20) : (ver < 3 || ver > 20))
+        return r; /* the og's per-arm version windows: FWS [3,20], CWS [6,20] */
     const u32 len = u32_from_bytes_le(h + 4);
     if (len <= 8)
         return r; /* the og's FileLength gate */
-    if (h[0] == 'F' && !swf_rect_valid(h))
-        return r; /* the FWS deep gate: the RECT bounding-box validation */
+    if (!cws) {
+        if (!swf_rect_valid(h + 8))
+            return r; /* the FWS deep gate: the RECT bounding-box validation */
+    } else {
+        /* the CWS deep gate - the recorded follow-up LANDED: FUN_180026b80's
+         * own sequence - the deflate CMF nibble (byte@+8 & 0xF) == 8, the
+         * zlib inflate from +8 into the 512-byte window, >= 16 inflated
+         * bytes, the SAME RECT walk over the inflated bytes. A corrupt
+         * stream (Z_DATA_ERROR/Z_MEM_ERROR) declines; a truncated-but-
+         * valid prefix yields partial output (the og's streaming shape). */
+        if ((h[8] & 0xF) != 8)
+            return r; /* the zlib CM nibble must be 8 (deflate) */
+        u8 src[512];
+        const u64 avail = std::min<u64>(sizeof(src), s->size() > hit + 8 ? s->size() - hit - 8 : 0);
+        if (avail < 2 || !rd(s, hit + 8, src, u32(avail)))
+            return r;
+        u8 dst[512];
+        uLongf dst_len = 0;
+        {
+            z_stream zs = {};
+            if (inflateInit(&zs) != Z_OK)
+                return r;
+            zs.next_in = src;
+            zs.avail_in = uInt(avail);
+            zs.next_out = dst;
+            zs.avail_out = uInt(sizeof(dst));
+            const int rc = inflate(&zs, Z_FINISH);
+            dst_len = uLongf(zs.total_out);
+            inflateEnd(&zs);
+            if (rc == Z_DATA_ERROR || rc == Z_MEM_ERROR)
+                return r; /* a corrupt stream declines */
+        }
+        if (dst_len < 16)
+            return r; /* the og's inflated-size gate (0xf < size) */
+        if (!swf_rect_valid(dst))
+            return r; /* the inflated RECT's decline */
+    }
     r.ok = true;
     r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
     r.confidence = 700;

@@ -1,0 +1,26 @@
+# MINOR N-233 — the 76c65109 merge committed live conflict markers in THREE files (cr_analysers.cpp, test_carve.cpp, modules/carve.md) plus two both-sides-kept duplicate TEST names — cr_tests unbuildable again (the N-210 class's THIRTEENTH occurrence, the fifth red main this session's window)
+
+**Severity:** MINOR (a Linux-lane build red on main — the racing window's absorption merge resolved its file conflicts by committing the UNRESOLVED hunks: gcc refuses the markers under -Werror, and the two same-named SWF tests trip the gtest redefinition on top)
+**Module / Surface:** CI / the merge-resolution discipline (src/core/carve/cr_analysers.cpp :6927-6992; tests/unit/test_carve.cpp :3365/:3672/:4074/:4572 + the duplicated `SwfRectValidationAcceptsSaneBoxAtFileLength` and `SwfCwsDeepGateIsTheRecordedFollowUp`; diff-to-fix/modules/carve.md :1498/:1569/:1610)
+**Parameters affected:** Q68 (audit-trail/CI truth — the merge that claimed to absorb the window could not itself build)
+**Core references:** found at this lane's sanitizer-sweep build (2026-10-30, first-hand): `cmake --preset linux-ubsan && cmake --build build/linux-ubsan` → `error: version control conflict marker in file` (cr_analysers.cpp) + `error: 'plant_ape' was not declared` (test_carve.cpp — the forward-declaration block sat inside an unresolved hunk) — then, after the marker resolution, `error: redefinition of 'Carve_SwfRectValidationAcceptsSaneBoxAtFileLength_Test'` and `Carve_SwfCwsDeepGateIsTheRecordedFollowUp_Test` (the both-sides-kept duplicate batteries, the N-230 class). The markers carry the `>>>>>>> origin/main` form — a pulled-merge resolution committed unfinished, while the merge message claimed "the M-107 rename conflict resolved both-sides-kept".
+**Status:** FIXED (found and fixed in the same session, per §8's discovered-divergence rule)
+
+## Summary
+
+The racing window's absorption merge (`76c65109`) resolved its collision with the racing origin by committing the raw conflict hunks in three files, and kept both sides' same-named SWF tests verbatim. The arbitration this lane executed (every dispute settled by the corpus decode, not by side-picking): (1) cr_analysers.cpp — the `origin/main` side of the SWF conflict holds the seat: it is the strict superset (the CWS deep gate with the zlib inflate LANDED — the deflate CMF nibble, the inflate into the 512-byte window, the >= 16 inflated-bytes gate, the RECT walk over the inflated bytes — versus the HEAD side's shallow-gates "recorded follow-up" posture), and it carries the CORRECT `swf_rect_valid(h + 8)` call (the HEAD side passed `h` — reading 'F'/'C' as the Nbits byte, a live defect in the unresolved side); (2) test_carve.cpp — the `origin/main` sides throughout (the M-160 forward declarations, this lane's full-grammar APE plants, the real-deflate CWS plant the landed deep gate requires); (3) the duplicate `SwfRectValidationAcceptsSaneBoxAtFileLength` — the S90-lane's decode-informed copy kept, the racing twin removed (identical semantics); (4) the duplicate `SwfCwsDeepGateIsTheRecordedFollowUp` — the S87-completion's FLIPPED pin kept (the deep gate landed, a broken-RECT CWS declines), the racing window's stale shallow-gates-contract pin removed (its expectation — "still carves until the inflate landing" — contradicts the landed code and would fail); (5) modules/carve.md — both sides kept (the append-append trail convention).
+
+## Gap
+
+Falsifiable: at `1d17d536`'s parent, `grep -n '^<<<<<<<' src/core/carve/cr_analysers.cpp` → :6927; the same for test_carve.cpp (4 blocks) and modules/carve.md (3 blocks); the build exits 2 with the marker error. First-hand at this lane's ubsan sweep.
+
+## Fix
+
+As summarized above — the corpus-arbitrated resolution of every hunk, the duplicate-test dedupe (two same-named bodies), and the stale-pin removal. No new code: the landed code (the racing CWS inflate + this lane's APE walk) was already correct; the defect was the merge's shape.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; the S89 fix lane, 2026-10-30)
+**Verified by:** build exit 0 (cr_tests + the full tree); the SWF battery 22/22 with the APE battery (SwfRectValidation* / SwfCws* / Ape* all green); the full ctest **1739/1739**; clang-format 18.1.8 clean; doc_truth_gate green (after the N-231→N-232 born-collision renumber the gate itself caught); the racing window's own new duplicate-name lint (their N-231's root-cause gate) passes with the dedupe.
+**Resolution notes:** RED first-hand at the ubsan sweep (markers + redefinitions, exit 2), GREEN after the arbitration. The class count is now THIRTEEN (this window alone: N-227, N-229, N-230, the a266ca6f eleventh, this thirteenth) — and the racing window's own N-231 landing (the duplicate-gtest-name lint gate) plus this lane's N-232 (the gate's include discovery) are the two halves of the root-cause fix: the procedural rule stands (a merge touching the build graph re-runs build+suite against the MERGED tree before push), and the gates now make the rule machine-enforced. The M-120 finding's sanctioned evidence-quote markers are untouched (the recorded exception class).

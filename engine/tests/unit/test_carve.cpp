@@ -11,6 +11,7 @@
 #include "cr/cr_text.h"
 #include <array>
 #include <cstring>
+#include <zlib.h>
 #include <ctime>
 #include <fstream>
 #include <functional>
@@ -4177,15 +4178,158 @@ static void swf_write_rect(std::vector<u8>& img, size_t at, i32 xmin, i32 xmax, 
 
 size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
     std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
-    img[at + 3] = 6;            /* version inside the og's [3,20] gate */
+    img[at + 3] = 6;            /* version: FWS [3,20] and CWS [6,20] both hold */
     put32v(img, at + 4, 0x400); /* FileLength > 8 */
-    for (size_t i = 8; i < 0x400; ++i)
-        img[at + i] = u8((i * 7) & 0xFF);
-    /* M-107's SWF member: the plant carries a VALID RECT (the og's deep
-     * gate, FUN_180026940 - Xmin<Xmax, Ymin<Ymax, all four >= 0) so the
-     * FWS form carves through the validation */
-    swf_write_rect(img, at, 0, 200, 0, 150);
+    if (!cws) {
+        for (size_t i = 8; i < 0x400; ++i)
+            img[at + i] = u8((i * 7) & 0xFF);
+        /* a VALID RECT (the og's deep gate - Xmin<Xmax, all >= 0) so the
+         * FWS form carves through the validation */
+        swf_write_rect(img, at, 0, 200, 0, 150);
+    } else {
+        /* the compressed form (the S87 completion's plant): the zlib
+         * stream from +8 inflates to the RECT payload - the og's
+         * FUN_180026b80 validates the INFLATED RECT, so the plant must
+         * carry a real stream (>= 16 inflated bytes for the og's gate) */
+        std::vector<u8> scratch(64, 0);
+        swf_write_rect(scratch, 0, 0, 200, 0, 150);
+        uLongf cl = compressBound(32);
+        std::vector<u8> comp(cl);
+        if (compress2(comp.data(), &cl, scratch.data() + 8, 32, Z_DEFAULT_COMPRESSION) != Z_OK)
+            return 0;
+        std::memcpy(img.data() + at + 8, comp.data(), cl);
+        for (size_t i = 8 + cl; i < 0x400; ++i)
+            img[at + i] = u8((i * 7) & 0xFF);
+    }
     return 0x400;
+}
+
+/* ---- M-107 member 11 (SWF-RECT): the RECT validation gate ------ */
+
+TEST(Carve, SwfCwsVersionWindowStartsAtSix) {
+    /* The og's per-arm windows: FWS [3,20], CWS [6,20] (the (v-6) < 0xf
+     * gate at FUN_180026b80's head). A CWS with version 4 - inside the
+     * FWS window, under the CWS floor - declines. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        if (k == 0) {
+            std::memcpy(img.data() + at, "CWS", 3);
+            img[at + 3] = 4; /* under the CWS floor */
+        } else {
+            std::memcpy(img.data() + at, "FWS", 3);
+            img[at + 3] = 4; /* inside the FWS window - must carve */
+            for (size_t i = 8; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+            swf_write_rect(img, at, 0, 200, 0, 150);
+        }
+        put32v(img, at + 4, 0x400);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        tree::FileNode* swf = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->extents.front().offset == at)
+                swf = c;
+        if (k == 0)
+            EXPECT_EQ(swf, nullptr) << "CWS version 4 must decline (the [6,20] window)";
+        else
+            EXPECT_NE(swf, nullptr) << "FWS version 4 must carve (the [3,20] window)";
+    }
+}
+
+TEST(Carve, SwfCwsDeflateNibbleAndCorruptStreamDecline) {
+    /* The CWS arm's zlib gates: the deflate CMF nibble (byte@8 & 0xF)
+     * must be 8, and a corrupt stream (a failed inflate) declines. */
+    for (int k = 0; k < 2; ++k) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        std::memcpy(img.data() + at, "CWS", 3);
+        img[at + 3] = 6;
+        put32v(img, at + 4, 0x400);
+        if (k == 0) {
+            img[at + 8] = 0x79; /* CM nibble 9 - not deflate */
+            for (size_t i = 9; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+        } else {
+            img[at + 8] = 0x78; /* the nibble holds... */
+            img[at + 9] = 0xDA; /* ...but the stream behind it is garbage */
+            for (size_t i = 10; i < 0x400; ++i)
+                img[at + i] = u8((i * 7) & 0xFF);
+        }
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+                << (k == 0 ? "a non-deflate CM nibble must decline"
+                           : "a corrupt zlib stream must decline");
+    }
+}
+
+TEST(Carve, SwfCwsInflatedRectIsGated) {
+    /* The og validates the INFLATED RECT (FUN_180026b80's tail): a CWS
+     * stream that inflates to an insane RECT declines - a valid zlib
+     * wrapper is not enough. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "CWS", 3);
+    img[at + 3] = 6;
+    put32v(img, at + 4, 0x400);
+    std::vector<u8> scratch(64, 0);
+    swf_write_rect(scratch, 0, 0, 0, 0, 0, 1); /* Nbits=1 - under the og's gate */
+    u8 payload[32];
+    std::memset(payload, 0, sizeof(payload));
+    std::memcpy(payload, scratch.data() + 8, 6);
+    uLongf cl = compressBound(sizeof(payload));
+    std::vector<u8> comp(cl);
+    ASSERT_EQ(compress2(comp.data(), &cl, payload, sizeof(payload), Z_DEFAULT_COMPRESSION), Z_OK);
+    std::memcpy(img.data() + at + 8, comp.data(), cl);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "an inflated RECT with Nbits=1 must decline";
+}
+
+TEST(Carve, SwfCwsRealStreamCarvesAtFileLength) {
+    /* The happy path both arms share: the extent is the FileLength
+     * u32@+4 verbatim (the RECT is validation-only - the finding's
+     * open question 3 resolved). */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_swf(img, at, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* swf = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            swf = c;
+    ASSERT_NE(swf, nullptr) << "the real CWS stream must carve";
+    EXPECT_EQ(swf->props()->logical_size, size_t(0x400)) << "the extent is the FileLength verbatim";
+    EXPECT_EQ(swf->props()->carve_format, FMT_SWF_CWS);
 }
 
 size_t plant_3ds(std::vector<u8>& img, size_t at, bool ncsd = false) {
@@ -5165,11 +5309,11 @@ TEST(Carve, SwfRectValidationAcceptsSaneBoxAtFileLength) {
 
 TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
     /* the CWS deep gate (FUN_180026b80) inflates the compressed body
-     * before validating - the finding's explicit recorded remainder.
-     * The pin locks the CURRENT contract: the CWS row keeps the shallow
-     * gates + the FileLength extent (which the og's caller also stamps
-     * for CWS), so a CWS header with a broken RECT still carves until
-     * the inflate-validation landing flips this pin deliberately. */
+     * before validating - the recorded follow-up LANDED (the S87
+     * completion: the deflate CMF nibble, the zlib inflate, >= 16
+     * inflated bytes, the same RECT walk over the inflated bytes). The
+     * pin flipped with the landing: a CWS header whose +8 bytes are a
+     * raw-written broken RECT (a corrupt zlib stream) now declines. */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     plant_swf(img, at, true);
@@ -5186,10 +5330,8 @@ TEST(Carve, SwfCwsDeepGateIsTheRecordedFollowUp) {
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
             cws = c;
-    ASSERT_NE(cws, nullptr) << "the CWS shallow gates stay (the deep gate is the recorded "
-                               "follow-up)";
-    EXPECT_EQ(cws->props()->carve_format, u32(FMT_SWF_CWS));
-    EXPECT_EQ(cws->props()->logical_size, size_t(0x400));
+    EXPECT_EQ(cws, nullptr) << "a corrupt CWS stream (the raw-written broken RECT) must "
+                               "decline - the deep gate landed";
 }
 
 TEST(Carve, WmfPlaceableOgGrammarCarves) {
@@ -11164,8 +11306,135 @@ TEST(Carve, SitClassicSpaceFormKeepsTheRegisteredStandIn) {
         u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
+    /* N-233's arbitration note: the both-kept merge had spliced the racing
+     * drop-test's tail onto this keep-test's head - the assertion now
+     * matches its own comment and the code: the classic ' ' form CARVES
+     * at the available-extent bound (the registered stand-in). */
     ASSERT_EQ(all.size(), 1u);
     EXPECT_EQ(all[0]->props()->logical_size, size_t((1ull << 20) - 512));
+}
+
+/* ---- M-107: the SWF-RECT member — the validation-only walk (the finding's
+ * open question 3 answered first-hand: the extent stays FileLength) ---- */
+
+TEST(Carve, SwfRectGeometryGateRejectsDegenerateRect) {
+    /* The og's geometry gate (raw-asm 0x180026b3e-0x180026b5b): both axes
+     * 0 <= min < max — Xmin >= Xmax, a negative min, or a zero max all
+     * decline. The pre-fix core carved every FWS regardless of the RECT. */
+    struct BadRect {
+        u8 rect[7];
+        const char* what;
+    };
+    const BadRect bad[] = {
+        /* nbits=11: Xmin=640 Xmax=0 (the X axis degenerate both ways) */
+        {{0x5A, 0x80, 0x00, 0x00, 0x00, 0xF0, 0x00}, "xmin >= xmax"},
+        /* nbits=11: Xmax=0 (a zero max) */
+        {{0x58, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x00}, "xmax == 0"},
+        /* nbits=11: Ymin=480 Ymax=0 (the Y axis degenerate) */
+        {{0x58, 0x00, 0x50, 0x07, 0x80, 0x00, 0x00}, "ymin >= ymax"},
+    };
+    for (const BadRect& b : bad) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_swf(img, 512);
+        std::memcpy(img.data() + 512 + 8, b.rect, sizeof(b.rect));
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_EQ(all.size(), 0u) << b.what << " must decline";
+    }
+}
+
+TEST(Carve, SwfRectNegativeFieldDeclines) {
+    /* A signed field (the sign bit set with a nonzero magnitude) makes
+     * the min negative — the og's sign-magnitude reading yields a
+     * negative value and the >= 0 gate declines. nbits=11, Xmin=-1
+     * (sign 1, magnitude 1). Note: the -0 form (sign set, magnitude 0)
+     * reads as 0 in the og's sign-magnitude arithmetic and PASSES the
+     * gate — pinned here as the og's own edge, not carved around. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512);
+    const u8 neg_rect[7] = {0x5C, 0x01, 0x50, 0x00, 0x00, 0xF0, 0x00};
+    std::memcpy(img.data() + 512 + 8, neg_rect, sizeof(neg_rect));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    EXPECT_EQ(all.size(), 0u) << "a negative Xmin must decline";
+}
+
+TEST(Carve, SwfNbitsFloorIsTwo) {
+    /* The nbits floor (raw-asm 0x18002697d `cmp $0x1` jbe): nbits < 2
+     * declines — a 1-bit-field RECT is not a stage. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512);
+    img[512 + 8] = 0x08; /* nbits = 1 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    EXPECT_EQ(all.size(), 0u) << "nbits < 2 must decline";
+}
+
+TEST(Carve, SwfCwsVersionGateIsSix) {
+    /* The CWS version window is [6,20] (raw-asm 0x180026bb2 `sub $0x6;
+     * cmp $0xe`) — the compressed form exists only from SWF 6; the
+     * pre-fix core accepted CWS v3-5 the og refuses. */
+    for (const u8 v : {u8(3), u8(4), u8(5)}) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_swf(img, 512, true);
+        img[512 + 3] = v;
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_EQ(all.size(), 0u) << "CWS v" << int(v) << " must decline";
+    }
+    /* v6 passes (the plant's own version) - and the extent is the
+     * FileLength (the og's caller stamps it unconditionally on the deep
+     * gate's acceptance: FUN_1800268a0's *(uint*)(param_2 + 2); the
+     * landed CWS inflate gate never changes the extent - M-107's open
+     * question 3, both arms). N-233's arbitration note: the stale
+     * (1<<20)-512 expectation was the shallow-gate era's device-reach
+     * pin on a since-shrunk fixture - the plant declares 0x400. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u);
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(0x400));
 }
 
 /* ---- N-111: the JP2 family (the og's JP2Analyser id 0x80, the brand

@@ -1,3 +1,108 @@
+## Session-89 S89 lane — N-233 (the fifth red-main repair, at the sanitizer sweep) + the N-232 renumber (2026-10-30)
+
+**N-233:** the ubsan sweep's build caught live markers in three files -
+the racing absorption merge 76c65109 committed its raw conflict hunks.
+The arbitration was corpus-first: the origin/main SWF side (the CWS
+inflate deep gate LANDED) is the strict superset AND carries the correct
+swf_rect_valid(h + 8) call - the HEAD side's h call was a live defect
+('F' read as the Nbits byte). The duplicate SWF tests deduped: the
+decode-informed SwfRectValidationAcceptsSaneBoxAtFileLength + the
+FLIPPED SwfCwsDeepGateIsTheRecordedFollowUp pin (the deep gate landed)
+kept; the racing twins dropped. carve.md resolved both-kept. Build 2 ->
+0; SWF+APE 22/22; ctest 1739/1739; format + doc_truth green.
+
+**N-232 (renumbered from the born-collided N-231):** the doc_truth_gate
+caught the racing window's N-231 lint-gate filing against this lane's
+gate-discovery filing - theirs landed first (the seat), mine renumbered
+to N-232 with the cross-reference. The two findings are complementary
+halves of the N-210 root cause: theirs the duplicate-name lint, mine
+the include discovery.
+
+
+## Session-87 S87 fix lane (continuation) — the closing record (2026-10-30)
+
+**The session's final state (every push verified, main green
+throughout):**
+
+- ci-local.sh GREEN end-to-end (10/10 stages: format, the
+  N-041/architecture/marker lints, the N-231 test-name uniqueness
+  1755/0, the -Werror build, the full ctest, the schema + Win7 gates,
+  the manifest, the doc links, the secrets scan, the commit
+  convention).
+- The full suite 1738/1738 (the two known parallel-load perf flakes
+  pass serially; every full run re-verified after each merge).
+- The marker sweep clean repo-wide (the M-107 rename-aware resolution
+  — HEAD:FIXED vs origin:MAJOR paths — handled manually; the only
+  surviving markers are the sanctioned evidence quotes).
+- The board: 0 ACUTE · 0 SEVERE · 3 MAJOR · 2 MINOR active (all
+  driver-repo-resident per OQ-S10-3, PUSHED-FORWARD with the boundary
+  re-affirmed) / 219 FIXED / 3 tracked-open (OQ-S10-1, OQ-S10-3,
+  OQ-S4-3 — each with its precise next step recorded by the racing
+  windows: the libheif vendoring owner call, the two-repo boundary,
+  the one Windows execution for the Strat-Pair matrix).
+- The session's unique landings: M-107 closed (the WPD five-test
+  verification battery, the SIT decode + the concession deltas, the
+  SWF-RECT CWS deep-gate completion, the enumeration's closure
+  record); M-160 (the APE whole-family absence — the u16 LE window);
+  N-225 + N-229 (the two red-main repairs, each with the recurrence
+  class recorded); the fixed-directory moves (N-226, M-160, M-107);
+  the SUMMARY/board recount.
+- The handoff: the DWG gen-3 R2007 remainder is the one open carve
+  walk (the decode scope registered in M-107 + the racing windows'
+  FUN_18002eb10 rotation-transform identification); the
+  driver-repo-resident five need the third repository's grant; the
+  three tracked-open items need their named external steps. No
+  finding left silently; every convergence recorded with both sides'
+  work credited.
+
+## Session-87 S87 fix lane (continuation) — entry 6: M-107 member 11 COMPLETED (the CWS deep gate over the racing FWS seat); the enumeration closes — M-107 FIXED (2026-10-30)
+
+- **The SWF-RECT convergence completion:** the racing window's FWS
+  seat (swf_rect_valid + the five-test battery + the
+  SwfCwsDeepGateIsTheRecordedFollowUp pin) + this lane's CWS
+  deep-gate completion in one merge: the per-arm version windows
+  (CWS [6,20] — FUN_180026b80's own (v-6)<0xf gate, TIGHTER than
+  FWS's [3,20]), the deflate CMF nibble gate ((byte@+8 & 0xF) == 8),
+  the partial-tolerant streaming inflate (only Z_DATA_ERROR/
+  Z_MEM_ERROR decline), the >= 16 inflated-byte gate, and the SAME
+  RECT walk over the inflated bytes. The follow-up pin flipped — the
+  landing the racing seat's own test anticipated. The plants
+  re-pinned both arms (the FWS real RECT; the CWS real compress2
+  stream). The convergence proof: their five FWS tests + my four CWS
+  tests + the flipped pin — 11/11 green.
+- **M-107 FIXED** — the eleven-member enumeration closed (X3F, CRW,
+  DWG gen-1+2, PSP, WPG, WPD, DXF, EPS, AI, SIT, APE, SWF-RECT); the
+  DWG gen-3 R2007 remainder is the finding's precisely-scoped
+  recorded residue (the 0x3d8 accumulate + the 3x239 stride-3
+  de-interleave + FUN_18002ef50's record chain). The Resolution
+  section written; the finding moved to FIXED/.
+- Also absorbed at this merge: the racing window's FULL APE walk
+  landing (43f476e0 — the two header forms, the seek-table scan, the
+  APETAGEX epilogue, the 2 GB cap; convergent with my M-160 gate fix
+  + my M-107 S87 addendum 4 decode progress) and their v0.6.0
+  recount trail.
+
+## Session-87 S87 fix lane (continuation) — entry 5: M-107 member 11 (SWF-RECT) lands — the enumeration closes (2026-10-30)
+
+- **M-107 member 11 (SWF-RECT) FIXED** — the RECT validation gate,
+  decoded first-hand: FUN_1800268a0 (the key gate: FWS/CWS only, ZWS
+  refused; **the extent = FileLength u32@+4 verbatim — the finding's
+  open question 3 RESOLVED: the RECT walk is validation-only**);
+  FUN_180026940 (the FWS deep gate: version [3,20], Nbits > 1, four
+  sign-magnitude fields MSB-first, the sane-positive-rectangle
+  acceptance); FUN_180026b80 (the CWS deep gate: version [6,20] —
+  TIGHTER than the FWS arm, the deflate CMF nibble == 8, the zlib
+  inflate into the 512-byte window, >= 16 inflated bytes, the same
+  RECT gate on the inflated bytes). The landing: the shared
+  swf_rect_is_sane bit-walk + the per-arm windows + the
+  partial-tolerant streaming inflate; the row max carries the u32's
+  own ceiling 0xFFFFFFFF (both rows, the 64 MiB stand-in gone); the
+  plants re-pinned (the FWS real RECT 48 00 C8 00 32 00 byte-verified;
+  the CWS real compress2 stream). Five RED->GREEN tests via the stash
+  dance + the happy-path FileLength pin; the carve suite 216/216.
+  **The member enumeration closes: 11 of 11 landed** (the APE walk
+  and the DWG gen-3 R2007 remainder are the finding's recorded
+  remainders, each with its decode progress registered).
 ## Session-90 S90 lane — the closing handoff (2026-10-30)
 
 **The lane's unique landings (three pushes survived the racing
@@ -14105,6 +14210,32 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+
+## Session-91 S91 fix-lane — entry 4: M-107 member 9, the SIT next-entry walk lands (2026-10-30)
+
+**The decode (first-hand, raw asm):** the "Stuf" binding → node
+{vtable 0x180067890, idx 0x5d, no secondary}; the tier-1
+FUN_180015a20 = the 7-byte "StuffIt" gate stamping ONLY the id (the
+WPG pattern); the factory's child {vtable 0x180067828, min 20480 at
++0xd8, max 200 MB at +0x118 — the N-093 caps in their native slots};
+the processor FUN_180015d70 (fed per 512-byte chunk): the terminator
+gate at each sector-aligned chunk start — (a) the classic 8-byte
+"StuffIt "/"StuffIt!" next-archive header or (b) the {Stuf/WEBB +
+"AIKE" + 4 NULs + checksum 0x7bbd74a3} wrapper family — the walk cap
+10 × max = 2 GB (the no-terminator exit row-rejects: a no-terminator
+SIT does not carve in the og), size = (chunk − hit + 1) × 512 on
+finalize.
+
+**RED→GREEN via the stash dance:** three extent tests RED at the
+stand-in (the blind 64 MiB), GREEN with the walk; the torn-salvage
+regression pin + the unchanged floor test. The carve suite 206/206.
+Trail: M-107's S91 addendum 2, the matrix member row, modules/carve.md's
+S91 addendum 2, this entry. Evidence: diff-to-fix/evidence/
+s91-lane-sheets/s91-l2-sit-entry-walk-decode.md (the bang-format
+sub-check FUN_180015b60's inner parse recorded as open question (a)).
+
+---
+
 ---
 
 # Session-84 — the final entry (T20 handoff, this lane) (2026-10-30)
@@ -14231,6 +14362,35 @@ with the walk; the S-007 SIT plant re-pinned (the '!' magic + the real
 marker); the full suite **1711/1711**. Trail: M-107's Session-89 addendum,
 the matrix SIT row (member 10 of 11), modules/carve.md's S89 section, this
 entry. Remaining members: APE, SWF-RECT.
+
+
+
+## Session-91 S91 fix-lane — entry 5: the SIT arbitration — the racing landing's red repaired, the classic walk folded in (N-229; 2026-10-30)
+
+**The racing window's SIT landing pushed RED** (N-229, filed+fixed):
+the unused `flavor` parameter broke the Linux build (-Werror — cr_tests
+unbuildable at origin/main, the "207-test green" claim unverifiable),
+and the seven-test battery it landed NEVER RAN: on first execution
+three tests failed (the flavor plants, the torn-salvage fall-through
+vs the stream-end drop, the classic-form walk vs the stand-in) and two
+pins contradicted each other on the classic-' '-form semantics.
+
+**The arbitration (corpus-first):** the racing marker walk (the deeper
+decode — the .data end-magics, the stride table, the corrupt-entry
+terminal) keeps the seat; this lane's classic-form next-header walk
+(FUN_180015d70's first-chunk flag routing — the racing lane's own
+SitNextHeaderTerminatesTheWalk pins the same edge) folds in; the
+stream-end drop replaces the torn salvage (both decodes agree: a
+no-terminator SIT does not carve); the flavor repair +
+stride-adapted plant makes Sit5AllThreeMagicVariantsCarve real.
+
+**Verification:** the SIT battery 12/12 (was: 3 FAILED + 2
+contradictory pins on a broken build); the carve suite 213/213; the
+full suite 1720/1720 (148 s). Trail: N-229's file + Resolution,
+M-107's S91 addendum 3, the matrix row, modules/carve.md's arbitration
+addendum, this entry.
+
+---
 
 ## Session-93 S93 fix-lane — entry 1: the open (2026-10-30)
 
@@ -14361,59 +14521,250 @@ the landing tree (1745/0; the ctest 0.11 s). Trail: the finding
 **Next:** the DWG gen-3 R2007 remainder decode (M-107's last piece),
 then the tracked-open push-forwards.
 
-## Session-93 S93 fix-lane — entry 4 (2026-10-30): the APE member — CONCEDED to the racing window per SA-9; the ONE/3DS header rider kept
 
-**The walk decoded first-hand** from FUN_180033180 (the CAPERawFileInfo
-chunk processor, RAWSearchDLL_decompiled.c :39043-39275, read in full)
-+ the S87 addendum 4's decode notes — both raw reads agreeing on every
-material point (the 2 GB singleton+0x70×10 cap; the OLD form's
-flags/channels/alignment gates + the data-start arithmetic [0x20/0x24,
-+4 seek-elements, +0x2C the WAV block, the <3801 adjustment]; the
-first-entry gate [nonzero < 2 GB]; the seek-table MAX walk with the
-0/≥2 GB termination — the S87 note's open +0x118 point closed by the
-static termination rule; the NEW form's descriptor [the qword at
-desc+16 = bps|channels<<16|rate<<32; the alignment (bps>>3)×channels;
-the extent = the descriptor's size-field sum]; the APETAGEX tail [item
-count < 0x10000, tag size ∈ [0x20, 0x1000020], the flags bit31/bit29
-arithmetic]; the no-tag sector rounding).
+## Session-91 S91 fix-lane — entry 6: the truncation catch + the merge over the M-160/SWF-RECT window (2026-10-30)
 
-**The landing**: validate_ape keeps the M-160 version gate and replaces
-the 64 MiB stand-in with the walk; the row max carries the og's own cap
-(2 GB); the S-007 batch plant re-pinned to the real 3.97 form (the
-{40,80,120,0} table → the 1024-byte extent); the M-160 window test's
-edge plants gained the minimal walk-valid fields (1000 = an OLD-form
-plant, 9999 = a NEW-form one) so the version WINDOW stays the varying
-axis; two stale pre-M-106 headers (validate_one/validate_3ds — their
-BODIES landed the walks in M-106; the file-level headers still said
-"stands in") retired in the same change.
+**The honesty record (the class lesson, caught before any public red):**
+this lane's plant reconstruction (entry 5's mangled-merge repair) dropped
+everything after plant_gz in test_carve.cpp — a TRUNCATED tree that a
+stale-object parallel build reported as "1721/1721 green". The truncation
+was committed locally (5cf0abdc) but every push in the window failed
+(non-fast-forward against the racing windows), so the broken tree NEVER
+reached origin — the next merge's conflict (HEAD side empty, the origin
+side carrying the full tail) exposed it, and the repair restored the tail
+from origin before this push. The verification lesson applied: the object
+file was REMOVED and the tree fully rebuilt before any green claim this
+time; the racing window's own N-231 gate (verify_test_names.py, 1750
+registrations clean) ran as the duplicate guard.
 
-**Proof**: RED first-hand at the stand-in — the walk battery FAILED
-(ApeSeekTableWalkSetsExtent + ApeApetagexTailExtendsTheCarve captured
-explicitly; the run errored on the full set: the stand-in neither walks
-the table nor gates the channels); restored → GREEN: the 7-test APE set
-+ the full suite **1732/1732** (1720 + 12: the 5 walk pins + the
-M-160 pair re-pinned states + the batch/S-007 count growth).
+**The merge:** the racing window's M-160 (APE, FIXED/), the SWF-RECT
+member (the validation-only gate), their N-229 superset (the plant
+subscript corruption), N-230 (the duplicate-gtest renumber), N-231 (the
+test-name uniqueness gate), and the S92 close absorbed; this lane's
+N-229 → N-231 → **N-232** renumber cascade (their N-231 gate keeps the
+seat); the SIT arbitration re-applied on the restored tail (the plant's
+flavor repair was in the surviving head; the classic-form test rewrite
+re-applied). The SIT battery 12/12; the FULL suite **1722/1722** on a
+clean rebuild; the test-name gate clean.
+---
+---
 
-Trail: M-107's Session-93 addendum + the Resolution (FIXED — the three
-registered remainders: the DWG gen-3 R2007 chain, the SIT ' '-form
-epilogue, the CWS compressed-body RECT) + the move to findings/FIXED/;
-the matrix S93 APE row + the prior M-107 row's remaining-note updated;
-modules/carve.md's S93 row; the SUMMARY S93 block (board: 3 MAJOR
-[driver-repo] / 2 MINOR [driver-repo] / 210 FIXED / 3 tracked-open);
-this entry. Corpus: be0cfe9, read-only guarantee held.
+---
 
-**THE CONCESSION (at the merge, the same push-window):** the racing
-window pushed its own APE landing first (43f476e0); their decode is the
-better one on the <3801 point — the raw line `uVar12 = uVar12 -
-(uint)local_60._24_4_` follows the :39134 REASSIGNMENT of uVar12 to the
-FIRST ENTRY's value, so the adjusted quantity is the SCAN BOUND (first
-- aux), not the table position this lane had traced — and their
-terminal carries the torn-salvage epilogue (the 512-byte finalizing
-window clamped at the readable extent, confidence 550) where this
-lane's version reduced it to a plain min(). This lane's APE
-implementation and its five-test battery are withdrawn at the merge;
-the racing landing's 8-test battery covers the member (8/8 GREEN at
-the merged tree, with this lane's ONE/3DS header rider on top). The
-finding stays FIXED on the racing seat; the concession is recorded in
-the finding's Session-93 concession addendum and the ledger's merge
-note.
+
+---
+
+**Fix #4 — M-107 member 11 (SWF-RECT) LANDED (the validation-only downgrade
+the finding's own open question 3 prescribed).** Decoded first-hand: the
+extent is the FileLength u32@4 in BOTH paths (the caller's stamp :29987-88 —
+the RECT parse never contributes to the extent, the open question answered).
+The FWS walk (FUN_180026940): the RECT geometry gate — nbits >= 2, the four
+sign-magnitude fields (sign-bit-first, then nbits-1 magnitude bits MSB-first;
+the -0 form reads as 0 and passes, the og's own edge), both axes 0 <= min <
+max. The CWS gates (FUN_180026b80): the version window [6,20] (the compressed
+form exists only from SWF 6 — the pre-fix core's [3,20] for both sigils was
+the discovered divergence, FIXED) + the zlib CMF low-nibble == 8 (the deflate
+method, FIXED); the og's inflate-then-RECT validation registered as the
+follow-up (the GZ no-inflate precedent). RED→GREEN via the stash dance: 5/5
+RED at the pre-fix tree (SwfRectGeometryGateRejectsDegenerateRect /
+SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo / SwfCwsVersionGateIsSix /
+SwfCwsZlibCmfNibbleRequired); the SWF plants re-pinned (the real nbits=11
+RECT + the 0x78/0x9C zlib pair); the full suite **1721/1721**. Rider swept:
+the S91 window's duplicate WpdZeroSizeFieldDeclines definition (the N-210
+class, NINTH occurrence — cr_tests could not build, first-hand: `redefinition
+of Carve_WpdZeroSizeFieldDeclines_Test`) merged into the :3434 original with
+both rationales kept. Trail: M-107's Session-89 addendum 2, the matrix SWF
+row (member 11 of 11), modules/carve.md's S89 entry 2, this entry.
+Remaining members: APE only.
+**Fix #5 — the SIT RECONCILIATION (the corpus-true arbitration of the two
+convergent SIT landings; the architecture decides, not the push order).**
+The merged tree carried both landings' tests against one implementation
+(their merge had conceded the seat to this lane's FileSITAnalyser decode —
+"the fuller decode" — but on the wrong premise). The architectural proof:
+the SIT node's wrapper vtable (0x180067890) carries the +0x40 STUB — the
+secondary-first consult NEVER fires for "Stuf" candidates, so the PRIMARY
+processor is the scan-path authority: the racing lane's semantics win every
+disagreement (the extent = the found full 8-byte magic's END; the
+stream-end drop; the ' '-form next-header-only walk; the 2 GB cap =
+max × 10). This lane's surviving repairs: the byte[7] acceptance window +
+the 512-aligned next-header translation. The FileSIT stride table and
+corrupt terminal are the secondary's own semantics — withdrawn from the
+scan path, preserved in the record (M-107's Session-89 addendum 3). The
+corrupted merge artifact (the mangled plant body — `img]` lines,
+first-hand) rewritten as the flavor-aware plant. 11/11 SIT tests green
+(both batteries: their five + this lane's five rewritten + the N-093
+floor); the full suite **1729/1729**. The rider: the racing window's
+duplicate WpdZeroSizeFieldDeclines (the N-210 class, NINTH occurrence —
+cr_tests unbuildable at the merged tree, first-hand) merged into the
+original with both rationales kept.
+
+**The S90 window merge repair (fix #6 — the merge-mangled plant block).**
+The window's N-229 repair (8bab26e5) and this lane's reconciliation crossed
+again in the merge: the auto-merge dropped the plant_sit function HEAD
+entirely (the orphaned body), the plant_wpg/plant_mrm/plant_lowdoc/
+plant_wpd/plant_psp definitions, and the forward-declaration block — cr_tests
+unbuildable at the merged tree (first-hand: 'plant_wpg was not declared',
+'plant_sit used but never defined'). Restored byte-exact from the pre-merge
+HEAD: all five plant definitions + the declarations (the plant_wpd default
+arg restored — the batch test's 2-arg calls). The [m display artifact (the
+terminal eating "img[m" as a false ANSI SGR reset — the corpus's own S25
+lesson, OQ-S4-3's verification-discipline note) was chased once during the
+repair and REFUTED at byte level (od/grep -c): the marker writes were never
+corrupted in this tree — only the function head was missing. The N-229
+finding's own record (their lane's img] find at 98bd30d6) stands as history.
+Post-repair: Sit*/Wpd*/Psp* 13/13; the full suite **1720/1720**. The S90
+concession trail (a98392d1) absorbed with the arbitration note: their
+concession to "the File*Analyser authority" predates this lane's +0x40 stub
+proof; their own five-test battery encodes the primary's semantics and
+passes 11/11 against the reconciled implementation — the architecture
+decides, both records stand.
+**Fix #7 — the M-160 window merge repair (the fourth racing-window red
+tree this session, the N-210 class's ELEVENTH occurrence).** The window's
+own push and this lane's merge left main unbuildable three ways
+(first-hand): (1) live conflict markers committed in cr_analysers.cpp (the
+SWF collision: their swf_rect_valid refactor vs this lane's inline walk) —
+resolved to the UNION (their pure-helper shape + the 25-byte window — the
+better engineering, no per-bit device reads — PLUS this lane's CWS gates:
+the [6,20] version window and the zlib CMF low-nibble, both raw-asm-proven,
+which their landing lacked); (2) the mangled test_carve.cpp (the malformed
+conflict regions the layered merges left — the plant heads eaten, the
+plant_3ds signature truncated) — reconstructed from the last good tree
+(b5c6c6b2) + their unique deltas ported (the swf_write_rect helper + the
+two positive-path pins: SwfRectValidationAcceptsSaneBoxAtFileLength +
+SwfCwsDeepGateIsTheRecordedFollowUp, the latter's fixture adjusted for the
+CMF/RECT byte-8 coincidence — an inverted box whose Xmin keeps the low
+nibble 8); (3) the M-160 APE gate change left the S-007 batch plants stale
+(the putbe32 3980 form reads u16-LE 0x8C0F — outside the window; the
+batch's "APE must carve" RED, the noise fixture's BE-u32 999999 reading
+u16-LE 3906 — INSIDE the window, the "bad-version APE rejected" pin RED) —
+both re-pinned to the u16-LE form (3980 / 34463). The full suite
+**1723/1723** (the count grew with the ported pins). The M-160 APE
+version-gate landing itself verified against this lane's independent decode
+of FUN_180033180: the u16-LE [1000, 9999] window matches (both lanes'
+raw-asm reads agree); the walk itself (the seek-table max + the APETAGEX
+tail scan + the singleton×10 cap) remains the standing M-107 remainder —
+this lane's decode targets it next.
+
+
+## Session-91 S91 fix-lane — entry 7: the final red-main repair — the racing 099ab254 window's live markers (2026-10-30)
+
+**RED at origin/main (the N-210 class's TWELFTH occurrence, verified
+first-hand):** `git show origin/main:tests/unit/test_carve.cpp` → 5
+live conflict markers; `cr_analysers.cpp` → 1; `modules/carve.md` →
+1. The racing window's own sweep (099ab254) missed them. The repair,
+executed at this lane's merge: every marker resolved to the
+reconciled/corpus-side content (the SWF conflict to the CWS deep-gate
+union — the zlib inflate + the inflated RECT walk, the fuller decode;
+the test batteries to the reconciled forms; the trail files
+append-append), the duplicate-test residue deduped (the N-231 gate's
+own class — 3 duplicate TEST macros from the marker interleavings),
+and the tree verified on a CLEAN rebuild (the object files removed
+first — this lane's own entry-6 lesson applied).
+
+**Verification:** the FULL suite 1722/1722 on the clean rebuild; the
+N-231 test-name gate clean (1750 registrations, 0 collisions);
+doc_truth_gate green; the repo-wide marker sweep clean. The session's
+final board: M-107 FIXED at origin (the eleven members + the gen-3
+R2007 recorded residue), the driver-repo five the only active
+findings, the audit trail current.
+---
+## Session-86 S86 fix-lane — the closing handoff (2026-10-30)
+
+**The exact tip:** this lane's last push `033bcad4` (on top of `b4bb09f6`
+the N-231 gate, `47c849bb` the DWG convergence riders, `7dd82a1c` the
+minor-first boundary batch). Five racing windows absorbed mid-flight
+(S84-S92: the M-075 chkdsk launcher, M-078 BitLocker turn-off, M-101's
+tree branches, M-105's option-(a) ACL diagnosis, M-107's members
+1-9+SWF-RECT, N-229/N-230, OQ-S79-1 resolved) — every one verified
+present in FIXED/ at the final tree, every concession recorded per
+SA-9.
+
+**This lane's unique landings (the four pushes):**
+1. The minor-first boundary batch (N-107/N-127 to the PUSHED-FORWARD
+   posture + the OQ-S10-3 fifth re-affirmation, both MINORs'
+   core-side halves re-verified first-hand).
+2. The DWG three-generation decode → the concession with THREE riders
+   landed on the seat: the TEN-pair gate truth (the asm's tenth "09"
+   entry; AC1009 gate-passed-but-un-walked → the decline og-true; the
+   test renamed + the third arm), the gen-3 FALL-THROUGH fix (the
+   explicit "21" match restores the og's routing), the WPD
+   duplicate-test red-main repair (convergent with N-230, the rename
+   form conceded and recorded in its Resolution).
+3. **N-231** (MINOR, filed+fixed): the duplicate-gtest-name class's
+   root-cause gate — scripts/verify/verify_test_names.py + the
+   ci-local.sh stage-2 wiring + the pre-commit FULL-TREE form + the
+   ctest entry. RED proven at the historical 98bd30d6 tree AND the
+   staged two-file collision; GREEN 1751/0 at the close.
+4. The tracked-open push-forwards (OQ-S10-1's by-name refusals
+   verified current; OQ-S4-3's harness verified, the one-Windows-
+   execution step unchanged) + the M-107 gen-3 decode-progress record
+   (FUN_18002eb10 = the one-byte ROTATION transform identified
+   first-hand; the accumulate + de-interleave chain confirmed; the
+   three named next probes).
+
+**The closing verification sweep:** the full suite **1723/1723**
+(1717 fast + the 6 heavy scans, ASan on, LSAN clean at exit); the
+marker lint clean repo-wide; the N-231 lint clean (1751
+registrations); the pre-commit fast gate clean; the doc-truth /
+format gates clean at every push.
+
+**The remaining board (filesystem truth at the close): 0 ACUTE · 0
+SEVERE · 4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3
+tracked-open.** The six open findings' rationale and next steps:
+- **M-086/M-087/M-089/N-107/N-127** — the ENTIRE fix surfaces live in
+  heicfast/rda-driver, outside every fix session's two-repo grant
+  since S10 (the OQ-S10-3 lane record: M-087 → M-089 → N-107/N-127
+  → M-086, one driver-repo lane takes all five).
+- **M-107** — the DWG gen-3 R2007 remainder ONLY (every other member
+  landed). The next concrete step: the raw-asm pass over
+  FUN_18002fc50's mid-section records flow + the size-field
+  accumulator (the three probes named in the finding's S86 addendum
+  2; the rotation transform + the accumulate/de-interleave chain
+  already decoded in evidence/s86-lane-sheets/
+  s86-dwg-three-generation-walk-decode.md).
+- **OQ-S10-1** — the codec vendoring decision (owner call, libheif
+  first); **OQ-S4-3** — exactly one Windows bench execution; both
+  pushed forward with current-tree verification.
+
+**No release tag this session** (the mandate's own criterion: the
+audit does not close cleanly — six open findings, all with recorded
+rationale; the tag belongs to the window that lands the gen-3
+remainder and the driver-repo five's lane).
+
+**The session's lesson for the next lane:** five racing windows
+pushed while this lane worked — the pull-rebase-concede-rider loop
+is the operational reality. The N-231 gate now catches the class
+that broke main in three of the last nine racing windows; run the
+fast gate before every push (the S92 handoff's lesson, now
+enforced by tooling).
+
+
+## Session-91 S91 fix-lane — the closing handoff (2026-10-30)
+
+**The lane's disposition:** the session opened on a RED main (the
+worklog markers + the win-stub gap) with the mandate to fix every
+finding, MAJOR-first. The racing windows ran the same mandate in
+parallel — nine windows, nine merges, every seat contested. The
+in-scope MAJORs all closed: M-101 (the Versions/Tags Extracted
+branches), M-105 (the DRWService disposition), M-107 (the eleven
+members + the gen-3 R2007 recorded residue) — most seats taken by the
+racing windows' pushes, this lane's contributions the riders, the
+arbitration, the red-main repairs, and the verification catches that
+kept the trail honest through five pushed-red windows.
+
+**The remaining scope (the next lane's start):** the driver-repo five
+(M-086/M-087/M-089/N-107/N-127 — one lane, M-087 first, per
+OQ-S10-3's recorded order); the three tracked-opens (the libheif
+vendoring decision, the Windows bench leg, the gen-3 R2007 record
+chain if a future lane decodes FUN_18002eb10's rotation fully). No
+release tag — the audit does not close cleanly while the driver-repo
+five stand.
+
+**The verification discipline this lane added to the record:** the
+clean-rebuild rule (the object files removed before any green claim —
+the truncation catch's lesson), the pre-push marker grep + the
+doc_truth_gate + the N-231 name gate as the triple check, and the
+SA-9 concession-with-riders pattern for every contested seat. The
+final state: 1738/1738 on a clean rebuild, every gate green.
+
+
