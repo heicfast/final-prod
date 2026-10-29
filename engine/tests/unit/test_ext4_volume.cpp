@@ -531,6 +531,67 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * ifmt(mode)==0x8000) is the registered deliberate non-adoption
  * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
  * defect. */
+/* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
+
+TEST(Ext4Engine, SizeExceedsBlocksCoverageMath) {
+    /* the convergent twin of SizeExceedsBlocksSetsDamagedFlag below (the two
+     * lanes' N-177 landings stacked at the hot-window merge; this copy renamed
+     * to its distinct fixture - the declared-vs-coverage i_blocks math):
+     * coverage with FLAGS bit 0x200 (FUN_180007510 :5455-5467's
+     * i_blocks < size>>9 + the :6300-6303 set, files only). The clean
+     * file carries no bit; the truncated file carries it; a directory
+     * whose size exceeds blocks stays unflagged (the files-only gate). */
+    auto img = build_volume();
+    /* INO_HELLO: size 14, one 1 KiB extent = 2 sectors of coverage */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x1C, 2); /* i_blocks_lo: 2 x 512B covers the 14-byte file */
+    /* INO_SUB: size 22 -> make it the truncated one: 100 KiB declared,
+     * the same single-block extent (i_blocks stays 2 sectors) */
+    u8* sub = img.block(B_INODE_TABLE) + size_t((INO_SUB - 1) * INO_SZ);
+    put32(sub + 0x04, 100 * 1024); /* i_size_lo = 100 KiB */
+    put32(sub + 0x1C, 2);          /* i_blocks_lo: 1 KiB of coverage */
+    /* INO_DIR: a DIRECTORY whose size exceeds its blocks - stays clean
+     * (the og's param_6 == 0 files-only gate) */
+    u8* diri = img.block(B_INODE_TABLE) + size_t((INO_DIR - 1) * INO_SZ);
+    put32(diri + 0x04, 512 * 1024); /* 512 KiB declared over a 1 KiB extent */
+    put32(diri + 0x1C, 2);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode *hello_n = nullptr, *sub_n = nullptr, *dir_n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                if (c->props()->name == std::u16string(u"hello.txt"))
+                    hello_n = c;
+                if (c->props()->name == std::u16string(u"nested.bin"))
+                    sub_n = c;
+                if (c->props()->name == std::u16string(u"sub"))
+                    dir_n = c;
+            }
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_n);
+    ASSERT_NE(nullptr, sub_n);
+    ASSERT_NE(nullptr, dir_n);
+    EXPECT_EQ(0, int(hello_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the covered file carries no damaged bit";
+    EXPECT_NE(0, int(sub_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the 100-KiB-declared/1-KiB-covered file carries the 0x200 bit";
+    EXPECT_EQ(0, int(dir_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "directories never take the files-only damage bit";
+}
+
 TEST(Ext4Engine, LegacyAclDirSizeClean) {
     auto img = build_volume();
     /* the legacy dir-ACL pointer lives in i_size_high's slot for

@@ -257,8 +257,10 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
 
-    /* validated: jpg, png, zip, docx; noise rejected; no duplicates yet */
-    EXPECT_EQ(stats.validated, 4u);
+    /* validated: jpg, png, zip, docx + the jfif raw-sign emission at
+     * 12288 (N-188: the sign-table layer's records count too); grammar
+     * noise still rejected; no duplicates yet */
+    EXPECT_EQ(stats.validated, 5u);
     EXPECT_GE(stats.rejected, 1u);
     /* N-153: the two archives' inner central-directory positions
      * (PK\x01\x02 inside the emitted extents) now count as duplicates -
@@ -8551,8 +8553,9 @@ TEST(CarveEngine, SkipsFsAllocatedRegions) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 3u)
-        << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_EQ(stats.validated, 4u)
+        << "the in-extent JPEG must be suppressed (png/zip/docx + the jfif "
+           "raw-sign plant -> 4; N-188 counts the sign-table layer)";
     EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
@@ -8586,7 +8589,8 @@ TEST(CarveEngine, StructuredBoundaryPartialOverlap) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 4u) << "the straddling JPEG still carves";
+    EXPECT_EQ(stats.validated, 5u) << "the straddling JPEG still carves (jpg/png/zip/docx "
+                                      "+ the jfif raw-sign plant; N-188)";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -8617,8 +8621,10 @@ TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
     /* the JPEG@512, PNG@2048 and ZIP@4096 are inside [0, 8192); the
-     * DOCX@8192 sits exactly on the excluded boundary end and carves */
-    EXPECT_EQ(stats.validated, 1u);
+     * DOCX@8192 sits exactly on the excluded boundary end and carves;
+     * the jfif raw-sign plant@12288 is outside the interval and counts
+     * (N-188) */
+    EXPECT_EQ(stats.validated, 2u);
     EXPECT_GE(stats.occupancy_skipped, 2u);
     EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
 }
@@ -9302,7 +9308,23 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * 5th byte rejects (the 5-byte magic carries the gate, so plant the
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
-     * never matches any row). */
+     * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
+     * red): the default user-sign set carries lha "2,2D6C68" ("-lh" at
+     * +2) - with a set installed by an earlier test, this fixture's
+     * prefix carves a device-end lha USER record (the D-104 out-of-box
+     * superset, by design). The no-carve assertion pins the
+     * no-user-sign world, so this test resets the registry explicitly
+     * (the suite's per-process registry makes absence a state to SET,
+     * not a default to assume). */
+    ASSERT_EQ(OK, carve::usersigns::clear());
+    /* (the hot-window merge orphaned this fragment from the S-056
+     * landing's twin of this comment - restored with its opener): the
+     * default user-sign set's "lha" entry (2,2D6C68 - the og's own
+     * shipped sign) matches ANY "-lh" anchor at +2, so the test that
+     * pins the GRAMMAR's dash gate disables that orthogonal channel by
+     * extension (S-056's disabled_formats gates the user layer; "lha"
+     * has no stock rows, the lzh grammar is a different extension -
+     * the gate is surgical). */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
@@ -9310,6 +9332,7 @@ TEST(Carve, LzhWrongDashByteRejects) {
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
+    flags.disabled_formats = "lha";
     CarveStats stats;
     ASSERT_EQ(
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
@@ -11363,4 +11386,30 @@ TEST(UserSigns, ShippedOgFileVerbatimLoads) {
         << "the og's own shipped file must load verbatim";
     EXPECT_TRUE(set.valid);
     EXPECT_EQ(191u, set.signs.size()) << "all 191 signs (the duplicate asf block included)";
+}
+
+TEST(CarveStats, StockRawSignFilesCountInCarvedFound) {
+    /* N-188 (discovered during N-171's verification): the stock raw-sign
+     * layer emits records without ticking `validated` - carved_found is
+     * assigned from that counter (cr_scan.cpp), so a sign-table-only
+     * format (no grammar analyser; "sample" = #!/bin/sh is one) was
+     * invisible in the headline carved count. RED pre-fix: the executed
+     * probe printed sign_hits=1 / validated=0 with the tree carrying
+     * the carved node. */
+    std::vector<u8> img(2ull << 20, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits) << "the stock sign-table candidate fired";
+    EXPECT_EQ(1u, st.validated) << "the stock raw-sign record must count in the carved_found feed";
+    /* the tree agrees: exactly one carved record (stats refresh first -
+     * the counters are cached until the walk refreshes them) */
+    tree.refresh_stats();
+    EXPECT_EQ(1u, root->stats().file_count + root->stats().dir_count);
 }

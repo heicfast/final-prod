@@ -54,3 +54,10 @@ S-049 (FIXED — the naming contract the test pins), N-115/N-153 (FIXED — the 
 ## Open questions
 
 Where the +2 test count drift came from (1134 recorded vs 1136 executed) — likely two tests landing between the fix-lane's run and the hygiene commit; harmless, but the fix lane's re-run should pin the new canonical count.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-185 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** the executed proof stands as filed (the finding's own first-hand evidence, evidence/executions/s42-build-suite-execution.md — 1136 ran / 1093 passed / 1 FAILED (`Carve.OoxmlRelsPathSplit`) / 42 skipped at exactly `b26017a7`); the current suite green (the code defect was already resolved by the parallel window's `d10e4aa2`/`1fb7603b`). The record repairs: the N-157 fixed-record's attribution line now carries the erratum in place (the "b26017a7 re-pinned the expectation" credit annotated with the executed refutation + the corrected repair sequence `67de3276` red → `b26017a7` STILL RED → `d10e4aa2` green → `1fb7603b` cleanup), and the worklog's session-42 "1134 ran / 1092 passed / 0 failed on the repaired tree" claim carries the dated erratum note (the 1233b4a0 message-truth precedent: the historical entry is not rewritten — the correction is appended beside it).
+**Resolution notes:** Record-truth only, per the finding's own fix plan: the code defect was already resolved at HEAD (`d10e4aa2`'s both-sides fold + `1fb7603b`'s cleanup), and the current suite runs green — the owed work was the two erratum notes (N-157's attribution line + the worklog's false-green claim) plus the +2 count-drift explanation recorded (two tests landing between the fix-lane's run and the hygiene commit — the drift is noted in the N-157 annotation; the current canonical count is re-pinned per-session by this lane's worklog entries, e.g. 1275/1233/42/0 at the N-177 landing).

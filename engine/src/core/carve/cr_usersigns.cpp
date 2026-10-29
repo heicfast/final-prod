@@ -353,6 +353,12 @@ u32 snapshot(UserSignSet& out) {
     return OK;
 }
 
+u32 clear() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_active = UserSignSet{}; /* valid=false, no signs */
+    return OK;
+}
+
 const UserSign* match_at(const u8* p, u64 avail, const char* disabled_exts) {
     std::lock_guard<std::mutex> lock(g_mu);
     for (const auto& s : g_active.signs) {

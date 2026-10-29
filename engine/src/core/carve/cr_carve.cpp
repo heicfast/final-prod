@@ -1074,18 +1074,15 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         n->set_origin(tree::Origin::Carved);
                         n->set_deleted_state(tree::DeletedState::Deleted);
                         n->set_confidence(tree::Confidence::PartialRisk);
-                        /* N-171: the emission ticks `validated` too - the
-                         * counter the orchestrator's carved_found headline
-                         * reads (cr_scan.cpp: stats.carved_found =
-                         * cs.validated); the entire default-on user-sign
-                         * channel was invisible in the carved count when
-                         * only sign_ticks ticked. The og's own counting
-                         * surface counts analyser detections the same way
-                         * (GetRawUserInfoMap, FUN_18000ed00
-                         * insert-or-increment). (The two lanes' identical
-                         * landings were stacked by the hot-window merge -
-                         * the fetch_add deduplicated to one; the re-land
-                         * comment folded here.) */
+                        /* N-171 (convergent landing, session-55 + session-44):
+                         * the emission ticks `validated` too - the counter the
+                         * orchestrator's carved_found headline reads
+                         * (cr_scan.cpp: stats.carved_found = cs.validated);
+                         * the entire default-on user-sign channel was
+                         * invisible in the carved count when only sign_hits
+                         * ticked. The og's own counting surface counts
+                         * analyser detections the same way (GetRawUserInfoMap,
+                         * FUN_18000ed00 insert-or-increment). */
                         ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
@@ -1290,6 +1287,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
                                           : tree::Confidence::MetadataOnly);
+            /* N-188: the emitted record counts in `validated` — the
+             * counter carved_found is assigned from (cr_scan.cpp),
+             * matching the grammar and user-sign layers' emission-time
+             * counting. Ticked HERE (post-dedup, on emission), not at the
+             * candidate site — sign_hits keeps its candidate semantics. */
+            ctx.validated.fetch_add(1, std::memory_order_relaxed);
             emitted_at.insert(start_abs);
         }
     }

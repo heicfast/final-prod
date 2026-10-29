@@ -1,3 +1,122 @@
+**S56 lane — N-090 landed (2026-10-29).**
+
+**N-090 FIXED (MINOR — the session-list scope + row shape).** The four deltas
+dispositioned per the fix plan's deliberate-superset option (D-135): the
+every-*.crsf listing REGISTERED as the superset over the og's auto_+\.rsf home
+filter (DRWUI:432326-432333 re-read first-hand); the label width CLOSED end-to-end
+(the v6 record tail label_full[100] + ScanConfig 100-wide host channel + the ABI
+tail appends on row AND session_info — no version bump, label[32] preserved as
+the legacy prefix, the resume copy source-bounded); the save-time SECONDS
+contract documented (the og's own auto-save names are second-granular; ties by
+path bytes per N-116); deviceType not-carried with the og's 2/3 table in the
+contract. Tests: SessionListVolumeLabelFullWidthRoundTrips (RED = the ABI-append
+compile failure pre-fix) + SessionListScopeSupersetPinsAutoAndManual + the v6
+layout round-trip legs (Crsf.VolumeInfoIdentityCardRoundTrip +100 pin;
+Session.SaveUnixVTailRoundTrip v5-degrade leg). Suite 1276/1276 green (1234/42/0)
++ ASan clean on the touched suites. Trail: findings/FIXED/N-090 + ledger row +
+session.md row + ABI-CONTRACT 7f + crsf-format.md v6 + D-135 + this entry.
+
+**Session-51 severe-first lane — S-060 landed + the hot-window main red closed (2026-10-29).**
+
+**S-060 FIXED (the metadata restoration).** Corpus re-verified first-hand
+(the per-item tail at DRWUI:874673-722 — attributes & 0xfffd, the mask-gated
+SetFileTime trio, both failures non-fatal). DestIo::FileMeta + set_metadata
+(default ERR_UNSUPPORTED, never faked); the writer restores post-commit for
+every non-dir item with per-field enables mirroring the engine emission (a
+zero slot = the og's no-date, passes as NULL — the og's mask semantics in
+the core's emission model); non-fatal + the report row's metadata outcome
+("restored"/"failed:<code>"/"unsupported", emitted in the JSON). Win32
+backend = the og's shape verbatim; the POSIX translation (utimensat + the
+readonly-bit chmod, birth-time honestly skipped) registered as D-136. The
+N-009d row's refuted premise ("og never calls SetFileTime" — grep-scoped to
+the wrong binary, RecoveryModule instead of the DRWUI export body) corrected
+in writer.md. 4 tests RED (call-site-removed rebuild) -> GREEN; suite
+1261/1261.
+
+**Hot-window main red closed (a NEW class at the merge):** the a5fe33a5
+landing's claim "main red closed" was premature - Carve.LzhWrongDashByteRejects
+failed on the merged tree (verified WITHOUT this lane's changes: the pre-
+existing red). Root cause: test-order residue - the default user-sign set
+(left installed by this lane's GrammarRejectedMagicNotReclaimedByUserSign)
+carries lha "2,2D6C68" which matches the LZH fixture's "-lh" prefix, so the
+wrong-dash form (grammar never dispatched - not a rejection, an unclaimed
+position) carves a device-end lha USER record BY D-104 DESIGN. The test
+asserted a no-user-sign world it never set. Fix: usersigns::clear() (the
+explicit registry reset - install cannot take an empty set) + the test pins
+its world. Suite green.
+**Session-44 minors lane — N-171 (CONVERGENT-DU, their 7be438c9 wins per SA-9 — byte-equivalent tick; this lane's session round-trip test + the N-188 discovery ride as the supplements) + N-188 (unique) landed (2026-10-29).**
+
+- **N-171 FIXED** — the user-sign carved_count undercount: the user-sign emission path
+  now ticks `validated` right after `sign_hits` (the counter `carved_found` is assigned
+  from at the orchestrator seam), so the entire default-on user-sign channel (78
+  extensions carried by no stock source) counts in the headline carved number at
+  runtime AND in the persisted session record. RED proven pre-fix on both legs: the
+  carve-level fixture (one 0xFFFE0000 record, validated 0) and the orchestrator +
+  session round-trip (carved_found 0 with the record in the tree; the reload re-read 0).
+  Tests: `CarveStats.UserSignFilesCountInCarvedFound` +
+  `CarveStats.UserSignCarvedFoundSessionRoundTrip`.
+- **N-188 FIXED (NEW — the §8 discovery during N-171's verification, filed+fixed the
+  same session)** — the stock raw-sign layer's twin: sign-table-only formats (no
+  grammar analyser — `sample`, `a`, `amr`, `class`, `evtx`, ...) emitted records without
+  ticking `validated` either; an executed probe proved it (the sample-format fixture:
+  sign_hits=1 / validated=0 / one carved node in the tree). The fix: the emission-site
+  tick (post-dedup, on emission — matching the grammar and user-sign layers; the
+  candidate-site `sign_hits` semantics untouched), plus the `CarveStats::validated`
+  doc comment updated from "grammar-confirmed" to the emitted-record truth. Four stale
+  pins re-pinned to the honest count (the jfif raw-sign plants in the shared fixture
+  now count: 4→5, 3→4, 4→5, 1→2 — the pins' own comments had already documented the
+  raw-sign emissions they were excluding from the counter). Test:
+  `CarveStats.StockRawSignFilesCountInCarvedFound`. Suite 1236/1236 (linux-release).
+  Audit trail: both finding Resolutions + moves to findings/FIXED/, the N-188 row
+  added to CROSS-REF-MATRIX, carve module doc rows, SUMMARY entry-2 block, this entry.
+**Session-46 lane — the N-165 registration lands (2026-10-29).**
+
+- **N-165 FIXED (MINOR, fat)** — the out-of-volume run-end stance registered:
+  both og factory gates re-read first-hand (FATSearchDLL :10865-10903 — the
+  run-end check against the volume sector limit, ReleaseTrace "File
+  overflows partition!", the runlist released; the second factory
+  :28040-28075 the same check). The finding's own plan selected the core's
+  deferred-failure posture (no silent behavior change): REGISTERED as
+  PARITY-DELTAS D-136 — the truncated-tail volume (BPB > device,
+  validate_boot's deliberate allowance) stays a first-class target; the
+  overflow-tail file stays LISTED with its chain extents; the readable
+  prefix recovers and the beyond-device tail discloses as the recovery-time
+  Salvaged (FB-R02), never a scan-time destruction. Pinned by
+  FatEngine.TruncatedVolumeOverflowChainStance. Two plan-truth corrections
+  in the Resolution: the scan-time grade is the chain's own (the finding's
+  "PartialRisk" wording describes the recovery-time disclosure), and
+  reconstruct_deleted_chain bounds the walk at the dentry's declared size.
+  Suite 1281/1281 (1239/42/0). (This lane's earlier landings this session:
+  N-158 `78b9b7aa`, N-159 `035508fa`, N-163 `142a7f40` — each with the full
+  trail; this entry repairs the summary bookkeeping the hot-window
+  rebase orphaned.)
+**M-115 CONVERGENT + the window's pushed reds closed (S47 INFO-first lane,
+2026-10-29).** M-115 (the thumbnail grade-promotion read/decode gate): this
+lane built the identical fix independently (the same Thumbnail::read_ok
+disclosure, promote-on-read placement, 0x14 dispatcher floor — the corpus
+guard at DRWUI :422507-514 re-verified first-hand before either push); the
+S47-MAJOR-first lane's landing (1d7a761b) wins per SA-9. This lane's unique
+supplements folded into the merged tree: the dims-seam refusal pin
+(CrUi.ThumbnailPromotesOnReadNotDecodeDimsRefusal — the no-SOF JPEG
+exercises the native_dims DecodeFailed exit the landing's damaged-PNG
+fixture doesn't), the CrUi.PreviewPaneNeverPromotes doctrine pin, and the
+ABI-contract doc block in cr_ui.h. Family 11/11; suite 1385/1385.
+
+**The same window's pushed reds closed (main-green duty):** (1) the N-171
+hot-window merge kept BOTH convergent landings' ctx.validated increments —
+a literal double-count the suite caught (1-vs-2/2-vs-4); deduped to one tick
+per record, the three user-sign tests green again; (2) the
+Grading.ExtensionTableGatesDeepValidation assertions sat on the PRE-S-058
+polarity (a1/a2 .zzqx = out-of-table must ENTER the deep path per the
+FUN_1401bebe0 inequality-comparator decode — the engine was right, the test
+inverted); flipped to match the decode, grading 25/25; (3) test_grading's
+e1/e2 unused-variable reds (void)-cast; (4) rrecov.cpp's part_slice retyped
+to PartitionSlice — convergent with the S53 lane's byte-equivalent N-188
+repair, their comment kept; (5) cr_ui.cpp's Level::Warning x2 -> Warn;
+(6) the carve pair's + this lane's format drift swept per the 72a17b7c
+precedent. Trail: findings/FIXED/M-115's convergence addendum + the ledger
+row note + this entry.
+
 **Session-51 severe-first lane — S-057 landed (2026-10-29).**
 
 **S-057 FIXED (the stop-window auto-save).** Corpus re-verified first-hand
@@ -132,7 +251,6 @@ is closed: no divergence, no code change. Trail: findings/FIXED/OQ-S42-1
 
 **Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
 
-**S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
 **Session-56 lane territory claim (coordination contract, 2026-10-28 22:42 UTC; seat renumbered S49→S52→S56 across three hot-window rebases — the remote's S49/S50/S51 and S52/S53/S54/S55 seats pushed first, the S47→S51 precedent applied each time):** this lane
 (MINOR-first per the user's explicit session directive — the S46 claim's MINOR board
 top-down is executed by the S53 lane per its posted claim; this lane takes the MIRROR
@@ -181,6 +299,14 @@ the S46 claim is executed by this lane (same mandate, same MINOR-first directive
 landed between the claim commit `fa654673` and this lane's open). Baseline at open:
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
 `worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
+
+- **N-177 FIXED (CONVERGENT — the remote's 7be438c9 wins per SA-9)** — the ext4
+  size-exceeds-blocks damaged flag. This lane's landing was byte-equivalent (the og's
+  bit 0x200 as PFLAG_SIZE_EXCEEDS_BLOCKS, the lo-only i_blocks read, the files-only
+  gate, the session round-trip pin) and RED-proven via the stashed-gate rebuild; the
+  convergence addendum records the one editorial difference (this lane registered the
+  sign-extension non-adoption under the existing I-040/D-123 family; the winner filed
+  the new D-135 — same non-adoption, both records stand).
 
 - **N-188 FIXED (NEW — discovered during this lane's merge; renumbered from the N-186 draft at the N-160 window merge per SA-9, the remote's renumbered N-142-rsf took the seat)** — the M-119 window
   committed a red main: `rrecov.cpp:3253` called PartitionSlice's clamp surface
@@ -291,6 +417,17 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-134 FIXED** (`9455f50a`) — the deep-read grade validation: FUN_14038c470
+  (:606291-619) re-read first-hand; the two threshold rules exact (addr==0:
+  first-32-zero or first-4-0xFF -> Low; addr>0: the previous sector's
+  last-16-zero -> High); the overlap-flag skip; the failed-read no-change;
+  GradeReader threaded at the scan's completion pass; the graded one-shot bit on
+  FileNode; regrade_node = the full per-node tree shape (solo + S-058 gate +
+  twin lookup + deep read). OQ-S42-3's sub-gates unadopted per the fix plan's
+  own allowance. Tests: 4 RED content tests (the API-extending shape proven by
+  the neutered-rule rebuild) + RegradeRunsFullTreeOnce + ReaderAbsent pin; the
+  M-115 tiny-file test re-isolated (before/after) after the new rule
+  legitimately promoted its fixture. Suites 1244/1244 + 71/71.
 - **M-115 FIXED** (`1d7a761b`) — the thumbnail grade promotion re-based on READ
   evidence: Thumbnail::read_ok disclosed by the engine (make_thumbnail_status sets
   it on Ok + DecodeFailed when no unreadable span was gained — the og's
@@ -5662,6 +5799,11 @@ format's own UPPERCASE form — GZ_000001.GZ in the real og sessions; the S-049
 push re-pinned its 39-test fail-before set but the N-115 test landed after,
 unre-pinned). Expectations re-pinned to `.DOCX/.XLSX/.PPTX`; suite
 **1134 ran / 1092 passed / 42 Win-only skipped / 0 failed** on the repaired
+tree **[N-185 ERRATUM, S46 lane: this "0 failed" claim is FALSE for the tree the
+same session's `b26017a7` commit describes — the executed proof at exactly that
+commit is 1136 ran / 1093 passed / 1 FAILED (`Carve.OoxmlRelsPathSplit`) / 42
+skipped; the count drift (+2) and the repair-attribution error are recorded in
+findings/FIXED/N-185; the suite IS green at every HEAD from `d10e4aa2` on]**
 tree (Linux gcc, Release).
 
 ## Fix session 40 (continued) — the S-054 regression restore
@@ -7796,6 +7938,170 @@ fixture), DamagedFlagSessionRoundTrip. Suite 1275 ran / 1233 pass / 42 env-skips
 fail. Trail: findings/FIXED/N-177 + ledger row + matrix ext4 row + ext4.md + D-135 +
 this entry.
 
+## Session-46 minors lane — N-170 landed (2026-10-29)
+
+**N-170 FIXED (MINOR — the pre-erratum EUUserData/GetRawUserInfoMap claim batch).**
+The erratum re-read first-hand (CORRECTIONS.md #9: EUUserData's sole og consumer is
+DRWUI's CHKRepairFileSign — the CHK repair chain — with zero references in
+RAWSearchDLL's 80,614 lines; GetRawUserInfoMap = the per-scan carve-statistics
+OUTPUT map). Six sites re-truthed: cr_usersigns.h's header block (the refuted
+"consults it alongside raw_signs.json" claim replaced with the E-A truth + the
+D-104 superset framing), the kMaxEntries census comment (the cap counts TOTAL
+signs — 190 deduped/191 raw, 256 = 1.34x, not "111; 2.3x"), PARITY-OG-CORE-
+INVENTORY's OQ-SA-3 resolution (the stats-map truth), D-52 (GetRawUserInfoMap out
+of the "seeds" grouping), D-60f (EUUserData off the engine's read list), and
+SCAN-ENGINE-DELTA C4 (the "+ EUUserData MIME" claim struck). Items 2 and 4 of the
+finding were ALREADY re-truthed by the parallel windows' landings (S-055's
+built-in-first text; N-179's kMaxExtLen=8 "manifest" comment) — verified
+FIXED-ALREADY at the current tree. Acceptance grep (the finding's own criterion):
+the refuted phrases carry zero assertion hits. Doc-only; no code change. Trail:
+findings/FIXED/N-170 + ledger row + matrix row + carve.md row + this entry.
+
+## Session-46 minors lane — N-180 landed (2026-10-29)
+
+**N-180 FIXED (MINOR — the doc-truth staleness batch).** Six doc sites re-truthed
+against their code cites, each verified first-hand: REFERENCE-API-GAP's R-28 rows
+(:222/:376 — the thumbnail ABI IS exported, cr_ui.h:1233-1297; the budget is 200 MB
+per M-109, not 32 MiB per M-080) and R-34 rows (:233/:382 — the 100 MB/15 s caps
+SHIP as defaults per M-077, cr_preview.h:125-126); ABI-CONTRACT §7i's caps line;
+API-DELTA's S3-W4a row (LANDED with the code cite); AUDIT-PIPELINE's WRITER-1 row
+(the "returns on first per-item error / OPEN" claim flipped to the
+collect-and-continue MATCH — the same file's findings block had already recorded
+the fix; the row drifted); modules/exfat.md's B9 (the refuted "with tz-offset
+conversion" replaced with the S-011 parsed-but-not-applied truth). The finding's
+item 7 (the s5 evidence's polarity line) was ALREADY landed by the S-058 Resolution
+— verified FIXED-ALREADY at the evidence file's :258/:307. Doc-only; no code change.
+Trail: findings/FIXED/N-180 + ledger row + matrix row + this entry.
+
+## Session-46 minors lane — N-185 landed (2026-10-29)
+
+**N-185 FIXED (MINOR — the b26017a7 record-truth erratum).** The finding's executed
+proof stands as filed (the evidence file's 1136/1093/1/42 at exactly b26017a7). The
+owed record repairs landed: the N-157 fixed-record's attribution line now annotates
+the "b26017a7 re-pinned the expectation" credit with the executed refutation and the
+corrected repair sequence (67de3276 red -> b26017a7 STILL RED -> d10e4aa2 green ->
+1fb7603b cleanup), and the worklog's session-42 "1134 ran / 1092 passed / 0 failed
+on the repaired tree" claim carries the dated erratum note (the 1233b4a0
+message-truth precedent — the historical entry stands, the correction sits beside
+it). The +2 count drift is explained in the annotation (two tests landing between
+the fix-lane's run and the hygiene commit). Code was already green at HEAD; this is
+record-truth only. Trail: findings/FIXED/N-185 + ledger row + matrix row + this
+entry.
+
+## Session-52 lane — M-134 landed (2026-10-29)
+
+**M-134 FIXED (MAJOR — the deep-read grade + the full-tree re-grade).**
+FUN_14038c470 re-read in full + the call-site twin-key arithmetic (:605798 —
+the deep read's addr IS the node's twin key, which settles the address
+semantics: the read at key−1 = the extent's LAST sector; key==0 reads the
+reader's sector 0). The landing: GradeReader (the plain-C sector callback)
+on GradeContext, wired at the orchestrator with the scan's own slice;
+deep_read_grade (first-32-zero/first-4-0xFF → Low; the final sector's
+16-zero tail → High; the overlap skip; the null-reader bail; the
+nonzero-index failed-read class [the shifted kinds' keys land outside any
+reader in the og — the read fails, the grade never changes; the core skips
+the same population]); pass 3 in grade_tree for unflagged S-058 candidates;
+the graded-bit mark placed exactly where the og places it (not for flagged
+nodes, not on the null-reader bail, yes on failed reads); regrade_node
+re-enters the full per-node path (solo + the S-058 gate + the deep read)
+behind the one-shot gate. The twin re-lookup documented-skipped (the
+stable-tree argument: the og's persistent map can only re-discover what the
+completion pass flagged). The pre-check trio stays OQ-S42-3 (updated with
+the two new control-flow constraints). Tests (8): the 4 RED behavior tests
++ the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
+1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
+cell + orchestration.md row + the OQ-S42-3 update + this entry.
+## Session-50 continuation audit lane — close record (2026-10-29)
+
+**Lane:** S50 (renumbered from the S49 draft per SA-9 — the remote's S49
+parity-fix lane pushed its claim first). The fourth continuation audit lane
+of the user's second-session mandate. **Read-only guarantee held per
+commit: the lane's delta vs origin/main = `diff-to-fix/` + `worklog*` only**
+(verified file-by-file at each push).
+
+**Pins:** battery at core `93461483` (= `0d7b1d9d` code-identical; verified
+`git diff 659f0f6c..HEAD -- src include` EMPTY at battery run — the S45-S50
+claims were worklog-only at that point); the new filings re-verified at
+`34d6cf10` (HEAD at filing, mid the hottest window of the trail — the
+reconciliations below); corpus `be0cfe9` throughout.
+
+**The three asks, discharged:**
+
+1. **Remove-the-fixed — the 74-finding liveness battery** (4 parallel
+   batches; every defect site re-read, every absence re-grepped, per-file
+   git logs checked): **63 LIVE · 6 PARTIAL · 1 FIXED-ALREADY (N-186
+   retired — the battery's only falsely-active finding: the S12 lane filed
+   the rsf variant device-descriptor gap over a tree that already carried
+   N-066's `4d3f0409` fix; the finding's own "grep-verified zero hits"
+   claim was false at its own pin c7fa527c — the false-grep note recorded
+   in the Resolution) · 5 CANNOT-VERIFY (driver-repo: M-086/M-087/M-089/
+   N-107/N-127, tracked OQ-S10-3) · 4 REGISTER-STANDS. Zero phantom-fixed;
+   zero false retirements.** The post-pin fix-wave (the parallel lanes'
+   A-014/S-055..S-058/S-061/M-115/M-119/M-123/M-124/M-128..M-130/M-132/
+   M-137/M-138 + the minors + the INFO-tier retirement) is CONVERGENT —
+   every one of those findings was battery-pinned LIVE at the pin, and every
+   retirement landed after it (the S42-C precedent).
+2. **Go-deeper — the probes + the sweep:** OQ-S42-3 RESOLVED (the grading
+   deep-read sub-gates G0-G6 decoded + the twin-key/caller confirmation —
+   M-134's fix plan now carries the decoded spec); OQ-S42-1/OQ-S42-2
+   independently re-decoded CONVERGENT with the winning a75d8198/355472c4
+   (SI-preferred/FN-fallback; the nsec fold) + two benign-hardening nuances
+   registered (the og's 40-byte SI gate vs the core's 72; the core's
+   pre-1601 guard — no findings owed). The **25-landing parity sweep**
+   (the regression watch): 17 PARITY / 5 LIGHT-CHECK-OK / **3 DIVERGENCE —
+   all in the fix lanes' newest carve code** (S-062: the ONE walk's
+   size-gate exits publish 2x-device flat in the og, 0-on-first-chunk-decline
+   in the core; M-139: the HIK discriminator 0xBC-not-0xBD; M-140: the
+   CSL/CD01 latch-vs-fall-through) + the secondaries (N-189 DXF 16-byte
+   gate, N-190 the EXIF 39-char cap, N-191 the D-118 registry collision).
+3. **Mark-all-remaining:** the ifileproperties-part1 full census (the
+   under-cited flag on four module rows discharged; 51/13/4/7; 15 of 17
+   non-MATCH already trail-owned) -> N-192 (clone() drops short_name) +
+   I-047 (the +0x80 format/icon-ID register, acknowledged-at-filing);
+   the N-165-style register slivers (N-186's VolumeSessionInfo exposure)
+   recorded inside their owners, not re-filed.
+
+**The hot-window reconciliation:** three pushes raced (the S48/S46-lane
+window absorbed; the S53 lane's N-177 convergence; the S56 lane's
+N-142->N-186 renumber adopted mid-battery — the battery's N-142 verdict
+retired the CURRENT N-186 ID). The ID seats: this lane's S-062/M-139/
+M-140/N-189..N-192/I-047 all pushed after verifying next-free-ID against
+the merged tree (the draft's M-138/N-186..N-188 seats had been consumed
+by the window — the filings renumbered before first push, no collisions).
+
+**Board at close (filesystem truth at the pushed tree): 46 active —
+5 SEVERE · 20 MAJOR · 21 MINOR · 0 INFO (folded) / 106 FIXED / 5
+tracked-open.** Next free IDs: S-063+, M-141+, N-193+, I-048+, A-015+.
+
+**The handoff (this lane's recommended first fixes, in order):**
+1. **S-062** — the ONE walk exit values (one exit-value correction +
+   3 named tests; the silent-missed-recovery class).
+2. **M-139** — the HIK byte (two constants + the comment + 2 tests).
+3. **M-140** — the CSL latch (the fall-through deletion + 3 tests).
+4. **N-191** — the D-118 registry renumber (bookkeeping integrity for
+   every future D-cite; + the duplicate-D gate).
+5. **N-189/N-190/N-192** — the three one-line-or-small minors.
+6. **M-134** — now carrying the decoded sub-gate spec (the probe evidence
+   is its implementation reference).
+The SEVERE pair S-059/S-060 (writer metadata/sparse semantics) remains the
+board's largest user-impact pair after these.
+
+**Evidence index:** evidence/s50-liveness-battery.md (the battery) ·
+evidence/executions/s50-landing-parity-sweep.md (the sweep) ·
+evidence/decompiled-quotes/s50-landing-divergences.md (the three
+divergences, both sides) · s50-grading-deep-read-subgates.md (OQ-S42-3) ·
+s50-ntfs-btrfs-time-precedence-decodes.md (the OQ-1/2 corroboration) ·
+evidence/s50-ifileproperties-part1-census.md (the part1 census).
+
+**Rebase re-truth (the S52 lane's M-134 landing absorbed mid-push, convergent
+with this lane's OQ-S42-3 probe — the same decode fed both lanes):** M-134 is
+FIXED at `290e9c16` (their 8 tests incl. 4 RED pre-fix; the reader wired at
+the orchestrator; the graded-bit one-shot; the full-tree re-grade). The
+board at the pushed tree: **45 active — 5 SEVERE · 19 MAJOR · 21 MINOR ·
+0 INFO / 107 FIXED / 5 tracked-open** (M-134 out of MAJOR; the OQ's
+remaining scope narrowed to the +0x72/+0x74 flag-setter origins). This
+lane's handoff order unchanged except M-134 moves from item 6 to DONE.
+
 
 ## Session-57 fix lane — the lane opens + the A-014 convergence recorded (2026-10-29)
 
@@ -7870,3 +8176,16 @@ their pins live in DotlessNamesSkipTwinDetection);
 (4) rrecov.cpp: the window's own merge left raw conflict markers at the convergent
 N-188/M-119 retype (both sides byte-equivalent) - resolved taking the remote side.
 Suite 1384/1384 green post-repair.
+
+
+## Session-57 lane — the third red-main repair (the S-056/S-060/N-177 splices) (2026-10-29)
+
+Three more stacked-landing defects closed: (1) test_carve.cpp's S-056 twin comment
+orphaned mid-splice (the fragment restored with its opener - the lha/disable-gate
+rationale preserved); (2) test_ext4_volume.cpp carried BOTH lanes' N-177 tests under
+one name (redefinition) - the convergent twin renamed to its distinct fixture
+(SizeExceedsBlocksCoverageMath: the declared-vs-coverage i_blocks math), both lanes'
+pins kept; (3) the S-060 restore surface grew the win layer's SDK consumption
+(SetFileTime/SetFileAttributesW in cr_destio.cpp) without growing the win-stub - the
+two setter declarations added beside their getters (the M-055 gate working as
+designed). Suite 1403/1403.

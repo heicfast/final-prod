@@ -284,6 +284,24 @@ PARITY-DELTAS).
   .rsf-format internals, not core divergences).
 
 
+## N-090 landed (the S56 lane, 2026-10-29) — the session-list scope + row shape
+
+- **The scope rule REGISTERED (D-135a):** the every-`*.crsf` listing is the deliberate
+  superset over the og's `auto_`+`.rsf` home-list filter (DRWUI:432326-432333 —
+  substring pair, re-read first-hand). A manual save is a resumable session; hosts
+  wanting the og's exact home view filter client-side. Pinned:
+  `SessionListScopeSupersetPinsAutoAndManual`.
+- **The label width CLOSED (not registered — fixed):** the og's record-2
+  `volumeName[100]`/strncpy(…,99) width end-to-end — `ScanConfig.volume_label[100]`
+  (the host channel), the v6 record tail `label_full[100]` (len-gated; zeros on
+  v1..v5 = the legacy card is the whole truth), the ABI tail appends on
+  `cr_ui_session_row` + `cr_ui_session_info` (no version bump; `label[32]` = the
+  legacy prefix view). Pinned: `SessionListVolumeLabelFullWidthRoundTrips` (RED as
+  the ABI-append compile failure, the house precedent).
+- **The save-time seconds contract (D-135b) + deviceType not-carried (D-135c):**
+  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-135 (the og's ms + its 2→Desktop/
+  3→Recycle-Bin table recorded for the host that eventually asks).
+
 ## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
 
 The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
@@ -330,3 +348,24 @@ string, and the complete 512-byte boot-sector snapshot**. The core's identity ca
 only — firmware/WWN/interface and the boot-sector content have no equivalent
 (D12 field-parity gap on a variant path not seen in the shipped samples). Evidence:
 `evidence/decompiled-quotes/s12-rsf-fifth-record.md`.
+
+## S50 addendum (2026-10-29 — the continuation audit lane; audited core `34d6cf10`)
+
+- **N-186 RETIRED (FIXED-ALREADY — the battery's one falsely-active finding):**
+  the field set this finding asked for (firmware/WWN/interface_desc/
+  boot_snapshot[512]) landed with N-066's `4d3f0409` three days BEFORE the
+  filing — present at the finding's own audited tree c7fa527c (the "grep-
+  verified zero hits" claim was false at its own pin). Retired to
+  findings/FIXED/N-186 with the false-grep note + the VolumeSessionInfo
+  exposure sliver (optional follow-up, not a gap). The N-066 row above
+  remains the owner of record.
+- **N-192 (MINOR — NEW, tree/session axis)** — `FileProperties::clone()`
+  drops `short_name` on the hard-link fan-out (cr_node.cpp:49-80 vs the
+  og's whole-block clone contract; the fan-out at cr_mftwalk.cpp:981-992)
+  — cloned links lose the 8.3 axis in the session records. The
+  part1-census sibling register I-047 (the +0x80 format/icon-ID constant
+  family, acknowledged-at-filing) landed in findings/FIXED/.
+- **The ifileproperties-part1 under-cited flag discharged:** the full
+  census (51 MATCH / 13 DIVERGENT (15 of 17 non-MATCH trail-owned) /
+  4 ABSENT / 7 N-A) at `evidence/s50-ifileproperties-part1-census.md` —
+  the four module rows' "under-cited (x1)" note is closed by disposition.

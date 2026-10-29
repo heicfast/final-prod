@@ -1,5 +1,36 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-50 S50 lane (2026-10-29 — the FOURTH continuation audit lane of the same
+user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining;
+audited core pinned at `93461483` (code-identical to `0d7b1d9d`) with the new
+filings re-verified at `34d6cf10` (HEAD at filing), corpus `be0cfe9`):** the
+**74-finding liveness battery** (every then-active finding re-verified first-hand —
+63 LIVE / 6 PARTIAL / **1 falsely-active: N-186 retired** (the N-142 seat's SA-9
+renumber; a false-active duplicate of N-066's `4d3f0409` landing, the finding's own
+"grep-verified" claim false at its own pin) / 5 CANNOT-VERIFY (driver-repo) / 4
+REGISTER-STANDS — zero phantom-fixed; the post-pin fix-wave convergent, per the
+S42-C precedent); the **tracked-open probes executed** — OQ-S42-3 RESOLVED (the
+grading deep-read sub-gates G0-G6 fully decoded, feeding M-134's fix plan), and
+OQ-S42-1/OQ-S42-2 independently re-decoded CONVERGENT with the winning lanes
+(SI-preferred/FN-fallback; the nsec fold — the corroboration evidence +
+the two benign-hardening nuances registered); the **25-landing corpus-parity
+sweep** (the regression watch on the fix lanes' own newest code: 17 PARITY /
+**3 DIVERGENCE -> filed S-062 + M-139 + M-140** / 5 LIGHT-CHECK-OK); the
+**ifileproperties-part1 full census** (the four module rows' under-cited flag
+discharged; the clone() short_name drop filed N-192; the +0x80 constant family
+registered I-047); plus N-189 (the DXF canonical gate), N-190 (the EXIF 39-char
+cap), N-191 (the PARITY-DELTAS D-118 collision). Evidence:
+`evidence/s50-liveness-battery.md` + `evidence/executions/s50-landing-parity-sweep.md`
++ the three decompiled-quotes sheets. **Read-only guarantee: this lane's delta =
+diff-to-fix/ + worklog* only.**
+
+**Rebase reconciliation (mid-push):** the S52 lane's M-134 landing
+(`290e9c16`) rode the same FUN_14038c470 decode this lane's OQ-S42-3 probe
+produced — convergent (their fix + this lane's evidence sheet; the OQ's
+remaining scope narrowed to the +0x72/+0x74 flag-setter origins). Board at
+the pushed tree: **45 active (5 SEVERE · 19 MAJOR · 21 MINOR · 0 INFO) /
+107 FIXED / 5 tracked-open.**
+
 **ID-allocation convention (N-160 item 5, enforced by `tools/doc_truth_gate.py` in CI):**
 a next-free-ID check must run against the FIXED-LEDGER's resolved rows AND the
 in-flight parallel lanes' claims, never the active board alone — the S41 lane's

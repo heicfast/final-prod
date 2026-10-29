@@ -229,6 +229,15 @@ inline BOOL DeleteFileW(const wchar_t*) {
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
 }
+/* S-060's restore surface: the setters join their getters (the stub
+ * mirrors the exact SDK shapes the win layer consumes - declarations
+ * only, never linked). */
+inline BOOL SetFileAttributesW(const wchar_t*, DWORD) {
+    return 1;
+}
+inline BOOL SetFileTime(HANDLE, const FILETIME*, const FILETIME*, const FILETIME*) {
+    return 1;
+}
 inline BOOL CreateDirectoryW(const wchar_t*, SECURITY_ATTRIBUTES*) {
     return 1;
 }

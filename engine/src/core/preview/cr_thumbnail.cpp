@@ -1217,6 +1217,7 @@ ThumbStatus finish_ok(Thumbnail& out, std::vector<u8>& rgba, u32 w, u32 h, u32 m
     out.source_format = fmt;
     out.from_embedded = embedded;
     out.truncated = false;
+    out.read_ok = true; /* M-115: every finish_ok caller passes clean reads */
     return ThumbStatus::Ok;
 }
 
@@ -1229,7 +1230,12 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
         u32 w = 0, h = 0;
         if (!native_dims(fmt, pr, b, w, h)) {
             out.truncated = !b.over;
-            return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
+            if (b.over)
+                return ThumbStatus::BudgetExceeded;
+            /* M-115: the header fetched clean but no decoder accepted it -
+             * the read verdict is still clean (the og's local_160==0 leg) */
+            out.read_ok = !reader_gained_failures(fails_before, pr);
+            return ThumbStatus::DecodeFailed;
         }
         /* M-080/M-109: the byte-oversized middle class - a byte-heavy
          * but pixel-benign photo (the common case: a 6 MiB 12-MP JPEG) -
@@ -1287,7 +1293,14 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
     stbi_uc* px = stbi_load_from_callbacks(&cb, &src, &w, &h, &comp, 4);
     if (!px) {
         out.truncated = src.hit_eof(); /* diagnostic only - no pixels */
-        return src.over_budget() ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
+        if (src.over_budget())
+            return ThumbStatus::BudgetExceeded;
+        /* M-115: the payload fetched clean, the DECODER refused the stream -
+         * the damaged-but-readable population the og promotes on read
+         * evidence (readVerdict==0 && payload; the decode's failure never
+         * retracts FUN_140089630(node, 2)) */
+        out.read_ok = !reader_gained_failures(fails_before, pr);
+        return ThumbStatus::DecodeFailed;
     }
     std::vector<u8> rgba(px, px + size_t(w) * h * 4);
     stbi_image_free(px);
@@ -1369,7 +1382,11 @@ ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
     TiffTags t;
     if (!d.info(t)) {
         out.truncated = !b.over;
-        return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
+        if (b.over)
+            return ThumbStatus::BudgetExceeded;
+        /* M-115: clean read, refused IFD - the read verdict stays clean */
+        out.read_ok = !reader_gained_failures(fails_before, pr);
+        return ThumbStatus::DecodeFailed;
     }
     /* S-045 (the TIFF-RAW half): a TIFF-RAW shape - the JPEGInterchange
      * Format pair (513/514) outside JPEG-compressed TIFFs (compression 6/7
@@ -1408,7 +1425,11 @@ ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
     std::vector<u8> rgba;
     if (!d.decode(t, rgba)) {
         out.truncated = !b.over;
-        return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
+        if (b.over)
+            return ThumbStatus::BudgetExceeded;
+        /* M-115: clean read, refused strips - the og's promote-on-read leg */
+        out.read_ok = !reader_gained_failures(fails_before, pr);
+        return ThumbStatus::DecodeFailed;
     }
     if (reader_gained_failures(fails_before, pr)) {
         out.truncated = false;
