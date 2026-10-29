@@ -12242,3 +12242,31 @@ e8dcaba8 per SA-9. Corroboration recorded here with this lane's deltas:
 
 **Next (T2):** this lane proceeds with the five Phase-0 read agents;
 before each push, fetch-and-check for the racing window's landings.
+
+---
+
+## Session-85 S85 fix-lane — entry 0: the pulled-red main found; N-220 filed; the repair conceded to the racing cd3479e7 (2026-10-30)
+
+**The lane opened at core `0cf6142d` (corpus `be0cfe9`) with main RED in a new
+shape:** not markers, not a build break — a *semantic* clobber. The S-068
+arbitration's concession commit `9b4a9302` pushed the CONCEDING lane's
+implementation (the re-base gated on `last_good_first > 0x310000`) over the
+landing `ad1bcb9e` it had just conceded to, while its own commit message
+claimed "No code change rides this commit." The full ctest at the pulled
+head: 2 failures (`FatEngine.DeletedHigh16ZeroRebasesFromHint`,
+`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks`) — the re-base machinery
+silently disabled for every volume with hint < 0x310000 clusters.
+
+**Corpus re-verified FIRST-HAND** (FATSearchDLL_decompiled.c): TWO sites —
+the PRIMARY pre-walk re-base at :14752-14756 (three gates, NO big-volume
+gate) and the separate 0xE5 second-chance retry at :14826-14848 (the
+0x310000 gate, firing only after a first-walk FAILURE). The two racing lanes
+had each decoded a different site; the landing modeled the primary. This
+lane's repair (the `> 0x310000` conjunct removed, refinements kept) made the
+tree green first-hand (FAT 92/92, full 1657/1657), but the racing
+`cd3479e7` byte-restore of the landing landed first — the seat conceded per
+SA-9 (this lane's variant's hint-update position was a semantic delta from
+the landing's closer decode of :13757-13758). **N-220 filed** with the
+two-site decode and the class lesson: this shape passes the marker lint AND
+`-Werror` — only the full ctest catches a semantic clobber, so the
+pulled-red protocol starts with ctest, not the build.
