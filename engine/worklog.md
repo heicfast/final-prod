@@ -10081,6 +10081,7 @@ time.**
 
 ---
 
+
 ## Session-74 S74 (2026-10-29 — the thirteenth continuation fix lane; MAJOR-first per the user mandate)
 
 **Lane open.** The racing S72/S73 fix lane holds the front of the MAJOR queue
@@ -10102,3 +10103,37 @@ SEVERE · 16 MAJOR · 11 MINOR · 0 INFO active / 157 FIXED / 4 tracked-open
 two-repo grant boundary — PUSHED-FORWARD, not fixable in core this session).
 Fixable set: 13 MAJOR + 9 MINOR + 4 tracked-open. Next free IDs: S-068+,
 M-149+, N-211+, I-048+, A-016+, D-149+.
+
+---
+
+## Session-75 S75 lane — the diff-to-fix execution lane opens (2026-10-29)
+
+**Lane open record:** prompt saved (token redacted) at
+`worklog/session-diff-fix-s75-prompt.md` (re-homed s70->s75 per SA-9: the
+racing windows took the S70 audit seat, the S71/S72/S73 fix seats, and
+the S74 fix seat before this lane pushed). The user's fix mandate
+("priority to major first", 20+ fixes, one finding / one verified fix /
+one push). Opening HEAD `3799dee2`; this lane's worklog commit rebased
+onto the moved tree (the S72 lane's M-144 landing + the S74 lane's open
+record absorbed — M-144 conceded to the racing lane, convergent with
+this lane's own first-hand corpus verification of FUN_1800047c0's
+uncapped allocation). Corpus `be0cfe9` throughout. Audited-commit pins
+carried per finding — every finding re-verified against the corpus and
+the current tree before any change.
+
+**Board re-counted first-hand from the filesystem after the rebase:**
+0 ACUTE · 0 SEVERE · 16 MAJOR · 11 MINOR · 0 INFO active / 157 FIXED /
+4 tracked-open (M-086/M-087/M-089 + N-107/N-127 driver-repo-resident
+per OQ-S10-3's two-repo grant boundary — counted active-open, not
+fixable in core; 13 MAJOR + 9 MINOR in-scope).
+
+**Lane plan (MAJOR-first per the user's directive, collision-aware — the
+deep-implementation tail of the MAJOR board vs the racing S72/S74 lanes'
+announced queues, conceding any seat a racing lane lands first):**
+M-118 (lostpart register channel) → M-113 (recovered-OS boot surgery) →
+M-105 (DRWService install lifecycle) → M-111 (Explorer partition browse)
+→ M-114 (System-Restore purge decision) → M-107's per-format size-walk
+decode-then-land order → the 9 in-scope MINORs in reverse board order
+(N-201, N-200, N-182, N-181, N-178, N-145, N-144, N-140, N-131).
+Baseline suite green before the first change; every fix RED-proven
+pre-fix and GREEN post-fix.
