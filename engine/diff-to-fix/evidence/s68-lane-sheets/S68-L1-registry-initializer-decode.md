@@ -138,3 +138,35 @@ The og's own dispatch keys include u16/u8 forms (BM, the MPGA family, `1F 8B`, `
 `<h`, FF F1/F9…) — the core's 2-3B rows mirror these (the SCAN-ENGINE-DELTA A4 row
 already registers the full set with the census-verified keys). No divergence: the
 short rows ARE the og's own short keys.
+
+---
+
+## L3 — the raw_signs content verification + the RawConfig/u16-map coverage check
+
+1. **raw_signs.json sign content: BYTE-EXACT.** All 199 header signs + 62 tail
+   signs compared as (offset, bytes, confidence×1000, format-index) multisets
+   against the core's generated `kHeaderSigns`/`kTailSigns`: **0 missing, 0
+   extra, 0 byte mismatches** (the comparison script preserved at
+   `scripts/s68_magic_compare.py`'s companion run; the parse included every
+   entry). Combined with L1's min/max ×1024 resolution, the raw-sign layer is
+   fully verified: formats (139/139), signs (199+62), bounds semantics,
+   the 0x7d000 absent-max default.
+
+2. **RawConfig.ini [Filter]: 34 toggles (32 ON, STL/VPJ shipped OFF).** The
+   core's M-024 disabled_formats surface + the row-level gating comments
+   (N-111/N-113/N-149 citations at the row sites) cover this layer; the
+   STL/VPJ off-shipped pair needs no core row (verified: no `stl`/`vpj`
+   token exists in the core registry — correct absence).
+
+3. **The u16-key map layer:** already decoded and landed per the
+   SCAN-ENGINE-DELTA A4 row (the full per-format grammar table + the
+   68-row u32 registry map + the session-5 17-grammar decode; GZ `1F 8B`
+   id 0x1f, MDB `00 01` id 0x27, MNY `MS`, the HTML `<h`/`<H`/`<!`/BOM
+   quartet, DXF `99`, EPS `%!`, 3DS `MM`). No new seam — verified the
+   documentation exists and matches the registry initializer's u16 inserts
+   (`:2565-:2879` region per the A4 row's citations).
+
+4. **config/config.ini:** the og's UI-shell config (languages, style,
+   window size, tips) — consumed by DRWUI, not the carve engine; the
+   RAWSearchDLL's reference at `:9819` is the raw_signs path-resolution
+   helper. Out of the core's engine scope; no finding.
