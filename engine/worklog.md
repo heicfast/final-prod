@@ -1,5 +1,4 @@
 
-<<<<<<< HEAD
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
 - **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
@@ -71,7 +70,7 @@
   CR_SANITIZER_LANE define on the ubsan preset + ci-local's tsan lane, so
   detector-slowed lanes can scope timing-sensitive assertions honestly
   (the pattern this lane's withdrawn test pioneered).
-=======
+
 ## Session-84 S84 lane — M-107's DWG member landed (member 3 of 11; 2026-10-29/30)
 
 **The three-generation DWG walk decoded first-hand from the raw asm**
@@ -100,7 +99,6 @@ tests RED at the stand-in tree, GREEN with the walk; DwgR2007StandsIn
 Bounded pins the remainder; the S-007 batch's plant re-pinned to the
 walkable shape). The carve suite 279/279. Trail: M-107's S84 addendum 3,
 the matrix row, modules/carve.md's S84 addendum 3, this entry.
->>>>>>> 0508c013 (fix(carve): M-107's DWG member — the three-generation size walk replaces the blind 64 MiB stand-in (member 3 of 11, the finding's decode-then-land order))
 
 ## Session-84 S84 lane (the third convergent lane) — the audit-trail restoration's record (2026-10-29)
 
