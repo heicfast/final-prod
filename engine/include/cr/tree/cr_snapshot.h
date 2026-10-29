@@ -69,6 +69,11 @@ struct SnapNode {
     std::vector<u8> resident_data;
     u32 carve_format = 0;
     u32 carve_confidence = 0;
+    /* M-101: the two branch axes (captured from props; the Versions id
+     * persists with the session, the tags flag is the runtime datum a
+     * reloaded session re-derives through the host's preview pass) */
+    u64 version_group = 0;
+    bool tags_extracted = false;
     u8 sha128[16] = {0};
     bool hash_valid = false;
 };

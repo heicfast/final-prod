@@ -25,9 +25,9 @@
 #include <cstdio>
 
 typedef unsigned long DWORD;
+typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
-typedef unsigned long long ULONGLONG; /* N-225: cr_fsck.cpp's timeout math (SDK: 64-bit tick count) */
 typedef long LONG;
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
@@ -295,6 +295,17 @@ inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() {
     return 0;
 }
+/* M-075's chkdsk launcher (cr_fsck.cpp): the WoW64 file-system
+ * redirection pair - BOOL-returning no-ops on the stub lane (the native
+ * signatures take PVOID* / PVOID). */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return TRUE;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return TRUE;
+}
 inline DWORD GetTickCount() {
     return 0;
 }
@@ -306,7 +317,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t)-1)
+#define _TRUNCATE ((size_t) - 1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -412,20 +423,6 @@ struct PROCESS_INFORMATION {
 inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECURITY_ATTRIBUTES*,
                            BOOL, DWORD, void*, const wchar_t*, STARTUPINFOW*,
                            PROCESS_INFORMATION*) {
-    return 1;
-}
-/* ---- Wow64 file-system redirection (N-225: cr_fsck.cpp's native-System32 launch) ----
- * SDK shapes: BOOL Wow64DisableWow64FsRedirection(PVOID* OldValue);
- *             BOOL Wow64RevertWow64FsRedirection(PVOID OldValue);
- * Present since Windows XP on x64; no-op (returns FALSE) when the process
- * is not 32-bit-on-64-bit, which the stub models as always-succeeding for
- * the parse gate's purposes. Declaration-only, not for linking. */
-inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
-    if (old_value)
-        *old_value = nullptr;
-    return 1;
-}
-inline BOOL Wow64RevertWow64FsRedirection(void*) {
     return 1;
 }
 inline DWORD WaitForSingleObject(HANDLE, DWORD) {

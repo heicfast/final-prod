@@ -1,3 +1,127 @@
+# SUMMARY.md — executive summary (the S90 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-90 S90 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to major first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes"]; opened at core `ddab68b4` (clean clone — RED at open on two counts: the worklog markers and win_syntax_check), corpus `be0cfe9` throughout; re-homed S88 → S90 at the merge per SA-9 [the racing windows took S68-S89]; prompt saved token-redacted at worklog/session-diff-fix-s90-prompt.md)
+
+- **N-227 FIXED (MINOR, NEW — the red-at-open repair #1):** the
+  ddab68b4 push committed its rebase conflict into worklog.md:2-103
+  (the S87 N-181 concession entry vs the S84 DWG-member-3 record) —
+  the SIXTH M-120/N-210-class recurrence, this lane's first find at
+  the clean-clone open. Repaired both-sides-kept; repo-wide marker
+  sweep clean; doc_truth_gate green. (Born N-224 locally; renumbered
+  to N-227 at the merge — the racing window's N-224/N-225 seats stand.)
+- **The M-075 stub-gap repair — the convergent twin, conceded per
+  SA-9:** RED first-hand at the open (win_syntax_check FAIL — the
+  cr_fsck.cpp Wow64 pair + ULONGLONG never declared in the win-stub,
+  every tree since d10ae333 red). This lane grew the identical
+  SDK-faithful stub surface and re-verified the FULL suite 1679/1679
+  (the first fully-green count since the M-075 push) — then discovered
+  at the push that the racing window had landed the same fix through
+  THREE convergent lanes (their N-224/N-225) plus the triple-definition
+  collision repair. The local filing retired as the FOURTH convergent
+  instance (FIXED/N-224's convergence addendum 2); the merge deduped
+  the auto-merged duplicate blocks (one definition set, re-verified
+  13/13).
+- **M-107's WPD member — CONCEDED to the racing window's convergent
+  landing per SA-9, with riders landed:** this lane's independent
+  raw-asm decode (evidence/s90-lane-sheets/s90-l1-wpd-version-table-decode.md)
+  — the three-pair version table at (+8,+0xe), extent = u32@0x14
+  verbatim, the zero-size decline, the census's 0x90001/0x9ac6cdd7
+  grouping corrected to the WMF node with S-042 re-verified
+  byte-for-byte — converged with the racing S84 landing; their push
+  keeps the seat. Riders kept: WpdZeroSizeFieldDeclines +
+  WpdZeroProductWordWithGoodPairCarves (the two directions the racing
+  battery lacks) + the evidence sheet with the WMF cross-validation.
+- **Merge state:** M-101 FIXED + M-107's DXF/EPS/AI members landed by
+  the racing window (absorbed at the merge, verified present);
+  full suite 1683/1683 at the merge head; doc_truth_gate green.
+
+**Board at this merge (filesystem truth): 0 ACUTE · 0 SEVERE · 5
+MAJOR · 3 MINOR · 0 INFO active / 209 FIXED / 4 tracked-open.** (The
+active MAJORs: M-086/M-087/M-089 driver-repo-resident per OQ-S10-3 —
+outside the two-repo grant; M-105 and M-107 in-scope — M-107's
+remaining members: SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder.
+The active MINORs: N-107/N-127 driver-repo-resident; N-227 FIXED-in-
+file, moved to FIXED/ at this merge. The in-scope fix queue: M-107's
+three members, M-105 (the DRWService decision + doc rows), OQ-S79-1
+(the $LogFile decode), OQ-S4-3, the OQ dispositions.) Next free IDs:
+S-091+, M-160+, N-228+, I-049+, A-017+, D-166+.
+
+---
+
+# SUMMARY.md — executive summary (the S89 MINOR-first fix lane (below); the prior lanes below, newest-first)
+
+## Session-89 S89 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session... fix all remaining ones"]; opened at core `7953c5e8` (the S88-close tree, fresh build + full suite 1685/1685 green first-hand at the open), corpus `be0cfe9` throughout; prompt archived token-redacted at worklog/session-diff-fix-s89-prompt.md; every fix verified against the corpus before landing, one finding per push)
+
+- **N-225 moved to findings/FIXED/ (fix #1 — the fixed-directory
+  directive):** the convergent win-stub collision's Resolution was FIXED at
+  the S87 merge (`322dbdc0` → one definition set) but the file sat in
+  MINOR/. Re-verified at the lane head: exactly one Wow64 pair + one
+  ULONGLONG typedef, win_syntax_check 13/13, suite 1685/1685; the file
+  moved, the ledger row added, the matrix Q68 stub-surface row extended.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 6
+MAJOR · 2 MINOR · 0 INFO active / 207 FIXED / 4 tracked-open.** (Of the
+active MAJORs, M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3
+— out of this grant's two-repo boundary; the 2 active MINORs,
+N-107/N-127, are the same driver-repo class. M-107 remains active for
+its SIX un-landed members — SIT, APE, EPS, AI, DXF, SWF-RECT — X3F,
+CRW, DWG, WPG, PSP, WPD landed as members 1-6. The in-scope fix queue:
+M-107's six members, M-101 (the Versions / Tags Extracted branches),
+M-105 (the DRWService lifecycle), OQ-S79-1 (the $LogFile decode),
+OQ-S4-3 (the Windows bench leg), the OQ-S10-1/OQ-S10-3 dispositions,
+plus the §8 discovered-findings protocol as the verification sweep
+runs.)
+Next free IDs: S-069+, M-160+, N-226+, I-049+, A-017+, D-166+.
+
+---
+
+# SUMMARY.md — executive summary (the S88 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-88 S88 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... update and put fixed findings in fixed directory... Aim for at least 20+ fixes in this session"]; opened at core `842a587e`, pulled through FOUR racing windows to the landing head `db468e29` (the windows landed N-181, M-154+M-111+M-114+I-048, M-107's CRW + DWG members, M-075, N-145, N-125's rider, the N-220/M-157 S-068 clobber repair, the N-223 trail sweep + D-seat repair — this lane's parallel repairs conceded per SA-9 on the marker sweep [the racing N-219/N-223], the substitution clobber [N-220], and the D-seat layout [their assignments stand]); the lane re-homed S84 → S88; corpus `be0cfe9` throughout; every dispute arbitrated by a fresh first-hand corpus read)
+
+- **M-159 FIXED (MAJOR, NEW — filed+fixed this session):** the S-068
+  machinery's complementary halves, decoded and landed on top of the
+  byte-restored seat: (1) the hint is the **WALKED END** (first + the
+  dentry's size-derived cluster count, :13722-27/:13754-56) — the landed
+  bare-first form re-bases into the WRONG 64K bank when the anchor's
+  declared size crosses a bank boundary; (2) the **failed-but-high arm**
+  (param_5 = the walk-success flag, DECODED where the landing's comment
+  said "undecoded") — a broken high anchor still feeds the hint; (3) the
+  **dispatcher's ATTR_DIRECTORY routing** (:13744-49) — the eager primary
+  is the FILE site (`!is_dir` added); **Site B implemented** (the
+  deleted-DIRECTORY raw-first retry under the 0x310000 gate, :14826-48 —
+  the N-220 finding's own "unmodeled sibling"), seam-exposed as
+  `dir_retry_rebase_cluster`. RED 3/4 first-hand via the revert-rebuild
+  (the two discriminators + the below-gate guard all FAIL against the
+  origin/main structure) → GREEN: FAT families 98/98, full suite
+  **1676/1676**.
+
+- **N-224 FIXED (MINOR, NEW — filed+fixed):** the M-075 landing's
+  cr_fsck.cpp broke win_syntax_check at origin/main (the WoW64 pair +
+  ULONGLONG never grown into the win-stub; six parse errors, first-hand)
+  — the stub grown per its own N-116 contract; the gate GREEN; the
+  launcher's logic untouched.
+
+- **N-223 moved to findings/FIXED/** (the fixed-directory directive —
+  its own Resolution was FIXED but the file sat in MINOR/).
+
+**Board after this landing (filesystem truth, recounted Session-84
+2026-10-30): 0 ACUTE · 0 SEVERE · 6 MAJOR · 3 MINOR · 0 INFO active /
+205 FIXED / 4 tracked-open.** (M-159 and N-224 were filed AND fixed —
+they land on the FIXED side directly; M-078 also landed FIXED since the
+prior board. Of the 6 active MAJORs, M-086/M-087/M-089 are
+driver-repo-resident per OQ-S10-3 — out of this grant's two-repo
+boundary; of the 3 active MINORs, N-107/N-127 are the same driver-repo
+class and N-225 is the win-stub triple-convergence record. M-107 remains
+active for its SEVEN un-landed members (WPG, WPD, SIT, APE, EPS, DXF,
+SWF-RECT — X3F, CRW, DWG, and PSP landed as members 1-4). The in-scope
+fix queue after this push: M-101 (the Versions / Tags Extracted
+branches), M-107's members, then M-105, then the tracked-open
+resolutions.)
+Next free IDs: S-069+, M-160+, N-225+, I-049+, A-017+, D-165+.
+
+---
+
 # SUMMARY.md — executive summary (the S86 MINOR-first 20+ fix lane on top; the prior lanes below, newest-first)
 
 ## Session-86 S86 lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes]; opened at core `e17a4e6d` [clean tree, ctest 1566/1566 green first-hand], corpus `be0cfe9` throughout; re-homed S79 → S86 per SA-9 [the racing windows took S68-S85]; prompt saved token-redacted at worklog/session-diff-fix-s86-prompt.md)
@@ -80,6 +204,17 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-101 FIXED (MAJOR, the two missing branches):** the Versions
+  node (the NTFS namespace-identity hash — two records for one
+  pathname = versions of one file, the torn-overwrite population;
+  persisted as nflags bit-14, queryable per-group and enumerable via
+  query::version_groups()) and Tags Extracted (the runtime flag the
+  host's preview pass stamps; NOT persisted — the og persists no tag
+  state either, the finding's own defer note). The three landed
+  branches regression-pinned unchanged. Honest trail note: the code
+  rode the gate-repair commit b7d05b12 through an add -A mishap; the
+  trail lands in its own commit.
+
 - **M-078 FIXED (MAJOR, the destructive consent twin):** the
   CBitlockerTurnOffOperation endpoint — `win::bitlocker::turn_off` (the
   dual Disable-BitLocker / manage-bde -off chain, unlock()'s own
@@ -112,8 +247,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after M-078 (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 6 MAJOR · 2 MINOR · 0 INFO active / 198 FIXED / 4
+**Board after M-101 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 5 MAJOR · 2 MINOR · 0 INFO active / 199 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3

@@ -21,10 +21,6 @@ inline u32 rd32(const u8* p) {
 inline u16 rd16(const u8* p) {
     return u16(u32(p[0]) | (u32(p[1]) << 8));
 }
-inline void wr16(u8* p, u16 x) {
-    p[0] = u8(x);
-    p[1] = u8(x >> 8);
-}
 inline void wr32(u8* p, u32 x) {
     for (int i = 0; i < 4; ++i)
         p[i] = u8(x >> (8 * i));

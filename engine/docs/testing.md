@@ -1,8 +1,8 @@
 # Testing
 
 ## Layer 1 - unit (every push, both platforms)
-1,404 `TEST`/`TEST_F` macros across `tests/unit/` (65 files, recounted
-2026-10-29 by the S56 lane — the number moves with every landing wave, so
+1,717 `TEST`/`TEST_F` macros across `tests/unit/` (72 files, recounted
+2026-10-30 by the Session-84 coherence lane — the number moves with every landing wave, so
 every session entry pins its own counts; the latest
 executed green counts: **1,003/1,003 release+ASan at the thumbnail landing
 (`05e6786`, 20 thumbnail tests included)** and 970/970 at the A-011/N-089

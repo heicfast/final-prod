@@ -333,6 +333,17 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
              FatScanStats& stats, storage::FreeMap* free_out = nullptr);
 
+/* M-159 (diff-to-fix): the og's deleted-DIRECTORY high-16 retry gate,
+ * seam-exposed for the test matrix (FUN_180014530 :14826-14848, decoded
+ * first-hand: the raw walk runs first; only on its failure does the
+ * re-based retry fire, and only under the big-volume gate
+ * `0x310000 < DAT_1800728c8`). Returns 0 = no retry (the hint is below
+ * the og's big-volume threshold); otherwise the re-based candidate
+ * `(hint & 0xFFFF0000) | raw` the caller must FAT-validate before
+ * adopting. No fixture can carry a >0x310000-cluster FAT at CI scale,
+ * so the gate's positive arm is pinned here rather than end-to-end. */
+u32 dir_retry_rebase_cluster(u32 raw_first, u64 last_good_hint);
+
 } // namespace fat
 } // namespace cr
 

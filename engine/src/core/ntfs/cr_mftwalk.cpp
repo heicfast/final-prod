@@ -654,6 +654,24 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             continue;
         }
 
+        /* M-101: the Versions-branch identity - FNV-1a 64 over the
+         * namespace-best link's (parent record, name). Deterministic per
+         * pathname: every record holding the same name in the same
+         * directory derives the SAME id at emission (no map, no second
+         * pass); the query layer's group enumeration surfaces the
+         * multi-member sets (the og's Versions node population). */
+        auto version_group_id = [](u64 parent, const std::u16string& name) -> u64 {
+            u64 h = 0xCBF29CE484222325ull;
+            const u8* pb = reinterpret_cast<const u8*>(&parent);
+            for (size_t i = 0; i < sizeof(parent); ++i)
+                h = (h ^ u64(pb[i])) * 0x100000001B3ull;
+            for (char16_t c : name) {
+                h = (h ^ u64(u8(c & 0xFF))) * 0x100000001B3ull;
+                h = (h ^ u64(u8((c >> 8) & 0xFF))) * 0x100000001B3ull;
+            }
+            return h ? h : 1ull; /* 0 = not-a-member; FNV never yields 0, belt+braces */
+        };
+
         /* pick the best-namespace name; collect distinct parents (hard links) */
         const FileNameInfo* best = &names[0];
         for (const FileNameInfo& n : names)
@@ -906,6 +924,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = u32(FsKindCode::Ntfs); /* corpus factory code */
         props->name = best->name;
+        /* M-101: the namespace-identity hash (the Versions-branch axis;
+         * the comment at the helper above - same parent + same name
+         * across records = versions of one file). */
+        props->version_group = version_group_id(best->parent_record, best->name);
         /* N-011a: capture a distinct DOS-namespace $FILE_NAME as the 8.3
          * short name (the og's props short-name field). Only when a
          * SEPARATE DOS name exists - a single WIN32_AND_DOS name is the
