@@ -10777,9 +10777,9 @@ TEST(Carve, SitEntryMarkerWalkSetsExtent) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              u32(OK));
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     ASSERT_EQ(all.size(), 1u);
@@ -10839,9 +10839,9 @@ TEST(Carve, SitNewHeaderAtSectorBoundaryEndsTheWalk) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              u32(OK));
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     ASSERT_EQ(all.size(), 2u);
@@ -10872,9 +10872,9 @@ TEST(Carve, SitCorruptEntryTerminalStampsTheSectorStart) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              u32(OK));
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     ASSERT_EQ(all.size(), 1u);
@@ -10917,9 +10917,9 @@ TEST(Carve, SitClassicSpaceFormKeepsTheRegisteredStandIn) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              u32(OK));
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     ASSERT_EQ(all.size(), 1u);
