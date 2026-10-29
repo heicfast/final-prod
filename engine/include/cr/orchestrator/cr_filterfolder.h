@@ -69,6 +69,30 @@ extern const u32 kFatNameCount;
  * files - and the og's list is name-keyed, not kind-keyed). */
 bool is_junk_name(const std::u16string& name, bool is_dir);
 
+/* N-216 (the og's per-file size cap, the version.ini `MaxFileSize ` key):
+ * the og reads the key from config/version.ini group [ver] (GiB units,
+ * default 0x400 = 1024 -> 1 TiB; the shipped ini carries NO key, so the
+ * default governs) into two config objects (DRWUI:337923-337925 the
+ * directory-tree ctor; :749901-749903 the scan-task config - both read
+ * first-hand). The consumer, decoded at DRWUI:750172-175 (the
+ * tree-builder beside the FilterFolder name gate): a node whose size
+ * exceeds the cap is HIDDEN from the results tree (the same
+ * FUN_140088f40(param_2,0) visibility clear the junk-name path uses; a
+ * negative size hides too - the u64 translation of that half is the
+ * > cap compare alone). The default cap doubles as the og's
+ * corrupt-size guard: a torn metadata size claiming petabytes does not
+ * flood the tree. Configurability: hosts override via
+ * set_max_file_size() (the og's per-host tunable surface); 0 disables
+ * the predicate (no og behavior corresponds to 0 - the og's default
+ * floor is 1 GiB minimum via the << 0x1e shift; 0 is the core's explicit
+ * off, documented in PARITY-DELTAS). */
+u64 max_file_size();
+void set_max_file_size(u64 bytes);
+
+/* Does this node's size exceed the cap? (N-216's predicate, exposed for
+ * the query/CLI surfaces that filter without a full tree pass.) */
+bool size_exceeds_cap(u64 logical_size);
+
 /* Mark every matching node under every root of `tree` with
  * NODE_FLAG_JUNK_FILTERED (idempotent; hard links share props so a
  * shared name marks once). Returns the number of nodes flagged this

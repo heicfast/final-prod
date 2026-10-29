@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/orchestrator/cr_filterfolder.h"
+#include "cr/cr_text.h"
 #include "cr/query/cr_query.h"
 #include "cr/cr_errmod.h"
 #include "cr/recovery/cr_safewriter.h"
@@ -11,6 +12,7 @@
 #include "test_tmpdir.hpp"
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -3323,4 +3325,65 @@ TEST(Orchestrator, LdmMemberResolversConstructThroughBuildReadPipe) {
     /* the session-side arm (d28244df) also pipes - one shape everywhere */
     EXPECT_NE(std::string::npos, ui.find("ldm_pipes.push_back("))
         << "the session-side LDM arm keeps its member pipes";
+}
+
+/* ---- N-216: the og's MaxFileSize cap (version.ini `[ver]` "MaxFileSize ",
+ * GiB units, default 0x400 -> 1 TiB; consumer DRWUI:750172-175: the
+ * tree-builder hides nodes whose size exceeds the cap, beside the
+ * junk-name gate) ---- */
+
+TEST(FilterFolder, MaxFileSizeDefaultIsOneTebibyte) {
+    /* the og's shipped posture: version.ini carries no key, the 0x400
+     * default applies, 1024 << 0x1e = 1 TiB (DRWUI:337923-337925 read
+     * first-hand: param_1[0xc] = value << 0x1e) */
+    EXPECT_EQ(filterfolder::max_file_size(), (u64(0x400) << 30));
+}
+
+TEST(FilterFolder, SizeCapHidesOversizeNode) {
+    /* a node whose size exceeds the cap flags as junk-filtered - the
+     * og's tree-builder visibility clear (FUN_140088f40(param_2,0) at
+     * DRWUI:750172-175, the same hide the name gate uses). A 2 TiB
+     * "file" (the torn-metadata shape the cap guards) flags; the exact
+     * cap boundary does NOT (the og's compare is cap < size, strict). */
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    auto add_file = [&](const char* name, u64 size) {
+        tree::FileProperties* pr = new tree::FileProperties();
+        pr->name = text::utf8_to_u16_lossless(name);
+        pr->logical_size = size;
+        pr->attributes = 0x20;
+        return tree.add_file(root, pr);
+    };
+    add_file("huge.bin", (u64(2) << 40));          /* 2 TiB > the 1 TiB cap */
+    add_file("boundary.bin", (u64(0x400) << 30));  /* exactly the cap: stays */
+    add_file("normal.bin", 4096);
+    const u64 flagged = filterfolder::apply(tree);
+    EXPECT_EQ(flagged, 1u);
+    tree::FileNode* huge = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "huge.bin")
+                huge = c;
+            find(c);
+        }
+    };
+    find(root);
+    ASSERT_NE(huge, nullptr);
+    EXPECT_NE(huge->props()->flags & tree::NODE_FLAG_JUNK_FILTERED, 0)
+        << "the oversize node hides (the og's tree-builder cap)";
+}
+
+TEST(FilterFolder, SizeCapHostOverrideRoundTrip) {
+    /* the og's per-host tunable (version.ini [ver] MaxFileSize, GiB
+     * units): the host sets the cap; 0 disables the predicate (the
+     * core's explicit off - the og has no 0 semantics, registered in
+     * PARITY-DELTAS) */
+    filterfolder::set_max_file_size(u64(2) << 30); /* 2 GiB */
+    EXPECT_TRUE(filterfolder::size_exceeds_cap((u64(3) << 30)));
+    EXPECT_FALSE(filterfolder::size_exceeds_cap(u64(1) << 30));
+    filterfolder::set_max_file_size(0);
+    EXPECT_FALSE(filterfolder::size_exceeds_cap(~u64(0)))
+        << "0 = the predicate off (no node hides on size)";
+    /* restore the default for the other tests */
+    filterfolder::set_max_file_size(u64(0x400) << 30);
 }

@@ -4174,6 +4174,27 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   documentation must stop describing the og's .dat pair as a persistent
   knowledge base (it is one process-generation old at most).
 
+### D-150 — the MaxFileSize cap's explicit OFF: set_max_file_size(0) disables the size predicate (N-216 registration, REGISTERED DELIBERATE DIVERGENCE — the off-switch the og lacks)
+
+- **WHAT OG DOES:** reads `MaxFileSize ` from config/version.ini `[ver]`
+  (GiB units, default 0x400 = 1 TiB; the shipped ini carries no key) and
+  hides tree nodes whose size exceeds the cap at the tree-builder beside
+  the FilterFolder name gate (DRWUI:750172-175). There is no 0/off
+  semantics: the value shifts left 30 bits, so 0 caps at 0 (and a 0 cap
+  would hide every node — the og's own footgun, unreachable through the
+  shipped default).
+- **WHAT WE DO:** `filterfolder::max_file_size()` defaults to the og's
+  1 TiB (byte-parity on the only og-executable path); hosts override via
+  `set_max_file_size(bytes)`; **0 is the core's explicit OFF** —
+  `size_exceeds_cap()` returns false unconditionally, no node hides.
+- **WHY DELIBERATE:** a host that wants no size-based hiding should be
+  able to say so without the og's 0-shift footgun (0 << 30 = 0 = hide
+  everything). The off-switch is host-facing only; the engine default
+  path never exercises it.
+- **EVIDENCE:** the consumer decode (DRWUI:750172-175, first-hand this
+  session); `FilterFolder.SizeCapHostOverrideRoundTrip` pins both the
+  override and the OFF semantics.
+
 ### D-147 — the image-CREATE producer: flat raw only, no VHD/VHDX writers (S-040 registration, REGISTERED SCOPE EXCLUSION - the R-93 plan-of-record's own boundary; renumbered D-143→D-147 at the S64 seat repair: the S60-B window's N-196 registration took the D-143 seat first per SA-9)
 
 - **WHAT OG DOES:** ships a home-page "Create Image" flow
