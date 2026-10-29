@@ -66,3 +66,58 @@ error-code matches eliminated, not suppressed). The remaining drift risk is
 structural — racing lanes appending finding files without unique-ID allocation —
 and is gated (the doc_truth_gate's collision checks, now proven to catch the class
 three times in one window: N-219, D-163, N-223).
+
+---
+
+# Session-84 coherence-lane addendum (the second doc-audit, merged onto the racing lane's base above)
+
+The lane above landed its own doc audit; this addendum carries THIS
+coherence lane's full reconciliation (different correction set, twin
+landings noted where the racing windows converged on the same drift).
+The complete per-doc evidence lives in this lane's
+`worklog/{doc-inventory,api-cli-mismatches,api-findings}.md`.
+
+## Corrected by this lane (commit-cited)
+
+| Doc | Was | Now | Commit |
+|---|---|---|---|
+| docs/ABI-CONTRACT.md:506 | `rrecov --list-carve-formats` (leading-dash typo) | the dispatch form | `65e0e2bd` |
+| docs/ABI-CONTRACT.md §6 | cr_ui_event copy missing `autosave_rc` (cr_ui.h:271; the doc's own :257/:629 describe it) | field added | `65e0e2bd` |
+| include/cr/cr_ui.h:1021 | ERR_NOT_FOUND (nonexistent enum member) | ERR_RANGE_OUT_OF_BOUNDS 0x50020004 (the pinned code) | `65e0e2bd` |
+| docs/BUILD-SUPPRESSIONS.md:7 | "ZERO entries" above the S-1 row | one-entry truth | `25cdae33` |
+| docs/error-fix-registry.md F13 | "no decryption code at all" (pre-M-033) | the landed FVEK/XTS surface per D-75 | `25cdae33` |
+| docs/architecture.md:48 | "no OS headers" (contradicted by cr_lastscan.cpp:12, the ONLY windows.h in core) | the guarded exception named | `25cdae33` |
+| docs/CI-CURRENT.md:54/:153 | phantom gen_fat16_junk_fixture.py / fat16-junk.img | the real gen_junk_gate_fixture.py / junk-gate-fat16.raw | `c6fb5299` |
+| CONTRIBUTING.md CI section | the deleted pre-consolidation CI as current fact | the live 4-lane windows-2022 inventory | `c6fb5299` |
+| docs/CI-LOCAL.md:46 | "zero rows" echo | one-row (S-1) truth | `c6fb5299` |
+| docs/PARAMETERS.md | scan --part (fix-only), dead --no-rda, phantom `undo` verb, 4 missing verbs, 5 missing scan flags, fix --chkdsk | all corrected (twin-landed with the racing lane's D-1/D-2 on --part/--no-rda) | `cb03b543` |
+| docs/API.md verb table | 11 of 13 verbs | archive-list + image rows | `cb03b543` |
+| README.md:118 + CAPABILITY-MATRIX.md:33 | XPRESS/LZX tagged "GAP-P1-1 remaining" (the gap is CLOSED for LZNT1) | shared-limitation framing + closure cite | `cb03b543` |
+| src/app/rrecov.cpp -h block | 20 of 27 scan flags listed | all listed, pinned by CrUi.CliHelpListsEveryScanFlag | `cb03b543` |
+| src/app/rrecov.cpp:2092 | `rrecov resume` hint (nonexistent verb) | `rrecov scan --resume` + pin | `d796f9df` |
+| src/app/rrecov.cpp cmd_image | `--create` never parsed (5-site surface's missing parser site) | wired + pin | `32441353` |
+| src/core/carve/cr_analysers.cpp:5266 | "DWG-pattern stand-in stands in" (contradicting the M-107 block below it) | corrected | `8b2971f5` |
+| tools/doc_truth_gate.py | error census counted comment literals (45 vs the enum's 43) | enum-member census | `7a6f6bb3` |
+| .github/scripts/Run-Benchmark.ps1:152/:402 | $profile ValidateSet collision | $seedProfile | `8daf75dc` |
+| .github/scripts/Run-Benchmark.ps1 carve parity | array -match never populates $Matches | -join scalar | `8daf75dc` |
+| docs/CORE-API-CURRENT.md:18/:43 | 45+OK (regex artifact) | 43+OK | `7a6f6bb3` |
+
+## Verified accurate (checked, left)
+
+CORE-GAP-LIST (GAP-P1-1 closure vs kLznt1 code), DRIVER-REQUIRED /
+PLAN-API-EXPANSION / CI-SCENARIOS / REFERENCE-API-GAP (all became TRUE
+with the --create parser wiring), the .clang-format/CMake warning-policy
+claims (0-warning build first-hand), API-SURFACE-AUDIT's refreshed
+counts (M-075 lane), CI-LOCAL's M-088 CI-shape note.
+
+## Filed as code regressions found via docs (not fixed — behavior)
+
+F2 enumerate_volumes rc dropped (rrecov.cpp:819) · F3 the N-145
+every-startup journal probe absent (3 doc/trail sites claim it) · F4 the
+fuzz-campaign drift · F5 the pointer-absence error-code family question ·
+F7 the gate's D-row regex blind to ##-level rows. Full evidence:
+`worklog/api-findings.md`.
+
+## Deleted
+
+None — every stale claim found was correctable in place.
