@@ -319,3 +319,24 @@ the API Benchmark workflow (or `run-alignbench.ps1 -Target '\\.\C:'
 chunk_strategy_ratios verdict + the comparative-bench scan-level
 time-to-first-result into this file, M-030's Resolution addendum, and
 SUMMARY's performance section. No new engineering owed on either half.
+
+## Session-93 disposition note (2026-10-30 — the TTFR execution DISPATCHED; the run in flight at handoff)
+
+The remaining half's exact next step was executed this session: the
+Test & Benchmark workflow was dispatched via the API (204 accepted;
+the run rode the newest main `afc52cbb`, **run 40956286997**, profile
+smoke, modes quick,deep,deepcarve — the dispatch inputs the lane's
+`Run-Benchmark.ps1` harness consumes, the same lane whose `--log
+stage-<mode>.log` wiring carries the `ttfr_ms=` probe lines). At this
+lane's handoff the run is IN PROGRESS (the Windows MSVC build stage
+passed the lint+parse gates; the lint+parse checks completed SUCCESS
+at the head). The single remaining step for the next lane: read the
+run's 07-performance artifacts (the clean-benchmark JSON's
+`$cleanPerf.scans[]` + the printed TTFR lines) and transcribe
+`ttfr_ms` / `ttfr_first_files` into this file + M-030's Resolution
+addendum + SUMMARY's performance section. The og-side TTFR comparison
+then needs the new first-found probe in bench/og/og-driver.ps1 (its
+Wait-OgRsf samples only t_ms/working_set/cpu — no first-found capture
+exists) or an owner's scoped-closure decision, exactly as the S11
+addendum recorded. The transport-chunking half stays
+MEASURED-and-closed (run 40315255368's verdict above).
