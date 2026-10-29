@@ -2748,6 +2748,24 @@ TEST(NtfsVolume, BootCprZeroWithValidPrimaryDoesNotConsultBackup)
     EXPECT_EQ(vol->params().record_size, 1024u);
 }
 
+TEST(NtfsVolume, BootRecordShiftFormDecodesAt1024) {
+    /* M-147 convergence addendum (session-60 MAJOR-first lane): the
+     * positive shift-form control the family landing's rejection tests
+     * (-30/-1) leave unpinned — cpr = -10 decodes 1 << 10 = 1024 bytes
+     * (the og getter's `1 << (~bVar1 + 1 & 0x1f)` produces the same
+     * 1024), so the shift acceptance path and the new zero-default path
+     * coexist at the same stride. The volume opens and record 0 reads at
+     * the decoded stride. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, -10);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(nullptr, vol) << "shift form must still decode; got err " << err_text(err);
+    EXPECT_EQ(1024u, vol->params().record_size);
+}
+
 TEST(NtfsVolume, BootNegativeExponentOverflowRejected) {
     /* N-011b: cpr = -30 decodes past the P1-4 shift-UB guard (exponent
      * cap 20 -> 1 MiB, registered core hardening - the og would compute a

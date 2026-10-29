@@ -9284,7 +9284,6 @@ comments in cr_analysers.cpp, the test comments, the SUMMARY block). The gate no
 green locally: 53 active, 132 retired, 386 ledger-resolved, zero collisions, 135
 unique D-rows.
 
-
 ## Session-60 lane open + N-192 landed (2026-10-29)
 
 **Lane open.** The MINOR-first diff-to-fix execution lane (the user's
@@ -9567,3 +9566,30 @@ behavior change. Ext4Engine 44/44. Board truth re-counted at this push: 35
 active (1 S / 20 M / 14 N), the MAJOR count absorbing the parallel window's
 M-141/M-145/M-147. Trail: findings/FIXED/N-202 + Resolution, ledger row,
 matrix MATCH, SUMMARY, this entry.
+
+---
+
+## Session-60 lane — M-147 landed (the NTFS cpr/cib zero defaults) (2026-10-29)
+
+**M-147 FIXED (MAJOR — the zeroed +0x40/+0x44 BPB byte refused the whole
+volume where every og scan-path layer DEFAULTS).** Classification:
+CONFIRMED-DIVERGENCE — all four og default sites re-read first-hand
+(analyser FUN_180004830 :3427-3440 `if (bVar1 == 0) return 0x400;` +
+FUN_180004870 `return 0x1000;`, NTFSSearchDLL FUN_18003f630 :51055+,
+PartitionRecoveryD FUN_180011a10 :10231 / FUN_180011a90 :10254 — verbatim
+matches of the finding's quotes). The landing: `record_size_from_dbr`
+takes the 1024-byte zero default (the four-site scan-path contract), the
+new `index_block_size_from_dbr` twin decodes the +0x44 getter semantics
+(shift / 4096 zero default / product) into the new
+`VolumeParams::index_block_size` (the M-146 dispatch shape gates' data
+source), and `validate_boot_sector` drops both zero-byte refusals while
+keeping the registered hardening (P1-4 exponent cap, sub-sector-record
+rejection). The retired D-52 pin `BootRecordSizeZeroRejected` is re-pinned
+as `BootRecordSizeZeroDefaultsTo1024` / `BootIndexBlockZeroDefaultsTo4096` /
+`BootRecordShiftFormStillDecodesAlongsideZeroDefault` — RED proven by the
+revert-mutation rebuild (both default tests FAILED with the defaults
+reverted, GREEN with them landed); NTFS family 158/158; doc_truth_gate green
+(51 active, 134 retired). D-52's WHAT-OG-DOES premise corrected in
+PARITY-DELTAS (the NTFSLib :19322/:19331 "rejection" was a store-guard
+misread — both paths share the fall-through exit). Trail:
+findings/FIXED/M-147 + ledger row + D-52 correction + this entry.
