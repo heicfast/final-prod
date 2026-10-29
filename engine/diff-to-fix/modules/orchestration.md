@@ -354,7 +354,7 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 
 New active findings touching this module: **M-146** (probe_family's NTFS gate
 family mismatch — the dispatch layer's gate set re-derived from the analyser),
-**N-199** (the ReFS second signature FSRS@+0x10 absent in probe_family),
+**N-199 — FIXED (S60 lane)** (the ReFS second signature FSRS@+0x10 landed in probe_family — both compares, Refs.RecognitionRequiresFsrsMarker),
 **N-194** (the size display formatters absent — the query surface). Verified-MATCH
 this session (the state-management axis, the user's focus battery): the scan
 lifecycle states and every transition writer re-walked against cr_scan's

@@ -903,9 +903,13 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         /* content proof failed: fall through (the FAT gates underneath
          * decide - the og's multi-analyser outcome) */
     }
-    /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
-     * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
-    if (std::memcmp(sec + 3, "ReFS", 4) == 0)
+    /* ReFS: the og's classifier gates on BOTH boot signatures — the
+     * "ReFS" OEM at +3 AND the "FSRS" marker at +0x10 (Partition's
+     * FUN_180003900 :1747-1759, both compares verbatim: 0x53466552 @+3,
+     * 0x53525346 @+0x10; the classification-time volume-length capture at
+     * +0x18 is cosmetic here — the engine re-reads it at open). A forged
+     * OEM alone falls through to the next family test. */
+    if (std::memcmp(sec + 3, "ReFS", 4) == 0 && std::memcmp(sec + 0x10, "FSRS", 4) == 0)
         return FsFamily::Refs;
     /* BitLocker: OEM "-FVE-FS-" (S-019; the og's type-0xB classifier gate,
      * PartitionRecoveryD_decompiled.c:2778-2785). Recognized explicitly so

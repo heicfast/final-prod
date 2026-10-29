@@ -6,9 +6,10 @@
 
 **Fixes landed this push:**
 
+- **N-199 FIXED (MINOR)** — probe_family's ReFS branch now gates on BOTH boot signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759 re-read first-hand): a forged OEM no longer dispatches the ReFS family. Test Refs.RecognitionRequiresFsrsMarker RED (forged-OEM fixture dispatched Refs) → GREEN; Refs family 41/41; lost/ldm/probe neighborhood 153/153.
 - **N-192 FIXED (MINOR)** — FileProperties::clone() now copies `short_name` (the og's whole-block clone contract, part1 slot +0x08): the hard-link fan-out's cloned links keep the 8.3 name at the walk, through the session roundtrip (nflags bit 2), and at the UI preview clone. Test NtfsVolume.HardLinkFanOutClonesKeepShortName RED (cloned link's short_name empty, both axes) → GREEN; family 71/71.
 
-**Board at this push:** 49 active — 1 SEVERE · 23 MAJOR · 23 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 137 files.
+**Board at this push:** 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 138 files.
 
 ---
 

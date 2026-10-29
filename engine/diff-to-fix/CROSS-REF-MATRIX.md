@@ -20,7 +20,7 @@
 | ntfs · walk-entry record-geometry gate (B1/A26/Q68) | **DIVERGENCE-MINOR** | **N-196** (renumbered from N-189 per SA-9) — the og refuses odd/>16-device-sector records (0x610016); the core scans — the accept-direction superset registered |
 | ntfs · spc shift-decode threshold (C20/Q68) | **DIVERGENCE-MINOR** | **N-197** (renumbered from N-190 per SA-9) — og-internal inconsistency (0xF0 vs 0x80/0x81 vs raw); the core picked one side unregistered |
 | exfat · boot-gate numeric bounds (B3/Q68) | **DIVERGENCE-MINOR** | **N-198** (renumbered from N-191 per SA-9) — core-only volume_length≥2048 / cluster_count≤0xFFFFFFF5 / fat_offset≥24; register the hardening stance |
-| orchestrator/refs · recognition second signature (B3/C19) | **DIVERGENCE-MINOR** | **N-199** (renumbered from N-192 per SA-9) — "FSRS"@+0x10 (Partition FUN_180003900 :1745-1759) absent in probe_family |
+| orchestrator/refs · recognition second signature (B3/C19) | **MATCH** | **N-199 — FIXED (S60 lane)**: probe_family's ReFS branch now gates on BOTH signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759); test Refs.RecognitionRequiresFsrsMarker RED->GREEN — findings/FIXED/N-199-refs-second-signature-fsrs-absent.md |
 | ext4 · superblock acceptance bands (B3/C20/Q68) | **DIVERGENCE-MINOR** | **N-193** — four band deltas consolidated (inode_size=0, log_bs 7..20, journal_inum gating, desc_size combos) |
 | query · size display formatters (B10/D13/Q68) | **DIVERGENCE-MINOR** | **N-194** — the og's two binary-tier formatters (log-side KB/MB/GB; UI-side B..TB) have no core counterpart |
 | bench · driver-verification IOCTL codes (Q65/C22) | **DIVERGENCE-MINOR** | **N-195** — the phantom-zero 0x60002440/48 vs the contract's 0x6002440/48 (cr_rda.h) |

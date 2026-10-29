@@ -55,3 +55,10 @@ Decompiled evidence, lead-verified first-hand (both compares quoted verbatim thi
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S60 lane's N-199 landing — the two-signature gate + the forged-OEM refusal pin; SHA in the worklog entry and the ledger row)
+**Verified by:** Refs.RecognitionRequiresFsrsMarker — RED pre-fix (the forged-OEM fixture dispatched FsFamily::Refs on the OEM memcmp alone), GREEN post-fix (Unknown without the marker, Refs with it); the full Refs family 41/41; the lost/ldm/probe neighborhood 153/153 (no dispatch-consumer regression).
+**Resolution notes:** Corpus re-verified first-hand before the change: FUN_180003900 at Partition_decompiled.c:1747-1759 — `*(int *)(param_2 + 3) == 0x53466552` AND `*(int *)(param_2 + 0x10) == 0x53525346`, the volume-length capture at +0x18 into +0x30 — exactly as filed. Core re-verified at the current tree: probe_family's ReFS branch carried the single `memcmp(sec + 3, "ReFS", 4)` (the audit's :834-835 cite drifted to :906-909 through the M-043/exFAT landings above it; the divergence stood). The fix: the branch now requires both signatures (the FSRS marker at +0x10 beside the OEM); the classification-time volume-length capture is declined as cosmetic (the engine re-reads it at open — the finding's own fix-plan note), no D-row needed for a sub-behavior the core surfaces identically through the engine's open. The M-146 same-function NTFS gate-family finding is untouched by this landing (different branch, stays active). The landing rides the same recognition-gates pass the finding's Related-findings note anticipated.
