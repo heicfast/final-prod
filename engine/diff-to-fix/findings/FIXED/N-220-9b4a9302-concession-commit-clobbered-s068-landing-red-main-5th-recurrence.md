@@ -62,3 +62,17 @@ corroboration record:
   semantic clobber that passes the marker lint AND `-Werror` — only the
   full test suite catches it. Trail commits must be diffstat-checked
   against their own messages before push.
+
+## Corroboration addendum (a third independent lane, same two-site decode)
+
+A convergent repair lane (rebasing over this window) independently reached
+the identical arbitration from a clean corpus read — the same two sites
+(:14752-14756 primary pre-walk re-base, three gates, no big-volume gate;
+:14826-14848 the 0x310000-gated second-chance retry leg, a different
+population), the same RED evidence (high16_rebased 0, the extent at the raw
+low cluster, fat_origin_cluster 291), and the same repair (the gate
+restored to the corpus-true primary form; the retry-leg shape recorded as
+the unmodeled sibling). Three independent lanes, one decode, one verdict —
+the arbitration is as settled as the corpus allows. The convergent lane's
+finding file was folded here per the no-duplication convention; its
+format-drift sweep of rrecov.cpp/cr_ui.cpp landed in the same window.

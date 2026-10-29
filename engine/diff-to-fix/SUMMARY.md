@@ -74,6 +74,44 @@ I-049+, A-017+, D-160+.
 
 ---
 
+## Session-84 S84 lane (this lane) — the audit-trail-restoration delta (2026-10-29)
+
+**The third convergent S84 lane's unique landings** (the code repair and
+the matrix marker sweep were conceded to the racing windows per SA-9 —
+`cd3479e7`/`eeddec57`'s N-220 for the code, `15c59ee7`'s N-219 sweep for
+the matrix markers; this lane's independently-derived two-site arbitration
+agrees with both: BOTH occurrences of `0x310000 < DAT_1800728c8` in
+FATSearchDLL_decompiled.c — :14834 + :30184 — are RETRY-leg gates; the
+:14754 pre-walk re-base carries no big-volume gate; the S82 open
+question 2 is closed by that arbitration):
+
+- **The S-068 finding file restored** from the `ad1bcb9e` tree — the
+  gutted S80 verification addendum + Resolution (the `9b4a9302` damage
+  had replaced them with text naming a `test_fat_high16.cpp` that never
+  existed on main) — plus the repair addendum closing the gate question.
+- **modules/fat.md's S80 landing addendum restored** (the damage had
+  replaced it with the wrong-gate variant note) + the repair note.
+- **The matrix's residual rollback rows re-landed**: the A-016 MATCH row
+  (deleted by the damage, absent from the N-219 sweep) and the N-145
+  stale DIVERGENCE row → MATCH (the S81 landing's recorded state).
+- **The nested marker blocks resolved in FIXED-LEDGER.md, I-048's
+  finding file, docs/PARITY-DELTAS.md, and worklog.md** (the
+  0fac15de/309f7af8/09a18f9f residue — the marker class's sixth
+  recurrence, five live blocks on main at this lane's open; the only
+  carrier left is M-120's sanctioned evidence quote).
+- **N-220's convergence addendum + the ledger row** (the racing filing
+  had no ledger row): the full rollback record — the permanent note that
+  `9b4a9302`'s "No code change rides this commit" claim cannot be
+  trusted for the diff it pushed (a 143-line code rewrite, a finding
+  gutting, a matrix rollback).
+
+RED→GREEN first-hand at this lane's repaired tree (before the racing
+windows were found): the two RED tests green, FAT family 94/94, full
+suite 1657/1657; the suite re-verified green after every rebase.
+
+
+---
+
 # SUMMARY.md — executive summary (the S79 MAJOR-first fix lane on top — the M-073 seat conceded to the racing window per SA-9 and re-verified; the prior lanes below, newest-first)
 
 ## Session-79 S79 fix-lane delta (2026-10-29 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `e17a4e6`, corpus `be0cfe9` throughout; baseline suite green re-run first-hand at the open [1484/1442/0]; this lane's own M-073 implementation was CONCEDED to the racing window's landing at the push rebase per SA-9 — the seat's `cr_folderfilter` landing verified first-hand instead, and the verification CAUGHT TWO REAL DEFECTS, filed + fixed this session)

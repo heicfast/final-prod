@@ -52,3 +52,23 @@ dispatch-coverage gate, then the N-107/N-127 prose sweeps, then M-086's
 version-stamping decision + the two-version coexistence drill on a Windows runner),
 each with fail-before/pass-after proof per the house SOPs. No core-side change owed by
 any of the five; no silent leave-behind — the boundary is the grant's own text.
+
+## Session-86 disposition note (2026-10-29 — the boundary re-affirmed a fifth time; both MINOR findings brought to the consistent PUSHED-FORWARD posture)
+
+The S86 lane's grant carries the identical two-repo text ("Two repositories are in
+scope and only two: core_recovery (modified) + easeus-drw-research (read-only)") —
+the five findings' fix surfaces (M-086/M-087/M-089/N-107/N-127) remain in
+heicfast/rda-driver and stay untouchable this session. Trail-consistency fix landed
+this session: N-107/N-127's status lines — which still carried the audit lane's
+"READ-ONLY FINDING — no fix applied" posture while the three MAJORs had been moved
+to "PUSHED-FORWARD (driver-repo-resident…)" — are now the same PUSHED-FORWARD
+posture with per-finding session disposition notes, so the board's five
+driver-resident items read uniformly and no future lane re-derives the boundary.
+Core-side halves re-verified at `b6801ade`: DRIVER-CONTRACT.md §4.4's "19
+recognized codes" + §4.2's 0x600244x wire-truth rows (N-107/M-089's core-side
+citations), the corpus's eprdtdrv-sys--driver-internals.md:75-90 no-ACL posture
+(N-127's corpus ground), release.yml's -FloorVersion consumption (M-086's core
+half, per the S48 note). The next concrete step stands unchanged and precise:
+one driver-repo lane takes all five in the recorded order (M-087 → M-089 →
+N-107/N-127 prose sweeps → M-086's version-stamping decision + the two-version
+coexistence drill), each with fail-before/pass-after proof per the house SOPs.

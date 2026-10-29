@@ -5,8 +5,25 @@
 **Parameters affected:** C22 (IOCTL codes and ABI numbers — the documented count of the session-code set), Q68 (documentation accuracy)
 **Corpus references:** `artifacts/PartitionRecovery/eudcpepm-euedkepm--hook-drivers.md:52,61-75` (the corpus table lists the prior 15 codes — the historical baseline the prose froze at); the G28 widening documented driver-side `docs/audit/2026-10-22-decompile-reverification.md:190-192`
 **Core references:** audited driver `323e75a`: the authoritative count — 19 `#define`s `src/shared/inc/rda_ioctl.h:183-201`, 19 `case` labels in the recognition switch `src/driver/rda_ioctl.c:47-66`, 19 values in `scripts/verify/verify_reference_binaries.py:214-232`; **zero sites in the driver repo state 19**. The 14 stale sites: `README.md:31` ("the 15-command copy-session protocol") and `:42` ("15-command session engine (`0x800C2AC8 … 0x800C2B38`)"); `docs/architecture.md:19` and `:72`; `docs/ground-truth-contracts.md:194` + the §5.2 command table `:202-219` (15 rows only — discovery + RRWR rows absent); `docs/requirements.md:56`; `src/shared/inc/rda_ioctl.h:11` ("15-command") and `:154` ("decoded the FULL command set (18 codes)" — its own table at `:159-177` lists 19); `src/driver/inc/rda_p.h:13`; `src/driver/rda_registry.c:14`; `scripts/verify/verify_reference_binaries.py:30` ("all 18 command codes" — the code checks 19); `tests/unit/test_compat.c:229` ("the full 18-command set" — its CHECKs `:230-243` cover 19); `src/driver/rda_ioctl.c:6-7` (the routing comment's range "0x800C2AC8..0x800C2B38" — the switch spans 0x800C2AC0..0x800C2B42). The CORE repo already states 19 correctly (`docs/DRIVER-CONTRACT.md:131,:202`).
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** PUSHED-FORWARD (driver-repo-resident; the two-repo grant of every fix session since S10 excludes heicfast/rda-driver — the OQ-S10-3 boundary record owns the lane)
 **Prior audit check:** "expanded on prior finding" the D3 handoff — the core trail recorded "seven driver-repo sites"; this session's sweep finds **14 current-tense sites** (+2 historical worklog lines). This filing owns the full inventory.
+
+## Session-86 disposition note (2026-10-29, S86 fix lane — re-verified, pushed forward)
+
+Boundary re-affirmed (the OQ-S10-3 record, unchanged since S10/S40/S48): the
+entire 14-site fix surface lives in heicfast/rda-driver and cannot be touched
+without violating the two-repo grant. Core-side half re-verified first-hand
+this session at `b6801ade`: `docs/DRIVER-CONTRACT.md` §4.4 ("the EUDCPEPM
+IoctlBase-normalized session protocol (19 codes)" — the §4.4 title itself
+carries "19 recognized codes") and the §4.2 extended-IOCTL rows
+(`0x6002440/44/48`, the phantom-extra-zero wire-truth fix lineage) both state
+the truth the driver repo's own prose lacks; the §4.2 provenance note (the
+`0x600 << 16 | fn << 2` derivation) is the integrator-facing correction of
+exactly this finding's count-drift class. The corpus baseline re-read:
+`artifacts/PartitionRecovery/eudcpepm--hook-drivers.md:52,61-75` (the 15-code
+historical table the prose froze at). No core-side change owed; the next
+concrete step stands unchanged (OQ-S10-3's order: M-087 → M-089 → N-107/N-127
+prose sweeps → M-086 — one driver-repo lane takes all five).
 
 ## Summary
 

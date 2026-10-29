@@ -917,7 +917,7 @@ CR_UI_API void cr_ui_session_close(cr_ui_session* sess);
 /* M-154 (diff-to-fix): the pointed resume - the og's "continue last
  * scanning" without enumeration (DRWUI:443092-443127 reads LastScanInfo.ini's
  * SavePath and restores through the shared path). Reads the auto-session
- * pointer sidecar (lastscan.info) inside utf8_dir and loads the AUTO
+ * pointer sidecar (last_scan.info) inside utf8_dir and loads the AUTO
  * session it names - no directory scan, no sort. Errors: CR_UI_ERR_BAD_
  * PARAMETER (null args), ERR_OPEN_FAILED (no pointer sidecar / the pointed
  * file does not exist / the pointer does not name an auto session - the

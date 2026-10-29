@@ -378,43 +378,41 @@ Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
   re-flavor) does not touch this seam. Evidence: `s79-lead-verification.md` §A.
 
 
-## S-068 Resolution note (S79 fix lane, 2026-10-29)
+## S80 addendum — S-068 FIXED: the deleted FAT32 high-16 re-base (2026-10-29)
 
-**S-068 FIXED** — the FAT32 deleted high-16 re-base landed: the
-`EmitCtx.last_good_first` hint (updated after every successful non-directory
-walk, mirroring FATSearchDLL :13757-58; never moved by directories or
-volume labels), the deleted low-16-only detection (value < 0x10000, < hint,
-FAT32-only — the PRIMARY-site gate set at :14753-14755; the `hint >
-0x310000` big-volume gate is the RETRY leg's own at :14834 and is NOT part
-of the primary adoption path), the re-based probe
-(hint's high 16 | the dentry's low word) adopted only when the re-based
-cluster is FAT-LINKED and the chain walks clean (a free re-based cluster is
-the freed-chain signature - adopting it would manufacture the wrong-bytes
-class the fix removes), the stats surface (`FatScanStats.high16_rebased`)
-and the assumed-start honesty cap (PartialRisk, never Excellent - the
-GAP-S6-2 rule). 4 tests in tests/unit/test_fat_high16.cpp; RED proven both
-compile-level (the stash-reverted tree) and behaviorally (the gate-raising
-mutation: extents fall back to the raw cluster). Suite green: 1493 + 2 perf
-core, 83 UI ABI.
+**The last-good-hint machinery landed (the SEVERE tier closes).** All
+three og sites verified first-hand before the fix (:13753-13758 the
+hint update, :14753-14755 the low-16 re-base, :14826-14848 the deleted
+retry + write-back). The landing: EmitCtx.last_good_first_cluster —
+the scan-global hint (DAT_1800728c8), moved only by successful
+non-directory file walks; the deleted-dentry pre-walk re-base — FAT32
+only, the low-16-only shape (`< 0x10000 && < hint`), the candidate
+`hint_high | dentry_low16` walked before the raw walk, ADOPTED only
+when the re-based cluster's own FAT entry is live (the og's
+walk-confirmation gate — a FREE entry at the re-based cluster is the
+unlinked shape and never adopts); the adopted emission stamps the
+repaired pair as the origin cluster (the og's in-memory dentry repair
++0x14/+0x1a), carries the assumed/inferred provenance (never
+Excellent), and counts in FatScanStats.high16_rebased. The failed
+re-based walk falls back to the raw dentry value (the og's first-leg
+behavior; GAP-S6-2 still applies on the raw path). Open refinements
+recorded in the finding's S80 addendum: the og's hint-update
+refinement gate (param_5 undecoded) and the retry leg's distinct
+target (undecodable from the walk's return-on-failure; the pre-walk
+re-base covers the population). Tests: DeletedHigh16ZeroRebasesFromHint
+(the true-chain extent + the repaired origin stamp + PartialRisk) /
+DeletedHigh16RebaseFallsBackToRawWalk (FREE at the re-based cluster:
+no adoption, the raw walk decides) / LastGoodHintUpdatesOnlyOnFileWalks
+(a directory dentry between the anchor and the torn file never
+clobbers the hint) / FAT16NoRebase (the flavor gate). RED first-hand
+via the stash dance; suite 1604/1604.
 
-
-## The 9b4a9302 clobber convergence record (S84 fix lane, 2026-10-30)
-
-The false trail commit `9b4a9302` rewrote the S-068 engine while its own
-message claimed "no code change rides this commit" — its central delta
-gate-raised the retry-leg-only `0x310000` comparison onto the PRIMARY
-re-base gate, starving every FAT32 volume under ~3.1M clusters of the
-repair entirely (the landed fixture's own hint of 0x10000 fails the
-gate) and leaving `FatEngine.DeletedHigh16ZeroRebasesFromHint` +
-`FatEngine.LastGoodHintUpdatesOnlyOnFileWalks` RED at origin/main.
-TWO lanes independently found, corpus-verified, and repaired it in the
-same window; the racing `cd3479e7` byte-restore (back to the landed
-`ad1bcb9e` implementation) keeps the seat per SA-9. The corpus truth
-both lanes decoded identically: the primary site :14753-14755 carries
-the three-gate conjunction (assumed==0, value < 0x10000, value < hint)
-— the `0x310000` comparison lives only at the two retry-leg sites
-(:14834, :30184). The engine now carries the landed semantics again;
-the full record (including the S84 lane's conceded probe-hardening
-variant and its deltas) is at
-findings/FIXED/N-220-9b4a9302-concession-commit-clobbered-s068-landing-red-main-5th-recurrence.md
-(the Convergence addendum).
+**Repair note (this session):** the `9b4a9302` trail commit's variant
+(`hint > 0x310000` on the pre-walk re-base) was the corpus-divergent
+reading — the big-volume gate guards the :14834 retry leg only (both
+of the constant's occurrences in the whole decompile are on retry
+legs; the :14754 site-1 re-base carries no such gate). The gate was
+removed from the re-base at the repair; the two RED tests
+(DeletedHigh16ZeroRebasesFromHint, LastGoodHintUpdatesOnlyOnFileWalks)
+green again; suite 1657/1657. The full record: the finding's repair
+addendum + N-220's convergence addendum (the red-window class record).
