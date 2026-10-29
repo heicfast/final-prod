@@ -13135,3 +13135,28 @@ export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
 defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
 Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
 
+
+---
+
+## Session-85 S85 fix-lane — entry 4 (rewritten to the concession): M-078 conceded to the racing fcd3ba10; N-223's repair lands (2026-10-30)
+
+**M-078 CONCEDED per SA-9:** this lane's independent turn-off implementation
+(the pure seam header + the status-refusal chain + the fix --bitlocker-off
+CLI flag + the Linux-runnable seam battery) was withdrawn unpushed when the
+racing fcd3ba10 landed first (their shape: detail::build_turn_off_command
+inside the win layer, the `unlock --turn-off` CLI verb, the
+cr_ui_turn_off_bitlocker ABI, the Windows-lane test battery). Their landing
+verified first-hand at the reset tree — the consent posture, the duality,
+and the loud-refusal mapping all present; the one design delta (their
+turn_off carries no status-refusal pre-probe — mine refused
+locked/unencrypted volumes before spawning) is recorded here as the
+concession's honest delta, not re-landed: the og's pending-op shape runs
+the verb directly, and their form is the closer decode.
+
+**N-223 FIXED (the pulled-red repair):** the M-075 lane's cr_fsck.cpp
+landed its new SDK symbols (the Wow64 redirection pair + ULONGLONG)
+without the tests/win-stub/windows.h declarations — win_syntax_check RED
+at the pull and STILL RED at the post-M-078 head (two racing windows
+pushed over it). The repair: the three stub declarations (the gate's own
+prescribed form); 13/13 files parse; the suite green at the repaired
+tree.

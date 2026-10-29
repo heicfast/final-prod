@@ -610,3 +610,16 @@ inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
 inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
     return (HANDLE)0;
 }
+
+/* M-075's SDK surface (the Wow64 redirection pair + the timing types;
+ * cr_fsck.cpp's native-binary launch) - the gate's own rule: a new SDK
+ * symbol in src/win grows the stub here. N-223's repair. */
+typedef unsigned long long ULONGLONG;
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return 1;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return 1;
+}
