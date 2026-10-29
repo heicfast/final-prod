@@ -1,3 +1,35 @@
+
+## Session-84 S84 lane (the third convergent lane) — the audit-trail restoration's record (2026-10-29)
+
+- **The red-main window found at the opening baseline** (2 RED tests:
+  FatEngine.DeletedHigh16ZeroRebasesFromHint +
+  FatEngine.LastGoodHintUpdatesOnlyOnFileWalks), independently arbitrated
+  (BOTH occurrences of `0x310000 < DAT_1800728c8` in
+  FATSearchDLL_decompiled.c — :14834 + :30184 — are RETRY-leg gates; the
+  :14754 pre-walk re-base carries only the low-16-only + consistency
+  gates; the S82 open question 2 closed by that arbitration), and
+  repaired — then **conceded at the push** to the racing windows
+  (`cd3479e7`'s code byte-restore + `eeddec57`'s N-220 class record,
+  `15c59ee7`'s N-219 marker sweep). The convergence record: N-220's
+  addendum (this lane's).
+- **The unique landings that stand:** the S-068 finding file restored
+  from `ad1bcb9e` (the gutted S80 addendum + Resolution, the damage's
+  replacement had named a nonexistent test file) + the repair addendum;
+  modules/fat.md's S80 addendum restored + the repair note; the matrix's
+  A-016 MATCH row re-landed + the N-145 stale row re-truthed (the
+  residual rollback the N-219 sweep missed); the nested
+  0fac15de/309f7af8/09a18f9f markers resolved in FIXED-LEDGER.md +
+  I-048 (the racing sweeps took PARITY-DELTAS + worklog); the ledger's
+  N-220 row; the permanent note that `9b4a9302`'s "No code change rides
+  this commit" claim cannot be trusted for the diff it pushed.
+- RED→GREEN first-hand at this lane's repaired tree (pre-concession):
+  the two tests green, FAT 94/94, suite 1657/1657; re-verified green
+  after every rebase.
+- **The board at this push:** 8 MAJOR active (M-075/M-078/M-086/M-087/
+  M-089/M-101/M-105/M-107 — M-111/M-114 closed by the racing S82 batch's
+  D-158/D-159) · 2 MINOR (the driver-repo pair) · 4 tracked-open. This
+  lane's queue continues MAJOR-first: M-107's nine remaining members →
+  M-101 → M-075 → M-078 → M-105 → the OQ-S79-1 decode.
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
@@ -12575,3 +12607,32 @@ ancestry) and its narrative is already carried by the surviving rows.
 
 **Verification:** `python3 tools/doc_truth_gate.py` => exit 0, green
 (was: 2 FAILs). Source tree marker-clean; no other trail file touched.
+---
+## Session-86 S86 fix-lane — entry 1: the open (2026-10-29)
+
+**Baseline recorded.** Core at open: `b6801ade` (the S84/S85 close tree); corpus
+`be0cfe9` throughout. Suite GREEN first-hand at the open (the linux-gcc preset,
+ASan on): **1381/1381 ctest** (163 s), LSAN clean at exit. The prompt saved
+(token redacted) at `worklog/session-diff-fix-s86-prompt.md`, read twice.
+
+**Board at open (filesystem truth): 0 ACUTE · 0 SEVERE · 8 MAJOR · 2 MINOR ·
+0 INFO active / 198 FIXED / 4 tracked-open.** In-grant fixable this session:
+M-075 (chkdsk launch), M-078 (BitLocker turn-off), M-101 (the two tree
+branches), M-105 (DRWService, option-a shape), M-107's nine remaining members
+(DWG WPG WPD PSP SIT APE EPS DXF SWF-RECT). Out-of-grant (driver-repo-resident
+per OQ-S10-3, re-affirmed): M-086/M-087/M-089/N-107/N-127.
+
+**The minor-first trail landing (this push):** per the user's session addendum
+("priority to minor first") the two open MINORs were handled first — both are
+driver-repo-resident, so the in-grant half is the trail: N-107/N-127 brought
+from the audit lanes' "READ-ONLY FINDING" status to the consistent PUSHED-FORWARD
+posture (the M-086/87/89 convention) with per-finding session disposition notes
+carrying this session's first-hand re-verifications (DRIVER-CONTRACT §4.4's 19
++ §4.2's wire-truth rows; the corpus's eprdtdrv §4 no-ACL posture), plus the
+OQ-S10-3 fifth re-affirmation note. No code change (none is owed in this repo);
+the audit trail is the deliverable of this landing.
+
+**Next:** the M-107 member queue (DWG's section-locator map first, per the
+finding's decode-then-land order), then M-075/M-078/M-101/M-105, then the OQ
+items (S79-1's $LogFile decode is in-repo workable).
+
