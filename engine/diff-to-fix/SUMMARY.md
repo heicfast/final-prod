@@ -127,6 +127,17 @@ D-163+.
   break + stale title repaired (the run-growth probe's own row), and
   the N-221 leak above.
 
+- **M-101 FIXED (MAJOR, the two missing branches):** the Versions
+  node (the NTFS namespace-identity hash — two records for one
+  pathname = versions of one file, the torn-overwrite population;
+  persisted as nflags bit-14, queryable per-group and enumerable via
+  query::version_groups()) and Tags Extracted (the runtime flag the
+  host's preview pass stamps; NOT persisted — the og persists no tag
+  state either, the finding's own defer note). The three landed
+  branches regression-pinned unchanged. Honest trail note: the code
+  rode the gate-repair commit b7d05b12 through an add -A mishap; the
+  trail lands in its own commit.
+
 - **M-078 FIXED (MAJOR, the destructive consent twin):** the
   CBitlockerTurnOffOperation endpoint — `win::bitlocker::turn_off` (the
   dual Disable-BitLocker / manage-bde -off chain, unlock()'s own
@@ -159,8 +170,8 @@ D-163+.
   2 of 11), N-220 (the fifth-recurrence class record) — all verified
   present in FIXED/ at this lane's rebase head.
 
-**Board after M-078 (filesystem truth at this push): 0 ACUTE ·
-0 SEVERE · 6 MAJOR · 2 MINOR · 0 INFO active / 198 FIXED / 4
+**Board after M-101 (filesystem truth at this push): 0 ACUTE ·
+0 SEVERE · 5 MAJOR · 2 MINOR · 0 INFO active / 199 FIXED / 4
 tracked-open** (the 8 active MAJORs: M-075/M-078/M-086/M-087/M-089/
 M-101/M-105/M-107; the 2 active MINORs: N-107/N-127 — of which
 M-086/M-087/M-089 + N-107/N-127 are driver-repo-resident per OQ-S10-3
