@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 **Session-44 minors lane — N-167 landed + the hot-window repair set (2026-10-29).**
 
 - **N-167 FIXED** — the found-size aggregate: `ScanStats::bytes_found` stamped from
@@ -24,7 +23,6 @@
   Audit trail: N-167 Resolution + findings/FIXED/ move, matrix row, orchestration
   module doc, SUMMARY entry-3, this entry.
 
-=======
 - **Main-red CONVERGENT (30c1cef7 dropped at the rebase)** — the N-171/S-055 window's
   cross-test user-sign registry leak (Carve.LzhWrongDashByteRejects order-dependent:
   install_default_usersigns() leaked the default set through g_active; the default set's
@@ -202,7 +200,6 @@ position) carves a device-end lha USER record BY D-104 DESIGN. The test
 asserted a no-user-sign world it never set. Fix: usersigns::clear() (the
 explicit registry reset - install cannot take an empty set) + the test pins
 its world. Suite green.
->>>>>>> db82b5e64567a16453c23d574413e6ccc6ce17c5
 **Session-44 minors lane — N-171 (CONVERGENT-DU, their 7be438c9 wins per SA-9 — byte-equivalent tick; this lane's session round-trip test + the N-188 discovery ride as the supplements) + N-188 (unique) landed (2026-10-29).**
 
 - **N-171 FIXED** — the user-sign carved_count undercount: the user-sign emission path
