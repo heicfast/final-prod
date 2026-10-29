@@ -109,11 +109,14 @@ TEST(ImageCreateFile, CommitIsAtomicWithSidecar) {
     EXPECT_EQ(0, std::memcmp(src.bytes().data(), got.data(), got.size()));
     EXPECT_EQ(src.bytes().size(), st.bytes_written);
 
-    /* the sidecar: '<hex>  <basename>' */
+    /* the sidecar: '<hex>  <basename>' (the sha256sum form - the
+     * basename of the out path, not the suffix; the release-27 catch:
+     * the expectation hardcoded the suffix and had never run anywhere) */
     const std::string sidecar_path = out + ".sha256";
     ASSERT_TRUE(std::filesystem::exists(sidecar_path));
     const std::vector<u8> sidecar = read_file_bytes(sidecar_path);
-    const std::string want = hex32(st.sha256) + "  .commit.img\n";
+    const std::string want =
+        hex32(st.sha256) + "  " + std::filesystem::path(out).filename().string() + "\n";
     const std::string got_line(sidecar.begin(), sidecar.end());
     EXPECT_EQ(want, got_line);
     /* and the digest equals an independent SHA-256 of the source bytes */

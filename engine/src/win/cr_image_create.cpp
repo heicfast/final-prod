@@ -90,6 +90,15 @@ bool rename_file(const std::u16string& from, const std::u16string& to) {
                        MOVEFILE_REPLACE_EXISTING) != FALSE;
 }
 
+/* best-effort delete for the stale-.partial sweep (the committed image
+ * owns the out path; a leftover .partial claims an interrupted create
+ * that no longer holds - the resume-after-cancel contract the
+ * ReCreateReplacesOldImageAndPartial pin holds; release-27 catch: the
+ * sweep was missing entirely, the stale .partial survived the commit) */
+void remove_file(const std::u16string& path) {
+    (void)DeleteFileW(reinterpret_cast<const wchar_t*>(path.c_str()));
+}
+
 /* write the digest sidecar next to the committed image; the image itself
  * is already complete and renamed at this point - a sidecar failure is
  * reported to the caller (the image stays committed; the operation's rc
@@ -141,6 +150,10 @@ u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
                 *stats = local;
             return ERR_WRITE_FAILED;
         }
+        /* committed: sweep the stale .partial from any earlier canceled
+         * create over the same path (best-effort - the image is complete
+         * and renamed; the sweep's rc never gates the commit) */
+        remove_file(partial);
         /* committed: the sidecar is the last step; its failure is
          * reported (the image itself is complete and renamed) */
         const u32 sidecar_rc = write_sidecar(out_path_utf16, local.sha256);
