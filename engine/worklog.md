@@ -207,6 +207,17 @@ zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
 
+**The three tracked-open dispositions (this session):** OQ-S4-3
+pushed forward (the TTFR half is Windows-hardware-bound; the S37
+addendum's two stale doc references verified FIXED-ALREADY — the
+8943993 test-benchmark.yml re-point stands, no cron exists anywhere);
+OQ-S10-1 pushed forward (the BY-NAME refusals verified first-hand at
+cr_thumbnail.cpp:85-93 — HEIC/WebP/PDF/video honestly refused; the
+libheif-first step unchanged); OQ-S10-3's boundary re-affirmed for the
+seventh time (rda-driver untouched; the core-side halves re-verified —
+release.yml's FloorVersion consumption, the regdrv.reg contrast, the
+DRIVER-CONTRACT wire rows, the RDA-only install scripts).
+
 **OQ-S79-1 RESOLVED (this session):** the $LogFile dead-machinery
 register — the follow-the-data decode executed in full (FUN_18001d460's
 out-params discarded, the staged buffer freed, the success flag

@@ -68,3 +68,26 @@ silent degrade). NEW EVIDENCE this session (all read first-hand):
 first — now with the hint-byte semantics decoded); the video layer decision gains
 the uniform-agent-seam evidence above. No fixture-generator change until a library
 is chosen (the recorded step 3's ordering stands).
+
+## Session-86 disposition note (2026-10-30, the S86 fix lane — pushed forward; scope unchanged and honest)
+
+Still OPEN, the vendoring project exactly as scoped (each half is a
+10^5+-line codec stack with its own Win7-inclusive import-gate audit).
+This session's first-hand verification:
+
+1. **The BY-NAME refusals stand** — `thumbnail_format_supported`
+   (src/core/preview/cr_thumbnail.cpp:85-93) supports exactly
+   {jpeg, png, bmp, gif, tiff, raw, psd, pnm, hdr, txt}; HEIC/WebP/PDF/
+   video remain honestly refused by name (no silent degrade, no stub).
+2. **The layer decisions stand** — the preview module's video decision
+   (the og's out-of-process agent split is UI-layer) and the S37
+   addendum's uniform-agent-seam evidence (the photo codecs ride the
+   sibling `ThreadImg` shared-memory channel: `Mutex_ThreadImg` +
+   `ShareMemory_ThreadImg` + the 20-byte request header, the ~200 MiB
+   cap, the 10 s answer wait) remain the recorded parity-faithful shape.
+3. **The next concrete step unchanged**: libheif first (the
+   embedded-thumbnail-first hint semantics already decoded — the request
+   header's flag byte set to 1 exactly for format ids 0x7c/0x7d), vendored
+   under third_party/ with the import-surface inventory filed as an
+   audit artifact, THEN the fixture extension. No fixture-generator
+   change until a library is chosen (the recorded ordering stands).
