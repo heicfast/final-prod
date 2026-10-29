@@ -720,7 +720,7 @@ directive, every one decompile-verified first-hand:**
   population, test-pinned to the wrong reading (`test_grading.cpp:166-187`), all
   inherited from the **s5 evidence's §5 polarity erratum**. The `""` quirk
   corroborates (both sides skip dot-less files — for opposite reasons).
-- **S-059 (SEVERE — file reconstruction)**: sparse/hole files are **left-shifted
+- **S-059 (FIXED session-51 — file reconstruction)**: sparse/hole files were **left-shifted
   or refused** — `RunList::extents()` drops sparse runs, `Extent` has no logical
   offset, the writer's cumulative walk corrupts interior-hole layout and fails
   `ERR_TRUNCATED` with no output; the og always writes full logical size

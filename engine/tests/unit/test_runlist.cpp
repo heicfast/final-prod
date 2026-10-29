@@ -32,6 +32,54 @@ TEST(RunList, NegativeDelta) {
     EXPECT_EQ(rl.total_clusters(), 0x20u);
 }
 
+TEST(RunList, SparseHoleEmitsExtent) {
+    /* S-059: an INTERIOR hole keeps its logical position - extents()
+     * emits it as a sparse entry (lcn 0) instead of dropping it. The
+     * pre-fix drop left-shifted every later extent over the gap (the
+     * writer assumed cumulative positions). */
+    u8 raw[] = {0x21, 0x10, 0x00, 0x01, /* data: len 0x10 at LCN 0x100 */
+                0x01, 0x20,             /* sparse hole: len 0x20 */
+                0x21, 0x10, 0x00, 0x03, /* data: len 0x10 at LCN 0x300 */
+                0x00};
+    RunList rl;
+    ASSERT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
+    ASSERT_EQ(rl.runs().size(), 3u);
+    std::vector<RunList::Extent> ex;
+    rl.extents(ex);
+    ASSERT_EQ(size_t(3), ex.size()) << "the hole is EMITTED, not dropped";
+    EXPECT_FALSE(ex[0].sparse);
+    EXPECT_EQ(0x100u, ex[0].lcn);
+    EXPECT_EQ(0x0u, ex[0].vcn) << "the first run starts at VCN 0";
+    EXPECT_TRUE(ex[1].sparse) << "the interior hole carries the sparse mark";
+    EXPECT_EQ(0u, ex[1].lcn);
+    EXPECT_EQ(0x10u, ex[1].vcn) << "the hole starts at the first run's end";
+    EXPECT_EQ(0x20u, ex[1].clusters);
+    EXPECT_FALSE(ex[2].sparse);
+    EXPECT_EQ(0x400u, ex[2].lcn) << "0x100 + the 0x300 SIGNED DELTA of run 3";
+    EXPECT_EQ(0x30u, ex[2].vcn) << "the tail run's LOGICAL position jumps past the hole";
+    /* the extent list's total spans the full allocation, holes included */
+    u64 total = 0;
+    for (const auto& e : ex)
+        total += e.clusters;
+    EXPECT_EQ(rl.total_clusters(), total);
+}
+
+TEST(RunList, ContiguousCoalesceRequiresLogicalContiguityToo) {
+    /* two data runs that are DISK-contiguous but not VCN-contiguous (a
+     * hole between them) must NOT coalesce - the hole keeps its own
+     * extent entry. */
+    u8 raw[] = {0x21, 0x10, 0x00, 0x01, /* data: len 0x10 at LCN 0x100 */
+                0x01, 0x10,             /* sparse hole: len 0x10 */
+                0x11, 0x10, 0x00, 0x01, /* data: len 0x10 at LCN 0x110 (disk-contiguous) */
+                0x00};
+    RunList rl;
+    ASSERT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
+    std::vector<RunList::Extent> ex;
+    rl.extents(ex);
+    ASSERT_EQ(size_t(3), ex.size()) << "the hole breaks the coalesce";
+    EXPECT_TRUE(ex[1].sparse);
+}
+
 TEST(RunList, SparseRun) {
     /* run: len 0x10 at LCN 0x100 (off_w 2); sparse hole: len 0x20 (off_w 0) */
     u8 raw[] = {0x21, 0x10, 0x00, 0x01, /* header 0x21: len 0x10, off 0x0100 */

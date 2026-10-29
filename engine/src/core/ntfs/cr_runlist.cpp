@@ -220,12 +220,28 @@ bool RunList::vcn_to_lcn(u64 vcn, u64* lcn, bool* sparse_out) const {
 void RunList::extents(std::vector<Extent>& out) const {
     out.clear();
     for (const auto& r : runs_) {
-        if (r.sparse)
+        if (r.sparse) {
+            /* S-059: a hole keeps its logical position (the og's type-2
+             * zero chunk writes the full run length as zeros, :875062-75);
+             * dropping it left-shifted every later extent over the gap */
+            Extent e{};
+            e.lcn = 0;
+            e.clusters = r.length;
+            e.vcn = r.vcn;
+            e.sparse = true;
+            out.push_back(e);
             continue;
-        if (!out.empty() && out.back().lcn + out.back().clusters == r.lcn) {
+        }
+        if (!out.empty() && !out.back().sparse && out.back().lcn + out.back().clusters == r.lcn &&
+            out.back().vcn + out.back().clusters == r.vcn) {
             out.back().clusters += r.length;
         } else {
-            out.push_back(Extent{r.lcn, r.length});
+            Extent e{};
+            e.lcn = r.lcn;
+            e.clusters = r.length;
+            e.vcn = r.vcn;
+            e.sparse = false;
+            out.push_back(e);
         }
     }
 }

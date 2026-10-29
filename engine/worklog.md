@@ -1,3 +1,26 @@
+**Session-51 severe-first lane — S-059 landed + two hot-window franken-tests repaired (2026-10-29).**
+
+**S-059 FIXED (the sparse-hole export).** Corpus re-verified first-hand
+(:875661-673 zero-then-skip-read; :875062-75 the type-2 zero chunk with NO
+read; :874877-889 the sparse chunk typing). Extent.logical + hole;
+RunList::extents emits sparse runs with their VCNs (the coalesce now requires
+logical contiguity); all four mftwalk emit sites stamp logical; the
+compressed expander emits hole extents for zero-header units AND mid-unit
+sparse tails; the writer's positioned mode (auto-detected; the legacy
+cumulative walk preserved byte-identical for old sessions/unstamped engines)
+zero-fills logical gaps and holes with no device read; session wire bit 2048.
+5 new tests + the CompressedDataRecoversRealContent re-pin (the old pin
+asserted the defect: "a hole unit emits no extents"), RED->GREEN both halves
+(emission-neutered: 2 tests; hole-branch-neutered: the 0xEE bogus-read pin).
+Suite 1287/1287 + cr_ui 77/77.
+
+**Franken-test repairs at the merge:** (1) the S-058 polarity test's
+assertion block crossed onto this lane's fixture block (the remote lane's
+mirrored variable naming) - the in-table/out-of-table pairs asserted each
+other's behavior; repaired to match the fixtures. (2) The hot-window's
+LzhWrongDashByteRejects comment blocks fused - cohered (clear() +
+disabled_formats as belt-and-suspenders).
+
 **S56 lane — N-154 landed + the third collision rider (2026-10-29).**
 
 **N-154 FIXED (MINOR — the bookkeeping-truth batch #2).** The cr_log.cpp

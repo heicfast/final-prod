@@ -143,7 +143,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          *   bit7: OQ-SA-1 FAT-family origin cluster follows (u32 - the
          *         og's CFAT +0x3e / CExFat +0x50 first-cluster anchor,
          *         stamped from the dentry independent of chain
-         *         resolution; passive datum) */
+         *         resolution; passive datum)
+         *   bit11 (2048): S-059 extents carry {u64 logical, u8 hole}
+         *         each (sparse/compressed holes keep their logical
+         *         position; old files read back logical==0/hole==false
+         *         and take the legacy cumulative walk) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -173,6 +177,12 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
             if (pr && pr->ntfs_total_clusters != 0)
                 nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
+            if (pr)
+                for (const auto& e : pr->extents)
+                    if (e.hole || e.logical != 0) {
+                        nflags |= 2048; /* S-059: positioned/hole extents */
+                        break;
+                    }
         }
         /* S-052: the ROOT's extent-basis id (roots only, nonzero only) -
          * the LDM dynamic-volume basis that survives the file boundary */
@@ -222,6 +232,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             if (nflags & 1) {
                 put32(out, e.codec);
                 put64(out, e.psize);
+            }
+            if (nflags & 2048) { /* S-059: the logical position + hole mark */
+                put64(out, e.logical);
+                out.push_back(e.hole ? 1 : 0);
             }
         }
         if (nflags & 2) {
@@ -424,6 +438,10 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             if (nflags & 1) {
                 props->extents[k].codec = c.g32();
                 props->extents[k].psize = c.g64();
+            }
+            if (nflags & 2048) { /* S-059: logical position + hole mark */
+                props->extents[k].logical = c.g64();
+                props->extents[k].hole = c.g8() != 0;
             }
         }
         if (nflags & 2) {
