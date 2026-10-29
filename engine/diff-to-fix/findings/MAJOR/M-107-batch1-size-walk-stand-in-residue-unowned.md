@@ -368,3 +368,57 @@ rename form conceded per SA-9 and is recorded in N-230's Resolution).
 **Remaining members: APE's frame walk, SWF-RECT** (+ the DWG gen-3
 R2007 remainder named on the seat). The merged DWG+WPD battery 17/17
 first-hand; the full two-pass suite green.
+## Session-89 addendum — the APE member LANDED (member 10 of the batch-1 eleven by the finding's own enumeration; the board's live-defect headline of this landing)
+
+**APE FIXED (this session; ONE member remains: SWF-RECT + the DWG gen-3
+recorded remainder).** The walk decoded first-hand from the raw asm
+(objdump over og-codebase/RAWSearchDLL.dll; evidence:
+`evidence/s89-lane-sheets/s89-l1-ape-cape-walk-decode.md`): the chain is
+the registry key "MAC " (0x2043414d) → the tier-1 FUN_180033090 that
+stamps ONLY the id 0x51 (the WPG class — no size at tier-1) → the
+CAPERawFileInfo +0x20 processor FUN_180033180 (0x180033180-0x180033603):
+
+- **The version gate — the discovered live defect:** the og reads the
+  **u16 LE at +4, gated [1000, 9999]** (raw-asm $0x3e8/$0x2710 at
+  :228/:232 — the version×100 encoding). The core's stand-in read a
+  **u32 BE** and gated **[300, 5000]** — a reading under which every
+  real Monkey's Audio file (u16 LE 3800..4400) was REJECTED: the
+  format keyed correctly, real files never carved (the M-156 ASCII-gate
+  class, third occurrence). The S-007 batch's own APE plant was tuned to
+  the wrong gate (a u32 BE 3980 that the invented window accepted) and
+  is re-pinned to the real grammar (the CRW/PSP plant precedent), as is
+  the bad-variant fixture (the BE 999999 read as LE u16 3840 would now
+  carve; re-pinned to u16 LE 999).
+- **The format split at 3980:** OLD (< 3980) — the seek-table dword scan
+  (base = 0x20 | flags&4, +4 on flags&0x10, +0x2c when u32@16 != 0; the
+  align = u16@10 × mult gates; entry[0] = the scan bound with the
+  version≤3800 aux subtraction; stop at 0 or ≥ cap; the max entry is the
+  walked size). NEW (≥ 3980) — the descriptor arm: align = (u16@desc >>
+  3) × u16@desc+2; **size = u32@8+12+16+20+24+32** (the og's own
+  arithmetic — the dword@32 MD5 term included, the registered quirk).
+- **The epilogue:** the finalizing chunk is the 512 bytes ending at
+  round_up(size, 512); the backward "APETAGEX" scan (.rdata 0x18006bf70,
+  read byte-exact from the PE) with the footer gates (items ≤ 0xFFFF,
+  the signed tag_size−0x20 ≤ 0x1000000, flags bit29 clear); OLD+tag →
+  extent = the footer end (the span algebra cancels — raw-asm
+  0x180033593-:59e); NEW+tag → round_up(size + span, 512); no tag →
+  round_up(accum − zero_tail, 512) + 512 (the og's own +512 slack,
+  kept).
+- **The cap:** singleton+0x70 × 10 = **2,000,000,000** (raw-asm
+  0x1800331ec-:1f4) — the row max re-pinned (256 MiB gone) and the row
+  min re-pinned to 0 (the CAPERawInfo factory's [0x22] = 0).
+- **Torn:** the readable extent ends before the finalizing window → the
+  walked size clamps at the reduced confidence (the SIT/X3F salvage
+  class); the og's pending force-finalize is the streaming machinery's
+  job (the registered model divergence — the CRW/WPG stance).
+
+RED→GREEN first-hand: **5 of 6 RED at the stand-in tree**
+(ApeVersionGateIsTheOgsExactWindow / ApeOldFormatTagEndsAtTheFooter /
+ApeNewFormatTagExtentIsHeaderSumPlusSpan / ApeNoTagExtentIsTheRoundUpPlusSlack
+/ ApeTornSalvagesTheWalkedSize; the channel-gate pin passed both ways —
+the old gate also rejected the fixture, for the wrong reason), GREEN with
+the walk; the S-007 batch's APE row re-pinned (the plant's real grammar +
+the footer-end extent 0x3E0). The full suite **1722/1722** (the N-229
+red-main repair rides the same push — the WPD convergence's duplicate
+test body deduped). Remaining members: **SWF-RECT only** + the DWG gen-3
+R2007 recorded remainder.

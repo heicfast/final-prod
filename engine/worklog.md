@@ -314,6 +314,42 @@ Session-90 addendum 4, SUMMARY's third-push block, this entry.
   point; this lane's five-test battery rides as convergent
   verification).
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-89 S89 lane — M-107's APE member landed + the N-229 red-main repair; the M-105 seat conceded to the S91 window (2026-10-30)
+
+**The M-105 seat conceded per SA-9:** this lane's Option (a) landing
+(ERR_FVE_ELEVATION_REQUIRED + the pure decision + the doc set) was built
+and verified RED→GREEN locally, but the racing S91 window landed the
+identical posture (`c4d8dcee` — a pure-core cr_fve_policy module + the
+cr_ui wiring, a richer shape than this lane's header-inline form) before
+this lane's push. Their seat stands; this lane's verification of their
+landing: the fve_denial_diagnosis battery green, the row set complete
+(PACKAGING/driver-install/SECURITY/PARITY-DELTAS D-166/R-83), the
+doc_truth_gate clean at their tree.
+
+**The APE member (the batch's live-defect headline):** decoded raw-asm
+first-hand (the lane sheet carries every constant with its instruction
+address; two Ghidra renderings corrected by the asm). The stand-in's
+u32-BE version gate rejected every real Monkey's Audio file — the same
+class as M-156's X3F ASCII gate. Landed: the u16-LE [1000,9999] gate,
+the 3980 format split (the old seek-table scan with the base/align/aux
+arithmetic; the new descriptor sum u32@8+12+16+20+24+32 with the
+dword@32 MD5-term quirk kept), the APETAGEX epilogue (the finalizing
+window = the 512 bytes ending at round_up(size,512); the footer gates;
+the three extent arms), the row re-pin (min 0 / max 2e9 per the factory
+and the walk cap), the torn salvage. RED 5/6 → GREEN 6/6; the S-007
+batch's APE plant + the bad-variant fixture re-pinned to the real
+grammar. Suite 1722/1722.
+
+**N-229 (the second red-main repair this window):** the WPD convergence
+merges duplicated WpdZeroSizeFieldDeclines (cr_tests unbuildable at
+e3f34b67 behind the v0.6.0 notes); deduped, no coverage lost. The class
+rule now covers test-name collisions (the N-227 file-vs-registration
+class's sibling).
+
+Trail: M-107's S89 addendum, the N-229 finding + Resolution, both
+ledger rows, three matrix rows, SUMMARY, this entry, the carve module's
+S89 section (this push).
+
 ## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9 (two convergence riders); M-105 landed under option (a) (2026-10-29/30)
 
 ## Session-90 S90 lane, entry 2 — the SIT landing CONCEDED to the racing window (2214af90); the ×10-gate corroboration + the marker-scope correction carried (2026-10-30)
