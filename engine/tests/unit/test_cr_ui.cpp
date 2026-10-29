@@ -302,8 +302,11 @@ std::vector<unsigned char> build_stash_zip() {
     z16(0);
     z16(3);
     z16(3);
-    z32(cd_len);
-    z32(cd_at);
+    /* EOCD size/offset fields are u32 zip fields: the fixture values are
+     * tiny, the explicit (unsigned long) matches z32's parameter (the
+     * dentry size-cast convention below) and silences MSVC C4267 */
+    z32((unsigned long)cd_len);
+    z32((unsigned long)cd_at);
     z16(0);
     return zip;
 }
@@ -4047,7 +4050,10 @@ static const unsigned char kQuad32x24JpgTrunc[] = {
 std::vector<unsigned char> build_fat16_png() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    /* unsigned loop var (the file's write_fixture_zip convention): the FAT
+     * chain values 41+i fit unsigned, so put16's (size_t, unsigned) params
+     * see no narrowing (MSVC C4267 on the size_t ternary) */
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), false);
@@ -4062,7 +4068,7 @@ std::vector<unsigned char> build_fat16_png() {
 std::vector<unsigned char> build_fat16_png_deleted() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), true);
@@ -4074,7 +4080,7 @@ std::vector<unsigned char> build_fat16_png_deleted() {
 std::vector<unsigned char> build_fat16_jpg_trunc() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24JpgTrunc) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "LOGO2   JPG", 0x20, 40, (unsigned long)sizeof(kQuad32x24JpgTrunc), false);
@@ -4091,7 +4097,7 @@ std::vector<unsigned char> build_fat16_jpg_trunc() {
 std::vector<unsigned char> build_fat16_png_damaged() {
     auto img = build_fat16();
     const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     /* DELETED entry: deleted non-carved files take the generic grading
@@ -4148,7 +4154,7 @@ static const unsigned char kJpgNoSof[] = {
 std::vector<unsigned char> build_fat16_jpg_corrupt() {
     auto img = build_fat16();
     const size_t need = (sizeof(kJpgNoSof) + 511) / 512;
-    for (size_t i = 0; i < need; ++i)
+    for (unsigned i = 0; i < need; ++i)
         put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
             put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
     dentry(img, 3, "BAD     JPG", 0x20, 40, (unsigned long)sizeof(kJpgNoSof), true);
@@ -4723,8 +4729,8 @@ TEST(CrUi, ArchiveEntryHostileBound512) {
     z16(0);
     z16(700);
     z16(700);
-    z32(cd_len);
-    z32(cd_at);
+    z32((unsigned long)cd_len);
+    z32((unsigned long)cd_at);
     z16(0);
 
     /* the FAT fixture: STASH.ZIP on cluster 60 (the write_fixture_zip

@@ -13649,3 +13649,38 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+
+---
+
+## Session-91 S91 fix-lane — the Windows build's four /W4 /WX classes (2026-10-29; re-homed S85 → S88 → S91 per SA-9: the racing windows took S85 and S88 first)
+
+**The red:** checks.yml run 281+ (`Build + test (MSVC Release, vcpkg cache)`
+on 32441353) — the /WX build died on four warning classes the racing fix
+lanes had introduced, one per file. All four fixed in four commits, one root
+cause each, no suppressions, no behavior change.
+
+- **ea9bd420 (C4310):** test_ext4_m144_large_volume.cpp:84/:135 — the lo-word
+  splits of >4 GiB block counts truncated via bare `u32()` constant casts;
+  masked to `& 0xFFFFFFFFull` before the narrowing cast (identical bits).
+- **1dc6597d (C4127):** ui_abi_check.c:613 — `CHECK(0 && "...")` is a constant
+  conditional; replaced with the file's own progress_cb direct-report
+  convention (printf + g_failed; identical failure contract).
+- **324d0404 (C4267 x14):** test_cr_ui.cpp — z32(cd_len/cd_at) given explicit
+  `(unsigned long)` casts (the file's dentry convention) at :305/:306 and
+  :4729/:4730; the five FAT-chain loops switched to `unsigned` loop vars
+  (the file's own write_fixture_zip convention), values < 20 so no range
+  change.
+- **4691f152 (C4244):** rrecov.cpp:3377/:3628 — both N-145 journal paths used
+  the wstring-iterator range ctor for std::string (implicit wchar_t->char in
+  xutility's copy template); replaced with `narrow_bytes()` — the same
+  per-element low-byte conversion made explicit. Kept SEPARATE from
+  `narrow()` (whose '?' mapping would rename non-ASCII journals — a behavior
+  change); byte-identity with the range ctor proven by runtime assertion.
+
+**Verification (pre/post identical):** Linux gcc build zero warnings both
+sides; full ctest 1382/1382 pre-fix AND post-fix; the touched TUs clean under
+a gcc `-Wconversion` replay of their exact compile commands (the MSVC
+narrowing analogue — pre-existing int->size_t sign sites at :569/:589/:729-734
+left untouched: C4365 is /Wall-only, not /W4); clang-format 18.1.8 (the CI
+pin) clean on all four files. The MSVC lane's green build is the final
+compile proof for the Windows-only rrecov.cpp.
