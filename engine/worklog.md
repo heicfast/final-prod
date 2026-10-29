@@ -10999,3 +10999,16 @@ this lane performed, per the never-push-a-red-commit rule the repo's own
 CONTRIBUTING mandates; recorded here for full transparency.
 
 **Gate state at this push: doc_truth_gate GREEN (all checks).**
+### N-140 — seat conceded to the racing window (SA-9)
+
+This lane built a complete N-140 landing (CarveStats::per_format + the
+report's carve_formats array + the SessionState v4 tail) and had it
+RED-proven (compile-errors on the stash-reverted tree) with the full
+suite green at 1458/1458 — but the racing window's own N-140 landing
+(adb26797) pushed first and is a SUPERSET (the ABI pair
+cr_ui_scan_carve_tally_count/cr_ui_scan_carve_tally + the dedicated
+REC_CARVE_TALLY session record beside this lane's design). Per SA-9 the
+racing seat stands; this lane's local landing was dropped at the reset
+(the worklog record above preserves the design and the RED evidence).
+Their landing verified first-hand on the reset tree: the named tests
+green, full suite 1484/1484 (1442 pass + 42 Win-skips, 0 fail).
