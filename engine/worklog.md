@@ -9825,3 +9825,25 @@ Query/Display/Error/CrUi 110/110; win_syntax_check green; clang-format
 violations under the pinned version, this landing cleans them. Trail: FIXED
 finding + Resolution, matrix row 38 MATCH, query.md S64 section, SUMMARY
 board recount, this entry.
+---
+
+**Session-67 S67 lane — the diff-to-fix execution lane (2026-10-29).**
+
+- **Lane open record:** prompt saved (token redacted) at
+  `worklog/session-diff-fix-s67-prompt.md` (the S66 seat taken by the
+  racing lane's prompt per SA-9). The user's lane directive: MINOR-first,
+  one finding one push, aim 20+ fixes. Opening HEAD after the first pull
+  `a8c03cc2` (the S64 window's M-142/M-140 landings absorbed first-hand),
+  corpus `be0cfe9`. Baseline suite executed green before the first change
+  at the pre-pull pin (`24e480c4`): cr_tests 1404 tests / 0 failed,
+  cr_ui_tests 79/79, cr_ui_abi_check OK (linux-release, gcc Werror).
+- **Board re-counted first-hand at open (post-pull, post-N-194):**
+  **0 ACUTE · 0 SEVERE · 18 MAJOR · 12 MINOR · 0 INFO active / 154
+  FIXED / 4 tracked-open** (M-140 + M-142 + N-194 landed by the racing
+  windows; N-107/N-127 driver-repo-resident per OQ-S10-3's two-repo
+  grant boundary — not fixable in core, counted active-open).
+- **Lane plan (collision-aware, reverse order through the S64 lane's
+  announced queue):** the 10 remaining in-scope MINORs first (N-144,
+  N-182, N-181, N-178, N-145, N-201, N-200, N-140, N-203, N-131), then
+  the still-open MAJORs and the 4 tracked-open items. Pull before every
+  push; SA-9 convergence discipline on any raced landing.
