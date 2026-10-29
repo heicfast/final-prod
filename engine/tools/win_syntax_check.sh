@@ -98,9 +98,14 @@ done
 # The gtest include dir is located from the build tree (FetchContent
 # materializes it at configure time, so ctest always finds it post-build);
 # GTEST_INCLUDE may override. NOT FOUND IS A FAILURE, never a skip.
+# N-231: both build layouts are covered - the preset subdir
+# (build/<preset>/_deps/..., the CI lanes) AND the flat build dir
+# (build/_deps/..., a direct cmake configure - the N-228 section failed
+# on the flat layout, a gate-robustness defect, not a tree defect).
 GTEST_INCLUDE_DIR="${GTEST_INCLUDE:-}"
 if [ -z "$GTEST_INCLUDE_DIR" ]; then
-    for cand in "$SRC_DIR"/build/*/_deps/googletest-src/googletest/include; do
+    for cand in "$SRC_DIR"/build/*/_deps/googletest-src/googletest/include \
+                "$SRC_DIR"/build/_deps/googletest-src/googletest/include; do
         if [ -d "$cand" ]; then
             GTEST_INCLUDE_DIR="$cand"
             break
