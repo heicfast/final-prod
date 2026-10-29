@@ -540,12 +540,14 @@ inline std::vector<u8> build_two_volume_gpt_disk(const char* l1, const char* l2,
     mbr[510] = 0x55;
     mbr[511] = 0xAA;
     /* partition entries at LBA 2 (2 x 128B = fits one sector) */
-    constexpr u8 GPT_TYPE_BASIC_DATA[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
-                                            0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    /* renamed: the local constant shadowed the table header's global
+     * GPT_TYPE_BASIC_DATA (MSVC /W4 C4459, /WX) */
+    constexpr u8 kGptBasicData[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                                      0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
     u8* ents = img.data() + 2 * 512;
     auto gpt_entry = [&](int idx, u64 first, u64 last) {
         u8* p = ents + idx * 128;
-        std::memcpy(p, GPT_TYPE_BASIC_DATA, 16);
+        std::memcpy(p, kGptBasicData, 16);
         /* unique GUID: the same bytes with the last byte bumped */
         std::memcpy(p + 16, GPT_TYPE_BASIC_DATA, 16);
         p[31] = u8(0xC7 + idx);

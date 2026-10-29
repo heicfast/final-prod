@@ -8985,7 +8985,7 @@ public:
             std::memset(p, 0, size_t(head));
             p += head;
             pos += head;
-            rem -= head;
+            rem -= u32(head); /* MSVC C4244: head <= rem by construction */
         }
         while (rem > 0) {
             const u64 s = pos - off_;
