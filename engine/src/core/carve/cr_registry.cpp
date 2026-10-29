@@ -841,7 +841,10 @@ const Signature kTable[] = {
      4,
      0,
      16,
-     64ull << 20,
+     0xFFFFFFFFull, /* M-107 member 6: the og's registry node carries no
+                       max — the extent is the header's own u32 size field
+                       at +0x14 (FUN_180041f50); the field's natural
+                       ceiling is the row bound (the 64 MiB stand-in gone) */
      600,
      validate_wpd,
      "WordPerfect Document"},

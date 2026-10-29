@@ -421,3 +421,51 @@ landing ported the unscaled constant. Repaired: the read, both test
 plants, and this finding's gen-2 bullet now carry +0x80 with the asm
 citation. The offset matches the real R2004 format (the section page
 map at 0x80) — the convergent external corroboration.
+
+---
+
+## Session-87 addendum — the WPD member LANDED (member 6 of 11: the version-table walk)
+
+**WPD FIXED (this session; five members remain: SIT, APE, EPS, DXF,
+SWF-RECT + the DWG gen-3 R2007 remainder).** The walk decoded
+first-hand from the raw asm (objdump over RAWSearchDLL.dll;
+FUN_180041f50, asm 0x180041f50-0x18004202e — the vtable slot is +0x20,
+the engine's `call *0x20(%rax)` dispatch at 0x18000d7ae, the
+extent!=0 acceptance gate at 0x18000d7e1; the 36-byte table at
+.rdata 0x18006ef40 with the ninth int from the `movl $0x3d`
+immediate at 0x180041f6e):
+
+- **The gate is a THREE-record version table**, each record the pair
+  (u32@+8, u32@+0xe) against:
+  - (0x01020a01, 0x00050200) → type stamp 0x44 (WPD proper)
+  - (0x00021601, 0x00030000) → type stamp 0x45 (the WPG-family WPC
+    variant — the same id WPG's own tier-1 stamps)
+  - (0x00010f0f, 0x00030000) → type stamp 0x3d (the third WPC variant)
+- **On ANY match: extent = u32@+0x14 verbatim** — the WPC common
+  header's own file-size field (the documented WPD layout). No record
+  matches → the return-0 decline. A zero size field → the engine's
+  extent!=0 gate declines.
+
+The landing: `validate_wpd` replaces the blind 64 MiB stand-in with
+the table gate + the header size field; the row max carries
+**0xFFFFFFFF** (the og's registry node is a 0x10-byte object — vtable
++ id only, NO min/max — the extent is the header field's own u32, so
+the field's natural ceiling is the row bound); the device end clamps
+via probe_limit. The type split (0x44/0x45/0x3d) is the og's
+report-layer routing over the one WPC family — the core keeps the
+single FMT_WPD family carve, the registered model-divergence stance
+(the CRW precedent). The stand-in era's "+4 product-version word"
+gate is RETIRED with the stand-in: the og's walk never reads +4 — the
+version table IS the gate.
+
+RED→GREEN first-hand via the stash dance: all five tests RED at the
+stand-in tree (WpdVersionTableWalkSetsExtent — the blind device-bound
+extent; WpdOverCapSizeCarvesFull — the 64 MiB truncation on a 72 MiB
+declared file; WpdVersionTableGateDeclinesUnknownVersion — the
+stand-in accepted any key + product word; WpdZeroSizeFieldDeclines —
+the stand-in accepted a zero size; WpdSecondAndThirdRecordsCarve —
+the stand-in's blind extent), GREEN with the walk. The S-007 batch's
+WPD plant re-pinned (a real record-1 version pair + a declared size
+field; the old filler plant exercised the stand-in era's blind
+acceptance). The 191-test carve suite green. Remaining members: SIT,
+APE, EPS, DXF, SWF-RECT (five) + the DWG gen-3 R2007 remainder.

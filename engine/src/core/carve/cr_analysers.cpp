@@ -5514,12 +5514,33 @@ CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68. The
- * document stream walk is undecoded; the 4-byte key + a nonzero
- * product-version word at +4 carry the gate, bounded extent stands in. */
+/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68 (0x44).
+ * M-107 member 6 (WPD): the version-table walk decoded first-hand
+ * (RAWSearchDLL FUN_180041f50, raw asm 0x180041f50-0x18004202e; the
+ * 36-byte table at .rdata 0x18006ef40 with the ninth int from the movl
+ * $0x3d immediate at 0x180041f6e; the vtable slot is +0x20 — the engine
+ * dispatch call *0x20(%rax) at 0x18000d7ae, the extent!=0 acceptance
+ * gate at 0x18000d7e1). The og gates on THREE version records — the
+ * pair (u32@+8, u32@+0xe) against:
+ *   (0x01020a01, 0x00050200) -> type 0x44 (WPD proper)
+ *   (0x00021601, 0x00030000) -> type 0x45 (the WPG-family WPC variant)
+ *   (0x00010f0f, 0x00030000) -> type 0x3d (the third WPC variant)
+ * — and on ANY match stamps extent = u32@+0x14 verbatim (the WPC common
+ * header's own file-size field, the documented WPD layout); no record
+ * matches -> the return-0 decline. A zero size field hits the engine's
+ * extent!=0 gate -> no carve. The type split is the og's report-layer
+ * routing (the three WPC family members report under different classes)
+ * — the core's row keeps the single FMT_WPD family carve, the
+ * registered model-divergence stance (the CRW precedent). The og's
+ * registry node (the 0x10-byte object: vtable + id only) carries NO
+ * min/max — the extent is the header field's own u32, so the row max
+ * carries 0xFFFFFFFF (the field's natural ceiling; the blind 64 MiB
+ * stand-in is gone) and the device end clamps via probe_limit. The
+ * stand-in era's +4 product-word check is retired with it: the og's
+ * walk never reads +4 — the version table IS the gate. */
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[0x18];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h,
@@ -5527,12 +5548,27 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
                     "WPC",
                     4) != 0)
         return r;
-    if (h[4] == 0 && h[5] == 0)
-        return r; /* zero product word: degenerate */
+    const u32 va = u32_from_bytes_le(h + 8);
+    const u32 vb = u32_from_bytes_le(h + 0xe);
+    static const struct {
+        u32 va, vb;
+    } kVers[3] = {
+        {0x01020a01u, 0x00050200u}, {0x00021601u, 0x00030000u}, {0x00010f0fu, 0x00030000u}};
+    bool matched = false;
+    for (const auto& v : kVers)
+        if (v.va == va && v.vb == vb) {
+            matched = true;
+            break;
+        }
+    if (!matched)
+        return r; /* no version record: the og's decline */
+    const u32 size = u32_from_bytes_le(h + 0x14);
+    if (size == 0)
+        return r; /* the engine's extent!=0 acceptance gate */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 600;
-    r.note = "wpd-magic+bounded-extent";
+    r.end = std::min(hit + u64(size), probe_limit(s, hit, cap));
+    r.confidence = 650;
+    r.note = "wpd-version-table+header-size";
     return r;
 }
 

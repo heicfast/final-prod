@@ -1323,3 +1323,22 @@ plant declines — the struct at the wrong offset decodes zeros and the
 gates refuse). The full convergence record: M-107's Session-84
 convergence addendum + evidence/s84-lane-sheets/
 s84-l1-dwg-walk-decode.md §4.
+
+---
+
+## Session-87 addendum — M-107 member 6: the WPD version-table walk landed
+
+The WPD row moves to **MATCH**: the gate is the og's three-record
+version table — the pair (u32@+8, u32@+0xe) against
+(0x01020a01, 0x00050200) / (0x00021601, 0x00030000) /
+(0x00010f0f, 0x00030000) — and the extent is the WPC common header's
+own file-size field u32@+0x14 verbatim (FUN_180041f50, the +0x20
+vtable slot, the engine's extent!=0 acceptance gate). No record
+matches → the decline; a zero size field → the decline. The row max
+carries the u32 field's own ceiling 0xFFFFFFFF (the og's registry
+node carries no min/max); the device end clamps. The type split
+(0x44/0x45/0x3d) is the og's report-layer routing — the core keeps
+the single family carve (the registered model-divergence stance).
+The +4 product-word check retired (the og never reads +4). Tests:
+the five Wpd* pins (all RED at the stand-in via the stash dance).
+The carve suite 191/191.

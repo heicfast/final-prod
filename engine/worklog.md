@@ -1,4 +1,38 @@
 
+## Session-87 S87 fix lane (continuation, the MAJOR-first 20+ mandate) — opens; N-225 lands; M-107 member 6 (WPD) lands (2026-10-30)
+
+- **Baseline:** opened at core `ddab68b4` (clean tree; full ctest
+  1683/1683 green first-hand post-merge at `45fe3a9f`, corpus `be0cfe9`
+  throughout; the prompt re-saved token-redacted at
+  `worklog/session-diff-fix-s87-prompt.md`, superseding the earlier
+  S86-era draft at the older pin `b6801ade`).
+- **The open-pull state:** main at the open pin carried the M-075-era
+  win_syntax_check RED (cr_fsck.cpp's WoW64 pair + ULONGLONG never grown
+  into tests/win-stub/windows.h) — the racing window's three repair
+  lanes (9f5f0415 / a2a93573 / 90b787d6) had each landed the same stub
+  growth, leaving THREE definition sets on origin/main
+  (`322dbdc0`): every src/win file failed the parse gate with
+  redefinition errors. **N-225** filed and fixed in this lane's merge:
+  the stub deduped to ONE definition set, 13/13 parse, full ctest
+  green. This lane's independent stub growth (the born-collided local
+  N-224, `74f29341`) conceded per SA-9 to the racing filings.
+- **M-107 member 6 (WPD) FIXED** — the version-table walk
+  (FUN_180041f50, raw asm 0x180041f50-0x18004202e; the 36-byte table
+  at .rdata 0x18006ef40 + the movl $0x3d ninth int; the +0x20 vtable
+  slot; the extent!=0 engine gate at 0x18000d7e1): the og gates on
+  THREE version records — (u32@+8, u32@+0xe) against
+  (0x01020a01, 0x00050200)→0x44 / (0x00021601, 0x00030000)→0x45 /
+  (0x00010f0f, 0x00030000)→0x3d — and stamps extent = u32@+0x14
+  (the WPC common header's own file-size field) on any match; no
+  record → decline; zero size → the engine's decline. The row max
+  carries the u32 field's own ceiling 0xFFFFFFFF (the og's registry
+  node has no min/max); the type split is the report-layer routing
+  (the single-family carve keeps the registered stance); the +4
+  product-word gate retired (the og never reads +4). Five RED→GREEN
+  tests via the stash dance; the S-007 WPD plant re-pinned; the carve
+  suite 191/191. M-107 now at members 1-6 of 11 (remaining: SIT, APE,
+  EPS, DXF, SWF-RECT + the DWG gen-3 remainder).
+
 ## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
 
 The racing S85 window landed M-107's DWG member (8272daf2 — the seat)
