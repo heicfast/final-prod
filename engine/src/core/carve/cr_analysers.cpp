@@ -553,7 +553,8 @@ static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
  * Adobe Photoshop 7.0_N.JPG, JPG_192x144_000001.JPG. The dims prefix
  * composes the format name: "JPG_<W>x<H>". */
 static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 sof_w, u64 sof_h,
-                                       std::string* counter_key = nullptr) {
+                                       std::string* counter_key = nullptr,
+                                       std::string* tag_group = nullptr) {
     /* EXIF APP1: walk the JPEG segments for APP1 "Exif\0\0", then the
      * TIFF IFD0 for Model (0x0110) / Software (0x0131). Bounded: the
      * first 64 KiB of the file (EXIF lives in the header; the APP1
@@ -667,11 +668,18 @@ static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 
     if (!model.empty()) {
         if (counter_key != nullptr)
             *counter_key = model; /* the per-string counter key */
+        /* M-101: the Tags Extracted branch's family value — EXIF Model
+         * first, Software second (the same priority the prefix derives;
+         * the og's branch groups by the extracted tag itself). */
+        if (tag_group != nullptr)
+            *tag_group = model;
         return prefix_from_bytes(model);
     }
     if (!software.empty()) {
         if (counter_key != nullptr)
             *counter_key = software;
+        if (tag_group != nullptr)
+            *tag_group = software; /* M-101: the Software fallback family */
         return prefix_from_bytes(software);
     }
     /* the dims branch: W,H in [1, 0x2000] (the DRWUI caller's sanity
@@ -702,7 +710,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
      * prefix is analyser-supplied regardless of the accept tier) */
     const auto set_prefix = [&]() {
         r.name_counter_key.clear();
-        r.name_prefix = jpeg_name_prefix(s, hit, cap, sof_w, sof_h, &r.name_counter_key);
+        r.name_prefix =
+            jpeg_name_prefix(s, hit, cap, sof_w, sof_h, &r.name_counter_key, &r.tag_group);
     };
     int markers = 0;
     /* the legacy tier's accept-at-limit: anchored at the candidate start,

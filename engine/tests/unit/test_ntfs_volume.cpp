@@ -5981,3 +5981,151 @@ TEST(NtfsVolume, MirrorFallbackUnaffectedByGrowthPass) {
     EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec))
         << "past the mirror span: refused, not fabricated by growth";
 }
+
+namespace {
+
+/* M-101: the version-family pair - record 32 (live) and record 33
+ * (deleted), BOTH carrying (parent 16, "dupe.doc"): the torn-overwrite
+ * shape the og's Versions node groups ("another version of the file in
+ * the same directory"). The two records emit under DIFFERENT roots
+ * (Found / Deleted) - only the FS-NATIVE axis (ntfs_parent_ref +
+ * folded name) can group them. */
+void add_version_family_pair(Image& img) {
+    {
+        RecBuilder r;
+        r.header(32, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"dupe.doc", FILE_NAME_WIN32_AND_DOS, 0x20, 700, 700);
+        r.attr_data_runlist(252, 2, 700);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 64), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(33, 0); /* deleted - the prior version */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"DUPE.DOC", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        r.attr_data_runlist(254, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 66), r.buf.data(), RECORD_SIZE);
+    }
+}
+
+std::vector<tree::FileNode*> all_files(tree::ResultTree& t) {
+    std::vector<tree::FileNode*> out;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->is_full())
+                out.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : t.roots())
+        collect(r);
+    return out;
+}
+
+} // namespace
+
+TEST(NtfsVolume, VersionsNodeGroupsTornSiblings) {
+    /* M-101: two MFT records for one pathname (parent 16, "dupe.doc" -
+     * case-folded: the live record 32 and the deleted prior record 33)
+     * are ONE version family: the post-scan pass stamps both props with
+     * the SAME version_group id (the family's minimum record number,
+     * 32), spanning the Found/Deleted roots exactly as the og's Versions
+     * node groups "another version of the file in the same directory".
+     * No other file gains an id. */
+    Image img;
+    build_image(img);
+    add_version_family_pair(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    /* both family members surfaced (the live one under Found, the
+     * deleted prior under Deleted) */
+    tree::FileNode* live_dupe = nullptr;
+    tree::FileNode* deleted_dupe = nullptr;
+    for (tree::FileNode* f : all_files(tree)) {
+        const std::string n = f->name_utf8();
+        if (n == "dupe.doc")
+            live_dupe = f;
+        if (n == "DUPE.DOC")
+            deleted_dupe = f;
+    }
+    ASSERT_NE(live_dupe, nullptr) << "the live version emitted";
+    ASSERT_NE(deleted_dupe, nullptr) << "the deleted prior version emitted";
+    /* the walk nests deleted records inside the LIVE directory tree when
+     * the parent directory exists (deleted->parent() == folder1, the
+     * EndToEndWalk pin) - the two versions sit as tree SIBLINGS here; when
+     * the parent is GONE the prior record routes under LostDir<NNNN> in
+     * the lost tree while the live one stays put - only the FS-NATIVE
+     * axis (ntfs_parent_ref + folded name) groups both shapes, which is
+     * exactly why the pass keys on it, never on the tree position. */
+    EXPECT_EQ(live_dupe->parent(), deleted_dupe->parent())
+        << "this fixture's family are direct tree siblings (folder1)";
+
+    /* the pass groups them: same id, the min record number */
+    const u64 stamped = tree::stamp_version_groups(tree);
+    EXPECT_EQ(u64(2), stamped) << "exactly the two family members stamped";
+    ASSERT_NE(live_dupe->props()->version_group, u64(0));
+    ASSERT_NE(deleted_dupe->props()->version_group, u64(0));
+    EXPECT_EQ(live_dupe->props()->version_group, deleted_dupe->props()->version_group)
+        << "one family id";
+    EXPECT_EQ(u64(32), live_dupe->props()->version_group)
+        << "the id is the family's minimum MFT record number";
+    /* no other file gains an id */
+    for (tree::FileNode* f : all_files(tree)) {
+        if (f != live_dupe && f != deleted_dupe) {
+            EXPECT_EQ(u64(0), f->props()->version_group)
+                << "ungrouped file stays 0: " << f->name_utf8();
+        }
+    }
+}
+
+TEST(NtfsVolume, VersionsPassIsIdempotentAndCaseFolding) {
+    /* M-101 second pin: the pass is IDEMPOTENT (a re-run derives the
+     * same ids - the min-record-number id is deterministic, so a
+     * re-stamped tree never drifts), and the case-fold matches NTFS's
+     * case-insensitive name collation ("dupe.doc" == "DUPE.DOC"). The
+     * distinct-record guard: record 21's hard link pair (one record,
+     * two $FILE_NAMEs) is NOT a version family - one record is links,
+     * not versions. */
+    Image img;
+    build_image(img);
+    add_version_family_pair(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+    const u64 first = tree::stamp_version_groups(tree);
+    const u64 second = tree::stamp_version_groups(tree); /* re-run */
+    EXPECT_EQ(first, u64(2));
+    EXPECT_EQ(second, u64(0)) << "the idempotent re-run stamps nothing new";
+}

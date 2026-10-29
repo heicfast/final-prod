@@ -299,3 +299,52 @@ TEST(Snapshot, RecoveryFromSnapshotIsByteIdentical) {
         EXPECT_EQ(0, std::memcmp(data.data(), it->second.data(), data.size()));
     }
 }
+
+TEST(Snapshot, CarriesTheDistinguishedBranchAxes) {
+    /* M-101: the value capture carries the two distinguished-branch
+     * axes (the Versions id + the runtime tag family) — the snapshot is
+    a live-tree copy, so a host reading a mid-scan capture can render
+     * the Versions and Tags Extracted branches exactly as the final
+     * tree would. The materialize path restores both fields. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Found");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"dupe.doc";
+    p->logical_size = 700;
+    p->version_group = 32;
+    p->tag_group = "GT-S7562";
+    (void)t.add_file(root, p);
+    p->release();
+    t.refresh_stats();
+
+    auto snap = tree::Snapshot::capture(t, false);
+    ASSERT_NE(snap, nullptr);
+    ASSERT_EQ(u32(1), snap->node_count() - u32(snap->roots().size()));
+    bool saw = false;
+    for (u32 i = 0; i < snap->node_count(); ++i) {
+        const tree::SnapNode& s = snap->node(i);
+        if (s.name == u"dupe.doc") {
+            saw = true;
+            EXPECT_EQ(s.version_group, u64(32))
+                << "RED pre-fix: the capture dropped the Versions axis";
+            EXPECT_EQ(s.tag_group, std::string("GT-S7562"))
+                << "the runtime tag family rides the value capture";
+        }
+    }
+    EXPECT_TRUE(saw);
+    /* materialize restores both */
+    for (u32 i = 0; i < snap->node_count(); ++i) {
+        if (snap->node(i).name == u"dupe.doc") {
+            tree::FileProperties* mp = snap->materialize_props(i);
+            ASSERT_NE(mp, nullptr);
+            EXPECT_EQ(mp->version_group, u64(32));
+            EXPECT_EQ(mp->tag_group, std::string("GT-S7562"));
+            mp->release();
+        }
+    }
+    /* the landed branches keep their shapes: the capture's DFS order and
+     * node count are unchanged by the new fields (append-only wire) */
+    std::vector<u32> dfs;
+    snap->dfs(dfs);
+    EXPECT_EQ(dfs.size(), size_t(snap->node_count()));
+}

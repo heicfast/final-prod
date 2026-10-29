@@ -439,6 +439,12 @@ struct ScanStats {
      * counter is the pruned-file total, junk_filtered stays the
      * hidden-flag total - the two filters compose). */
     u64 folder_filtered = 0;
+    /* M-101: FILE nodes the Versions pass stamped with a version_group
+     * id (the og's fifth distinguished branch, UIUX/09:29 - NTFS
+     * file-record multi-version families: >= 2 distinct records sharing
+     * (ntfs_parent_ref, case-folded name)). The counter is the stamped
+     * membership total, not the family count. */
+    u64 version_grouped = 0;
 
     /* M-035: lost candidates the engine-side content-consistency scorer
      * rejected (the og's exFAT-only FUN_180025390 rule - majority

@@ -132,6 +132,14 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
+    /* M-101: the two distinguished-branch scoping gates — the Versions
+     * node (nonzero version_group) and the Tags Extracted branch
+     * (non-empty tag_group). Evaluated before any name conversion: the
+     * props-local fields keep the fast count lane string-free. */
+    if (f.version_group_only && (pr == nullptr || pr->version_group == 0))
+        return false;
+    if (f.tag_extracted_only && (pr == nullptr || pr->tag_group.empty()))
+        return false;
     if (f.category_mask != 0x3FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
@@ -420,6 +428,11 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         row.deleted = u32(node->deleted_state());
         row.confidence = u32(node->confidence());
         row.category = u32(cat_of(row.name_utf8));
+        /* M-101: the two distinguished-branch axes ride the row — hosts
+         * render the Versions node by regrouping on version_group and
+         * the Tags Extracted branch by grouping on tag_group. */
+        row.version_group = pr ? pr->version_group : 0;
+        row.tag_group = pr ? pr->tag_group : std::string();
         emit_path(node, row.path_utf8);
         out.rows.push_back(std::move(row));
     }

@@ -188,6 +188,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 4096; /* N-131: the NTFS parent-reference anchor (+0x40) */
             if (pr && pr->fat_parent_cluster != 0)
                 nflags |= 8192; /* N-131: the FAT parent-directory anchor (+0x42) */
+            if (pr && pr->version_group != 0)
+                nflags |= 16384; /* M-101: the multi-version family id follows */
             if (pr)
                 for (const auto& e : pr->extents)
                     if (e.hole || e.logical != 0) {
@@ -325,6 +327,17 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * construction — the og's volume-root node anchors at 0). */
         if (nflags & 8192)
             put32(out, pr->fat_parent_cluster);
+        /* M-101 (nflags bit14): the multi-version family id — the og's
+         * Versions node axis (UIUX/09:29; the DRWUI coaching string
+         * "another version of the file in the same directory"). The
+         * family's minimum MFT record number, stamped by the post-scan
+         * version pass. 8-byte append-only block; the bit fires only
+         * when the carrier is nonzero, so pre-M-101 sessions stay
+         * shape-identical. The runtime tag_group is deliberately NOT
+         * persisted (the og's session grammar carries no tag field —
+         * the branch is runtime grouping per the finding's fix plan). */
+        if (nflags & 16384)
+            put64(out, pr->version_group);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -554,6 +567,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         }
         if (nflags & 8192) { /* N-131: the FAT parent-directory anchor */
             props->fat_parent_cluster = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 16384) { /* M-101: the multi-version family id */
+            props->version_group = c.g64();
             if (c.fail)
                 break;
         }

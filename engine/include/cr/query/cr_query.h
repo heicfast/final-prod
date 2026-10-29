@@ -235,6 +235,21 @@ struct Filter {
     u32 state_mask = 0xF;
     bool deleted_only = false;
     u32 origin_mask = 0xF; /* tree::Origin bits */
+    /* M-101: the Versions branch scoping — when true, only nodes whose
+     * props carry a nonzero version_group (the multi-version families
+     * the post-scan pass stamps: >= 2 distinct NTFS records sharing
+     * (ntfs_parent_ref, case-folded name) — "another version of the
+     * file in the same directory", UIUX/09:29). The og's Versions node
+     * is a distinguished tree branch the filter bar targets; the axis
+     * composes with every other filter dimension. */
+    bool version_group_only = false;
+    /* M-101: the Tags Extracted branch scoping — when true, only nodes
+     * whose props carry a non-empty tag_group (the scan-time extracted
+     * tag family: EXIF Model, else Software — "We classify and organize
+     * the found files by extracted tags", UIUX/09:27). The branch is
+     * runtime grouping by design: the og does not persist tags, so a
+     * reloaded session re-derives the population by re-extraction. */
+    bool tag_extracted_only = false;
 
     /* effective state mask: deleted_only sugar ORs in the Deleted bit */
     u32 effective_state_mask() const {
@@ -340,6 +355,16 @@ struct Row {
     u32 deleted = 0;    /* tree::DeletedState */
     u32 confidence = 0; /* tree::Confidence ordinal (0..4) */
     u32 category = 0;   /* Category */
+    /* M-101 (append-only): the Versions branch axis — the node's
+     * version_group id (0 = ungrouped; the family's minimum MFT
+     * record number). Hosts render the Versions node by regrouping
+     * rows on this id. */
+    u64 version_group = 0;
+    /* M-101 (append-only): the Tags Extracted branch axis — the
+     * node's extracted tag family (EXIF Model, else Software; empty =
+     * no extracted tag). Hosts render the branch by grouping rows on
+     * this value (runtime-only: not round-tripped by the session). */
+    std::string tag_group;
 };
 
 struct Result {

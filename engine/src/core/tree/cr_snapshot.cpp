@@ -56,6 +56,12 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
             s.carve_confidence = p->carve_confidence;
             std::memcpy(s.sha128, p->sha128, sizeof(s.sha128));
             s.hash_valid = p->hash_valid;
+            /* M-101: the two distinguished-branch axes ride the value
+             * capture (the snapshot is a live-tree copy, so the runtime
+             * tag family travels with it even though the session
+             * container does not persist the field). */
+            s.version_group = p->version_group;
+            s.tag_group = p->tag_group;
         }
         idx.emplace(n, u32(snap->nodes_.size()));
         snap->nodes_.push_back(std::move(s));
@@ -129,6 +135,8 @@ FileProperties* Snapshot::materialize_props(u32 index) const {
     p->carve_confidence = s.carve_confidence;
     std::memcpy(p->sha128, s.sha128, sizeof(p->sha128));
     p->hash_valid = s.hash_valid;
+    p->version_group = s.version_group; /* M-101 */
+    p->tag_group = s.tag_group;         /* M-101 */
     return p;
 }
 

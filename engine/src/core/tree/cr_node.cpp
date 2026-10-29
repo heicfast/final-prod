@@ -6,6 +6,8 @@
 #include "cr/tree/cr_node.h"
 #include <algorithm>
 #include <cstring>
+#include <functional>
+#include <unordered_set>
 
 namespace cr {
 namespace tree {
@@ -81,6 +83,13 @@ FileProperties* FileProperties::clone() const {
     /* N-100: the +0x60 total-clusters twin rides the same clone (the og's
      * clone copies the whole props block; the fan-out keeps both anchors). */
     p->ntfs_total_clusters = ntfs_total_clusters;
+    /* M-101: the version-group id and the runtime tag family ride the
+     * clone — the og's clone copies the whole props block, and a fan-out
+     * link of a multi-version family record is part of the family (the
+     * version pass stamps clones too, so the copy must carry the fields
+     * from construction). */
+    p->version_group = version_group;
+    p->tag_group = tag_group;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;
@@ -579,6 +588,82 @@ ResultTree::~ResultTree() {
 }
 
 ResultTree::ResultTree() = default;
+
+/* ---- M-101: the Versions-node stamping pass ---- */
+namespace {
+/* NTFS-name collation fold: NTFS names are case-preserving but
+ * case-insensitive on lookup ($UpCase tables) — two records whose
+ * names differ only by case are the same pathname ("the same file in
+ * the same directory"). ASCII fold covers the fixture population;
+ * the full $UpCase table is a display-layer concern the og applies
+ * at its own collation site (FUN_180017f10's RtlCompareMemoryUlong
+ * family uppercases through the volume's table - the pass folds the
+ * same intent without carrying a 128 KiB table for the grouping). */
+u16 fold_ascii(u16 c) {
+    if (c >= u'a' && c <= u'z')
+        return u16(c - u'a' + u'A');
+    return c;
+}
+} // namespace
+
+u64 stamp_version_groups(ResultTree& tree) {
+    struct Member {
+        FileProperties* props;
+        u64 record_ref;
+    };
+    /* key: (ntfs_parent_ref, case-folded name) — the FS-NATIVE identity
+     * that spans the Found/Deleted roots (a torn overwrite's prior record
+     * is deleted, the current one is live; both carry the same parent
+     * record number and the same pathname). */
+    std::unordered_map<u64, std::unordered_map<std::u16string, std::vector<Member>>> families;
+    std::function<void(FileNode*)> walk = [&](FileNode* n) {
+        for (FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            FileProperties* pr = c->props();
+            if (pr != nullptr && !c->is_full() && pr->fs_kind == u32(FsKindCode::Ntfs) &&
+                c->origin() == Origin::Structured && (pr->attributes & 0x10) == 0) {
+                /* the record number: the low 48 bits of the raw reference
+                 * (the sequence number is per-instance, not identity) */
+                const u64 rec = pr->record_ref & 0xFFFFFFFFFFFFULL;
+                if (rec != 0 && pr->ntfs_parent_ref != 0) {
+                    std::u16string folded = pr->name;
+                    for (auto& ch : folded)
+                        ch = fold_ascii(ch);
+                    families[pr->ntfs_parent_ref][folded].push_back({pr, rec});
+                }
+            }
+            walk(c);
+        }
+    };
+    for (FileNode* r : tree.roots())
+        walk(r);
+
+    u64 stamped = 0;
+    for (auto& [parent, by_name] : families) {
+        (void)parent;
+        for (auto& [name, members] : by_name) {
+            (void)name;
+            /* distinct-record guard: the hard-link fan-out clones ONE
+             * record under the same (parent, name) - those are links of
+             * one file, not versions of it. A version family needs >= 2
+             * DISTINCT MFT record numbers. */
+            std::unordered_set<u64> distinct;
+            u64 min_rec = ~u64(0);
+            for (const Member& m : members) {
+                if (distinct.insert(m.record_ref).second && m.record_ref < min_rec)
+                    min_rec = m.record_ref;
+            }
+            if (distinct.size() < 2 || min_rec == ~u64(0) || min_rec == 0)
+                continue;
+            for (const Member& m : members) {
+                if (m.props->version_group != min_rec) {
+                    m.props->version_group = min_rec;
+                    ++stamped;
+                }
+            }
+        }
+    }
+    return stamped;
+}
 
 } // namespace tree
 } // namespace cr

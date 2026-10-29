@@ -85,3 +85,16 @@ FUN_140638400), and the bit-2-of-+0x74 setters (the drive-letter-path
 recovered bit, two sites) — with the 0xa8-producer no-writer-found
 observation registered as the likely-dead-branch residual. Evidence:
 `../evidence/s55-lane-sheets/S55-D3-grading.md` (the full rule matrix).
+
+## M-101 addendum (S84 fix lane, 2026-10-30)
+
+The tree model gains the og's two missing distinguished-branch axes
+(UIUX/09:27-36 — the five-root census): `version_group` (the Versions
+node: >= 2 distinct NTFS records sharing (ntfs_parent_ref, case-folded
+name); stamped by `tree::stamp_version_groups` at scan close beside the
+junk filter; persisted nflags bit-14) and the runtime `tag_group` (the
+Tags Extracted branch: the EXIF Model/Software family the carve
+analyser extracts; never persisted — the og's branch is runtime
+grouping). The three landed branches (Unimportant / Name-Lost /
+Path-Lost) are unchanged. Full record:
+findings/FIXED/M-101-results-tree-branches-missing-versions-node-tags-extracted.md

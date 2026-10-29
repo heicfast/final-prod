@@ -508,6 +508,16 @@ struct CarveResult {
      * counter; the date-alone DOCX rows 1..19 across three different
      * dates). Empty = the per-format branch (dims/duration/plain). */
     std::string name_counter_key;
+    /* M-101: the extracted TAG FAMILY value — the og's Tags Extracted
+     * branch axis ("We classify and organize the found files by
+     * extracted tags to help you easily locate desirable files.",
+     * UIUX/09:27; the node-type 6 branch at DRWUI:642790). The EXIF
+     * Model string, else the EXIF Software string (the same priority
+     * the S-049 prefix derives — "GT-S7562", "Adobe Photoshop 7.0").
+     * Empty = no extracted tag (the file stays out of the branch). The
+     * emit site copies it onto FileProperties::tag_group (runtime-only
+     * per the finding's fix plan: the og does not persist tags). */
+    std::string tag_group;
     /* M-093: the og stamps the FORMAT ID at the probe, not at the
      * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
      * for the generic-XML marker regardless of which of its four keys

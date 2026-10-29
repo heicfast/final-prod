@@ -12763,3 +12763,70 @@ the audit trail is the deliverable of this landing.
 finding's decode-then-land order), then M-075/M-078/M-101/M-105, then the OQ
 items (S79-1's $LogFile decode is in-repo workable).
 
+
+---
+
+## Session-84 S84 fix-lane — entry 2: M-101 FIXED (the two missing distinguished branches) (2026-10-30)
+
+**The finding:** the og's results tree distinguishes FIVE special roots
+(UIUX/09:27-36, the tr-verified coaching copy); the core landed three
+(Unimportant / File Name Lost / File Path Lost) and had NO concept for
+the other two — the Versions node ("It is another version of the file
+in the same directory. You can view different versions of the file
+respectively to help you easily locate your desired data.", NTFS
+file-record multi-version) and Tags Extracted ("We classify and
+organize the found files by extracted tags to help you easily locate
+desirable files.").
+
+**Corpus verification (first-hand, before the design):** UIUX/09 read
+in full (the five-branch census + the per-branch tooltips); the DRWUI
+tree-build site located and read (:642790 — the node-type field +0x1f0:
+value 6 = the Tags Extracted branch, 4 = Existing Files, 0 = Deleted,
+7 = Reconstructed; FUN_14008b040 is the field's getter); the coaching
+strings censused (strings_ascii:17041/17068/17119 +
+qt_strings:645's "We have found different versions of files in the
+same directory"); the tag-extraction source confirmed in the carve
+engine's own S-049 EXIF walk (Model 0x0110 / Software 0x0131, the
+N-209 39-char cap).
+
+**The landing (per the finding's own fix plan, all four steps):**
+(1) `FileProperties.version_group` — stamped by the new
+`tree::stamp_version_groups` pass at scan close (beside the junk
+filter): groups NTFS-origin structured files by the FS-NATIVE axis
+(ntfs_parent_ref + case-folded name) because the tree position CANNOT
+be the key (the walk nests deleted records inside the live directory
+tree when the parent exists — the EndToEndWalk pin — and routes
+orphaned priors under LostDir<NNNN>; the FS-native identity groups
+both shapes); the id = the family's minimum MFT record number
+(deterministic + idempotent — a reloaded session's persisted ids
+never drift from a re-derivation); the distinct-record guard excludes
+hard-link fan-out clones (links of one record, not versions).
+(2) Persistence: the nflags bit-14 block (8-byte append-only; fires
+only when nonzero — pre-M-101 sessions shape-identical).
+(3) Tags Extracted: the runtime `tag_group` — the S-049 analyser's
+EXIF walk now stamps `CarveResult::tag_group` (Model, else Software)
+and the emit site copies it onto the props; deliberately NOT persisted
+(the finding's own arbitration: "the corpus shows the og does not
+persist tags in the session — the branch is runtime grouping").
+(4) ABI: `SnapNode` carries both axes (the value capture is a
+live-tree copy — the runtime field rides it); `Row` carries both for
+host regrouping; `Filter.version_group_only`/`tag_extracted_only`
+scope the branches; `ScanStats.version_grouped` surfaces the total.
+
+**RED->GREEN first-hand:** the stash dance (source changes stashed,
+tests kept) → compile-error RED on the stash-reverted tree
+(`'stamp_version_groups' is not a member of 'cr::tree'`, `'FileProperties'
+has no member named 'version_group'`) → GREEN post-fix. 6 tests:
+NtfsVolume.VersionsNodeGroupsTornSiblings (the torn-overwrite pair
+grouped, same id, no false positives) / VersionsPassIsIdempotentAnd-
+CaseFolding / CarveEngine.JpegExifTagGroupStamps (Model / Software /
+tagless arms) / Query.VersionsAndTagsExtractedBranchAxes (both scopes
++ the intersection) / Session.VersionsRoundTrip (the id persists, the
+tag does not) / Snapshot.CarriesTheDistinguishedBranchAxes (both axes
++ the DFS-order guard). Full suite 1535/0 (+42 fixture-conditional
+skips, pre-existing); cr_ui_tests 89/89; doc_truth_gate green;
+clang-format clean.
+
+**Trail:** findings/FIXED/M-101 + Resolution, the matrix row, the
+ledger row, modules/{query,tree}.md addenda, SUMMARY's S84 block,
+this entry. Corpus: be0cfe9, read-only guarantee held.

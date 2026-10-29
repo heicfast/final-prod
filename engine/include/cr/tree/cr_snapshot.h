@@ -71,6 +71,14 @@ struct SnapNode {
     u32 carve_confidence = 0;
     u8 sha128[16] = {0};
     bool hash_valid = false;
+    /* M-101 (append-only): the two distinguished-branch axes — the
+     * Versions node id (nonzero = a multi-version family member; the
+     * family's minimum MFT record number) and the runtime extracted
+     * tag family (EXIF Model, else Software; the snapshot is a live-tree
+     * value capture, so the runtime field rides it even though the
+     * session container does not persist it). */
+    u64 version_group = 0;
+    std::string tag_group;
 };
 
 class Snapshot {

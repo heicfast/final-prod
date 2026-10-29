@@ -12689,3 +12689,138 @@ TEST(Carve, X3fTornSalvagesTheWalkedPrefix) {
         << "the walked prefix at the device end - the probe limit under the "
            "og walker's own 100 MiB cap constant (M-156's row-bound re-pin)";
 }
+
+TEST(CarveEngine, JpegExifTagGroupStamps) {
+    /* M-101: the Tags Extracted branch axis — the analyser's EXIF
+     * extraction (Model first, Software second) stamps the runtime
+     * tag_group on the carved node's props, exactly the family value the
+     * og's branch groups ("We classify and organize the found files by
+     * extracted tags", UIUX/09:27). A Model-bearing JPEG carries the
+     * model; a Software-only JPEG carries the software; a tagless JPEG
+     * carries nothing (stays out of the branch). */
+    const auto plant_exif_jpeg = [](std::vector<u8>& img, size_t at, const char* model,
+                                    size_t model_len, const char* software, size_t sw_len) {
+        img[at] = 0xFF;
+        img[at + 1] = 0xD8;
+        const size_t entries = (model ? 1 : 0) + (software ? 1 : 0);
+        const size_t strings = (model ? model_len + 1 : 0) + (software ? sw_len + 1 : 0);
+        const size_t ifd = 8 + 2 + 12 * entries + 4;
+        const size_t app1_len = 2 + 6 + ifd + strings;
+        img[at + 2] = 0xFF;
+        img[at + 3] = 0xE1;
+        putbe16(img, at + 4, u16(app1_len));
+        std::memcpy(img.data() + at + 6, "Exif\0\0", 6);
+        const size_t t = at + 12;
+        img[t] = 'M';
+        img[t + 1] = 'M';
+        img[t + 2] = 0;
+        img[t + 3] = 42;
+        putbe32(img, t + 4, 8);
+        putbe16(img, t + 8, u16(entries));
+        size_t e = t + 10;
+        size_t str_at = e + 12 * entries + 4;
+        if (model) {
+            putbe16(img, e, 0x0110);
+            putbe16(img, e + 2, 2);
+            putbe32(img, e + 4, u32(model_len));
+            putbe32(img, e + 8, u32(str_at - t));
+            std::memcpy(img.data() + str_at, model, model_len);
+            str_at += model_len + 1;
+            e += 12;
+        }
+        if (software) {
+            putbe16(img, e, 0x0131);
+            putbe16(img, e + 2, 2);
+            putbe32(img, e + 4, u32(sw_len));
+            putbe32(img, e + 8, u32(str_at - t));
+            std::memcpy(img.data() + str_at, software, sw_len);
+            e += 12;
+        }
+        putbe32(img, e, 0);
+        size_t p = at + 4 + app1_len;
+        img[p] = 0xFF;
+        img[p + 1] = 0xC0;
+        putbe16(img, p + 2, 17);
+        img[p + 4] = 8;
+        putbe16(img, p + 5, 100);
+        putbe16(img, p + 7, 200);
+        img[p + 9] = 1;
+        img[p + 10] = 1;
+        img[p + 11] = 0x22;
+        img[p + 12] = 0;
+        p += 2 + 17;
+        img[p] = 0xFF;
+        img[p + 1] = 0xDA;
+        putbe16(img, p + 2, 12);
+        p += 2 + 12;
+        for (size_t k = 0; k < 480; ++k)
+            img[p + k] = 0x11;
+        p += 480;
+        img[p] = 0x22;
+        img[p + 1] = 0xFF;
+        img[p + 2] = 0xD9;
+    };
+    /* Model wins: the family value is the EXIF Model */
+    {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_exif_jpeg(img, 512, "GT-S7562", 8, "Adobe Photoshop 7.0", 20);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats st;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+            OK);
+        bool saw = false;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == u32(FMT_JPG)) {
+                saw = true;
+                EXPECT_EQ(c->props()->tag_group, std::string("GT-S7562"))
+                    << "RED pre-fix: the Model never reached the props as the tag family";
+            }
+        EXPECT_TRUE(saw);
+    }
+    /* Software-only: the family value is the EXIF Software */
+    {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_exif_jpeg(img, 512, nullptr, 0, "Adobe Photoshop 7.0", 20);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats st;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+            OK);
+        bool saw = false;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == u32(FMT_JPG)) {
+                saw = true;
+                EXPECT_EQ(c->props()->tag_group, std::string("Adobe Photoshop 7.0"))
+                    << "the Software fallback family";
+            }
+        EXPECT_TRUE(saw);
+    }
+    /* Tagless: the node stays out of the branch (empty family) */
+    {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_exif_jpeg(img, 512, nullptr, 0, nullptr, 0);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats st;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+            OK);
+        bool saw = false;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == u32(FMT_JPG)) {
+                saw = true;
+                EXPECT_TRUE(c->props()->tag_group.empty())
+                    << "no extracted tag: the file stays out of the branch";
+            }
+        EXPECT_TRUE(saw);
+    }
+}

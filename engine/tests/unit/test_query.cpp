@@ -978,3 +978,74 @@ TEST(Display, SizeUiFormatterPrecisionAndStrip) {
     /* negative precision clamps to 0 */
     EXPECT_EQ("5 B", query::display_size_ui(5, -3));
 }
+
+TEST(Query, VersionsAndTagsExtractedBranchAxes) {
+    /* M-101: the two distinguished-branch scoping gates compose with the
+     * existing filter dimensions. version_group_only returns exactly the
+     * multi-version family members (the row carries the family id hosts
+     * regroup on); tag_extracted_only returns exactly the tag-bearing
+     * files (the row carries the family value hosts group on). The two
+     * axes are independent: a version member without a tag appears in
+     * the Versions branch only, and vice versa. */
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    auto* deleted = t.add_root(u"Deleted");
+    auto add = [&](tree::FileNode* parent, const char* name, u64 version_group,
+                   const char* tag) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = std::u16string(name, name + std::char_traits<char>::length(name));
+        p->logical_size = 100;
+        p->version_group = version_group;
+        if (tag)
+            p->tag_group = tag;
+        auto* f = t.add_file(parent, p);
+        p->release();
+        return f;
+    };
+    tree::FileNode* live = add(found, "dupe.doc", 32, nullptr);
+    tree::FileNode* prior = add(deleted, "DUPE.DOC", 32, "GT-S7562");
+    add(found, "plain.txt", 0, nullptr);
+    add(found, "photo.jpg", 0, "Adobe Photoshop 7.0");
+    (void)live;
+    (void)prior;
+    t.refresh_stats();
+
+    Query q;
+    q.filter.version_group_only = true;
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the version family members";
+    for (const Row& row : r.rows) {
+        EXPECT_EQ(row.version_group, u64(32)) << "the row carries the family id";
+        EXPECT_TRUE(row.name_utf8 == "dupe.doc" || row.name_utf8 == "DUPE.DOC")
+            << row.name_utf8;
+    }
+
+    q.filter.version_group_only = false;
+    q.filter.tag_extracted_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the tag-bearing files";
+    bool saw_prior = false, saw_photo = false;
+    for (const Row& row : r.rows) {
+        EXPECT_FALSE(row.tag_group.empty()) << "the row carries the family value";
+        if (row.name_utf8 == "DUPE.DOC") {
+            saw_prior = true;
+            EXPECT_EQ(row.tag_group, std::string("GT-S7562"));
+        }
+        if (row.name_utf8 == "photo.jpg") {
+            saw_photo = true;
+            EXPECT_EQ(row.tag_group, std::string("Adobe Photoshop 7.0"));
+        }
+    }
+    EXPECT_TRUE(saw_prior && saw_photo);
+
+    /* the axes compose: the version family member that ALSO carries a
+     * tag (the prior record) is the single intersection */
+    q.filter.version_group_only = true;
+    q.filter.tag_extracted_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "the two branch axes intersect";
+    if (!r.rows.empty()) {
+        EXPECT_EQ(r.rows[0].name_utf8, "DUPE.DOC");
+    }
+}

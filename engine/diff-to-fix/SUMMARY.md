@@ -1,3 +1,47 @@
+# SUMMARY.md — executive summary (the S84 fix lane on top — M-101 landed, the red main closed, the trail repaired; the prior lanes below, newest-first)
+
+## Session-84 S84 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first)... Aim for atleast 20+ fixes..."]; opened at core `cac42582`, corpus `be0cfe9` throughout; the baseline suite run FIRST exposed the red main — 2 failing S-068 tests — closed by the racing cd3479e7 byte-restore with this lane's convergent repair conceded per SA-9, the corroboration in the racing N-220's convergence addendum)
+
+- **M-101 FIXED (MAJOR — this lane's landing):** the two missing
+  distinguished branches. The Versions node (the fifth root): the
+  post-scan pass stamping `version_group` on NTFS file-record
+  multi-version families (>= 2 distinct records sharing
+  (ntfs_parent_ref, case-folded name) — the FS-NATIVE axis that spans
+  the Found/Deleted roots AND the orphaned-prior-under-LostDir shape;
+  the id = the family's minimum MFT record number, deterministic and
+  idempotent; hard-link fan-out clones excluded by the distinct-record
+  guard), persisted as the nflags bit-14 block. Tags Extracted: the
+  runtime `tag_group` (EXIF Model, else Software — the S-049 analyser's
+  walk) stamped on carved tag-bearing files, never persisted (the og's
+  grammar carries no tag field — runtime grouping per the fix plan).
+  Query axes (`version_group_only` / `tag_extracted_only`), Row
+  carriers, SnapNode fields, ScanStats.version_grouped. 6 tests
+  RED-first (the stash dance, compile-error class) -> GREEN; suite
+  1535/0 + UI 89/89.
+
+- **N-223 FIXED (MINOR — this lane's trail repair):** the 09a18f9f
+  six-trail-file marker residue + the born-collided D-152 TRIPLE seat
+  (D-163 the ext4 journal-inode claim, D-164 the last-scan pointer)
+  + the doc_truth_gate's `##`-form D-row blind spot closed (156 rows
+  now counted, all unique).
+
+- **The S-068 gate regression (the 9b4a9302 false trail commit):**
+  independently found + corpus-verified + repaired by TWO convergent
+  lanes in the same window (this lane and the racing S85/S86 lanes) —
+  the racing `cd3479e7` byte-restore keeps the seat per SA-9; the
+  identical corpus decode (the primary site :14753-14755 three-gate
+  conjunction; the 0x310000 comparison at the two retry-leg sites only)
+  recorded in the racing N-220's convergence addenda.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 7 MAJOR (M-075/M-078/
+M-086/M-087/M-089/M-105/M-107 — of which M-086/M-087/M-089 stand
+PUSHED-FORWARD as driver-repo-resident per the two-repo grant) · 2
+MINOR (N-107/N-127, both PUSHED-FORWARD posture) · 0 INFO active /
+184+ FIXED / 4 tracked-open.**
+Next free IDs: S-069+, M-158+, N-224+, I-049+, A-017+, D-165+.
+
+---
+
 # SUMMARY.md — executive summary (the S84 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-84 S84 fix-lane delta (2026-10-29/30 — the user's fix mandate continuation ["fix all the audit findings (priority to major/informational first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `842a587e` (the S83-close tree), corpus `be0cfe9` throughout)
