@@ -70,3 +70,10 @@ N-200 (the lostpart NTFS probe's positive-evidence requirement — the same acce
 ## Open questions
 
 None. (The PRD type-5/6 space vs the DRWUI kind 4/5/9 space mapping is dispositioned by the OQ-S52-1 resolution; this finding needs only the XOR gate.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's push (the S80/S81 MINOR-first fix lane's N-214 landing)
+**Verified by:** RED-first via the stash dance — `LostDiscovery.ExtMixedJournalIndicatorsRejected` FAILED at the pre-fix tree (both torn shapes anchored candidates, exactly the finding's claim) and PASSES post-fix; `LostDiscovery.ExtJournalIndicatorsConsistentAccepted` (the both-set ext3/4 control) green on both sides; the existing ext probe family (Ext4SuperblockAnchorsDeletedPartition, Ext4BlockGroupCopyNotACandidateStart) green; full suite 1497 ran / 1455 passed / 42 Win-only skipped / 0 FAILED.
+**Resolution notes:** The XOR gate landed in `probe_ext` after the group-count cross-check, reading the RAW SB bytes (`sb_le32(sb + 0x5C)` feature_compat, `sb_le32(sb + 0xE0)` journal_inum): `(compat & 4) != 0` XOR `journal_inum != 0` → return −100 (the og's silent drop; its −6 return convention maps to the core's not-ok). One implementation subtlety discovered during the landing: the gate MUST read the raw bytes, not the parsed `SuperBlock` — `validate_superblock` defaults `journal_inum` to 8 (JOURNAL_INODE_DEFAULT) when the field is zero, which would corrupt the XOR's journal leg on every ext2 volume (the default is an engine-side access convenience, not a probe input; noted in the in-code comment). Corpus re-verified first-hand this session: PRD:1273-1293 quoted verbatim in the finding — both clear → type 5, both set → type 6, mixed → `local_18` stays −6 with no classification. The finding's fix plan followed exactly (step 3's evidence-tag nicety not taken — the kind stamping is OQ-S52-1's landed surface, and the PRD type-5/6 space vs the core's CandidateFs collapse is already dispositioned there).

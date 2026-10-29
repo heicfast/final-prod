@@ -481,6 +481,62 @@ TEST(LostDiscovery, Ext4BlockGroupCopyNotACandidateStart) {
         EXPECT_NE(c.start_lba, 6144u) << "block-group copy must not anchor a candidate";
 }
 
+TEST(LostDiscovery, ExtMixedJournalIndicatorsRejected) {
+    /* N-214: the og's PRD classifier (FUN_180002b90 :1273-1293) requires
+     * the two journal indicators to AGREE — feature_compat HAS_JOURNAL
+     * (SB+0x5C bit 2) and s_journal_inum (SB+0xE0). Exactly one set is
+     * the torn-SB class the og drops with no classification at all (its
+     * -6 return): a set journal flag with a zeroed journal inode, or a
+     * clear flag with a surviving journal inode, never becomes a
+     * lost-partition candidate. */
+    for (int shape = 0; shape < 2; ++shape) {
+        std::vector<u8> img(u64(32768) * 512, 0);
+        plant_ext4_sb(img, 6144, 2048, 2048, 2048, 2048, 0, 100);
+        const u64 sb = 6144 * 512 + 1024;
+        if (shape == 0) {
+            /* torn shape A: the journal FLAG set, the journal INODE zeroed */
+            put32v(img, sb + 0x5C, 0x4); /* feature_compat HAS_JOURNAL */
+            put32v(img, sb + 0xE0, 0);   /* s_journal_inum torn to zero */
+        } else {
+            /* torn shape B: the journal FLAG clear, the journal INODE
+             * surviving (the classic ext2-upgraded-to-ext3 tear) */
+            put32v(img, sb + 0x5C, 0);
+            put32v(img, sb + 0xE0, 8); /* s_journal_inum = the ext3 default */
+        }
+        MemDevice dev(std::move(img));
+        DiscoveryResult r;
+        ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK)
+            << "shape " << shape;
+        for (const auto& c : r.candidates)
+            EXPECT_NE(c.start_lba, 6144u)
+                << "torn shape " << shape << ": mixed journal indicators must not anchor a candidate";
+    }
+}
+
+TEST(LostDiscovery, ExtJournalIndicatorsConsistentAccepted) {
+    /* N-214's control: the two og-ACCEPTED shapes still surface. Both
+     * indicators clear = ext2 (the existing
+     * Ext4SuperblockAnchorsDeletedPartition pins that shape); both set =
+     * ext3/4 — a journaled volume with its journal inode intact anchors
+     * with the full evidence set, scores unchanged by the gate. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ext4_sb(img, 6144, 2048, 2048, 2048, 2048, 0, 100);
+    const u64 sb = 6144 * 512 + 1024;
+    put32v(img, sb + 0x5C, 0x4); /* feature_compat HAS_JOURNAL */
+    put32v(img, sb + 0xE0, 8);   /* s_journal_inum — both set: ext3/4 */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* ext_c = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            ext_c = &c;
+    ASSERT_NE(ext_c, nullptr) << "the consistent journaled (ext3/4) shape must anchor";
+    EXPECT_EQ(ext_c->fs, CandidateFs::Ext2);
+    EXPECT_GE(ext_c->score, 70); /* 15 magic + 25 validation + 30 GDT probe */
+    EXPECT_EQ(ext_c->sector_count, 2048u * 4096u / 512u);
+}
+
 TEST(LostDiscovery, HfsPlusVolumeHeaderAnchorsDeletedPartition) {
     std::vector<u8> img(u64(16384) * 512, 0);
     plant_hfsplus_vh(img, 6144, 4096, 1024); /* 1024 4-KiB blocks = 4 MiB */

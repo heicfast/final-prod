@@ -461,3 +461,21 @@ Registered: the og's lost-partition ext SIZE estimate is a 32-bit signed
 product (PRD:1413) while its own engine uses 64-bit (EXT4SearchDLL:3234) —
 the core's 64-bit form is the registered engine-faithful choice (I-048C).
 Evidence: `evidence/s69-lane-sheets/S69-C-sectormath.md` + `S69-B-scanstatemachine.md`.
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-214 lands)
+
+**N-214 FIXED** (the S69 lane's filing): the ext probe's
+journal-indicator consistency gate landed in `probe_ext`
+(cr_candidates.cpp, after the group-count cross-check) —
+`feature_compat & 4` XOR `s_journal_inum != 0` → −100, the og's
+silent-drop convention (PRD FUN_180002b90 :1273-1293: both clear →
+ext2/type 5, both set → ext3/4/type 6, mixed → no classification, its
+−6 return). The gate reads the RAW SB bytes — the engine-side
+`validate_superblock` defaults `journal_inum` to 8 when zero, which
+would corrupt the XOR on every ext2 volume (the default is an access
+convenience, not a probe input). Tests:
+`LostDiscovery.ExtMixedJournalIndicatorsRejected` (both torn shapes —
+RED first-hand at the pre-fix tree via the stash dance) +
+`LostDiscovery.ExtJournalIndicatorsConsistentAccepted` (the both-set
+ext3/4 control); the existing ext probe family green; suite 1497 ran /
+1455 passed / 42 Win-only skipped / 0 FAILED.

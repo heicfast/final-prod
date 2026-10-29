@@ -420,6 +420,23 @@ int probe_ext(IStorageDevice* disk, u64 lba, WindowScanner& scan, Candidate& c) 
             return -100;
     }
 
+    /* N-214: the og's journal-indicator consistency gate (PRD
+     * FUN_180002b90 :1273-1293, read first-hand): feature_compat
+     * HAS_JOURNAL (SB+0x5C bit 2) and s_journal_inum (SB+0xE0) must
+     * AGREE — both clear → ext2 (type 5), both set → ext3/4 (type 6);
+     * exactly one set is the torn-SB class the og drops with NO
+     * classification at all (its -6 return; the core's not-ok
+     * convention is -100). Read from the RAW SB bytes —
+     * validate_superblock defaults journal_inum to 8 when zero, which
+     * would corrupt the XOR (the engine-side default is an access
+     * convenience, not a probe input). */
+    {
+        const u32 compat = sb_le32(sb + 0x5C);
+        const u32 journal_inum = sb_le32(sb + 0xE0);
+        if (((compat & 4) != 0) != (journal_inum != 0))
+            return -100;
+    }
+
     int pts = 40; /* magic + full og validation */
     c.evidence.push_back({"ext-sb-magic", 15});
     c.evidence.push_back({"ext-sb-valid", 25});

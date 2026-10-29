@@ -11395,3 +11395,23 @@ linux-release, this lane's from-scratch build2). The racing entry 1's
 default filter (the N-129 numeric-precision class — recorded here so
 the next lane's board-sweep does not chase a phantom count; the GREEN
 verdict itself stands, 0 failures on both lanes' evidence).
+
+---
+
+## Session-80 S80 fix-lane — entry 3 (2026-10-29): N-214 lands
+
+**N-214 FIXED (MINOR, lost-partition):** the ext probe's
+journal-indicator XOR gate. Corpus re-verified first-hand before the
+change (PRD FUN_180002b90 :1273-1293 re-read: both clear → type 5,
+both set → type 6, MIXED → local_18 stays −6, no classification, no
+candidate). The gate landed in probe_ext after the group-count
+cross-check: `(compat & 4) != 0` XOR `journal_inum != 0` → −100.
+Implementation subtlety discovered and handled: the gate reads the RAW
+SB bytes because validate_superblock defaults journal_inum to 8 when
+zero — the parsed field would corrupt the XOR on every ext2 volume.
+RED-first via the stash dance: ExtMixedJournalIndicatorsRejected FAILED
+pre-fix (both torn shapes anchored), PASSES post-fix;
+ExtJournalIndicatorsConsistentAccepted (the both-set control) green both
+sides. Suite 1497 / 1455 / 42-skip / 0-fail. Trail: findings/FIXED/N-214
++ Resolution, ledger row, matrix MATCH, modules/lost-partition.md
+addendum, SUMMARY counts, this entry.
