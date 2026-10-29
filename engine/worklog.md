@@ -611,6 +611,16 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-127 FIXED** (`0a46063c`) — the chain cycle guard's data structure: the
+  VisitedRuns run-coalescing containment set (include/cr/fat/cr_visited_runs.h,
+  the og's range-tree shape per fat-exfat-engine-algorithms-v2.md:43-56) replaces
+  the visited-vector scan in follow_chain, reconstruct_deleted_chain, and
+  follow_exfat_chain. Measured per the fix plan's protocol: 62.18 s pre-fix ->
+  1.55 s post-fix on the 100 × 65,536-cluster memory-FAT fixture (40×). The 0x10000
+  caps and per-step cancel checks untouched (Q3/D-14). Tests: CycleGuardPerf (RED
+  pre-fix at 62.2 s vs the 10 s budget) + RunCoalescingDetectsOverlap (the
+  semantic pin; the self-loop sub-case dropped as unreachable - the og's M-015
+  whole-table validation rejects v==i outright). Suite 1296/1296.
 - **main-red repairs** (`ae2f9206`) — four defects from the parallel lanes' merged
   landings, all closed with the suite green 1280/1280: the N-171 validated tick
   kept twice by the merge (the F-A3-6 double-count class); the S-055/S-056
