@@ -1,3 +1,24 @@
+**Session-46 lane — N-169 lands (2026-10-29).**
+
+- **N-169 FIXED (MINOR, carve)** — the EUUserData duplicate-key semantics:
+  the raw-file census re-measured first-hand (a duplicate-preserving parse
+  counts 112 members; the duplicate asf at positions 31/111, offsets
+  4770/16766; the two blocks carry the SAME sign
+  "0,3026B2758E66CF11A6D900AA0062CE6C" with mimes "application/vnd.ms-asf"
+  then "asf"). The fix plan's "one focused read" could not close the
+  og-side question: the finding's decisive cite FUN_140077dca0 does NOT
+  exist in either decompile (citation erratum recorded per corpus-wins),
+  and the iteration-side evidence (the child-chain member walks + the
+  per-child "signs" lookup, RAWSearchDLL :24295-24333) supports but does
+  not prove the merge. Per the plan's own alternative: the core's MERGE
+  registered as PARITY-DELTAS D-137 (the loader walks every member; each
+  block's mime backfills its own signs; the og's parse-side append stays
+  the recorded OQ), and the shipped-defaults dedup documented (111/190,
+  the LAST asf block's mime "asf" — last-wins at the asset level). Tests:
+  UserSigns.DuplicateKeySemantics (no rejection, both blocks install,
+  per-block mime) + ShippedCensusDedupTruth (both censuses pinned). The
+  census-drift confusion the finding flagged is closed.
+
 
 **Session-47 S47 lane HANDOFF (2026-10-29 — the MAJOR-first fix lane closes at this
 push; every landing verified, tested, documented, pushed; main green 1296/1296 +

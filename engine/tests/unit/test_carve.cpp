@@ -11545,3 +11545,81 @@ TEST(CarveStats, StockRawSignFilesCountInCarvedFound) {
     tree.refresh_stats();
     EXPECT_EQ(1u, root->stats().file_count + root->stats().dir_count);
 }
+
+TEST(UserSigns, DuplicateKeySemantics) {
+    /* N-169 (diff-to-fix): the raw og EUUserData carries a GENUINE
+     * duplicate "asf" block (112 members; offsets 4770/16766 - the same
+     * sign "0,3026B2758E66CF11A6D900AA0062CE6C" with mimes
+     * "application/vnd.ms-asf" then "asf"). The core's loader walks
+     * EVERY top-level member - both blocks parse, both sign sets
+     * install, each block's mime backfills its OWN signs (the MERGE,
+     * registered as the deliberate resolution in PARITY-DELTAS D-137;
+     * the og's parse-side member-append semantics stay the recorded
+     * OQ - the finding's decisive cite FUN_140077dca0 does not exist
+     * in the corpus, and the member-iteration evidence (the child-chain
+     * walks + the per-child "signs" lookup, RAWSearchDLL :24295-24333)
+     * supports but does not prove merge). This pin holds the core's
+     * resolution steady: a duplicate key NEVER rejects the file, both
+     * blocks contribute, the shared sign carries each block's own mime. */
+    const char* json =
+        "{"
+        "\"dup\": { \"signs\": [\"0,AAAAAAAA\"], \"mime\": \"first/mime\" },"
+        "\"dup\": { \"signs\": [\"0,AAAAAAAA\",\"5,BBBBBBBB\"], \"mime\": \"second/mime\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(3u, set.signs.size()) << "the duplicate key merges: 1 + 2 signs, no rejection";
+    /* the shared sign appears once per block, each carrying its OWN
+     * block's mime (the per-block backfill) */
+    int shared = 0;
+    for (const auto& s : set.signs)
+        if (s.len == 4 && std::memcmp(s.bytes, "\xAA\xAA\xAA\xAA", 4) == 0) {
+            ++shared;
+            EXPECT_STREQ("dup", s.ext);
+        }
+    EXPECT_EQ(2, shared) << "the shared sign rides both blocks";
+    bool saw_first = false, saw_second = false, saw_unique = false;
+    for (const auto& s : set.signs) {
+        if (s.len == 4 && std::memcmp(s.bytes, "\xAA\xAA\xAA\xAA", 4) == 0) {
+            if (std::strcmp(s.mime, "first/mime") == 0)
+                saw_first = true;
+            if (std::strcmp(s.mime, "second/mime") == 0)
+                saw_second = true;
+        }
+        if (s.len == 4 && s.offset == 5 && std::memcmp(s.bytes, "\xBB\xBB\xBB\xBB", 4) == 0)
+            saw_unique = true;
+    }
+    EXPECT_TRUE(saw_first) << "block 1's mime backfills its own shared-sign row";
+    EXPECT_TRUE(saw_second) << "block 2's mime backfills its own shared-sign row";
+    EXPECT_TRUE(saw_unique) << "block 2's unique sign installs";
+}
+
+TEST(UserSigns, ShippedCensusDedupTruth) {
+    /* N-169: the census truths, both sides pinned. The RAW og file:
+     * 112 members with the duplicate asf (same sign, the two mimes).
+     * The SHIPPED default (data/userdata-defaults.json - the release
+     * asset): the DEDUPED 111/190 view keeping exactly ONE asf block
+     * with the LAST block's mime ("asf" - the last-wins dedup
+     * convention, documented in PARITY-DELTAS D-137). The two censuses
+     * are BOTH true; future sessions must stop reading them as drift. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    EXPECT_EQ(190u, set.signs.size()) << "the deduped 190-sign shipped truth";
+    /* exactly ONE asf sign in the deduped view, mime "asf" */
+    u32 asf = 0;
+    const carve::usersigns::UserSign* asf_sign = nullptr;
+    for (const auto& s : set.signs)
+        if (std::strcmp(s.ext, "asf") == 0) {
+            ++asf;
+            asf_sign = &s;
+        }
+    ASSERT_EQ(1u, asf) << "the shipped dedup keeps one asf block";
+    ASSERT_NE(asf_sign, nullptr);
+    EXPECT_STREQ("asf", asf_sign->mime) << "the LAST block's mime survives the dedup";
+    EXPECT_EQ(16u, asf_sign->len);
+    EXPECT_EQ(0u, asf_sign->offset);
+}
