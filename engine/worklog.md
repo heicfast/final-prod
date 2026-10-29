@@ -12445,3 +12445,17 @@ M-105 (DRWService: option a) → M-114 (system-restore purge plan item) →
 M-111 (browse scope decision) → M-107's members (CRW → DWG → WPG → WPD →
 PSP → SIT → APE → EPS → DXF → SWF-RECT, corpus decode each) → I-048 →
 N-178 → N-181 → the four OQs (S10-1/S10-3/S4-3/S79-1).
+
+## Session 84 — entry 1: N-219 FIXED (the red-main repair, before any lane work)
+
+**N-219 (MINOR, NEW — filed+fixed this session).** Main was RED at open:
+`27bda40e` (the M-151 landing) carries two committed conflict-marker pairs
+in `tests/unit/test_ntfs_volume.cpp` (:5780/:5865 — the A-016 test vs the
+M-151 block, sharing the walk_mft preamble), plus M-151's three re-truthed
+tests outside the markers. The union resolution keeps everything: the
+re-truthed pre-region, A-016's transparency pin in full, M-151's four-test
+battery in full. RED first-hand (the build fails at :5802); GREEN: suite
+**1562 / 1520 passed / 0 failed / 42 platform skips**; N-210 lint clean;
+clang-format clean; `git config core.hooksPath .githooks` re-asserted (the
+pusher's hook was evidently not installed — the gate would have caught
+this class). Trail: findings/FIXED/N-219 + ledger row + this entry.

@@ -86,3 +86,26 @@ Two conflict regions, mapped first-hand:
 **Fixed in commit:** `1d7d31a6` (the racing S81 lane's rebase landing — the test-file seat conceded per SA-9) + this lane's push (the trail-file half the racing repair left: the matrix M-154/M-151/N-182/I-048 rows, the ledger tail incl. the swallowed M-151/M-154 rows, the worklog union, the I-048 Resolution merge, PARITY-DELTAS' twice-landed I-048 registers deduplicated to the S82 trio D-160/D-161/D-162)
 **Verified by:** build green (gcc 14.2 -Werror) on both convergent repairs; this lane: full suite 1648/1648 pre-rebase; the racing lane: 1647/1647 at its repaired tree; post-rebase re-verification on the merged tree this push; repo-wide line-start marker sweep clean outside the M-120 evidence quote — including the five files origin still carried markers in at the rebase.
 **Resolution notes:** The M-151 lane committed its rebase resolution against a garbage-collected lane SHA with the markers live — the exact M-120/N-210/N-217 class, fourth recurrence, and the second red window in the racing window's own history (ed501caa was the first, repaired as N-217). Two convergent repairs executed in the same window: the racing S81 lane's (the test file reconstructed to semantic intent) and this lane's (both sides' content recovered from the hunks, the A-016 test byte-identical to e2ea4d50:5764-5829); per SA-9 the racing landing keeps the test-file seat, and this lane's repair extended to the five trail files the racing push still carried markers in (CROSS-REF-MATRIX, FIXED-LEDGER — whose M-151/M-154 rows were swallowed entirely —, worklog, the I-048 finding file, PARITY-DELTAS), resolving each to the parameter-truthful final state (per-parameter later-state selection; the twice-landed I-048 registers deduplicated to the S82 renumbered trio; the missing M-151/M-154 ledger rows restored). Prevention note (the recurrence driver): every recurrence shipped from a lane that did not run ci-local.sh's step-3 build before push — the -Werror marker refusal and the N-210 lint are both pre-push gates that were skipped, not missing. Recorded so the next audit counts the recurrence honestly.
+
+## S84-B convergence addendum (the fifth recurrence, recorded with the evidence)
+
+A third convergent repair lane (this file's event seen independently at
+`27bda40e` from the `27bda40e`-parent tree) contributes the record the
+fourth-recurrence filings do not carry: **the FIFTH recurrence of the same
+class landed four pushes later** — the racing `b2bc1970` (the S82
+registration batch: I-048/M-111/M-114/M-154) itself committed conflict
+markers in FIVE audit-trail files: worklog.md (one nested pair),
+diff-to-fix/FIXED-LEDGER.md (one pair), docs/PARITY-DELTAS.md (two nested
+pairs), diff-to-fix/CROSS-REF-MATRIX.md (one pair — the stale M-154
+DIVERGENCE row vs its landed MATCH row), and I-048's own Resolution section
+(two lanes' competing Resolutions). All five swept by union at the S84-B
+lane's rebase: both sides' content preserved everywhere (the D-155 combined
+register AND the D-160/D-161/D-162 renumbered split rows per the
+born-collided-pair convention; the matrix's MATCH row; the later I-048
+Resolution), the ledger's exact-duplicate rows deduped. The recurrence
+counter for the committed-marker class stands at FIVE within one session
+window; the pusher-side hook (`git config core.hooksPath .githooks`)
+remains the only enforcement — three of the window's pushes carried
+markers, each evidently pushed without it. The 27bda40e test-file repair
+itself was landed convergently by `1d7d31a6`/`15c59ee7` (both sides'
+batteries verified together on the merged tree: seven tests green).
