@@ -151,7 +151,9 @@ convergently. Full record: `evidence/s54-liveness-reconciliation.md`.
     **N-165** (fat — the "File overflows partition!" scan-time refusal vs the core's
     deferred per-read failure, unregistered stance); **N-166** (orchestration — live
     counters stage-boundary-only vs the og's ~2 s cadence; orchestration.md:210
-    inaccurate); **N-167** (orchestration/query — no found-size aggregate, the og's
+    inaccurate); **N-167 FIXED (Session-44 — ScanStats::bytes_found from tree
+    total_logical at every count refresh; session v3; CLI "(X GB)";
+    findings/FIXED/N-167)** (orchestration/query — no found-size aggregate, the og's
     "Files Found: N (X GB)" headline unrenderable); **N-168** (carve — the og's 2×
     bounds guard, core correct, unregistered); **N-169** (carve — duplicate `asf`
     block merge semantics, og side undecoded OQ); **N-170** (docs — 8 stale

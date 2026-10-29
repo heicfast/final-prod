@@ -1074,27 +1074,28 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         n->set_origin(tree::Origin::Carved);
                         n->set_deleted_state(tree::DeletedState::Deleted);
                         n->set_confidence(tree::Confidence::PartialRisk);
-                        /* N-171: the emission ticks `validated` too - the
-                         * counter the orchestrator's carved_found headline
-                         * reads (cr_scan.cpp: stats.carved_found =
-                         * cs.validated); the entire default-on user-sign
-                         * channel was invisible in the carved count when
-                         * only sign_ticks ticked. The og's own counting
-                         * surface counts analyser detections the same way
+                        /* N-171 (CONVERGENT across four lanes - session-44,
+                         * session-55, and two S-055-window re-landings; this
+                         * block is the single canonical form after the
+                         * hot-window merges re-duplicated the tick - any
+                         * future merge that reintroduces a second
+                         * `validated`/`sign_hits` fetch_add here is the
+                         * F-A3-6 double-count class and must be collapsed
+                         * back to this shape): the emission ticks BOTH
+                         * counters - sign_hits (the channel's own count)
+                         * and validated (the counter the orchestrator's
+                         * carved_found headline reads, cr_scan.cpp:
+                         * stats.carved_found = cs.validated). Pre-N-171 the
+                         * entire default-on user-sign channel was invisible
+                         * in the carved count. The og's own counting surface
+                         * counts analyser detections the same way
                          * (GetRawUserInfoMap, FUN_18000ed00
                          * insert-or-increment). */
+                        /* N-171 (the two repair lanes converged: one
+                         * sign_hits + one validated tick - the repeated
+                         * hot-window re-duplications of the F-A3-6 class
+                         * closed at the THIRD merge) */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
-                        /* N-171 (re-landed on the merged S-055/S-056 shape;
-                         * the SECOND hot-window merge re-duplicated the tick
-                         * blocks - the F-A3-6 double-count class, repaired
-                         * again): the record IS validated (the sign matched);
-                         * carved_found is assigned from cs.validated
-                         * (cr_scan.cpp), so the headline carved count includes
-                         * the user-sign channel instead of silently omitting
-                         * the whole default-on set. The og's own counting
-                         * surface counts analyser detections the same way
-                         * (GetRawUserInfoMap, FUN_18000ed00
-                         * insert-or-increment). */
                         ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
                         continue;

@@ -8,7 +8,10 @@ New active findings on this module: **M-125** (the og's piecewise progress remap
 99.99% cap decoded via FUN_1401af820 — unregistered; the O38 "M-equivalent" verdict
 superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
 premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
-cadence — the :210-213 claim inaccurate); **N-167** (no found-size aggregate);
+cadence — the :210-213 claim inaccurate); **N-167 FIXED (Session-44 —
+ScanStats::bytes_found stamped from tree total_logical at every count refresh; the
+session record grew to v3; the CLI renders the og's "(X GB)" shape; RED→GREEN
+proven; findings/FIXED/N-167)** (no found-size aggregate);
 **N-178** (the pause CLI legs); **I-041 (ACKNOWLEDGED — registered this lane)** (stopped-vs-finished: the og's verdict is a heuristic — FUN_1400f1b10 [DRWUI:205797-205813, the 0x62=98 threshold re-read first-hand this session] infers "stopped" from progress<98% at the advanced-end transition and persists/restores it [:314692-712, :837740-800]; the core derives it truthfully — stage-done bits stamp only on OK completion [cr_scan.cpp:2134-2137, the G-07 integrity comment] and resume skips only truthfully-completed stages [:2766-2770]. The explicit mapping — og states 3/7 = core cancelled-stage; og 4/8 = core stage-done bit — registered so parity tables stop looking for a "state 7" equivalent); **I-042 (ACKNOWLEDGED — registered this lane)** (paused observability: the og surfaces pause on four surfaces [enum 2/6, nStatus==2, the "Scanning Paused." strip, sigTaskBarPaused], the core exposes `ScanTelemetrySnapshot.paused` [cr_scan.h:520] + cr_ui.h:689 only, no dedicated `cr_ui_scan_paused` query — hosts render pause from telemetry; a library-appropriate subset, the taskbar a host concern); **I-043 (ACKNOWLEDGED — PARITY-DELTAS D-122)** (state ownership). Key decodes this session:
 the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
 +0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a
