@@ -1,3 +1,4 @@
+
 # SUMMARY.md — executive summary (the closing-fix lane on top; the prior lanes below, newest-first)
 
 ## Closing-fix lane delta (2026-10-29 — the INFO-first diff-to-fix execution lane per the user's directive "priority to informational first"; opened at core `98a5b139`, corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; absorbed the S60 MINOR-first window at the merge)
@@ -20,6 +21,12 @@ pushes: 46 active — 1 SEVERE · 23 MAJOR · 20 MINOR · 0 INFO — + 4
 tracked-open; FIXED archive 140.
 
 # SUMMARY.md — executive summary (the S60 MINOR-first execution lane (prior); the prior lanes below, newest-first)
+
+# SUMMARY.md — executive summary (the S60-B MINOR-first execution lane on top of the closing-fix + S60 window lanes; the prior lanes below, newest-first)
+
+## Session-60-B S60-B lane delta (2026-10-29 — the second MINOR-first diff-to-fix execution lane of the same user fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139`, corpus `be0cfe9`; every finding re-verified at the current tree before fixing; the racing lanes' landings absorbed per SA-9)
+
+**N-195 convergence record:** this lane independently verified and fixed N-195 in the same window the S60 lane did (their 3fae0791 landing is the fix of record per SA-9 — both constants corrected identically, the pin test in the CrUi read_repo_file family). This lane's UNIQUE supplement rides its own push: **doc_truth_gate check 7** (`check_bench_ioctl_codes`, CI-wired at checks.yml:173) — every 0x6xxxxxxx-form CTL literal in bench/**/*.{ps1,cs,cpp} must byte-match a constant in include/cr/win/cr_rda.h, making the phantom-zero class a permanently-gated defect rather than a one-shot pinned one. RED exit-1 pre-fix (both violations named) → GREEN post-fix, first-hand.
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 

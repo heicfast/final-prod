@@ -9277,6 +9277,7 @@ findings first (the user's explicit priority), then INFO acks, then MAJOR-tier a
 time permits; N-107/N-127's fix surfaces live in the driver repo (out of the
 two-repo grant) — disposition notes to be recorded honestly rather than fake-fixed.
 
+<<<<<<< HEAD
 ## Session-60 lane — N-195 landed + the lane-open count correction (2026-10-29)
 
 **Hot-window note:** a racing lane pushed a format repair (468ce7a8)
@@ -9316,3 +9317,16 @@ machine + progress math + stuck-watchdog decode, per-engine detection validators
 + sector/LBA arithmetic fresh eyes, core-side counterpart read; (W3) lead
 first-hand verification + filing (next free IDs: S-067+, M-149+, N-210+, I-048+,
 A-015+); (W4) board re-truth + push + handoff.
+=======
+## Session-60-B lane — N-195 landed (2026-10-29)
+
+**N-195 FIXED (MINOR — bench phantom-zero IOCTLs).** Verified at the current
+tree: bench/ours/verify-driver.ps1:47/:55 carried 0x60002440/0x60002448 vs
+cr_rda.h's 0x6002440/0x6002448 (kIoctlGetInfo/kIoctlGetVersion). Fix: both
+constants corrected + the in-place header-pin comment. Proof: the new
+doc_truth_gate check 7 (check_bench_ioctl_codes) — RED exit-1 pre-fix with both
+violations named, GREEN exit-0 post-fix; wired into CI at checks.yml:173 (the
+same gate invocation). Census: the two literals were the only 0x6xxxxxxx forms
+in the bench family. Trail: finding retired to findings/FIXED/N-195 +
+Resolution, ledger row, matrix MATCH cell, SUMMARY S60-B block, this entry.
+>>>>>>> b9e040a0 (fix(bench): N-195 - the driver-verification bench's phantom-zero extended IOCTL codes righted (0x60002440/48 -> the contract's 0x6002440/0x6002448, byte-matching cr_rda.h kIoctlGetInfo/kIoctlGetVersion [fn 0x910/0x912]) - both calls could never reach the real handlers (unknown-IOCTL against any correct driver, the bench dead weight); the class guard the finding prescribed landed as doc_truth_gate check 7 check_bench_ioctl_codes [every bench CTL literal must byte-match a cr_rda.h constant; CI-wired] - RED exit-1 pre-fix with both violations named -> GREEN post-fix; the repo sweep found no third site; the OQ-S10-3 boundary keeps the driver-repo half of M-089's class; trail: findings/FIXED/N-195 + ledger row + matrix MATCH + SUMMARY S60-B block + worklog)

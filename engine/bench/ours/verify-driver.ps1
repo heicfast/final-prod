@@ -44,8 +44,9 @@ public static class RdaVerify {
         using (SafeFileHandle h = Open(device)) {
             byte[] b = new byte[24];
             uint ret;
-            /* N-195: the contract codes (cr_rda.h CTL_CODE_RDA fn 0x910/0x912) -
-               the phantom-zero 0x6000244x forms never reach the handlers. */
+            // Extended IOCTL codes byte-match include/cr/win/cr_rda.h
+            // (kIoctlGetInfo fn 0x910 / kIoctlGetVersion fn 0x912); the
+            // doc_truth_gate's bench-IOCTL check pins this against the header.
             bool ok = DeviceIoControl(h, 0x6002440, null, 0, b, 24, out ret, IntPtr.Zero);
             int gle = Marshal.GetLastWin32Error();
             if (!ok || ret < 24) return "GET_INFO rejected (ok=" + ok + " ret=" + ret + " gle=" + gle + ")";

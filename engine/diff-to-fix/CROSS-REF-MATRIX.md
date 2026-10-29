@@ -1,12 +1,3 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the closing-fix lane on top — the INFO-first diff-to-fix execution per the user's directive; the prior lanes below)
-
-**Closing-fix lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `98a5b139`, corpus `be0cfe9` throughout):**
-
-| Parameter (module · surface) | Verdict | Evidence / finding |
-|---|---|---|
-| ext4 · unwritten-extent ee_len decode (Q68/B2) | **MATCH** (registered deliberate divergence — D-141; findings/FIXED/I-045) | **I-045 FIXED (ACKNOWLEDGED)** — the register landed: PARITY-DELTAS D-141 + the anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`; the core stays kernel-correct against the og's raw multiply (re-verified first-hand at EXT4SearchDLL :4044-4048) |
-| lost-partition/session · lostpart.dat lifecycle + resume granularity (#36/#34/#58) | **MATCH** (registered deliberate divergence — D-142; findings/FIXED/I-046) | **I-046 FIXED (ACKNOWLEDGED)** — the og-side lifecycle decoded and registered: per-process-generation cache (W1 delete latch), per-hit appends, W3 marker-restore scan-position resume; the core's M-042 stage-granular checkpoint architecture stays — D-142 carries the delta |
-
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
 
 **Session-54 S54 lane rows (2026-10-29 — the fifth continuation lane of the user's second-session mandate; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9, findings verified/filed at `34d6cf10`, corpus `be0cfe9`):**
@@ -32,7 +23,7 @@
 | orchestrator/refs · recognition second signature (B3/C19) | **MATCH** | **N-199 — FIXED (S60 lane)**: probe_family's ReFS branch now gates on BOTH signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759); test Refs.RecognitionRequiresFsrsMarker RED->GREEN — findings/FIXED/N-199-refs-second-signature-fsrs-absent.md |
 | ext4 · superblock acceptance bands (B3/C20/Q68) | **DIVERGENCE-MINOR** | **N-193** — four band deltas consolidated (inode_size=0, log_bs 7..20, journal_inum gating, desc_size combos) |
 | query · size display formatters (B10/D13/Q68) | **DIVERGENCE-MINOR** | **N-194** — the og's two binary-tier formatters (log-side KB/MB/GB; UI-side B..TB) have no core counterpart |
-| bench · driver-verification IOCTL codes (Q65/C22) | **MATCH** | **N-195 — FIXED (S60 lane)**: both bench constants righted to the contract codes (0x6002440/0x6002448, cr_rda.h CTL_CODE_RDA) + the CrUi.BenchVerifyDriverIoctlCodesMatchContract pin (absence of the phantom forms + presence of the contract codes) — findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md |
+| bench · driver-verification IOCTL codes (Q65/C22) | **MATCH** (the S60-B lane: both constants corrected + the gate check — findings/FIXED/N-195) | **N-195 FIXED** — the bench's two extended codes byte-match cr_rda.h (0x6002440/0x6002448) and doc_truth_gate check 7 pins every bench CTL literal against the header (the phantom-zero class can never re-enter silently) |
 | ext4 · unwritten-extent ee_len decode (Q68/B2) | **DIVERGENCE-INFORMATIONAL** | **I-045** — og-defect non-adoption register batch #3: the og multiplies raw; the core is kernel-correct — register |
 | session · ETA budget seed (O39) | **ADDENDUM** | **M-126 +S54** — `total_bytes/60 MiB + 60 s` at DRWUI:315150 decoded; the fix gains the seed |
 | session/orchestration · engine-pause type gate (S33) | **ADDENDUM** | **N-178 +S54** — the og skips engine pause for scan-type-1 runs (+0xD8 gate, :314405/:314476); the core pauses all stages |
@@ -1184,5 +1175,3 @@ their M-112).
 ## Session-60 detail rows (2026-10-29 — the MINOR-first diff-to-fix execution lane; opened at core `98a5b139`, corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` re-verified current)
 
 - **tree/session · clone field parity (D11/P11)**: **MATCH** — **N-192 FIXED**: the 8.3 short_name rides FileProperties::clone() (the og's whole-block clone contract, part1 slot +0x08); NtfsVolume.HardLinkFanOutClonesKeepShortName RED->GREEN; `findings/FIXED/N-192-clone-drops-short-name-on-fanout.md`.
-
-- **bench · driver-verification IOCTL codes (Q65/C22)**: **MATCH** — **N-195 FIXED**: the phantom-zero 0x6000244x pair righted to the contract's 0x6002440/0x6002448 (cr_rda.h fn 0x910/0x912); CrUi.BenchVerifyDriverIoctlCodesMatchContract RED->GREEN (the pin rides the same read_repo_file gate family as DriverWireCodesFreeOfPhantomZeroInDocs); `findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md`.
