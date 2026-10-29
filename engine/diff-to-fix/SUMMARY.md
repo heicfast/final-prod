@@ -282,6 +282,8 @@ TTFR dispatch attempt.
 - **N-232 FIXED (MINOR, NEW — the gate false-red at the post-landing
   verification; renumbered from the born-collided N-231 at the collision
   repair — b4bb09f6's earlier push holds N-231):** the win_syntax_check gate's N-228 test-file section
+- **N-232 FIXED (MINOR, NEW — RENUMBERED from the born-collided N-231; the gate false-red at the post-landing
+  verification):** the win_syntax_check gate's N-228 test-file section
   discovered the gtest include only under the preset layout
   (`build/*/_deps/...`); a direct `cmake -B build` configure (this
   lane's own layout) drops FetchContent at `build/_deps/...` — the
@@ -291,6 +293,23 @@ TTFR dispatch attempt.
   tree (the section's 5 test files now actually run). Lesson: a gate
   that assumes one layout convention makes every other layout a false
   red — and false reds teach lanes to bypass gates.
+
+- **N-233 FIXED (MINOR, NEW — the fifth red-main repair this window,
+  at the sanitizer sweep):** the racing absorption merge `76c65109`
+  committed RAW conflict hunks in three files (cr_analysers.cpp's SWF
+  collision, test_carve.cpp's four blocks, carve.md's three) plus two
+  both-sides-kept duplicate SWF tests — cr_tests unbuildable. The
+  corpus-arbitrated resolution: the origin/main SWF side holds the
+  seat (the CWS inflate deep gate LANDED — the strict superset, and
+  the HEAD side's `swf_rect_valid(h)` call was itself a live defect:
+  it reads 'F'/'C' as the Nbits byte; the correct call is `h + 8`);
+  the duplicate tests deduped (the decode-informed copy + the FLIPPED
+  deep-gate pin kept, the stale shallow-contract pin dropped — its
+  expectation contradicts the landed code). Build 2 → 0; SWF+APE
+  22/22; full ctest **1739/1739**; format + doc_truth green (after
+  the N-231→N-232 born-collision renumber the gate itself caught).
+  With the racing N-231 lint gate + this lane's N-232 discovery fix,
+  the N-210 class's root cause is now machine-enforced on both halves.
 
 - **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
   follow-the-data decode executed in full — the walk driver FUN_18001d460

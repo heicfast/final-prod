@@ -1,3 +1,23 @@
+## Session-89 S89 lane — N-233 (the fifth red-main repair, at the sanitizer sweep) + the N-232 renumber (2026-10-30)
+
+**N-233:** the ubsan sweep's build caught live markers in three files -
+the racing absorption merge 76c65109 committed its raw conflict hunks.
+The arbitration was corpus-first: the origin/main SWF side (the CWS
+inflate deep gate LANDED) is the strict superset AND carries the correct
+swf_rect_valid(h + 8) call - the HEAD side's h call was a live defect
+('F' read as the Nbits byte). The duplicate SWF tests deduped: the
+decode-informed SwfRectValidationAcceptsSaneBoxAtFileLength + the
+FLIPPED SwfCwsDeepGateIsTheRecordedFollowUp pin (the deep gate landed)
+kept; the racing twins dropped. carve.md resolved both-kept. Build 2 ->
+0; SWF+APE 22/22; ctest 1739/1739; format + doc_truth green.
+
+**N-232 (renumbered from the born-collided N-231):** the doc_truth_gate
+caught the racing window's N-231 lint-gate filing against this lane's
+gate-discovery filing - theirs landed first (the seat), mine renumbered
+to N-232 with the cross-reference. The two findings are complementary
+halves of the N-210 root cause: theirs the duplicate-name lint, mine
+the include discovery.
+
 
 ## Session-87 S87 fix lane (continuation) — the closing record (2026-10-30)
 

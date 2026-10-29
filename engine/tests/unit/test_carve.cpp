@@ -11306,6 +11306,122 @@ TEST(Carve, SitClassicSpaceFormKeepsTheRegisteredStandIn) {
         u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
+    EXPECT_EQ(all.size(), 0u) << "the old form without a next header must drop";
+}
+
+/* ---- M-107: the SWF-RECT member — the validation-only walk (the finding's
+ * open question 3 answered first-hand: the extent stays FileLength) ---- */
+
+TEST(Carve, SwfRectGeometryGateRejectsDegenerateRect) {
+    /* The og's geometry gate (raw-asm 0x180026b3e-0x180026b5b): both axes
+     * 0 <= min < max — Xmin >= Xmax, a negative min, or a zero max all
+     * decline. The pre-fix core carved every FWS regardless of the RECT. */
+    struct BadRect {
+        u8 rect[7];
+        const char* what;
+    };
+    const BadRect bad[] = {
+        /* nbits=11: Xmin=640 Xmax=0 (the X axis degenerate both ways) */
+        {{0x5A, 0x80, 0x00, 0x00, 0x00, 0xF0, 0x00}, "xmin >= xmax"},
+        /* nbits=11: Xmax=0 (a zero max) */
+        {{0x58, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x00}, "xmax == 0"},
+        /* nbits=11: Ymin=480 Ymax=0 (the Y axis degenerate) */
+        {{0x58, 0x00, 0x50, 0x07, 0x80, 0x00, 0x00}, "ymin >= ymax"},
+    };
+    for (const BadRect& b : bad) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_swf(img, 512);
+        std::memcpy(img.data() + 512 + 8, b.rect, sizeof(b.rect));
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_EQ(all.size(), 0u) << b.what << " must decline";
+    }
+}
+
+TEST(Carve, SwfRectNegativeFieldDeclines) {
+    /* A signed field (the sign bit set with a nonzero magnitude) makes
+     * the min negative — the og's sign-magnitude reading yields a
+     * negative value and the >= 0 gate declines. nbits=11, Xmin=-1
+     * (sign 1, magnitude 1). Note: the -0 form (sign set, magnitude 0)
+     * reads as 0 in the og's sign-magnitude arithmetic and PASSES the
+     * gate — pinned here as the og's own edge, not carved around. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512);
+    const u8 neg_rect[7] = {0x5C, 0x01, 0x50, 0x00, 0x00, 0xF0, 0x00};
+    std::memcpy(img.data() + 512 + 8, neg_rect, sizeof(neg_rect));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    EXPECT_EQ(all.size(), 0u) << "a negative Xmin must decline";
+}
+
+TEST(Carve, SwfNbitsFloorIsTwo) {
+    /* The nbits floor (raw-asm 0x18002697d `cmp $0x1` jbe): nbits < 2
+     * declines — a 1-bit-field RECT is not a stage. */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512);
+    img[512 + 8] = 0x08; /* nbits = 1 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    EXPECT_EQ(all.size(), 0u) << "nbits < 2 must decline";
+}
+
+TEST(Carve, SwfCwsVersionGateIsSix) {
+    /* The CWS version window is [6,20] (raw-asm 0x180026bb2 `sub $0x6;
+     * cmp $0xe`) — the compressed form exists only from SWF 6; the
+     * pre-fix core accepted CWS v3-5 the og refuses. */
+    for (const u8 v : {u8(3), u8(4), u8(5)}) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_swf(img, 512, true);
+        img[512 + 3] = v;
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_EQ(all.size(), 0u) << "CWS v" << int(v) << " must decline";
+    }
+    /* v6 passes (the plant's own version) */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_swf(img, 512, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
     ASSERT_EQ(all.size(), 1u);
     EXPECT_EQ(all[0]->props()->logical_size, size_t((1ull << 20) - 512));
 }
