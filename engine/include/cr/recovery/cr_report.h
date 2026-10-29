@@ -134,6 +134,11 @@ struct ScanAnalysis {
     u64 matched = 0;
     u64 total = 0;
     bool small_result = false;
+    /* N-183 (append-only): the member-set gauge + the verdict score. */
+    u64 gauge_matched = 0;
+    u64 gauge_total = 0;
+    u32 score = 0;
+    u64 ntfs_device_index_high = 0;
 };
 
 /* Serialize as a complete JSON document (trailing newline, UTF-8).

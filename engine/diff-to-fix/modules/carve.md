@@ -978,6 +978,16 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
   both layers' interplay recorded in the Resolution.
 
+**N-189 FIXED** (session-59, discovered during this lane's baseline run; the parallel lane's f8f01513 convergent repair is the fix of record per SA-9): the
+S-054 registry pin test and its companion fixture-builder walked `kTable` with
+a null-ext sentinel loop (`for (s = reg; s->ext; ++s)`) — the table contract is
+COUNT-based (`registry_size()`, cr_signatures.h:512-513) and carries no
+terminator row, so the walker read one element past the global (an ASan
+global-buffer-overflow that aborted the whole Linux sanitizer lane at
+`Carve.TsM2TsCapIsTheOg200MB`). Both walks converted to count-bounded index
+loops; no production code changed (every engine walk was already count-based).
+The S-054 pins (the og's 200 MB TS/M2TS clamp) assert identically after the
+fix — `Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB` green.
 ## Session-46 addendum (2026-10-29, audited `659f0f6c`/`fa654673`, corpus `be0cfe9` — the MINOR-first fix lane)
 
 **N-158 FIXED — the OfficeTagFromXML five-branch typing tail** (the S42-B filing
@@ -1043,3 +1053,21 @@ PARITY-DELTAS D-137 (every member parses; each block's mime backfills its
 own signs; the og's parse-side append stays the recorded OQ); the shipped
 default's dedup documented (111/190, the LAST asf block's mime). Tests:
 UserSigns.DuplicateKeySemantics + ShippedCensusDedupTruth.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the scan-math deep dive)
+
+New on this module: **N-204** (the og's engine-layer carve buffer geometry
+decoded for the first time — 4 MiB read blocks inside an 8 MiB double buffer,
+half-buffer look-back, sector-stride first-u32 probes, 8192-sector analyser
+base at 512 bps; SCAN-ENGINE-DELTA F6's og-side cell was empty of constants,
+leaving the registered core constants (1 MiB + 4 KiB) without a cited og
+baseline at the layer where carving reads — and the engine-layer 4 MiB
+conflated with the device-layer 4 MiB of M-030/OQ-S4-3). Verified-MATCH with
+new first-hand cites: the raw-sign layer's 512-stride probe grid
+(cr_carve.cpp:918 ≡ RAWSearchDLL:9494-9502's sector-stride u32 probe); the
+byte-granular grammar superset re-confirmed as ALREADY registered (D-59c —
+the lane's candidate verified covered by the lead, not re-filed); the
+no-stuck-or-freeze walk-bound matrix (every core walker carries explicit
+caps; the og's own Btrfs B-tree recursion has no visited set — the core's
+hardening is the D-14 family). Evidence:
+`../evidence/s55-lane-sheets/S55-D2-scanmath.md`.

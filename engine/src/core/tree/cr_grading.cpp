@@ -212,6 +212,23 @@ namespace {
  *   sub-gates (the FUN_1401bc5a0 pre-check trio, OQ-S42-3) are NOT
  *   adopted - the fix plan's acceptance is the two threshold rules,
  *   which are the decoded, binary-verifiable heart. */
+/* N-183 (diff-to-fix): the og's recoverability-gauge candidate population
+ * - the 20-format member set, byte-exact from the .rdata ctor map
+ * (DRWUI :605502-513, the s5 dump's re-read: doc pdf mov ppt xls cr2 arw
+ * dng cr3 mp4 orf raf docx pptx xlsx heic nef jpeg jpg mp3). The gauge
+ * counts THIS population plus the auto-High classes (email + the ReFS/
+ * Btrfs non-existing nodes, S-061), never every file. */
+constexpr const char* kGaugeCandidateExtensions[20] = {
+    "doc", "pdf", "mov",  "ppt",  "xls",  "cr2",  "arw", "dng",  "cr3", "mp4",
+    "orf", "raf", "docx", "pptx", "xlsx", "heic", "nef", "jpeg", "jpg", "mp3"};
+
+bool gauge_candidate_ext(const std::string& e) {
+    for (const char* c : kGaugeCandidateExtensions)
+        if (e == c)
+            return true;
+    return false;
+}
+
 bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     if (n->overlap())
         return false; /* the og's skip: the overlap flag is set */
@@ -314,7 +331,10 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
         if (ordinal < 9) {
             n->set_grade(Grade::High);
             if (stats)
-                ++stats->quick_scan_delete_extend; /* DAT_141be5818 */
+                ++stats->ntfs_device_index_high; /* N-183: DAT_141be5818 is
+                the gauge-matched global - the fixer-index tick's own
+                counter, not QSDE (the +0x1b8 field counts the
+                non-existing population instead) */
         }
         return true; /* NTFS processed; twins are a FAT-family path */
     }
@@ -468,12 +488,45 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         stack.pop_back();
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
             stack.push_back(c);
-        if (!n->is_full() && n->props() && n->grade() == Grade::High)
+        if (n->is_full() || !n->props())
+            continue; /* role roots and propless nodes never count */
+        if (n->grade() == Grade::High)
             ++out.matched;
+        /* N-183: QSDE is the og's +0x1b8 assistant field - incremented
+         * per NON-EXISTING node (bit 7 of +0x72 clear, DRWUI :331164-170;
+         * the else case feeds the unlogged ninth counter +0x1bc). The
+         * core's DeletedState mapping: Active = existing, everything
+         * else = the non-existing population. */
+        if (n->deleted_state() != tree::DeletedState::Active)
+            ++out.quick_scan_delete_extend;
+        /* N-183: the gauge's candidate population - the 20-format member
+         * set + the auto-High classes (email category + non-existing
+         * ReFS/Btrfs per S-061). matched counts grade-High WITHIN it. */
+        std::string gext2 = ext_of_name(n->props());
+        for (char& ch : gext2)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 0x20); /* the og's lowercased set lookup */
+        const bool auto_high = (query::category_for_extension(gext2) == query::Category::Email) ||
+                               ((n->props()->fs_kind == u32(FsKindCode::Refs) ||
+                                 n->props()->fs_kind == u32(FsKindCode::Btrfs)) &&
+                                n->deleted_state() != tree::DeletedState::Active);
+        if (gauge_candidate_ext(gext2) || auto_high) {
+            ++out.gauge_total;
+            if (n->grade() == Grade::High)
+                ++out.gauge_matched;
+        }
     }
     out.small_result = out.total < 100;
     if (out.small_result)
         out.matched = 0;
+    /* N-183: the verdict score - the og's FUN_14021b030
+     * (:374451-481): int((matched / total + 0.05) * 10), 0 when the
+     * population is empty. The gauge's own population (not every file):
+     * the small-result zeroing applies the same way (matched 0 -> the
+     * 0.05 floor rounds to 0). */
+    const u64 gm = out.small_result ? 0 : out.gauge_matched;
+    const u64 gt = out.gauge_total;
+    out.score = gt == 0 ? 0 : u32((double(gm) / double(gt) + 0.05) * 10.0);
 }
 
 bool regrade_node(tree::FileNode* n, const GradeContext& ctx, const tree::ResultTree* tree) {

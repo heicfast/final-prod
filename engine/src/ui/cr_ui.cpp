@@ -4340,6 +4340,10 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
         r->analysis.matched = a.matched;
         r->analysis.total = a.total;
         r->analysis.small_result = a.small_result;
+        r->analysis.gauge_matched = a.gauge_matched;                   /* N-183 */
+        r->analysis.gauge_total = a.gauge_total;                       /* N-183 */
+        r->analysis.score = a.score;                                   /* N-183 */
+        r->analysis.ntfs_device_index_high = a.ntfs_device_index_high; /* N-183 */
         r->have_analysis = true;
     }
     /* (merge-storm residue removed here: a byte-identical duplicate of the

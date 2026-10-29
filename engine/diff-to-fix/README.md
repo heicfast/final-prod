@@ -1,5 +1,33 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-55 S55 lane (2026-10-29 — the SIXTH continuation audit lane of the same
+user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining,
+the user's named focus areas: sector numbers / scanning / accurate detection /
+calculation / no stuck or freeze / local database / state management; the
+liveness battery pinned at core `1fccb0a4` with the filings verified at
+`9633d94f` (HEAD at filing), corpus `be0cfe9`):** the convergent liveness
+battery (69 active checked — 62 STILL / 3 PARTIAL / 2 FALSELY-ACTIVE
+[N-142-rsf=N-186-retired, convergent with S50; I-035 listing-stale] / zero
+phantom-fixed; OQ-S42-1/2 resolved-in-substance, convergent) + the
+local-database deep dive (**N-203** the resume round-trip drops the candidate
+data-area extent; **I-046** the lostpart.dat/partinfo.dat lifecycle register —
+a per-process-generation cache with the first-search delete latch and the
+scan-position-granular marker-restore resume, NOT a cross-session knowledge
+base) + the scan/sector-math deep dive (**N-204** the og's engine-layer carve
+buffer geometry decoded — 4 MiB blocks / 8 MiB double buffer / half-buffer
+look-back; **N-206** the device sector-count ceil-vs-floor; the
+no-stuck-or-freeze clean bill — every core walker carries explicit caps, the
+og's own Btrfs recursion has no visited set) + the grading deep dive (**N-205**
+the rawCount population semantics + the M-134 resolution's phantom
+`raw_tail_zero` claim; **OQ-S42-3 CLOSED** — the flag-setter origins and
+vt+0xb8/vt+0x100 semantics decoded, the 0xa8-producer no-writer-found residual
+registered). Evidence: `evidence/s55-lane-sheets/` (5 agent context sheets) +
+`evidence/s55-liveness.md`. Board at filing: 60 active — 5 SEVERE · 24 MAJOR ·
+30 MINOR · 1 INFO / 121 FIXED / 4 tracked-open. Next free IDs: S-067+, M-148+,
+N-207+, I-047+, A-015+. The audited commit for every S55 finding is
+`9633d94f`; the battery's pin is `1fccb0a4` (recorded per-finding in the
+evidence sheets).
+
 **Session-50 S50 lane (2026-10-29 — the FOURTH continuation audit lane of the same
 user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining;
 audited core pinned at `93461483` (code-identical to `0d7b1d9d`) with the new

@@ -7975,6 +7975,61 @@ Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (dec
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
 
+## Session-59 parity-fix lane — the hot-window convergence recorded (2026-10-29)
+
+This lane (rebranded Session-59 at the merge — the draft rode as the local S45
+until the parallel window revealed S45..S57 seats all taken) opened at core
+`98079347` with the four-staged queue A-014 → S-058 → S-061 → the S-055/S-056
+pair, and executed the verify→RED→fix→GREEN loop on all four before the pull:
+
+**N-189 (discovered, renumbered from the N-186 draft) FIXED-CONVERGENT.** At lane
+open the full-suite baseline aborted with an ASan global-buffer-overflow at
+`Carve.TsM2TsCapIsTheOg200MB`: two registry walks in test_carve.cpp used a
+null-ext sentinel idiom on the count-based `kTable`. This lane discovered it,
+filed it, fixed it locally (b938c8e5; RED = the abort, GREEN = 1161/0/85), and at
+the merge found the parallel lane's byte-equivalent **f8f01513** already on main
+— theirs wins per SA-9 and is the fix of record; this lane's dedicated finding
+file (findings/FIXED/N-189, renumbered at the merge: N-186/187/188 taken by the
+remote's renumber window) carries the record with the convergence addendum.
+
+**A-014 CONVERGENT (862d79ef wins).** This lane independently re-verified the
+corpus decode (FATSearchDLL :32135-32154 zero-on-fail trio first-hand; the exFAT
+twin :45174-45194; the boundary set cross-checked against the M-014 dentry-gate
+decode), built the time-word gate, and RED-proved the 3-test battery
+(hour24/hour31/minute60/minute63/2s30/2s31 → 0; the exact one-step-past edges;
+the end-to-end zero-slot persistence). The remote's 862d79ef landing (already
+merged) carries a superset battery (the per-slot-zeroing end-to-end + the exact
+unix-value accept edges) — this lane's redundant delta dropped per the superset
+rule.
+
+**S-058 CONVERGENT (ea405392 wins).** The comparator chain (FUN_1401bebe0 =
+inequality over FUN_1401bec20; the :585885-905 control case) re-read first-hand
+in ghidra-drwui, the gate inverted with the explicit empty-string skip arm (the
+"" runtime-set quirk — the naive flip would have diverged on dot-less names;
+this lane's Dotless pin caught it RED before GREEN), the M-133 twin fixtures
+re-based onto out-of-table extensions. The remote's ea405392 wins; three prior
+convergence addenda already ride the finding file — this lane's record rides
+here only.
+
+**S-061 CONVERGENT (ea405392 wins).** The insert-time hook decode (:605481-497)
+re-read, the ReFS/Btrfs unconditional-High rule placed after the Active rule
+(gauge-derived matched inherits the population — the 5830/5828 analog), the
+3-test battery RED pre-fix. The remote's landing (RefsAndBtrfsDeletedFilesGradeHigh
++ controls) is the superset; redundant delta dropped.
+
+**S-055/S-056/N-171: NOT attempted by this lane** — the staged queue never
+reached them before the window revealed a5fe33a5/e10ec381-era landings already
+on main (verified: the usersign block now probe-order-correct, format-gated,
+and N-171's validated tick landed).
+
+The hot-window merge (be992fdc + this commit): all conflicts resolved taking the
+remote's code side (their landings win their seats); this lane's worklog/ledger/
+module rows kept with convergence re-pointing. The merged tree's full suite
+re-verification runs before the next fix lands (the step-4 discipline: re-run
+the full gate after EVERY rebase/merge, not just before the push).
+
+---
+
 ## Session-49 continuation audit lane — territory claim (2026-10-29)
 
 **Lane type:** the fourth continuation audit lane of the same user second-session
@@ -8455,6 +8510,32 @@ the two new control-flow constraints). Tests (8): the 4 RED behavior tests
 + the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
 1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
 cell + orchestration.md row + the OQ-S42-3 update + this entry.
+
+## Session-59 parity-fix lane — N-190 landed (2026-10-29)
+
+**N-190 FIXED (MINOR, discovered — the hot-window's red main repaired, five
+reds one class).** The post-merge gate caught what the window's own pushes
+claimed green: (1) the build was broken — both lanes' N-177 test bodies folded
+under one name (g++ redefinition); (2) the merged S-058 pin kept dead e1/e2
+fixtures (-Werror); (3) BOTH lanes' N-171 `validated` ticks folded into the
+user-sign emission arm — every user-sign record double-counted in
+`carved_found` (the CarveEngine/CarveStats UserSignFilesCount reds); (4) the
+merged S-058 pin's assertions were cross-wired against its own fixtures (the
+ENGINE was already correct — zzqx/doc expectations swapped); (5) ten
+window-added usersign tests leaked the PROCESS-GLOBAL registry (the default
+set's lzh/lha family signs made `Carve.LzhWrongDashByteRejects` carve the
+wrong-dash form in full-run order). Repairs: rename + fixture drop + ONE tick
+with merged provenance + re-wired assertions + prevailing-world teardowns on
+all ten installers (the N-168 convention; RegistrationRoundTrip's deliberate
+zip install defines the later prevailing state). Verification: the 13-test
+repaired battery + FULL suite at the repaired tree — 1317 ran / 1275 OK / 42
+env-skipped / 0 failed (was: build broken + 4 deterministic + 1 order-dep
+suite reds). Trail: findings/FIXED/N-190 + ledger row + this entry. Root
+cause recorded for the process: the N-135 step-4 discipline (re-run the full
+gate after EVERY rebase) extends to MERGES — each hot-window fold shipped a
+red tree while both parent lanes were individually green.
+---
+
 ## Session-50 continuation audit lane — close record (2026-10-29)
 
 **Lane:** S50 (renumbered from the S49 draft per SA-9 — the remote's S49
@@ -8757,7 +8838,7 @@ earlier win-gate repair (rrecov.cpp's PartitionSlice retype — convergent with
 the S53 lane's N-188; cr_ui.cpp's Level::Warn — this lane's unique half).
 Suite 1392/1392 green, win gate 10/10, format clean. The lane continues down
 the SEVERE queue (S-059 next).
-=======
+
 
 ## Session-46 minors lane — N-184 landed (2026-10-29)
 
@@ -8777,6 +8858,80 @@ explicitly excluded, reproducing the og's extension-driven net behavior for
 text files). Tests: the five named pins, 4 pre-fix FAILs. Suite 1341 ran /
 1299 pass / 42 env-skips / 0 fail. Trail: findings/FIXED/N-184 + ledger row +
 matrix row + this entry.
+
+## Session-55 continuation audit lane — close-out (2026-10-29)
+
+**Pins:** battery at core `1fccb0a4`, filings verified at `9633d94f` (HEAD at
+filing), corpus `be0cfe9`. **READ-ONLY guarantee held** — the delta vs
+origin/main is `diff-to-fix/` + `worklog*` only (verified per commit).
+
+**The remove-the-fixed ask (convergent):** the 69-finding liveness battery —
+62 STILL-ACTIVE / 3 PARTIAL (N-154, N-170, N-185 — named legs in
+`evidence/s55-liveness.md`) / 2 FALSELY-ACTIVE (N-142-rsf, convergent with the
+S50 lane's retirement of the renumbered N-186; I-035, retired-with-bookkeeping
+listing-stale) / zero phantom-fixed. OQ-S42-1/2 resolved-in-substance with
+convergent re-decodes. Tier-1 (SEVERE+MAJOR): 36/36 STILL at the pin, every
+divergence re-located by symbol (the board-wide citation drift — up to +1700
+lines — absorbed; the doc_truth_gate cite-refresh observation registered).
+
+**The go-deeper ask (five parallel agents, every load-bearing claim
+lead-verified first-hand before filing):**
+- **Local database (the user's directive):** lostpart.dat (0x448
+  CSearchedPartitionInfo image) + partinfo.dat (0x18 live-table record)
+  fully decoded with offset tables; the W1 first-search delete latch, W2
+  per-hit append, W3 interrupt marker + the marker-restore path decoded —
+  **I-046** (INFO register: a per-process-generation cache, NOT a knowledge
+  base; the scan-position-granular resume capability registered as a known
+  deliberate divergence); **N-203** (the core's resume round-trip drops the
+  data-area extent — PartitionContext v3 carries no data fields, the load
+  restores none, revalidate discards the re-deriving scratch).
+- **Sector/scan math:** **N-204** (the og's engine-layer carve geometry
+  decoded — 4 MiB blocks in an 8 MiB double buffer, half-buffer look-back,
+  sector-stride u32 probes; F6's og-side cell was empty), **N-206** (the
+  device sector-count ceil-vs-floor on non-sector-multiple lengths), the
+  no-stuck-or-freeze clean bill (every core walker capped; the og's own
+  Btrfs recursion has no visited set — the core is the stricter side on
+  every engine pair; M-127 was the one complexity regression, fixed by the
+  parallel lane this window), the recovery-side extent math verified
+  u64-clean on both sides.
+- **Grading/calculation:** **N-205** (the rawCount population semantics +
+  the M-134 resolution's phantom `raw_tail_zero` field — grep-zero at HEAD),
+  the QSDE `(m/t+0.05)×10` score formula re-verified convergent with N-183,
+  **OQ-S42-3 CLOSED** (the flag-setter origins + vt+0xb8/vt+0x100 semantics
+  decoded; 0x23 is the ctor default in every SearchDLL; the 0xa8-producer
+  no-writer-found residual registered; retired to findings/FIXED/).
+
+**Filings:** N-203 / N-204 / N-205 / N-206 (MINOR ×4) + I-046 (INFO ×1) +
+the OQ-S42-3 closure + module addenda (lost-partition, session, carve, tree,
+storage) + the matrix S55 block + SUMMARY/README/ledger rows. Evidence: the
+five agent context sheets + `evidence/s55-liveness.md`.
+
+**Board at close (filesystem truth): 60 active — 5 SEVERE · 24 MAJOR · 30
+MINOR · 1 INFO / 121 FIXED / 4 tracked-open.** Recommended first fixes from
+this lane: N-205 (the phantom resolution claim is the audit-trail hazard),
+N-203 (the v4 tail), N-206 (the ceil pair), N-204 (the F6 og-side cell).
+Convergence: the S54/S50 lanes' batteries and the S52/S48 grading decodes
+converge on every overlapping row — this lane's independent verification
+recorded per the S42/S42-B/S42-C precedent.
+## Session-46 minors lane — N-183 landed (2026-10-29)
+
+**N-183 FIXED (MINOR — the recoverability aggregate: population + score +
+QSDE).** All three sub-gaps: (a) the gauge's candidate population is now the
+og's 20-format member set (kGaugeCandidateExtensions, the .rdata keys re-read
+via the finding's evidence) + the auto-High classes (email + non-existing
+ReFS/Btrfs per S-061), with the og's lowercased set lookup; (b) the verdict
+score int((matched/total + 0.05)*10) (FUN_14021b030) computed over that
+population, 0 on empty, the small-result zeroing applied first; (c) QSDE
+re-mapped to the per-node non-existing count (DRWUI :331164-170, the +0x1b8
+field) and the NTFS fixer-index rule tick moved to its own
+ntfs_device_index_high (the DAT_141be5818 gauge-matched global). The
+ScanAnalysis report block + the cr_ui copy carry the four new fields
+append-only. Tests: GaugePopulationIsMemberSet, ScoreFormulaRoundsLikeOg,
+QSDENotTheNtfsIndexCount — two first-draft bugs caught by the pins (a
+case-sensitive set lookup missing every uppercase extension; the score pin's
+own small-result floor). The NtfsDeviceIndexRuleUpgrades pin re-pinned to the
+two-counter truth. Suite 1361/1319/42/0. Trail: findings/FIXED/N-183 + ledger
+row + matrix row + the schema doc + this entry.
 
 
 
@@ -8866,6 +9021,7 @@ pins kept; (3) the S-060 restore surface grew the win layer's SDK consumption
 (SetFileTime/SetFileAttributesW in cr_destio.cpp) without growing the win-stub - the
 two setter declarations added beside their getters (the M-055 gate working as
 designed). Suite 1403/1403.
+
 
 
 
