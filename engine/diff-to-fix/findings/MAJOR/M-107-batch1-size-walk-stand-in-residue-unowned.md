@@ -135,3 +135,48 @@ was N-146's actual defect is closed.
 ## Session-71 addendum — the X3F landing (the finding's own decode-then-land order, member 1 of 11)
 
 **X3F FIXED** (this session; the remaining ten members stay with the finding): the og's X3F size walk is decoded first-hand from FileX3FAnalyser FUN_1800535b0 (RAWSearchDLL :63457-63560, read in full this session): a forward scan for the "SECd" section-directory marker (0x64434553), sector-stepped with overlapping 2-sector windows up to the device cap, with the extent = SECd_position + 0x4C in ALL THREE found-branch shapes (the sector-aligned hit `uVar7 += 0x4c; break;`, and both in-buffer search hits' `piVar5 + ... + 0x4c` forms — the directory's fixed 76-byte tail, which by construction IS the file's end: the X3F writer appends the directory last, corroborated by the FileRepair artifact x3f-repair--section-checkers-walk.md's directory-first repair model). The core's landing: `validate_x3f` scans 256 KiB windows (3-byte overlap — the straddle guard the og's 2-sector windows serve) from the header to the probe limit; found → `SECd + 0x4C` (clamped by the row bound); torn (no SECd in range) → the walked prefix at the row cap with the reduced confidence class (the og's loop-exit salvage shape — the scan stops at its cap with the last offset, never a refusal). The 64 MiB DWG-pattern stand-in and its "recorded follow-up" comment are GONE for X3F. Tests: `Carve.X3fSectionDirectoryWalkCarvesTrueEnd` (a 1 MiB true end on a 100 MiB device — the stand-in carved 64 MiB; RED by construction pre-fix) + `Carve.X3fTornSalvagesTheWalkedPrefix` (the loop-exit salvage at the row cap). Suite 1570/1570. Remaining members: CRW (FUN_180052160, the heap chain) next per the finding's order, then DWG/WPG/WPD/PSP/SIT/APE/EPS/DXF/SWF-RECT.
+
+---
+
+## Session-80 addendum (this lane) — the dispatcher decode: the authority dispute settled first-hand (M-155's resolution CONFIRMED; the census's "modern first" prose corrected)
+
+This lane opened at `04fb5e88` with main RED (the ed501caa markers — N-217) and
+independently re-read BOTH og sites before touching anything: FUN_180040160
+(the Brance::X3FAnalyser chunk processor, vftable-proven at RAWSearchDLL:48700)
+with its walk core FUN_1800404a0 (:48851-48910, extent = SECd + 16 + count×12,
+clamped, return-1 decline), and FUN_1800535b0 (FileX3FAnalyser :63457-63560,
+extent = SECd + 0x4C in all three found-branches, loop-exit walked-prefix
+salvage, the id 0x6C stamped unconditionally). An initial hypothesis — that the
+registry census's two-generation prose ("the modern analyser first, the legacy
+fallback") made the Brance count-walk the primary authority — was CORRECTED by
+the dispatcher decode before any push:
+
+**The scan dispatcher (RAWSearchDLL :9850-9876, the magic-key path; the same
+shape in the full-registry sweep at :9900-9935) calls the SECONDARY first.**
+The map node's registered analyser (`plVar7` = the Brance object) is queried
+via `vtbl[+0x40]` (the GetFallback accessor returning the +0x10 secondary —
+the FileX3FAnalyser, per the dual registration at :1786-1806); when a
+secondary exists, the dispatcher invokes **the secondary's slot-0 method with
+the candidate buffer AND the result object** (`(**(code**)*puVar4)(puVar4,
+param_2, param_3, ...)` — the result object being the +0x10-size/+0x18-id
+shape FUN_1800535b0 writes), and emits on its acceptance; the Brance primary
+runs only as a 2-arg second-chance (`vtbl[+0x10](plVar7, param_2)`) that
+emits with a null analyser. Since FileX3FAnalyser never declines (FUN_1800535b0
+stamps the extent + id unconditionally at :63556-63558), **the Brance
+count-walk never contributes to a carved X3F extent** — M-155's resolution
+(the S71 FileX3FAnalyser walk kept, the S78 count-walk superseded) is the
+corpus-true semantics, now confirmed by the dispatch decode rather than by
+precedent alone. The analyser-registry census's "modern first, legacy
+fallback" prose is CONTRADICTED by the actual dispatch order — recorded here
+as a census erratum (the prose was an inference from the registration
+structure, not a decode of the dispatch).
+
+Residual model divergences (documented, deliberate): (a) the core's 256 KiB
+windowed search vs the og's sector-stepped 2-sector windows — every found is
+the og's in-buffer shape; the og's sector-aligned-tail branch stamps
+`uVar7 + 0x4C` where its own arithmetic would give `uVar7 + sector − 4 +
+0x4C` (an og quirk the window model never reproduces); (b) the og's walk cap
+is `*(FUN_180001350() + 0x70) >> 1` (the singleton's undecoded field — the
+halved bound), approximated by the row-max probe limit. X3F's member status
+stands as LANDED per the S71/M-155 resolution; the remaining ten members (CRW
+next) stay with this finding. N-217 carries the build-repair record.

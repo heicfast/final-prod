@@ -1,20 +1,19 @@
-# Session prompt — diff-to-fix closing lane (token REDACTED)
+# Session fix mandate — prompt record (token redacted)
 
-Saved at session start per mandate. The GitHub token referenced in the original
-prompt is intentionally redacted and is never committed; it lives only in git
-remote config / env. Two repos in scope only:
-- Core (modified): https://github.com/heicfast/core_recovery  — HEAD at session start: 98a5b139
-- Corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research — HEAD: be0cfe9
+Session type: fix session (the diff-to-fix roadmap). Mandate: for every finding —
+ACUTE/SEVERE/MAJOR/MINOR/INFORMATIONAL/TRACKED-OPEN — independently verify,
+fix, prove with tests, mark fixed in the audit trail with evidence. Corpus is
+ground truth (easeus-drw-research, read-only). Core repo: heicfast/core_recovery.
+Token redacted per hygiene rule (env/git config only).
 
-Mandate summary (full text in the user prompt; this is the operative digest):
-- Execute the roadmap in core_recovery/diff-to-fix/. For every finding
-  (ACUTE/SEVERE/MAJOR/MINOR/INFORMATIONAL/TRACKED-OPEN): independently verify,
-  fix in codebase, prove with tests, mark fixed in audit trail with evidence.
-- User override this session: fix findings with priority to INFORMATIONAL first,
-  then the severity ladder. Fixed findings move to the fixed/ directory
-  (preserved, not deleted). Update all docs and counts. Target 20+ fixes.
-- Verify -> Reproduce -> Classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
-  FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING) -> Fix -> Test -> Document -> Push.
-- One finding, one verified fix, one push. Pull frequently, never force-push.
-- Corpus is the only source of truth for reference behavior.
-- No shortcuts, no stubs, no mocks, no TODOs, no hallucinated parity.
+Key SOPs: verify → reproduce → classify → fix → re-review → test → benchmark →
+document → push → loop. One finding, one verified fix, one push. No shortcuts,
+no stubs, no hallucinated parity. Windows direct I/O: multiples of 4KB/64KB.
+Win7-inclusive import gate. Signing stays disabled.
+
+First 20 TODOs: T1 pull+record, T2 read diff-to-fix, T3 read core, T4-T5 acute
+classify+fix, T6-T7 severe, T8-T9 major, T10 perf baseline/fix/rebench, T11-T12
+minor, T13 informational, T14 tracked-open, T15 matrix, T16 summary, T17 module
+docs, T18 CI sweep, T19 discovered tests, T20 tag release + handoff.
+
+Priority note from user: fix all findings, priority to major first, aim 20+ fixes.
