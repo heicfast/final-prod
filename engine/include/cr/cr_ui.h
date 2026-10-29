@@ -650,6 +650,17 @@ typedef struct cr_ui_scan_config {
                                          * refusal) do not reach the
                                          * completion handler and do not
                                          * auto-save. */
+    /* M-073 append (zero-init safe: NULL/0 = the filter is OFF): the
+     * scan-time folder filter - the og's PushFolderFilter surface (the
+     * active AdvanceFilterCondition pushed into the scan controller at
+     * scan start, UIUX/31:142). Each entry is one UTF-8 path prefix,
+     * volume-root relative, '/' or '\\' separated, ASCII
+     * case-insensitive; out-of-prefix folders never reach the session,
+     * the snapshot or recovery (pruned at the stage boundaries before
+     * the checkpoints). The prefixes persist as REC_SCAN_FILTER so a
+     * resumed session keeps the original scope. */
+    const char* const* filter_folders_utf8; /* NULL or array of count entries */
+    uint32_t filter_folder_count;           /* 0 = OFF */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);

@@ -435,3 +435,25 @@ stopped-check; re-verified against the corpus this session). The guard:
 `tools/doc_truth_gate.py` gains `check_header_contract_phrases()` — the
 retired-phrase class now fails CI in any public header (RED pre-fix: it
 caught the cr_ui.h twin; GREEN post-fix). The P46 row: MATCH.
+## Session-79 addendum (2026-10-29 — the MAJOR-first fix lane; opened at `e17a4e6d`)
+
+**M-073 FIXED — the scan-time folder filter.** The og's PushFolderFilter
+(UIUX/31:142, re-verified first-hand at the fix) constrains tree insertion;
+the core now prunes at every stage boundary BEFORE the checkpoint emit:
+`ScanConfig.filter_folders` (UTF-8 prefixes, empty = off) + the pure prune
+module `cr_folderfilter` (cr_query's own prefix family: ASCII
+case-insensitive, files = starts-with, folders = prefix-compatible
+either-direction) + `ResultTree::detach_child` (the parent-side splice +
+destroy primitive) + the boundary wiring (after the extent rebase; the
+counters decrement to the pruned tree, `ScanStats.folder_filtered` the
+diagnostic) + the ABI append
+(`cr_ui_scan_config{filter_folders_utf8, filter_folder_count}`, zero-init
+safe) + the CLI `--filter-folder` (repeatable; three-site lock) +
+`REC_SCAN_FILTER` (the optional session record; resume adopts the stored
+filter when the host carries none). Scoping decisions registered: the carve
+root and the pathless "File Path Lost" root are EXEMPT (pathless content
+has no folder to filter); the prune precedes M-018's junk pass (they
+compose). Directory detection follows the tree's two-shaped convention
+(FullNode folders + light nodes with the DOS 0x10 attribute — the FAT
+engines' shape). S31/D16/P42 → MATCH. 15 tests (module + pipeline + ABI),
+RED first-hand (the wiring-disabled variant) → GREEN; suite 1581/1581.

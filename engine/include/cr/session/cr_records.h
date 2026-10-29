@@ -243,6 +243,15 @@ struct CarveTallyRecord {
 };
 u32 serialize_carve_tally(const CarveTallyRecord& t, std::vector<u8>& out);
 u32 deserialize_carve_tally(const u8* data, size_t len, CarveTallyRecord& t);
+
+/* M-073: the scan-time folder filter's prefixes (REC_SCAN_FILTER). The
+ * stored form is the config's own UTF-8 strings, raw (separators and
+ * case preserved - normalization is the prune's job, so a re-saved
+ * session round-trips the original text byte-exact). Empty vector on
+ * deserialize = the record was absent, empty, or malformed (the honest
+ * degrade - a torn filter never blocks the load). */
+u32 serialize_scan_filter(const std::vector<std::string>& prefixes, std::vector<u8>& out);
+u32 deserialize_scan_filter(const u8* data, size_t len, std::vector<std::string>& prefixes);
 u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& pc);
 
 /* ---- restored session summary (G-14/G-23: what load_session gives back
@@ -278,6 +287,12 @@ struct VolumeSessionInfo {
      * tree's LDM roots carry the matching basis ids). Empty for
      * non-dynamic scans and pre-S-052 sessions. */
     std::vector<table::LdmVolumeLayout> ldm_layouts;
+    /* M-073: the scan-time folder filter's prefixes (REC_SCAN_FILTER -
+     * the original run's PushFolderFilter state). Empty for sessions
+     * saved without a filter and all pre-M-073 sessions; resume adopts
+     * it only when the host config carries no filter of its own (a new
+     * host filter is a new user choice and wins). */
+    std::vector<std::string> filter_folders;
 };
 
 /* ---- W1a: the light per-file summary (R-56; the og's record-2 read) ----

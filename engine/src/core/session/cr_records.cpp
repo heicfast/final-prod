@@ -1101,6 +1101,47 @@ u32 serialize_carve_tally(const CarveTallyRecord& t, std::vector<u8>& out) {
     return OK;
 }
 
+u32 serialize_scan_filter(const std::vector<std::string>& prefixes, std::vector<u8>& out) {
+    /* M-073: u32 count, then per prefix u32 byte length + the raw UTF-8
+     * (the config's own text; normalization lives in the prune). A
+     * prefix longer than u32 bytes is refused, not truncated (a filter
+     * that outgrows 4 GiB is a config error, not a payload). */
+    out.clear();
+    if (prefixes.size() > 0xFFFFFFFFu)
+        return u32(0x50040004); /* ERR_BAD_PARAMETER family (session codes) */
+    put32(out, u32(prefixes.size()));
+    for (const auto& p : prefixes) {
+        if (p.size() > 0xFFFFFFFFu)
+            return u32(0x50040004);
+        put32(out, u32(p.size()));
+        out.insert(out.end(), p.begin(), p.end());
+    }
+    return OK;
+}
+
+u32 deserialize_scan_filter(const u8* data, size_t len, std::vector<std::string>& prefixes) {
+    prefixes.clear();
+    Cursor c{data, len};
+    const u32 n = c.g32();
+    if (c.fail)
+        return u32(0x50040001);
+    for (u32 i = 0; i < n && !c.fail; ++i) {
+        const u32 plen = c.g32();
+        if (c.fail || !c.take(plen)) {
+            c.fail = true;
+            break;
+        }
+        prefixes.emplace_back(reinterpret_cast<const char*>(c.p) - plen, plen);
+    }
+    if (c.fail) {
+        /* honest degrade: a torn record yields no filter (the session
+         * loads; the host config governs) */
+        prefixes.clear();
+        return u32(0x50040001);
+    }
+    return u32(OK);
+}
+
 u32 deserialize_carve_tally(const u8* data, size_t len, CarveTallyRecord& t) {
     Cursor c{data, len};
     t.slots = 0;

@@ -1312,6 +1312,17 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
      * "filter_generalraw" surface); empty = the default role */
     copy_card(out.raw_category_name, sizeof(out.raw_category_name),
               in ? in->raw_category_name_utf8 : nullptr);
+    /* M-073: the scan-time folder filter (the og's PushFolderFilter
+     * surface). Zero-init safe: NULL array / 0 count = OFF. Empty-string
+     * entries are dropped (the prune's own normalize skips them). */
+    if (in && in->filter_folders_utf8 != nullptr && in->filter_folder_count != 0) {
+        out.filter_folders.reserve(in->filter_folder_count);
+        for (uint32_t k = 0; k < in->filter_folder_count; ++k) {
+            const char* p = in->filter_folders_utf8[k];
+            if (p != nullptr && *p != '\0')
+                out.filter_folders.emplace_back(p);
+        }
+    }
     return OK;
 }
 

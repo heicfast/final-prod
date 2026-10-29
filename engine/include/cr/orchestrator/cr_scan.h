@@ -214,6 +214,25 @@ struct ScanConfig {
      * (DRWUI FUN_140588820, real-run DRWUI.log:637-643). */
     std::vector<u64> register_history_lbas;
 
+    /* M-073 (diff-to-fix): the scan-time folder filter - the og's
+     * PushFolderFilter (UIUX/31:142, runtime-verified: the filter
+     * condition is pushed INTO the scan controller at scan start, so
+     * pre-set filters constrain incremental tree insertion, not just the
+     * post-hoc results view). UTF-8 path prefixes, volume-root relative,
+     * '/' or '\\' separated, ASCII case-insensitive; empty = OFF. The
+     * orchestrator prunes out-of-prefix subtrees at every stage boundary
+     * BEFORE the checkpoint emit (cr_folderfilter.h): sessions,
+     * checkpoints, snapshots, queries and recovery never carry
+     * out-of-scope folders, and the stage counters are decremented to
+     * match the pruned tree (the presented tree is the truth). The
+     * carve root and the pathless "File Path Lost" root are exempt
+     * (pathless content has no folder to filter - the scoping decision
+     * registered with the finding). Ordering with M-018's FilterFolder:
+     * this prune runs first (stage boundaries); the junk hidden-set pass
+     * stays post-walk, pre-grading - the two compose without
+     * double-counting. */
+    std::vector<std::string> filter_folders;
+
     /* ---- pre-scan repair (S-008; corpus RawFixer pre-scan position:
      * repair, then scan) ----
      * OFF by default (CLI default; the reference UI flow enables it with
@@ -414,6 +433,12 @@ struct ScanStats {
      * PushFolderFilter hidden set - OS droppings, metadata noise,
      * localized "New Folder" names, SVI, BitLocker artifacts). */
     u64 junk_filtered = 0;
+    /* M-073: file nodes the scan-time folder filter pruned at the stage
+     * boundaries (the og's AdvanceFilterCondition pushed into the scan
+     * controller - out-of-prefix folders never reach the session; the
+     * counter is the pruned-file total, junk_filtered stays the
+     * hidden-flag total - the two filters compose). */
+    u64 folder_filtered = 0;
 
     /* M-035: lost candidates the engine-side content-consistency scorer
      * rejected (the og's exFAT-only FUN_180025390 rule - majority
@@ -800,6 +825,11 @@ private:
      * record set). Returns the sink's error on failure (the caller aborts
      * the scan - no silent checkpoint gaps). */
     u32 emit_checkpoint_() const;
+
+    /* M-073: the scan-time folder filter's boundary application (the
+     * prune + the counter/telemetry re-truth; see cr_folderfilter.h).
+     * Runs between stages, before emit_checkpoint_. */
+    void apply_folder_filter_(ScanStats& stats);
 
     /* ---- typed event stream (GAP-S6-10) ----
      * emit_event_ fills the common fields (stage/timestamp) and calls the

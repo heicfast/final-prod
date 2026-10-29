@@ -90,6 +90,15 @@ enum RecordType : u32 {
      * serialize_carve_tally (u32 slots, u64 overflow, then slots u64
      * counts in unified format-id order). */
     REC_CARVE_TALLY = 11,
+    /* M-073 (diff-to-fix): the scan-time folder filter's prefixes (the
+     * og's PushFolderFilter state - the active AdvanceFilterCondition
+     * pushed into the scan controller, persisted so a resumed scan keeps
+     * the original run's scope). OPTIONAL with the same skip-unknown-types
+     * rule: sessions saved without a filter simply lack it and the resume
+     * path leaves the host config untouched. Payload:
+     * serialize_scan_filter (u32 count, then per prefix u32 len + UTF-8
+     * bytes, raw as configured - normalization happens at use time). */
+    REC_SCAN_FILTER = 12,
 };
 
 /* In-memory record. */

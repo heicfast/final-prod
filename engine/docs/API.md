@@ -33,6 +33,9 @@ rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
                [--filter s] [--deleted-only] [--bitlocker-fvek hex]
                [--bitlocker-dict [file]] [--user-signs file] [--repair]
                [--repair-apply] [--repair-undo file] [--check]
+               [--filter-folder DIR] (repeatable; the scan-time folder filter,
+                                       M-073: out-of-prefix folders never enter
+                                       the session; volume-root relative)
 rrecov tree    --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
 rrecov recover --in file.crsf (--disk N | --image file) --to DIR
                [--deleted-only] [--filter s] [--report file.json]

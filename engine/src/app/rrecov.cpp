@@ -1470,6 +1470,17 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             cfg.threads = u32(wcstoul(v.c_str(), nullptr, 10));
             continue;
         }
+        if (get_opt(argc, argv, i, L"--filter-folder", &v)) {
+            /* M-073: the scan-time folder filter (the og's
+             * PushFolderFilter surface - the pre-set AdvanceFilter
+             * condition pushed into the scan controller at scan start,
+             * UIUX/31:142). Repeatable; each value is one UTF-8 path
+             * prefix, volume-root relative. Out-of-prefix folders never
+             * reach the saved session (pruned at the stage boundaries). */
+            if (!v.empty())
+                cfg.filter_folders.push_back(text::wide_to_utf8(v));
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--out", &out_path))
             continue;
         if (get_opt(argc, argv, i, L"--autosave-dir", &v)) {
@@ -3685,6 +3696,10 @@ int wmain(int argc, wchar_t** argv) {
             L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
+            L"             [--filter-folder DIR] (repeatable: the scan-time folder filter -\n"
+            L"                                   out-of-prefix folders never enter the session;\n"
+            L"                                   volume-root relative, e.g. --filter-folder "
+            L"Users\\\\alice)\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
             L"             [--bitlocker-fvek hex]  (locked volume: user-supplied FVEK,\n"
             L"                                     64/128 hex chars - in-stack XTS-AES\n"

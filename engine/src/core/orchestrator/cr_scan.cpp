@@ -39,6 +39,7 @@
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/orchestrator/cr_filterfolder.h"
+#include "cr/orchestrator/cr_folderfilter.h"
 #include "cr/storage/cr_cached.h"
 #include "cr/storage/cr_retry.h"
 #include "cr/storage/cr_slice.h"
@@ -776,6 +777,45 @@ u32 ScanController::tel_overall_() const {
     return tel_.snap.overall_permille;
 }
 
+/* M-073: the scan-time folder filter's boundary application. Runs on the
+ * scan thread between stages (single-writer handoff). Every root whose
+ * children carry real filesystem folder structure prunes to the filter
+ * prefixes; the carve root and the pathless "File Path Lost" root are
+ * exempt (cr_folderfilter.h's scoping decision - pathless content has no
+ * folder to filter, and pruning it would be silent data loss). The
+ * stage counters are decremented to the pruned tree (the presented tree
+ * is the truth the counters describe - the og's filter is visible in
+ * its own result counts), the telemetry snapshot follows in the same
+ * step so the very next event carries the pruned numbers, and the
+ * diagnostic total lands in stats.folder_filtered. */
+void ScanController::apply_folder_filter_(ScanStats& stats) {
+    if (!folderfilter::any_active(cfg_.filter_folders))
+        return; /* OFF: the behavior-unchanged pin (no walk at all) */
+    u64 pruned_files = 0, pruned_deleted = 0;
+    for (tree::FileNode* r : tree_.roots()) {
+        if (r == root_carved_ || r == root_lost_)
+            continue; /* exempt: pathless content by definition */
+        const folderfilter::PruneStats ps = folderfilter::prune_root(tree_, r, cfg_.filter_folders);
+        pruned_files += ps.files;
+        pruned_deleted += ps.deleted;
+    }
+    if (pruned_files == 0)
+        return;
+    stats.folder_filtered += pruned_files;
+    stats.files_found = stats.files_found > pruned_files ? stats.files_found - pruned_files : 0;
+    stats.deleted_found =
+        stats.deleted_found > pruned_deleted ? stats.deleted_found - pruned_deleted : 0;
+    /* the telemetry snapshot follows the pruned counters immediately (the
+     * same three fields tel_counts_ owns - under its lock, exactly like
+     * tel_counts_ takes it; a boundary FilesFound event after this point
+     * reads the filtered truth, not the pre-prune wobble) */
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        tel_.snap.files_found = stats.files_found;
+        tel_.snap.deleted_found = stats.deleted_found;
+    }
+}
+
 u32 ScanController::emit_checkpoint_() const {
     if (!cfg_.checkpoint)
         return OK;
@@ -1401,6 +1441,12 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (u32 rc = run_quick(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
         tree_.rebase_new_extents(quick_mark, vol_offset_);
+        /* M-073: the scan-time folder filter prunes BEFORE the boundary
+         * checkpoint (the og's PushFolderFilter constrains tree
+         * insertion - the observable: out-of-prefix folders never reach
+         * a session/checkpoint/snapshot; AFTER the rebase so the mark's
+         * index-range discipline stays intact). */
+        apply_folder_filter_(stats);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
@@ -1409,6 +1455,10 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
             return stamp(ERR_CANCELLED);
         if (u32 rc = run_deep(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        /* M-073: same boundary rule as quick (the deep stage's discovery
+         * candidates and remnant-sweep nodes prune before the
+         * checkpoint). */
+        apply_folder_filter_(stats);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
@@ -1422,6 +1472,11 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
          * NODE_FLAG_EXT_SHIFTED guard (cr_carve.cpp) - this rebase skips
          * every carved node and is retained as the boundary invariant. */
         tree_.rebase_new_extents(carve_mark, vol_offset_);
+        /* M-073: the carve root itself is exempt (pathless content) but
+         * the pass runs at this boundary too - a whole-disk scan's
+         * structured roots (table volumes, lost candidates) prune here
+         * if the carve stage is the only remaining stage (resume legs). */
+        apply_folder_filter_(stats);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
@@ -2645,6 +2700,16 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
                 return rc;
     }
 
+    /* M-073: the scan-time folder filter's prefixes (optional record -
+     * the og's PushFolderFilter state persists with the session so a
+     * resume keeps the original run's scope). Saved only when the filter
+     * is active; the raw config text round-trips byte-exact. */
+    if (folderfilter::any_active(cfg_.filter_folders)) {
+        if (session::serialize_scan_filter(cfg_.filter_folders, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_SCAN_FILTER, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
     session::VolumeInfo vi;
     vi.fs_kind = u32(cfg_.fs_hint); /* FsFamily on the wire (D-1 truth) */
     vi.flags = session_configured_mask_ | (cfg_.run_quick ? STAGE_QUICK : 0u) |
@@ -2860,6 +2925,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
      * the light fields at the end of this function, so the layouts move
      * into the rebuilt struct (never wiped by the reset). */
     std::vector<table::LdmVolumeLayout> ldm_loaded;
+    /* M-073: the original run's folder-filter prefixes (REC_SCAN_FILTER) */
+    std::vector<std::string> filter_loaded;
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
@@ -2911,6 +2978,11 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
             }
             break;
         }
+        case session::REC_SCAN_FILTER: /* M-073: the original run's filter */
+            /* a torn record degrades to no-filter (the honest load rule);
+             * the resume path adopts only when the host brought none */
+            (void)session::deserialize_scan_filter(rec.data.data(), rec.data.size(), filter_loaded);
+            break;
         case session::REC_VOLUME_INFO:
             if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)
                 have_vi = true;
@@ -3011,7 +3083,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
      * (no VolumeInfo) assume all stages configured - their masks were
      * config-derived by construction, so the subset check holds trivially. */
     info = session::VolumeSessionInfo{};
-    info.ldm_layouts = std::move(ldm_loaded); /* S-052: survives the reset */
+    info.ldm_layouts = std::move(ldm_loaded);       /* S-052: survives the reset */
+    info.filter_folders = std::move(filter_loaded); /* M-073: ditto */
     info.fs_family = have_vi ? vi.fs_kind : 0;
     info.stage_done_mask = have_state ? st.stage_done_mask : 0;
     info.configured_mask = have_vi ? vi.flags : (STAGE_QUICK | STAGE_DEEP | STAGE_CARVE);
@@ -3070,6 +3143,11 @@ u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree,
         cfg.run_carve = false;
     if (info.fs_family != 0 && cfg.fs_hint == FsFamily::Unknown)
         cfg.fs_hint = FsFamily(u8(info.fs_family));
+    /* M-073: the original run's folder filter persists (the og's
+     * AdvanceFilter state carried into every scan); a host-supplied
+     * filter is a NEW user choice and wins over the stored one. */
+    if (cfg.filter_folders.empty() && !info.filter_folders.empty())
+        cfg.filter_folders = info.filter_folders;
     out.reset(new (std::nothrow) ScanController(tree, std::move(cfg), info));
     if (!out)
         return ERR_NO_MEMORY;

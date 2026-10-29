@@ -33,6 +33,77 @@ Board after this landing (post-rebase over the S81 lane's N-211/N-215
 landings): **1 SEVERE (S-068) · 17 MAJOR · 10 MINOR · 1 INFO active /
 174 FIXED / 4 tracked-open** (N-217 + S-067 add two FIXED; N-211/N-215
 landed by the racing S81 lane).
+## Session-79 S79 lane — M-073 lands (2026-10-29)
+
+- **M-073 FIXED (MAJOR, orchestration/query/ABI/CLI)** — the scan-time
+  folder filter. Corpus re-verified first-hand at the fix:
+  UIUX/31-filterbar-family-decode.md:142 ("the filter condition is pushed
+  INTO the scan controller, so pre-set filters also constrain incremental
+  tree insertion") + qa-logs--session-forensics.md:26 (the live
+  `PushScanDevice / PushFolderFilter / DoScan` sequence). Landed:
+  `ScanConfig.filter_folders`; the pure prune module `cr_folderfilter`
+  (cr_query's own prefix family: ASCII case-insensitive, '/'-separated
+  accumulated paths, files = starts-with, folders = prefix-compatible
+  either-direction so ancestors of the scope survive);
+  `ResultTree::detach_child` (the parent-side splice + destroy primitive
+  sharing detach_subtree's discipline); the boundary wiring — the prune
+  runs at every stage boundary BEFORE emit_checkpoint_ (after the extent
+  rebase, preserving the mark-index discipline), the stage counters
+  decrement to the pruned tree, `ScanStats.folder_filtered` the
+  diagnostic; the ABI append
+  `cr_ui_scan_config{filter_folders_utf8, filter_folder_count}`
+  (zero-init safe, no version bump); the CLI `scan --filter-folder DIR`
+  (repeatable; exact-match parse; three-site lock: usage + parse +
+  docs/API.md); `REC_SCAN_FILTER` (optional session record, torn degrades
+  to no-filter) + `VolumeSessionInfo.filter_folders` + resume adoption
+  (host-empty adopts the stored filter; a new host filter wins). Two
+  scoping decisions registered (finding + ABI-CONTRACT §7k): the carve
+  root and the pathless "File Path Lost" root are EXEMPT (pathless
+  content has no folder to filter — pruning it as a side effect would be
+  silent data loss); the prune precedes M-018's junk pass (they compose).
+  Directory detection follows the tree's two-shaped convention (FullNode
+  folders AND light nodes with the DOS 0x10 attribute — the FAT engines'
+  shape, the same bit M-018 reads). Tests: FolderFilter.* (6) +
+  ScanTimeFolderFilter.* (7) + CrUi.ScanTimeFolderFilterPrunesAtTheAbi +
+  CrUi.ScanConfigZeroInitFilterOff — RED first-hand (the wiring-disabled
+  variant: PrunesOutOfPrefixNodes + WholeDiskVolumeRootsArePruned FAIL),
+  GREEN after restore; **full suite 1581/1581**, win_syntax_check green.
+  Trail: findings/FIXED/M-073 + Resolution, ledger row, matrix MATCH
+  (S31/D16/P42) + S79 session row, modules/orchestration.md S79
+  addendum, SUMMARY board (11 MAJOR active / 169 FIXED), this entry.
+
+## Session-79 S79 fix lane — opens (2026-10-29)
+
+**The user's fix mandate:** "Fix all the audit findings (priority to major
+first) one by one, with full context and knowledge and update and put fixed
+findings in fixed directory. Update all docs, counts and all properly. Aim
+for at least 20+ fixes in this session, don't stop before that." Prompt
+saved token-redacted at `worklog/session-diff-fix-s79-prompt.md`, read twice.
+
+**Lane opens at:** core `e17a4e6d` (the S78 MINOR-tail lane's N-212 landing
+on top of the racing windows' M-118/M-148/N-131/N-140/M-135-rider landings),
+corpus `be0cfe9`. No racing lanes observed at open (`origin/main ==
+e17a4e6d`). Board re-truthed first-hand from the filesystem at open:
+**12 MAJOR / 7 MINOR active / 168 FIXED / 4 tracked-open** (the S78 SUMMARY
+block's "8 MINOR" was an off-by-one against the disk — the MINOR folder
+holds 7 files; corrected in this lane's SUMMARY updates). Of the 12 MAJORs,
+M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3's two-repo grant
+boundary (out of this repo's scope, standing); the actionable set is
+M-073/M-075/M-078/M-101/M-105/M-107/M-111/M-113/M-114 (9) + the MINORs
+N-144/N-145/N-178/N-181/N-182 (5; N-107/N-127 driver-repo-resident same as
+their MAJOR siblings).
+
+**Plan (MAJOR-first per the mandate, user-impact ordered within tier):**
+M-073 (scan-time folder filter) → M-101 (Versions + Tags-Extracted
+branches) → M-113 (reghive boot surgery — the recovered-OS-boots
+correctness gap) → M-107 (the batch-1 per-format size walks, X3F first
+then per corpus decode order) → M-075 (chkdsk launch) → M-078 (BitLocker
+turn-off) → M-105 (DRWService posture) → M-114 (System-Restore purge
+posture) → M-111 (explorer browse seam) → the MINOR tail → OQ-S52-1 (the
+ext2/3-vs-ext4 classification decode, if the corpus yields the rule) →
+audit-trail sweep + full CI. Every finding independently re-verified
+against the corpus before any change; one finding, one verified fix, one
+push; RED→GREEN proof per fix.
 
 ## Session-65 S65 lane — M-146 lands (2026-10-29)
 

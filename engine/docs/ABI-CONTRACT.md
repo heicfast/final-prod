@@ -708,6 +708,42 @@ Contract:
   (the honest platform answer).
 - No version bump: one appended export, no existing shape touched (§9).
 
+### 7k. The scan-time folder filter (M-073; the og's PushFolderFilter)
+
+The og pushes the active AdvanceFilterCondition into the scan controller
+at scan start (UIUX/31-filterbar-family-decode.md:142, runtime-verified:
+the `FilterPath=` + `CDoScanPartition::PushFolderFilter:84` log sequence),
+so a pre-set filter constrains incremental tree insertion - not just the
+post-hoc results view. The ABI leg is `cr_ui_scan_config::
+filter_folders_utf8` + `filter_folder_count` (zero-init = OFF).
+
+Contract:
+- Each entry is one UTF-8 path prefix, volume-root relative, `/` or `\\`
+  separated, ASCII case-insensitive (cr_query's own prefix family);
+  empty entries are no-ops, an empty/NULL array is OFF.
+- The prune runs at every stage boundary BEFORE the checkpoint emit:
+  out-of-prefix folders (their whole subtrees) and out-of-scope root
+  files never reach a session, checkpoint, snapshot, query or recovery
+  (the og's observable: "scans of a sub-tree don't pay tree/merge cost
+  for out-of-scope folders" - the session never carries them).
+- The stage counters are decremented to the pruned tree (the presented
+  tree is the truth); the diagnostic total (`folder_filtered`) surfaces
+  in the CORE `ScanStats` (the same posture as M-018's `junk_filtered`:
+  not every diagnostic counter rides the ABI stats struct).
+- Exemptions (the scoping decision, registered with the finding): the
+  carve root and the pathless "File Path Lost" root serve pathless
+  content - a folder filter has no folder to match there, and pruning
+  pathless content as a side effect would be silent data loss.
+- Ordering with the FilterFolder junk pass (M-018): this prune runs
+  FIRST (stage boundaries); the junk hidden-set pass stays post-walk,
+  pre-grading - the two compose without double-counting.
+- The prefixes persist as `REC_SCAN_FILTER` (optional session record);
+  `resume()` adopts the stored filter only when the host config carries
+  none of its own (a new host filter is a new user choice).
+- CLI: `rrecov scan ... --filter-folder DIR` (repeatable; the three-site
+  lock: usage text, flag parse, docs/API.md).
+- No version bump: two appended config fields, zero-init safe (§9).
+
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
 **This section previously specified a queryable SQLite sidecar index

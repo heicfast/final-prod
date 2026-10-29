@@ -472,6 +472,69 @@ void ResultTree::detach_subtree(FileNode* root) {
     }
 }
 
+void ResultTree::detach_child(FileNode* parent, FileNode* child) {
+    /* M-073: the scan-time folder filter's prune primitive. The shared
+     * destruction discipline is detach_subtree's (indexes/nodes_/live
+     * counters/destructors); the difference is the parent-side splice -
+     * a child sits in a sibling chain, so the unlink must fix the
+     * parent's first/last pointers AND the neighbors' prev/next links,
+     * or every later walk would dereference freed nodes. */
+    if (parent == nullptr || child == nullptr || child->parent_ != parent)
+        return; /* not a direct child: refuse (never a silent wrong-tree kill) */
+    std::lock_guard<std::mutex> lock(mutex_);
+    /* splice out of the sibling chain first (before any collection, so
+     * the walk below never re-enters the detached subtree through the
+     * parent's chain) */
+    if (child->prev_sibling_ != nullptr)
+        child->prev_sibling_->next_sibling_ = child->next_sibling_;
+    else
+        parent->first_child_ = child->next_sibling_;
+    if (child->next_sibling_ != nullptr)
+        child->next_sibling_->prev_sibling_ = child->prev_sibling_;
+    else
+        parent->last_child_ = child->prev_sibling_;
+    child->parent_ = nullptr;
+    child->prev_sibling_ = nullptr;
+    child->next_sibling_ = nullptr;
+    /* collect + destroy (detach_subtree's discipline, verbatim) */
+    std::vector<FileNode*> sub;
+    sub.push_back(child);
+    for (size_t i = 0; i < sub.size(); ++i) {
+        for (FileNode* c = sub[i]->first_child_; c != nullptr; c = c->next_sibling_)
+            sub.push_back(c);
+    }
+    std::unordered_set<FileNode*> dead(sub.begin(), sub.end());
+    for (FileNode* n : sub) {
+        const FileProperties* p = n->props();
+        if (p == nullptr)
+            continue;
+        if (p->record_ref != 0) {
+            const auto it = by_record_.find(p->record_ref);
+            if (it != by_record_.end() && dead.count(it->second) != 0)
+                by_record_.erase(it);
+        }
+        if (!p->extents.empty()) {
+            const u64 first = p->extents.front().offset;
+            const u64 len_class = extent_len_class_(p);
+            const auto it = by_extent_.find({first, len_class});
+            if (it != by_extent_.end() && dead.count(it->second) != 0)
+                by_extent_.erase(it);
+        }
+    }
+    nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
+                                [&dead](FileNode* n) { return dead.count(n) != 0; }),
+                 nodes_.end());
+    live_files_.fetch_sub(dead.size(), std::memory_order_relaxed);
+    child->first_child_ = nullptr;
+    child->last_child_ = nullptr;
+    for (FileNode* n : sub) {
+        if (n->full_)
+            static_cast<FullNode*>(n)->~FullNode();
+        else
+            n->~FileNode();
+    }
+}
+
 void ResultTree::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     /* full nodes carry a u16string: their OWN destructor must run */

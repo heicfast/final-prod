@@ -522,6 +522,21 @@ public:
      * after the subtree's own emission finished (single-writer handoff). */
     void detach_subtree(FileNode* root);
 
+    /* M-073 (diff-to-fix): detach ONE CHILD (and its whole subtree) from
+     * its parent - the scan-time folder filter's prune primitive. Same
+     * destruction discipline as detach_subtree (indexes erased only for
+     * owned entries, nodes_ order-preserving removal, live counters
+     * decremented, destructors run, arena bytes stay reserved), plus the
+     * parent-side unlink detach_subtree never needed (a root has no
+     * parent): the child is spliced out of the parent's sibling chain -
+     * first/last child pointers and prev/next links stay consistent, so
+     * every later walk (snapshot DFS, query, recovery planning) sees a
+     * clean list with no dangling pointers. The PARENT must be alive and
+     * the child a DIRECT child of it (asserted in debug); a detached
+     * intermediate folder's descendants die with it, exactly like a
+     * detached root's. */
+    void detach_child(FileNode* parent, FileNode* child);
+
     /* N-166: the live counters (see the accessors above) */
     mutable std::atomic<u64> live_files_{0};
     std::atomic<u64> live_raw_{0};

@@ -57,6 +57,7 @@ add_library(cr_core STATIC
     recovery/cr_dict_data.cpp
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
+    orchestrator/cr_folderfilter.cpp
     preview/cr_preview.cpp
     preview/cr_preview_text_exts.cpp
     preview/cr_preview_text_exts_data.cpp

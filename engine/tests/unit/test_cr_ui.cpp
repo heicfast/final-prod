@@ -703,6 +703,87 @@ TEST(CrUi, TextSnapshotThumbnailForTxtNode) {
     EXPECT_TRUE(any_light) << "the text preview carries the white canvas";
 }
 
+/* M-073: the scan-time folder filter at the ABI surface - the og's
+ * PushFolderFilter config leg (cr_ui_scan_config.filter_folders_utf8).
+ * The seeded volume carries an in-scope folder (IN) and an out-of-scope
+ * folder (OUT) plus root files; with the filter set, only IN's subtree
+ * reaches the saved session (query rows prove it end-to-end). */
+TEST(CrUi, ScanTimeFolderFilterPrunesAtTheAbi) {
+    /* fixture: FOLDER1 (cluster 40) holds IN.TXT (41); FOLDER2 (cluster
+     * 42) holds OUT.TXT (43); DOC.TXT/PHOTO.JPG/DELFILE.TXT stay at root */
+    auto img = build_fat16();
+    put16(img, kFAT1 + 40 * 2, 0xFFFF);
+    put16(img, kFAT2 + 40 * 2, 0xFFFF);
+    put16(img, kFAT1 + 41 * 2, 0xFFFF);
+    put16(img, kFAT2 + 41 * 2, 0xFFFF);
+    put16(img, kFAT1 + 42 * 2, 0xFFFF);
+    put16(img, kFAT2 + 42 * 2, 0xFFFF);
+    put16(img, kFAT1 + 43 * 2, 0xFFFF);
+    put16(img, kFAT2 + 43 * 2, 0xFFFF);
+    dentry(img, 3, "FOLDER1    ", 0x10, 40, 0, false);
+    dentry(img, 4, "FOLDER2    ", 0x10, 42, 0, false);
+    for (int k = 0; k < 11; ++k) {
+        img[kDATA + (40 - 2) * 512 + k] = (unsigned char)".           "[k];
+        img[kDATA + (40 - 2) * 512 + 32 + k] = (unsigned char)"..          "[k];
+        img[kDATA + (40 - 2) * 512 + 64 + k] = (unsigned char)"IN      TXT"[k];
+        img[kDATA + (42 - 2) * 512 + k] = (unsigned char)".           "[k];
+        img[kDATA + (42 - 2) * 512 + 32 + k] = (unsigned char)"..          "[k];
+        img[kDATA + (42 - 2) * 512 + 64 + k] = (unsigned char)"OUT     TXT"[k];
+    }
+    img[kDATA + (40 - 2) * 512 + 32 + 11] = 0x10; /* '.' dir */
+    img[kDATA + (40 - 2) * 512 + 64 + 11] = 0x20; /* IN.TXT file */
+    put16(img, kDATA + (40 - 2) * 512 + 64 + 26, 41);
+    put32v(img, kDATA + (40 - 2) * 512 + 64 + 28, 16);
+    img[kDATA + (42 - 2) * 512 + 32 + 11] = 0x10; /* '.' dir */
+    img[kDATA + (42 - 2) * 512 + 64 + 11] = 0x20; /* OUT.TXT file */
+    put16(img, kDATA + (42 - 2) * 512 + 64 + 26, 43);
+    put32v(img, kDATA + (42 - 2) * 512 + 64 + 28, 16);
+    std::memcpy(img.data() + kDATA + (41 - 2) * 512, "INDATA", 6);
+    std::memcpy(img.data() + kDATA + (43 - 2) * 512, "OUTDATA", 7);
+
+    const std::string path = cr_test::tmp_path("cr_ui", "m073");
+    FILE* f = std::fopen(path.c_str(), "wb");
+    ASSERT_NE(f, nullptr);
+    ASSERT_EQ(std::fwrite(img.data(), 1, img.size(), f), img.size());
+    std::fclose(f);
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(path.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    const char* folders[1] = {"FOLDER1"};
+    cfg.filter_folders_utf8 = folders;
+    cfg.filter_folder_count = 1;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    const std::string crsf = path + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+
+    /* the in-scope file is a query row; every out-of-scope row is gone
+     * (OUT.TXT, DOC.TXT, PHOTO.JPG - and DELFILE.TXT's deleted row) */
+    EXPECT_NE(query_node_id(u.sess, "IN.TXT"), 0u);
+    EXPECT_EQ(query_node_id(u.sess, "OUT.TXT"), 0u);
+    EXPECT_EQ(query_node_id(u.sess, "DOC.TXT"), 0u);
+    EXPECT_EQ(query_node_id(u.sess, "PHOTO.JPG"), 0u);
+    EXPECT_EQ(query_node_id(u.sess, "#ELFILE.TXT"), 0u);
+}
+
+/* M-073 zero-init safety: a host compiled before the append passes a
+ * config without the tail fields - the scan behaves exactly as before. */
+TEST(CrUi, ScanConfigZeroInitFilterOff) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("m073off", u, img, crsf));
+    /* every base-fixture row survives when no filter is configured */
+    EXPECT_NE(query_node_id(u.sess, "DOC.TXT"), 0u);
+    EXPECT_NE(query_node_id(u.sess, "PHOTO.JPG"), 0u);
+}
+
 TEST(CrUi, ScanLifecycleOverImage) {
     Ui u;
     std::string img, crsf;
