@@ -5577,6 +5577,20 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
         end = limit;
     if (end <= hit)
         return r;
+    /* the S91 sub-format rider: the og's tier-1 stamps the row's OWN id
+     * into result+0x18 and the ENGINE assigns the name - the CRawFileInfo
+     * child's +0x28 processor (0x18000b7a0) reads child+0x18, indexes the
+     * 9-byte-stride name table at 0x18008f070, and assigns the id's name
+     * string (WPD/WPG/SHW, first-hand decode). The core carries the split
+     * via format_override: the WPG pair onto the existing FMT_WPG row (the
+     * "wpg\0"-keyed row keeps its own zero-tail-walk entry semantics), the
+     * SHW pair onto the appended FMT_SHW row. The racing S87 landing's
+     * 'report-layer routing' framing is corrected by the +0x28 processor
+     * decode - the name assignment is engine-side, not UI-side. */
+    if (a == 0x00021601u && b == 0x00030000u)
+        r.format_override = u32(FMT_WPG); /* the og's id 0x45 */
+    else if (a == 0x00010f0fu && b == 0x00030000u)
+        r.format_override = u32(FMT_SHW); /* the og's id 0x3d */
     r.end = end;
     r.confidence = 650;
     r.note = "wpd-pair-table,declared-size";
@@ -5847,8 +5861,12 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* APE: "MAC " key 0x2043414d (:5653) -> CAPEAnalyser idx 81 (frame-sync
- * school, no index). Version is the BE u32 at +4 (3.9x releases carry
- * 3920-3990); bounded extent stands in for the undecoded frame walk. */
+ * school, no index). M-160: the og's version gate is the u16 LE at +4
+ * against [1000, 9999] (FUN_180033180's first check - the release
+ * integers; the walk's own branches split at 3980/3801); the old core's
+ * u32-BE [300, 5000] read matched no real APE file. Bounded extent
+ * stands in for the undecoded frame walk (the M-107 member; this lane's
+ * decode progress recorded in M-107's S87 addendum 4). */
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[8];
@@ -5856,10 +5874,20 @@ CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h, "MAC ", 4) != 0)
         return r;
-    const u32 v = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
-    if (v < 300 || v > 5000)
-        return r; /* release integers 3.90-4.x */
+    /* M-160: the og's version gate (FUN_180033180, the CAPERawFileInfo
+     * processor): the u16 LE at +4 against [1000, 9999] - the release
+     * integers (the walk's own branches split at 3980 and 3801). The
+     * old core's u32-BE [300, 5000] read matched NO real APE file (the
+     * version field is the u16 LE; a real header's BE read is ~0x820F0000)
+     * - every real Monkey's Audio archive was rejected. */
+    const u32 v = u16_from_bytes_le(h + 4);
+    if (v < 1000 || v > 9999)
+        return r;
     r.ok = true;
+    /* the extent remains the M-107 APE member's recorded stand-in (the
+     * walk's decode progress in M-107's S87 addendum 4: the 2 GB
+     * singleton+0x70*10 cap, the two header forms' alignment gates, the
+     * seek-table max walk, the APETAGEX backward tail scan) */
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "ape-version-gate+bounded-extent";
@@ -6645,6 +6673,7 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* SWF: list-only FWS/CWS (:3058-3086) -> FileSWFAnalyser id 0x3e. The
+<<<<<<< HEAD
  * og validator (FUN_1800268a0 :29970-29996 + the deep gates
  * FUN_180026940/FUN_180026b80, first-hand): FWS/CWS only - ZWS is NOT
  * accepted; FileLength u32@4 > 8 -> size = FileLength (both paths,
@@ -6679,12 +6708,68 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
 CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[9];
+=======
+ * og validator (FUN_1800268a0 :29970-29996 + the deep gate
+ * FUN_180026940 :30001-30130, decoded first-hand from the raw asm):
+ * FWS/CWS only - ZWS is NOT accepted; version byte@3 in [3,20]
+ * (0x180026953-0x180026963: sub $0x3,%al; cmp $0x11,%al; ja reject);
+ * FileLength u32@4 >= 9 (0x180026969: cmpl $0x9,0x4(%rdx); jb reject)
+ * -> size = FileLength, stamped by the CALLER unconditionally on the
+ * deep gate's acceptance (FUN_1800268a0: *(uint*)(param_2 + 2)) - the
+ * RECT walk NEVER changes the extent (M-107's open question 3,
+ * answered: a VALIDATION-ONLY walk). The FWS deep gate = the RECT
+ * bounding-box validation (0x180026973-0x180026b5b): Nbits = byte8 >>
+ * 3 (the top 5 bits, MSB-first); Nbits < 2 rejects (0x180026980-83);
+ * four signed fields [1 sign bit + (Nbits-1) magnitude bits, MSB-first
+ * from bit 2 of byte 8] with the sign-magnitude decode (neg/cmove,
+ * 0x1800269fd-0x180026a09 - for every file the gate ACCEPTS all four
+ * fields are non-negative, where sign-magnitude == the spec's two's
+ * complement); accept iff Xmin < Xmax && Ymin < Ymax && Xmin >= 0 &&
+ * Ymin >= 0 && Xmax > 0 && Ymax > 0 (0x180026b3e-0x180026b5b). The
+ * CWS deep gate (FUN_180026b80) inflates the compressed body before
+ * validating - the recorded follow-up (the finding's explicit
+ * remainder; the CWS row keeps the shallow gates + the FileLength
+ * extent, which the og's caller also stamps for CWS). */
+static bool swf_rect_valid(const u8* h) {
+    const u32 nbits = u32(h[8]) >> 3;
+    if (nbits < 2)
+        return false; /* 0x180026980: cmp $0x1,%eax; jbe reject */
+    u32 bitpos = 5; /* MSB-first, after the 5-bit Nbits field (stream bits
+                     * 0-4; the first sign bit = LSB-index bit 2 = the
+                     * asm's `bl & 4` sign check at 0x180026a03, and the
+                     * first magnitude bit = LSB bit 1, the traced shr $1) */
+    auto read_bit = [&]() -> u32 {
+        const u32 bit = (h[8 + (bitpos >> 3)] >> (7 - (bitpos & 7))) & 1u;
+        ++bitpos;
+        return bit;
+    };
+    i32 fields[4] = {0, 0, 0, 0}; /* Xmin, Xmax, Ymin, Ymax */
+    for (int f = 0; f < 4; ++f) {
+        const u32 sign = read_bit();
+        u32 mag = 0;
+        for (u32 b = 0; b + 1 < nbits; ++b)
+            mag = (mag << 1) | read_bit();
+        fields[f] = sign ? -i32(mag) : i32(mag);
+    }
+    return fields[0] < fields[1] && fields[2] < fields[3] && fields[0] >= 0 && fields[2] >= 0 &&
+           fields[1] > 0 && fields[3] > 0;
+}
+
+CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    /* the RECT fields can span up to 5 + 4*31 bits past byte 8 - the
+     * 25-byte window covers every Nbits value; a device tail too small
+     * for the window declines (the og's 512-byte buffer read is the
+     * streaming model's artifact - the registered divergence class) */
+    u8 h[25];
+>>>>>>> origin/main
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
         return r; /* FWS | CWS only (the registry keys, re-checked) */
     const u32 len = u32_from_bytes_le(h + 4);
     if (len <= 8)
+<<<<<<< HEAD
         return r; /* the og's FileLength gate (both paths) */
     if (h[0] == 'C') {
         if (h[3] < 6)
@@ -6734,6 +6819,15 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
     r.confidence = 700;
     r.note = h[0] == 'C' ? "swf-cws-version+cmf,filelength" : "swf-rect-geometry+filelength";
+=======
+        return r; /* the og's FileLength gate */
+    if (h[0] == 'F' && !swf_rect_valid(h))
+        return r; /* the FWS deep gate: the RECT bounding-box validation */
+    r.ok = true;
+    r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
+    r.confidence = 700;
+    r.note = "swf-sig+version+filelength+rect";
+>>>>>>> origin/main
     return r;
 }
 

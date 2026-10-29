@@ -1,5 +1,28 @@
 
 
+## Session-93 fix row (2026-10-30 — the M-101 concession + this lane's two riders over the racing seat)
+
+- **M-101: the SA-9 concession** — this lane's convergent implementation
+  (u32 counter ids / phase F / node-level tags bit / bit-14 u32) was
+  withdrawn at the merge; the racing seat holds (the FNV-1a
+  namespace-identity hash at emission + the u64 wire + tags_only +
+  version_groups()). **The riders this lane adds on top:** (1) the Tags
+  Extracted PRODUCER — the seat's props flag had no stamping path (grep
+  clean at its tree); the ABI preview metadata call now stamps the live
+  node's props when the extraction produced tag data (the seat's
+  documented semantics: EXIF orientation/datetime, media duration/codec,
+  dimensions), through a session-liveness watch so the handle stays
+  session-independent (post-close: nothing marked, metadata still
+  served). (2) the ABI exposure the seat lacks:
+  cr_ui_query.version_group (0 = no filter) + .tags_only,
+  cr_ui_query_row.version_group + .tags_extracted,
+  cr_ui_node_info.version_group (u64) + .tags_extracted — the N-090
+  tail-append pattern, zero-init = safe default, plain-C driven in
+  ui_abi_check.c. Pinned by CrUi.M101TagsExtractedMarkAndBranchAxes
+  (RED first-hand via the block-neutralize dance at the pre-merge tree:
+  the mark block removed → FAILED; restored → GREEN). The merged-tree
+  suite: 1712/1712.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive)
 
 New active findings on this module: **N-167** (the found-size aggregate absent —

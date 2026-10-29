@@ -6,6 +6,50 @@
 **Corpus references:** `easeus-drw-research/re-workspace/artifacts/UIUX/09-results-phase-deep-dive.md:27-36` (the **5 distinguished roots**: Tags Extracted (EXIF/tag grouping), File Name Lost (raw-carved by content), File Path Lost (carved w/o reconstructable path), **Versions node (NTFS file-record multi-version)**, Unimportant (the collapsed junk bucket)); the R-20 row (docs/REFERENCE-API-GAP.md:214: "Missing: 'Versions node' (NTFS multi-version siblings) and 'Tags Extracted' (EXIF tag grouping) — no tree concept for either").
 **Core references:** audited commit `ff879f9` — The landed halves: Origin/DeletedState enums + raw_category_name + the M-018 junk filter ("Unimportant" ≈ is_junk_name; "File Name/Path Lost" ≈ raw-category + Origin). **No Versions concept** (the NTFS walk deduplicates multi-version record siblings rather than grouping them) and **no Tags Extracted grouping** (EXIF/tag extraction exists for preview/thumbnail but not as a tree branch).
 **Status:** FIXED (this session; the S84 fix lane)
+
+---
+
+## Session-93 S93 lane addendum (2026-10-30) — the concurrent-landing concession + the two riders this lane lands on top of the seat
+
+**The concession (SA-9, earlier-push-wins):** this lane (opened at
+`fc4ffdf4`, pushing as S93 after the racing window took S89-S92) landed
+an independent M-101 fix concurrently: a u32 counter group id assigned
+by a post-walk phase F over the (parent record, name) collision key, a
+node-level runtime tags bit, `versions_only`/`tags_extracted_only` query
+axes, and nflags bit-14 as a u32 block. The racing seat (above) holds:
+its namespace-identity FNV-1a hash is the better carrier (identity at
+emission, no second pass, deterministic per pathname), and its session
+wire (u64 bit-14 block) is the pushed form. This lane's convergent
+implementation is withdrawn at the merge; every duplicate surface was
+removed (the u32 field, phase F, the duplicate query axes and Row
+fields, the u32 write/read blocks, the four convergent-duplicate tests).
+
+**The two riders this lane lands ON TOP of the seat (both unique, both
+kept):**
+
+1. **The Tags Extracted PRODUCER** — the seat's `tags_extracted` props
+   flag had NO stamping path anywhere (its own comment: "stamped by the
+   host's preview/metadata pass" - with no such pass in the code; grep
+   clean at the seat's tree: zero setters). A carrier with no producer
+   is the no-disabled-surface class. The rider: the ABI preview
+   metadata call stamps the live node's props when the extraction
+   produced tag data (the seat's own documented semantics: EXIF
+   orientation/datetime, media duration/codec, dimensions), through a
+   session-liveness watch so the preview handle stays session-independent
+   (post-close: nothing marked, metadata still served from the private
+   copy). Pinned by CrUi.M101TagsExtractedMarkAndBranchAxes.
+2. **The ABI exposure** — the seat landed no ABI surface at all; the
+   rider appends the branch axes to the C ABI (the N-090 tail pattern,
+   zero-init = safe default): `cr_ui_node_info.version_group` (u64, the
+   seat's hash) + `.tags_extracted`, `cr_ui_query.version_group` (0 = no
+   filter) + `.tags_only`, `cr_ui_query_row.version_group` +
+   `.tags_extracted` - plain-C driven in ui_abi_check.c (the A-ABI-3
+   class swept). The merge repair on the racing window's own residue is
+   recorded in the merge commit (the born-collided WPD test name and the
+   format drift).
+
+The seat's Resolution above stands unchanged; this addendum records the
+concession and the riders only.
 **Prior audit check:** recorded as R-20 PARTIAL — never formalized. The three landed branches trace to M-018/M-029; the two missing ones had no finding ID.
 
 ## Summary
@@ -84,3 +128,47 @@ Whether the og's Versions node also appears for non-NTFS engines (the corpus tie
 **Fixed in commit:** the code landed in `b7d05b12` (honest note: the lane's gate-repair commit swept the M-101 working tree in an `git add -A` mishap during the N-223 renumber window — the changes are the M-101 landing in full, verified below); THIS commit lands the trail (the finding Resolution, the matrix/ledger/SUMMARY/worklog records).
 **Verified by:** the finding's own four-test battery, all green first-hand: `NtfsVolume.WalkStampsVersionGroup` (the walk-side falsification: a planted torn-overwrite sibling — a second MFT record with the same (parent 16, name readme.txt) — both records' nodes carry the SAME nonzero namespace-identity hash; distinct pathnames never collide) + `M101Branches.VersionsNodeGroupsTornSiblings` (the branch semantics: one group with count 2 and the shared name; the per-group Filter returns exactly the members; single-member ids never surface) + `M101Branches.VersionsGroupComposesWithOtherFilters` (the group axis ANDs with the M-072 state mask — the deleted prior version is the point of the branch) + `M101Branches.SessionVersionsRoundTrip` (the nflags bit-14 block round-trips; the group enumeration survives the reload; the tags flag does NOT ride the wire — the finding's own defer note) + `M101Branches.TagsExtractedGrouping` (the EXIF-bearing files group under the branch; the complement returns all) + `M101Branches.ExistingBranchesUnchanged` (the M-018 junk bucket still hides rows AND never joins a group — the three landed branches keep their shapes). Full Linux release suite 1550/0; the ASan lane 1549/0 LSAN-clean.
 **Resolution notes:** CONFIRMED-DIVERGENCE (the corpus citation re-read first: UIUX/09-results-phase-deep-dive.md:27-36 — the FIVE distinguished roots with their tr-verified coaching copy; the Versions tooltip 'It is another version of the file in the same directory. You can view different versions of the same file'; the Tags Extracted tooltip 'We classify and organize the found files by extracted tags'). The landing, per the finding's fix plan: (1) `FileProperties::version_group` — the deterministic namespace-identity hash (FNV-1a 64 over the namespace-best link's parent record number and name; no map, no second pass; the multi-parent hard-link case carries the namespace-best link's identity, the same one-link tie-break M-007 documents) stamped by the NTFS walk at emission; PASSIVE datum (never consumed by read/recovery); persisted as the nflags bit-14 append-only block (8 bytes, fires only when nonzero — pre-M-101 sessions stay shape-identical); (2) the query exposure: `Row::version_group` + `Filter::version_group` (the per-group membership, composes with every M-072 axis) + `query::version_groups()` (the branch enumeration — one counting pass + one collecting pass, junk-filtered nodes never members); (3) `FileProperties::tags_extracted` — the RUNTIME flag (NOT persisted: the corpus shows the og persisting no tag state in the session — the finding's own defer note; a reloaded session re-derives through the host's preview pass where extract_metadata runs) + `Filter::tags_only` + `Row::tags_extracted`; (4) the snapshot carries both axes append-only (SnapNode fields, in-memory value snapshot — no wire bump). The Versions-node-for-non-NTFS open question: the corpus ties the branch to NTFS record multi-version (UIUX/09:31) — the id is stamped for structured NTFS nodes only; other engines carry 0 (not-a-member), the honest corpus-scoped reading.
+
+---
+
+## Session-93 S93 lane addendum (2026-10-30) — the concurrent-landing concession + the two riders this lane lands on top of the seat
+
+**The concession (SA-9, earlier-push-wins):** this lane (opened at
+`fc4ffdf4`, pushing as S93 after the racing window took S89-S92) landed
+an independent M-101 fix concurrently: a u32 counter group id assigned
+by a post-walk phase F over the (parent record, name) collision key, a
+node-level runtime tags bit, `versions_only`/`tags_extracted_only` query
+axes, and nflags bit-14 as a u32 block. The racing seat (above) holds:
+its namespace-identity FNV-1a hash is the better carrier (identity at
+emission, no second pass, deterministic per pathname), and its session
+wire (the u64 bit-14 block) is the pushed form. This lane's convergent
+implementation was withdrawn at the merge; every duplicate surface was
+removed (the u32 field, phase F, the duplicate query axes and Row
+fields, the u32 write/read blocks, the four convergent-duplicate tests).
+
+**The two riders this lane lands ON TOP of the seat (both unique, both
+kept):**
+
+1. **The Tags Extracted PRODUCER** — the seat's `tags_extracted` props
+   flag had NO stamping path anywhere (its own comment: "stamped by the
+   host's preview/metadata pass" - with no such pass in the code; grep
+   clean at the seat's tree: zero setters). A carrier with no producer
+   is the no-disabled-surface class. The rider: the ABI preview
+   metadata call stamps the live node's props when the extraction
+   produced tag data (the seat's own documented semantics: EXIF
+   orientation/datetime, media duration/codec, dimensions), through a
+   session-liveness watch so the preview handle stays session-independent
+   (post-close: nothing marked, metadata still served from the private
+   copy). Pinned by CrUi.M101TagsExtractedMarkAndBranchAxes.
+2. **The ABI exposure** — the seat landed no ABI surface at all; the
+   rider appends the branch axes to the C ABI (the N-090 tail pattern,
+   zero-init = safe default): `cr_ui_node_info.version_group` (u64, the
+   seat's hash) + `.tags_extracted`, `cr_ui_query.version_group` (0 = no
+   filter) + `.tags_only`, `cr_ui_query_row.version_group` +
+   `.tags_extracted` - plain-C driven in ui_abi_check.c (the A-ABI-3
+   class swept). The merge repair on the racing window's own residue is
+   recorded in the merge commit (the born-collided WPD test name and the
+   format drift).
+
+The seat's Resolution above stands unchanged; this addendum records the
+concession and the riders only.
