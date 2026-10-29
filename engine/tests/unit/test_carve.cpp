@@ -9374,7 +9374,6 @@ TEST(Carve, LzhExtFlagSuppressesTheCrcStride) {
 
 TEST(Carve, LzhWrongDashByteRejects) {
     /* N-112: the probe gates buf[6] == '-' - a method field with a wrong
-<<<<<<< HEAD
      * 5th byte rejects (the 5-byte magic carries the gate, so plant the
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
@@ -9391,20 +9390,6 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * clear()'s suspenders; either alone suffices, both document the
      * interaction). */
     ASSERT_EQ(OK, carve::usersigns::clear());
-=======
-     * 5th byte rejects (the magic itself IS the gate here: a wrong-dash
-     * form never matches any row). The default user-sign set's "lha"
-     * entry (2,2D6C68 - the og's own shipped sign) matches ANY "-lh"
-     * anchor at +2, so the test that pins the GRAMMAR's dash gate
-     * disables that orthogonal channel by extension (S-056's
-     * disabled_formats gates the user layer; "lha" has no stock rows,
-     * the lzh grammar is a different extension - the gate is surgical).
-     * [The S-055/S-056 hot-window merge interleaved two lanes' registry
-     * hygiene fixes mid-comment; this repair keeps the surgical
-     * disabled_formats form - the two approaches are behaviorally
-     * equivalent for this fixture, and the spliced registry-clear
-     * variant's comment block was the dangling half.] */
->>>>>>> 2d8656e0 (repair(main-red): the S-055/S-056 hot-window's remaining reds closed - (1) test_carve's LzhWrongDashByteRejects comment splice (two lanes' registry-hygiene fixes interleaved mid-comment - the surgical disabled_formats form kept, the dangling clear() half dropped), (2) test_ext4's duplicated SizeExceedsBlocksSetsDamagedFlag redefinition (the N-177-tagged copy kept per the superset rule), (3) the win-stub grown for S-060's SetFileAttributesW/SetFileTime (the parse gate working as designed - the landing forgot the stub) - suite 1397/1397 green on linux-release)
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
