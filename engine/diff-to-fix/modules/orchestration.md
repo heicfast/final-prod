@@ -1,12 +1,17 @@
 # modules/orchestration.md — scan orchestrator audit verdicts
 
+**S47 addendum (2026-10-29):** M-126 FIXED (`089b7cc8`) — the og's ETA model landed (FUN_1401af410's whole-run base + 0.2/0.8 rate EMA + the x0.6 time-budget variant + the '3m00s' placeholder + the 1 Hz countdown): the query-layer `eta_compute`/`eta_format_m_s`/`eta_countdown_tick` helper family beside the M-125 progress-display math, `ScanTelemetrySnapshot.eta_seconds`/`eta_smoothed_rate` computed live (the EMA state server-side), and the CLI's remaining-time line. O39's 'UI-side formatting' premise is superseded — the decode shows a computed model, and it is now a core surface. #38/#39 → MATCH.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — progress/ETA mathematics + state management)
 
 New active findings on this module: **M-125** (the og's piecewise progress remap +
 99.99% cap decoded via FUN_1401af820 — unregistered; the O38 "M-equivalent" verdict
 superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
 premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
-cadence — the :210-213 claim inaccurate); **N-167** (no found-size aggregate);
+cadence — the :210-213 claim inaccurate); **N-167 FIXED (Session-44 —
+ScanStats::bytes_found stamped from tree total_logical at every count refresh; the
+session record grew to v3; the CLI renders the og's "(X GB)" shape; RED→GREEN
+proven; findings/FIXED/N-167)** (no found-size aggregate);
 **N-178** (the pause CLI legs); **I-041 (ACKNOWLEDGED — registered this lane)** (stopped-vs-finished: the og's verdict is a heuristic — FUN_1400f1b10 [DRWUI:205797-205813, the 0x62=98 threshold re-read first-hand this session] infers "stopped" from progress<98% at the advanced-end transition and persists/restores it [:314692-712, :837740-800]; the core derives it truthfully — stage-done bits stamp only on OK completion [cr_scan.cpp:2134-2137, the G-07 integrity comment] and resume skips only truthfully-completed stages [:2766-2770]. The explicit mapping — og states 3/7 = core cancelled-stage; og 4/8 = core stage-done bit — registered so parity tables stop looking for a "state 7" equivalent); **I-042 (ACKNOWLEDGED — registered this lane)** (paused observability: the og surfaces pause on four surfaces [enum 2/6, nStatus==2, the "Scanning Paused." strip, sigTaskBarPaused], the core exposes `ScanTelemetrySnapshot.paused` [cr_scan.h:520] + cr_ui.h:689 only, no dedicated `cr_ui_scan_paused` query — hosts render pause from telemetry; a library-appropriate subset, the taskbar a host concern); **I-043 (ACKNOWLEDGED — PARITY-DELTAS D-122)** (state ownership). Key decodes this session:
 the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
 +0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a
@@ -336,3 +341,20 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   insert-time High absent), M-138 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair), M-134 — FIXED (session-52: the deep-read grade + the one-shot full-tree re-grade landed; suite 1379/1379; the pre-check trio stays OQ-S42-3) (the deep-read
   validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
   Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings touching this module: **M-146** (probe_family's NTFS gate
+family mismatch — the dispatch layer's gate set re-derived from the analyser),
+**N-199** (the ReFS second signature FSRS@+0x10 absent in probe_family),
+**N-194** (the size display formatters absent — the query surface). Verified-MATCH
+this session (the state-management axis, the user's focus battery): the scan
+lifecycle states and every transition writer re-walked against cr_scan's
+single-owner model (the I-041/I-042/I-043/D-122 registers corroborated — no new
+state divergence), the watchdog's bounded teardown, the CUIScanProgressInfo
+monotonicity protocol, the telemetry clamp family (the 99→100 clamp kept distinct
+from the 98% classifier and the 99.99 display cap — three different constants,
+now each pinned), and the progress/stage weighting. The pause type-gate and the
+"Reading sector" ticker are recorded as precise next probes in
+`evidence/s54-deepdive-orchestration.md` (UNRESOLVED #1/#2).

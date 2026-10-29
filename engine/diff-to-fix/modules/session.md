@@ -369,3 +369,19 @@ only — firmware/WWN/interface and the boot-sector content have no equivalent
   census (51 MATCH / 13 DIVERGENT (15 of 17 non-MATCH trail-owned) /
   4 ABSENT / 7 N-A) at `evidence/s50-ifileproperties-part1-census.md` —
   the four module rows' "under-cited (x1)" note is closed by disposition.
+
+---
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+Addenda filed on existing findings: **M-126 +S54** (the ETA budget seed decoded:
+`total_bytes/60 MiB + 60 s` at DRWUI:315150 — the fix plan gains the seed step),
+**N-178 +S54** (the og's engine-pause type gate: +0xD8 != 1 skips engine pause —
+the core's all-stage pause is a superset to register or align), **N-186 +S54**
+(the scope correction: the persistence half landed as the N-066 v4 tail BEFORE the
+finding's pin — the live remainder is the VolumeSessionInfo mirror gap; the
+parity-table row here owes the narrowed-scope correction). Verified-MATCH this
+session: the .rsf field families re-walked against the persistence layer (the
+state/persistence surface corroborated — no NEW divergence beyond the filed set:
+the I-041/42/43 registers, S-057, N-090, the D-122 family all stand), the
+checkpoint/save-trigger set, and the load path's v1..v5 tolerance ladder.

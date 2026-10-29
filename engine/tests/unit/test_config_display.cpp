@@ -185,3 +185,88 @@ TEST(ProgressDisplay, CorePermilleStaysLinear) {
     EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 1000, 1000), 1000u);
     EXPECT_EQ(orchestrator::weighted_progress(w, 500, 500, 500), 500u);
 }
+
+/* ===================================================================== */
+/* M-126 (diff-to-fix): the og's ETA model (FUN_1401af410,             */
+/* DRWUI :314835-314887, re-read first-hand) - the whole-run base ETA, */
+/* the 0.2/0.8 rate EMA, the type-gated time-budget variant (x0.6),   */
+/* the "3m00s" placeholder, and the 1 Hz "XmYs" countdown.             */
+/* ===================================================================== */
+
+TEST(Eta, WholeRunModel) {
+    /* the finding's worked example: 40 of 100 (GB/permille/any unit)
+     * in 400 s -> eta = (100-40)*400/40 = 600 s remaining */
+    const query::EtaModel em = query::eta_compute(40, 100, 400'000ull, 0, false, 0);
+    EXPECT_EQ(600, em.eta_seconds);
+    EXPECT_EQ(0u, em.smoothed_rate) << "first sample, no history: rate passes through 0? no -";
+    /* the rate: (100-40)/600 = 0 units/s (integer!) - the og's integer
+     * math yields rate 0 here; with prev==0 the smoothed state stores
+     * 0 (no history established until a nonzero rate). Verify the
+     * model on a shape where the rate is nonzero: 40/100 in 4 s. */
+    const query::EtaModel em2 = query::eta_compute(40, 100, 4'000ull, 0, false, 0);
+    EXPECT_EQ(6, em2.eta_seconds);
+    EXPECT_EQ(10u, em2.smoothed_rate) << "(100-40)/6 = 10 units/s, no history";
+}
+
+TEST(Eta, EmaDamping) {
+    /* the base shape: 80/100 in 10 s -> eta = 20*10000/80/1000 = 2 s,
+     * instant rate = 20/2 = 10 units/s */
+    const query::EtaModel first = query::eta_compute(80, 100, 10'000ull, 0, false, 0);
+    ASSERT_EQ(2, first.eta_seconds);
+    ASSERT_EQ(10u, first.smoothed_rate) << "prev == 0: the first sample passes through";
+    /* settled: prev == instant == 10 -> stays 10 */
+    const query::EtaModel settled = query::eta_compute(80, 100, 10'000ull, 10, false, 0);
+    EXPECT_EQ(10u, settled.smoothed_rate) << "(2*10 + 8*10)/10 = 10";
+    /* a DOWN burst against history 100: (2*10 + 8*100)/10 = 82 - the
+     * state moves exactly 20% of the gap (100 -> 82), the og's 0.2/0.8
+     * arithmetic with integer truncation */
+    const query::EtaModel down = query::eta_compute(80, 100, 10'000ull, 100, false, 0);
+    EXPECT_EQ(82u, down.smoothed_rate) << "(2*10 + 8*100)/10 = 82";
+    /* an UP step against history 2: (2*10 + 8*2)/10 = 3.6 -> 3 */
+    const query::EtaModel up = query::eta_compute(80, 100, 10'000ull, 2, false, 0);
+    EXPECT_EQ(3u, up.smoothed_rate) << "(2*10 + 8*2)/10 = 3.6 -> 3 (integer)";
+    /* a slower-progress shape: 20/100 in 4 s -> eta = 16 s, rate = 5;
+     * against history 28: (2*5 + 8*28)/10 = 23.4 -> 23 */
+    const query::EtaModel slow = query::eta_compute(20, 100, 4'000ull, 28, false, 0);
+    EXPECT_EQ(16, slow.eta_seconds);
+    EXPECT_EQ(23u, slow.smoothed_rate) << "(2*5 + 8*28)/10 = 23.4 -> 23 (integer)";
+}
+
+TEST(Eta, TimeBudgetVariant) {
+    /* the type-gated leg: projected = total*elapsed_s/done (floored 1);
+     * field = (budget - budget*elapsed_s/projected)*0.6.
+     * Worked: total=100, done=40, elapsed=400s -> projected = 100*400/40
+     * = 1000 (the whole run); budget=1000s -> field = (1000 -
+     * 1000*400/1000)*0.6 = 600*0.6 = 360 */
+    const query::EtaModel em = query::eta_compute(40, 100, 400'000ull, 0, true, 1000ull);
+    EXPECT_EQ(360, em.eta_seconds) << "(1000 - 1000*400/1000)*0.6 = 360";
+    /* over-budget shape: budget 500 vs projected 1000, 400s elapsed ->
+     * (500 - 500*400/1000)*0.6 = (500-200)*0.6 = 180 */
+    const query::EtaModel over = query::eta_compute(40, 100, 400'000ull, 0, true, 500ull);
+    EXPECT_EQ(180, over.eta_seconds);
+}
+
+TEST(Eta, PlaceholderAndCountdownFormat) {
+    /* the computed render: both fields zero-padded (the runtime anchor
+     * "07m43s"); the placeholder is the og's literal "3m00s" */
+    EXPECT_EQ("07m43s", query::eta_format_m_s(463));
+    EXPECT_EQ("10m00s", query::eta_format_m_s(600));
+    EXPECT_EQ("00m59s", query::eta_format_m_s(59));
+    EXPECT_EQ("3m00s", query::eta_format_m_s(-1)) << "the empty-label placeholder";
+    /* the countdown: parse "<m>m<s>s", subtract a second; stop at zero */
+    EXPECT_EQ(462, query::eta_countdown_tick("07m43s"));
+    EXPECT_EQ(462, query::eta_countdown_tick("7m43s")) << "unpadded re-renders parse too";
+    EXPECT_EQ(179, query::eta_countdown_tick("3m00s")) << "the placeholder ticks like any label";
+    EXPECT_EQ(-1, query::eta_countdown_tick("0m00s")) << "reached zero: the slot stops";
+    EXPECT_EQ(-1, query::eta_countdown_tick("")) << "unparsable: no tick";
+    EXPECT_EQ(-1, query::eta_countdown_tick("garbage")) << "unparsable: no tick";
+}
+
+TEST(Eta, ParameterErrorClass) {
+    /* FUN_1401af410's opening gate: done==0, total<done, total==0 -> -1 */
+    EXPECT_EQ(-1, query::eta_compute(0, 100, 60'000ull, 0, false, 0).eta_seconds);
+    EXPECT_EQ(-1, query::eta_compute(150, 100, 60'000ull, 0, false, 0).eta_seconds);
+    EXPECT_EQ(-1, query::eta_compute(50, 0, 60'000ull, 0, false, 0).eta_seconds);
+    /* eta <= 0 (too little elapsed): no estimate */
+    EXPECT_EQ(-1, query::eta_compute(99, 100, 100ull, 0, false, 0).eta_seconds);
+}

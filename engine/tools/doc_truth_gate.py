@@ -62,6 +62,9 @@ MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+# N-154: the in-source "filed as <ID>" citation guard.
+FILED_AS_CITE = re.compile(r"filed\s+as\s+(?:\*\*)?((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)")
+
 # N-160: the phantom-citation and collision guards.
 SCRIPT_CITE = re.compile(r"(?<![\w/.-])(scripts/[\w][\w.-]*\.(?:py|sh|ps1))\b")
 PHANTOM_MARKERS = re.compile(
@@ -80,7 +83,9 @@ FINDING_TITLE_ID = re.compile(
     r"^#\s+(?:ACUTE|SEVERE|MAJOR|MINOR|INFORMATIONAL)\s+((?:A|S|M|N|I)-\d+)\b"
 )
 OQ_TITLE_ID = re.compile(r"^#\s+(OQ-[A-Z0-9]+-\d+)\b", re.MULTILINE)
-LEDGER_ROW_ID = re.compile(r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|")
+LEDGER_ROW_ID = re.compile(
+    r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|", re.MULTILINE
+)
 LEDGER_SLUG = re.compile(r"findings/(?:FIXED)/[\w.-]+\.md")
 
 
@@ -207,6 +212,7 @@ def check_finding_id_uniqueness():
     """
     ok = True
     active: dict[str, Path] = {}
+    retired: dict[str, Path] = {}
     for sev in ("ACUTE", "SEVERE", "MAJOR", "MINOR", "INFORMATIONAL"):
         for f in sorted((DIFF_TO_FIX / "findings" / sev).glob("*.md")):
             head = f.read_text(encoding="utf-8", errors="replace")[:400]
@@ -223,6 +229,30 @@ def check_finding_id_uniqueness():
                 ok = False
             else:
                 active[fid] = f
+    # N-191 (the second N-188): title IDs must also be unique across the
+    # RETIRED files - two different findings under one ID in findings/FIXED/
+    # is the same M-117 class even when only one carries a ledger row.
+    for f in sorted((DIFF_TO_FIX / "findings" / "FIXED").glob("*.md")):
+        head = f.read_text(encoding="utf-8", errors="replace")[:400]
+        m = FINDING_TITLE_ID.search(head)
+        if not m:
+            continue
+        fid = m.group(1)
+        if fid in active:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by both an active "
+                f"file ({active[fid].name}) and a retired file ({f.name})"
+            )
+            ok = False
+        elif fid in retired:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by two retired "
+                f"files: {retired[fid].name} and {f.name} (the M-117 "
+                f"collision class)"
+            )
+            ok = False
+        else:
+            retired[fid] = f
     for f in sorted((DIFF_TO_FIX / "tracked-open").glob("*.md")):
         head = f.read_text(encoding="utf-8", errors="replace")[:400]
         m = OQ_TITLE_ID.search(head) or FINDING_TITLE_ID.search(head)
@@ -268,7 +298,45 @@ def check_finding_id_uniqueness():
         n_rows = len(ledger_slug)
         print(
             f"doc_truth_gate: finding-ID uniqueness holds "
-            f"({len(active)} active, {n_rows} ledger-resolved, zero collisions)"
+            f"({len(active)} active, {len(retired)} retired, "
+            f"{n_rows} ledger-resolved, zero collisions)"
+        )
+    return ok
+
+
+def check_filed_as_citations():
+    """Every in-source "filed as <ID>" cite resolves to a ledger row.
+
+    An in-source audit cite that names a nonexistent finding number sends
+    the next auditor chasing a phantom (the cr_log.cpp N-079 lesson,
+    N-154 item 1 - the wrong-subject half of that class stays human-
+    verified: the early ledger rows carry blank module cells, so a
+    module-matching heuristic would be guesswork).
+    """
+    ok = True
+    n_cites = 0
+    ledger = set(LEDGER_ROW_ID.findall(
+        (DIFF_TO_FIX / "FIXED-LEDGER.md").read_text(encoding="utf-8", errors="replace")
+    ))
+    for pat in ("src/**/*.cpp", "src/**/*.h", "include/**/*.h", "include/**/*.cpp"):
+        for src in sorted(ROOT.glob(pat)):
+            lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            for i, line in enumerate(lines):
+                m = FILED_AS_CITE.search(line)
+                if not m:
+                    continue
+                n_cites += 1
+                if m.group(1) not in ledger:
+                    print(
+                        f"doc_truth_gate: FAIL: {src.relative_to(ROOT)}:{i + 1} "
+                        f'cites "filed as {m.group(1)}" but the ledger has no '
+                        f"such row (the phantom-finding class)"
+                    )
+                    ok = False
+    if ok:
+        print(
+            f"doc_truth_gate: in-source filed-as citations clean "
+            f"({n_cites} cite(s), all resolve to ledger rows)"
         )
     return ok
 
@@ -278,6 +346,7 @@ def main():
     ok = check_deleted_citations() and ok
     ok = check_cited_scripts_exist() and ok
     ok = check_finding_id_uniqueness() and ok
+    ok = check_filed_as_citations() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

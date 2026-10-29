@@ -135,9 +135,22 @@ struct ProgressDisplay {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
                             .count();
-        wprintf(L"\r  %5.1f%%  (%lld s)   ", pct, static_cast<long long>(ms) / 1000);
+        /* M-126: the og's remaining-time label beside the elapsed time
+         * (FUN_1401af410's whole-run model + the "XmYs" render; the
+         * empty-label placeholder is the og's literal "3m00s") */
+        const query::EtaModel em =
+            query::eta_compute(permille, 1000ull, u64(ms), prev_rate, false, 0);
+        prev_rate = em.smoothed_rate;
+        wchar_t eta[32] = L"";
+        if (em.eta_seconds > 0) {
+            const std::string m126 = query::eta_format_m_s(em.eta_seconds);
+            std::mbstowcs(eta, m126.c_str(), 31);
+        }
+        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct, static_cast<long long>(ms) / 1000,
+                em.eta_seconds > 0 ? eta : L"3m00s");
         return true;
     }
+    u64 prev_rate = 0;
     /* Success summary only - a failed/cancelled run must never print
      * "100.0% done" (AUDIT-ARCH F-B-15). */
     void done() { wprintf(L"\r  100.0%%  done          \n"); }
@@ -1967,15 +1980,23 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
-                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"error_ranges\":%u,"
+                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"bytes_found\":%llu,"
+                L"\"error_ranges\":%u,"
                 L"\"probe_unreadable\":%hs,\"elapsed_ms\":%llu}\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
-                stats.bytes_scanned, stats.bytes_unreadable, u32(stats.errors.ranges().size()),
-                stats.probe_unreadable ? "true" : "false", stats.elapsed_ms);
+                stats.bytes_scanned, stats.bytes_unreadable, stats.bytes_found,
+                u32(stats.errors.ranges().size()), stats.probe_unreadable ? "true" : "false",
+                stats.elapsed_ms);
     } else {
-        wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s) "
-                L"in %llu.%01u s\n",
-                stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
+        /* N-167: the og's completion headline shape - "Files Found: N
+         * (X GB)" (dynamic-ground-truth--scan-phase-captured.md:125;
+         * the corpus capture pins 1,139,286 files / 147.12 GB on a
+         * 149.45 GB volume - the binary 1024^3 divisor, GB-labeled per
+         * the Windows convention the og follows) */
+        wprintf(L"scan complete: %llu file(s) (%.2f GB), %llu deleted, %llu carved, "
+                L"%llu lost partition(s) in %llu.%01u s\n",
+                stats.files_found, double(stats.bytes_found) / (1024.0 * 1024.0 * 1024.0),
+                stats.deleted_found, stats.carved_found, stats.lost_partitions,
                 stats.elapsed_ms / 1000, u32(stats.elapsed_ms % 1000) / 100);
     }
 

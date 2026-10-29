@@ -1,4 +1,42 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S46 MINOR-first fix lane on top; the S12 session-2 deep-dive lane below: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S54 continuation audit lane on top — the focus deep dives: sector math / scanning / detection validators / calculations / hang safety / persistence / state; the prior lanes below)
+
+**Session-54 S54 lane rows (2026-10-29 — the fifth continuation lane of the user's second-session mandate; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9, findings verified/filed at `34d6cf10`, corpus `be0cfe9`):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| exfat · lost-anchor recognition base correction (B1/B2/A25/A30) | **DIVERGENCE-SEVERE** | **S-066** (renumbered from S-062 at the push-rebase per SA-9) — the og re-bases a backup-boot anchor by −12 sectors after FAT media-word probes (FUN_180001630 :341-420); the core scans 12 sectors off. Lead-verified quote pack: `evidence/decompiled-quotes/s54-finding-quote-pack.md` |
+| ntfs · torn-$MFT bootstrap fallback (B1/B2/A25/S35) | **DIVERGENCE-SEVERE** | **S-063** — the og retries record-0 at the $MFTMirr LCN (FUN_1800272b0 :31595-31609, getters +0x30/+0x38); the core refuses (and its comment's premise is refuted) |
+| fat · engine-open flavor selection (B1/B2/A25/C21) | **DIVERGENCE-SEVERE** | **S-064** — the og is string-driven (FUN_18002f970 :38044-38062), the core bracket-driven (`cr_chain.cpp:609`); string/bracket disagreement ⇒ 12-vs-16-bit entry decode ⇒ different recovered bytes |
+| ext4 · indirect-ladder walk bounds (X52/X49/A26/S32) | **DIVERGENCE-SEVERE** | **S-065** — `read_ladder` unbounded (≈10⁹ reads / ~17 GB extents per poison inode); the og bounds by file size (FUN_180005490 :3949-3954). The no-stuck-or-freeze focus hit |
+| ntfs · cpr/cib zero decoding (B1/A25/Q68) | **DIVERGENCE-MAJOR** | **M-138** — four og scan-path sites default 0x400/0x1000 (FUN_180004830/870 etc.); the core rejects; D-52's premise is a store-guard misread — the register corrected either way |
+| ntfs · engine-open 55AA gate (B1/A25) | **DIVERGENCE-MAJOR** | **M-145** (renumbered from M-139 per SA-9) — no og NTFS layer checks +0x1FE (analyser/LoadNtfsVolume re-read); the core hard-gates at open |
+| orchestrator/ntfs · probe_family gate family (B1/B3/Q68) | **DIVERGENCE-MAJOR** | **M-146** (renumbered from M-140 per SA-9) — the og family: zero sweeps + record/index shape gates + spc raw-nonzero; the core: bps-range + spc-POW2 + no sweeps; the in-code comment misattributes FUN_180005470 |
+| ntfs · mft/mftmirr LCN bounds (B1/B3) | **DIVERGENCE-MAJOR** | **M-141** — the og's only bound is the raw product form (NTFSLib :19301), no mirror bound; the core refuses both LCNs ≥ clusters |
+| hfsplus · VH validator gate fields (B1/B3/Q68) | **DIVERGENCE-MAJOR** | **M-142** — the og gates freeBlocks/journalInfoBlock ≤ totalBlocks (FUN_18000c6e0 frame-offset derivation); the core gates the fork clamps; two corpus docs carry the misread (errata rows filed) |
+| ext4 · journal inode-image harvest (B2/A26/A25) | **DIVERGENCE-MAJOR** | **M-143** — FUN_180005e50's inode-table-image branch (the S-004 sibling surface) absent in the core's dir-only journal pass |
+| ext4 · large-volume capability caps (B1/X52/X49) | **DIVERGENCE-MAJOR** | **M-144** — the 8 MiB GDT cap refuses >16 TiB 64BIT volumes; MAX_GROUPS refuses >128 TiB; the og allocates unbounded (FUN_1800047c0 :3404-3408) |
+| lost-partition · NTFS candidate acceptance (A30/B3/A26) | **DIVERGENCE-MINOR** | **N-187** — the og requires boot-pair OR 4-record-MFT (mirror retry); the core scores-but-never-rejects |
+| fat · quick-open media-word flavor refinement (B1/A25) | **DIVERGENCE-MINOR** | **N-188** — FAT1/FAT2 shape tests re-flavor (FUN_180021000); absent in core; lands with S-064 |
+| ntfs · walk-entry record-geometry gate (B1/A26/Q68) | **DIVERGENCE-MINOR** | **N-196** (renumbered from N-189 per SA-9) — the og refuses odd/>16-device-sector records (0x610016); the core scans — the accept-direction superset registered |
+| ntfs · spc shift-decode threshold (C20/Q68) | **DIVERGENCE-MINOR** | **N-197** (renumbered from N-190 per SA-9) — og-internal inconsistency (0xF0 vs 0x80/0x81 vs raw); the core picked one side unregistered |
+| exfat · boot-gate numeric bounds (B3/Q68) | **DIVERGENCE-MINOR** | **N-198** (renumbered from N-191 per SA-9) — core-only volume_length≥2048 / cluster_count≤0xFFFFFFF5 / fat_offset≥24; register the hardening stance |
+| orchestrator/refs · recognition second signature (B3/C19) | **DIVERGENCE-MINOR** | **N-199** (renumbered from N-192 per SA-9) — "FSRS"@+0x10 (Partition FUN_180003900 :1745-1759) absent in probe_family |
+| ext4 · superblock acceptance bands (B3/C20/Q68) | **DIVERGENCE-MINOR** | **N-193** — four band deltas consolidated (inode_size=0, log_bs 7..20, journal_inum gating, desc_size combos) |
+| query · size display formatters (B10/D13/Q68) | **DIVERGENCE-MINOR** | **N-194** — the og's two binary-tier formatters (log-side KB/MB/GB; UI-side B..TB) have no core counterpart |
+| bench · driver-verification IOCTL codes (Q65/C22) | **DIVERGENCE-MINOR** | **N-195** — the phantom-zero 0x60002440/48 vs the contract's 0x6002440/48 (cr_rda.h) |
+| ext4 · unwritten-extent ee_len decode (Q68/B2) | **DIVERGENCE-INFORMATIONAL** | **I-045** — og-defect non-adoption register batch #3: the og multiplies raw; the core is kernel-correct — register |
+| session · ETA budget seed (O39) | **ADDENDUM** | **M-126 +S54** — `total_bytes/60 MiB + 60 s` at DRWUI:315150 decoded; the fix gains the seed |
+| session/orchestration · engine-pause type gate (S33) | **ADDENDUM** | **N-178 +S54** — the og skips engine pause for scan-type-1 runs (+0xD8 gate, :314405/:314476); the core pauses all stages |
+| session · variant-record persistence (D12/Q68) | **ADDENDUM (scope correction)** | **N-186 +S54** — the persistence half landed (N-066 v4 tail); the live remainder is the VolumeSessionInfo mirror |
+| cross-engine · corpus-doc errata batch (Q68) | **ERRATA** | `CORPUS-ERRATA.md` S54 rows — the HFS+ fork-clamp misread (feeds M-142), the Btrfs 0x40000 mirror typo, the ZFS vdev_phys swap, the ring-stride figure |
+
+**Liveness battery (the remove-the-fixed directive):** 66 active at the battery pin
+→ 55 LIVE / 5 PARTIAL / 6 UNCERTAIN (driver-repo) / 1 falsely-active (N-142→N-186,
+scope-corrected) — then the hot window retired 26 of them (S-055..058, S-061,
+M-118..M-137 band, the minors) leaving 40 active at the filing pin, all absorbed
+convergently. Full record: `evidence/s54-liveness-reconciliation.md`.
+
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S46 MINOR-first fix lane (prior); the S12 session-2 deep-dive lane below: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
 
 **Session-46 S46 lane rows (2026-10-29 — the user's MINOR-first fix directive; opened at core `659f0f6c` → `fa654673` claim, corpus `be0cfe9`; the parallel S45 lane holds the ACUTE/SEVERE side per the natural division):**
 
@@ -126,14 +164,16 @@
     **N-165** (fat — the "File overflows partition!" scan-time refusal vs the core's
     deferred per-read failure, unregistered stance); **N-166** (orchestration — live
     counters stage-boundary-only vs the og's ~2 s cadence; orchestration.md:210
-    inaccurate); **N-167** (orchestration/query — no found-size aggregate, the og's
+    inaccurate); **N-167 FIXED (Session-44 — ScanStats::bytes_found from tree
+    total_logical at every count refresh; session v3; CLI "(X GB)";
+    findings/FIXED/N-167)** (orchestration/query — no found-size aggregate, the og's
     "Files Found: N (X GB)" headline unrenderable); **N-168** (carve — the og's 2×
     bounds guard, core correct, unregistered); **N-169** (carve — duplicate `asf`
     block merge semantics, og side undecoded OQ); **N-170** (docs — 8 stale
     pre-erratum EUUserData/GetRawUserInfoMap claims + 2 corpus-side residues);
     **N-171 FIXED (Session-44 — the user-sign emission ticks `validated`; runtime +
     session undercount closed; findings/FIXED/N-171)** (carve/stats — user-sign files
-    never tick carved_found); **N-188 FIXED (Session-44 §8 discovery during N-171's
+    never tick carved_found); **N-193 FIXED (Session-44 §8 discovery during N-171's
     verification — the stock raw-sign layer's twin: sign-table-only formats never
     ticked `validated` either; the executed probe 1/0/0; the emission-site tick + 4
     stale pins re-pinned; findings/FIXED/N-188)** (carve/stats — NEW, filed+fixed same

@@ -7798,6 +7798,21 @@ TEST(CarveEngine, UserSignFilesCountInCarvedFound) {
 namespace {
 /* Install the shipped default set; returns false when the file/parse
  * fails (callers ASSERT on it). */
+/* S-058-window hygiene: every test that installs the default (or any)
+ * set must restore the EMPTY registry on exit - the per-process global
+ * leaks into every later carve test in the binary (the CplWpl leak left
+ * the default set's lha sign "2,2D6C68" live, and the LzhWrongDash
+ * fixture's "-lh0x" at +2 then carved a device-end .LHA - correct og
+ * parity for the default set, but a poisoned world for tests that
+ * assert built-in-layer-only behavior). */
+struct UsersignTeardown {
+    ~UsersignTeardown() {
+        carve::usersigns::UserSignSet empty;
+        empty.valid = true;
+        (void)carve::usersigns::install_set(std::move(empty));
+    }
+};
+
 bool install_default_usersigns() {
     std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     if (!in.good())
@@ -7840,6 +7855,7 @@ u32 count_ext_records(tree::FileNode* root, const char* ext8) {
 } // namespace
 
 TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
+    UsersignTeardown usersign_teardown;
     /* The finding's falsifiable case: a FLAC header at a stride on the
      * DEFAULT configuration. Pre-fix: one device-end user-sign record
      * (tag 0xFFFE0000, conf 600, len = total - start). Post-fix: the
@@ -7856,6 +7872,14 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
             flac_id = i;
             break;
+            /* teardown (the per-process registry contract the file documents at
+             * UserSignatureProbedAtStride): clear the default set so later carve
+             * tests do not run with 190 live user signs - the LzhWrongDashByte
+             * order-dependency the hot window exposed) */
+            carve::usersigns::UserSignSet teardown;
+            teardown.valid = true;
+            ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+            ASSERT_EQ(0u, carve::usersigns::active_count());
         }
     ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
 
@@ -7874,6 +7898,7 @@ TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
 }
 
 TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* Every one of the 8 default-set formats that ALSO live in the
      * built-in table: each format's own built-in header sign is planted
      * at a stride; the built-in candidate must own the position and no
@@ -7888,6 +7913,14 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
             if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
                 fid = i;
                 break;
+                /* teardown (the per-process registry contract the file documents at
+                 * UserSignatureProbedAtStride): clear the default set so later carve
+                 * tests do not run with 190 live user signs - the LzhWrongDashByte
+                 * order-dependency the hot window exposed) */
+                carve::usersigns::UserSignSet teardown;
+                teardown.valid = true;
+                ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+                ASSERT_EQ(0u, carve::usersigns::active_count());
             }
         ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
         for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
@@ -7925,6 +7958,7 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
 }
 
 TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
+    UsersignTeardown usersign_teardown;
     /* A built-in magic in a device smaller than the format's min_size
      * floor: the built-in arm matches but its floor gate declines, and
      * the user-sign arm does NOT reclaim the position (built-in-first
@@ -7947,9 +7981,18 @@ TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "no user-sign reclaim past the built-in floor gate";
     EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
+    UsersignTeardown usersign_teardown;
     /* The S-055 fix-lane decision, pinned: a magic the GRAMMAR layer
      * matched but rejected (truncated JPG - the default set carries jpg
      * signs, the built-in raw-sign table has no jpg row) is not
@@ -7980,9 +8023,18 @@ TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
         << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+    /* teardown (the per-process registry contract the file documents at
+     * UserSignatureProbedAtStride): clear the default set so later carve
+     * tests do not run with 190 live user signs - the LzhWrongDashByte
+     * order-dependency the hot window exposed) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
+    UsersignTeardown usersign_teardown;
     /* The channel stays functional post-reorder: a magic NO layer
      * claims (not grammar, not built-in) still emits the user-sign
      * record. Same shape as UserSignatureProbedAtStride, re-pinned here
@@ -8025,6 +8077,14 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
             cpl_id = i;
             break;
+            /* teardown (the per-process registry contract the file documents at
+             * UserSignatureProbedAtStride): clear the default set so later carve
+             * tests do not run with 190 live user signs - the LzhWrongDashByte
+             * order-dependency the hot window exposed) */
+            carve::usersigns::UserSignSet teardown;
+            teardown.valid = true;
+            ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+            ASSERT_EQ(0u, carve::usersigns::active_count());
         }
     ASSERT_NE(cpl_id, 0xFFFFFFFFu);
     for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
@@ -8125,6 +8185,7 @@ void plant_hex_bytes(std::vector<u8>& img, size_t at, const char* hex) {
 } // namespace
 
 TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
+    UsersignTeardown usersign_teardown;
     /* The two overlap formats whose collisions the offset-0 sign walk
      * cannot reach, each pinned with BOTH layers matching at one stride:
      *   cpl - the user sign DCDC at +0 AND the built-in sign at +12 (the
@@ -8158,6 +8219,14 @@ TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
             << "cpl: no user-sign record at the two-layer collision";
         EXPECT_EQ(1u, count_builtin_tagged(root))
             << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
+        /* teardown (the per-process registry contract the file documents at
+         * UserSignatureProbedAtStride): clear the default set so later carve
+         * tests do not run with 190 live user signs - the LzhWrongDashByte
+         * order-dependency the hot window exposed) */
+        carve::usersigns::UserSignSet teardown;
+        teardown.valid = true;
+        ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+        ASSERT_EQ(0u, carve::usersigns::active_count());
     }
     { /* wpl: the raw sign at +0 + the default user sign at +132 */
         std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
@@ -9309,22 +9378,18 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
      * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
-     * red): the default user-sign set carries lha "2,2D6C68" ("-lh" at
-     * +2) - with a set installed by an earlier test, this fixture's
-     * prefix carves a device-end lha USER record (the D-104 out-of-box
-     * superset, by design). The no-carve assertion pins the
-     * no-user-sign world, so this test resets the registry explicitly
-     * (the suite's per-process registry makes absence a state to SET,
-     * not a default to assume). */
+     * red, closed two ways by two lanes): the default user-sign set's
+     * "lha" entry (2,2D6C68 - the og's own shipped sign) matches ANY
+     * "-lh" anchor at +2, so with a set installed by an earlier test
+     * this fixture carves a device-end lha USER record (the D-104
+     * out-of-box superset, by design). The no-carve assertion pins the
+     * no-user-sign world: this test resets the registry explicitly (the
+     * suite's per-process registry makes absence a state to SET, not a
+     * default to assume) AND gates the user layer's lha channel by
+     * extension (S-056's disabled_formats - the surgical belt to the
+     * clear()'s suspenders; either alone suffices, both document the
+     * interaction). */
     ASSERT_EQ(OK, carve::usersigns::clear());
-    /* (the hot-window merge orphaned this fragment from the S-056
-     * landing's twin of this comment - restored with its opener): the
-     * default user-sign set's "lha" entry (2,2D6C68 - the og's own
-     * shipped sign) matches ANY "-lh" anchor at +2, so the test that
-     * pins the GRAMMAR's dash gate disables that orthogonal channel by
-     * extension (S-056's disabled_formats gates the user layer; "lha"
-     * has no stock rows, the lzh grammar is a different extension -
-     * the gate is surgical). */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */

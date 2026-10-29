@@ -336,3 +336,16 @@ recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
 FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
 chain's own: the truncation is recovery-time knowledge). No behavior change,
 per the finding's own plan.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-064** (SEVERE — engine-open flavor selection
+is string-driven in the og (FUN_18002f970), bracket-driven in the core; on
+string/bracket disagreement the core decodes 12-bit entries where the og decodes
+16-bit — wrong-content class), **N-188** (the FAT1/FAT2 media-word re-flavor
+refinement absent; lands with S-064 as the og's two-step decision sequence).
+Verified-MATCH this session: the og gate set at :38044-38062 re-derived field by
+field (numFATs/spc-set/bps/root-entries/spf/signature), the flavor-0xE-only consumer
+bail, the bracket function's lost-scan-only placement, the FAT16 exact media check's
+M-015 port confirmed, and the u64 cluster math (D-119 stands).

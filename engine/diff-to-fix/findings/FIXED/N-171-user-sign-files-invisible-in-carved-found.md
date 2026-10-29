@@ -83,6 +83,6 @@ fixture and an orchestrator + session save/reload round-trip
 pre-fix, 1 post-fix; the unique supplement kept in the tree). The session-55 lane's
 Resolution note left the stock raw-sign layer's absence from `validated` as "the
 separate N-140-adjacent question (its counter is `sign_validated`) — not touched":
-this lane touched it — filed as **N-188** (the §8 discovery) and fixed in the same
+this lane touched it — filed as **N-193** (renumbered from its N-188 draft seat at the S56 collision repair — the §8 discovery) and fixed in the same
 landing (the emission-site tick + `CarveStats.StockRawSignFilesCountInCarvedFound`,
 RED via the executed probe sign_hits=1/validated=0).

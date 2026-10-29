@@ -392,3 +392,91 @@ TEST(Telemetry, QueryDuringScanIsThreadSafe) {
     q1.join();
     q2.join();
 }
+
+/* ---- N-166: live counter refresh on progress samples ------------------ */
+
+TEST(Telemetry, LiveAttachCounterTracksTheTree) {
+    /* the O(1) attach counter: every add_file ticks, detach subtracts,
+     * reset zeroes - the telemetry overlay's data source. */
+    tree::ResultTree t;
+    auto* r = t.add_root(u"Found");
+    EXPECT_EQ(t.live_files(), 0u);
+    for (int i = 0; i < 5; ++i) {
+        auto* p = new tree::FileProperties();
+        p->name = u"f";
+        t.add_file(r, p);
+        p->release();
+    }
+    EXPECT_EQ(t.live_files(), 5u);
+    t.refresh_stats();
+    EXPECT_EQ(t.live_files(), 5u); /* refresh does not disturb the counter */
+    t.reset();
+    EXPECT_EQ(t.live_files(), 0u);
+}
+
+TEST(Telemetry, CountersMoveDuringStage) {
+    /* N-166: the og's results grid tracks the live tree (~2 s cadence);
+     * the core's ScanProgress samples carry the attach-time delta - a
+     * mid-carve event shows carved files BEFORE the stage completes.
+     * Deterministic via the park device: early JPEGs carve, then the
+     * far-region read parks the scan - the LAST pre-park progress event
+     * must carry carved_found >= 1 (pre-fix: the frozen stage-boundary
+     * snapshot shows 0 for the whole stage). */
+    std::vector<u8> img = build_fat16_wide(200);
+    /* three carvable JPEGs in the early data region (carved before the
+     * far park point) */
+    plant_jpeg(img, 100 * 512);
+    plant_jpeg(img, 120 * 512);
+    plant_jpeg(img, 140 * 512);
+    /* dead spot mid-image (hits during the structured pass), park on the
+     * far tail reads (the carve stage's late windows) */
+    BadRegionDevice dev(img, 30 * 512, 512);
+    dev.park_on_hit();
+
+    std::mutex m;
+    std::vector<event::Event> evts;
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.event_fn = [](const event::Event& e, void* user) {
+        auto* vec = static_cast<std::vector<event::Event>*>(user);
+        /* the shim's own single-flight discipline is the bridge's job;
+         * this observer just records (mutex-free: single scan thread +
+         * workers serialized by the coalescer in practice; the assert
+         * below only reads monotone fields) */
+        vec->push_back(e);
+    };
+    cfg.event_user = &evts;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+
+    std::thread scan([&] { (void)ctrl.run(&dev, nullptr, nullptr, nullptr, stats); });
+    bool hit = false;
+    for (int i = 0; i < 1500 && !hit; ++i) {
+        hit = dev.hit();
+        if (!hit)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(hit);
+    /* settle: the carve stage reaches the far park region after the
+     * early JPEGs carved (the windows scan in order) */
+    for (int i = 0; i < 500; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    ASSERT_TRUE(ctrl.telemetry().running) << "the scan is parked mid-carve";
+
+    /* the last ScanProgress sample carries the carved delta */
+    u64 last_carved = 0;
+    bool saw_progress = false;
+    for (const auto& e : evts) {
+        if (e.type == event::Type::ScanProgress) {
+            saw_progress = true;
+            last_carved = e.carved_found; /* last-wins per sample */
+        }
+    }
+    EXPECT_TRUE(saw_progress) << "the carve stage emitted progress samples";
+    EXPECT_GE(last_carved, 1u) << "mid-stage progress carries the carved count "
+                                  "(the attach-time delta, not the frozen snapshot)";
+
+    dev.unpark();
+    scan.join();
+    EXPECT_GE(stats.carved_found, 3u) << "the parked scan's eventual carve total";
+}

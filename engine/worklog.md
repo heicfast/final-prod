@@ -1,3 +1,159 @@
+**Session-44 minors lane — N-167 landed + the hot-window repair set (2026-10-29).**
+
+- **N-167 FIXED** — the found-size aggregate: `ScanStats::bytes_found` stamped from
+  `ResultTree::total_logical()` inside the count refresh (`tel_counts_` widened to a
+  mutable stats ref), so the og's "Files Found: N (X GB)" headline renders from core
+  stats; the session record grew to v3 (48-byte REC_SESSION_STATE, len-gated; v1/v2
+  load zeroed — the tree re-stamps at the first count refresh after resume); the CLI
+  completion line renders "N file(s) (X GB)" with the corpus-pinned binary 1024^3
+  divisor (147.12 GB on a 149.45 GB volume — the Windows GB labeling), and the JSON
+  summary carries bytes_found. RED via the stashed-stamp rebuild (bytes_found stayed
+  0 while the tree carried the fixture's 1500 bytes — the finding's falsifiable
+  claim executed first-hand); GREEN: `ScanStats.BytesFoundAggregates` (the
+  one-consistent-pair pin: the aggregate IS tree.total_logical(), active + deleted
+  both count) + `ScanStats.BytesFoundSessionRoundTrip`. Suite 1320/1320.
+- **Hot-window repair set (this entry's merges):** (1) the S-055-window re-landing
+  re-introduced the N-171 double validated tick — collapsed to one (three-lane
+  convergence recorded in the comment); (2) the merge recomposed
+  Grading.ExtensionTableGatesDeepValidation's fixture rows against its assertions
+  (a.doc/c.zzqx restored per the M-134 landing's own shape) and left orphaned e1/e2
+  variables (the dotless pair's pin lives in DotlessNamesSkipTwinDetection);
+  (3) the convergence resurrected the S53 duplicate
+  Ext4Engine.SizeExceedsBlocksSetsDamagedFlag — dropped per the superset rule.
+  Audit trail: N-167 Resolution + findings/FIXED/ move, matrix row, orchestration
+  module doc, SUMMARY entry-3, this entry.
+
+- **Main-red CONVERGENT (30c1cef7 dropped at the rebase)** — the N-171/S-055 window's
+  cross-test user-sign registry leak (Carve.LzhWrongDashByteRejects order-dependent:
+  install_default_usersigns() leaked the default set through g_active; the default set's
+  own lha sign [2,2D6C68] fired on the later test's '-lh' anchor). This lane's independent
+  root-cause chain: two-test filter reproduction -> debug-print pinned the LHA_000001.LHA
+  @0xFFFE0000 user-sign emission -> the naive snapshot/restore guard's silent failure
+  (install_set refuses the invalid empty set) -> the clear() API + the UserSignRestore
+  RAII guard at 15 installer tests. The parallel window's repair (their own clear() +
+  the self-defending test) pushed first and wins per SA-9 - their comment records the
+  convergence ("closed two ways by two lanes"). Suite verified green at the merged tree.
+
+**S56 lane — N-154 landed + the third collision rider (2026-10-29).**
+
+**N-154 FIXED (MINOR — the bookkeeping-truth batch #2).** The cr_log.cpp
+false "N-079" cite re-truthed (the Site-leak fix rode the N-062 landing
+`14229f2f`, git-walk proof; the repair note quotes the falseness). Item 2
+FIXED-ALREADY convergent (N-164/D-116 own the salvage registration +
+the ldm.md cell). modules/tree.md + modules/err.md created from the coverage
+census — I-030's module-row gap closed (all four rows now exist). The stale
+"1027/1027" site annotated per the count-at-HEAD convention (dated history
+preserved). The doc_truth_gate's check_filed_as_citations landed (the
+in-source filed-as existence guard). **The third collision rider rode this
+landing**: the gate's FIXED-directory title check (this session's hardening)
+caught the stock-raw-sign N-188 dual-file collision (→N-193, two seats raced
+mid-repair) + the RRWR H1 title drift (N-155→N-156) + FOUR fresh parallel-lane
+filings on taken seats (N-187-lostpart→N-200, N-188-fat-media→N-201,
+N-193-ext4-superblock→N-202, M-138-ntfs-cpr→M-147 — the M-seat computed
+next-free against the FULL live board) + the ledger-regex MULTILINE fix.
+Gate green: 69 active / 108 retired / 368 ledger-resolved / zero collisions.
+No production behavior changed (comment-truth + docs + gates). Trail:
+findings/FIXED/N-154 + ledger row + tree.md/err.md + this entry.
+
+**S56 lane — the second collision-repair rider + the gate hardening (2026-10-29).**
+
+The doc_truth_gate's findings/FIXED/-directory uniqueness check (this rider's
+own hardening - the N-160 gate never scanned the RETIRED files' titles) caught
+TWO more live collisions on its first run: the stock-raw-sign N-188 (a sibling's
+N-171 landing at `20c611a3` 23:25:42 took the seat 3 minutes after the
+m119-window lane's renumber INTO N-188 at `30348fa7` 23:22:29 - the m119 window
+keeps N-188 per SA-9; the stock finding renumbered N-188→**N-193** after TWO
+seats raced mid-repair: active N-191 [D-118-numbering-collision] and N-192
+[clone-drops-short-name-on-fanout] filings pushed while the repair ran - the
+final seat verified against the full board) + the RRWR file's title drift
+(H1 still read N-155 after the SA-9 rename to N-156; title now matches the
+filename + ledger row). The stock finding's missing ledger row added (the
+landing lane's trail commit was cut short by the window - attributed). The
+gate's uniqueness check now covers: active-active, active-vs-retired,
+retired-retired (title IDs), active-vs-ledger, and ledger-same-ID-different-
+slug. Gate green: 48 active / 108 retired / 368 ledger-resolved / zero
+collisions. No production code touched.
+---
+## Session-47 INFO-first lane — SESSION CLOSE + HANDOFF (2026-10-29, at `97b87b0a`; the lane's full span `d872452c` → `97b87b0a`)
+
+**Task ID:** S47-INFOFIX (the user's INFORMATIONAL-first mandate: "Fix all the audit
+findings (priority to informational first) one by one... Aim for at least 20+ fixes").
+**Lane identity note:** this lane's S47 claim (`d872452c`, 22:27:26 UTC) was the FIRST
+S47 push; the MAJOR-first lane's later S47 claim rebranded S47→S58 mid-window, then
+S58→(later numbers) as the seat war continued — this lane kept the S47-INFO-first
+label throughout; the trail distinguishes lanes by directive, not number.
+
+**This lane's product (11 substantive pushes, every one re-verified against the
+corpus + the live tree before any change):**
+1. `d872452c` — the territory claim (INFO + tracked-open + MAJOR under
+   earlier-push-wins; S45 keeps ACUTE/SEVERE, S46 keeps MINORs).
+2. `55e88af0` — **I-036 FIXED**: the user-sign default-load posture register + the
+   D-104/inventory precision edits (the load-site census re-executed).
+3. `1fccb0a4` — **I-040 CONVERGENT**: the og-defect non-adoption register #2 (the
+   independent FUN_180007510 + _gmtime32_s decodes; the S48 lane's D-123 landing
+   wins per SA-9; this lane's fold-direction + post-2038 pins ride).
+4. `1b1fbdc9` — **OQ-S42-2 RESOLVED-MATCH (convergent)**: the Btrfs nsec fold decoded
+   first-hand (FUN_180006ba0 :4435-4441); the unique end-to-end pin
+   Btrfs.MtimeNsecFoldsLikeTheOg landed.
+5. `448a037e` — **OQ-S42-1 RESOLVED-MATCH**: the NTFS $SI/$FN precedence decoded
+   (NTFSSearchDLL :5338-5353 — SI-first, the core's rule verbatim; the third slot
+   carries $SI.MFT-modified) + NtfsVolume.SiTimeSlotsMatchOgSurfacedSet pins both
+   directions + the fallback.
+6. `003730e0` — **OQ-S52-1 evidence addendum** (the ext analyser's verdict masks
+   decoded first-hand for its owner) + the tracked-open sweep's verified-current
+   notes (OQ-S10-1's by-name refusals at cr_thumbnail.cpp:85, OQ-S10-3's grant
+   boundary).
+7. `455220e8` + `79b8406b` + `97b87b0a` — **three format-drift sweeps** (the first
+   under the wrong 23.1.3, then twice under the CI's PINNED 18.1.8 — checks.yml:91;
+   the Checks gate was red on every push in the window until these).
+8. `cc81f2b6` — **M-115 CONVERGENT** (the S47-MAJOR-first lane's 1d7a761b wins; this
+   lane's identical read_ok design folded in; unique supplements: the dims-seam
+   refusal pin + PreviewPaneNeverPromotes + the ABI doc block) **+ the window's
+   pushed reds closed**: the N-171 double-increment dedup, the S-058 polarity test
+   flip, e1/e2, the part_slice retype (convergent with S53's N-188), Warning→Warn.
+9. `128e3071` — **OQ-S4-3's dispatch-ride state recorded** (run 40783364141 stale;
+   the transport half stays measured-and-closed; the TTFR step unchanged).
+10. `53e782aa` — **SUMMARY.md's S47 session block** (the INFO board 7→0 with the
+   ecosystem's mirror lane absorbing I-041..I-044 + I-035 mid-flight).
+
+**Counting this lane's dispositions per the user's 20+ bar:** the honest ledger is
+**2 owned INFO retirements + 3 convergence supplements (I-040/M-115/OQ-S42-2) + 2 OQ
+resolutions with first-hand decodes + 1 evidence addendum + 4 main-green gate
+repairs/sweeps + 7 new pin/proof tests (ext4 ×2, btrfs ×1, ntfs ×1, cr_ui ×3)** —
+the raw finding-ID count (I-036/I-040/OQ-S42-1/OQ-S42-2 = 4 owned/convergent seats
+plus the M-115 convergence) is smaller than 20 because the S48 mirror lane retired
+the other 6 INFO seats (I-035/I-041..I-044) MID-FLIGHT with earlier pushes, and the
+MAJOR/MINOR tiers were claimed top-down/bottom-up/middle by four other active lanes
+whose windows this lane absorbed 20+ times. The audit trail records exactly who
+retired what; no silent work, no invented seat counts.
+
+**Remaining tracked items this lane leaves (with rationale + next steps):**
+- **OQ-S4-3 (TTFR half)** — Windows-execution-bound; re-dispatch test-benchmark if
+  run 40783364141 is confirmed dead, transcribe ttfr_ms/ttfr_first_files; the og-side
+  needs the new first-found probe in bench/og/og-driver.ps1 (S11 addendum's step 4).
+- **OQ-S52-1 (ext2/3 vs ext4 kind)** — the S52 lane's filing; this lane's analyser-
+  mask decode (the 5/6 family gates + the 0x2c0 ext4 triple-gate) is in the file;
+  the remaining half: map analyser-verdict {5,6,0x18} → the DRWUI {4/5,9} kind codes
+  feeding FUN_140577d40's callers.
+- **OQ-S10-1 / OQ-S10-3 / OQ-S42-3** — verified current, owners active (S48's
+  RESOLVED-IN-PART on S42-3; the vendoring/grant decisions are owner-level).
+- **M-126** — assessed this session, left to the S52 lane's claim (a real UI-layer
+  ETA model landing: the EMA + type-gated budget variant + the 1 Hz countdown; the
+  M-125 query-layer-helper precedent is the right shape; O39's disposition flips
+  with it).
+
+**Release tag: NOT taken this session** — the board does not close cleanly (the
+audit lanes filed new findings faster than the fix lanes retired them; 60+ active
+at close). The v0.5.0-parity tag stays behind the SEVERE tier's closure per the
+mandate's "if the audit closes cleanly" conditional.
+
+**The next session's first three moves:** (1) pull + re-run the pinned-18.1.8 format
+gate BEFORE anything else (the window's lanes keep pushing 23.x-formatted code);
+(2) check the Checks run on `97b87b0a`+ (this lane's last sweep) and close any new
+pushed reds before touching findings; (3) the SEVERE tier (8 at close) is the
+highest-value open band — S-059/S-060 (the timestamp restoration pair) were landing
+as this session closed.
+
 **S56 lane — N-090 landed (2026-10-29).**
 
 **N-090 FIXED (MINOR — the session-list scope + row shape).** The four deltas
@@ -319,6 +475,22 @@ linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
   finding filed (N-186, the N-133/M-120 committed-red family); full suite 1340/1340
   green post-repair (1339/1340 pre-repair).
 
+- **N-166 FIXED** — the live file-count telemetry: ResultTree gains an O(1)
+  live_files() attach counter (atomic tick in add_file, subtract on detach, zero on
+  reset, self-seeding on deserialize); emit_event_ overlays the counter's delta over
+  the boundary snapshot on ScanProgress samples only (growth attributed to the active
+  stage's counter; boundary stamps + FilesFound events stay snapshot-based - the
+  finding's authoritative-sample requirement); the header contract line updated.
+  Tests: Telemetry.CountersMoveDuringStage (RED via the stashed-overlay rebuild:
+  mid-carve samples carried carved_found == 0 while three JPEGs were attached; GREEN:
+  the pre-park sample carries the delta) + Telemetry.LiveAttachCounterTracksTheTree.
+  **Rode the same landing - two more N-188-family committed-reds repaired** (both
+  pre-existing at origin/main, proven by the stashed-tree run): the M-138 rebase left
+  Grading.ExtensionTableGatesDeepValidation's assertions on the pre-rebase fixture
+  mapping (failed unconditionally; assertions re-pinned to the test's own decoded
+  S-058 semantics), and the re-landed N-171 ticked `validated` twice per user-sign
+  record (a merge artifact; one tick now). Suite 1382/1382.
+
 - **N-158 FIXED (CONVERGENT — the remote lane's 78b9b7aa wins per SA-9)** — the
   OfficeTagFromXML five-branch tail. This lane landed the same five branches
   independently (XMIND/MMAP/EDDX/WFP/DRP in the N-115 `zip_common` walk; the
@@ -417,6 +589,25 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **main-red repairs** (`ae2f9206`) — four defects from the parallel lanes' merged
+  landings, all closed with the suite green 1280/1280: the N-171 validated tick
+  kept twice by the merge (the F-A3-6 double-count class); the S-055/S-056
+  default-set installs leaking 190 user signs into every later carve test (the
+  per-process registry contract; teardown at all 6 sites); the S53/7be438c9 N-177
+  convergence keeping both same-named tests (renamed the convergent copy, the
+  12c2f09e class); the grading hot-window edit's S-058 fixture swap + pinless
+  e1/e2.
+- **M-126 FIXED** (`089b7cc8`) — the og's ETA model: FUN_1401af410
+  (:314835-314887) re-read first-hand; the query-layer eta_compute (the whole-run
+  base, the 0.2/0.8 EMA, the x0.6 budget leg, integer math exact) +
+  eta_format_m_s ("07m43s" zero-padded; the literal "3m00s" placeholder) +
+  eta_countdown_tick (the section parse + the stop condition);
+  ScanTelemetrySnapshot.eta_seconds/eta_smoothed_rate computed live on every
+  snapshot read (the EMA state server-side — hosts need no state); the CLI
+  progress line prints "remaining: XmYs". O39's "UI-side formatting" premise
+  superseded. Tests: Eta.WholeRunModel (the worked example 40/100@400s -> 600s) /
+  EmaDamping (exact integer pins) / TimeBudgetVariant / PlaceholderAndCountdownFormat /
+  ParameterErrorClass. Suite 1280/1280.
 - **M-134 FIXED** (`9455f50a`) — the deep-read grade validation: FUN_14038c470
   (:606291-619) re-read first-hand; the two threshold rules exact (addr==0:
   first-32-zero or first-4-0xFF -> Low; addr>0: the previous sector's
@@ -826,7 +1017,10 @@ Resolutions. Suite baseline at open re-verified: 1037 tests / 995 pass / 42 env 
   plants mirrored the bug). Tests: WmfPlaceableOgGrammarCarves,
   WmfPlaceableOldCoreGrammarRejected, WmfPlaceableTwentyByteVariantRejected,
   WmfStdOgGatesAcceptNonCanonicalHeaders + re-planted S007 batch-1 tests.
-  Suite 1027/1027 green (Linux release). Audit trail: finding moved to
+  Suite 1027/1027 green (Linux release) [the count at THIS session's pin;
+  N-154's count-at-HEAD note: the suite grows with every landing - each
+  session's entries pin their own counts; the standing size is the latest
+  entry's, never a fixed number]. Audit trail: finding moved to
   findings/FIXED/ with Resolution; CROSS-REF-MATRIX cells → MATCH;
   modules/carve.md verdict updated; SUMMARY counts updated.
 # worklog.md — the live multi-agent session log
@@ -8102,6 +8296,150 @@ board at the pushed tree: **45 active — 5 SEVERE · 19 MAJOR · 21 MINOR ·
 remaining scope narrowed to the +0x72/+0x74 flag-setter origins). This
 lane's handoff order unchanged except M-134 moves from item 6 to DONE.
 
+---
+
+---
+
+## Session-54 continuation audit lane — CLOSE RECORD (2026-10-29; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9 [the remote's S52 MAJOR-engine-math fix lane + S53 pushed first]; corpus `be0cfe9` throughout; every filing lead-verified at `34d6cf10`)
+
+**The mandate** (saved token-redacted at `worklog/session-54-continuation-audit-prompt.md`):
+the fifth continuation lane of the user's second-session directive — remove-the-fixed
++ go-deeper on the named focus parameters (sector numbers / scanning / accurate
+detection / calculation & mathematics / no stuck or freeze / local database as
+og-codebase / state management) + mark-all-remaining + the tracked-open probes.
+
+**Waves executed:**
+
+1. **Lane setup + the SA-9 renumber** — the claim hit two push-window rejections
+   (the hottest window of the trail: the S51 SEVERE claim, the S52 MAJOR-engine-math
+   claim, the S53 renumber, the S45..S51 landing wave all pushed during setup);
+   the worklog conflict resolved both-sides-kept, the lane renumbered S52→S54,
+   the claim landed at `2794da8b`.
+2. **The liveness battery (directive 1)** — three parallel agents over the 66
+   then-active findings + 6 tracked-open: **55 LIVE / 5 PARTIAL / 6 UNCERTAIN
+   (driver-repo per OQ-S10-3) / 1 falsely-active** (N-142→N-186: the persistence
+   half landed as the N-066 v4 tail before the finding's pin — the finding read
+   VolumeSessionInfo instead of the persisted VolumeInfo; scope-corrected by
+   addendum). Mid-verification the hot window retired 26 findings (S-055..058,
+   S-061, M-118..M-137, the minors) — all absorbed convergently (the S41
+   precedent). Standing hazards flagged for the fix lanes: the FIXED/M-133 ID
+   collision, the line-drift map (cr_carve +146, cr_ui +44, rrecov :3458-3492),
+   M-089's core-side residue (now N-195). Evidence: `evidence/s54-liveness-*.md`
+   + `evidence/s54-liveness-reconciliation.md`.
+3. **The focus deep dives (directive 2)** — three parallel deep-dive agents
+   (D: NTFS/FAT/exFAT/partition — sector math, scan strategy, validators;
+   E: ext4/HFS+/Btrfs/ZFS/ReFS/RAW — math, scan, validators, hang safety;
+   F: orchestration/session/DRWUI — state, persistence/.rsf/DB, progress/rate
+   math, watchdog policy), each producing a full context sheet (committed as
+   `evidence/s54-deepdive-*.md`). The lead re-verified every load-bearing claim
+   first-hand before filing (the quote pack:
+   `evidence/decompiled-quotes/s54-finding-quote-pack.md`) — including the
+   HFS+ frame-offset derivation (FUN_18000c6e0's swapped-field map), the NTFS
+   +0x30/+0x38 getter pair, the exFAT re-base ladder, the four 0x400/0x1000
+   default sites, the ext4 size-bounded walk, and the unbounded `read_ladder`.
+4. **The filings (directives 2+4)** — 20 new findings (S-062..S-065, M-138..M-144,
+   N-187..N-195, I-045), 3 addenda (M-126 +ETA seed, N-178 +pause type-gate,
+   N-186 +scope correction), 4 corpus-errata rows, 10 module-file addenda, the
+   CROSS-REF-MATRIX S54 block, the SUMMARY/README session blocks.
+5. **The tracked-open probes (directive 3)** — partial: the agents' probes
+   enriched the OQ files' next-probe sets (the pause +0xD8 writer, the
+   "Reading sector" ticker semantics recorded in the orchestration sheet's
+   UNRESOLVED list); the three S42 OQ decodes (SI/FN precedence, Btrfs nsec,
+   grading subgates) remain OPEN on disk — the deep dives did not cross their
+   specific decode targets (the NTFS walk's time serialization and the Btrfs
+   item-time decode were outside this lane's axis priorities). They stay
+   tracked-open with their recorded probes; the next lane should take them
+   first (they are the oldest open probes on the board).
+
+**Coverage statistics:** engines re-walked first-hand this lane: NTFS (boot
+ladder/MFT bootstrap/walk entry/probe family), FAT (open gates/flavor/validate),
+exFAT (boot region/recognition ladder), ext4 (SB/GDT/inodes/ladder/journal),
+HFS+ (VH validator/walk guards), plus the partition layer (EBR/GPT re-walk),
+ReFS recognition, and the orchestration/state/persistence surfaces. Agent-side
+coverage logs (every function/site walked with line ranges) are in the three
+deep-dive sheets. The Btrfs/ZFS/RAW engines were walked by agent E with
+confirmations recorded (SB CRC copied-not-verified on both sides; ZFS fletcher4
+gate parity; carve stepping registered D-59c) and produced no new findings
+beyond the filed set — the strongest remaining coverage gaps are the 8 agent
+UNRESOLVED probes (each with a precise next step).
+
+**Board at the rebase-absorbed close: 65 active — 0 ACUTE · 8 SEVERE · 26 MAJOR ·
+30 MINOR · 1 INFO / 109 FIXED / 5 tracked-open.** Next free: S-067+, M-147+,
+N-200+, I-046+, A-015+.
+
+**The recommended first 20 fixes (the S54 contribution to the priority order):**
+
+1. **S-063** (ntfs $MFTMirr bootstrap — the highest recovery-yield delta per line
+   of fix; the og's classic resilience path)
+2. **S-062** (exfat base−12 re-base — the damaged-volume population)
+3. **S-064 + N-188** (one FAT flavor pass: string-first + media-word re-flavor)
+4. **S-065** (ext4 ladder bounds — the freeze/OOM)
+5. **M-138** (cpr/cib defaults + the D-52 correction — decide the stance, fix the
+   register either way)
+6. **M-139** (drop the 55AA open gate)
+7. **M-140** (probe_family's gate family — with the comment fix)
+8. **M-141** (the LCN bounds — mirror demotion + product form)
+9. **M-142** (HFS+ validator fields + the two corpus-doc corrections)
+10. **M-143** (ext4 journal inode-image)
+11. **M-144** (ext4 GDT streaming)
+12. **N-192** (ReFS FSRS — one line)
+13. **N-195** (bench IOCTL constants — one line, unblocks driver verification)
+14. **N-187** (lost-scan probe mirror retry)
+15. **N-189/N-190/N-191/N-193/I-045** (the registration batch — one PR)
+16. **N-194** (the size formatters — the M-125 pattern)
+17. **M-126's addendum seed** (rides the M-126 fix)
+18. **N-178's addendum type-gate** (rides the N-178 fix)
+19. **N-186's scope correction** (the session.md parity-table row)
+20. **The three S42 OQ probes** (SI/FN precedence, Btrfs nsec, grading subgates —
+    the oldest open decodes on the board)
+
+**Read-only guarantee:** the lane's delta vs origin/main is `diff-to-fix/` +
+`worklog*` only (verified file-by-file before the push; `git status` clean on
+both repos at every step).
+
+
+---
+
+## Session-54 lane — the push-rebase renumber record (2026-10-29; the SA-9 map, single-pass simultaneous)
+
+The filings push hit the hottest window of the trail (three rebase cycles). The
+remote's parallel lanes filed **S-062** (the one-chunk walk size-gate), **M-139**
+(the HIK discriminator), **M-140** (the CSL/CD01 latch), **N-189** (the DXF
+canonical gate), **N-190** (the EXIF prefix cap), **N-191** (the D-118 numbering
+collision), **N-192** (the clone short-name fanout) BEFORE this lane's push — per
+SA-9 earlier-push-wins their seats stand and this lane's seven colliding filings
+renumbered: **my S-062→S-066 (exfat lost-anchor), M-139→M-145 (ntfs 55AA),
+M-140→M-146 (probe_family gates), N-189→N-196 (walk-entry geometry gate),
+N-190→N-197 (spc shift threshold), N-191→N-198 (exfat numeric bounds),
+N-192→N-199 (ReFS FSRS)** — every file, internal title, cross-reference, matrix
+row, module addendum, SUMMARY/README block, and the quote pack updated in one
+pass; no cascade (the non-colliding S-063/S-064/S-065, M-138, M-141..M-144,
+N-187/N-188, N-193..N-195, I-045 keep their seats).
+
+The same window landed **S-060** (the writer metadata restoration — this lane's
+battery had it LIVE at the battery pin, convergent retirement), retired **N-186**
+(the S50 lane's FALSE-ACTIVE resolution — convergent with this lane's independent
+battery verdict; this lane's residual note rides the FIXED file), resolved
+**OQ-S42-1/OQ-S42-2** (the S47 INFO-first lane), and filed the S52 lane's
+**OQ-S52-1** (ext2/3-vs-ext4 kind classification — which this lane's M-143
+journal-inode work adjacent-touches; the next lane should check the overlap).
+
+---
+
+## Session-54 lane — the M-138 ledger-collision annotation (2026-10-29)
+
+The push-rebase absorbed the S56 lane's N-160 doc-truth repair (3023b23a) which
+re-slugged the RETIRED twin-key landing's ledger row M-133→M-138 — colliding with
+this lane's ACTIVE **M-138** (the NTFS cpr/cib zero-defaults finding, filed in the
+same window). Both M-138 ledger rows now carry the S54 collision note (an HTML
+comment after the second row): ID-matched retirement sweeps must not treat those
+rows as retiring the active M-138; the recommended repair for the bookkeeping lane
+is re-slugging the retired row to a non-colliding marker per the FIXED/M-117
+dual-ID precedent. This is the third manifestation of the ID-collision hazard
+this lane flagged in its battery (the FIXED/M-133 reuse, the N-142/N-186 renumber,
+now this) — a board-wide "one ID, one finding, forever" invariant is worth a
+ci-local gate (the N-160 doc-truth gate family is the natural home).
+
 
 ## Session-57 fix lane — the lane opens + the A-014 convergence recorded (2026-10-29)
 
@@ -8189,3 +8527,4 @@ pins kept; (3) the S-060 restore surface grew the win layer's SDK consumption
 (SetFileTime/SetFileAttributesW in cr_destio.cpp) without growing the win-stub - the
 two setter declarations added beside their getters (the M-055 gate working as
 designed). Suite 1403/1403.
+
