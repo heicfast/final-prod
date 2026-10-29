@@ -1048,6 +1048,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 link_props->allocated_size = link_name->allocated_size;
                 link_props->times = link_name->times;
             }
+            /* N-131: the FS-native parent anchor — this link's $FILE_NAME
+             * parent reference masked to the record number (the og's
+             * CNTFSFileProperties +0x40; FUN_18002a340's 48-bit mask,
+             * persisted per-link so hard-link fan-outs keep each parent) */
+            link_props->ntfs_parent_ref = p & 0xFFFFFFFFFFFFULL;
             tree::FileNode* n = tree.add_file(default_root, link_props);
             if (n == nullptr) {
                 link_props->release();
@@ -1582,6 +1587,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         dp->record_ref = pseudo | (u64(rh.sequence) << 48);
                         dp->fs_kind = u32(FsKindCode::Ntfs);
                         dp->name = best2->name;
+                        /* N-131: the dump-recovered record's $FILE_NAME
+                         * parent reference, same 48-bit mask as the main
+                         * walk (the og's copier stamps +0x40 for every
+                         * $FILE_NAME-derived emission) */
+                        dp->ntfs_parent_ref = best2->parent_record & 0xFFFFFFFFFFFFULL;
                         dp->logical_size = size2;
                         dp->allocated_size = best2->allocated_size;
                         dp->times = has_si2 ? si_times2 : best2->times;
@@ -1871,6 +1881,10 @@ static void indx_emit_entry(RemnantCtx& ctx, const IndxEntryInfo& ei, std::set<u
     if (props == nullptr)
         return;
     props->record_ref = ei.file_ref;
+    /* N-131: the INDX entry's embedded $FILE_NAME parent reference
+     * (already masked to the record number above — the og's entry→props
+     * builder FUN_18000e970 carries the same parent it places by) */
+    props->ntfs_parent_ref = parent_record;
     props->fs_kind = u32(FsKindCode::Ntfs);
     props->name = ei.name;
     props->logical_size = ei.real_size;

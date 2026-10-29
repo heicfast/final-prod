@@ -254,6 +254,46 @@ public:
      * anchor above). PASSIVE datum, never consumed by read/recovery.
      * Persisted as the nflags bit-9 block (cr_records.cpp). */
     u32 ntfs_total_clusters = 0;
+    /* N-131: the og's FS-native PARENT anchors — the lineage datum the
+     * structural parent_id (a session-file index) cannot carry.
+     *
+     * NTFS half (+0x40 qword, the CNTFSFileProperties parent reference):
+     * the $FILE_NAME parent-directory FILE REFERENCE masked to the record
+     * number (`*fn & 0xffffffffffff` — FUN_18002a340's local_41, first-
+     * hand: the mask read at :33902; the copier FUN_180003020 :1982 maps
+     * it into the props qword that DRWUI serializes at +0x40, part1 :84).
+     * Stamped per-link at every $FILE_NAME-derived emission (the main
+     * walk's per-parent fan-out, the GUID-dump record, the INDX
+     * second-source entry). The USN journal pass does NOT stamp it (the
+     * USN parent comes from the USN_RECORD_V2 header, not a $FILE_NAME
+     * attribute; the og's USN emission builds minimal name-only props —
+     * no parent stamp decoded). PASSIVE lineage datum, never consumed by
+     * read/recovery; persisted as the nflags bit-12 block (u64).
+     *
+     * FAT half (+0x42 u32, the CFAT parent-directory anchor): the og
+     * stamps every child's +0x42 with the CONTAINING DIRECTORY NODE's
+     * +0x3e origin cluster (FATSearchDLL :11654 `props+0x42 = local_110`
+     * where local_110 = the parent node's +0x3e read directly at :11500
+     * for CFAT parents or via the vt+0x30 family getter at :11504).
+     * The volume-root node carries +0x3e == 0 by construction (engine
+     * init FUN_18000e130 creates it with SetFirstCluster(0) on every
+     * flavor — FAT32 included), so root-level files persist 0; a walked
+     * subdirectory's children persist the dir's own first cluster (the
+     * dentry value the dir's fat_origin_cluster already carries). The
+     * og's LostDir nodes carry the FPL sentinel 0xFFFFFFFF (children of
+     * the File-Path-Lost root, whose own anchor is 0xFFFFFFFF) — the
+     * core's root_lost/root_deleted hosts have no props, so the sentinel
+     * does not arise. exFAT has NO parent anchor: the exFAT engine never
+     * stamps +0x54 (the only writes are the root/lost-dir 0xFFFFFFFF
+     * initializations at :3895/:5026/:11461 and clone verbatim copies;
+     * the child emission at :45155 stamps vt+0x28 only) — the part1
+     * "type-registry ID" census label and the anchor-twin hypothesis are
+     * both refuted first-hand; the slot is dead for children in the og,
+     * so the core carries nothing (landing a carrier would not be
+     * parity). PASSIVE lineage datum, never consumed by read/recovery;
+     * persisted as the nflags bit-13 block (u32). */
+    u64 ntfs_parent_ref = 0;
+    u32 fat_parent_cluster = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

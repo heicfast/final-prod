@@ -1744,6 +1744,89 @@ TEST(NtfsVolume, HardLinkFanOutOptIn) {
     EXPECT_EQ(stats.hardlinks, 3u) << "record 26 adds 2 (3 links); record 21 adds 1 (2 links)";
 }
 
+TEST(NtfsVolume, ParentAnchorIsMaskedFileNameParentRecord) {
+    /* N-131: the og's CNTFSFileProperties +0x40 parent reference — the
+     * $FILE_NAME parent-directory FILE reference masked to the 48-bit
+     * record number (FUN_18002a340's `*fn & 0xffffffffffff` local_41;
+     * the copier FUN_180003020 :1982 persists it). The fixture stamps
+     * every $FILE_NAME parent as `parent | (1 << 48)` — the walk must
+     * strip the sequence bits and persist the bare record number. RED
+     * pre-fix: the field did not exist (compile-error on the reverted
+     * tree). */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    /* readme.txt: record 17, $FILE_NAME parent 16 (folder1) with the
+     * fixture's seq bit -> the masked record number 16 persists */
+    const auto readme = nodes_named(tree, "readme.txt");
+    ASSERT_EQ(readme.size(), 1u);
+    ASSERT_NE(readme[0]->props(), nullptr);
+    EXPECT_EQ(readme[0]->props()->ntfs_parent_ref, 0x10ull)
+        << "the $FILE_NAME parent reference, sequence stripped (48-bit mask)";
+
+    /* partial.dat: record 20, $FILE_NAME parent 5 (the root dir) — the
+     * root-level shape (the fixture's seq bit rides here too) */
+    const auto rootfile = nodes_named(tree, "partial.dat");
+    ASSERT_EQ(rootfile.size(), 1u);
+    ASSERT_NE(rootfile[0]->props(), nullptr);
+    EXPECT_EQ(rootfile[0]->props()->ntfs_parent_ref, 5ull);
+
+    /* the hard-link fan-out: each link keeps ITS OWN parent (the og
+     * stamps +0x40 per $FILE_NAME; a fan-out link that lost its parent
+     * anchor would collapse both links onto one record number) */
+    WalkerFlags wff;
+    wff.single_link_per_record = false;
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found (NTFS)");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    auto* rl2 = tree2.add_root(u"Lost Files");
+    WalkStats stats2;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wff, nullptr, nullptr, nullptr, tree2, ra2, rd2, rl2,
+                       stats2),
+              u32(OK));
+    const auto hard = nodes_named(tree2, "hard.txt");     /* parent 16 */
+    const auto hardroot = nodes_named(tree2, "hard@root.txt"); /* parent 5 */
+    ASSERT_EQ(hard.size(), 1u);
+    ASSERT_EQ(hardroot.size(), 1u);
+    ASSERT_NE(hard[0]->props(), nullptr);
+    ASSERT_NE(hardroot[0]->props(), nullptr);
+    EXPECT_EQ(hard[0]->props()->ntfs_parent_ref, 0x10ull);
+    EXPECT_EQ(hardroot[0]->props()->ntfs_parent_ref, 5ull);
+
+    /* the lineage datum survives a save/load round trip (the finding's
+     * falsifiable: "ask a RELOADED session for the parent MFT record") */
+    std::vector<u8> blob;
+    ASSERT_EQ(cr::session::serialize_tree(tree2, blob), u32(OK));
+    tree::ResultTree t3;
+    ASSERT_EQ(cr::session::deserialize_tree(blob.data(), blob.size(), t3), u32(OK));
+    const auto hard3 = nodes_named(t3, "hard.txt");
+    const auto hardroot3 = nodes_named(t3, "hard@root.txt");
+    ASSERT_EQ(hard3.size(), 1u);
+    ASSERT_EQ(hardroot3.size(), 1u);
+    ASSERT_NE(hard3[0]->props(), nullptr);
+    ASSERT_NE(hardroot3[0]->props(), nullptr);
+    EXPECT_EQ(hard3[0]->props()->ntfs_parent_ref, 0x10ull)
+        << "the FS-native parent datum must survive the session round trip";
+    EXPECT_EQ(hardroot3[0]->props()->ntfs_parent_ref, 5ull);
+}
+
 TEST(NtfsVolume, HardLinkFanOutClonesKeepShortName) {
     /* The fan-out's cloned links keep the record's 8.3 short name: the
      * og's clone copies the whole props block (ifileproperties-part1's

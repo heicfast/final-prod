@@ -1,4 +1,32 @@
-# SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S76 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-76 S76 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `1ec36d6c` (the racing S71/S73 lanes' M-136 convergent re-landing + M-143 absorbed at the push-rebase), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the racing lanes' own push gates held the moved tree green (M-143's 1507+ landing suite, M-136's convergent re-landing suite), this lane's first full-suite run was post-fix at 1526/1526 — the baseline at open was the build-started tree, not an independently re-run suite; honesty recorded)
+
+- **N-131 FIXED (MINOR, session/fat/ntfs)** — both FS-native parent-anchor
+  carriers landed: `ntfs_parent_ref` u64 (nflags bit-12 — the og's CNTFS
+  +0x40, the $FILE_NAME parent reference masked to the 48-bit record number,
+  FUN_18002a340's local_41 mask decoded first-hand at the fix; stamped
+  per-link at the hard-link fan-out + the GUID-dump + the INDX
+  second-source) and `fat_parent_cluster` u32 (nflags bit-13 — the og's CFAT
+  +0x42, the containing directory node's own +0x3e origin cluster, the walk
+  stamp decoded first-hand at FATSearchDLL :11654/:11500-04; the volume root
+  anchors 0 on every flavor [engine init FUN_18000e130], a walked subdir
+  anchors at its own first cluster). **The finding's exFAT +0x54 open
+  question RESOLVED first-hand — NO CARRIER:** the exFAT engine never stamps
+  +0x54 for children (:45155 stamps vt+0x28 only; the sole writes are
+  root/lost-dir 0xFFFFFFFF inits at :3895/:5026/:11461 + clone copies) —
+  the anchor-twin hypothesis and the census label both refuted; carrying
+  nothing is the parity. RED→GREEN: 4 tests (Session round-trips ×2 with the
+  zero-carrier gate + walk-level Fat/Ntfs stamps with session survival),
+  RED as compile-errors on the stash-reverted tree (the N-100 new-carrier
+  precedent); suite **1526/1526**.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 14 MAJOR · 10 MINOR · 0 INFO
+active / 162 FIXED / 4 tracked-open** (M-086/M-087/M-089 + N-107/N-127
+driver-repo-resident per OQ-S10-3's two-repo grant boundary). The lane-open
+board re-truth corrected the `1ec36d6c` rebase message's own "10 N" off-by-one
+(disk truth was 11 MINOR files; the S70 block carried the same 10). Next free
+IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
 
 ## Session-70 S70 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `449fc594` (rebased over `2fb0cb95` — the S72/S73/S75 racing windows' M-136 + M-144 absorbed) (the S70/S71/S72 racing audit/repair windows absorbed at the reset; the trail-repair seat conceded to N-210's equivalent landing per SA-9; baseline suite 1422 tests / 1380 pass / 42 Win-skips / 0 fail re-run green on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
 

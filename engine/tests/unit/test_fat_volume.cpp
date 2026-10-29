@@ -11,6 +11,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/session/cr_records.h"
 #include "cr/cr_text.h"
 #include "cr/storage/cr_device.h"
 #include <cstdio>
@@ -929,6 +930,73 @@ TEST(FatEngine, FatOriginClusterCarriedForChainlessDeleted) {
      * record's +0x3e; the census observed it on all-chain-resolved
      * records - TWELVE.TXT is exactly that shape) */
     EXPECT_EQ(twelve->props()->fat_origin_cluster, 2u);
+}
+
+TEST(FatEngine, ParentAnchorCarriesContainingDirCluster) {
+    /* N-131: the og's CFATFileProperties +0x42 parent-directory anchor —
+     * every child's +0x42 is the CONTAINING DIRECTORY NODE's +0x3e origin
+     * cluster (FATSearchDLL :11654, local_110 from :11500 for CFAT
+     * parents). Root-level files anchor at 0 (the og's volume-root node
+     * is created with SetFirstCluster(0) at engine init FUN_18000e130 —
+     * every flavor, FAT32 included); a subdirectory's children anchor at
+     * the dir's own first cluster. RED pre-fix: the field did not exist
+     * (compile-error on the reverted tree). */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode *readme = nullptr, *subdir = nullptr, *inner = nullptr, *del = nullptr;
+    for (auto* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "readme_document_v1.txt")
+            readme = n;
+        else if (nm == "SUBDIR")
+            subdir = n;
+        else if (nm == "INNER.TXT")
+            inner = n;
+        else if (nm == "#EL.TXT")
+            del = n;
+    }
+    ASSERT_NE(readme, nullptr);
+    ASSERT_NE(subdir, nullptr);
+    ASSERT_NE(inner, nullptr);
+    ASSERT_NE(del, nullptr);
+
+    /* root-level files (live and deleted alike): parent 0 — the og's
+     * volume-root node anchors at 0 by construction */
+    EXPECT_EQ(readme->props()->fat_parent_cluster, 0u);
+    EXPECT_EQ(del->props()->fat_parent_cluster, 0u);
+    /* the SUBDIR itself is a root-level entry: parent 0 */
+    EXPECT_EQ(subdir->props()->fat_parent_cluster, 0u);
+    /* INNER.TXT lives inside SUBDIR (first cluster 5): parent 5 — the
+     * dir's own origin cluster, exactly the og's +0x42 = parent's +0x3e */
+    EXPECT_EQ(subdir->props()->fat_origin_cluster, 5u);
+    EXPECT_EQ(inner->props()->fat_parent_cluster, 5u);
+
+    /* the lineage datum survives a save/load round trip (the finding's
+     * falsifiable: "ask a RELOADED session for the parent cluster") */
+    std::vector<u8> blob;
+    ASSERT_EQ(cr::session::serialize_tree(tree, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(cr::session::deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    auto all2 = collect_all(t2);
+    tree::FileNode* inner2 = nullptr;
+    for (auto* n : all2)
+        if (n->name_utf8() == "INNER.TXT")
+            inner2 = n;
+    ASSERT_NE(inner2, nullptr);
+    ASSERT_NE(inner2->props(), nullptr);
+    EXPECT_EQ(inner2->props()->fat_parent_cluster, 5u)
+        << "the FS-native parent datum must survive the session round trip";
 }
 
 TEST(FatEngine, DeletedLfnFragmentOrder) {

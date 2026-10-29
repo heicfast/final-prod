@@ -102,13 +102,14 @@ tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_cluste
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin);
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin,
+                u32 dir_anchor_cluster);
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host, bool in_bin);
+                      tree::FullNode* deleted_host, bool in_bin, u32 dir_anchor_cluster);
 
 void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, bool deleted,
-                 bool in_bin) {
+                 bool in_bin, u32 dir_anchor_cluster) {
     if (ctx.depth >= EmitCtx::MAX_DEPTH)
         return;
     /* visited-dir cycle guard: use first cluster as identity */
@@ -122,13 +123,14 @@ void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, boo
     DirBuffer d = read_dir_chain(ctx.dev, ctx.p, *ctx.table, first_cluster, 4u << 20, ctx.cancel);
     if (d.valid) {
         /* '.' self-entry check (corpus): confirms real directory content */
-        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr, in_bin);
+        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr, in_bin,
+                         dir_anchor_cluster);
     }
     --ctx.depth;
 }
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host, bool in_bin) {
+                      tree::FullNode* deleted_host, bool in_bin, u32 dir_anchor_cluster) {
     if (!buf.valid || buf.data.empty())
         return;
     /* pause-aware gate + cancel poll per directory (G-07) */
@@ -275,14 +277,15 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             continue;
         }
 
-        emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin);
+        emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin, dir_anchor_cluster);
     }
     if (ctx.progress && count)
         (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin) {
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin,
+                u32 dir_anchor_cluster) {
     const u32 first_cluster = (u32(e.first_cluster_high) << 16) | e.first_cluster_low;
     const bool is_dir = (e.attributes & ATTR_DIRECTORY) != 0;
     const u32 expect_clusters = u32((e.file_size + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
@@ -367,6 +370,13 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     props->name = name;
     props->fs_kind = u32(ctx.p.flavor); /* 0=FAT12 1=FAT16 2=FAT32 (corpus codes) */
     props->logical_size = is_dir ? u64(chain.length()) * ctx.p.cluster_bytes : e.file_size;
+    /* N-131: the FS-native parent anchor — the containing directory's own
+     * origin cluster (the og's CFATFileProperties +0x42 = the parent node's
+     * +0x3e, FATSearchDLL :11654 with local_110 from :11500/:11504). The
+     * walk plumbs the value in: the volume root anchors at 0 (engine init
+     * FUN_18000e130 creates the root node with SetFirstCluster(0) on every
+     * flavor), a walked subdirectory anchors at its own first cluster. */
+    props->fat_parent_cluster = dir_anchor_cluster;
     /* N-021 og parity: an invalid/zero FAT date (DosDateTimeToFileTime
      * failure class - month 0/13, day 0/32) yields the ZERO FileTime
      * (1601-01-01 UTC), not 1970-01-01. The og zeroes the props slot on
@@ -489,7 +499,7 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * root turns the recycle context on for the whole subtree (M-052) */
     if (is_dir && first_cluster >= 2) {
         const bool child_in_bin = in_bin || recycle::is_bin_root(name);
-        recurse_dir(ctx, first_cluster, n, deleted, child_in_bin);
+        recurse_dir(ctx, first_cluster, n, deleted, child_in_bin, first_cluster);
     }
 }
 
@@ -601,13 +611,13 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         if (slice->read_at(p.root_dir_offset, root.data.data(), u32(len)) != OK)
             return ERR_READ_FAILED;
         root.valid = true;
-        walk_dir_entries(ctx, root, root_active, root_deleted, false);
+        walk_dir_entries(ctx, root, root_active, root_deleted, false, 0);
         if (ctx.cancel && ctx.cancel->checkpoint())
             return ERR_CANCELLED;
     } else {
         if (p.root_cluster < 2 || p.root_cluster > table.max_cluster())
             return ERR_BAD_PARAMETER;
-        recurse_dir(ctx, p.root_cluster, nullptr, false, false);
+        recurse_dir(ctx, p.root_cluster, nullptr, false, false, 0);
         /* recurse_dir inserted the root cluster into visited_dirs; children
          * of the volume root attach under root_active directly */
         if (ctx.cancel && ctx.cancel->checkpoint())

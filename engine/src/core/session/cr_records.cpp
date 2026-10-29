@@ -147,7 +147,14 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          *   bit11 (2048): S-059 extents carry {u64 logical, u8 hole}
          *         each (sparse/compressed holes keep their logical
          *         position; old files read back logical==0/hole==false
-         *         and take the legacy cumulative walk) */
+         *         and take the legacy cumulative walk)
+         *   bit12 (4096): N-131 the NTFS parent-reference qword (the
+         *         $FILE_NAME parent FILE reference masked to the record
+         *         number - the og's CNTFSFileProperties +0x40)
+         *   bit13 (8192): N-131 the FAT parent-directory cluster (the
+         *         containing directory's own origin cluster - the og's
+         *         CFATFileProperties +0x42; exFAT has no parent anchor:
+         *         the og never stamps its +0x54 for children) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -177,6 +184,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
             if (pr && pr->ntfs_total_clusters != 0)
                 nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
+            if (pr && pr->ntfs_parent_ref != 0)
+                nflags |= 4096; /* N-131: the NTFS parent-reference anchor (+0x40) */
+            if (pr && pr->fat_parent_cluster != 0)
+                nflags |= 8192; /* N-131: the FAT parent-directory anchor (+0x42) */
             if (pr)
                 for (const auto& e : pr->extents)
                     if (e.hole || e.logical != 0) {
@@ -298,6 +309,22 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * the same order, rsf-format :398). */
         if (nflags & 512)
             put32(out, pr->ntfs_total_clusters);
+        /* N-131 (nflags bit12): the NTFS parent-reference qword — the
+         * og's CNTFSFileProperties +0x40 (part1 :84; the $FILE_NAME
+         * parent reference masked to the 48-bit record number, stamped
+         * per-link by the walk). 8-byte append-only block; the bit fires
+         * only when the carrier is nonzero, so pre-N-131 sessions stay
+         * shape-identical. */
+        if (nflags & 4096)
+            put64(out, pr->ntfs_parent_ref);
+        /* N-131 (nflags bit13): the FAT parent-directory cluster — the
+         * og's CFATFileProperties +0x42 (part1 :129; the containing
+         * directory node's own +0x3e origin cluster, stamped at every
+         * dentry emission). 4-byte append-only block; the bit fires only
+         * when the carrier is nonzero (root-level files carry 0 by
+         * construction — the og's volume-root node anchors at 0). */
+        if (nflags & 8192)
+            put32(out, pr->fat_parent_cluster);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -501,6 +528,16 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         }
         if (nflags & 512) { /* N-100: the NTFS total-clusters twin (+0x60) */
             props->ntfs_total_clusters = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 4096) { /* N-131: the NTFS parent-reference anchor */
+            props->ntfs_parent_ref = c.g64();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 8192) { /* N-131: the FAT parent-directory anchor */
+            props->fat_parent_cluster = c.g32();
             if (c.fail)
                 break;
         }

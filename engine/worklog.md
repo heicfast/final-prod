@@ -10582,3 +10582,35 @@ before the first change; every fix RED-proven pre-fix and GREEN post-fix.
   precedent over the convergent window. Their TransientFailureRetried
   NotZeroFilled + ConstructionIsTheScanSubstrate pass unchanged. Merged
   suite 1528/1528 green.
+
+## Session-76 S76 lane — N-131 lands (2026-10-29)
+
+- **N-131 FIXED (MINOR — the FS-native parent anchors).** Corpus re-verified
+  first-hand at the fix, beyond the finding's citations — the walk-stamping
+  decode it lacked: FATSearchDLL :11654 (child+0x42 = local_110 = the parent
+  node's +0x3e, read at :11500 for CFAT parents / the vt+0x30 family getter
+  at :11504; the volume root anchors SetFirstCluster(0) at engine init
+  FUN_18000e130, FAT32 included), NTFSSearchDLL FUN_18002a340 (local_41 =
+  `*fn & 0xffffffffffff` — the $FILE_NAME parent reference, sequence
+  stripped → the copier FUN_180003020 :1982 → the serialized +0x40 qword).
+  **The exFAT +0x54 open question RESOLVED first-hand — NO CARRIER:** the
+  exFAT engine's child emission (:45155) stamps vt+0x28 only; the sole +0x54
+  writes are root/lost-dir 0xFFFFFFFF inits (:3895/:5026/:11461) + clone
+  copies; the DRWUI CExFat class has no +0x50/+0x54 accessor — the
+  anchor-twin hypothesis and the census "type-registry ID" label are BOTH
+  refuted; carrying nothing is the parity. Landed: `ntfs_parent_ref` u64
+  (nflags bit-12, fires-only-when-nonzero) stamped per-link at the fan-out +
+  GUID-dump + INDX second-source; `fat_parent_cluster` u32 (bit-13) stamped
+  at every FAT dentry emission from the containing dir's own first cluster
+  (plumbed as `dir_anchor_cluster` through recurse_dir/walk_dir_entries/
+  emit_entry; the volume root passes 0 on both flavors, og-exact). The USN
+  pass intentionally unstamped (no $FILE_NAME parent; the og's USN props are
+  name-only). RED→GREEN: Session.NtfsParentRefRoundTrip /
+  Session.FatParentClusterRoundTrip (round-trip + zero-carrier gate) +
+  FatEngine.ParentAnchorCarriesContainingDirCluster (INNER.TXT→5, root
+  files→0, session survival) + NtfsVolume.ParentAnchorIsMaskedFileNameParentRecord
+  (readme→16 seq-stripped, partial.dat→5, per-link fan-out parents 16/5 both
+  surviving); RED = compile-errors on the stash-reverted tree (the N-100
+  new-carrier precedent). Suite **1526/1526**. Trail: findings/FIXED/N-131 +
+  Resolution, ledger row, matrix MATCH (row 1016), modules/session.md S76
+  addendum, SUMMARY board 14 M / 10 N / 162 FIXED, this entry.

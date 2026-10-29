@@ -1431,6 +1431,113 @@ TEST(Session, NtfsTotalClustersRoundTrip) {
     EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
 }
 
+TEST(Session, NtfsParentRefRoundTrip) {
+    /* N-131 NTFS half: the og's CNTFSFileProperties +0x40 parent
+     * reference — the $FILE_NAME parent-directory FILE reference masked
+     * to the 48-bit record number (FUN_18002a340's local_41 mask, the
+     * copier FUN_180003020 :1982) — rides its own nflags bit-12 block so
+     * a reloaded session answers "which MFT record was this file's
+     * parent?" (the structural parent_id is a session-file index, not an
+     * FS datum). RED pre-fix: the carrier did not exist (compile-error
+     * on the reverted tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"lineage.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->record_ref = 0x0011000000000021ull; /* own ref: record 0x21, seq 0x11 */
+    p->ntfs_parent_ref = 0x0000000000000010ull; /* parent: record 16 (masked) */
+    p->extents.push_back({200 * 4096, 2 * 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* a root-level file carries parent 5 (the root dir record) — the
+     * mask means the sequence bits never ride (the og strips them) */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"toplevel.txt";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_parent_ref = 5;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* the gate: a zero-carrier node (orphan/pseudo emission) stays
+     * shape-identical to a pre-N-131 record (bit-12 fires only when
+     * nonzero) */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"orphan.bin";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_parent_ref, 0x10ull);
+    EXPECT_EQ(g2->props()->record_ref, 0x0011000000000021ull); /* own ref intact */
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_parent_ref, 5ull);
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_parent_ref, 0ull);
+}
+
+TEST(Session, FatParentClusterRoundTrip) {
+    /* N-131 FAT half: the og's CFATFileProperties +0x42 parent-directory
+     * anchor — the containing directory node's own +0x3e origin cluster
+     * (FATSearchDLL :11654 with local_110 from :11500/:11504) — rides its
+     * own nflags bit-13 block so a reloaded session answers "which
+     * cluster did this file's containing directory start at?" RED
+     * pre-fix: the carrier did not exist (compile-error on the reverted
+     * tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"INNER.TXT";
+    p->fs_kind = u32(FsKindCode::Fat16);
+    p->fat_origin_cluster = 15;  /* own first cluster */
+    p->fat_parent_cluster = 5;   /* the SUBDIR's first cluster */
+    p->extents.push_back({8192, 512});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* root-level file: parent 0 by construction (the og's volume-root
+     * node anchors at SetFirstCluster(0), engine init FUN_18000e130) —
+     * the zero carrier stays the pre-N-131 shape */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"README.TXT";
+    p2->fs_kind = u32(FsKindCode::Fat16);
+    p2->fat_origin_cluster = 10;
+    p2->fat_parent_cluster = 0;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->fat_parent_cluster, 5u);
+    EXPECT_EQ(g2->props()->fat_origin_cluster, 15u); /* both anchors ride */
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->fat_parent_cluster, 0u);
+    EXPECT_EQ(q2->props()->fat_origin_cluster, 10u);
+}
+
 TEST(Session, IdentityCardFirmwareWwnInterface) {
     /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
      * revision (+0x206), WWN/serial-2 (+0x30A), interface description

@@ -414,3 +414,32 @@ PRD:20825-20831; the copy-back is the core's first-resume repair, idempotent
 once re-saved). Pins: RoundTripKeepsDataAreaExtent / V3SessionResumeReDerivesDataArea
 / RestoredWindowMatchesFreshDiscovery / EnrichedExtentIsIdempotentAcrossReSave
 (RED: load-fill + enrichment surgically disabled, 3×FAILED → GREEN 11/11).
+
+## S76 addendum (2026-10-29 — the MINOR-first fix lane; N-131 landed)
+
+**N-131 FIXED** — both FS-native parent-anchor carriers landed as nflags-gated
+append-only blocks (bits 12/13, fires-only-when-nonzero — pre-N-131 session
+records stay shape-identical): `ntfs_parent_ref` u64 (the og's CNTFS
++0x40 — the $FILE_NAME parent reference masked to the 48-bit record number,
+FUN_18002a340's local_41 mask decoded first-hand; stamped per-link at the
+hard-link fan-out so each link keeps its own parent, plus the GUID-dump and
+INDX second-source emissions; the USN journal pass stays unstamped — its
+parent comes from the USN_RECORD_V2 header, not a $FILE_NAME, and the og's
+USN emission builds name-only props) and `fat_parent_cluster` u32 (the og's
+CFAT +0x42 — the containing directory node's own +0x3e origin cluster, the
+walk-stamp decoded first-hand at FATSearchDLL :11654/:11500-04; the volume
+root anchors 0 on every flavor by construction [engine init FUN_18000e130,
+FAT32 included], a walked subdirectory anchors at its own first cluster).
+**The exFAT +0x54 open question is RESOLVED first-hand — NO CARRIER:** the
+exFAT engine never stamps +0x54 for children (exFATSearchDLL :45155's child
+emission stamps vt+0x28 only; the sole +0x54 writes are root/lost-dir
+0xFFFFFFFF initializations at :3895/:5026/:11461 and clone copies; the DRWUI
+class exposes no +0x50/+0x54 accessor at all) — the anchor-twin hypothesis
+and the part1 census's "type-registry ID" label are both refuted; carrying
+nothing IS the parity. Tests: Session.NtfsParentRefRoundTrip /
+Session.FatParentClusterRoundTrip (the round-trip + the zero-carrier gate) +
+FatEngine.ParentAnchorCarriesContainingDirCluster /
+NtfsVolume.ParentAnchorIsMaskedFileNameParentRecord (the walk-level stamps +
+session survival); suite 1526/1526. The s10 field-parity table's rows 1-2
+(now-carried) and the exFAT row (resolved dead-slot) are superseded by this
+landing.
