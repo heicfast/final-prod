@@ -563,6 +563,13 @@ first-hand; every fix RED-test-first.
   worklog's session-42 false-green claim dated per the 1233b4a0 precedent; the
   code was already green at HEAD — record-truth only).
 
+- **N-183 FIXED** — the recoverability aggregate (the 20-format member-set
+  population + the auto-High classes; the int((m/t+0.05)×10) verdict score over the
+  gauge's own population; the QSDE re-mapping to the per-node non-existing count
+  with the NTFS fixer-index DAT_141be5818 tick on its own counter; the ScanAnalysis
+  append-only fields + the cr_ui copy; 3 RED→GREEN tests — two first-draft bugs
+  caught by the pins).
+
 - **N-184 FIXED** — the preview media metadata families (four bounded head-window
   extractors: AVI avih/LIST walk, Matroska EBML vint grammar, FLAC STREAMINFO, MP3
   ID3-skip + bitrate estimate; the M4A/MOV ftyp-branch pin; the UTF-16-BOM/MP3-sync
