@@ -25,9 +25,9 @@
 #include <cstdio>
 
 typedef unsigned long DWORD;
+typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
-typedef unsigned long long ULONGLONG;
 typedef long LONG;
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
@@ -295,18 +295,16 @@ inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() {
     return 0;
 }
-/* WoW64 redirection (cr_fsck.cpp's M-075 landing): the SDK shape is
- * BOOL Wow64DisableWow64FsRedirection(PVOID* OldWow64FsRedirection) /
- * BOOL Wow64RevertWow64FsRedirection(PVOID OldWow64FsRedirection) -
- * PVOID is void* here, matching the void* redir_old the caller holds. */
-inline BOOL Wow64DisableWow64FsRedirection(void** OldWow64FsRedirection) {
-    if (OldWow64FsRedirection)
-        *OldWow64FsRedirection = nullptr;
-    return 1;
+/* M-075's chkdsk launcher (cr_fsck.cpp): the WoW64 file-system
+ * redirection pair - BOOL-returning no-ops on the stub lane (the native
+ * signatures take PVOID* / PVOID). */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return TRUE;
 }
-inline BOOL Wow64RevertWow64FsRedirection(void* OldWow64FsRedirection) {
-    (void)OldWow64FsRedirection;
-    return 1;
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return TRUE;
 }
 inline DWORD GetTickCount() {
     return 0;
@@ -624,3 +622,4 @@ inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
 inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
     return (HANDLE)0;
 }
+
