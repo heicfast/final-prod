@@ -189,7 +189,7 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             if (pr && pr->fat_parent_cluster != 0)
                 nflags |= 8192; /* N-131: the FAT parent-directory anchor (+0x42) */
             if (pr && pr->version_group != 0)
-                nflags |= 16384; /* M-101: the multi-version family id follows */
+                nflags |= 16384; /* M-101: the Versions-branch namespace id */
             if (pr)
                 for (const auto& e : pr->extents)
                     if (e.hole || e.logical != 0) {
@@ -327,15 +327,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * construction — the og's volume-root node anchors at 0). */
         if (nflags & 8192)
             put32(out, pr->fat_parent_cluster);
-        /* M-101 (nflags bit14): the multi-version family id — the og's
-         * Versions node axis (UIUX/09:29; the DRWUI coaching string
-         * "another version of the file in the same directory"). The
-         * family's minimum MFT record number, stamped by the post-scan
-         * version pass. 8-byte append-only block; the bit fires only
-         * when the carrier is nonzero, so pre-M-101 sessions stay
-         * shape-identical. The runtime tag_group is deliberately NOT
-         * persisted (the og's session grammar carries no tag field —
-         * the branch is runtime grouping per the finding's fix plan). */
+        /* M-101 (nflags bit14): the Versions-branch namespace-identity
+         * hash - 8-byte append-only block, firing only when the carrier
+         * is nonzero (pre-M-101 sessions stay shape-identical; the group
+         * relation is re-derivable from the walk, the persistence is the
+         * session's completeness contract). */
         if (nflags & 16384)
             put64(out, pr->version_group);
         if (n->is_full()) {
@@ -570,7 +566,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             if (c.fail)
                 break;
         }
-        if (nflags & 16384) { /* M-101: the multi-version family id */
+        if (nflags & 16384) { /* M-101: the Versions-branch namespace id */
             props->version_group = c.g64();
             if (c.fail)
                 break;

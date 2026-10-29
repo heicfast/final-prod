@@ -2188,7 +2188,6 @@ TEST(Session, VersionsRoundTrip) {
     p->fs_kind = u32(FsKindCode::Ntfs);
     p->record_ref = 32;
     p->version_group = 32; /* M-101: a stamped family member */
-    p->tag_group = "GT-S7562"; /* runtime-only: must NOT survive */
     (void)t.add_file(root, p);
     p->release();
 
@@ -2204,6 +2203,4 @@ TEST(Session, VersionsRoundTrip) {
     ASSERT_NE(dupe, nullptr);
     EXPECT_EQ(u64(32), dupe->props()->version_group)
         << "RED pre-fix: the family id was never on the wire";
-    EXPECT_TRUE(dupe->props()->tag_group.empty())
-        << "the runtime tag family does not persist (the og's grammar has no tag field)";
 }

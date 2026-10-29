@@ -1518,19 +1518,6 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * explicit single-node selection stays allowed - the og's filter is
      * a results-set default, not a hard block). */
     stats.junk_filtered = filterfolder::apply(tree_);
-    /* M-101: the Versions-node stamping pass - the og's fifth
-     * distinguished results-tree branch ("Versions node (NTFS
-     * file-record multi-version)", UIUX/09:29). Groups NTFS-origin
-     * structured files by (ntfs_parent_ref, case-folded name) - the
-     * axis that spans the Found/Deleted roots (a torn overwrite's
-     * prior record is deleted, the current one live) - and stamps the
-     * version_group id on every member of a >=2-distinct-record
-     * family. Runs beside the junk filter (post-walk, pre-grading,
-     * pre-session-capture) so query rows, the session container and
-     * the snapshot all carry the branch axis. Deterministic and
-     * idempotent: the id is the family's minimum MFT record number,
-     * so a re-run or a re-scan derives the same ids. */
-    stats.version_grouped = tree::stamp_version_groups(tree_);
     /* S-023: the post-scan CRecoverability grading pass - the og runs its
      * two "Recoverability analyze" jobs at scan completion (DRWUI
      * FUN_14038aad0); ours is one deterministic pass over the stable

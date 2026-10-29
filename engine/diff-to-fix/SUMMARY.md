@@ -3,22 +3,21 @@
 
 ## Session-84 S84 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first)... Aim for atleast 20+ fixes..."]; opened at core `cac42582`, corpus `be0cfe9` throughout; the baseline suite run FIRST exposed the red main — 2 failing S-068 tests — closed by the racing cd3479e7 byte-restore with this lane's convergent repair conceded per SA-9, the corroboration in the racing N-220's convergence addendum)
 
-- **M-101 FIXED (MAJOR — this lane's landing):** the two missing
-  distinguished branches. The Versions node (the fifth root): the
-  post-scan pass stamping `version_group` on NTFS file-record
-  multi-version families (>= 2 distinct records sharing
-  (ntfs_parent_ref, case-folded name) — the FS-NATIVE axis that spans
-  the Found/Deleted roots AND the orphaned-prior-under-LostDir shape;
-  the id = the family's minimum MFT record number, deterministic and
-  idempotent; hard-link fan-out clones excluded by the distinct-record
-  guard), persisted as the nflags bit-14 block. Tags Extracted: the
-  runtime `tag_group` (EXIF Model, else Software — the S-049 analyser's
-  walk) stamped on carved tag-bearing files, never persisted (the og's
-  grammar carries no tag field — runtime grouping per the fix plan).
-  Query axes (`version_group_only` / `tag_extracted_only`), Row
-  carriers, SnapNode fields, ScanStats.version_grouped. 6 tests
-  RED-first (the stash dance, compile-error class) -> GREEN; suite
-  1535/0 + UI 89/89.
+- **M-101 FIXED (MAJOR — the convergent landing closed):** the two
+  missing distinguished branches. TWO implementations converged in the
+  window (the SA-9 class's M-101 instance): the racing lane's
+  FNV-1a-namespace-identity id stamped at emission + `query::version_
+  groups` + the exact-id filter + the runtime `tags_extracted` flag +
+  the safewriter kind-6 report category KEEPS THE SEAT (landed first,
+  though silently — no finding retirement, no ledger row, no matrix
+  row: closed at this push per §8's no-silent-fixes rule); this lane's
+  post-scan-pass variant (the FS-NATIVE case-folded axis, the
+  min-record-number id, the distinct-record guard) conceded per SA-9,
+  its deltas recorded in the Resolution (the case-sensitivity question
+  is the next probe), and its COMPOSE RIDER kept over the seat: the
+  carve analyser's S-049 EXIF walk stamps `tags_extracted` at scan
+  time (zero extra I/O — the extraction already ran for the naming).
+  9 tests green at the converged tree; suite 1569/0 + UI 91/91.
 
 - **N-223 FIXED (MINOR — this lane's trail repair):** the 09a18f9f
   six-trail-file marker residue + the born-collided D-152 TRIPLE seat
@@ -73,16 +72,19 @@ Next free IDs: S-069+, M-158+, N-224+, I-049+, A-017+, D-165+.
 - **N-223 moved to findings/FIXED/** (the fixed-directory directive —
   its own Resolution was FIXED but the file sat in MINOR/).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE · 7
-MAJOR · 2 MINOR · 0 INFO active / 204 FIXED / 4 tracked-open.** (M-159
-and N-224 were filed AND fixed this session — they land on the FIXED side
-directly. Of the 7 active MAJORs, M-086/M-087/M-089 are driver-repo-resident
-per OQ-S10-3 — out of this grant's two-repo boundary; the 2 active MINORs,
-N-107/N-127, are the same driver-repo class. M-107 remains active for its
-EIGHT un-landed members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT —
-X3F, CRW, and DWG landed as members 1-3). The in-scope fix queue after
-this push: M-101 (the Versions / Tags Extracted branches), M-107's
-members, then M-078/M-105, then the tracked-open resolutions.)
+**Board after this landing (filesystem truth, recounted Session-84
+2026-10-30): 0 ACUTE · 0 SEVERE · 6 MAJOR · 3 MINOR · 0 INFO active /
+205 FIXED / 4 tracked-open.** (M-159 and N-224 were filed AND fixed —
+they land on the FIXED side directly; M-078 also landed FIXED since the
+prior board. Of the 6 active MAJORs, M-086/M-087/M-089 are
+driver-repo-resident per OQ-S10-3 — out of this grant's two-repo
+boundary; of the 3 active MINORs, N-107/N-127 are the same driver-repo
+class and N-225 is the win-stub triple-convergence record. M-107 remains
+active for its SEVEN un-landed members (WPG, WPD, SIT, APE, EPS, DXF,
+SWF-RECT — X3F, CRW, DWG, and PSP landed as members 1-4). The in-scope
+fix queue after this push: M-101 (the Versions / Tags Extracted
+branches), M-107's members, then M-105, then the tracked-open
+resolutions.)
 Next free IDs: S-069+, M-160+, N-225+, I-049+, A-017+, D-165+.
 >>>>>>> 322dbdc0e0f9385a7618c5918ffc39d93d121203
 

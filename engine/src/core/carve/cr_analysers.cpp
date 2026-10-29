@@ -4653,7 +4653,15 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
                 }
             }
             const u8* rec = win.data() + (rec_off - win_base);
-            if (rec[0] != u8(i)) {
+            /* the id-sequence gate: the og compares the id byte against the
+             * FULL 32-bit running counter (raw-asm 0x18002f40a: movzbl the
+             * id into eax, `cmp %ecx,%eax` with ecx the counter) - so the
+             * walk SELF-LIMITS at 256 records (no byte can match a
+             * counter >= 256). The S86 convergence rider: the u8(i)
+             * truncation of the first landing accepted count>256 fixtures
+             * with wrapped ids the og refuses (FUN_18002f320's loop,
+             * 0x18002f400-0x18002f441). */
+            if (u32(rec[0]) != i) {
                 /* the og's only structural gate: number != index ->
                  * extent 0 (the decline, :36379-83) */
                 return r;
@@ -4671,8 +4679,13 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         u64 end = hit + extent;
         if (end > limit)
             end = limit;
-        if (end - hit < 512)
-            return r;
+        /* the S86 convergence rider: the residual 512-byte floor removed -
+         * the og's registered row floor is 0x15 = 21 (the CDWGRawInfo
+         * factory FUN_18002ff20's qword write at +0x110 - the SAME write
+         * that seeds the walk cursor; the PNG/ONE ctor pattern
+         * [0x22]=min/[0x23]=max), and the og's gen-1 walk has no other
+         * floor: a 21-byte walked extent emits at 21. The 512 floor was
+         * the stand-in era's leftover (the pre-landing code's shape). */
         r.ok = true;
         r.end = end;
         r.confidence = torn ? 550 : 650; /* the torn salvage: reduced */
@@ -6273,7 +6286,7 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
             if (found)
                 break;
             if (chunk < win.size())
-                break; /* short final read: the window is exhausted */
+                break;                 /* short final read: the window is exhausted */
             pos += chunk - (plen - 1); /* the straddle overlap */
         }
     }

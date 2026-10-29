@@ -294,32 +294,32 @@ public:
      * persisted as the nflags bit-13 block (u32). */
     u64 ntfs_parent_ref = 0;
     u32 fat_parent_cluster = 0;
-    /* M-101 (diff-to-fix): the multi-version sibling-set id - the og's
-     * Versions node axis ("It is another version of the file in the same
-     * directory. You can view different versions of the file respectively
-     * to help you easily locate your desired data." - the DRWUI coaching
-     * string, strings_ascii 17041/17068/17119; UIUX/09:29 "Versions node
-     * (NTFS file-record multi-version)"). 0 = ungrouped; nonzero = one
-     * version family: NTFS file records that share (ntfs_parent_ref,
-     * case-folded name) - the torn-overwrite / prior-record population.
-     * The id is the family's minimum MFT record number (deterministic
-     * across re-scans of the same volume), stamped by the post-scan
-     * version pass (tree::stamp_version_groups), and persisted as the
-     * nflags bit-14 block (cr_records.cpp). */
+    /* M-101: the Versions-branch axis - the NTFS namespace-identity hash
+     * (FNV-1a 64 over the namespace-best link's parent record number
+     * and the display name). Two MFT records carrying the same pathname
+     * in the same directory are VERSIONS of one file (the og's Versions
+     * node: "It is another version of the file in the same directory.
+     * You can view different versions of the same file", UIUX/09:31) -
+     * the torn-overwrite and record-reuse population, surfaced as a
+     * groupable relation. PASSIVE datum: stamped at emission for
+     * structured NTFS nodes only (0 = not a member: carved nodes, other
+     * engines, and the record's own namespace-best link is the identity
+     * a multi-parent hard-link record carries - the same one-link
+     * tie-break M-007's one-node-per-record emission documents); never
+     * consumed by the read/recovery paths; persisted as the nflags
+     * bit-14 block (cr_records.cpp). The branch surfaces at query time
+     * when >= 2 live nodes share the id (query::version_groups). */
     u64 version_group = 0;
-    /* M-101: the og's Tags Extracted branch axis ("We classify and
-     * organize the found files by extracted tags to help you easily
-     * locate desirable files." - UIUX/09:27; the node-type 6 branch of
-     * DRWUI's tree builder, DRWUI_decompiled.c:642790). The extracted
-     * tag family value - EXIF Model, else EXIF Software (the same
-     * priority the S-049 carve naming derives: "GT-S7562_000123.JPG",
-     * "Adobe Photoshop 7.0_N.JPG") - populated at scan time by the
-     * carve analyser on tag-bearing files. RUNTIME-ONLY by design: the
-     * og does not persist tags in the session (the .rsf grammar carries
-     * no tag field; the corpus shows the branch as runtime grouping),
-     * so a reloaded session re-derives it by re-extraction, never by
-     * round-trip. Empty = no extracted tag. */
-    std::string tag_group;
+    /* M-101: the Tags-Extracted branch flag - runtime grouping datum
+     * (the og's "We classify and organize the found files by extracted
+     * tags", UIUX/09:29). Stamped by the host's preview/metadata pass
+     * when extract_metadata() produced tag data (EXIF orientation/
+     * datetime, media duration/codec, dimensions); RUNTIME-ONLY: NOT
+     * persisted (the corpus shows the og persisting no tag state in
+     * the session - the branch is runtime grouping, the finding's own
+     * defer note; a reloaded session re-derives it by re-running the
+     * preview pass). Query: Filter::tags_only surfaces the branch. */
+    bool tags_extracted = false;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;
@@ -644,25 +644,6 @@ private:
      * roots()/node_count() are stable only between stages. */
     mutable std::mutex mutex_;
 };
-
-/* M-101 (diff-to-fix): the Versions-node stamping pass - the og's fifth
- * distinguished results-tree branch ("Versions node (NTFS file-record
- * multi-version)", UIUX/09:29; the DRWUI coaching string: "It is another
- * version of the file in the same directory. You can view different
- * versions of the file respectively to help you easily locate your
- * desired data."). Groups every NTFS-origin structured FILE node by its
- * FS-NATIVE identity (ntfs_parent_ref + case-folded name - the axis that
- * spans the Found/Deleted roots, since the classic version family is a
- * torn overwrite: the prior record deleted, the current record live);
- * a family holding >= 2 DISTINCT MFT record numbers is a version family,
- * and every member's props is stamped version_group = the family's
- * minimum record number (deterministic across re-scans of the same
- * volume, so the pass is idempotent and a reloaded session carries the
- * persisted ids without re-derivation drift). Returns the number of
- * FILE nodes stamped. Pure tree-level pass: no engine knowledge beyond
- * the props' own fs_kind/origin/anchors; runs at scan close (beside
- * the junk-filter pass) and is safe to re-run (idempotent). */
-u64 stamp_version_groups(ResultTree& tree);
 
 } // namespace tree
 } // namespace cr

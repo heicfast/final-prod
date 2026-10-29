@@ -472,3 +472,21 @@ stand-in tree (DxfEofTrailerWalkSetsExtent / DxfLfFormUsesTheLfTrailer
 AiHeaderFormulaWalkSetsExtent), GREEN with the walks; the torn and
 degenerate arms pin the salvage/decline semantics. The carve suite
 193/193. Remaining: WPD, SIT, APE (three) + the DWG gen-3 remainder.
+
+### The riders landed (the S86 rider commit)
+
+Rider A (the row floor): the row min 64 -> 0x15 (21), the gen-1 walk's
+residual 512-byte floor removed (cr_analysers.cpp's gen-1 tail +
+cr_registry.cpp's row). Rider B (the id gate): `rec[0] != u8(i)` ->
+`u32(rec[0]) != i` (the full 32-bit counter; the walk self-limits at 256
+records). RED→GREEN at the pre-rider tree, the stash dance: rider A's
+`DwgRowCarriesTheOgsRegisteredFloor` RED (the 21-byte walked extent
+refused by the 512 floor AND the min-64 row), rider B's
+`DwgWalkSelfLimitsAt256Records` RED with the de-confounded fixture (300
+records, each end 0x900 >= 512 so the 512 floor never refuses - the
+first RED attempt passed at the pre-rider tree for the WRONG reason,
+the 320-byte extent tripping the 512 floor; the fixture grew to 2304
+per-record ends so the counter gate is the ONLY refusal under test).
+The racing landing's own six DWG tests stay green under the riders (8/8
+at the landed tree). Corpus: FUN_18002f320's loop 0x18002f400-0x18002f441
+(cmp %ecx,%eax at 0x18002f40a) + FUN_18002ff20's +0x110 qword write.

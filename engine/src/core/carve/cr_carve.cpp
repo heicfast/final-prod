@@ -799,12 +799,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = file_len;
             props->carve_format = eff.id;
             props->carve_confidence = u16((eff.base_confidence + cr.confidence) / 2);
-            /* M-101: the Tags Extracted branch axis — the analyser's
-             * extracted tag family (EXIF Model, else Software) rides the
-             * node as the runtime grouping value. Runtime-only by design
-             * (the og does not persist tags; a reloaded session re-derives
-             * the branch by re-extraction, never by round-trip). */
-            props->tag_group = cr.tag_group;
+            /* M-101 (the S84 convergence rider over the landed
+             * implementation): the carve analyser's EXIF walk already
+             * extracts the tag family (Model, else Software — the S-049
+             * naming source); a file whose tags were extracted AT SCAN
+             * stamps the branch flag here, composing with the landed
+             * host-preview-pass stamping (either path ORs the flag — a
+             * carved JPEG with an EXIF Model is in the branch without
+             * waiting for the host's pass). Runtime-only by design (the
+             * og does not persist tag state; the corpus shows the branch
+             * as runtime grouping). */
+            props->tags_extracted = !cr.tag_group.empty();
             /* N-089: the analyser's evidence note rides the node (the og's
              * CRAW second-string field +0x5A): the per-family evidence
              * ("page-math", "RIFF+AVI+hdrl", ...) and the FCP-event-database

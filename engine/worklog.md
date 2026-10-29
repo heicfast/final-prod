@@ -62,6 +62,20 @@ zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
 
+**The two riders LANDED (the rider commit, this session):** (A) the row
+floor 0x15 = 21 (the gen-1 walk's residual 512-byte floor removed +
+cr_registry's min re-pinned to 0x15) and (B) the id gate
+`u32(rec[0]) != i` (the full 32-bit counter; the walk self-limits at 256
+records). RED→GREEN at the pre-rider tree, the stash dance, for both:
+rider A's DwgRowCarriesTheOgsRegisteredFloor RED (the 21-byte extent
+refused by the 512 floor AND the min-64 row); rider B's
+DwgWalkSelfLimitsAt256Records RED with the de-confounded fixture (300
+records at 0x900 per-record ends - the first attempt's 320-byte extent
+tripped the 512 floor at the pre-rider tree and PASSED for the wrong
+reason; recorded so the fixture evolution stays truthful). The racing
+landing's own six DWG tests stay green under the riders: 8/8 at the
+landed tree.
+
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
@@ -13113,67 +13127,98 @@ addendum 4, this entry.
 
 ---
 
-## Session-84 S84 fix-lane — entry 2: M-101 FIXED (the two missing distinguished branches) (2026-10-30)
+## Session-84 — entry 7 (this lane): T13/T15 evidence complete; T17 lands; the session's coherence picture (2026-10-30)
 
-**The finding:** the og's results tree distinguishes FIVE special roots
-(UIUX/09:27-36, the tr-verified coaching copy); the core landed three
-(Unimportant / File Name Lost / File Path Lost) and had NO concept for
-the other two — the Versions node ("It is another version of the file
-in the same directory. You can view different versions of the file
-respectively to help you easily locate your desired data.", NTFS
-file-record multi-version) and Tags Extracted ("We classify and
-organize the found files by extracted tags to help you easily locate
-desirable files.").
+**T13 (local suite, first-hand):** the full cr_tests suite green in 11
+chunked runs — **1,529 passed / 0 failed / 42 fixture-conditional skips**
+(qemu/mkfs/tiff-tooling dependent, pre-existing), matching the lanes' and
+CI's counts. Two environment notes recorded honestly: the 4 GiB cgroup
+cap OOM-killed one large single-process chunk (the suites pass when
+chunked; CycleGuardPerf passes solo in 2.3 s — an environment ceiling,
+not a code defect); the sandbox reaps detached processes (the first
+full-suite attempt died mid-run that way).
 
-**Corpus verification (first-hand, before the design):** UIUX/09 read
-in full (the five-branch census + the per-branch tooltips); the DRWUI
-tree-build site located and read (:642790 — the node-type field +0x1f0:
-value 6 = the Tags Extracted branch, 4 = Existing Files, 0 = Deleted,
-7 = Reconstructed; FUN_14008b040 is the field's getter); the coaching
-strings censused (strings_ascii:17041/17068/17119 +
-qt_strings:645's "We have found different versions of files in the
-same directory"); the tag-extraction source confirmed in the carve
-engine's own S-049 EXIF walk (Model 0x0110 / Software 0x0131, the
-N-209 39-char cap).
+**T15 (fuzz smoke, first-hand):** clang 18.1.8 installed from the LLVM
+release tarball (libtinfo5 from the Debian pool); the fuzz/Makefile
+build clean at `-fsanitize=fuzzer,address,undefined -Wall -Wextra
+-Werror` (after this lane's wr16 dead-helper fix — the clang-vs-gcc
+-Wunused-function divergence, committed with the fuzz evidence); the
+45s-per-target smoke over all 16 fuzzers: **~140M executions, zero
+crashes** (fuzz_container 22.9M, fuzz_reghive 65.9M, fuzz_image 13.8M,
+fuzz_exfat 7.4M, fuzz_zfs 6.8M, ... fuzz_thumbnail 60K).
 
-**The landing (per the finding's own fix plan, all four steps):**
-(1) `FileProperties.version_group` — stamped by the new
-`tree::stamp_version_groups` pass at scan close (beside the junk
-filter): groups NTFS-origin structured files by the FS-NATIVE axis
-(ntfs_parent_ref + case-folded name) because the tree position CANNOT
-be the key (the walk nests deleted records inside the live directory
-tree when the parent exists — the EndToEndWalk pin — and routes
-orphaned priors under LostDir<NNNN>; the FS-native identity groups
-both shapes); the id = the family's minimum MFT record number
-(deterministic + idempotent — a reloaded session's persisted ids
-never drift from a re-derivation); the distinct-record guard excludes
-hard-link fan-out clones (links of one record, not versions).
-(2) Persistence: the nflags bit-14 block (8-byte append-only; fires
-only when nonzero — pre-M-101 sessions shape-identical).
-(3) Tags Extracted: the runtime `tag_group` — the S-049 analyser's
-EXIF walk now stamps `CarveResult::tag_group` (Model, else Software)
-and the emit site copies it onto the props; deliberately NOT persisted
-(the finding's own arbitration: "the corpus shows the og does not
-persist tags in the session — the branch is runtime grouping").
-(4) ABI: `SnapNode` carries both axes (the value capture is a
-live-tree copy — the runtime field rides it); `Row` carries both for
-host regrouping; `Filter.version_group_only`/`tag_extracted_only`
-scope the branches; `ScanStats.version_grouped` surfaces the total.
+**T17 (doc audit):** `worklog/doc-audit.md` landed — every doc accurate,
+corrected, or archival-by-design at HEAD; the session's doc corrections
+commit-cited (API.md exit 5, rrecov docstring, PARAMETERS.md flags,
+cr_ui.h error contract, testing.md 1,717/72 recount, SUMMARY board
+6/3/0/205/4 refresh with M-078-landed and PSP=member-4); the racing
+lanes' count migrations (exports=93, error codes=43) independently
+verified.
 
-**RED->GREEN first-hand:** the stash dance (source changes stashed,
-tests kept) → compile-error RED on the stash-reverted tree
-(`'stamp_version_groups' is not a member of 'cr::tree'`, `'FileProperties'
-has no member named 'version_group'`) → GREEN post-fix. 6 tests:
-NtfsVolume.VersionsNodeGroupsTornSiblings (the torn-overwrite pair
-grouped, same id, no false positives) / VersionsPassIsIdempotentAnd-
-CaseFolding / CarveEngine.JpegExifTagGroupStamps (Model / Software /
-tagless arms) / Query.VersionsAndTagsExtractedBranchAxes (both scopes
-+ the intersection) / Session.VersionsRoundTrip (the id persists, the
-tag does not) / Snapshot.CarriesTheDistinguishedBranchAxes (both axes
-+ the DFS-order guard). Full suite 1535/0 (+42 fixture-conditional
-skips, pre-existing); cr_ui_tests 89/89; doc_truth_gate green;
-clang-format clean.
+**The collision series closed:** N-219, N-221, D-163, N-223 — four
+born-collisions in one window, all resolved; the doc_truth_gate caught
+each one (the gate's own value proven); this lane's resolutions:
+24edbb04 (ledger), bfda625c (the m075 duplicate retirement, composed
+with the racing N-226 renumber). Two of this lane's own red pushes
+(eb1b4e35, f5cb2a60) are recorded with honesty notes in entries 4/6 —
+the verification-discipline lesson (gate must BLOCK the push, not just
+run) is now enforced in this lane's push script.
 
-**Trail:** findings/FIXED/M-101 + Resolution, the matrix row, the
-ledger row, modules/{query,tree}.md addenda, SUMMARY's S84 block,
-this entry. Corpus: be0cfe9, read-only guarantee held.
+---
+
+## Session-84 S84 fix-lane — entry 3: M-101 — the convergent landing closed, the silent fix retired, the compose rider kept (2026-10-30)
+
+**The convergence (the SA-9 class's M-101 instance):** TWO
+implementations of the two missing distinguished branches landed in
+the same window. The racing lane's (on main via b7d05b12's tree/query
+half — landed FIRST, keeps the seat): the FNV-1a namespace-identity
+`version_group` stamped AT EMISSION in the MFT walk, the
+`query::version_groups()` >=2-live-member census, the exact-id
+`Filter::version_group` selector, the runtime `tags_extracted` flag
+stamped by the host's preview pass, the safewriter's
+`lost_files_tags_extracted` report category (og kind 6 — a surface
+this lane's variant lacked), and the 5-test M101Branches battery.
+This lane's variant (built and proven first — 6 tests RED-first via
+the stash dance, the compile-error class): the post-scan pass keyed on
+the FS-NATIVE axis (ntfs_parent_ref + case-folded name — the only key
+that spans the Found/Deleted roots AND the orphaned-prior-under-LostDir
+shape), the min-MFT-record-number id (deterministic, idempotent), the
+distinct-record guard (hard-link fan-out clones are links, not
+versions), the carve-side tag extraction. Conceded per SA-9 at the
+push rebase.
+
+**The silent-fix closure (§8's no-silent-fixes rule):** the racing
+landing carried the code + tests but NO finding retirement, NO ledger
+row, NO matrix row — b7d05b12's message never mentions M-101 (the
+mixed-message landing class). This push retires the finding properly:
+findings/FIXED/M-101 + the full Resolution (both designs, the deltas,
+the convergence record), the ledger row, the matrix row, the module
+addenda converged.
+
+**The deltas recorded (the Resolution's next-probe notes):** (a) the
+landed hash is case-SENSITIVE over the name bytes — two records whose
+names differ only by case ("dupe.doc" vs "DUPE.DOC", the same pathname
+under NTFS's $UpCase-insensitive collation) derive DIFFERENT ids and
+never group; this lane's variant folded; the folded form is the closer
+corpus reading — recorded, not re-litigated. (b) The COMPOSE RIDER
+kept over the seat: the carve analyser's S-049 EXIF walk (Model, else
+Software) now stamps `props->tags_extracted` AT SCAN — a carved JPEG
+with an EXIF Model enters the branch without waiting for the host's
+preview pass (either path ORs the flag; zero extra I/O — the
+extraction already ran for the naming prefix). Pinned by
+CarveEngine.JpegExifTagGroupStamps.
+
+**Verification at the converged tree:** the 4 adapted S84 tests
+(Query.VersionsAndTagsExtractedBranchAxes rewritten against the
+landed exact-id + tags_only surface, Session.VersionsRoundTrip,
+Snapshot.CarriesTheDistinguishedBranchAxes [the boolean flag],
+CarveEngine.JpegExifTagGroupStamps [the rider]) + the landed 5-test
+M101Branches battery — 9/9 green. Full suite 1569/0 (42
+fixture-conditional skips, pre-existing); cr_ui_tests 91/91;
+doc_truth_gate green; clang-format clean (the racing window's
+cr_analysers.cpp:6289 drift fixed in passing).
+
+**Trail:** findings/FIXED/M-101 + Resolution (the convergence record),
+the ledger row, the matrix row, modules/{query,tree}.md converged
+addenda, SUMMARY's S84 block refreshed, this entry. Corpus: be0cfe9,
+read-only guarantee held.

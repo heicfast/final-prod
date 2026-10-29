@@ -154,32 +154,21 @@ two documents cannot drift apart again. The behavioral gap itself stays
 OOS-UI (display-tier demotion, never a drop — files are recovered
 regardless). #16/#46 rows: MATCH (attribution layer).
 
-## M-101 Resolution (S84 fix lane, 2026-10-30)
+## M-101 Resolution (the convergent landing, closed 2026-10-30)
 
-**M-101 FIXED** — the two missing distinguished branches landed:
-- **Versions (the fifth root):** `FileProperties.version_group` (u64, 0 =
-  ungrouped) stamped by `tree::stamp_version_groups` — the post-scan pass
-  that groups NTFS-origin structured files by the FS-NATIVE axis
-  (`ntfs_parent_ref` + case-folded name; the axis that spans the
-  Found/Deleted roots and the orphaned-prior-under-LostDir shape — the
-  walk nests deleted records inside the live directory tree when the
-  parent exists, so the tree position can never be the grouping key).
-  The id = the family's minimum MFT record number (deterministic,
-  idempotent; hard-link fan-out clones excluded by the distinct-record
-  guard). Persisted as the nflags bit-14 block; `ScanStats.version_
-  grouped` surfaces the stamped total.
-- **Tags Extracted:** `FileProperties.tag_group` (runtime-only, never
-  persisted — the og's grammar carries no tag field) populated at scan
-  by the S-049 carve analyser's EXIF walk (Model, else Software).
-- **Query axes:** `Filter.version_group_only` / `Filter.tag_extracted_
-  only` scope the branches; `Row.version_group` + `Row.tag_group` carry
-  the values for host regrouping (append-only).
-- **ABI:** `SnapNode` carries both axes (the value capture rides the
-  runtime fields); `materialize_props` restores them.
-
-Tests: NtfsVolume.VersionsNodeGroupsTornSiblings /
-VersionsPassIsIdempotentAndCaseFolding / CarveEngine.JpegExifTagGroupStamps /
-Query.VersionsAndTagsExtractedBranchAxes / Session.VersionsRoundTrip /
-Snapshot.CarriesTheDistinguishedBranchAxes — RED first (compile-error class,
-the stash dance), GREEN post-fix; full suite 1535/0.
-Finding: findings/FIXED/M-101-results-tree-branches-missing-versions-node-tags-extracted.md
+**M-101 FIXED** — the two missing distinguished branches landed (the
+racing lane's implementation keeps the seat: the FNV-1a
+namespace-identity `version_group` stamped at emission, the
+`query::version_groups()` >=2-live-member census, the exact-id
+`Filter::version_group` selector, the runtime `tags_extracted` flag
+stamped by the host's preview pass + the S84 compose rider [the carve
+analyser's S-049 EXIF walk stamps the flag at scan time — zero extra
+I/O], the safewriter's `lost_files_tags_extracted` report category
+[og kind 6], and the SnapNode/Row append-only carriers; the version id
+persists through the nflags bit-14 block). The S84 lane's convergent
+post-scan-pass variant conceded per SA-9; the case-sensitivity delta
+(the landed hash is case-SENSITIVE over name bytes; NTFS's $UpCase
+collation says the folded form groups more) recorded as the next probe
+in the Resolution. Tests: the M101Branches battery (5) + the S84
+convergent set (4, adapted to the landed surface). Finding:
+findings/FIXED/M-101-results-tree-branches-missing-versions-node-tags-extracted.md

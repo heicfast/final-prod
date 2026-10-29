@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <functional>
+#include <unordered_map>
 
 namespace cr {
 namespace query {
@@ -132,14 +134,11 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
-    /* M-101: the two distinguished-branch scoping gates — the Versions
-     * node (nonzero version_group) and the Tags Extracted branch
-     * (non-empty tag_group). Evaluated before any name conversion: the
-     * props-local fields keep the fast count lane string-free. */
-    if (f.version_group_only && (pr == nullptr || pr->version_group == 0))
-        return false;
-    if (f.tag_extracted_only && (pr == nullptr || pr->tag_group.empty()))
-        return false;
+    /* M-101: the two branch axes (both fast: no string work) */
+    if (f.version_group != 0 && (pr->version_group != f.version_group))
+        return false; /* the Versions branch's per-group membership */
+    if (f.tags_only && !pr->tags_extracted)
+        return false; /* the Tags-Extracted branch membership */
     if (f.category_mask != 0x3FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
@@ -428,11 +427,8 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         row.deleted = u32(node->deleted_state());
         row.confidence = u32(node->confidence());
         row.category = u32(cat_of(row.name_utf8));
-        /* M-101: the two distinguished-branch axes ride the row — hosts
-         * render the Versions node by regrouping on version_group and
-         * the Tags Extracted branch by grouping on tag_group. */
-        row.version_group = pr ? pr->version_group : 0;
-        row.tag_group = pr ? pr->tag_group : std::string();
+        row.version_group = pr ? pr->version_group : 0;            /* M-101 */
+        row.tags_extracted = (pr && pr->tags_extracted) ? 1u : 0u; /* M-101 */
         emit_path(node, row.path_utf8);
         out.rows.push_back(std::move(row));
     }
@@ -749,6 +745,55 @@ std::string display_size_ui(u64 bytes, int precision) {
         if (at != std::string::npos)
             out.erase(at, frac.size());
     }
+    return out;
+}
+
+/* ---- M-101: the Versions-branch enumeration --------------------------- */
+std::vector<VersionGroup> version_groups(const tree::ResultTree& tree) {
+    std::vector<VersionGroup> out;
+    std::unordered_map<u64, size_t> index; /* id -> out index (multi-member only) */
+    std::unordered_map<u64, u32> counts;   /* id -> live member count */
+    /* pass 1: count (structure walks are the same DFS every query uses;
+     * junk-filtered nodes are never branch members - the M-018 stance) */
+    std::function<void(const tree::FileNode*)> count = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling()) {
+            const tree::FileProperties* pr = ch->props();
+            if (!ch->is_full() && pr != nullptr && pr->version_group != 0 &&
+                (pr->flags & tree::NODE_FLAG_JUNK_FILTERED) == 0)
+                ++counts[pr->version_group];
+            if (ch->first_child())
+                count(ch);
+        }
+    };
+    for (const tree::FileNode* r : tree.roots())
+        count(r);
+    /* pass 2: emit the multi-member groups (name from the first member
+     * - all members share it by construction: the id derives from
+     * (parent, name)) */
+    std::function<void(const tree::FileNode*)> collect = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling()) {
+            const tree::FileProperties* pr = ch->props();
+            if (!ch->is_full() && pr != nullptr && pr->version_group != 0) {
+                const auto it = counts.find(pr->version_group);
+                if (it != counts.end() && it->second >= 2) {
+                    size_t slot;
+                    const auto found = index.find(pr->version_group);
+                    if (found == index.end()) {
+                        slot = out.size();
+                        out.push_back(VersionGroup{pr->version_group, 0, pr->name});
+                        index.emplace(pr->version_group, slot);
+                    } else {
+                        slot = found->second;
+                    }
+                    ++out[slot].count;
+                }
+            }
+            if (ch->first_child())
+                collect(ch);
+        }
+    };
+    for (const tree::FileNode* r : tree.roots())
+        collect(r);
     return out;
 }
 

@@ -312,7 +312,7 @@ TEST(Snapshot, CarriesTheDistinguishedBranchAxes) {
     p->name = u"dupe.doc";
     p->logical_size = 700;
     p->version_group = 32;
-    p->tag_group = "GT-S7562";
+    p->tags_extracted = true;
     (void)t.add_file(root, p);
     p->release();
     t.refresh_stats();
@@ -327,8 +327,8 @@ TEST(Snapshot, CarriesTheDistinguishedBranchAxes) {
             saw = true;
             EXPECT_EQ(s.version_group, u64(32))
                 << "RED pre-fix: the capture dropped the Versions axis";
-            EXPECT_EQ(s.tag_group, std::string("GT-S7562"))
-                << "the runtime tag family rides the value capture";
+            EXPECT_TRUE(s.tags_extracted)
+                << "the runtime tag flag rides the value capture";
         }
     }
     EXPECT_TRUE(saw);
@@ -338,7 +338,7 @@ TEST(Snapshot, CarriesTheDistinguishedBranchAxes) {
             tree::FileProperties* mp = snap->materialize_props(i);
             ASSERT_NE(mp, nullptr);
             EXPECT_EQ(mp->version_group, u64(32));
-            EXPECT_EQ(mp->tag_group, std::string("GT-S7562"));
+            EXPECT_TRUE(mp->tags_extracted);
             mp->release();
         }
     }

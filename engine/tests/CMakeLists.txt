@@ -62,6 +62,7 @@ add_executable(cr_tests
     unit/test_snapshot.cpp
     unit/test_query.cpp
     unit/test_fscheck.cpp
+    unit/test_m101_branches.cpp
     unit/test_fscheck_launch.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
