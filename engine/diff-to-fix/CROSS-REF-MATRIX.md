@@ -1,3 +1,11 @@
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S77 fix lane on top — the MAJOR-first diff-to-fix execution per the user's directive; the prior lanes below)
+
+**Session-77 S77 lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `254220ad`, corpus `be0cfe9` throughout):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| lost-partition · three-source candidate assembly, register channel (B1/A25/A30/O37/P5) | **MATCH** (findings/FIXED/M-118, commit in the Resolution) | **M-118 FIXED** — the register channel landed end-to-end: the pure blob decoder (FUN_18000f5b0's exact gates: >0xe7, the 0xc4/0xe6 '#' delimiters, the 0x20-char hex start at +0xc6, bps alignment, sector-0 sentinel), the offline-hive walk (reghive::mountpoints2_placements over NTUSER.DAT), the live-HKCU walk (win::mountpoints2_volume_history, KEY_READ), the discovery seam (discover(register_starts) probes each placement with the sweep's own format chain — FUN_14058a070's parser-chain semantics — and merges upstream of the pass-2 dedup: the real-log collapse shape mbr=1+filesystem=1+register=3→one partition), the provenance model (Provenance::Register, session flags bit 2, no wire bump), the host wiring (ScanConfig.register_history_lbas + the CLI --whole-disk arm). The finding's field-split probe RESOLVED: the blob carries the START only (the total derives from the probed filesystem; the DRWUI mirror's 0xc2/0xc6 selector picks the volume-label offset). 19 RED→GREEN tests (test_mountpoints2.cpp); suite 1541/1541 |
+
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S71 fix lane on top — the MAJOR-first diff-to-fix execution per the user's directive; the prior lanes below)
 
 **Session-71 S71 lane rows (2026-10-29 — every active finding independently re-verified against corpus + code before fixing; opened at core `c736e9b3`, corpus `be0cfe9` throughout):**

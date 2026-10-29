@@ -80,6 +80,7 @@
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
+#include "cr/win/cr_mountpoints.h" /* M-118: the register channel's live HKCU walk */
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
@@ -1557,6 +1558,25 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d repair=%d/%d",
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
+    /* M-118: the register channel - the og's third candidate source (the
+     * Explorer MountPoints2\\CPC\\Volume history walk, engine-side
+     * PartitionRecoveryD :8930-8965). The live HKCU walk feeds the
+     * remembered placements into the scan config; lost::discover probes
+     * each at the remembered start and merges the accepted ones with the
+     * sweep's candidates (the og's three-wave assembly,
+     * DRWUI.log:637-643). Zero placements on a profile without mount
+     * history - the og's failed-open path walks nothing. */
+    if (cfg.whole_disk && target.device) {
+        const u32 reg_bps = target.device->geometry().logical_sector;
+        if (reg_bps != 0) {
+            std::vector<u64> history;
+            if (win::mountpoints2_volume_history(reg_bps, history) == OK && !history.empty()) {
+                cfg.register_history_lbas = std::move(history);
+                log_line("rrecov scan: register channel armed: %zu remembered placement(s)",
+                         cfg.register_history_lbas.size());
+            }
+        }
+    }
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
     fill_volume_label(target, cfg);
     /* S-048: the volume's drive letter rides the scan config (the og's

@@ -401,3 +401,31 @@ finding's own open question (its slot writes the same 0xfffffff1 as the
 both-fail arm — backup-DBR dedup reading, getter decode pending). RED→GREEN:
 ForgedOemNoMftEvidenceRejected / TornPrimaryMftMirrorEvidenceScored /
 HealthyCandidateMftEvidenceUnchanged; suite 1425/1425.
+
+## S77 fix lane — M-118 lands (2026-10-29)
+
+**M-118 (MAJOR) — FIXED (findings/FIXED/, tests/unit/test_mountpoints2.cpp, 19
+RED→GREEN tests):** the register channel — the og's third candidate source — is
+landed end-to-end. The pure blob decoder `lost::decode_mountpoints2_placement`
+(FUN_18000f5b0's exact gates: size > 0xe7, the data[0xc4]/data[0xe6] '#'
+delimiters, the 0x20-char hex byte offset at +0xc6, bps alignment, /bps, the
+sector-0 failure sentinel); the offline-hive walk
+`reghive::mountpoints2_placements` (NTUSER.DAT through the regf parser — the
+cross-platform surface); the live-HKCU walk `win::mountpoints2_volume_history`
+(KEY_READ, the engine-side RegOpenKeyA shape; the DRWUI mirror's 0xf003f
+over-privilege not adopted; the A-variant registry stubs added to the
+parse-gate's win-stub); the discovery seam — `discover(register_starts)` probes
+each remembered placement with the same format chain as the sweep
+(FUN_14058a070's parser-chain semantics) and merges accepted placements
+upstream of the pass-2 dedup (the real-log collapse: mbr=1 + filesystem=1 +
+register=3 → one partition scanned once); the provenance model
+(Provenance::Register on the Candidate, persisted as the session
+PartitionContext's flags bit 2 — no wire bump); the wiring
+(ScanConfig.register_history_lbas, the CLI's --whole-disk arm, the
+orchestrator's discover call). The finding's fix-time probe is resolved by the
+decode: the "Data" blob carries the START only — the total is derived
+downstream from the filesystem the probe reads at the remembered start (the
+DRWUI mirror's 0xc2/0xc6 selector picks the volume-LABEL offset, never a size).
+**B1 verdict: MATCH** (the three-source assembly is complete: the table channel
+= the +500 table_match feed, the filesystem channel = the sweep, the register
+channel = this landing). Suite 1541/1541.

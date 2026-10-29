@@ -28,6 +28,34 @@ board re-truth corrected the `1ec36d6c` rebase message's own "10 N" off-by-one
 (disk truth was 11 MINOR files; the S70 block carried the same 10). Next free
 IDs: S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
 
+# SUMMARY.md — executive summary (the S77 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-77 S77 fix-lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes, one finding / one verified fix / one push, fixed findings in findings/FIXED/]; opened at core `254220ad` (the racing lanes' M-143 + M-136 re-landing absorbed at the open; the S76 seat conceded to the racing MINOR-first lane per SA-9 — their forward-order MINOR ladder is disjoint from this lane's MAJOR queue), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; baseline suite 1522/1522 green re-run on the moved tree before the first change)
+
+- **M-118 FIXED (MAJOR, lost-partition/orchestration)** — the register channel,
+  the og's third candidate source, is landed end-to-end. All four corpus sites
+  re-read first-hand before the change (PartitionRecoveryD FUN_18000f840
+  :8930-8965 + FUN_18000f5b0 :8841-8929; DRWUI FUN_140588820 :921820-921890 +
+  FUN_1405895d0/FUN_140589e80/FUN_14058a070 :922335+/:922785+; DRWUI.log
+  :637-643). The pure blob decoder (the og's exact gates), the offline-hive
+  walk (NTUSER.DAT via the regf parser — cross-platform), the live-HKCU walk
+  (win layer, KEY_READ), the discovery seam (register_starts probed with the
+  sweep's own format chain, merged upstream of the dedup — the real-log
+  three-source collapse), the provenance model (session flags bit 2, no wire
+  bump), and the host wiring (ScanConfig + the CLI --whole-disk arm). The
+  finding's field-split open question is RESOLVED by the decode: the blob
+  carries the START only. RED (compile-level: the capability was absent,
+  BUILD_RC=2 at the stash-revert) → GREEN: **19 tests** in
+  test_mountpoints2.cpp; full suite **1541/1541**.
+
+**Board after this landing: 0 ACUTE · 0 SEVERE · 12 MAJOR · 11 MINOR · 0 INFO
+active / 161 FIXED / 4 tracked-open.** (M-086/M-087/M-089/N-107/N-127 remain
+driver-repo-resident per OQ-S10-3's two-repo grant boundary; the racing S76
+lane owns the MINOR ladder — this lane's queue continues: M-113 → M-105 →
+M-111 → M-114 → M-107 → M-135 → the driver/launcher/UI tail.) Next free IDs:
+S-068+, M-149+, N-213+, I-048+, A-016+, D-149+.
+
+# SUMMARY.md — executive summary (the S70 MINOR-first fix lane on top; the prior lanes below, newest-first)
 ## Session-70 S70 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `449fc594` (rebased over `2fb0cb95` — the S72/S73/S75 racing windows' M-136 + M-144 absorbed) (the S70/S71/S72 racing audit/repair windows absorbed at the reset; the trail-repair seat conceded to N-210's equivalent landing per SA-9; baseline suite 1422 tests / 1380 pass / 42 Win-skips / 0 fail re-run green on the moved tree before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
 
 - **N-201 FIXED (MINOR)** — the quick-open media-word re-flavor landed with

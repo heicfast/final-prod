@@ -2138,7 +2138,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
          * lost-partition search module */
         errmod::Guard lost_guard(errmod::kLost);
         publish_owner_module_(errmod::kLost);
-        u32 lrc = lost::discover(slice, known, 1, cancel, deep_cb, &dbridge, dr);
+        u32 lrc = lost::discover(slice, known, 1, cancel, deep_cb, &dbridge, dr,
+                                 cfg_.register_history_lbas);
         if (lrc == OK) {
             /* S-051: the no-double-scan reconciliation. The primary pass
              * scans the table's own volumes as partition-list targets
@@ -2680,6 +2681,12 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
             pc.flags |= 0x1;
         if (c.have_geometry)
             pc.flags |= 0x2;
+        /* M-118: the discovery channel (register placements) rides the
+         * v2 flags word's free bit 2 - no wire-layout bump (the v2/v3/v4
+         * tails are unaffected; old sessions deserialize with the bit
+         * clear = Scan, the pre-M-118 universe) */
+        if (c.provenance == u8(lost::Provenance::Register))
+            pc.flags |= 0x4;
         /* v3 tail (M-137): the found-partition row context + the label */
         pc.disk_layout = c.disk_layout;
         pc.disk_flags = 0;
@@ -2903,6 +2910,11 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 c.hidden_sectors = pc.hidden_sectors;
                 c.size_from_device_end = (pc.flags & 0x1) != 0;
                 c.have_geometry = (pc.flags & 0x2) != 0;
+                /* M-118: the discovery channel restores from flags bit 2
+                 * (v1/v2 sessions and pre-M-118 sessions deserialize with
+                 * the bit clear - Scan, the append-only rule) */
+                c.provenance =
+                    (pc.flags & 0x4) != 0 ? u8(lost::Provenance::Register) : u8(lost::Provenance::Scan);
                 /* M-137 v3: the presentation context + the boot label
                  * (v1/v2 sessions deserialize with zeros - the
                  * append-only wire; the listing degrades honestly). */

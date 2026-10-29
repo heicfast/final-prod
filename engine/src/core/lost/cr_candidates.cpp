@@ -818,9 +818,8 @@ u64 fs_bonus(const Candidate& c) {
          * mirror-validated leg counts strong — the og's FUN_180011560
          * return does not distinguish primary from mirror acceptance. */
         for (const auto& e : c.evidence)
-            if (c.evidence.size() >= 3 &&
-                (std::string_view(e.tag) == "mft-probe" ||
-                 std::string_view(e.tag) == "mft-mirror-probe"))
+            if (c.evidence.size() >= 3 && (std::string_view(e.tag) == "mft-probe" ||
+                                           std::string_view(e.tag) == "mft-mirror-probe"))
                 return 60;
         return 30;
     case CandidateFs::Fat:
@@ -864,9 +863,63 @@ private:
 
 } // namespace
 
+/* M-118: the og's per-subkey "Data" blob decode (FUN_18000f5b0,
+ * PartitionRecoveryD_decompiled.c:8841-8929, re-verified first-hand this
+ * session against the corpus decompile AND the DRWUI-side mirror
+ * FUN_1405895d0 :922335+). The blob is the Explorer shell's volume
+ * mount-point cache; the og reads exactly one placement field from it:
+ * the 0x20-char ASCII-hex byte offset at data+0xc6, delimited by '#'
+ * markers at data[0xc4] and data[0xe6]. Gates, in the og's order:
+ * REG_BINARY (type checked by the callers), size > 0xe7, the two '#'
+ * delimiters, the %I64X parse (case-insensitive hex, stops at the first
+ * non-hex char), byte_start % bps == 0, then the /bps conversion. */
+bool decode_mountpoints2_placement(const u8* data, size_t size, u32 bytes_per_sector,
+                                   u64& start_lba_out) {
+    start_lba_out = 0;
+    if (data == nullptr || size <= 0xe7)
+        return false; /* the og's 0xe7 < size gate (231) */
+    if (data[0xc4] != '#' || data[0xe6] != '#')
+        return false; /* the field delimiters */
+    if (bytes_per_sector == 0)
+        return false; /* the og divides by the device's bps unchecked;
+                       * the core refuses instead of trapping */
+    /* the 0x20-char hex field at +0xc6, %I64X semantics: case-
+     * insensitive, leading whitespace/hex digits consumed, stops at the
+     * first non-hex character; overflow saturates like the og's
+     * 64-bit accumulate (sscanf %I64X wraps at 2^64 in MSVC) */
+    u64 val = 0;
+    size_t consumed = 0;
+    for (size_t i = 0; i < 0x20 && i + 0xc6 < size; ++i) {
+        const char ch = char(data[0xc6 + i]);
+        int nibble = -1;
+        if (ch >= '0' && ch <= '9')
+            nibble = ch - '0';
+        else if (ch >= 'a' && ch <= 'f')
+            nibble = ch - 'a' + 10;
+        else if (ch >= 'A' && ch <= 'F')
+            nibble = ch - 'A' + 10;
+        if (nibble < 0)
+            break; /* %X stops at the first non-hex char */
+        val = (val << 4) | u64(nibble);
+        ++consumed;
+    }
+    if (consumed == 0)
+        return false; /* %I64X matched nothing -> the og's local stays 0
+                       * and the bps gate below rejects it for any
+                       * non-zero-aligned... a 0 parse also fails the
+                       * caller's nonzero-return check; same outcome */
+    if (val % bytes_per_sector != 0)
+        return false; /* the og's alignment gate */
+    start_lba_out = val / bytes_per_sector;
+    return start_lba_out != 0; /* FUN_18000f840's caller checks the
+                                * return != 0: sector 0 (the MBR area) is
+                                * the og's failure sentinel, never a
+                                * proposal */
+}
+
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
              u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
-             void* progress_user, DiscoveryResult& out) {
+             void* progress_user, DiscoveryResult& out, const std::vector<u64>& register_starts) {
     /* M-137 (diff-to-fix): the og's geometry fallback (DRWUI:904185-187:
      * `if (sector_size == 0) sector_size = 0x200;` - a failed device
      * sector-size query proceeds at 512 rather than refusing). The old
@@ -1017,6 +1070,134 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             }
             c.structural_points = pts; /* M-017: the primary score is the
                                         * content model; points tie-break */
+            found.push_back(c);
+        }
+    }
+
+    /* pass 1r (M-118): the register channel - the og's third candidate
+     * source. Each remembered placement (Explorer MountPoints2\\CPC\\Volume
+     * history, host-fed as sector LBAs) is probed with the SAME format
+     * chain as the sweep: the og's DRWUI-side FUN_140589e80 reads 0x800
+     * sectors at the remembered start and runs its registered parser
+     * chain over the buffer (FUN_14058a070 - any parser accepting the
+     * content admits the placement); the core's probe dispatch is that
+     * same chain. Placements whose probe accepts merge into `found`
+     * upstream of the pass-2 dedup - the og's real-run shape (mbr=1 +
+     * filesystem=1 + register=3 -> ONE partition scanned once, the
+     * three-source overlap collapsing in the container insertion
+     * FUN_1800108f0 exactly like our dedup). A placement the sweep
+     * already found at the same start is the same-fs/same-start dup and
+     * drops here; a placement the sweep MISSED (stride-skipped anchor,
+     * destroyed table entry with intact boot sector) survives as the
+     * register-provenance candidate - the channel's unique value. */
+    if (!register_starts.empty()) {
+        /* dedupe the history itself first: the real log shows THREE
+         * register records for ONE placement (multiple mount records per
+         * volume GUID) - the og's container dedup collapses them; the
+         * core collapses before probing (one probe per placement) */
+        std::vector<u64> unique_starts;
+        unique_starts.reserve(register_starts.size());
+        for (u64 lba : register_starts) {
+            if (std::find(unique_starts.begin(), unique_starts.end(), lba) == unique_starts.end())
+                unique_starts.push_back(lba);
+        }
+        for (u64 lba : unique_starts) {
+            if (cancel && cancel->checkpoint())
+                return ERR_CANCELLED;
+            const u64 dev_sectors = effective->geometry().sector_count
+                                        ? effective->geometry().sector_count
+                                        : effective->size() / ls;
+            if (lba == 0 || lba + 1 > dev_sectors)
+                continue; /* the og's bounds: FUN_140589e80 drops a
+                           * placement outside the current disk's extent
+                           * (its start+len vs placement LBA compare);
+                           * sector 0 is the MBR area, never a proposal */
+            /* the probe chain, sweep-shaped: 55AA families first, then
+             * the superblock families */
+            u8 sec[512];
+            if (effective->read_at(lba * ls, sec, 512) != OK)
+                continue; /* unreadable start: the og's 0x800-sector read
+                           * failing skips the record the same way */
+            Candidate c;
+            c.start_lba = lba;
+            c.provenance = u8(Provenance::Register);
+            int pts = -1;
+            if (sec[510] == 0x55 && sec[511] == 0xAA) {
+                char oem[9] = {0};
+                std::memcpy(oem, sec + 3, 8);
+                if (std::strncmp(oem, "NTFS    ", 8) == 0) {
+                    c.fs = CandidateFs::Ntfs;
+                    pts = probe_ntfs(effective, lba, c);
+                } else if (std::strncmp(oem, "EXFAT   ", 8) == 0) {
+                    c.fs = CandidateFs::Exfat;
+                    pts = probe_exfat(effective, lba, c);
+                } else if (std::memcmp(sec, "EFI PART", 8) == 0) {
+                    c.fs = CandidateFs::GptTable;
+                    pts = probe_gpt_header(effective, lba, c);
+                } else if (std::memcmp(oem, "ReFS", 4) == 0) {
+                    c.fs = CandidateFs::Refs;
+                    pts = probe_refs(effective, lba, c);
+                } else if (std::memcmp(oem, "-FVE-FS-", 8) == 0) {
+                    c.fs = CandidateFs::BitLocker;
+                    pts = probe_bitlocker(effective, lba, c);
+                } else {
+                    c.fs = CandidateFs::Fat;
+                    pts = probe_fat(effective, lba, c);
+                }
+            }
+            if (pts < 0) {
+                /* the in-window superblock anchors: one shared window
+                 * fetch at the placement (the probes only read in-window
+                 * via scan.at() and fall back to direct reads - a fresh
+                 * scanner never disturbs the sweep's own window); a
+                 * failed fetch falls through to the out-of-window
+                 * families below */
+                WindowScanner rscan(effective);
+                const bool win_ok = rscan.fetch(lba * ls);
+                if (win_ok) {
+                    c.fs = CandidateFs::Ext2;
+                    pts = probe_ext(effective, lba, rscan, c);
+                }
+                if (pts < 0 && win_ok) {
+                    c.fs = CandidateFs::HfsPlus;
+                    pts = probe_hfsplus(effective, lba, rscan, c);
+                }
+            }
+            if (pts < 0) {
+                c.fs = CandidateFs::Btrfs;
+                pts = probe_btrfs(effective, lba, c);
+            }
+            if (pts < 0) {
+                c.fs = CandidateFs::Zfs;
+                pts = probe_zfs(effective, lba, c);
+            }
+            if (pts < 0)
+                continue; /* no parser admits the placement's content:
+                           * FUN_14058a070's all-parsers-reject drop */
+            /* the same normalization the sweep applies: tail-bound the
+             * size, anchor the data area */
+            if (c.sector_count == 0) {
+                const u64 dev_tail = effective->geometry().sector_count
+                                         ? effective->geometry().sector_count
+                                         : effective->size() / ls;
+                c.sector_count = dev_tail > c.start_lba ? u32(dev_tail - c.start_lba) : 1;
+                c.size_from_device_end = true;
+            }
+            const u64 dev_tail = effective->geometry().sector_count
+                                     ? effective->geometry().sector_count
+                                     : effective->size() / ls;
+            if (c.start_lba + c.sector_count > dev_tail)
+                c.sector_count = u32(dev_tail > c.start_lba ? dev_tail - c.start_lba : 0);
+            if (c.data_sector_count == 0) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            if (c.data_start_lba + c.data_sector_count > c.start_lba + c.sector_count) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            c.structural_points = pts;
+            c.evidence.push_back({"register-placement", 10});
             found.push_back(c);
         }
     }

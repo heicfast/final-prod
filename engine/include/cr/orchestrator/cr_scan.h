@@ -203,6 +203,17 @@ struct ScanConfig {
     StageWeights weights;
     u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
 
+    /* M-118 (diff-to-fix): the register channel's remembered volume
+     * placements (Explorer MountPoints2\\CPC\\Volume history, sector
+     * LBAs). Host-fed: the Windows CLI fills it from the live HKCU walk
+     * (win::mountpoints2_volume_history) when --whole-disk targets a
+     * disk; other hosts/tests feed the offline-hive walk
+     * (reghive::mountpoints2_placements on a saved NTUSER.DAT) or leave
+     * it empty. The orchestrator passes the set into lost::discover's
+     * third-source merge - the og's three-wave assembly
+     * (DRWUI FUN_140588820, real-run DRWUI.log:637-643). */
+    std::vector<u64> register_history_lbas;
+
     /* ---- pre-scan repair (S-008; corpus RawFixer pre-scan position:
      * repair, then scan) ----
      * OFF by default (CLI default; the reference UI flow enables it with

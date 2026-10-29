@@ -446,6 +446,23 @@ inline LONG RegCloseKey(HKEY) {
 inline LONG RegGetValueW(HKEY, const wchar_t*, const wchar_t*, DWORD, DWORD*, void*, DWORD*) {
     return 0;
 }
+/* M-118: the og's narrow registry surface (PartitionRecoveryD's
+ * RegOpenKeyA/RegEnumKeyA/RegQueryValueExA walk). The parse-gate stub
+ * fails the open (ERROR_FILE_NOT_FOUND semantics): the Linux build's
+ * mountpoints2 walk yields zero placements - the absent-key path, the
+ * same degradation the og's failed RegOpenKeyA produces. */
+inline LONG RegOpenKeyA(HKEY, const char*, HKEY*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
+inline LONG RegOpenKeyExA(HKEY, const char*, DWORD, DWORD, HKEY*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
+inline LONG RegEnumKeyA(HKEY, DWORD, char*, DWORD) {
+    return 259; /* ERROR_NO_MORE_ITEMS */
+}
+inline LONG RegQueryValueExA(HKEY, const char*, DWORD*, DWORD*, unsigned char*, DWORD*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
 
 /* ---- ntstatus mapping -------------------------------------------------- */
 inline ULONG RtlNtStatusToDosError(long) {

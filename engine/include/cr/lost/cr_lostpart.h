@@ -16,6 +16,7 @@
 #include "../storage/cr_device.h"
 #include "../storage/cr_slice.h"
 #include "../table/cr_table_parse.h"
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -51,6 +52,23 @@ enum class CandidateFs : u8 {
 struct Evidence {
     const char* tag; /* "boot-sig", "bpb-valid", "mft-probe", ... */
     int points;
+};
+
+/* M-118 (diff-to-fix): the candidate's discovery channel - which of the
+ * og's three assembly sources proposed it (DRWUI FUN_140588820
+ * :921820-921890, the real-run DRWUI.log:637-643 shape). Scan = the
+ * filesystem-probe sweep (the og's "from filesystem" wave; the table
+ * channel is the live-table feed, expressed as table_match + the +500
+ * count, not a separate provenance). Register = the Explorer
+ * MountPoints2\\CPC\\Volume history walk (the og's "from register"
+ * wave, engine-side PartitionRecoveryD :8930-8965 + per-subkey
+ * FUN_18000f5b0). The og's dedup (FUN_1800108f0 insertion, our pass-2)
+ * collapses the three-source overlap into one candidate - the first
+ * proposer's provenance wins, exactly like the og's first-insert-wins
+ * container. */
+enum class Provenance : u8 {
+    Scan = 0,    /* the signature sweep found the start itself */
+    Register = 1 /* the Explorer volume-mount history remembered it */
 };
 
 struct Candidate {
@@ -118,6 +136,10 @@ struct Candidate {
                                   * 2 EBR, 3 GPT, 4 GPT-damaged */
     u8 disk_dynamic = 0;         /* 1 = LDM database detected on target */
     u8 disk_table_ok = 0;        /* 1 = the target's table parsed */
+    /* M-118: the discovery channel (Provenance). Persists as flags bit 2
+     * of the session's PartitionContext (no wire-layout bump - the v2
+     * flags word had bits 0/1 used, bit 2 was free). */
+    u8 provenance = u8(Provenance::Scan);
 };
 
 /* The full result set of one discovery pass. */
@@ -133,10 +155,32 @@ struct DiscoveryResult {
  *   for overlap scoring only; candidates inside a live region are still
  *   reported (damaged inner volumes) but marked.
  *   stride_sectors: probe granularity (default 1).
+ *   register_starts: the og's third candidate source (M-118) - remembered
+ *   volume placements from the Explorer MountPoints2\\CPC\\Volume history
+ *   (sector LBAs, byte_start / bytes_per_sector per the og's decode). Each
+ *   placement is probed with the same format chain as the sweep (the og's
+ *   DRWUI-side FUN_14058a070 parser-chain gate) and accepted placements
+ *   merge into the same candidate container upstream of the dedup - the
+ *   og's real-log shape (mbr=1 + filesystem=1 + register=3 -> one
+ *   partition scanned once). Empty on hosts without a live HKCU (the
+ *   offline-hive walk in reghive/cr_mountpoints2.h covers the rest).
  */
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
              u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
-             void* progress_user, DiscoveryResult& out);
+             void* progress_user, DiscoveryResult& out,
+             const std::vector<u64>& register_starts = {});
+
+/* M-118: the Explorer shell-cache "Data" blob decode (the og's
+ * FUN_18000f5b0, PartitionRecoveryD_decompiled.c:8841-8929, verified
+ * first-hand): REG_BINARY, size > 0xe7 (231) bytes, the field delimiters
+ * data[0xc4] == '#' && data[0xe6] == '#', then the 0x20-char ASCII-hex
+ * start field at data+0xc6 parsed as a 64-bit hex byte offset (the og's
+ * "%I64X" sscanf), gated on byte_start % bytes_per_sector == 0 and
+ * converted to the sector LBA (byte_start / bps). Case-insensitive hex
+ * per the C locale's %X. Returns false on any gate failure. Pure - the
+ * win-layer live walk and the offline-hive walk both feed it. */
+bool decode_mountpoints2_placement(const u8* data, size_t size, u32 bytes_per_sector,
+                                   u64& start_lba_out);
 
 /* Overlap classification vs the live table. */
 enum class Overlap : u8 { None = 0, Inside, Overlaps, Contains };

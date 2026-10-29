@@ -10697,3 +10697,74 @@ suite 1530/1530; the rebase-direction mistake (a --theirs that took the
 wrong side) was caught BEFORE the push and reset — main never carried the
 clobber. Trail: the finding's Resolution addendum + D-149's rider block +
 this entry.
+
+### M-118 FIXED (MAJOR, lost-partition/orchestration) — the register channel lands
+
+**The verification (all corpus sites re-read first-hand before any change):**
+PartitionRecoveryD FUN_18000f840 (:8930-8965 — the engine-side walk:
+RegOpenKeyA HKCU MountPoints2\CPC\Volume, the 1000-subkey cap) +
+FUN_18000f5b0 (:8841-8929 — the per-subkey "Data" decode: REG_BINARY,
+size > 0xe7, the data[0xc4]/data[0xe6] '#' delimiters, the 0x20-char hex
+byte offset at +0xc6, bps alignment, /bps) + DRWUI FUN_140588820
+(:921820-921890 — the three-wave assembly mbr→filesystem→register) +
+FUN_140589e80/FUN_14058a070 (:922785+ — the 0x800-sector probe read at
+each remembered start through the registered parser chain, the
+all-parsers-reject drop) + DRWUI.log:637-643 (the real-run shape: three
+register records for one placement, all sources collapsing to one
+partition).
+
+**The fix-time probe RESOLVED (the finding's open question):** the
+"Data"-blob field split — the blob carries the START only. The DRWUI
+mirror's 0xc2/0xc6 iVar5 selector picks the volume-LABEL string offset
+(0x2fc/0x300), never a size; the total in the og's log line derives
+downstream from the filesystem the probe reads at the remembered start.
+The core adopts the verified shape: placements carry starts; the probe
+chain fills fs/size/evidence.
+
+**The fix:** (1) `lost::decode_mountpoints2_placement` — the pure blob
+decoder, the og's exact gates, both callers feed it; (2)
+`reghive::mountpoints2_placements` — the offline-hive walk (NTUSER.DAT
+via the regf parser — cross-platform, the test surface); (3)
+`win::mountpoints2_volume_history` — the live-HKCU walk (KEY_READ; the
+DRWUI mirror's 0xf003f over-privilege deliberately not adopted; the
+A-variant registry stubs RegOpenKeyA/RegOpenKeyExA/RegEnumKeyA/
+RegQueryValueExA added to the parse gate's win-stub with failure returns
+— the absent-key degradation, same as the og's failed RegOpenKeyA); (4)
+the discovery seam: `discover(register_starts)` probes each remembered
+placement with the same format chain as the sweep (FUN_14058a070's
+parser-chain semantics), merges accepted placements upstream of the
+pass-2 dedup (the real-log collapse: mbr=1 + filesystem=1 + register=3 →
+ONE partition scanned once), provenance-tags them; (5) the provenance
+model: `Provenance::Register` on the Candidate, persisted as the session
+PartitionContext's flags bit 2 (no wire-layout bump — v2/v3/v4 tails
+unaffected, old sessions deserialize as Scan); (6) the wiring:
+`ScanConfig.register_history_lbas` (host-fed), the CLI's --whole-disk
+arm calls the live walk, the orchestrator passes the set into discover.
+Bounds preserved: the out-of-disk-extent drop (FUN_140589e80's gate),
+the sector-0 sentinel (the caller's return != 0 check), the per-subkey
+skip on gate failure. The M-042 re-validation applies to
+register-provenance records unchanged.
+
+**Tests (19, RED→GREEN):** the decode-gate battery
+(MountPoints2Decode.*: clean placement, lowercase hex, the 0xe7/0xe8
+size boundary, both '#' delimiters, misalignment, non-hex, torn-prefix
+%X semantics, the sector-0 sentinel) + the hive-walk battery
+(MountPoints2Walk.*: the synthetic NTUSER.DAT with clean/gate-failing/
+non-binary subkeys, the absent-key zero-placement path, the zero-bps
+refusal, the case-insensitive path) + the channel battery
+(RegisterChannel.*: the stride-missed partition surfaced
+register-provenance [the unique-value pin], the three-source dedup
+collapse, the sweep-first provenance win, the unprobeable drop, the
+out-of-bounds drop, the M-042 revalidation on register records, the
+empty-history pre-fix shape). RED pre-fix: the battery does not compile
+against the pre-fix core (BUILD_RC=2 — the capability did not exist);
+the behavioral RED pin: the stride-8 sweep alone never surfaces the
+2049 partition (verified in-test). Full suite **1541/1541**;
+win_syntax_check green; clang-format clean (the cr_candidates.cpp
+821-822 reflow is the racing N-200 landing's pre-existing dirt,
+repaired in passing — the same class trail-repaired as N-210).
+
+**Trail:** finding moved to findings/FIXED/ with the Resolution;
+FIXED-LEDGER row; CROSS-REF-MATRIX S77 lane row (B1/A25/A30/O37/P5 →
+MATCH); modules/lost-partition.md S77 addendum; SUMMARY board (12 MAJOR
+active / 161 FIXED); this entry.

@@ -31,6 +31,7 @@ add_executable(cr_tests
     unit/test_refs_ldm.cpp
     unit/test_ldm.cpp
     unit/test_lostpart.cpp
+    unit/test_mountpoints2.cpp
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_dict.cpp

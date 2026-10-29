@@ -1,6 +1,7 @@
 # src/win - Windows-only platform layer (MSVC).
 add_library(cr_win STATIC
     cr_transport.cpp
+    cr_mountpoints.cpp
     cr_image_win.cpp
     cr_image_create.cpp
     cr_enumerate.cpp
