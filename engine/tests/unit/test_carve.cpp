@@ -2931,6 +2931,86 @@ TEST(Carve, DwgVersionGateIsTheOgsNine) {
     }
 }
 
+size_t plant_psp(std::vector<u8>& img, size_t at);
+
+TEST(Carve, PspBkBlockChainWalkSetsExtent) {
+    /* the og's walk (FUN_180016510 :17410-17482): the ~BK chain from
+     * 0x24, each block {magic "~BK\0", length u32 @ +6}, advance
+     * 10+length; the extent = the walked end (0x24 + 0x10A + 0x8A) -
+     * NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_psp(img, at);
+    EXPECT_EQ(expect, size_t(0x1B8));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* psp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            psp = c;
+    ASSERT_NE(psp, nullptr) << "the PSP must carve through the ~BK walk";
+    EXPECT_EQ(psp->props()->logical_size, size_t(0x1B8))
+        << "extent = 0x24 + (10+0x100) + (10+0x80) - the block-chain end";
+}
+
+TEST(Carve, PspExactSignatureRequired) {
+    /* the og's tier-1 is the FULL 32-byte compare incl. the 0x0a 0x1a
+     * tail (FUN_180016390) - the old core accepted a 16-byte prefix;
+     * a file with the 26-byte old-core shape (no 0x0a/0x1a) REFUSES. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "Paint Shop Pro Image File", 25);
+    img[at + 25] = 0;
+    img[at + 26] = 0; /* the OLD plant's shape: NUL NUL, not 0x0a 0x1a */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "the 26-byte short signature must refuse (the og compares 32)";
+}
+
+TEST(Carve, PspTornChainSalvagesTheWalkedEnd) {
+    /* the chain runs past the device end: the walked end salvages (the
+     * og's chunk-feed exhaustion keeps +0x110's walked position). */
+    std::vector<u8> img(1024, 0);
+    const size_t at = 512;
+    static const char kSig[] = "Paint Shop Pro Image File";
+    std::memcpy(img.data() + at, kSig, 25);
+    img[at + 25] = 0x0a;
+    img[at + 26] = 0x1a;
+    /* one block: len 0x200 -> the next header at 0x24+0x20A = 0x22E =
+     * 558 past the device end (1024): the salvage is the walked end */
+    put32v(img, at + 0x24, 0x004b427eu);
+    put32v(img, at + 0x24 + 6, 0x200);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* psp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            psp = c;
+    ASSERT_NE(psp, nullptr) << "the torn chain still carves the walked end";
+    EXPECT_EQ(psp->props()->logical_size, size_t(1024 - 512))
+        << "the walked end clamps to the device end - never a refusal";
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */
@@ -2976,12 +3056,31 @@ size_t plant_wpd(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
+/* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature
+ * (FUN_180016390 :17347-17368: "Paint Shop Pro Image File" + 0x0a + 0x1a
+ * + 5 NULs, memcmp 0x20) - the old 26-byte plant lacked the 0x0a 0x1a.
+ * The walk: the ~BK block chain from 0x24 (FUN_180016510 :17410-17482):
+ * each block {u32 magic 0x004b427e, u32 length @ +6}, advance 10+length;
+ * the extent = the walked end. */
 size_t plant_psp(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "Paint Shop Pro I", 16);
-    std::memcpy(img.data() + at + 16, "mage File\x00", 10);
-    for (size_t i = 26; i < 64; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 64;
+    static const char kSig[] = "Paint Shop Pro Image File\x0a\x1a";
+    std::memcpy(img.data() + at, kSig, 25);
+    img[at + 25] = 0x0a;
+    img[at + 26] = 0x1a;
+    for (int i = 27; i < 32; ++i)
+        img[at + size_t(i)] = 0;
+    /* two ~BK blocks from 0x24: len 0x100 and 0x80 -> the walked end
+     * 0x24 + (10+0x100) + (10+0x80) = 0x1B8 */
+    size_t p = at + 0x24;
+    put32v(img, p, 0x004b427eu); /* "~BK\0" */
+    put32v(img, p + 6, 0x100);
+    p += 10 + 0x100;
+    put32v(img, p, 0x004b427eu);
+    put32v(img, p + 6, 0x80);
+    p += 10 + 0x80;
+    for (size_t i = p - at; i < 0x1B8 + 64; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* non-~BK tail content */
+    return 0x1B8;
 }
 
 size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {

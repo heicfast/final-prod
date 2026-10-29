@@ -13006,3 +13006,28 @@ the two new pins), doc_truth_gate green at the repaired census
 The UBSan local lane exceeds the 10-minute tool ceiling in this
 container — recorded honestly; the release-lane pass + the CI matrix
 are the session's build evidence.
+
+---
+
+---
+
+## Session-85 S85 fix-lane — entry 2: M-107 member 4, the PSP walk lands (2026-10-30)
+
+**The decode (first-hand):** the PSP chain — the tier-1 FUN_180016390
+(:17347-17368) is the EXACT 32-byte signature compare ("Paint Shop Pro
+Image File" + 0x0a + 0x1a + 5 NULs); the child ctor FUN_180016430 (min
+0x24, max 20000000, the walked position starts at 0x24); the walk
+FUN_180016510 (:17410-17482): the ~BK block chain — each block {u32
+magic 0x004b427e, u32 length @ +6}, advance 10 + length, the extent =
+the walked END (the first non-~BK block / the 20 MB bound / the device
+end all stop there; the torn straddle salvages the walked end).
+
+**A discovered defect fixed with the landing:** the core's old tier-1
+was a 16-byte prefix — it accepted files the og refuses.
+
+**RED→GREEN via the stash dance:** PspBkBlockChainWalkSetsExtent +
+PspExactSignatureRequired RED at the stand-in validator, GREEN with the
+walk. The S-007 batch-1 PSP plant re-pinned (the og's exact signature +
+a real two-block chain). The carve suite 183/183. Trail: M-107's S85
+addendum 2, the matrix row, modules/carve.md's S85 addendum 2, this
+entry.

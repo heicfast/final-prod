@@ -5469,20 +5469,50 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* PSP: "Pain" key 0x6e696150 (:5802) -> PSPAnalyser chain idx 55. The
- * files carry "Paint Shop Pro Image File" as the header string - the
- * 19-byte prefix is the real discriminator; bounded extent stands in. */
+/* M-107 member 4 (PSP): the og's tier-1 + the ~BK block-chain walk,
+ * decoded first-hand this session (RAWSearchDLL FUN_180016390
+ * :17347-17368 + the child FUN_180016510 :17410-17482, the ctor
+ * FUN_180016430 :17366-17384: min 0x24, max 20000000, the walked
+ * position starts at 0x24). The tier-1 is the EXACT 32-byte signature
+ * (memcmp 0x20): "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs.
+ * The walk: from 0x24, each block is {u32 magic 0x004b427e ("~BK\\0"),
+ * u32 length @ +6}; the position advances 10 + length; the extent is
+ * the walked END - the first non-~BK block, the 20 MB row bound, or
+ * the device end all stop the walk there (never a refusal once the
+ * signature held). */
 CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[19];
+    u8 h[32];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "Paint Shop Pro I", 16) != 0)
+    /* the og's exact 32-byte compare (FUN_180016390's seven locals) */
+    static const u8 kSig[32] = {'P', 'a', 'i', 'n', 't', ' ', 'S', 'h', 'o', 'p', ' ', 'P',
+                                'r', 'o', ' ', 'I', 'm', 'a', 'g', 'e', ' ', 'F', 'i', 'l',
+                                'e', 0x0a, 0x1a, 0, 0, 0, 0, 0};
+    if (std::memcmp(h, kSig, sizeof(kSig)) != 0)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 rel_limit = limit - hit;
+    /* the ~BK chain from 0x24 (the ctor's walked-position start) */
+    u64 pos = 0x24;
+    bool torn = false;
+    std::vector<u8> blk(10);
+    while (pos + 10 <= rel_limit) {
+        if (!rd(s, hit + pos, blk.data(), 10)) {
+            torn = true; /* the straddling header: the walked end salvages */
+            break;
+        }
+        if (u32_from_bytes_le(blk.data()) != 0x004b427eu) /* "~BK\\0" */
+            break; /* the non-~BK terminator: the extent is the walked end */
+        const u32 len = u32_from_bytes_le(blk.data() + 6);
+        pos += 10 + u64(len);
+    }
+    if (pos > rel_limit)
+        pos = rel_limit; /* the 20 MB row bound / the device end clamp */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 650;
-    r.note = "psp-header-string+bounded-extent";
+    r.end = hit + pos;
+    r.confidence = torn ? 550 : 650;
+    r.note = torn ? "psp-bk-chain-walk,torn-salvage" : "psp-bk-chain-walk";
     return r;
 }
 

@@ -328,3 +328,31 @@ real locator map; the header-only plant exercised the stand-in era's
 blind acceptance — the walk declines noise by design). The 180-test carve
 suite green; the full suite 1666/1666. Remaining members: WPG, WPD, PSP,
 SIT, APE, EPS, DXF, SWF-RECT (eight) + the gen-3 R2007 remainder.
+
+---
+
+## Session-85 addendum 2 — the PSP member LANDED (member 4 of 11: the ~BK block chain)
+
+**PSP FIXED (this session; seven members remain).** The chain decoded
+first-hand (RAWSearchDLL FUN_180016390 :17347-17368 = the tier-1, the
+ctor FUN_180016430 :17366-17384 = the PSPRawFileInfo child {min 0x24,
+max 20000000, the walked position starts 0x24}, FUN_180016510
+:17410-17482 = the walk):
+
+- **The tier-1 is the EXACT 32-byte signature** (memcmp 0x20):
+  "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the core's old
+  16-byte prefix accepted files the og refuses (a discovered defect,
+  pinned by PspExactSignatureRequired).
+- **The walk**: from 0x24, each block is {u32 magic 0x004b427e
+  ("~BK\0"), u32 length @ +6}; the position advances 10 + length; the
+  extent = the walked END — the first non-~BK block, the 20 MB row
+  bound, or the device end all stop the walk there (never a refusal
+  once the signature held; the torn straddle salvages the walked end).
+
+RED→GREEN via the stash dance: PspBkBlockChainWalkSetsExtent +
+PspExactSignatureRequired both RED at the stand-in validator (the blind
+extent; the short-signature acceptance), GREEN with the walk. The
+S-007 batch-1 PSP plant re-pinned (the og's exact 32-byte signature +
+a real two-block chain; the old 26-byte plant lacked the 0x0a/0x1a).
+The carve suite 183/183. Remaining members: WPG, WPD, SIT, APE, EPS,
+DXF, SWF-RECT (seven) + the DWG gen-3 remainder.

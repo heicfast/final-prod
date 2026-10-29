@@ -1277,3 +1277,17 @@ check (dropped — the og's tier-1 is the version table only). Evidence:
 `../evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
 Tests: the six Dwg* pins (all RED at the stand-in tree). The carve suite
 180/180.
+
+---
+
+## Session-85 addendum 2 — M-107 member 4: the PSP ~BK block-chain walk landed
+
+The PSP row moves to **MATCH**: the tier-1 is the og's EXACT 32-byte
+signature ("Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the old
+16-byte prefix was a discovered acceptance defect), and the extent is the
+~BK block-chain walk from 0x24 (blocks {u32 "~BK\0", u32 length @+6},
+advance 10+length; the extent = the walked end at the first non-~BK
+block / the 20 MB bound / the device end; the torn straddle salvages).
+Tests: PspBkBlockChainWalkSetsExtent / PspExactSignatureRequired /
+PspTornChainSalvagesTheWalkedEnd (the first two RED at the stand-in via
+the stash dance). The carve suite 183/183.
