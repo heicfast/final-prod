@@ -5507,12 +5507,32 @@ CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68. The
- * document stream walk is undecoded; the 4-byte key + a nonzero
- * product-version word at +4 carry the gate, bounded extent stands in. */
+/* M-107 member 6 (WPD): the og's "\xFFWPC" tier-1, decoded first-hand
+ * from the raw asm (FUN_180041f50, 0x180041f50-0x18004202d; the node
+ * vtable 0x18006cff0 idx 0x44, registered at 0x180003ccb-0x180003cde;
+ * no secondary - the node's +0x40 is the return-0 stub 0x18000bae0;
+ * evidence: diff-to-fix/evidence/s88-lane-sheets/
+ * s88-l1-wpd-version-table-decode.md): a THREE-entry version table
+ * gates the file - the pair (u32@8, u32@0xe) must be one of
+ *   (0x01020a01, 0x00050200) -> chain id 0x44
+ *   (0x00021601, 0x00030000) -> chain id 0x45
+ *   (0x00010f0f, 0x00030000) -> chain id 0x3d
+ * (the table loads from .rdata 0x18006ef40 + the 0x3d id literal at
+ * 0x180041f6e). On match the extent is the header-declared u32@0x14
+ * VERBATIM (0x18004200c: ecx = cand[0x14] -> result+0x10) - the og
+ * never walks the object chain for the size. A zero size field routes
+ * to the generic pending child whose walk declines (0x18000b760: xor
+ * al,al; ret) - no carve. The old "zero product word @+4" gate exists
+ * nowhere in the og's chain: the version-pair table IS the gate. The
+ * row max stays the clamp (the X3F/CRW registered approximation
+ * posture for the og's undecoded chain-row caps). The census's
+ * grouping of the 0x90001/0x9ac6cdd7 keys under "WordPerfect" is
+ * corrected by the same decode: those keys serve the WMF node
+ * (vtable 0x18006b200, idx 0x46 - the S-042 grammar, re-verified
+ * byte-exact against FUN_1800264d0 this session). */
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[0x18];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h,
@@ -5520,12 +5540,21 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
                     "WPC",
                     4) != 0)
         return r;
-    if (h[4] == 0 && h[5] == 0)
-        return r; /* zero product word: degenerate */
+    const u32 v_a = u32_from_bytes_le(h + 8);
+    const u32 v_b = u32_from_bytes_le(h + 0xe);
+    const bool pair1 = v_a == 0x01020a01u && v_b == 0x00050200u;
+    const bool pair2 = v_a == 0x00021601u && v_b == 0x00030000u;
+    const bool pair3 = v_a == 0x00010f0fu && v_b == 0x00030000u;
+    if (!pair1 && !pair2 && !pair3)
+        return r; /* the og's three-entry version table */
+    const u32 declared = u32_from_bytes_le(h + 0x14);
+    if (declared == 0)
+        return r; /* the zero-size child walk declines (0x18000b760) */
+    const u64 limit = probe_limit(s, hit, cap);
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 600;
-    r.note = "wpd-magic+bounded-extent";
+    r.end = std::min(hit + u64(declared), limit);
+    r.confidence = 700;
+    r.note = "wpd-version-table+declared-size";
     return r;
 }
 

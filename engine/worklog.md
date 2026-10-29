@@ -13133,3 +13133,30 @@ export count sites refreshed (93 exports / 96 CR_UI_API lines - 3
 defines); doc_truth_gate green. D-16 untouched: decrypt, never bypass.
 Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
 
+
+
+## Session-88 S88 fix-lane — entry 3: M-107 member 6, the WPD contract lands (2026-10-30)
+
+**The decode (first-hand, raw asm over the corpus binary):** the
+"\xFFWPC" binding (0x180003ccb-0x180003cde) → node {vtable
+0x18006cff0, idx 0x44}; the node's +0x40 is the return-0 stub (no
+secondary) — the +0x10 tier-1 FUN_180041f50 IS the size authority:
+a three-entry version-pair table at (+8, +0xe) {(0x01020a01,
+0x00050200), (0x00021601, 0x00030000), (0x00010f0f, 0x00030000)} →
+ids 0x44/0x45/0x3d, extent = the declared u32@0x14 verbatim, zero
+size → the generic child walk declines (0x18000b760). The og NEVER
+walks the object chain for WPD and never reads the product word at
++4 — the finding's "object header chain" premise and the S-007-era
+product-word gate both corrected. The decode also corrected the
+census's 0x90001/0x9ac6cdd7 grouping: those keys serve the WMF node
+(idx 0x46) — my fresh decode of FUN_1800264d0 matches the landed
+S-042 validators byte-for-byte (independent re-verification).
+
+**RED→GREEN via the stash dance:** 3 FAILED at the stand-in tree
+(WpdVersionTableSetsExtentFromTheDeclaredSize — the wrong extent;
+WpdZeroProductWordWithGoodPairCarves — the invented gate declined a
+real pair; the re-pinned S-007 batch plant), GREEN with the contract;
+two decline-direction pins. The carve suite 190/190. Trail: M-107's
+S88 addendum, the matrix member row, modules/carve.md's S88 addendum
+1, this entry. Evidence: diff-to-fix/evidence/s88-lane-sheets/
+s88-l1-wpd-version-table-decode.md.

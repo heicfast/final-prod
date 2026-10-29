@@ -3084,6 +3084,99 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
             << "the all-zero window is the og's extent-0 decline";
 }
 
+size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared, u32 v_a, u32 v_b);
+
+TEST(Carve, WpdVersionTableSetsExtentFromTheDeclaredSize) {
+    /* the og's tier-1 (FUN_180041f50, raw asm 0x180041f50-0x18004202d):
+     * the version-pair table gates, then the extent is the declared
+     * u32@0x14 VERBATIM - NOT the blind 64 MiB stand-in. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0x18000, 0x00021601u, 0x00030000u); /* declared 96 KiB */
+    img[at + 4] = 2; /* a nonzero product word too: the OLD validator carved
+                        the blind 64 MiB stand-in for this exact file */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the version-pair WPD must carve";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(0x18000))
+        << "extent = the declared u32@0x14, not the 64 MiB stand-in";
+}
+
+TEST(Carve, WpdUnknownVersionPairDeclines) {
+    /* the og's table has exactly three pairs; a "\xFFWPC" with any other
+     * (u32@8, u32@0xe) combination returns 0 at 0x180041ff5 - the old
+     * core's stand-in accepted it (any nonzero product word). */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0x20000, 0xdeadbeefu, 0x00030000u);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "an unknown version pair must decline (the og's 3-entry table)";
+}
+
+TEST(Carve, WpdZeroSizeFieldDeclines) {
+    /* the zero declared size routes to the generic pending child whose
+     * walk declines (0x18000b760: xor al,al; ret) - no carve at all,
+     * never the blind cap. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0, 0x00021601u, 0x00030000u);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "a zero declared size declines (the generic child's walk)";
+}
+
+TEST(Carve, WpdZeroProductWordWithGoodPairCarves) {
+    /* the og's chain never reads the product word at +4 - the old core's
+     * h[4]==0 && h[5]==0 refusal was an invention; a real version pair
+     * with a zero product word carves at the declared size. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0x8000, 0x00021601u, 0x00030000u);
+    img[at + 4] = 0; /* the product word the old gate refused */
+    img[at + 5] = 0;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the og never gates on the product word";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000));
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */
@@ -3118,15 +3211,23 @@ size_t plant_wpg(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
-size_t plant_wpd(std::vector<u8>& img, size_t at) {
+/* M-107 member 6 (WPD): the og's "\xFFWPC" shape - the version-pair
+ * table (FUN_180041f50: (u32@8, u32@0xe) in {(0x01020a01, 0x00050200),
+ * (0x00021601, 0x00030000), (0x00010f0f, 0x00030000)}) + the declared
+ * size u32@0x14. The old plant's filler bytes never carried a real
+ * pair (the stand-in era's blind acceptance). */
+size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared = 0x1000,
+                 u32 v_a = 0x00021601u, u32 v_b = 0x00030000u) {
     std::memcpy(img.data() + at,
                 "\xFF"
                 "WPC",
                 4);
-    put16(img, at + 4, 0x0200); /* nonzero product word */
-    for (size_t i = 6; i < 32; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 32;
+    put32v(img, at + 8, v_a);   /* the version pair's A half */
+    put32v(img, at + 0xe, v_b); /* the version pair's B half */
+    put32v(img, at + 0x14, declared);
+    for (size_t i = 0x18; i < declared && at + i < img.size(); ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    return declared;
 }
 
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature

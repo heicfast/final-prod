@@ -1306,3 +1306,29 @@ recorded in the finding: a future decode of the result object's layout
 could shift the window by multiples of 512. Tests: the three Wpg*
 pins (all RED at the stand-in via the stash dance). The carve suite
 186/186.
+
+## S88 addendum 1 — M-107 member 6: the WPD version-table + declared-size contract (2026-10-30)
+
+**WPD LANDED** (the finding's decode-then-land order, member 6 of 11;
+five members remain: SIT, APE, EPS, DXF, SWF-RECT + the DWG gen-3
+remainder). The og's "\xFFWPC" tier-1 (FUN_180041f50, raw-asm decoded
+first-hand; evidence: `../evidence/s88-lane-sheets/
+s88-l1-wpd-version-table-decode.md`): the version-pair table at
+(+8, +0xe) — exactly three pairs, ids 0x44/0x45/0x3d — gates the file;
+the extent is the header-declared u32@0x14 verbatim; zero size → the
+generic child's walk declines (no carve). The og never walks the
+object chain for this family and never reads the product word at +4
+(the finding's premise corrected; the S-007-era core's product-word
+gate was an invention — dropped).
+
+The same decode corrected a census erratum: the 0x90001/0x9ac6cdd7
+keys serve the WMF node (idx 0x46, the S-042 grammar — re-verified
+byte-exact against FUN_1800264d0), not "WordPerfect" and not "Windows
+thumbnail cache".
+
+Row verdict: A25/A27/A47 for WPD **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: WpdVersionTableSetsExtentFromTheDeclared
+Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
+WpdZeroProductWordWithGoodPairCarves (the first, second and the
+re-pinned S-007 batch plant RED at the stand-in via the stash dance).
+The carve suite 190/190.

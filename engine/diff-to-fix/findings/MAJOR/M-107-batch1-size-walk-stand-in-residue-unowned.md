@@ -394,3 +394,56 @@ WpgAllZeroWindowDeclines — the stand-in's blind 64 MiB and its
 all-zero acceptance), GREEN with the walk. The carve suite 186/186.
 Remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT (six) + the DWG gen-3
 remainder.
+
+---
+
+## Session-88 addendum — the WPD member LANDED (member 6 of 11: the version-table + declared-size contract)
+
+**WPD FIXED (this session; five members remain: SIT, APE, EPS, DXF,
+SWF-RECT + the DWG gen-3 R2007 remainder).** The tier-1 decoded
+first-hand from the raw asm (objdump over RAWSearchDLL.dll; evidence:
+`evidence/s88-lane-sheets/s88-l1-wpd-version-table-decode.md`):
+the "\xFFWPC" registry binding (0x180003ccb-0x180003cde, the pipelined
+cascade calibrated against the FOVb/X3F and II/CRW anchors) maps to the
+node {vtable 0x18006cff0, idx 0x44} whose +0x40 is the return-0 stub —
+no secondary consult, the node's own +0x10 (FUN_180041f50) is the size
+authority. The grammar: a THREE-entry version table gates the file —
+the pair (u32@8, u32@0xe) must be one of
+{(0x01020a01, 0x00050200)→id 0x44, (0x00021601, 0x00030000)→id 0x45,
+(0x00010f0f, 0x00030000)→id 0x3d} — and on match the extent is the
+header-declared **u32@0x14 verbatim** (0x18004200c-0x180042015). A
+zero size field routes to the generic pending child whose walk
+declines (0x18000b760: `xor al,al; ret`) — no carve.
+
+**The member's own premise corrected by the decode:** this finding's
+"What the reference does" prose ("WPD gates on the product-version
+word and walks the object header chain") was the audit's hypothesis —
+the og gates on the version PAIR at (+8, +0xe) (never reading the
+product word at +4) and takes the size from a direct header field (no
+chain walk). The corpus wins; the landing follows the decode.
+
+**A census erratum corrected in the same decode:** the
+analyser-registry census's row grouping "\xFFWPC / D7 CD C6 9A →
+FileWPDAnalyser (WordPerfect)" is half wrong — the 0x9ac6cdd7
+(Aldus placeable WMF) and 0x00090001 (bare standard WMF: type=1 +
+headersize=9 as the KEY) keys map to a different node {vtable
+0x18006b200, idx 0x46} whose tier-1 (FUN_1800264d0) is the WMF
+grammar — decoded this session and matching the core's landed S-042
+validators byte-for-byte (an independent re-verification of that
+landing). The census's "01 00 09 00 → Windows thumbnail cache" label
+is wrong for the same reason.
+
+The landing: `validate_wpd` gates on the og's three-entry version-pair
+table, requires the declared size nonzero, and takes the extent =
+u32@0x14 clamped by the row bound + device end (probe_limit — the
+X3F/CRW registered approximation posture for the og's undecoded
+chain-row caps; the og's three chain ids 0x44/0x45/0x3d share the
+core's single FMT_WPD row). The old "zero product word" gate is GONE
+(it existed nowhere in the og's chain). RED→GREEN first-hand via the
+stash dance: WpdVersionTableSetsExtentFromTheDeclaredSize (the
+stand-in carved the wrong extent) + WpdZeroProductWordWithGoodPairCarves
+(the invented gate declined a real version-pair file) + the re-pinned
+S-007 batch plant (the old filler-byte plant never carried a real
+pair) all RED at the stand-in tree (3 FAILED), GREEN with the
+contract; WpdUnknownVersionPairDeclines + WpdZeroSizeFieldDeclines pin
+the decline directions. The 190-test carve suite green.
