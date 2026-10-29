@@ -1306,3 +1306,20 @@ recorded in the finding: a future decode of the result object's layout
 could shift the window by multiples of 512. Tests: the three Wpg*
 pins (all RED at the stand-in via the stash dance). The carve suite
 186/186.
+
+## S84 rider — the DWG gen-2 struct offset repaired (+0x20 → +0x80)
+
+The racing S85 landing's gen-2 walk read the encrypted 0x6c struct at
+`hit + 0x20` — the Ghidra decompile's `param_2 + 0x20` ported without
+the INT* scaling. The raw asm arbitrates: 0x18002f5a0 is
+`lea rdx,[rdi+0x80]` with rdi = the chunk base (set once at
+0x18002f342, never reloaded; the phantom `mov edi,0x6c428d44` in naive
+disassembly is a mid-instruction start — the tail byte of
+`lea rcx,[rbp-0x41]`). **The struct sits at +0x80 BYTES** — matching the
+real R2004 format's section page map at 0x80 (the external
+corroboration). The read, both R2004 test plants, and the finding's
+gen-2 bullet repaired; RED first-hand (the +0x20 code against the +0x80
+plant declines — the struct at the wrong offset decodes zeros and the
+gates refuse). The full convergence record: M-107's Session-84
+convergence addendum + evidence/s84-lane-sheets/
+s84-l1-dwg-walk-decode.md §4.

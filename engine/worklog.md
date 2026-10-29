@@ -1,4 +1,24 @@
 
+## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
+
+The racing S85 window landed M-107's DWG member (8272daf2 — the seat)
+while this lane worked; the convergence conceded per SA-9 (the same
+three-generation model, the same factory cursor 0x15, the same keystream
+byte 41 — this lane's evidence sheet
+s84-l1-dwg-walk-decode.md corroborates). **The one material delta,
+arbitrated by the raw asm:** the landing read the gen-2 encrypted struct
+at `hit + 0x20` (the Ghidra decompile's `param_2 + 0x20` ported without
+the INT* scaling). The asm at 0x18002f5a0: `lea rdx,[rdi+0x80]`, rdi =
+the chunk base set once at 0x18002f342, never reloaded (the phantom
+`mov edi,0x6c428d44` is a mid-instruction disassembly start — the tail
+byte of `lea rcx,[rbp-0x41]`). **+0x80 BYTES** — also matching the real
+R2004 format's section page map at 0x80. Repaired: the read, both R2004
+test plants, the finding's gen-2 bullet, the carve.md rider. RED
+first-hand (the +0x20 code against the +0x80 plant: DwgR2004RandStruct
+WalkSetsExtent FAILED -> GREEN). The carve suite 286/286. The board:
+M-107 at members 1-5 of 11 (the racing window took PSP + WPG too).
+
+<<<<<<< HEAD
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
 - **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
