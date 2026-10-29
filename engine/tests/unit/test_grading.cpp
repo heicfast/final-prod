@@ -233,6 +233,11 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                    Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
+    /* the assertion/fixture crossing repaired (the hot-window merge
+     * glued the remote lane's assertion block - written for the
+     * mirrored variable naming - onto this lane's fixture block):
+     * a1/a2 are the IN-TABLE DOC pair -> skip; c1/c2 are the
+     * OUT-OF-TABLE ZZQX pair -> twins + promotion */
     EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
     EXPECT_FALSE(a2->overlap());
     EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
