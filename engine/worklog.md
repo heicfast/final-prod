@@ -207,6 +207,17 @@ zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
 members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
 R2007 remainder.
 
+**OQ-S79-1 RESOLVED (this session):** the $LogFile dead-machinery
+register — the follow-the-data decode executed in full (FUN_18001d460's
+out-params discarded, the staged buffer freed, the success flag
+written+cloned but never read [one write, zero readers, corpus-wide],
+FUN_18002a0f0's chkdntfs recovery tables built and never queried, no
+emission site anywhere — candidates 1/3 REFUTED, 2 CONFIRMED-stronger).
+Filed as I-049 (ACKNOWLEDGED at filing — the core's zero counterpart is
+the correct deliberate non-adoption); the OQ retired to findings/FIXED/;
+the matrix row UNVERIFIED → MATCH (REGISTERED); ledger rows for both;
+the ntfs module note.
+
 **M-105 LANDED (option (a), this session):** the no-service posture —
 PACKAGING.md §13 + PARITY-DELTAS D-166 + the K-walk DRWService rows
 [K71/K72/K73 absent-by-decision] + R-83's false note corrected at both

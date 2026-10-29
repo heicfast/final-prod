@@ -23,6 +23,22 @@
   lane; doc_truth_gate green at error codes=44; the win-stub grown
   LSTATUS (win_syntax_check 13/13); the count claims swept 43→44.
 
+- **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
+  follow-the-data decode executed in full — the walk driver FUN_18001d460
+  (:23100-23160) discards its own out-params (frame locals, never read),
+  FREES the staged log buffer, and its only persistent effect is the
+  success flag at ctx+0x28, written (:756, volume+0x409) and cloned
+  (:40405) but never read (one write, zero readers, corpus-wide). The
+  per-record handler FUN_18002a0f0 (:33741+) builds the chkdntfs
+  recovery tables (transaction table state+0x14, the 0x16/0x15-pair
+  table state+0x2c, the page table state+0x1c with the
+  (sector_size²>>10)·*(int*)(rec+0x48) page-number computation, the
+  client-id maps state+0x20/+0x24) — no post-open querier exists. No
+  emission site anywhere: candidates 1/3 REFUTED, 2 CONFIRMED-stronger.
+  Filed as I-049 (ACKNOWLEDGED — the core's zero counterpart is the
+  correct deliberate non-adoption); the OQ retired to findings/FIXED/;
+  the matrix row UNVERIFIED → MATCH (REGISTERED).
+
 - **The S86 seat held** (the racing window's own records renumbered
   S86→S89→S90 in deference to this lane's earlier push; the premature
   renumber retracted, every reference restored to S86) (worklog header, the M-107 addendum, carve.md's addendum, the
@@ -30,7 +46,13 @@
   cr_analysers/cr_registry/test_carve).
 
 **Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
-5 MAJOR · 3 MINOR · 0 INFO active / 206 FIXED / 4 tracked-open.** (Of
+4 MAJOR · 3 MINOR · 0 INFO active / 209 FIXED / 3 tracked-open.**
+(The S86 lane's OQ-S79-1 resolution landed between the two counts: the
+$LogFile dead-machinery register I-049 [ACKNOWLEDGED at filing] + the
+OQ retired to findings/FIXED/ — M-101 also landed by the racing window
+since the prior count. Of the 4 active MAJORs, M-086/M-087/M-089 remain
+driver-repo-resident per OQ-S10-3; M-107 remains for SIT/APE/SWF-RECT +
+the gen-3 R2007 remainder, actively raced.) (Of
 the 5 active MAJORs, M-086/M-087/M-089 are driver-repo-resident per
 OQ-S10-3 — out of the two-repo grant; M-101 is mid-flight in a racing
 lane (its leaked test swept at 708fad32, the N-210 class); M-107
