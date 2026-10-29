@@ -508,7 +508,14 @@ void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_uni
         tel_.snap.overall_permille = overall;
 }
 
-void ScanController::tel_counts_(const ScanStats& stats, const CancelToken* cancel) {
+void ScanController::tel_counts_(ScanStats& stats, const CancelToken* cancel) {
+    /* N-167: the found-size truth - stamped from the live tree at every
+     * count refresh (the stage boundaries + completion; the counters and
+     * the size ride the same observation points, so a host rendering the
+     * og's "Files Found: N (X GB)" headline reads one consistent pair).
+     * total_logical walks the node vector under the tree mutex - the same
+     * lock refresh_stats takes, called at the same cadence. */
+    stats.bytes_found = tree_.total_logical();
     std::lock_guard<std::mutex> lock(tel_.m);
     tel_.snap.files_found = stats.files_found;
     tel_.snap.deleted_found = stats.deleted_found;
@@ -1355,7 +1362,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
          * reader through the global manager chain, FUN_14038c470
          * :606319-331; the completion pass's device is our equivalent).
          * One sector per not-in-table no-twin node, content-gated. */
-        gctx.reader.dev = slice; /* the run() scan device - the extents are rebased to it */
+        gctx.reader.dev = slice;     /* the run() scan device - the extents are rebased to it */
         gctx.reader.sector_size = 0; /* derive from the device geometry */
         tree::grading::grade_tree(tree_, gctx, stats.assistant);
     }
@@ -2113,12 +2120,10 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 for (const auto& c : dr.candidates) {
                     if (work.size() >= kLostInsertCap) {
                         if (cr::log::enabled())
-                            cr::log::write(
-                                cr::log::Level::Info,
-                                "lost partition insertion cap: %zu of %llu candidates "
-                                "scanned (the og's 10-target cap, DRWUI:904229-234)",
-                                work.size(),
-                                (unsigned long long)dr.candidates.size());
+                            cr::log::write(cr::log::Level::Info,
+                                           "lost partition insertion cap: %zu of %llu candidates "
+                                           "scanned (the og's 10-target cap, DRWUI:904229-234)",
+                                           work.size(), (unsigned long long)dr.candidates.size());
                         break;
                     }
                     emit_lost_candidate_(c); /* GAP-S6-10 */
@@ -2162,8 +2167,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         /* the no-FS-name fallback: the old LBA form */
                         role = u"Candidate @";
                         char buf[32];
-                        snprintf(buf, sizeof(buf), " %llu",
-                                 (unsigned long long)c.start_lba);
+                        snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
                         for (const char* p = buf; *p; ++p)
                             role.push_back(u16(u8(*p)));
                     }
@@ -2504,6 +2508,7 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     st.files_found = stats.files_found;
     st.deleted_found = stats.deleted_found; /* v2 counters */
     st.carved_found = stats.carved_found;
+    st.bytes_found = stats.bytes_found; /* v3 (N-167): the found-size truth */
     st.bytes_scanned = stats.bytes_scanned;
     st.error_map_ranges = u32(stats.errors.ranges().size());
     std::vector<u8> blob;
@@ -2742,6 +2747,7 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 stats.files_found = st.files_found;
                 stats.deleted_found = st.deleted_found; /* v2 (0 on v1 records) */
                 stats.carved_found = st.carved_found;
+                stats.bytes_found = st.bytes_found; /* v3 (N-167; 0 on v1/v2) */
                 stats.bytes_scanned = st.bytes_scanned;
                 have_state = true;
             }

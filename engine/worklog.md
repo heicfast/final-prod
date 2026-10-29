@@ -1,3 +1,28 @@
+**Session-44 minors lane — N-167 landed + the hot-window repair set (2026-10-29).**
+
+- **N-167 FIXED** — the found-size aggregate: `ScanStats::bytes_found` stamped from
+  `ResultTree::total_logical()` inside the count refresh (`tel_counts_` widened to a
+  mutable stats ref), so the og's "Files Found: N (X GB)" headline renders from core
+  stats; the session record grew to v3 (48-byte REC_SESSION_STATE, len-gated; v1/v2
+  load zeroed — the tree re-stamps at the first count refresh after resume); the CLI
+  completion line renders "N file(s) (X GB)" with the corpus-pinned binary 1024^3
+  divisor (147.12 GB on a 149.45 GB volume — the Windows GB labeling), and the JSON
+  summary carries bytes_found. RED via the stashed-stamp rebuild (bytes_found stayed
+  0 while the tree carried the fixture's 1500 bytes — the finding's falsifiable
+  claim executed first-hand); GREEN: `ScanStats.BytesFoundAggregates` (the
+  one-consistent-pair pin: the aggregate IS tree.total_logical(), active + deleted
+  both count) + `ScanStats.BytesFoundSessionRoundTrip`. Suite 1320/1320.
+- **Hot-window repair set (this entry's merges):** (1) the S-055-window re-landing
+  re-introduced the N-171 double validated tick — collapsed to one (three-lane
+  convergence recorded in the comment); (2) the merge recomposed
+  Grading.ExtensionTableGatesDeepValidation's fixture rows against its assertions
+  (a.doc/c.zzqx restored per the M-134 landing's own shape) and left orphaned e1/e2
+  variables (the dotless pair's pin lives in DotlessNamesSkipTwinDetection);
+  (3) the convergence resurrected the S53 duplicate
+  Ext4Engine.SizeExceedsBlocksSetsDamagedFlag — dropped per the superset rule.
+  Audit trail: N-167 Resolution + findings/FIXED/ move, matrix row, orchestration
+  module doc, SUMMARY entry-3, this entry.
+
 **Session-44 minors lane — N-171 (CONVERGENT-DU, their 7be438c9 wins per SA-9 — byte-equivalent tick; this lane's session round-trip test + the N-188 discovery ride as the supplements) + N-188 (unique) landed (2026-10-29).**
 
 - **N-171 FIXED** — the user-sign carved_count undercount: the user-sign emission path

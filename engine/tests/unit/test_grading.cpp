@@ -214,18 +214,16 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
-    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
+    /* (the dotless pair's pin moved to DotlessNamesSkipTwinDetection at
+     * the S-058 re-pin - the merge dropped its assertions here) */
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
@@ -262,8 +260,7 @@ TEST(Grading, RefsDeletedFilesGradeHigh) {
      * precisely because insert already graded it. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs),
-                          DeletedState::Deleted);
+    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs), DeletedState::Deleted);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, dead->grade()) << "deleted ReFS rows grade High at insert";
@@ -274,8 +271,7 @@ TEST(Grading, BtrfsDeletedFilesGradeHigh) {
      * (:605485-489). */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs),
-                          DeletedState::Deleted);
+    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs), DeletedState::Deleted);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, dead->grade()) << "deleted Btrfs rows grade High at insert";
@@ -287,8 +283,7 @@ TEST(Grading, RefsExistingStillHigh) {
      * observable outcome, pinned so the rule ordering cannot regress. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs),
-                          DeletedState::Active);
+    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs), DeletedState::Active);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, live->grade());
@@ -693,8 +688,8 @@ TEST(Grading, DeepReadPrevSectorTailZeroGradesHigh) {
     ctx.reader.dev = &dev;
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* f = add_file(t, root, "padded.zzqx", 500, u32(FsKindCode::Fat16),
-                       DeletedState::Deleted, Origin::Structured, 2 * 512, 0x400);
+    auto* f = add_file(t, root, "padded.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 2 * 512, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, ctx, st);
     EXPECT_EQ(Grade::High, f->grade()) << "the zero tail of the previous sector promotes to High";
@@ -714,8 +709,8 @@ TEST(Grading, DeepReadSkipsOverlapFlagged) {
     auto* b = add_file(t, root, "twin2.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                        Origin::Structured, 0x5000, 0x400);
     /* the only file NOT twinned sits at byte 0 over zeroed content */
-    auto* solo = add_file(t, root, "solo.zzqx", 500, u32(FsKindCode::Fat16),
-                          DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    auto* solo = add_file(t, root, "solo.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                          Origin::Structured, 0, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, ctx, st);
     EXPECT_TRUE(a->overlap());
@@ -731,8 +726,8 @@ TEST(Grading, RegradeRunsFullTreeOnce) {
      * regrade re-ran forever (idempotent but unbounded). */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* avg = add_file(t, root, "avg.zzqx", 5000, u32(FsKindCode::Fat16),
-                         DeletedState::Deleted, Origin::Structured, 0x9000, 0x400);
+    auto* avg = add_file(t, root, "avg.zzqx", 5000, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                         Origin::Structured, 0x9000, 0x400);
     grading::AssistantStats st;
     /* no reader: the completion pass marks graded only through the deep
      * read loop - without a reader the node stays ungraded (the ABI
@@ -753,8 +748,8 @@ TEST(Grading, DeepReadReaderAbsentChangesNothing) {
     GradeMemDevice dev(u64(64) * 512);
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* f = add_file(t, root, "zeroed.zzqx", 500, u32(FsKindCode::Fat16),
-                       DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    auto* f = add_file(t, root, "zeroed.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0, 0x400);
     (void)dev;
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);

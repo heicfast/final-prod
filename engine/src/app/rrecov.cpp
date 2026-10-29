@@ -1967,15 +1967,23 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
-                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"error_ranges\":%u,"
+                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"bytes_found\":%llu,"
+                L"\"error_ranges\":%u,"
                 L"\"probe_unreadable\":%hs,\"elapsed_ms\":%llu}\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
-                stats.bytes_scanned, stats.bytes_unreadable, u32(stats.errors.ranges().size()),
-                stats.probe_unreadable ? "true" : "false", stats.elapsed_ms);
+                stats.bytes_scanned, stats.bytes_unreadable, stats.bytes_found,
+                u32(stats.errors.ranges().size()), stats.probe_unreadable ? "true" : "false",
+                stats.elapsed_ms);
     } else {
-        wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s) "
-                L"in %llu.%01u s\n",
-                stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
+        /* N-167: the og's completion headline shape - "Files Found: N
+         * (X GB)" (dynamic-ground-truth--scan-phase-captured.md:125;
+         * the corpus capture pins 1,139,286 files / 147.12 GB on a
+         * 149.45 GB volume - the binary 1024^3 divisor, GB-labeled per
+         * the Windows convention the og follows) */
+        wprintf(L"scan complete: %llu file(s) (%.2f GB), %llu deleted, %llu carved, "
+                L"%llu lost partition(s) in %llu.%01u s\n",
+                stats.files_found, double(stats.bytes_found) / (1024.0 * 1024.0 * 1024.0),
+                stats.deleted_found, stats.carved_found, stats.lost_partitions,
                 stats.elapsed_ms / 1000, u32(stats.elapsed_ms % 1000) / 100);
     }
 
@@ -2971,8 +2979,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s\n", k + 1,
                 static_cast<unsigned long long>(c.start_lba),
                 static_cast<unsigned long long>(c.sector_count), c.score, layout, dyn, tok,
-                label[0] ? L", label \"" : L"", label[0] ? label : L"",
-                label[0] ? L"\"" : L"",
+                label[0] ? L", label \"" : L"", label[0] ? label : L"", label[0] ? L"\"" : L"",
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {

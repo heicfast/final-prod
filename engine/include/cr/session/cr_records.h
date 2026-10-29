@@ -131,11 +131,13 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
 
 /* ---- session state (REC_SESSION_STATE payload) ----
- * Wire layout v2 (appended fields; the deserializer accepts both the
- * 24-byte v1 layout and the 40-byte v2 layout - old sessions load with
- * zeroed counters, new sessions restore the full found-set): v1 =
- * mask/files/bytes/ranges; v2 appends deleted_found, carved_found so a
- * reloaded session reports truthful totals without re-running stages. */
+ * Wire layout v3 (appended fields; the deserializer accepts the 24-byte
+ * v1, 40-byte v2 and 48-byte v3 layouts - old sessions load with zeroed
+ * counters, new sessions restore the full found-set): v1 =
+ * mask/files/bytes/ranges; v2 appends deleted_found, carved_found; v3
+ * appends bytes_found (N-167 - the og's "Files Found: N (X GB)"
+ * headline aggregate) so a reloaded session reports the found-size
+ * truth without re-walking the tree. */
 struct SessionState {
     u32 stage_done_mask = 0; /* bit0 quick, bit1 deep, bit2 carve */
     u64 files_found = 0;
@@ -143,6 +145,7 @@ struct SessionState {
     u32 error_map_ranges = 0;
     u64 deleted_found = 0; /* v2 (appended): restored on load */
     u64 carved_found = 0;  /* v2 (appended): restored on load */
+    u64 bytes_found = 0;   /* v3 (appended, N-167): restored on load */
 };
 u32 serialize_session_state(const SessionState& st, std::vector<u8>& out);
 u32 deserialize_session_state(const u8* data, size_t len, SessionState& st);
