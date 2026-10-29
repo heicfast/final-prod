@@ -182,8 +182,11 @@ TTFR dispatch attempt.
   M-105 rows, the pushed rider comments in
   cr_analysers/cr_registry/test_carve).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
-4 MAJOR · 3 MINOR · 0 INFO active / 209 FIXED / 3 tracked-open.**
+**Board after this landing (filesystem truth, recounted by the
+coherence session at the v0.6.0 close: 212 FIXED files on disk, 2
+MINOR [N-107 N-127], 4 MAJOR [M-086 M-087 M-089 M-107], 3
+tracked-open): 0 ACUTE · 0 SEVERE · 4 MAJOR · 2 MINOR · 0 INFO active /
+212 FIXED / 3 tracked-open.**
 (The S86 lane's OQ-S79-1 resolution landed between the two counts: the
 $LogFile dead-machinery register I-049 [ACKNOWLEDGED at filing] + the
 OQ retired to findings/FIXED/ — M-101 also landed by the racing window
@@ -349,7 +352,7 @@ the /W4 /WX fixes, the v0.6.0 notes. Next free IDs: S-069+, M-160+, N-229+, I-05
 ACUTE · 0 SEVERE · 5 MAJOR (M-086 M-087 M-089 [driver-repo-resident per
 OQ-S10-3, outside the two-repo grant] M-105 M-107 [members 1-8 of 11
 landed; SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder standing]) ·
-2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO active / 209 FIXED
+2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO active / 208 FIXED
 / 4 tracked-open.** The racing windows' landings absorbed: M-075
 (chkdsk), M-078 (BitLocker turn-off), M-101 (the Versions node + Tags
 Extracted, b7d05b12), M-107's X3F/CRW/DWG/WPG/WPD/PSP/DXF/EPS/AI
@@ -392,7 +395,8 @@ active MAJORs, M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3
 — out of this grant's two-repo boundary; the 2 active MINORs,
 N-107/N-127, are the same driver-repo class. M-107 remains active for
 its THREE un-landed members — SIT, APE, SWF-RECT — X3F, CRW, DWG, WPG,
-PSP, WPD, DXF, EPS, AI landed as members 1-9. M-101 was landed by the
+PSP, WPD, DXF, EPS, AI landed as members 1-8 (the finding file's own count; corrected from "1-9" by the coherence session: DWG gen-1+2 is one
+member with its gen-3 remainder standing). M-101 was landed by the
 racing window (verified + its collision repaired this lane). The
 in-scope fix queue: M-107's three members, M-105 (the DRWService
 lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench
