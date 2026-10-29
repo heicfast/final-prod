@@ -6097,14 +6097,18 @@ CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
 /* ---- M-098: HIK (Hikvision surveillance, CHIKAnalyser id 0x92) ----
  * The og's list-layer probe (FUN_1800272a0 :30412-30484, the RawConfig
  * "HIK" token - shipped HIK=1/enabled) discriminates the vendor's
- * private_stream_1 PES inside an MPEG-PS pack:
+ * private_stream_2 PES inside an MPEG-PS pack (M-139: the discriminator
+ * constant is -0x43ff0000 = 0xBC010000 = LE bytes 00 00 01 BC at BOTH
+ * probe sites :30438/:30452, grep-verified against the retdec twin -
+ * the M-098 landing's "private_stream_1"/BD reading was a transcription
+ * error; 00 00 01 BD would be -0x42ff0000, which appears nowhere):
  *   - the 00 00 01 BA pack header; the pack length = (buf[0xD]&7)+0xE;
  *   - the SYSTEM-HEADER path: 00 00 01 BB at the pack end, the LE-u32
  *     skip length at +4 bounded < 0x40000001 with the total < 0x400001,
- *     then 00 00 01 BD at the skip end - the private_stream_1 PES;
- *   - or the DIRECT path: 00 00 01 BD straight after the pack;
+ *     then 00 00 01 BC at the skip end - the private_stream_2 PES;
+ *   - or the DIRECT path: 00 00 01 BC straight after the pack;
  *   - the size starts at the PES's BE-u16 length at +4: pos + 6 + len
- *     (pos = the BD position, relative to the candidate start);
+ *     (pos = the BC position, relative to the candidate start);
  *   - the walk (FUN_180027480 :30489-30558) continues the PS structure
  *     from the probe's size: a 00 00 01 BA pack advances 0x1A + the
  *     BE-u16 at +0x18 when low16(u32@+0x14)==0 && byte@+0x16==1 (else
@@ -6142,11 +6146,11 @@ CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap) {
         u8 bd[6];
         if (!rd(s, hit + p, bd, sizeof(bd)))
             return r;
-        if (bd[0] != 0 || bd[1] != 0 || bd[2] != 1 || bd[3] != 0xBD)
-            return r; /* private_stream_1 required at the skip end */
+        if (bd[0] != 0 || bd[1] != 0 || bd[2] != 1 || bd[3] != 0xBC)
+            return r; /* private_stream_2 required at the skip end (M-139) */
         pos = p;
-    } else if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBD) {
-        pos = pack_len; /* the direct private_stream_1 after the pack */
+    } else if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBC) {
+        pos = pack_len; /* the direct private_stream_2 after the pack */
     } else {
         return r; /* neither the system-header nor the direct form */
     }
@@ -6180,7 +6184,7 @@ CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     r.end = hit + cursor;
     r.confidence = 650;
-    r.note = "hik-ps-private-stream-1";
+    r.note = "hik-ps-private-stream-2";
     r.name_prefix = u"HIK"; /* DAT_18006b428: L"HIK" - the analyser's own name */
     return r;
 }

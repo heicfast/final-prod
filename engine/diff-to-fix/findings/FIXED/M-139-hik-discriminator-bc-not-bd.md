@@ -129,3 +129,28 @@ precedent), S-049 (the naming contract the "HIK" prefix participates in).
 ## Open questions
 
 None — two decompilers and the constant arithmetic agree.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S56 ACUTE-first lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on four tests:
+`Carve.HikDiscriminatorIsPrivateStream2` and `Carve.HikDirectPathAcceptsBcOnly`
+(RED pre-fix: the BC layouts rejected — both halves of the inversion
+reproduced), plus the re-truthed
+`Carve.HikPackSystemHeaderPrivateStreamAccepted` and
+`Carve.HikDirectPrivateStreamAccepted` (RED pre-fix with the BD→BC fixture
+flip — proving the old fixtures pinned the transcription error).
+`Carve.HikGenericPsNotShadowed` and `Carve.HikOneGiBCapIsTheRowCap` green
+both sides (untouched semantics). MPEG-PS family green; full suite 1460/1460.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand:
+`-0x43ff0000` (0xBC010000 = LE bytes 00 00 01 BC) at BOTH probe sites
+(:30438 skip-end, :30452 direct), `-0x42ff0000` (BD) grep-count ZERO in the
+ghidra decompile. The fix: both probes flipped BD→BC
+(`bd[3] != 0xBC` at the skip end, `sc[3] == 0xBC` on the direct path), the
+block comment re-truthed ("private_stream_2 PES" with the constant
+arithmetic + the M-098 transcription-error note), the note string
+"hik-ps-private-stream-1"→"hik-ps-private-stream-2", the two M-098 test
+fixtures re-planted to the BC form with the note expectation updated. No
+safety hardening touched; the walk/cap/precedence semantics are exactly the
+M-098 landing's (verified parity per the finding).

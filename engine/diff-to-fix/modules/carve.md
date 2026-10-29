@@ -1019,11 +1019,13 @@ quotes: `evidence/decompiled-quotes/s50-landing-divergences.md`):
   core keeps the last-valid-chunk end — **0 on a first-chunk decline**: the
   og recovers min(2x-device,500M) where the core carves nothing. The
   M-106 landing's own regression.
-- **M-139 (MAJOR — NEW)** — the HIK discriminator: the og probes
+- **M-139** **FIXED** (the S56 ACUTE-first lane: both probes flipped to
+  BC — findings/FIXED/M-139, 4 RED->GREEN incl. the re-truthed M-098
+  fixtures) — the HIK discriminator: the og probes
   **00 00 01 BC** (private_stream_2, -0x43ff0000 at both sites of
-  FUN_1800272a0 :30438/:30452); the core probes **0xBD** (private_stream_1)
+  FUN_1800272a0 :30438/:30452); the core probed **0xBD** (private_stream_1)
   — the M-098 landing's transcription error (the finding title itself
-  wrong). Genuine HIK files lose the HIK id/name/extent (generic MPEG-PS
+  wrong). Genuine HIK files lost the HIK id/name/extent (generic MPEG-PS
   grammar catches most content); BD-led streams falsely HIK-stamped.
 - **M-140 (MAJOR — NEW)** — the CSL/CD01 latch: the og's per-candidate
   +0x120 latch permanently binds CD01-key candidates to the 0x44c sizing

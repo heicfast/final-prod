@@ -10905,9 +10905,11 @@ size_t plant_pes(std::vector<u8>& img, size_t at, u8 code, u16 len) {
 } // namespace
 
 TEST(Carve, HikPackSystemHeaderPrivateStreamAccepted) {
-    /* M-098: the BB->BD sequence carves as FMT_HIK - the pack, the
-     * system-header skip (the LE-u32 at +4), then the private_stream_1
-     * PES; the walk continues over the following PS structure. */
+    /* M-098 + M-139: the BB->BC sequence carves as FMT_HIK - the pack, the
+     * system-header skip (the LE-u32 at +4), then the private_stream_2
+     * PES (the og's discriminator constant -0x43ff0000 = 00 00 01 BC at
+     * :30438, NOT the BD the M-098 landing transcribed); the walk
+     * continues over the following PS structure. */
     std::vector<u8> img(128 * 1024, 0);
     const size_t at = 512;
     size_t p = at + plant_ps_pack(img, at);
@@ -10919,7 +10921,7 @@ TEST(Carve, HikPackSystemHeaderPrivateStreamAccepted) {
     img[p + 3] = 0xBB;
     put32v(img, p + 4, 0x10);
     p += 6 + 0x10;
-    p += plant_pes(img, p, 0xBD, 0x20); /* private_stream_1, 32-byte payload */
+    p += plant_pes(img, p, 0xBC, 0x20); /* private_stream_2, 32-byte payload */
     /* the walk: one more pack (advance 0x1A), then a video PES */
     const size_t pack2 = p;
     p += plant_ps_pack(img, p);
@@ -10945,12 +10947,12 @@ TEST(Carve, HikPackSystemHeaderPrivateStreamAccepted) {
     for (tree::FileNode* c : all)
         if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
             n = c;
-    ASSERT_NE(n, nullptr) << "the BB->BD HIK layout must carve";
+    ASSERT_NE(n, nullptr) << "the BB->BC HIK layout must carve";
     EXPECT_EQ(n->props()->carve_format, u64(FMT_HIK));
     EXPECT_EQ(n->props()->logical_size, expected_end - at) << "the probe + walk extent";
     std::string note;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
-    EXPECT_EQ(note, "hik-ps-private-stream-1");
+    EXPECT_EQ(note, "hik-ps-private-stream-2");
     /* the analyser's own name prefix (DAT_18006b428 = L"HIK") */
     std::string nm = n->name_utf8();
     EXPECT_NE(nm.find("HIK_"), std::string::npos) << "the HIK name prefix";
@@ -10958,12 +10960,12 @@ TEST(Carve, HikPackSystemHeaderPrivateStreamAccepted) {
 }
 
 TEST(Carve, HikDirectPrivateStreamAccepted) {
-    /* M-098: the direct 00 00 01 BD after the pack carves with the size
-     * from the PES BE-u16 length (pack_len + 6 + len). */
+    /* M-098 + M-139: the direct 00 00 01 BC after the pack carves with
+     * the size from the PES BE-u16 length (pack_len + 6 + len). */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     size_t p = at + plant_ps_pack(img, at);
-    p += plant_pes(img, p, 0xBD, 0x18); /* direct private_stream_1 */
+    p += plant_pes(img, p, 0xBC, 0x18); /* direct private_stream_2 */
     const size_t expected_end = p;
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -10979,14 +10981,14 @@ TEST(Carve, HikDirectPrivateStreamAccepted) {
     for (tree::FileNode* c : all)
         if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
             n = c;
-    ASSERT_NE(n, nullptr) << "the direct-BD HIK form must carve";
+    ASSERT_NE(n, nullptr) << "the direct-BC HIK form must carve";
     EXPECT_EQ(n->props()->carve_format, u64(FMT_HIK));
     EXPECT_EQ(n->props()->logical_size, expected_end - at);
 }
 
 TEST(Carve, HikGenericPsNotShadowed) {
     /* M-098: a plain PS stream (pack + video PES + pack + PES, no
-     * private_stream_1) stays the generic FMT_MPEGPS - the HIK probe
+     * private_stream_2) stays the generic FMT_MPEGPS - the HIK probe
      * rejects and the trial order falls through. */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
@@ -11037,6 +11039,109 @@ TEST(Carve, HikOneGiBCapIsTheRowCap) {
     std::vector<const Signature*> bad;
     EXPECT_EQ(validate_registry(&bad), 0u);
     EXPECT_EQ(self_probe_registry(&bad), 0u);
+}
+
+TEST(Carve, HikDiscriminatorIsPrivateStream2) {
+    /* M-139: the og's discriminator is 00 00 01 BC (private_stream_2,
+     * the constant -0x43ff0000 at BOTH probe sites :30438/:30452) - a
+     * BD-led twin (the M-098 landing's transcription error) must NOT
+     * carve as HIK. The BB->skip form; the direct form is pinned by
+     * HikDirectPrivateStreamAccepted above. RED pre-fix: the BC layout
+     * rejected (and the BD twin accepted - both halves inverted). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at + plant_ps_pack(img, at);
+    img[p] = 0x00;
+    img[p + 1] = 0x00;
+    img[p + 2] = 0x01;
+    img[p + 3] = 0xBB;
+    put32v(img, p + 4, 0x10);
+    p += 6 + 0x10;
+    p += plant_pes(img, p, 0xBC, 0x20); /* the og's private_stream_2 */
+    const size_t bc_end = p;
+    /* the BD twin at another offset: same shape, the wrong stream id */
+    const size_t at2 = 16 * 1024;
+    size_t q = at2 + plant_ps_pack(img, at2);
+    img[q] = 0x00;
+    img[q + 1] = 0x00;
+    img[q + 2] = 0x01;
+    img[q + 3] = 0xBB;
+    put32v(img, q + 4, 0x10);
+    q += 6 + 0x10;
+    q += plant_pes(img, q, 0xBD, 0x20);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* bc_node = nullptr;
+    tree::FileNode* bd_node = nullptr;
+    for (tree::FileNode* c : all) {
+        if (c->props()->extents.empty())
+            continue;
+        if (c->props()->extents.front().offset == at)
+            bc_node = c;
+        if (c->props()->extents.front().offset == at2)
+            bd_node = c;
+    }
+    ASSERT_NE(bc_node, nullptr) << "the BC (private_stream_2) layout must carve";
+    EXPECT_EQ(bc_node->props()->carve_format, u64(FMT_HIK));
+    EXPECT_EQ(bc_node->props()->logical_size, bc_end - at);
+    /* the BD twin: either not carved at all or NOT HIK-stamped (the og's
+     * probe declines; the generic PS grammar may claim it - different id,
+     * different name, a different walk) */
+    if (bd_node != nullptr) {
+        EXPECT_NE(bd_node->props()->carve_format, u64(FMT_HIK))
+            << "the BD-led stream is never HIK-stamped";
+    }
+}
+
+TEST(Carve, HikDirectPathAcceptsBcOnly) {
+    /* M-139: the direct-path discriminator - the BC form carves, a
+     * BD-led direct twin does not get the HIK stamp. RED pre-fix on the
+     * BC half (the probe wanted BD). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at + plant_ps_pack(img, at);
+    p += plant_pes(img, p, 0xBC, 0x18); /* the direct private_stream_2 */
+    const size_t bc_end = p;
+    const size_t at2 = 16 * 1024;
+    size_t q = at2 + plant_ps_pack(img, at2);
+    q += plant_pes(img, q, 0xBD, 0x18); /* the direct BD twin */
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* bc_node = nullptr;
+    tree::FileNode* bd_node = nullptr;
+    for (tree::FileNode* c : all) {
+        if (c->props()->extents.empty())
+            continue;
+        if (c->props()->extents.front().offset == at)
+            bc_node = c;
+        if (c->props()->extents.front().offset == at2)
+            bd_node = c;
+    }
+    ASSERT_NE(bc_node, nullptr) << "the direct-BC form must carve";
+    EXPECT_EQ(bc_node->props()->carve_format, u64(FMT_HIK));
+    EXPECT_EQ(bc_node->props()->logical_size, bc_end - at);
+    if (bd_node != nullptr) {
+        EXPECT_NE(bd_node->props()->carve_format, u64(FMT_HIK))
+            << "the direct-BD twin is never HIK-stamped";
+    }
 }
 
 TEST(Carve, MpegPsPesLengthsAreBigEndian) {
