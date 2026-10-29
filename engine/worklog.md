@@ -10405,3 +10405,79 @@ worklog blocks kept stacked per the convention. The board at the rebased
 tree re-truthed in the first fix's entry (M-136/M-143's trail moves
 re-verified first-hand - the two FIXED-folder arrivals counted, the two
 MAJOR departures confirmed).
+
+---
+
+## Session-73 S73 close-out (2026-10-29 — the MAJOR-first continuation fix lane)
+
+**Lane summary.** Two MAJOR findings landed and pushed this session:
+- **M-144 FIXED** (ext4 large-volume caps) — commit `ee19145c` (absorbed
+  into the racing rebases; the fix is at the current tree).
+- **M-143 FIXED** (ext4 journal inode-image harvest) — commit `84784c63`
+  (the head at filing).
+
+8 new tests added (2 for M-144, 6 for M-143), all RED pre-fix → GREEN
+post-fix, verified locally against a standalone gtest harness (no
+cmake/gtest in the Linux container — the CI runner will execute the
+full suite on push).
+
+**Board at filing:** 0 ACUTE · 0 SEVERE · 15 MAJOR · 11 MINOR · 0 INFO
+active / 158 FIXED / 4 tracked-open (the racing lanes' M-136 + N-210 +
+N-212 landings absorbed at the rebases; this lane's M-143 + M-144 are
+the lane's own contribution to the FIXED count).
+
+**Remaining MAJORs (13 active, all substantial feature work):**
+- M-073 scan-time folder filter — PushFolderFilter tree-insertion gate
+- M-075 chkdsk launch — Windows WinChkdsk escalation endpoint
+- M-078 BitLocker turn-off — CBitlockerTurnOffOperation step
+- M-086/M-087/M-089 — driver-repo resident per OQ-S10-3 (cannot fix in
+  core)
+- M-101 results tree Versions + Tags Extracted branches — tree +
+  query + ABI additions
+- M-105 DRWService install lifecycle — Windows SCM service
+- M-107 batch-1 size-walk stand-in residue — eleven formats
+- M-111 explorer partition browse — Windows UI adapter
+- M-113 recovered-OS boot surgery — MountedDevices/BCD/SOFTWARE write
+- M-114 System Restore purge — WMI enumerate-all + delete
+- M-118 lost-partition three-source assembly — MountPoints2 register
+  channel
+- M-135 recovery read-failure semantics — writer truncate-and-keep +
+  per-file cause taxonomy
+
+Each is a 200-1000 line feature with new tests + audit-trail updates;
+none is tractable in the remaining session budget. The lane concedes
+these to the next session per SA-9.
+
+**Remaining MINORs (11 active):**
+N-107/N-127 driver-repo resident. N-131/N-140/N-144/N-145/N-178/N-181/
+N-182/N-200/N-201 each require 3-5 file changes + new tests + audit
+trail — deferred to the next session with notes (the lane's M-144 +
+M-143 work consumed the available time).
+
+**Racing-lane posture.** This lane raced four other active lanes
+(S69/S70/S71/S72 audit + fix) on the same mandate. Each push encountered
+a remote advance; the rebase+conflict-resolution cycle consumed
+significant session time. The lane's naming was renamed S69→S71→S72→S73
+to avoid seat collisions per SA-9. The final seat S73 was conceded to
+this lane after the S71/S72 racing fix lanes took those seats.
+
+**Handoff for the next session.**
+1. Pull both repos; the audited commit is whatever `diff-to-fix/README.md`
+   states — re-read before any fix.
+2. The board's MAJOR ladder: M-135 (writer failure semantics, paired
+   with the now-fixed M-136) is the next natural target — it's the
+   recovery-correctness MAJOR with the highest user impact. After M-135:
+   M-073 (folder filter) and M-101 (tree branches) are tractable
+   engine-side changes; M-075/M-078/M-105/M-111/M-113/M-114 are
+   Windows-feature work that needs the Windows CI lane.
+3. The MINOR ladder: N-201 (FAT media-word re-flavor, paired with the
+   landed S-064) and N-140 (carve per-extension stats) are the most
+   tractable.
+4. The 4 tracked-open items are explicitly multi-session
+   (vendoring/Windows-bench/undecoded-corpus) — leave open.
+
+**Token hygiene.** The user-supplied PAT was provided in the prompt and
+is **never** written to disk, never logged, never committed. The push
+used `CR_TOKEN=<redacted>` inline env var on the `git push` command.
+**The user must revoke the exposed token at
+was visible in the original prompt transcript.
