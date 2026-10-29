@@ -5868,12 +5868,46 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap) {
  * school, no index). M-160: the og's version gate is the u16 LE at +4
  * against [1000, 9999] (FUN_180033180's first check - the release
  * integers; the walk's own branches split at 3980/3801); the old core's
- * u32-BE [300, 5000] read matched no real APE file. Bounded extent
- * stands in for the undecoded frame walk (the M-107 member; this lane's
- * decode progress recorded in M-107's S87 addendum 4). */
+ * u32-BE [300, 5000] read matched no real APE file.
+ * M-107's APE member (this landing): the SIZE WALK, decoded first-hand
+ * from FUN_180033180 (the CAPERawFileInfo chunk processor) + the S87
+ * addendum 4's decode notes, both raw reads agreeing:
+ *  - the walk's own cap: singleton+0x70 (0xBEBC200) x 10 = 2 GB (the
+ *    final clamp; the row max carries it);
+ *  - the OLD form (< 3980, the 3.80-3.97 32-byte header): the format
+ *    flags u16 LE@+8 - bit 2 -> the data start 0x24 else 0x20; bit 4
+ *    (the seek-elements field) -> +4; nHeaderBytes u32@+0x10 nonzero ->
+ *    +0x2C (the 44-byte WAV block); the alignment = channels (u16 LE@+0xA)
+ *    x bytes-per-sample (flag bit 3 -> 3, bit 0 -> 8, else 2) with the
+ *    gates alignment != 0 AND channels in {1,2} (0x1800331xx: the
+ *    `iVar14 == 0 || 1 < uVar20-1` decline); version < 3801 -> the table
+ *    position -= the u32@+0x18 (the old-old adjustment);
+ *  - the SEEK-TABLE walk: the u32 entries from the data start; the first
+ *    entry must be nonzero and < 2 GB (the :39133 gate) else the
+ *    extent-0 decline; each entry 0 or >= 2 GB terminates; the extent is
+ *    the running MAX (0x120) - the audio end;
+ *  - the NEW form (>= 3980): the descriptor u32@+8; the u64 at
+ *    (file + descriptor + 16) = bitsPerSample | channels<<16 |
+ *    sampleRate<<32; the alignment = (bitsPerSample >> 3) x channels
+ *    with the same != 0 / {1,2} gates; the extent = the descriptor's
+ *    size-field sum (u32@+0x20 + u32@+0x0C + the u64@+0x18 + u32@+0x14
+ *    + (u32@+0x10 + u32@+0x08), the 0x18003349b sum);
+ *  - the APETAGEX terminal: backward from the walked end for the u64
+ *    0x5845474154455041 with item count u32@tag+0x10 < 0x10000 and
+ *    (tag size u32@tag+0x0C - 0x20) < 0x1000001; span = tag size + 0x20,
+ *    or tag size when the flags u32@tag+0x14 bit 31 is clear; the
+ *    position adjusts by the flags byte@tag+0x17 bit 5 (bit 29): clear
+ *    -> the extent = tag position + 0x20, set -> + span; the OLD form
+ *    adds it at the tag position, the NEW form as the aligned sum;
+ *    no tag -> the walked extent rounded up to the sector (512) + one
+ *    sector (the og's chunk-length rounding).
+ * The registered model divergence (the CRW/X3F/WPG class): the og's
+ * chunk-fed state machine (+0x110/+0x118 multi-chunk bookkeeping) is
+ * the streaming artifact; the static model walks the same entries and
+ * the same tail from the candidate's own device window. */
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[96];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "MAC ", 4) != 0)
@@ -5884,17 +5918,142 @@ CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
      * old core's u32-BE [300, 5000] read matched NO real APE file (the
      * version field is the u16 LE; a real header's BE read is ~0x820F0000)
      * - every real Monkey's Audio archive was rejected. */
-    const u32 v = u16_from_bytes_le(h + 4);
-    if (v < 1000 || v > 9999)
+    const u16 version = u16_from_bytes_le(h + 4);
+    if (version < 1000 || version > 9999)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    constexpr u64 WALK_CAP = 2000000000ull; /* singleton+0x70 x10 = 2 GB */
+    u64 extent = 0;
+
+    if (version < 3980) {
+        /* ---- the OLD form (3.80-3.97): the 32-byte header ---- */
+        const u16 flags = u16_from_bytes_le(h + 8);
+        const u16 channels = u16_from_bytes_le(h + 0xA);
+        const u32 bps = (flags & 8) ? 3 : ((flags & 1) ? 8 : 2);
+        const u64 align = u64(channels) * bps;
+        if (align == 0 || channels < 1 || channels > 2)
+            return r; /* the alignment/channel gates (the extent-0 decline) */
+        u32 pos = (flags & 4) ? 0x24 : 0x20;
+        if (flags & 0x10)
+            pos += 4; /* the seek-elements field: a u32 read at the data start */
+        if (u32_from_bytes_le(h + 0x10) != 0)
+            pos += 0x2C; /* nHeaderBytes present: the 44-byte WAV block */
+        /* the first seek-table entry gates the table's existence */
+        u8 e[4];
+        if (!rd(s, hit + pos, e, sizeof(e)))
+            return r;
+        const u32 first = u32_from_bytes_le(e);
+        if (first == 0 || first >= WALK_CAP)
+            return r; /* the :39133 gate - no seek table, extent 0 */
+        u32 table_pos = pos;
+        if (version < 3801) {
+            const u32 adj = u32_from_bytes_le(h + 0x18);
+            if (u32(table_pos) < adj)
+                return r; /* the old-old adjustment would run off the front */
+            table_pos -= adj;
+        }
+        /* the seek-table walk: entries from the data start; 0 or >= 2 GB
+         * terminates; the extent is the running MAX (the audio end). The
+         * iteration guard (1 Mi entries = a 4 MB table; real tables are
+         * <= 64K entries) keeps the walk bounded - never a stuck scan. */
+        extent = first;
+        {
+            u64 at = hit + table_pos;
+            u32 guard = 0;
+            constexpr u32 MAX_ENTRIES = 1u << 20;
+            u8 blk[4096];
+            u64 blk_base = ~u64(0);
+            u32 blk_len = 0;
+            while (guard++ < MAX_ENTRIES && at + 4 <= limit) {
+                if (at + 4 > blk_base + blk_len || at < blk_base) {
+                    const u32 want = u32(std::min<u64>(sizeof(blk), limit - at));
+                    if (want < 4 || !rd(s, at, blk, want))
+                        break;
+                    blk_base = at;
+                    blk_len = want;
+                }
+                const u32 v = u32_from_bytes_le(blk + size_t(at - blk_base));
+                if (v == 0 || v >= WALK_CAP)
+                    break; /* the og's own termination */
+                if (v > extent)
+                    extent = v; /* the running max (the audio end) */
+                at += 4;
+            }
+        }
+    } else {
+        /* ---- the NEW form (3.98+): the descriptor ---- */
+        const u32 desc = u32_from_bytes_le(h + 8);
+        u8 q[8];
+        if (!rd(s, hit + u64(desc) + 16, q, sizeof(q)))
+            return r; /* the descriptor's compression qword must be readable */
+        const u16 bits = u16_from_bytes_le(q);
+        const u16 channels = u16_from_bytes_le(q + 2);
+        const u64 align = u64(bits >> 3) * channels;
+        if (align == 0 || channels < 1 || channels > 2)
+            return r;
+        extent = u64(u32_from_bytes_le(h + 0x20)) + u64(u32_from_bytes_le(h + 0x0C)) +
+                 u64_from_bytes_le(h + 0x18) + u64(u32_from_bytes_le(h + 0x14)) +
+                 u64(u32_from_bytes_le(h + 0x10) + desc);
+    }
+
+    /* ---- the APETAGEX terminal (both forms) ---- */
+    {
+        /* the og scans its LAST chunk backward for the footer; the static
+         * model scans the final 512-byte window of the walked region */
+        const u64 tail_base = extent > 512 ? extent - 512 : 0;
+        u8 tail[512];
+        u64 have = 0;
+        if (limit > hit + tail_base && limit - (hit + tail_base) >= 32) {
+            have = std::min<u64>(sizeof(tail), limit - (hit + tail_base));
+            if (!rd(s, hit + tail_base, tail, u32(have)))
+                have = 0;
+        }
+        u64 tag_off = ~u64(0);
+        if (have >= 32) {
+            for (u64 p = have - 32 + 1; p-- > 0;) {
+                if (std::memcmp(tail + p, "APETAGEX", 8) != 0)
+                    continue;
+                const u32 items = u32_from_bytes_le(tail + p + 0x10);
+                const u32 tsize = u32_from_bytes_le(tail + p + 0x0C);
+                const u32 tflags = u32_from_bytes_le(tail + p + 0x14);
+                if (items >= 0x10000)
+                    continue;
+                if (u32(tsize - 0x20) >= 0x1000001u)
+                    continue;
+                u64 span = u64(tsize) + 0x20;
+                if ((i32(tflags) >= 0))
+                    span = tsize; /* flags bit 31 clear: the items' bytes only */
+                const bool bit29 = (tail[p + 0x17] >> 5 & 1) != 0;
+                const u64 tag_file = tail_base + p; /* the footer's file offset */
+                u64 add = bit29 ? span : 0x20;
+                if (version < 3980) {
+                    extent = tag_file + add;
+                } else {
+                    u64 v = extent + span;
+                    v = (v - v % 512) + 512;
+                    extent = v;
+                }
+                tag_off = tag_file;
+                break;
+            }
+        }
+        if (tag_off == ~u64(0)) {
+            /* no tag: the walked extent rounded up to the sector + one
+             * sector (the og's chunk-length rounding) */
+            u64 v = extent;
+            if (v % 512)
+                v = v - v % 512 + 512;
+            extent = v + 512;
+        }
+    }
+
+    extent = std::min(extent, WALK_CAP);
     r.ok = true;
-    /* the extent remains the M-107 APE member's recorded stand-in (the
-     * walk's decode progress in M-107's S87 addendum 4: the 2 GB
-     * singleton+0x70*10 cap, the two header forms' alignment gates, the
-     * seek-table max walk, the APETAGEX backward tail scan) */
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = hit + extent;
+    if (r.end > limit)
+        r.end = limit;
     r.confidence = 620;
-    r.note = "ape-version-gate+bounded-extent";
+    r.note = "ape-seektable-walk+apetagex-tail";
     return r;
 }
 
@@ -6568,8 +6727,8 @@ CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap) {
  * :52287-52311, first-hand) completes the OneNote GUID: qword@+4 ==
  * 0x7853b1ae4da7d88c and dword@0xc == 0xd32969d0. The FileInfo bounds
  * {20, 500,000,000} are the og ctor's own (FUN_180016080 :17191-17209).
- * The chunk-chain size walk (FUN_180044e30) is the recorded follow-up;
- * the DWG-pattern bounded extent stands in. */
+ * The chunk-chain size walk landed as M-106 (FUN_180044e30, the body
+ * below) - this header's pre-M-106 "stands in" sentence is retired. */
 CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the chunk-chain size walk (FUN_180044e30 :52316-52358,
      * decoded in the trail's own evidence - s8-batch2-formats.md:29).
@@ -6702,10 +6861,10 @@ static bool swf_rect_valid(const u8* h) {
     const u32 nbits = u32(h[8]) >> 3;
     if (nbits < 2)
         return false; /* 0x180026980: cmp $0x1,%eax; jbe reject */
-    u32 bitpos = 5; /* MSB-first, after the 5-bit Nbits field (stream bits
-                     * 0-4; the first sign bit = LSB-index bit 2 = the
-                     * asm's `bl & 4` sign check at 0x180026a03, and the
-                     * first magnitude bit = LSB bit 1, the traced shr $1) */
+    u32 bitpos = 5;   /* MSB-first, after the 5-bit Nbits field (stream bits
+                       * 0-4; the first sign bit = LSB-index bit 2 = the
+                       * asm's `bl & 4` sign check at 0x180026a03, and the
+                       * first magnitude bit = LSB bit 1, the traced shr $1) */
     auto read_bit = [&]() -> u32 {
         const u32 bit = (h[8 + (bitpos >> 3)] >> (7 - (bitpos & 7))) & 1u;
         ++bitpos;
@@ -6753,9 +6912,9 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
  * :50906-50916, first-hand): 'MM'@0 AND '=='@+0x10, OR the alt branch
  * u32@0x100 == 0x4453434e ('NCSD' - extracted from the og DLL's .data,
  * VA 0x180093978 / file offset 0x91778) AND u32@0x104 == 0x200000.
- * The section size-walk (FUN_180042ff0) is the recorded follow-up; the
- * DWG-pattern bounded extent stands in. Row max = S-041's census
- * bound (200 MB). */
+ * The section walk landed as M-106 (FUN_180042ff0, the MM branch in the
+ * body below); row max = S-041's census bound (200 MB). This header's
+ * pre-M-106 "stands in" sentence is retired. */
 CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap) {
     /* M-106: the MM branch carries the section walk (FUN_180042ff0
      * :50921-50971, decoded in s8-batch2-formats.md:31): per chunk at

@@ -883,13 +883,15 @@ const Signature kTable[] = {
     /* N-093: the og's registered caps (GZRawFileInfo :15824-15829: min 20,
      * max 400,000,000) - min 18 -> 20 and the 512 MiB superset retired. */
     {FMT_GZ, "gz", {0x1F, 0x8B}, 2, 0, 20, 400000000, 600, validate_gz, "gzip"},
+    /* M-107's APE member: the row max carries the og walker's own cap
+     * (singleton+0x70 x 10 = 2 GB, the CRW/DWG class). */
     {FMT_APE,
      "ape",
      {'M', 'A', 'C', ' '},
      4,
      0,
      32,
-     256ull << 20,
+     2000000000ull,
      620,
      validate_ape,
      "Monkey's Audio"},

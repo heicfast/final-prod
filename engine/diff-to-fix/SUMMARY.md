@@ -94,18 +94,32 @@ FIXED.** Next free IDs: S-069+, M-160+, N-231+, I-049+, A-017+, D-166+.
   whitespace commit BEFORE the racing window's own fc0eab3b sweep
   landed; convergent, no board effect).
 
-**Board after the racing window + this lane's merge (filesystem truth):
-0 ACUTE · 0 SEVERE · 4 MAJOR (M-086/M-087/M-089 driver-repo-resident per
-OQ-S10-3 — out of the two-repo grant; M-107 [SIT/APE/SWF-RECT + the DWG
-gen-3 R2007 remainder stand after the racing window's members 1-8]) ·
-2 MINOR (N-107/N-127 driver-repo) · 0 INFO active / 209 FIXED / 3
-tracked-open (OQ-S79-1 RESOLVED by the racing window; OQ-S4-3 TTFR and
-OQ-S10-1 vendoring pushed forward; OQ-S10-3 boundary re-affirmed).**
-M-101, M-105, N-225, and OQ-S79-1 were all landed by the racing window
-this push-window; this lane's M-101 riders (the producer + the ABI
-exposure) ride on top. Next in this lane's queue: M-107's
-SIT/APE/SWF-RECT members + the DWG gen-3 remainder, then the OQ-S4-3
-TTFR dispatch attempt.
+- **M-107 FIXED (MAJOR — the APE member, the final one; this lane's
+  landing):** the seek-table MAX walk + the two header forms (the
+  3.80-3.97 32-byte header's flags/channels/alignment gates and
+  data-start arithmetic; the 3.98+ descriptor's qword and size-field
+  sum) + the APETAGEX tail (the flags bit31/bit29 arithmetic) + the
+  no-tag sector rounding + the 2 GB cap (the row max carries it) —
+  decoded first-hand from FUN_180033180 (:39043-39275) with the S87
+  addendum 4's notes, both raw reads agreeing. RED first-hand at the
+  stand-in (the battery FAILED); GREEN 7/7; the full suite 1732/1732.
+  The S-007 plant re-pinned to the real 3.97 form; the M-160 window
+  test's edge plants gained walk-valid fields; two stale pre-M-106
+  headers (ONE/3DS) retired. The finding moves to findings/FIXED/ with
+  the three registered remainders (the DWG gen-3 R2007 chain, the SIT
+  ' '-form epilogue, the CWS compressed-body RECT).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+3 MAJOR (M-086/M-087/M-089 driver-repo-resident per OQ-S10-3 — out of
+the two-repo grant, pushed forward with the precise next steps) ·
+2 MINOR (N-107/N-127 driver-repo, same boundary) · 0 INFO active /
+210 FIXED / 3 tracked-open.** Every in-scope finding is now resolved:
+M-107 completes this push (the racing window landed members 1-10 +
+SWF-RECT; this lane landed APE, the final member); M-101 (the racing
+seat + this lane's producer/ABI riders), M-105, N-225, and OQ-S79-1
+were landed across the racing windows. The remaining open items are
+exactly the out-of-grant driver-repo five and the two pushed-forward
+OQs (S4-3's TTFR Windows execution; S10-1's vendoring decision).
 
 ---
 

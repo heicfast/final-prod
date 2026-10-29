@@ -330,3 +330,106 @@ SwfRectValidationRejectsNegativeField / SwfRectNbitsBelowTwoRejects all
 RED at the pre-fix tree (the core accepted every readable FWS header),
 GREEN with the gate; SwfRectValidationAcceptsSaneBoxAtFileLength pins
 the positive + the FileLength extent. Suite 1724/1724.
+
+---
+
+## Session-93 S93 lane addendum (2026-10-30) — the APE member LANDED (the final member); M-107 is FIXED
+
+**APE FIXED (this lane; the finding is complete).** The walk decoded
+first-hand from FUN_180033180 (the CAPERawFileInfo chunk processor,
+RAWSearchDLL_decompiled.c :39043-39275, read in full this session) with
+the S87 addendum 4's decode notes — both raw reads agreeing on every
+material point:
+
+- **The cap**: singleton+0x70 (0xBEBC200) x 10 = **2 GB** (the final
+  clamp; the row max now carries it — the CRW/DWG class).
+- **The OLD form (< 3980, the 3.80-3.97 32-byte header)**: the format
+  flags u16 LE@+8 — bit 2 -> the data start 0x24 else 0x20; bit 4 (the
+  seek-elements field) -> +4; nHeaderBytes u32@+0x10 nonzero -> +0x2C
+  (the 44-byte WAV block); the alignment = channels (u16 LE@+0xA) x
+  bytes-per-sample (flag bit 3 -> 3, bit 0 -> 8, else 2) with the gates
+  alignment != 0 AND channels in {1,2}; version < 3801 -> the table
+  position -= the u32@+0x18 (the old-old adjustment, front-clamped).
+- **The first-entry gate**: the u32 at the data start must be nonzero
+  and < 2 GB (the :39133 gate) - else the extent-0 decline (no seek
+  table, never a blind carve).
+- **The seek-table walk**: the u32 entries; each 0 or >= 2 GB
+  terminates (the og's own break); the extent is the running MAX
+  (+0x120) - the audio end. The iteration guard (1 Mi entries) keeps
+  the walk bounded - never a stuck scan.
+- **The NEW form (>= 3980)**: the descriptor u32@+8; the u64 at
+  (file + descriptor + 16) = bitsPerSample | channels<<16 |
+  sampleRate<<32; the alignment = (bps >> 3) x channels with the same
+  != 0 / {1,2} gates; the extent = the descriptor's size-field sum
+  (u32@+0x20 + u32@+0x0C + the u64@+0x18 + u32@+0x14 + (u32@+0x10 +
+  u32@+0x08), the 0x18003349b sum).
+- **The APETAGEX terminal** (both forms): the backward scan for the u64
+  0x5845474154455041 with item count u32@tag+0x10 < 0x10000 and (tag
+  size u32@tag+0x0C - 0x20) < 0x1000001; span = tag size + 0x20, or the
+  tag size when flags u32@tag+0x14 bit 31 is clear; the position adjusts
+  by byte@tag+0x17 bit 5 (bit 29): clear -> the extent = the tag
+  position + 0x20, set -> + span; the OLD form places it at the tag
+  position, the NEW form as the aligned sum; no tag -> the walked
+  extent rounded up to the sector (512) + one sector (the og's
+  chunk-length rounding).
+- **The registered model divergence** (the CRW/X3F/WPG class): the
+  og's chunk-fed state machine (+0x110/+0x118 multi-chunk bookkeeping)
+  is the streaming artifact; the static model walks the same entries
+  and the same tail from the candidate's own window. The +0x118
+  table-bound arithmetic (the S87 note's open point) is closed by the
+  static termination rule: the loop's own 0/>= 2 GB break.
+
+The landing: `validate_ape` keeps the M-160 version gate and replaces
+the 64 MiB stand-in with the walk; the row max carries the og's own cap
+(2 GB). The S-007 batch plant re-pinned to the real 3.97 form (the
+{40, 80, 120, 0} table + the sector rounding -> the 1024-byte extent);
+the M-160 window test's edge plants gained the minimal walk-valid
+fields (1000 = an OLD-form plant, 9999 = a NEW-form one) so the version
+WINDOW stays the varying axis. RED first-hand at the stand-in (the
+walk battery FAILED - ApeSeekTableWalkSetsExtent and
+ApeApetagexTailExtendsTheCarve captured explicitly; the run errored on
+the full set: the stand-in neither walks the table nor gates the
+channels); GREEN with the walk: the 7-test APE set, the full suite
+1732/1732. Two stale pre-M-106 header comments retired in the same
+change (validate_one / validate_3ds - their bodies landed the walks in
+M-106; the file-level headers still said "stands in").
+
+**The finding's member ledger at completion**: X3F (M-156/the chain),
+CRW (S83), DWG (S85 + the gen-2 repair + the S86 riders), PSP (S85),
+WPG (S85), WPD (the S87 version-table + the S91 sub-format rider), DXF
+(S85), EPS (S85), AI (S85), SIT (the racing 2214af90 window), APE (this
+landing). SWF-RECT landed as the S90 validation-only gate (the finding's
+open question 3 resolved: the RECT parse never changes the extent). The
+version-gate repair (the u16-LE window) landed separately as M-160.
+
+**The three honest remainders, explicitly registered (the finding's
+acceptance: "or owned by an explicitly re-registered remainder"):**
+1. the DWG gen-3 R2007 de-interleave record chain (the S85 landing's
+   recorded follow-up — the bounded extent stays for AC1021 files);
+2. the SIT classic-' '-form's feeding-protocol epilogue (the SIT
+   landing's own remainder note — the bounded stand-in at reduced
+   confidence for that population);
+3. the CWS compressed-body RECT validation (the S90 SWF landing's
+   recorded follow-up — CWS keeps the shallow gates + the FileLength
+   extent).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push, the S93 fix lane; the APE member — the final member — plus the prior lanes' member landings recorded in the addenda above)
+**Verified by:** the APE walk battery RED at the stand-in first-hand
+(ApeSeekTableWalkSetsExtent / ApeApetagexTailExtendsTheCarve captured
+FAILED; the run errored on the full five) -> GREEN with the walk
+(ApeSeekTableWalkSetsExtent / ApeApetagexTailExtendsTheCarve /
+ApeNewFormDescriptorSumSetsExtent / ApeZeroFirstSeekEntryDeclines /
+ApeFourChannelsDeclines + the M-160 pair re-pinned, 7/7); the full
+suite 1732/1732; ci-local GREEN at the landing tree.
+**Resolution notes:** Every member of the finding's enumeration is
+landed with its own RED proof (the per-member addenda above); the
+acceptance's grep criterion is met — the "stands in"/"recorded
+follow-up" phrases are gone except the three explicitly-registered
+remainders (the DWG gen-3 chain, the SIT epilogue, the CWS body) and
+two retired stale headers (ONE/3DS, pre-M-106 text). The row maxes now
+carry every og walker's own cap (the CRW/DWG/X3F/APE class). Corpus:
+RAWSearchDLL_decompiled.c FUN_180033180 :39043-39275 (read in full this
+session), the S87 addendum 4's notes, be0cfe9 (read-only held).

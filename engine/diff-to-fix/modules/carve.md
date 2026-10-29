@@ -1,5 +1,20 @@
 # modules/carve.md — carve module audit verdicts
 
+
+## Session-93 fix row (2026-10-30 — M-107's APE member: the final member; the finding is FIXED)
+
+- **APE CLOSED (findings/FIXED/)**: the seek-table MAX walk + the two
+  header forms + the APETAGEX tail, decoded first-hand from
+  FUN_180033180 with the S87 addendum 4's notes (both raw reads
+  agreeing). The row max carries the og walker's own cap (2 GB =
+  singleton+0x70 ×10). The S-007 plant re-pinned to the real 3.97 form
+  (the {40,80,120,0} table → the 1024-byte extent); the M-160 window
+  test's edge plants gained the minimal walk-valid fields. RED at the
+  stand-in first-hand; GREEN 7/7; the full suite 1732/1732. The finding
+  moves to FIXED with the three registered remainders (the DWG gen-3
+  R2007 chain, the SIT ' '-form epilogue, the CWS compressed-body RECT)
+  and two retired stale pre-M-106 headers (ONE/3DS).
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
 
 New active findings on this module: **S-055** (FIXED session-51 — the user-sign layer

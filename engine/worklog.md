@@ -14218,3 +14218,44 @@ The merged tree: full suite **1712/1712**, ci-local GREEN, doc_truth_gate
 green. Trail: the finding's Session-93 addendum (the concession + the
 riders), the matrix S93 row, modules/query.md's S93 fix row, the SUMMARY
 S93 block, this entry. Corpus: be0cfe9, read-only guarantee held.
+
+## Session-93 S93 fix-lane — entry 4 (2026-10-30): M-107's APE member lands — the finding is FIXED (the final member)
+
+**The walk decoded first-hand** from FUN_180033180 (the CAPERawFileInfo
+chunk processor, RAWSearchDLL_decompiled.c :39043-39275, read in full)
++ the S87 addendum 4's decode notes — both raw reads agreeing on every
+material point (the 2 GB singleton+0x70×10 cap; the OLD form's
+flags/channels/alignment gates + the data-start arithmetic [0x20/0x24,
++4 seek-elements, +0x2C the WAV block, the <3801 adjustment]; the
+first-entry gate [nonzero < 2 GB]; the seek-table MAX walk with the
+0/≥2 GB termination — the S87 note's open +0x118 point closed by the
+static termination rule; the NEW form's descriptor [the qword at
+desc+16 = bps|channels<<16|rate<<32; the alignment (bps>>3)×channels;
+the extent = the descriptor's size-field sum]; the APETAGEX tail [item
+count < 0x10000, tag size ∈ [0x20, 0x1000020], the flags bit31/bit29
+arithmetic]; the no-tag sector rounding).
+
+**The landing**: validate_ape keeps the M-160 version gate and replaces
+the 64 MiB stand-in with the walk; the row max carries the og's own cap
+(2 GB); the S-007 batch plant re-pinned to the real 3.97 form (the
+{40,80,120,0} table → the 1024-byte extent); the M-160 window test's
+edge plants gained the minimal walk-valid fields (1000 = an OLD-form
+plant, 9999 = a NEW-form one) so the version WINDOW stays the varying
+axis; two stale pre-M-106 headers (validate_one/validate_3ds — their
+BODIES landed the walks in M-106; the file-level headers still said
+"stands in") retired in the same change.
+
+**Proof**: RED first-hand at the stand-in — the walk battery FAILED
+(ApeSeekTableWalkSetsExtent + ApeApetagexTailExtendsTheCarve captured
+explicitly; the run errored on the full set: the stand-in neither walks
+the table nor gates the channels); restored → GREEN: the 7-test APE set
++ the full suite **1732/1732** (1720 + 12: the 5 walk pins + the
+M-160 pair re-pinned states + the batch/S-007 count growth).
+
+Trail: M-107's Session-93 addendum + the Resolution (FIXED — the three
+registered remainders: the DWG gen-3 R2007 chain, the SIT ' '-form
+epilogue, the CWS compressed-body RECT) + the move to findings/FIXED/;
+the matrix S93 APE row + the prior M-107 row's remaining-note updated;
+modules/carve.md's S93 row; the SUMMARY S93 block (board: 3 MAJOR
+[driver-repo] / 2 MINOR [driver-repo] / 210 FIXED / 3 tracked-open);
+this entry. Corpus: be0cfe9, read-only guarantee held.
