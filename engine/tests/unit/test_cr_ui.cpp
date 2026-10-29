@@ -5264,3 +5264,57 @@ TEST(CrUi, CliDisconnectHintNamesRealVerb) {
         << "the exit-5 disconnect hint must name the real resume form "
            "(scan --resume), never a phantom `rrecov resume` verb";
 }
+
+/* Session-84 (coherence, D14): the -h block's scan section omitted six
+ * live flags (--autosave-dir/--label/--pause-stdin/--user-signs/
+ * --bitlocker-dict/--check) while the parse loop accepted them - the
+ * N-094 class (a surface invisible in the product's own help), flagged
+ * by the Phase-0 CLI sheet and repaired in the same session. The pin
+ * holds the invariant the same way N-094 holds the verb invariant:
+ * every flag cmd_scan's parse loop accepts must appear in the -h usage
+ * block. */
+TEST(CrUi, CliHelpListsEveryScanFlag) {
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* the scan parse loop: from cmd_scan's opening to the refusal line */
+    const size_t scan_start = src.find("int cmd_scan(");
+    ASSERT_NE(std::string::npos, scan_start) << "cmd_scan not found";
+    const size_t scan_end = src.find("scan needs --disk", scan_start);
+    ASSERT_NE(std::string::npos, scan_end) << "scan parse loop end not found";
+    const std::string scan_body = src.substr(scan_start, scan_end - scan_start);
+
+    /* every flag the loop accepts, both valueless and valued */
+    std::vector<std::string> flags;
+    for (size_t pos = 0; (pos = scan_body.find("L\"--", pos)) != std::string::npos;) {
+        const size_t start = pos + 3;
+        const size_t end = scan_body.find('"', start);
+        ASSERT_NE(std::string::npos, end);
+        const std::string name = scan_body.substr(start, end - start);
+        /* full-match flag names only: prose fragments (e.g. a comment
+         * quoting "--quick-only disables it") must not count as flags */
+        if (name.size() > 2 &&
+            name.find_first_not_of("-abcdefghijklmnopqrstuvwxyz0123456789") == std::string::npos)
+            flags.push_back(name);
+        pos = end;
+    }
+    ASSERT_GE(flags.size(), 20u) << "scan-flag extraction broke (found " << flags.size() << ")";
+
+    /* the -h usage block: the wprintf'd help between the scan verb line
+     * and the tree verb line */
+    const size_t h_start = src.find("rrecov scan --disk N | --volume C: | --image file.vmdk");
+    ASSERT_NE(std::string::npos, h_start) << "-h scan section not found";
+    const size_t h_end = src.find("rrecov tree --in", h_start);
+    ASSERT_NE(std::string::npos, h_end) << "-h tree line not found";
+    const std::string help_block = src.substr(h_start, h_end - h_start);
+
+    for (const auto& f : flags) {
+        /* --volume/--disk/--image are target selectors, already on the
+         * first line; every other parsed flag must appear in the block */
+        if (f == "--disk" || f == "--volume" || f == "--image")
+            continue;
+        EXPECT_NE(std::string::npos, help_block.find(f))
+            << "the -h scan section must list the parsed flag " << f
+            << " (the N-094 class: a surface invisible in the product's own help)";
+    }
+}
