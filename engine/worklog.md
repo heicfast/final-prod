@@ -12416,3 +12416,32 @@ never populates `$Matches` on the 240-line `list-carve-formats` output →
 misfire; the message describes only the profile half. Both fixes are real,
 both evidenced in `worklog/ci-failures/test-benchmark-6.txt`; recorded here
 so the history stays truthful (no rewrite of pushed main).
+---
+
+# Session 84 — the diff-to-fix execution lane (opened 2026-10-29)
+
+**Opened at core `27bda40e`, corpus `be0cfe9` (both first-hand).** The
+S84 lane's grant: the two-repo boundary (core modified + corpus read-only;
+the five driver-repo-resident findings stay untouchable per OQ-S10-3).
+The user's order this session: MAJOR/INFORMATIONAL first, one finding /
+one verified fix / one push, 20+ fixes, fixed findings to findings/FIXED/.
+
+**T1-T3 (the read-before-touching pass):** diff-to-fix/ read in full
+(SUMMARY, README, all 11 MAJOR + 4 MINOR + 1 INFO finding files, the 4
+tracked-open files, FIXED-LEDGER conventions, the modules index); the core
+tree surveyed (src/win, src/core, src/ui, src/app, tests/unit); the
+baseline build attempted FIRST — **main is RED at open**: `27bda40e` (the
+M-151 landing) committed unresolved merge conflict markers in
+`tests/unit/test_ntfs_volume.cpp` (two marker pairs at :5780/:5865, the
+A-016-vs-M-151 test collision), so the suite cannot build — the M-151
+commit message's "full suite 1634/1634" claim is false against its own
+tree (the M-120/N-210/M-155 class's FOURTH recurrence). Filed as N-219
+and repaired before any lane work (the red-main-repair-first precedent).
+
+**The lane's queue (the user's priority order):** N-219 (the red main)
+→ M-075 (chkdsk launch) → M-078 (BitLocker turn-off) → M-154 (autosave
+retention + pointer) → M-101 (Versions + Tags Extracted branches) →
+M-105 (DRWService: option a) → M-114 (system-restore purge plan item) →
+M-111 (browse scope decision) → M-107's members (CRW → DWG → WPG → WPD →
+PSP → SIT → APE → EPS → DXF → SWF-RECT, corpus decode each) → I-048 →
+N-178 → N-181 → the four OQs (S10-1/S10-3/S4-3/S79-1).
