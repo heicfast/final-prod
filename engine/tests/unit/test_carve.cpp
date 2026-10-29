@@ -3349,6 +3349,155 @@ TEST(Carve, WpgAllZeroWindowDeclines) {
             << "the all-zero window is the og's extent-0 decline";
 }
 
+/* ---- M-107 member 6 (WPD): the version-table walk
+ * (FUN_180041f50) ------------------------------------------ */
+
+size_t plant_wpd(std::vector<u8>& img, size_t at, u32 size);
+
+TEST(Carve, WpdVersionTableWalkSetsExtent) {
+    /* The og's walk stamps extent = u32@+0x14 (the WPC common header's
+     * own file-size field) verbatim on a version-record match - NOT the
+     * blind 64 MiB stand-in. The plant declares 0x8000 (32 KiB) on a
+     * 1 MiB device: the stand-in carved the whole device reach; the
+     * walk carves exactly the declared size. */
+    std::vector<u8> img(1024 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_wpd(img, at, 0x8000);
+    EXPECT_EQ(expect, size_t(0x8000));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the WPD must carve through the version-table walk";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(0x8000))
+        << "extent = the header's own size field u32@+0x14";
+}
+
+TEST(Carve, WpdOverCapSizeCarvesFull) {
+    /* The truncation class the finding filed: a WPD whose declared size
+     * exceeds the old 64 MiB stand-in cap carves og-exact (the row max
+     * now carries the u32 field's own ceiling; the device end clamps). */
+    std::vector<u8> img(80ull << 20, 0); /* 80 MiB device */
+    const size_t at = 512;
+    plant_wpd(img, at, u32(72ull << 20)); /* 72 MiB > the old 64 MiB cap */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the over-cap WPD must carve";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(72ull << 20))
+        << "the declared 72 MiB size carves full - no 64 MiB truncation";
+}
+
+TEST(Carve, WpdVersionTableGateDeclinesUnknownVersion) {
+    /* The og's gate is the three-record table, NOT the bare key: a
+     * \xFFWPC hit with a version pair in NO record declines (the
+     * return-0 walk). The stand-in accepted any key + product word. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at,
+                "\xFF"
+                "WPC",
+                4);
+    put16(img, at + 4, 0x0200);        /* nonzero product word (the stand-in's gate) */
+    put32v(img, at + 8, 0x020a0a0a);   /* verA: NOT in any record */
+    put32v(img, at + 0xe, 0x00050200); /* verB: record 1's - the PAIR is what gates */
+    put32v(img, at + 0x14, 0x1000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "an unmatched version pair must decline (the og's table gate)";
+}
+
+TEST(Carve, WpdZeroSizeFieldDeclines) {
+    /* The engine's acceptance gate (0x18000d7e1): extent==0 -> no
+     * carve. A valid version record with a zero size field declines. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    plant_wpd(img, at, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_FALSE(c->props() && c->props()->extents.front().offset == at)
+            << "a zero size field must decline (the extent!=0 engine gate)";
+}
+
+TEST(Carve, WpdSecondAndThirdRecordsCarve) {
+    /* The table's other two records - the WPG-family WPC variant
+     * (0x00021601, 0x00030000) and the third variant (0x00010f0f,
+     * 0x00030000) - carve through the same walk at their own declared
+     * sizes (the type split is the og's report-layer routing; the
+     * family carve is the core's registered stance). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at2 = 512, at3 = 16384; /* at3 beyond at2's extent (no
+        mid-stream suppression: at2's carve ends at 512+0x3000) */
+    std::memcpy(img.data() + at2,
+                "\xFF"
+                "WPC",
+                4);
+    put32v(img, at2 + 8, 0x00021601);
+    put32v(img, at2 + 0xe, 0x00030000);
+    put32v(img, at2 + 0x14, 0x3000);
+    std::memcpy(img.data() + at3,
+                "\xFF"
+                "WPC",
+                4);
+    put32v(img, at3 + 8, 0x00010f0f);
+    put32v(img, at3 + 0xe, 0x00030000);
+    put32v(img, at3 + 0x14, 0x5000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* v2 = nullptr;
+    tree::FileNode* v3 = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props() || c->props()->extents.empty())
+            continue;
+        if (c->props()->extents.front().offset == at2)
+            v2 = c;
+        if (c->props()->extents.front().offset == at3)
+            v3 = c;
+    }
+    ASSERT_NE(v2, nullptr) << "record 2 (the WPG-family WPC variant) must carve";
+    EXPECT_EQ(v2->props()->logical_size, size_t(0x3000));
+    ASSERT_NE(v3, nullptr) << "record 3 (the third WPC variant) must carve";
+    EXPECT_EQ(v3->props()->logical_size, size_t(0x5000));
+}
+
 /* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
  * formula fields (FUN_180012100 :14233-14258, first-hand):
  * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */
@@ -3387,7 +3536,11 @@ size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared = 0x3000) {
     /* M-107 member 6: the og's tier-1 pair table (FUN_180041f50's
      * compare groups at 0x180041f8a-0x180041fd0): (u32@+8, u32@+0xE)
      * = the known pair (0x01020a01, 0x00050200); the extent =
-     * u32@+0x14 (0x18004200c) - the declared document size */
+     * u32@+0x14 (0x18004200c) - the declared document size. The
+     * S87-continuation lane's convergent decode: the FULL three-record
+     * table {(0x01020a01,0x00050200)->0x44, (0x00021601,0x00030000)
+     * ->0x45, (0x00010f0f,0x00030000)->0x3d} - corroborated by the
+     * .rdata dump at 0x18006ef40. */
     std::memcpy(img.data() + at,
                 "\xFF"
                 "WPC",
@@ -3453,9 +3606,9 @@ TEST(Carve, WpdUnknownPairDeclines) {
     SUCCEED();
 }
 
-/* The S88 lane's convergent riders (the concession per SA-9: the racing
+/* The S91 lane's convergent riders (the concession per SA-9: the racing
  * WPD landing keeps the seat; this lane's independent decode —
- * evidence/s90-lane-sheets/s90-l1-wpd-version-table-decode.md —
+ * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
  * confirms it and adds the two directions its battery lacks). */
 TEST(Carve, WpdZeroSizeFieldDeclines) {
     /* the zero declared size routes to the generic pending child whose

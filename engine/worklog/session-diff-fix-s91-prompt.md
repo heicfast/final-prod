@@ -1,4 +1,4 @@
-# Session-90 (S90) — diff-to-fix session prompt (re-homed S88 → S90 per SA-9: the racing windows took S68-S89) (token redacted)
+# Session-91 (S91) — diff-to-fix session prompt (re-homed S88 → S90 → S91 per SA-9: the racing windows took S68-S90) (token redacted)
 
 Saved at session open per the mandate. Core at open: `ddab68b4` (main, clean
 clone); corpus `be0cfe9` throughout.
@@ -81,7 +81,14 @@ M-107 members landed so far: X3F (1), CRW (2), DWG gen-1/gen-2 (3), PSP (4),
 WPG (5) — remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT + the DWG gen-3
 R2007 remainder.
 
-## Re-homing note (added at the merge)
+## Re-homing note (added at the merges)
+
+First re-home: S88 -> S90 (the racing S88/S89). Second re-home at the
+push: S90 -> S91 (the racing window's OWN S90 concession lane —
+fce46d98 — pushed first and keeps that seat too). The N-number
+cascade: this lane's worklog-marker repair was born N-224, renumbered
+N-227 at the first merge, and now N-228 (the racing N-227 — the
+m101-test-restore — stands).
 
 This lane opened as S88 from core `ddab68b4`; the racing window's S88/S89
 pushed first and keeps those seats — this lane re-homes to S90. The

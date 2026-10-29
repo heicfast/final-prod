@@ -1390,7 +1390,7 @@ test.
 
 ---
 
-## S90 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
+## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
 
 **The racing S84/S89 window's WPD landing keeps the seat** (the same
 decode arrived at independently); this lane's riders (the two extra

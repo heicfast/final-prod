@@ -1,4 +1,43 @@
-## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
+
+Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
+The prompt saved token-redacted (`worklog/session-diff-fix-s90-prompt.md`).
+Baseline suite green first-hand at the open: **1661/1661** (128 s).
+
+This lane independently decoded and implemented the WPD + WPG members
+(locally GREEN 1666/1666, RED proofs first-hand via the stash dance).
+**The pushes hit THREE convergent racing windows in sequence and every
+seat was conceded per SA-9:** (1) the S85 window's WPD pair-table
+landing (d20a8483) + the deeper WPG zero-tail walk (the +0x20 processor
+FUN_180014160, superseding this lane's tier-1-only zero-end
+classification); (2) the S84/S89 window's merge (M-101 + the DXF/EPS/AI
+members); (3) the S87 window's WPD version-table landing (1ff8ae24)
+with the 0xFFFFFFFF row max — the exact rider this lane had built at
+4 GiB, converged again (the S87 form is the more exact u32 ceiling and
+holds the seat). The final concession: no code delta from this lane
+survives — the main tree already implements every decode this lane
+derived; this lane's two rider tests were dropped as converged
+duplicates of the S87 battery (WpdOverCapSizeCarvesFull /
+WpdSecondAndThirdRecordsCarve).
+
+**The unique record this lane lands (the corroboration no other window
+carried): the WPG tier-1 decode closes the S85 zero-tail landing's own
+honest residue.** Byte-exact (FUN_180014030, objdump first-hand): the
+tier-1 stamps ONLY the id 0x45 — NO size; the size==0 acceptance cannot
+finalize in the scan loop (the :9564 emit gate fails), so the candidate
+rides the continuation path where the +0x20 processor computes the
+extent — the pending machinery (:9564-9591) is the racing processor's
+calling context, and the landing's recorded residue ("the ctx gate
+undecoded — the extent shifts by multiples of 512 if it defers") is the
+pending-list re-feed cadence, not an undecoded gate. Recorded in
+M-107's Session-90 addendum.
+
+Suite green at the racing head + this lane's trail (first-hand); the
+lane continues on the standing board: M-107's SIT/APE/SWF-RECT members,
+M-105, the tracked-open items, and the discovery sweep — see the
+following entries.
+
+## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 ## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
 
@@ -8,7 +47,10 @@ Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
 The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
 this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
-18.1.8, cmake 4.4.4).
+18.1.8, cmake 4.4.4). The full entry record: the DWG concession + the
+two riders (the row floor 0x15 + the full-counter id gate) live in
+M-107's Session-86 addendum and the S84 entries below.
+
 ## Session-84 S84 lane — M-107's WPD member landed (member 6 of 11; 2026-10-30)
 
 **FileWPDAnalyser's walk decoded first-hand** (evidence/s84-lane-sheets/
@@ -25,6 +67,40 @@ WPD. RED->GREEN first-hand (WpdPairTableDeclaredSizeSetsExtent RED at
 the stand-in; WpdUnknownPairDeclines pins the decline); the carve suite
 288/288. Trail: M-107's S84 addendum 4, the matrix row, carve.md's
 S84 addendum 4, this entry.
+
+## Session-87 S87 fix lane (continuation, the MAJOR-first 20+ mandate) — opens; N-225 lands; M-107 member 6 (WPD) lands (2026-10-30)
+
+- **Baseline:** opened at core `ddab68b4` (clean tree; full ctest
+  1683/1683 green first-hand post-merge at `45fe3a9f`, corpus `be0cfe9`
+  throughout; the prompt re-saved token-redacted at
+  `worklog/session-diff-fix-s87-prompt.md`, superseding the earlier
+  S86-era draft at the older pin `b6801ade`).
+- **The open-pull state:** main at the open pin carried the M-075-era
+  win_syntax_check RED (cr_fsck.cpp's WoW64 pair + ULONGLONG never grown
+  into tests/win-stub/windows.h) — the racing window's three repair
+  lanes (9f5f0415 / a2a93573 / 90b787d6) had each landed the same stub
+  growth, leaving THREE definition sets on origin/main
+  (`322dbdc0`): every src/win file failed the parse gate with
+  redefinition errors. **N-225** filed and fixed in this lane's merge:
+  the stub deduped to ONE definition set, 13/13 parse, full ctest
+  green. This lane's independent stub growth (the born-collided local
+  N-224, `74f29341`) conceded per SA-9 to the racing filings.
+- **M-107 member 6 (WPD) FIXED** — the version-table walk
+  (FUN_180041f50, raw asm 0x180041f50-0x18004202e; the 36-byte table
+  at .rdata 0x18006ef40 + the movl $0x3d ninth int; the +0x20 vtable
+  slot; the extent!=0 engine gate at 0x18000d7e1): the og gates on
+  THREE version records — (u32@+8, u32@+0xe) against
+  (0x01020a01, 0x00050200)→0x44 / (0x00021601, 0x00030000)→0x45 /
+  (0x00010f0f, 0x00030000)→0x3d — and stamps extent = u32@+0x14
+  (the WPC common header's own file-size field) on any match; no
+  record → decline; zero size → the engine's decline. The row max
+  carries the u32 field's own ceiling 0xFFFFFFFF (the og's registry
+  node has no min/max); the type split is the report-layer routing
+  (the single-family carve keeps the registered stance); the +4
+  product-word gate retired (the og never reads +4). Five RED→GREEN
+  tests via the stash dance; the S-007 WPD plant re-pinned; the carve
+  suite 191/191. M-107 now at members 1-6 of 11 (remaining: SIT, APE,
+  EPS, DXF, SWF-RECT + the DWG gen-3 remainder).
 
 ## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
 
@@ -13086,7 +13162,7 @@ Board: 6 MAJOR · 2 MINOR active / 198 FIXED / 4 tracked-open.
 
 
 
-## Session-90 S90 fix-lane — entry 1: N-227, the ddab68b4 worklog marker repair (renumbered from the born-collided N-224; 2026-10-30)
+## Session-91 S91 fix-lane — entry 1: N-228, the ddab68b4 worklog marker repair (renumbered N-224 → N-227 → N-228 at the SA-9 pushes; 2026-10-30)
 
 **The sixth M-120/N-210-class recurrence, found at the clean-clone
 open:** `ddab68b4` (the S84 DWG-member-3 push, origin/main at this
@@ -13097,10 +13173,10 @@ the S87 N-181 concession entry vs the S84 DWG decode record, a live
 forfeited); the repo-wide marker sweep re-run clean; doc_truth_gate
 green over the repaired tree. Filed as N-227 (this lane filed N-224
 locally; the racing window's N-224 — the M-075 win-stub gap — pushed
-first and keeps the seat per SA-9; the renumber recorded in the
-file's title line).
+first and keeps the seat per SA-9; the twice-renumbered record in the
+file's title line: N-224 → N-227 → N-228).
 
-## Session-90 S90 fix-lane — entry 2: the M-075 stub-gap repair — the convergent twin, conceded per SA-9 (2026-10-30)
+## Session-91 S91 fix-lane — entry 2: the M-075 stub-gap repair — the convergent twin, conceded per SA-9 (2026-10-30)
 
 **RED main at the open (independent of the racing window):**
 `ctest -R win_syntax_check` FAILED at `ddab68b4` — the M-075 landing's
@@ -13120,7 +13196,7 @@ The merge resolution deduped the auto-merged duplicate blocks (the
 triple-definition class recurring a fourth time in the merge itself —
 one definition set survives, re-verified).
 
-## Session-90 S90 fix-lane — entry 3: M-107 member 6, the WPD contract lands (re-homed S88 → S90 per SA-9; 2026-10-30)
+## Session-91 S91 fix-lane — entry 3: M-107 member 6, the WPD contract lands — CONCEDED to the racing windows at both pushes (re-homed S88 → S90 → S91 per SA-9; 2026-10-30)
 
 **The decode (first-hand, raw asm over the corpus binary):** the
 "\xFFWPC" binding (0x180003ccb-0x180003cde) → node {vtable
@@ -13143,8 +13219,8 @@ WpdZeroProductWordWithGoodPairCarves — the invented gate declined a
 real pair; the re-pinned S-007 batch plant), GREEN with the contract;
 two decline-direction pins. The carve suite 190/190. Trail: M-107's
 S88 addendum, the matrix member row, modules/carve.md's S88 addendum
-1, this entry. Evidence: diff-to-fix/evidence/s90-lane-sheets/
-s90-l1-wpd-version-table-decode.md.
+1, this entry. Evidence: diff-to-fix/evidence/s91-lane-sheets/
+s91-l1-wpd-version-table-decode.md.
 
 ---
 
@@ -13456,3 +13532,96 @@ extended to N-224 + N-225, the SUMMARY S89 block opened (board: 6 MAJOR / 2
 MINOR / 0 INFO active / 207 FIXED / 4 tracked-open). No code change owed.
 
 <!-- S89 merge note: the racing window's session-84/85 handoff entries (their side) kept ahead of this lane's S89 open entry (ours); append-append both-sides-kept per the house convention. The window landed M-101 (findings/FIXED/), M-107's DXF/EPS/AI members (SIT/APE/SWF-RECT remain), the N-226 renumber, and the test_m101_branches repair — this lane re-verifies each before building on them. -->
+
+---
+
+## Session-84 — entry 8 (this lane): the build-break repair + the evidence directory; the decisive run (2026-10-30)
+
+**The dangling reference (the phantom-source class, caught first-hand):**
+`cmake --preset linux-release` at the 203304f9 tree FAILED at the
+generate step — tests/CMakeLists.txt:65 listed `unit/test_m101_branches.cpp`,
+which does not exist: the file had been committed unimplemented and swept
+as the N-210-class leak (708fad32), but the CMakeLists reference survived.
+Every fresh configure was broken (including the CI build job — the 203304f9
+run failed on it). The reference removed (M-101 remains ACTIVE in
+findings/MAJOR/; its lane re-adds file+reference together when the real
+branches battery lands). Post-repair: Release configure+build clean,
+0 errors / 0 warnings (logs in worklog/builds/).
+
+**The evidence directory:** `worklog/builds/README.md` + the
+linux-release configure/build logs — Debug (the suite builds), Release
+(the captured logs), the clang 18.1.8 fuzz lane (16 binaries), the
+environment's honest limits (4 GiB cgroup, the chunk discipline), and
+the Windows half pointing at the checks.yml job on fc7201c2.
+
+**The decisive run:** checks.yml on fc7201c2 — the first run whose tree
+passed this lane's full local chain (markers, doc_truth_gate,
+clang-format tree-wide at 18.1.8, Release build, the chunked suite)
+before the push. Its conclusion is recorded in the final entry.
+
+**The session's commit trail (this lane, through fc7201c2):** 10a6ec29
+(T1 rider) → a47419c7 (resume_last) → eb1b4e35+24edbb04 (the gate-red
+repair, honestly noted) → 78c60e89 (exit-5 docs) → 43a7bb26 (T3/T4
+registers) → the PARAMETERS/ABI-contract doc pair → b82f75b2+bfda625c
+(the marker miss + the N-223 retirement, honestly noted) → the D-165
+renumber + format sweeps → 56d27d86 (wr16) → adf91248 (T17 doc audit +
+recounts) → the M-107 format sweep → the dangling-reference repair →
+fc7201c2 (the integrated merge).
+
+**The last repair (the build-break the fresh-configure caught):**
+checks.yml run 317's MSVC configure red — b7d05b12 registered
+`unit/test_m101_branches.cpp` in tests/CMakeLists.txt:65 at 18:43 while
+708fad32's sweep removed the leaked WIP .cpp at 18:46; the merged tree
+carried a registration for a file that no longer exists. The dangling
+line removed (the sweep's decision stands; M-101 stays ACTIVE);
+verified by full fresh local configure+build (0 warnings) + ctest
+1695/1695 + gate green + format clean — evidence
+`worklog/builds/linux-release-final{,-ctest}.log`. The lesson mirrors
+the session's meta-finding: the entry was invisible to my incremental
+builds because it post-dated my last full configure — CI's
+clean-configure lane is the only gate that sees this class, which is
+exactly why it must stay green for the right reason.
+
+---
+
+<!-- S89 merge arbitration (the second racing window): the racing lane's a34f7b8c removed
+the test_m101_branches.cpp REGISTRATION (their note: "M-101 remains ACTIVE ... its lane
+re-adds file+reference together when the real branches battery lands") — that premise is
+stale against the merged tree: their own window's b7d05b12 landed the M-101 implementation
+AND moved the finding to findings/FIXED/. This lane's convergent repair (the earlier
+N-227) restored the FILE byte-exact; this merge re-adds the REGISTRATION beside it — the
+battery is valid against the landed surface (5/5 green first-hand) and the M-101 landing
+keeps its test battery per the every-fix-paired-with-tests SOP. Both histories stand. -->
+
+---
+
+**Fix #2 — N-227 FIXED (MINOR, NEW — filed+fixed this session; the racing
+window's collision repaired).** The first pull of the lane found main RED: the
+window's 708fad32 sweep deleted tests/unit/test_m101_branches.cpp against its
+STALE tree (its own message's grep evidence predates b7d05b12), while b7d05b12
+(the M-101 implementation landing, 18:43 vs the sweep's 18:46) had registered
+the file in tests/CMakeLists.txt AND landed the full surface (version_group /
+tags_extracted / version_groups() — grep-verified present at HEAD). The merged
+HEAD: registration without the file — `cmake --preset linux-release` fails at
+generate ("Cannot find source file: unit/test_m101_branches.cpp"), cr_tests
+unbuildable, 0/1700 tests runnable (first-hand at d15d32a4). The repair: the
+file restored byte-exact from b7d05b12; GREEN — the M-101 battery 5/5, full
+suite 1700/1700 (127.7 s). Trail: findings/FIXED/N-227 + Resolution, the
+ledger row, the SUMMARY S89 block refreshed (board: 5 MAJOR / 2 MINOR / 0
+INFO active / 208 FIXED / 4 tracked-open; M-107's remaining members: SIT,
+APE, SWF-RECT — the window landed DXF/EPS/AI as members 7-9). The N-210
+class's EIGHTH occurrence; the sweep's history stands.
+**The second racing window absorbed + the arbitration (S89).** The window's
+a34f7b8c repaired the same dangling reference by REMOVING the registration
+(their premise: "M-101 remains ACTIVE; its lane re-adds file+reference
+together when the real branches battery lands") — stale against the merged
+tree: their own window's b7d05b12 landed the M-101 implementation (the
+version_group / tags_extracted / version_groups() surface, grep-verified)
+and moved the finding to findings/FIXED/. This lane's N-227 repair restored
+the FILE; this merge re-adds the REGISTRATION — the battery is valid against
+the landed surface (5/5 first-hand at the pre-merge tree) and the M-101
+landing keeps its test battery per the house SOP. The window also landed the
+M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
+now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
+DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
+the next fix.

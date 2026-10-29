@@ -1,4 +1,4 @@
-# MINOR N-227 — the ddab68b4 worklog marker residue (the SIXTH N-223-class recurrence: the S84 fix lane's own DWG-member-3 push committed its rebase conflict instead of resolving it) (RENUMBERED from the born-collided N-224 at the S90 merge: the racing window's N-224 — the M-075 win-stub gap — pushed first and keeps the seat per SA-9)
+# MINOR N-228 — the ddab68b4 worklog marker residue (the SIXTH N-223-class recurrence: the S84 fix lane's own DWG-member-3 push committed its rebase conflict instead of resolving it) (RENUMBERED TWICE at the SA-9 push reconciliations: born N-224, renumbered N-227 at the first merge [the racing N-224 = the M-075 win-stub gap], and N-228 at the second [the racing N-227 = the m101-test-registration restore — both earlier pushes keep their seats])
 
 **Severity:** MINOR (the class convention — M-120 `db228b75`, N-210 `f3da99f1`, N-217 `ed501caa`, N-219 `27bda40e`, N-223/N-226 `09a18f9f`, now `ddab68b4`; this one is worklog-only — no code, no doc-truth surface, the trail's append history itself)
 **Module:** audit-trail integrity (the M-120/N-210/N-223 class)

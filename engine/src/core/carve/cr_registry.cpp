@@ -847,7 +847,15 @@ const Signature kTable[] = {
      4,
      0,
      16,
-     64ull << 20,
+     /* the S90 row-max rider over the S85 WPD landing: the og's analyser
+      * object carries NO FileInfo row (0x10 bytes: vptr + id) and takes
+      * the header's u32@+0x14 verbatim with no cap (FUN_180041f50's
+      * 0x18004200c-0x180042015) - a 64 MiB row truncates every
+      * over-declaring document at exactly the stand-in value the M-107
+      * falsification names. The field's own 4 GiB bound (the
+      * MP4/AVI/PSD header-declared house pattern) is the honest no-row
+      * encoding: the declared size always fits, the device end clamps */
+     4ull << 30,
      600,
      validate_wpd,
      "WordPerfect Document"},
