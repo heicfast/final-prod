@@ -12541,3 +12541,37 @@ re-based) remains unmodeled — recorded honestly in the code comment and the
 finding (it is the OR-shape of the two walks this engine already runs, a
 future refinement, not a parity break: both og sites borrow the same hint
 bits and validate through the same FUN_180012c00 class).
+
+---
+
+## Session-84 — entry 4 (this lane): the ledger collision repair — the gate red eb1b4e35 carried (2026-10-30)
+
+**Honesty note first:** eb1b4e35 merged the racing 0626e6e6 landing and
+pushed with a RED doc_truth_gate — this lane's merge verification ran
+the gate with tail-truncated output and did not check the exit code
+(the same verification-discipline class as the racing lane's own
+8daf75dc staging-misfire note). The eb1b4e35 Checks run fails on it;
+this entry's commit heals main.
+
+**The defect (M-117 collision class, two FAILs):** FIXED-LEDGER.md
+carried five rows across N-219/N-221/N-222 citing three different
+slugs, two of which name files that do not exist on disk:
+- one N-219 row citing the pre-rename slug
+  `N-219-committed-conflict-markers-red-main-fourth-recurrence.md`
+  (superseded by the N-222 row when 50a59f51 renumbered the born-collided
+  seat — the row should have been retired with the rename);
+- two rows (an N-221 and an N-219) citing
+  `N-219-m151-landing-committed-conflict-markers.md` — a PHANTOM
+  citation: the file never existed on main (git log over the path is
+  empty; the third S-068-arbitration lane's pre-push name). 0626e6e6
+  retired the lane's duplicate finding FILE and one ledger row, leaving
+  these two behind.
+
+**The fix (trail accuracy, no audit work lost):** the three stale rows
+deleted; the canonical rows stand — N-219 -> the 27bda40e file (:673),
+N-222 -> the renumbered file (:674), N-221 -> the leak file (:675).
+The retired lane's full record lives in git history (0626e6e6's
+ancestry) and its narrative is already carried by the surviving rows.
+
+**Verification:** `python3 tools/doc_truth_gate.py` => exit 0, green
+(was: 2 FAILs). Source tree marker-clean; no other trail file touched.
