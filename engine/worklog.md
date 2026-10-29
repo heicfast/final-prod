@@ -11721,3 +11721,18 @@ idempotence, probe contracts); win_syntax_check green; suite 1540 /
 0-fail. Trail: findings/FIXED/N-145 + Resolution, ledger row, matrix
 MATCH, modules/apply.md addendum, this entry.
 >>>>>>> f30b042d (fix(apply): N-145 — the cross-run in-flight journal lands (the og's pendingMarkedDisk semantics on the core's state-dir posture))
+
+---
+
+## Session-79 S79 lane, entry 3 — the S-068 concession + the stride-scan decode
+
+The convergent S-068 seat was conceded per SA-9 (the S80 lane's landing
+owns it — their live-FAT adoption gate is the seated semantics; their test
+battery is on main). This lane's arbitration contribution, recorded in the
+finding's S82 addendum: FUN_180012c00 decoded first-hand — the og's
+deleted-mode walk is a **0x10000-stride high-16 SCAN** (uVar9 += 0x10000,
+each candidate validated by FUN_1800134f0's range-tree membership check,
+the :14834 retry re-anchoring the bounded scan at the hint's high 16).
+Both landed implementations probe only the hint's high 16; the stride
+sweep is the recorded refinement gap (the range-tree's occupancy semantics
+undecoded — the next pass reads the tree's producers first).

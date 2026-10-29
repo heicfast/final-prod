@@ -206,3 +206,33 @@ The S82 lane's four-test battery (incl. the sparse 0x320000-cluster
 fixture class) verified ITS variant RED->GREEN; the landed variant's own
 tests cover its reading. The deltas above are decode questions, not
 defects in the landing - recorded per the no-silent-divergence rule.
+
+---
+
+## S82 arbitration addendum (2026-10-29 — the concession + the deeper decode, recorded for the next refinement pass)
+
+This lane's convergent S-068 implementation was conceded at the push per
+SA-9 (the S80 lane's landing owns the seat; their live-FAT adoption gate —
+"a FREE entry at the re-based cluster never adopts" — is the seated
+semantics). The concession was made AFTER this lane's own deeper corpus
+read, which both lanes' implementations approximate:
+
+**FUN_180012c00 decoded first-hand (FATSearchDLL :13618-13681) — the
+deleted-mode walk is a 0x10000-STRIDE HIGH-16 SCAN, not a single-candidate
+re-base.** In deleted mode (param_6 != 0) the function iterates
+`uVar9 = start; ... uVar9 += 0x10000` — stepping through the ENTIRE high-16
+space above the start value in 65536-cluster strides — validating each
+candidate through FUN_1800134f0 (a RANGE-TREE membership check on the
+candidate's byte offset, :13998+ — the scan's own occupied/allocated range
+tracker, not a FAT-liveness check), and returning the FIRST validating
+candidate with the success flag set. The :14834 retry then re-anchors the
+bounded scan at `(hint & 0xFFFF0000) + first_start` when the first scan
+failed and the volume is big (hint > 0x310000). The pre-parse re-base
+(:14753) merely seeds the scan's start. Consequence: on a volume where the
+hint's high-16 differs from the true cluster's high-16, the og's stride
+scan can still find the true cluster (the stride sweeps the space above the
+seed); BOTH landed implementations (the seated S80 lane's and this lane's
+conceded one) probe only the hint's high 16 — the stride sweep is the
+recorded refinement gap. The range-tree validation's exact occupancy
+semantics (FUN_1800134f0's tree contents) remain undecoded — the next
+refinement pass reads the tree's producers before landing the stride scan.
