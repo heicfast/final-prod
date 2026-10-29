@@ -184,37 +184,61 @@ std::string ext_of_name(const tree::FileProperties* pr) {
 
 namespace {
 
-/* ---- M-134: the og's deep-read grade validation -----------------------
- * FUN_14038c470 (DRWUI_decompiled.c:606291-619, decoded first-hand at
- * the finding and re-read this session before the fix): a bounded
- * ONE-SECTOR content read that flips the grade on actual disk bytes.
- *   addr == 0 (the first extent starts at sector 0): read 1 sector at
- *     offset 0 - first 32 bytes ALL ZERO -> grade 0 (overwritten
- *     content); first 4 bytes ALL 0xFF -> grade 0 (erased flash/
- *     sparse tail) (:606364-392).
- *   addr > 0: read 1 sector at addr-1 - last 16 bytes ALL ZERO ->
- *     grade 2 (the file follows zero padding - intact-alignment
- *     evidence) (:606393-411).
+/* ---- M-134/M-145: the og's deep-read grade validation -----------------
+ * FUN_14038c470 (DRWUI_decompiled.c:606291-619): a bounded ONE-SECTOR
+ * content read that flips the grade on actual disk bytes. The read
+ * address is the node's TWIN KEY - the M-146 correction, decisive at
+ * :322640-671 (the key helper's out-triple: *param_4 = the extent
+ * START, *param_5 = the LENGTH, *param_3 = START + LENGTH + index*unit)
+ * and :605774/:605798 (the completion pass computes the key and hands
+ * it straight to the deep read):
+ *   key == 0 (the extent END is zero - the extentless class - with a
+ *     zero index term): read the reader's sector 0 - the first 32
+ *     bytes ALL ZERO, or the first 4 bytes 0xFF, -> grade 0
+ *     (:606364-392).
+ *   key > 0 with a zero index term: read the sector at key - 1 = the
+ *     extent's LAST sector (end-exclusive minus one); its final 16
+ *     bytes ALL ZERO -> grade 2 - the intact-file padding signature
+ *     (:606393-411). The core's extents are absolute BYTES where the
+ *     og's key is sector-indexed: the containing sector of byte
+ *     (end - 1) is the byte-exact equivalent.
+ *   key with a NONZERO index term (the M-133 shifted kinds - FAT16 off
+ *     ordinal 2 - and every non-zero ordinal): the key lands outside
+ *     any reader; the og's read FAILS and the grade never changes. The
+ *     core skips the same population (the failed-read class, matched).
  *   The overlap flag skips the read entirely (FUN_1401c5da0 != 0 ->
  *     return, :606318); a failed read changes nothing; the node is
- *     marked graded after the pass (FUN_140389540). The undecoded
+ *   marked graded after the pass (FUN_140389540). The undecoded
  *   sub-gates (the FUN_1401bc5a0 pre-check trio, OQ-S42-3) are NOT
  *   adopted - the fix plan's acceptance is the two threshold rules,
  *   which are the decoded, binary-verifiable heart. */
 bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     if (n->overlap())
         return false; /* the og's skip: the overlap flag is set */
+    if (ctx.reader.dev == nullptr)
+        return false; /* no reader wired: the og's null-manager bail */
     const tree::FileProperties* pr = n->props();
-    if (pr == nullptr || pr->extents.empty() || ctx.reader.dev == nullptr)
+    if (pr == nullptr)
         return false;
     u32 ss = ctx.reader.sector_size;
     if (ss == 0)
         ss = ctx.reader.dev->geometry().logical_sector;
     if (ss == 0 || ss > 4096)
         return false; /* hostile geometry: no content read */
-    const u64 addr = pr->extents.front().offset / ss;
+    /* the twin key's index term: nonzero => the og's read address is
+     * outside any reader and the read FAILS (M-146 consequence 4) */
+    const u32 fs = ctx.fs_kind_of(n);
+    const bool shifted = fs == u32(FsKindCode::Fat16);
+    const i64 index = i64(ctx.disk_ordinal_of(n)) - (shifted ? 2 : 0);
+    if (index != 0)
+        return false; /* the failed-read class: no grade change */
+    /* the extent END (the twin key's base+len term); the extentless
+     * class reads the reader's sector 0 (M-146 consequence 3) */
+    u64 end = 0;
+    if (!pr->extents.empty())
+        end = pr->extents.front().offset + pr->extents.front().length;
     u8 sec[4096];
-    if (addr == 0) {
+    if (end == 0) {
         if (ctx.reader.dev->read_at(0, sec, ss) != OK)
             return false; /* the og: a failed read changes nothing */
         bool all_zero = true;
@@ -232,8 +256,13 @@ bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
             return true;
         }
     } else {
-        const u64 prev = (addr - 1) * ss;
-        if (ctx.reader.dev->read_at(prev, sec, ss) != OK)
+        /* the extent's LAST sector: the containing sector of byte
+         * (end - 1) - the og's sector-indexed key - 1. M-145: the
+         * pre-fix code read the sector BEFORE the file (the START
+         * address) - previous-region padding instead of the file's own
+         * final sector. */
+        const u64 last = ((end - 1) / ss) * ss;
+        if (ctx.reader.dev->read_at(last, sec, ss) != OK)
             return false;
         bool tail_zero = true;
         for (u32 i = ss > 16 ? ss - 16 : 0; i < ss; ++i)
@@ -248,7 +277,6 @@ bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
     }
     return false;
 }
-
 /* the og decision tree minus the twin detection (which needs the global
  * key map). Returns the grade to apply for the solo rules. */
 bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stats) {

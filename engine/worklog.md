@@ -8600,3 +8600,25 @@ in findings/FIXED/N-165 (this lane's independent gate re-reads + RED→GREEN
 proof; the scan-time cap declined to the winning chain-own-grade stance per
 SA-9). Suite green on the result: 1331 ran / 1289 pass / 42 env-skips / 0 fail
 (linux-release), clang-format clean.
+## Session-52 lane — M-146 landed (2026-10-29; renumbered from the M-145 draft at the push window — the remote S54 lane's NTFS 55AA finding took the seat)
+
+**M-146 FIXED (MAJOR — the deep-read grade's read address, discovered during the M-134
+convergence verification).** The M-134 landing (9455f50a) read the extent START sector; the og
+reads at the node's TWIN KEY — the extent END + the shifted index term. The decisive decode:
+DRWUI :322640-671, the key helper's out-parameter triple (*param_4 = START, *param_5 = LENGTH,
+*param_3 = START + LENGTH + index·unit) + :605774/:605798 (the completion pass hands the key
+straight to FUN_14038c470). Four falsifiable consequences, all fixed: (1) the tail-zero High now
+reads the file's OWN last sector (was: the sector before the file); (2) sector-0-starting files
+no longer demote on their head (the addr==0 class is the EXTENTLESS node reading the reader's
+sector 0); (3) the extentless class now reads sector 0 (was: early-bailed); (4) the M-133
+shifted kinds (Fat16) skip the read — the og's key is out of any reader's range, the read FAILS,
+the grade never changes (the pre-fix core gave FAT16 files content grades the og structurally
+cannot). Tests: OwnLastSectorTailZeroGradesHigh (the true rule) + PrevSectorPaddingNotHigh +
+Sector0StartFileNotDemotedByHead + ShiftedKindSkippedLikeOgFailedRead (the three discriminating
+REDs) + the extentless pair + the overlap-skip re-pin (6 RED pre-fix total; the four M-134-era
+tests re-pinned — their FAT16 fixtures encoded the START reading, a kind the og never
+content-grades). Suite 1419/1419 (linux-release). Trail: findings/FIXED/M-146 + ledger row +
+this entry. **Also this window: five main-red repairs** (the e1/e2 dangling vars, the ext4
+duplicate test, the crossed grading assertions, the carve triple-tick, the win-stub S-060 gap,
+the test_carve comment splice — several converged with the parallel lanes' own repairs per
+SA-9), all verified at 1419/1419 before their pushes.
