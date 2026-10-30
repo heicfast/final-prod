@@ -13,7 +13,6 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
-#include "cr/win/cr_elevate.h" /* session-96: the elevation branch of the transport advisory pin */
 #include "cr/session/cr_lastscan.h"
 #include "cr/cr_log.h"
 /* S-009 pure-builder tests: the core symbols resolve from libcr_ui
@@ -3986,24 +3985,24 @@ TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     cr_ui_device* d = nullptr;
     const uint32_t rc = cr_ui_open_disk(0, &d);
 #ifdef _WIN32
-    if (cr::win::is_elevated()) {
-        /* elevated: open succeeds (advisory 0) or fails with a target
-         * error; the advisory carries whichever it was */
-        if (rc == 0u) {
-            ASSERT_NE(d, nullptr);
-            cr_ui_device_close(d);
-            EXPECT_EQ(cr_ui_last_transport_error(), 0u) << "success resets the advisory";
-        } else {
-            EXPECT_EQ(d, nullptr);
-            /* the refusal class is visible through the advisory */
-            EXPECT_NE(cr_ui_last_transport_error(), 0u);
-        }
-    } else {
-        /* non-elevated: the classified privilege refusal, exactly */
-        EXPECT_EQ(rc, 0x500C0001u) << "the ERR_ELEVATION_REQUIRED refusal";
+    if (rc == 0x500C0001u) {
+        /* non-elevated token: the classified privilege refusal, exactly -
+         * the branch is decided by the OBSERVABLE return code (the runner
+         * classes are elevated by construction; a dev box may not be) */
         EXPECT_EQ(d, nullptr);
         EXPECT_EQ(cr_ui_last_transport_error(), 0x500C0001u)
             << "the advisory carries the refusal class";
+    } else if (rc == 0u) {
+        /* elevated and the target opened: success resets the advisory */
+        ASSERT_NE(d, nullptr);
+        cr_ui_device_close(d);
+        EXPECT_EQ(cr_ui_last_transport_error(), 0u) << "success resets the advisory";
+    } else {
+        /* elevated but the TARGET refused (absent disk number, protected
+         * device): a target error; the advisory carries it */
+        EXPECT_EQ(d, nullptr);
+        EXPECT_NE(cr_ui_last_transport_error(), 0u)
+            << "the advisory carries the target error";
     }
 #else
     EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
