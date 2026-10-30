@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
+#include "cr/win/cr_elevate.h" /* session-96: the elevation branch of the transport advisory pin */
 #include "cr/session/cr_lastscan.h"
 #include "cr/cr_log.h"
 /* S-009 pure-builder tests: the core symbols resolve from libcr_ui
