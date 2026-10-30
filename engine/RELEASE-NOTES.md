@@ -27,6 +27,17 @@ resume-after-cancel. The v0.6.0 tag's validation surfaced them; this
 release carries the repairs. The full note set below (v0.6.0's scope
 statement stands unchanged).
 
+**Added at the cut (the coherence lane):** the release gate itself is
+restored — the Win7 posture gate's import baseline completed for the
+S-060/M-074/M-075 landing wave (the five kernel32 consumers + the
+SHLWAPI strict row; every import Win7-SP1-available, source-censused,
+pinned by tools/test_verify_pe_um.py cases 6-7), closing the 8-red-run
+streak that held the tag. Docs that ship in this zip were reconciled to
+the tree in the same lane (README gap list + worklog row, RELEASE.md
+pipeline + signing posture, API.md grammar, CORE-API-CURRENT counts,
+PARAMETERS --deep, CONNECTION-GUIDE transport table, CAPABILITY-MATRIX
+ReFS row, the diff-to-fix banner pointer).
+
 # core_recovery v0.6.0
 
 **Scope of this release:** the capability + parity milestone on top of
