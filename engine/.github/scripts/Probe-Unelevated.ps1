@@ -79,7 +79,7 @@ public class Unelev {
         si.dwFlags = 0x00000100; /* STARTF_USESTDHANDLES */
         si.hStdOutput = outW; si.hStdError = outW;
         PROCESS_INFORMATION pi;
-        string cmd = '"' + app + '" ' + args;
+        string cmd = "\"" + app + "\" " + args;
         if (!CreateProcessAsUserW(lua, null, cmd, IntPtr.Zero, IntPtr.Zero, true,
                 0, IntPtr.Zero, null, ref si, out pi))
             throw new Exception("CreateProcessAsUserW GLE=" + Marshal.GetLastWin32Error());
