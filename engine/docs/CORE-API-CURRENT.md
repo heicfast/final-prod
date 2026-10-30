@@ -9,14 +9,15 @@
 > This file inventories the surface as it EXISTS; historical/parity context lives in
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
 
-**Headline counts** (re-derived 2026-10-29, the S56 lane — the
-doc_truth_gate count invariants guard these in CI): C++ public headers 82
-under `include/cr/**`; C ABI **93 exports** (96 `CR_UI_API` lines minus 3
+**Headline counts** (re-derived 2026-10-30, the coherence lane — the
+doc_truth_gate count invariants guard these in CI): C++ public headers 94
+under `include/cr/**` (29 module directories); C ABI **93 exports** (96 `CR_UI_API` lines minus 3
 `#define` macros in cr_ui.h = 93 `extern "C" CR_UI_API` definitions in
-src/ui/cr_ui.cpp, recount matches; +2 from the N-140 lane's carve-tally pair); CLI **13 verbs** (rrecov.cpp — list,
+src/ui/cr_ui.cpp, recount matches; +2 from the N-140 lane's carve-tally pair); CLI **14 verbs** (rrecov.cpp:4023-4062 — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
-fix, apply, image, bench, driver); error codes **44 + OK** (the enum-member
-census: 43 ERR_ members in cr_error.h — the long-standing "45" was the
+fix, apply, image, bench, driver, unlock — the `unlock --turn-off` verb
+landed with M-078, rrecov.cpp:4051); error codes **44 + OK** (the enum-member
+census: 44 ERR_ members in cr_error.h — the long-standing "45" was the
 doc_truth_gate's file-wide 0x5-literal regex counting the truncated
 prefixes of the two og-corpus comment literals at cr_error.h:6; the
 Session-84 truth repair anchors the census on enum-member lines, and
@@ -175,7 +176,18 @@ ABI event types **12** (the CR_EVT_* census).
 
 ---
 
-## (b) The C UI ABI — every export (78; `CR_UI_ABI_VERSION 2`, cr_ui.h:79)
+## (b) The C UI ABI — every export (93 at the current tree; `CR_UI_ABI_VERSION 2`, cr_ui.h:79)
+
+> **Census honesty note (2026-10-30):** the tables below enumerate the
+> surface as it stood at the v0.4.1-parity census (78 exports then). The
+> 15 newer exports — the M-101 query-tag tails, the N-140 carve-tally
+> pair, `cr_ui_unlock_volume_with_dictionary` (N-064),
+> `cr_ui_driver_status`, `cr_ui_health_read`, `cr_ui_fsck_volume`
+> (M-075), `cr_ui_turn_off_bitlocker` (M-078), `cr_ui_session_resume_last`,
+> `cr_ui_last_autosave_path` and their siblings — carry their full
+> contracts in `include/cr/cr_ui.h` (the normative header comments) and
+> in the live census `worklog/api-surface.md`; the ABI waves are
+> narrated in [ABI-CONTRACT.md](ABI-CONTRACT.md) §7.
 
 Rules (cr_ui.h:38-68): C11, u32 returns from the cr::Err space, UTF-8 in / two-call or
 heap-out strings, zero-init configs always safe, no exception escapes (catch-all returns

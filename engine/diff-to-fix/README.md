@@ -1,5 +1,16 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+> **Status-drift correction (2026-10-30, the coherence lane):** the S69
+> banner below is the historical opening record of that lane (preserved
+> as audit trail) and its "Next free IDs: M-155+, N-217+, I-049+, A-016+,
+> D-150+" line is FROZEN at the S69 filing era — 25 lanes have filed
+> since. The live board state and ID allocation live in
+> [SUMMARY.md](SUMMARY.md) (currently: every in-scope core-repo finding
+> FIXED; the six open findings are driver-repo-resident with recorded
+> rationale; next free IDs **S-069+, M-161+, N-235+, I-050+, A-017+,
+> D-168+**). Allocate new finding IDs from SUMMARY.md, never from this
+> banner.
+
 **Session-69 S69 lane (2026-10-29 — the NINTH continuation audit lane of the same
 user second-session mandate, remove-the-fixed + go-deeper + mark-all-remaining,
 the user's named focus areas: sector numbers / scanning / accurate detection /

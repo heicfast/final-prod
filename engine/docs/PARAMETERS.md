@@ -16,7 +16,7 @@ row cited below where it governs a parameter).
 |---|---|---|
 | `--disk N` / `--volume C:` / `--image file` | — (one required) | target: PhysicalDrive N, volume letter, or a disk image (`.img`/`.vmdk`/`.vhd`/`.vhdx`/raw `.dmg`) |
 | `--whole-disk` | off | lost-partition discovery over the full disk view (implies the disk target) |
-| `--deep` | on | deep stage selector (deep is on by default; `--quick-only` disables it; the flag is the explicit form) |
+| `--deep` | — | DEPRECATED alias for `--whole-disk` (N-044, rrecov.cpp:1527-1535: sets lost-partition discovery, prints a note, kept one release). NOT the deep-stage selector — the deep engine stage is always on; `--quick-only` is what disables it |
 | `--quick-only` | off | quick stage only (deep + carve disabled) |
 | `--no-carve` | off | disable the carve stage |
 | `--threads N` | 0 = auto | worker threads; 0 = hw−1 clamped 1..8; 1 = single-threaded |

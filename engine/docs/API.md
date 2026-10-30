@@ -43,6 +43,11 @@ rrecov recover --in file.crsf (--disk N | --image file) --to DIR
                [--deleted-only] [--filter s] [--report file.json]
 rrecov health  --disk N
 rrecov fix     --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+rrecov fix     --chkdsk C:  (launch Windows chkdsk /f on the volume - the
+               check ladder's fix endpoint, M-075)
+rrecov unlock  --turn-off C:  (turn BitLocker OFF on the volume - the
+               M-078 consented destructive op: decrypt, never bypass;
+               the OS decrypt continues in background; exit 2 on refusal)
 rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
                [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
