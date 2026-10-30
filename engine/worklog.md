@@ -15248,3 +15248,35 @@ files, the secrets scan clean at every push.
 5. The driver-repo five (M-086/M-087/M-089/N-107/N-127) — outside this repo's grant, unchanged.
 
 **The commit ledger (this lane, chronological):** a26c5331 (Phase-0 sheets) → cc6312ca (the posture gate) → 08ad00de (docs batch 1: N-036/worklog/RELEASE.md) → a6f9b6ce (docs batch 2: API counts/unlock/--deep/CONNECTION-GUIDE/banner) → 7a8db669 (RELEASE-NOTES close-out) → 7744acfe (the M-071 parse fix + the inline-AST gate) → d259febb (the census-note reword) → 4dd2234e (workflow_dispatch) → d0f3b65a (ci-failures records) → bdbeae98 (the flake repair) → 228b6b7d (the 41029969175 diagnosis) → 8d12852c (the mangle fix + the corrected assertions) → **tag v0.6.1** → the release workflow 41038442360. `diff-to-fix/` findings/fixed/evidence/tracked-open untouched throughout; every push secrets-scanned; no force-push; main green at the final state.
+
+## Session-96 — the driver-replacement lane: direct raw I/O from user mode (2026-10-30; prompt archived token-redacted at worklog/session-driver-replacement-prompt.md; opened at `619acec2`; driver repo `323e75ac` READ-ONLY throughout; corpus `be0cfe9` reference-only)
+
+**The mandate (one architectural change):** the kernel-mode RDA driver
+is replaced entirely by direct raw I/O from the user-mode core under
+administrator privilege. Driver-only (PLAN-DRIVER-ONLY, e58bde10)
+inverts to direct-only. Every engine, orchestrator, session, writer,
+health, repair, and visualization surface keeps identical behavior —
+only the layer beneath them that obtains raw bytes changes. The driver
+is REMOVED from code, build, installer, tests, and docs — not gated,
+not deprecated, not left as a fallback.
+
+**T1 (this entry):** the three repos cloned and pinned: core
+`619acec2195b74295db92ee654e95f51a5bd4ef0` (main), driver
+`323e75acf4cd745960813af4e7fd586a4a34d1a0` (main, read-only),
+corpus `be0cfe95ecf22ac67e0f3a823dd003163b196d38` (reference-only).
+The prompt saved token-redacted to worklog/session-driver-replacement-
+prompt.md. The baseline linux-release build + full ctest kicked off
+BEFORE any change (the pre-replacement green proof).
+
+**The critical history fact discovered at open:** the direct-access
+fallback (open_harddisk_volume, the open_disk/open_rw_device direct
+legs, the WinPE gate, --no-rda) existed and was tested until e58bde10
+removed it for driver-only. The proven direct-path implementation is
+recoverable from git history at e58bde10~1 — the replacement starts
+from that evidence, not from a blank page. Every claim about it will
+be cited to the historical tree, not to memory.
+
+**The phase order (non-negotiable):** Phase 0 context sheets
+(ACCESS-LAYER / CONSUMERS / DRIVER-CONTRACT / REFERENCE-ACCESS /
+DESIGN-CONSTRAINTS) before any design; design before any code;
+equivalence before tuning; the driver repo is never modified.
