@@ -153,6 +153,16 @@ jobs:
           # The stray-brace class killed the old benchmark.yml across 5
           # dispatches before anyone noticed. YAML-parse every workflow
           # here (python + PyYAML - the runner python has pip access).
+          #
+          # Extended 2026-10-30 (run 41024085633, the 53eb9fff class):
+          # every inline pwsh/powershell run: block is now ALSO
+          # extracted to disk and AST-parsed below - the M-071 step
+          # shipped six "$LASTEXITCODE:" parse errors that passed every
+          # gate, because the AST gate only ever saw .ps1 FILES while
+          # the broken script lived inline in the YAML. The S-036
+          # doctrine applied to its own last blind spot: no script any
+          # workflow dispatches - file or inline - reaches a runner
+          # unparsed.
           pip install --quiet --disable-pip-version-check pyyaml
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install pyyaml failed'; exit 1 }
           $yamls = Get-ChildItem .github/workflows -Filter *.yml | ForEach-Object FullName
@@ -160,6 +170,51 @@ jobs:
           $list = ($yamls -join '";"')
           python -c "import sys, yaml; [yaml.safe_load(open(p, encoding='utf-8')) for p in sys.argv[1:]]; print('YAML parse gate clean:', len(sys.argv)-1, 'workflow(s)')" $yamls
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          # extract every inline pwsh/powershell run: block for the AST
+          # pass (numbered by workflow + job + step name; the content is
+          # written verbatim - what pwsh -command would have parsed)
+          $blocks = Join-Path $env:RUNNER_TEMP 'wf-run-blocks'
+          New-Item -ItemType Directory -Force -Path $blocks | Out-Null
+          Remove-Item (Join-Path $blocks '*.ps1') -ErrorAction SilentlyContinue
+          python -c "
+          import os, re, sys, yaml
+          blocks = sys.argv[1]
+          n = 0
+          for wf in sys.argv[2:]:
+              doc = yaml.safe_load(open(wf, encoding='utf-8'))
+              for jname, job in (doc.get('jobs') or {}).items():
+                  steps = job.get('steps') or []
+                  if 'uses' in job:  # reusable-workflow call: no steps
+                      continue
+                  for step in steps:
+                      run = step.get('run')
+                      shell = step.get('shell') or ''
+                      if run and ('pwsh' in shell or 'powershell' in shell):
+                          n += 1
+                          stem = re.sub(r'[^A-Za-z0-9_.-]+', '_',
+                              '%s-%s' % (jname, str(step.get('name', 'step'))[:40]))[:100]
+                          with open(os.path.join(blocks, '%03d-%s.ps1' % (n, stem)),
+                                    'w', encoding='utf-8') as f:
+                              f.write(run)
+          print('extracted', n, 'inline pwsh run block(s) for the AST gate')
+          " $blocks $yamls
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::run-block extraction failed'; exit 1 }
+
+          $inline = @(Get-ChildItem $blocks -Filter *.ps1)
+          if ($inline.Count -lt 1) { Write-Host '::error::no inline pwsh run blocks extracted - extraction regression'; exit 1 }
+          $failed = $false
+          foreach ($s in $inline) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count -gt 0) {
+              Write-Host "::error::PARSE ERROR in inline block $($s.Name):"
+              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "inline run-block AST gate clean ($($inline.Count) block(s))"
 
       - name: 'CI-shape doc-truth gate (M-088)'
         shell: pwsh
@@ -336,7 +391,7 @@ jobs:
           # 1. scan the fixture (driverless --image target); the scan
           #    prints the result tree on completion.
           $scanOut = & $rrecov scan --image $fixture --out $session 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --image exited $LASTEXITCODE: $scanOut"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --image exited ${LASTEXITCODE}: $scanOut"; exit 1 }
 
           # 2. the junk set never prints; the controls do. ASCII names
           #    only (encoding-stable assertions); the deleted file
@@ -355,7 +410,7 @@ jobs:
           # 3. the tree verb re-loads the session: the flags must
           #    round-trip through the crsf container.
           $treeOut = & $rrecov tree --in $session 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::tree --in exited $LASTEXITCODE: $treeOut"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::tree --in exited ${LASTEXITCODE}: $treeOut"; exit 1 }
           foreach ($junk in @('DESKTOP.INI','$USNJRNL','System Volume Information','TRACKER.TXT')) {
             if ($treeOut -match [regex]::Escape($junk)) {
               Write-Host "::error::junk name '$junk' leaked into the session tree output (flag round-trip or M-071 gate missing)"; $failed = $true
@@ -381,7 +436,7 @@ jobs:
           $postSize = (Get-Item $session).Length
           if ($postSize -le 0) { Write-Host "::error::A-013 regression: the resume command left a 0-byte session"; exit 1 }
           $treeOut2 = & $rrecov tree --in $session 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::post-resume tree --in exited $LASTEXITCODE: $treeOut2"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::post-resume tree --in exited ${LASTEXITCODE}: $treeOut2"; exit 1 }
           if ($treeOut2 -notmatch [regex]::Escape('DOC.TXT')) {
             Write-Host "::error::A-013 regression: the resumed session lost its tree"; exit 1
           }
@@ -389,7 +444,7 @@ jobs:
           # 4. recover-all over the session: junk never written, the
           #    controls (incl. the deleted file) are.
           $recOut = & $rrecov recover --in $session --image $fixture --to $dest 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::recover exited $LASTEXITCODE: $recOut"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::recover exited ${LASTEXITCODE}: $recOut"; exit 1 }
           $written = Get-ChildItem -Path $dest -Recurse -File | ForEach-Object { $_.Name }
           foreach ($junk in @('DESKTOP.INI','$USNJRNL','TRACKER.TXT')) {
             if ($written -contains $junk) {
@@ -406,7 +461,7 @@ jobs:
           $auto1 = Join-Path $work 'auto1'
           New-Item -ItemType Directory -Path $auto1 | Out-Null
           $scanOut2 = & $rrecov scan --image $fixture --autosave-dir $auto1 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --autosave-dir exited $LASTEXITCODE: $scanOut2"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --autosave-dir exited ${LASTEXITCODE}: $scanOut2"; exit 1 }
           $autoFiles = @(Get-ChildItem -Path $auto1 -Filter '*.crsf' -File)
           if ($autoFiles.Count -ne 1) { Write-Host "::error::expected exactly one auto session, got $($autoFiles.Count)"; $failed = $true }
           else {
@@ -418,7 +473,7 @@ jobs:
           $auto2 = Join-Path $work 'auto2'
           New-Item -ItemType Directory -Path $auto2 | Out-Null
           $scanOut3 = & $rrecov scan --image $fixture --autosave-dir $auto2 --label CUSTOM 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --label exited $LASTEXITCODE: $scanOut3"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::scan --label exited ${LASTEXITCODE}: $scanOut3"; exit 1 }
           $autoFiles2 = @(Get-ChildItem -Path $auto2 -Filter '*.crsf' -File)
           if ($autoFiles2.Count -ne 1) { Write-Host "::error::expected exactly one auto session (--label), got $($autoFiles2.Count)"; $failed = $true }
           else {
