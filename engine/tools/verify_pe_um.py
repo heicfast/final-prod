@@ -214,6 +214,15 @@ ALLOWED_DLLS = {
     # enumeration fan-in). Function-level allowlist in ref_imports_um.json.
     "cfgmgr32.dll": "strict",
     "user32.dll": "strict",  # not expected for the CLI; gate catches it
+    # N-013 / M-074: PathIsNetworkPathW - the network-destination
+    # classification (cr_transport.cpp:1053, cr_fsck.cpp:26; the og's own
+    # PathIsNetworkPathW walk). SHLWAPI ships with Win2000-era APIs; the
+    # function-level allowlist rides ref_imports_um.json. The 3b203fe1
+    # half-fix added the JSON entry but not this DLL row - the name-gate
+    # fired before the function check could ever run (run 40981611198:
+    # "unexpected import DLL 'SHLWAPI.dll'" on rrecov.exe, the FIRST PE,
+    # not the third as that commit message claimed).
+    "shlwapi.dll": "strict",
     "ucrtbase.dll": "name-only",
     "ucrtbased.dll": "name-only",
     "vcruntime140.dll": "name-only",
