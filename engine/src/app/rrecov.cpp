@@ -95,7 +95,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_mountpoints.h" /* M-118: the register channel's live HKCU walk */
 #include "cr/win/cr_transport.h"
-#include "cr/win/cr_winenv.h" /* ENUMERATE_DISK_BOUND: the 200-disk product space */
+#include "cr/win/cr_winenv.h"       /* ENUMERATE_DISK_BOUND: the 200-disk product space */
 #include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
