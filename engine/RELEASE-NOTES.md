@@ -1,5 +1,71 @@
 # core_recovery release notes
 
+# core_recovery v0.7.0 — the direct-access release
+
+**Scope of this release:** the architectural change session-96 was
+mandated to make — **the kernel-mode driver is replaced entirely by
+direct raw I/O from the user-mode core**. The product reads
+`\\.\PhysicalDriveN` directly (the same access/share posture the
+grammar path used, one layer down), through the unchanged 64 KiB read
+envelope, with true byte counts (the driver-era F11 Information scaling
+is deleted with the driver). Nothing is installed, signed, or serviced:
+no kernel driver, no driver component, no certificate import, no SCM
+touch in the installer. WinPE needs no registration — the direct device
+is OS-native everywhere.
+
+**The privilege model (the honest elevation contract):** raw-disk verbs
+(scan/recover/tree --disk/health/fix/apply/bench/image with disk
+targets) require an elevated process token; a non-elevated process gets
+the `ERR_ELEVATION_REQUIRED` (0x500C0001) refusal — exit code 4 on the
+CLI, the refusal text as the whole response — and the host triggers its
+own UAC flow and retries. Image targets (`--image` files) and the
+session/report/preview/dictionary verbs need no elevation. Nothing
+elevates silently; no helper process; no launch-time manifest (the
+per-operation refusal is the honest shape for a console product with
+image-only modes). Both paths are proven on the Windows runner: the
+exit-4 refusal from a local standard user, the elevated gate-pass from
+the runner shell.
+
+**The ABI bumps v3 → v4 (the one sanctioned removal):** the
+`cr_ui_driver_status` export, its state constants and status struct are
+REMOVED (the driver-status surface described a component that no longer
+exists — a stub is banned by the mandate); `cr_ui_device_transport`
+reports `"direct"`/`"image"`; the error family `ERR_DRIVER_*`
+(0x500B0001-05) is deleted and replaced by the single
+`ERR_ELEVATION_REQUIRED` (0x500C0001, a FRESH value slot — hosts
+compiled against the driver-era header never silently decode a re-used
+value). The CLI `driver` verb is removed with the driver. Every engine,
+orchestrator, session, writer, health, repair, and visualization
+surface is byte-identical in behavior — verified by the full suites on
+both lanes (1740/1740 MSVC, 1737/1737 Linux) and the scenario matrix
+against this release.
+
+**The release lane is core-only and faster:** the driver-tier job
+(fetch + source-build fallback + persistent-cert signing) is deleted;
+the asset set is the core zip + MANIFEST.json + SHA256SUMS. The
+installer ships the core only and its teardown gate asserts NO kernel
+service is installed. The bench lane's driver verification is replaced
+by the unelevated-refusal probe.
+
+**Performance (measured, run 41042267586 baseline → this release's
+validation):** the driver's data path was a synchronous forward-IRP with
+no caching or queueing — its throughput WAS the storage stack's at the
+issued read sizes. The direct path removes the grammar-path CREATE
+dispatch, the driver hop, and the F11 arithmetic. The comparison table
+per consumer, per access pattern, with run IDs, lives in
+worklog/PERFORMANCE.md; the release validation (dispatched
+automatically on publish) captures the fresh numbers on the same runner
+class and disk profile.
+
+**The historical record:** the six driver-era docs are deleted
+(DRIVER-REQUIRED, DRIVER-CONTRACT, DRIVER-RELEASE, DRIVER-UTILIZATION,
+PLAN-DRIVER-ONLY, CORE-DISK-ACCESS); the og's access-architecture
+evidence moved to worklog/reference/. The driver repository itself
+(heicfast/rda-driver) is untouched — the reference implementation
+remains for history.
+
+---
+
 <!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the entries below are historical release records. -->
 
 **A-F1 (the honest residue, filed not fixed):** the mid-stage carved-

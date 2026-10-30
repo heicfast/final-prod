@@ -15349,3 +15349,69 @@ flip (ERR_DRIVER_* out, ERR_ELEVATION_REQUIRED 0x500C0001 in), cr_rda.h
 and cr_driver_status.h deleted, the caller sweep (rrecov/cr_ui/
 cr_image_create), the ABI v4 bump riding the cr_ui_driver_status removal,
 and both lanes' tests updated — every push through the full local gate.
+
+## Session-96 — the implementation record (2026-10-30; every phase after Phase-0, chronological)
+
+**The five Phase-0 sheets** (b6418420/b9430745, five parallel read
+agents + the consolidation agent): ACCESS-LAYER / CONSUMERS /
+DRIVER-CONTRACT / REFERENCE-ACCESS / DESIGN-CONSTRAINTS, then DESIGN.md
+(aa16fb89/c9a522f4) and PERFORMANCE.md's baseline section. The critical
+Phase-0 discovery: e58bde10's driver-only change had REMOVED a proven
+direct path - the replacement reuses that machinery (DirectDevice, the
+envelope, the heal, the staging tail), not a blank page.
+
+**The core replacement (be90de5d, rebased over the racing lane's
+4d42f64a):** cr_transport.cpp direct-only; the 0x500B family deleted,
+ERR_ELEVATION_REQUIRED 0x500C0001 added at a fresh slot; ABI v4
+(cr_ui_driver_status + the `driver` verb removed); require_privilege()
+(the same exit-4 refusal shape, the honest elevation text);
+cr_rda.h/cr_driver_status.h deleted; the SCM stub deleted from the
+win-stub (a net import reduction); test_driver_status.cpp replaced by
+test_privilege.cpp.
+
+**The R-A display artifact (14d4e029):** the parallel lane's "branches:
+ain]" workflow corruption was NOT real - the output layer strips [m (an
+ANSI-reset remnant), so "branches: [main]" renders as "branches:
+ain]". Byte-verified; the finding is retired with the explanation.
+R-B (the LDM 32-disk bound) was real and fixed (ENUMERATE_DISK_BOUND).
+
+**The removal wave (f6a605d9..04f8869f):** installer (the component,
+the SCM step, the staging), installer.yml (fetch+sign), release.yml
+(the driver-tier job deleted - the lane is core-only and faster),
+test-benchmark.yml (install/verify/status probes; the teardown is VHD
+detach only), api_harness.c (the --driver-status mode), the bench lane
+(verify-driver.ps1 deleted; the behavior probe asserts the exit-4
+refusal; the alignbench grammar leg removed), the doc sweep (the six
+driver-era docs deleted; the og reference moved to
+worklog/reference/; every product doc rewritten to the direct-access
+truth; the ledgers bannered; doc_truth_gate green, links resolve).
+
+**The CI-green fight (the honest record):** five red Windows runs,
+each a real lesson - (1) the clang-format version pin (18.1.8 locally,
+not 23.x); (2) the missing cr_elevate.h include (MSVC strictness);
+(3) the is_elevated() link error (the test now branches on the
+OBSERVABLE return code, not the probe - a better test); (4) the
+SCM-block removal's regex swallowed the adjacent
+DeleteVolumeMountPointW allowlist entry (restored; only the four SCM
+entries were meant to go); (5) the unelevated probe mechanism - the
+scheduled task never launches in the session-0 runner context,
+CreateProcessAsUserW needs SeAssignPrimaryTokenPrivilege (GLE=5),
+CreateProcessWithTokenW needs SeImpersonatePrivilege (GLE=5) - the
+runner's job process holds NEITHER; the working primitive is
+CreateProcessWithLogonW with a freshly created local standard user
+(privilege-free, non-elevated by definition). GREEN at 41132255489:
+1740/1740 MSVC, both elevation probes PASS on real Windows.
+
+**Two process errors, both self-caught and repaired within one
+push:** a red-gate push (f6a605d9, formatting) and a chain-through
+push (f3aff774) - the gate now gates the push explicitly (exit-code
+branch, never a pipe into git).
+
+**The baseline record (PERFORMANCE.md):** the driver-backed baseline
+of record is run 41042267586 (seq 536.92 MiB/s @1 MiB, rand 1993.22
+us/502 IOPS, open 17,019 ns, the scan walls) captured pre-change with
+the driver installed; the full-profile baseline could not complete
+before the removal (the lane no longer installs drivers - by design),
+and the attempted re-run against the driver-era release under the new
+lane correctly failed with the old exit-4 driver-absent refusal
+(evidence the removal is complete).
