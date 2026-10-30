@@ -4001,8 +4001,7 @@ TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
         /* elevated but the TARGET refused (absent disk number, protected
          * device): a target error; the advisory carries it */
         EXPECT_EQ(d, nullptr);
-        EXPECT_NE(cr_ui_last_transport_error(), 0u)
-            << "the advisory carries the target error";
+        EXPECT_NE(cr_ui_last_transport_error(), 0u) << "the advisory carries the target error";
     }
 #else
     EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
