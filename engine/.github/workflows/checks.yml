@@ -356,32 +356,13 @@ jobs:
           $carveOut = & $rrecov list-carve-formats 2>&1
           if ($LASTEXITCODE -eq 0) { Write-Host 'PASS list-carve-formats: exit 0' } else { Write-Host "::error::list-carve-formats exited $LASTEXITCODE (expected 0)"; $failed = $true }
 
-          # the UNELEVATED probe: a LIMITED-run task drops the elevation
-          # from the token (TokenElevation FALSE - the exact is_elevated()
-          # probe the gate consults). Output + exit code land in a file the
-          # task writes; the runner polls for the EXITCODE marker.
+          # the UNELEVATED probe (Probe-Unelevated.ps1): the LUA-token
+          # primitive drops the elevation from a duplicate of our own
+          # token (the shell's own mechanism for unelevated children);
+          # TokenElevation FALSE is exactly what is_elevated() probes.
           $probeOut = Join-Path $env:RUNNER_TEMP 'cr-unelevated-probe.txt'
-          Remove-Item $probeOut -ErrorAction SilentlyContinue
-          $inner = "cmd /c `"`"`"$rrecov`" scan --disk 0 > `"$probeOut`" 2>&1 && echo EXITCODE=%ERRORLEVEL% >> `"$probeOut`"`"`""
-          schtasks /Create /TN cr_unelev_probe /TR $inner /SC ONCE /ST 00:00 /RL LIMITED /F | Out-Null
-          schtasks /Run /TN cr_unelev_probe | Out-Null
-          $deadline = (Get-Date).AddSeconds(60)
-          while (-not ((Test-Path $probeOut) -and (Get-Content $probeOut -ErrorAction SilentlyContinue) -match 'EXITCODE=')) {
-            if ((Get-Date) -gt $deadline) { Write-Host "::error::the unelevated probe never completed (60s deadline)"; $failed = $true; break }
-            Start-Sleep -Milliseconds 500
-          }
-          schtasks /Delete /TN cr_unelev_probe /F | Out-Null
-          if (Test-Path $probeOut) {
-            $scanOut = (Get-Content $probeOut) -join "`n"
-            if ($scanOut -match 'EXITCODE=4' -and $scanOut -match 'administrator privilege required') {
-              Write-Host 'PASS unelevated scan --disk 0: exit 4, the ERR_ELEVATION_REQUIRED refusal'
-            } else {
-              Write-Host "::error::unelevated scan --disk 0 did not refuse; output: $scanOut"; $failed = $true
-            }
-            if ($scanOut -match 'starting scan|\[transport\]|\[stage') {
-              Write-Host '::error::the refusal must be the whole response - scan output leaked past the privilege gate'; $failed = $true
-            }
-          }
+          & pwsh -NoProfile -File .github\scripts\Probe-Unelevated.ps1 -RrecovExe $rrecov -OutFile $probeOut
+          if ($LASTEXITCODE -ne 0) { $failed = $true }
 
           # the ELEVATED probe: this shell's own token passes the gate -
           # bench --mode info opens disk 0's geometry (exit 0; the gate

@@ -5,6 +5,7 @@
 $files = @(
   "bench/volume/volume.ps1", "bench/seed/generate_seed.ps1",
   "bench/scenarios/apply-scenario.ps1", "bench/ours/run-ours.ps1",
+  ".github/scripts/Probe-Unelevated.ps1",
   "bench/ours/run-behavior.ps1",
   "bench/ours/run-alignbench.ps1", "scripts/bench_seed.ps1",
   "bench/og/run-og.ps1", "bench/og/og-driver.ps1",

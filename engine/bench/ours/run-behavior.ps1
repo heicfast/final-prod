@@ -33,29 +33,27 @@ $behavior = [ordered]@{ tool = 'ours'; probes = @() }
 
 # ---------- probe 1: the unelevated refusal (the direct-era contract) ----------
 # The runner shell is elevated by construction, so the refusal state is
-# created the same way checks.yml does it: a LIMITED-run scheduled task (the
-# UAC-filtered token - TokenElevation FALSE, exactly what is_elevated()
-# probes). Output + exit code land in a file the task writes; this script
-# polls for the EXITCODE marker.
+# created the correct way: the shared LUA-token probe (the shell's own
+# mechanism for unelevated children; TokenElevation FALSE is exactly what
+# is_elevated() probes). The probe script captures the child's output +
+# exit code and writes the evidence file.
 $p1 = [ordered]@{ probe = 'unelevated' }
 $probeOut = Join-Path $WorkDir 'unelevated-probe.txt'
-Remove-Item $probeOut -ErrorAction SilentlyContinue
-$inner = "cmd /c `"`"`"$RrecovExe`" scan --volume $Letter`: --deep --no-carve --threads 4 --json > `"$probeOut`" 2>&1 && echo EXITCODE=%ERRORLEVEL% >> `"$probeOut`"`"`""
-schtasks /Create /TN cr_bench_unelev /TR $inner /SC ONCE /ST 00:00 /RL LIMITED /F | Out-Null
-schtasks /Run /TN cr_bench_unelev | Out-Null
-$deadline = (Get-Date).AddSeconds(120)
-while (-not ((Test-Path $probeOut) -and ((Get-Content $probeOut -ErrorAction SilentlyContinue) -match 'EXITCODE='))) {
-    if ((Get-Date) -gt $deadline) { throw 'the unelevated probe never completed (120s deadline)' }
-    Start-Sleep -Milliseconds 500
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot '..\..\.github\scripts\Probe-Unelevated.ps1') `
+    -RrecovExe $RrecovExe -OutFile $probeOut
+$probeRc = $LASTEXITCODE
+if (Test-Path $probeOut) {
+    $probeText = (Get-Content $probeOut) -join "`n"
+    $p1.exit_code = if ($probeText -match 'EXITCODE=(\d+)') { [int]$Matches[1] } else { -1 }
+    $p1.refusal_seen = [bool]($probeText -match 'administrator privilege required')
+    $p1.scan_leaked = [bool]($probeText -match 'starting scan|\[transport\]|\[stage')
+} else {
+    $p1.exit_code = -1; $p1.refusal_seen = $false; $p1.scan_leaked = $false
 }
-schtasks /Delete /TN cr_bench_unelev /F | Out-Null
-$probeText = (Get-Content $probeOut) -join "`n"
-$p1.exit_code = if ($probeText -match 'EXITCODE=(\d+)') { [int]$Matches[1] } else { -1 }
-$p1.refusal_seen = [bool]($probeText -match 'administrator privilege required')
-$p1.scan_leaked = [bool]($probeText -match 'starting scan|\[transport\]|\[stage')
-$p1.passed = ($p1.exit_code -eq 4 -and $p1.refusal_seen -and -not $p1.scan_leaked)
+$p1.passed = ($probeRc -eq 0)
 $behavior.probes += $p1
 Write-Host "unelevated probe: exit=$($p1.exit_code) refusal=$($p1.refusal_seen) leaked=$($p1.scan_leaked)"
+if (-not $p1.passed) { throw 'the unelevated refusal probe FAILED (see above)' }
 
 # ---------- probe 2: cancellation (hard-kill) -----------------------------------------
 # Cooperative CTRL_BREAK delivery to a console process group requires a custom
