@@ -48,17 +48,31 @@ are the comparison — nothing else is admissible as "meets or beats".
 | scan deepcarve (clean vol) | 1,501,622 ms wall; 8,572,108,800 B scanned | clean-volume-benchmark.json |
 | API clean-benchmark (rda, threads 4, mask 7) | open 0.9 ms; scan 1,513,221.7 ms; save 10.8 ms; query 0.2 ms; recovery 49.2 ms (82 files); preview 4096/4096 | api-result.json |
 
-**Run 41082469649** (test-benchmark FULL profile — adds decay/overwrite/mft on the
-8 GiB disk — dispatched at the Phase-0 tree `b9430745`, reason
-`session-96-T4-driver-backed-baseline-pre-replacement`): in flight at the time this
-sheet was first pushed; its full-profile scenario walls land in §1.1.1 when complete.
+**Run 41082469649** (test-benchmark FULL profile — dispatched at the Phase-0
+tree `b9430745`): ran ~3 h against the v0.6.1 release with the full driver
+machinery, then was cancelled externally at 18:38 UTC before publishing its
+artifact — no full-profile numbers were recoverable.
 
-### 1.1.1 Full-profile baseline (run 41082469649) — TO FILL WHEN THE RUN COMPLETES
+**Why no full-profile driver-backed baseline exists (the honest record):**
+the removal landed before a full-profile baseline could complete, and the
+test-benchmark lane no longer installs a kernel driver — by design, and
+permanently. A re-dispatch against the v0.6.1 release under the new lane
+was attempted (run 41111403030) and correctly FAILED: the driver-era
+release refuses every raw-disk verb with its exit-4 driver-absent refusal
+when no driver is installed — which is itself evidence the removal is
+complete and the old refusal worked exactly as designed. The reference
+baseline for every comparison is therefore §1.1's smoke-profile run
+(41042267586, captured pre-change with the driver installed and verified)
+plus the historical run-ID'd numbers in §1.2. The post-replacement
+measurement (§2) runs the SAME smoke+full scenario matrix on the SAME
+runner class against the new release — the apples-to-apples comparison the
+mandate requires.
 
-| Metric | Value | Status |
-|---|---|---|
-| full-profile scenario walls (decay/overwrite/mft) | pending | run in flight |
-| full-profile scan walls | pending | run in flight |
+### 1.1.1 Full-profile baseline
+
+Not capturable post-removal (see above); §1.1 + §1.2 are the baseline of
+record. The post-replacement full-profile run in §2 establishes the new
+full-profile reference going forward.
 
 ### 1.2 The historical driver-era baselines (already captured, run-ID'd)
 

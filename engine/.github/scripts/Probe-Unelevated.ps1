@@ -2,106 +2,70 @@
 # direct-access elevation contract).
 #
 # The runner shell is elevated by construction, so the refusal state is
-# created the CORRECT way: CreateRestrictedToken(LUA_TOKEN) on a duplicate
-# of our own token - the exact mechanism the shell uses to spawn
-# unelevated children. The child (rrecov scan --disk N) then sees
-# TokenElevation FALSE, precisely what is_elevated() probes, and must
-# answer with the exit-4 ERR_ELEVATION_REQUIRED refusal as its WHOLE
-# response (no scan output may leak past the gate).
+# created through a LIMITED-run scheduled task: the task executes as the
+# runner user with RunLevel Limited - the UAC-filtered token, exactly the
+# non-elevated state a desktop user's launched process runs under (what
+# is_elevated() probes). The child (rrecov scan --disk N) must answer
+# with the exit-4 ERR_ELEVATION_REQUIRED refusal as its WHOLE response
+# (no scan output may leak past the gate).
 #
-# The probe writes the child's captured stdout+stderr and exit code to
-# <OutFile> (evidence) and prints the PASS/FAIL verdict.
+# Two modes in one script (the task re-invokes this file with -Child):
+#   parent (default): registers + starts the task, polls the output file,
+#                     prints the verdict, exits 0/1
+#   child  (-Child):  runs rrecov, captures stdout+stderr+exit code into
+#                     <OutFile> (the evidence artifact)
 #
 # Exit: 0 = the refusal contract held; 1 = it did not (loud, with output).
 
 param(
     [Parameter(Mandatory = $true)] [string] $RrecovExe,
     [Parameter(Mandatory = $true)] [string] $OutFile,
-    [int] $Disk = 0
+    [int] $Disk = 0,
+    [switch] $Child,
+    [int] $TimeoutSec = 90
 )
 
 $ErrorActionPreference = 'Stop'
 
-if (-not ('Unelev' -as [type])) {
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public class Unelev {
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool OpenProcessToken(IntPtr p, uint acc, out IntPtr tok);
-    [DllImport("advapi32.dll", SetLastError = true)]
-    static extern bool CreateRestrictedToken(IntPtr tok, uint flags,
-        uint disSidCount, IntPtr disSids, uint delPrivCount, IntPtr delPrivs,
-        uint resSidCount, IntPtr resSids, out IntPtr lua);
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    static extern bool CreateProcessAsUserW(IntPtr tok, string app, string cmd, IntPtr sa, IntPtr sa2,
-        bool inherit, uint flags, IntPtr env, string cwd,
-        ref STARTUPINFO si, out PROCESS_INFORMATION pi);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool CreatePipe(out IntPtr read, out IntPtr write, IntPtr sa, uint size);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool SetHandleInformation(IntPtr h, uint mask, uint flags);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool ReadFile(IntPtr h, byte[] buf, uint toRead, out uint read, IntPtr ov);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern uint WaitForSingleObject(IntPtr h, uint ms);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool GetExitCodeProcess(IntPtr h, out uint code);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool CloseHandle(IntPtr h);
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct STARTUPINFO {
-        public int cb; public string lpReserved, lpDesktop, lpTitle;
-        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars,
-                   dwFillAttribute, dwFlags;
-        public short wShowWindow, cbReserved2;
-        public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
-    }
-    [StructLayout(LayoutKind.Sequential)]
-    public struct PROCESS_INFORMATION {
-        public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId;
-    }
-    public static string Run(string app, string args) {
-        IntPtr tok;
-        if (!OpenProcessToken(System.Diagnostics.Process.GetCurrentProcess().Handle,
-                0x0002 | 0x0008 | 0x0020, out tok))
-            throw new Exception("OpenProcessToken GLE=" + Marshal.GetLastWin32Error());
-        IntPtr lua;
-        if (!CreateRestrictedToken(tok, 0x00000001 /* LUA_TOKEN */,
-                0, IntPtr.Zero, 0, IntPtr.Zero, 0, IntPtr.Zero, out lua))
-            throw new Exception("CreateRestrictedToken GLE=" + Marshal.GetLastWin32Error());
-        IntPtr outR, outW;
-        if (!CreatePipe(out outR, out outW, IntPtr.Zero, 0))
-            throw new Exception("CreatePipe GLE=" + Marshal.GetLastWin32Error());
-        SetHandleInformation(outR, 0x00000001 /* HANDLE_FLAG_INHERIT */, 0);
-        STARTUPINFO si = new STARTUPINFO();
-        si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
-        si.dwFlags = 0x00000100; /* STARTF_USESTDHANDLES */
-        si.hStdOutput = outW; si.hStdError = outW;
-        PROCESS_INFORMATION pi;
-        string cmd = "\"" + app + "\" " + args;
-        if (!CreateProcessAsUserW(lua, null, cmd, IntPtr.Zero, IntPtr.Zero, true,
-                0, IntPtr.Zero, null, ref si, out pi))
-            throw new Exception("CreateProcessAsUserW GLE=" + Marshal.GetLastWin32Error());
-        CloseHandle(outW); CloseHandle(lua); CloseHandle(tok);
-        var buf = new byte[65536]; var text = new System.Text.StringBuilder();
-        uint read;
-        while (ReadFile(outR, buf, (uint)buf.Length, out read, IntPtr.Zero) && read > 0)
-            text.Append(System.Text.Encoding.UTF8.GetString(buf, 0, (int)read));
-        CloseHandle(outR);
-        WaitForSingleObject(pi.hProcess, 60000);
-        uint code;
-        GetExitCodeProcess(pi.hProcess, out code);
-        CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-        return "EXITCODE=" + code + "\r\n" + text.ToString();
-    }
-}
-'@
+# ------------------------- the child: run + capture -------------------------
+if ($Child) {
+    $out = & $RrecovExe scan --disk $Disk 2>&1 | ForEach-Object { $_.ToString() }
+    "EXITCODE=$LASTEXITCODE" | Set-Content -LiteralPath $OutFile -Encoding utf8
+    $out | Add-Content -LiteralPath $OutFile -Encoding utf8
+    exit 0
 }
 
-$out = [Unelev]::Run($RrecovExe, "scan --disk $Disk")
-$out | Set-Content -LiteralPath $OutFile -Encoding utf8
+# ------------------------- the parent: task + poll ---------------------------
+$taskName = "cr_unelev_probe_$([System.IO.Path]::GetRandomFileName() -replace '[^a-z0-9_]', '')"
+Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
 
+$self = $PSCommandPath
+$action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+    -Argument ("-NoProfile -File `"" + $self + "`" -Child -RrecovExe `"" + $RrecovExe +
+               "`" -OutFile `"" + $OutFile + "`" -Disk $Disk")
+# RunLevel Limited: the task runs with the UAC-filtered token of the
+# runner user - the non-elevated state (TokenElevation FALSE)
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+try {
+    Start-ScheduledTask -TaskName $taskName
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while (-not ((Test-Path -LiteralPath $OutFile) -and
+                 ((Get-Content -LiteralPath $OutFile -ErrorAction SilentlyContinue) -match 'EXITCODE='))) {
+        if ((Get-Date) -gt $deadline) {
+            $info = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            $state = if ($info) { $info.State } else { '<gone>' }
+            Write-Host "::error::the unelevated probe never completed (${TimeoutSec}s deadline; task state $state)"
+            exit 1
+        }
+        Start-Sleep -Milliseconds 500
+    }
+} finally {
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+}
+
+$out = (Get-Content -LiteralPath $OutFile) -join "`n"
 $failed = $false
 if ($out -match 'EXITCODE=4' -and $out -match 'administrator privilege required') {
     Write-Host "PASS unelevated scan --disk ${Disk}: exit 4, the ERR_ELEVATION_REQUIRED refusal"
