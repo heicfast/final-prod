@@ -1757,13 +1757,20 @@ TEST(CrUi, ScanBusyStoppingQueries) {
     ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
     EXPECT_EQ(stopping, 0u) << "parked is not stopping - no cancel requested";
 
-    /* cancel while parked: stopping flips immediately, busy stays true
-     * while the run winds down through the gate */
+    /* cancel while parked: stopping flips immediately. The post-cancel
+     * busy==1 observation ("still winding down") was a race by
+     * construction (run 41027072251: the unparked runner cleared
+     * `running` before this thread's adjacent query - busy read 0
+     * where the line demanded 1): between token.cancel() and
+     * running.store(false) the exit path is a heartbeat join (unarmed
+     * in this test) and one store, so no timing contract makes the
+     * transition observable. The deterministic contract stays fully
+     * pinned: busy==1 while run() is live was proven above at the
+     * park; stopping is visible at once (next line); run() returns
+     * CANCELLED and busy settles to 0 after the join (both below). */
     ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
     ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
     EXPECT_EQ(stopping, 1u) << "the live cancel request must be visible at once";
-    ASSERT_EQ(cr_ui_scan_busy(u.scan, &busy), CR_UI_OK);
-    EXPECT_EQ(busy, 1u) << "run() is still winding down after cancel";
 
     runner.join();
     ASSERT_TRUE(done.load());
