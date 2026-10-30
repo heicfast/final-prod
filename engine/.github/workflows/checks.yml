@@ -48,6 +48,12 @@ on:
     branches: [main]
     paths-ignore: ['**.md', 'docs/**', 'worklog.md', 'worklog/**', 'AUDIT*.md']
   workflow_call: {} # release.yml calls this lane as its validation gate
+  # Added 2026-10-30 (the coherence lane): paths-ignore means a docs-only
+  # fix push triggers nothing - which left main's last run red after the
+  # fix had already landed (the 41026660604 class). The dispatch trigger
+  # lets any lane re-prove the gate on the CURRENT head without an
+  # artificial file touch; no job, step, or gate changes.
+  workflow_dispatch: {}
 
 permissions:
   contents: read
