@@ -44,8 +44,12 @@ $action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
     -Argument ("-NoProfile -File `"" + $self + "`" -Child -RrecovExe `"" + $RrecovExe +
                "`" -OutFile `"" + $OutFile + "`" -Disk $Disk")
 # RunLevel Limited: the task runs with the UAC-filtered token of the
-# runner user - the non-elevated state (TokenElevation FALSE)
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+# runner user - the non-elevated state (TokenElevation FALSE). LogonType
+# S4U (ServiceForUser): the task runs WITHOUT an interactive session (the
+# runner's user has no desktop to log into - an Interactive-type task
+# waits for logon forever, the state-Running hang this probe first hit);
+# S4U still yields the UAC-filtered token with RunLevel Limited.
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
 Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
 try {
     Start-ScheduledTask -TaskName $taskName
