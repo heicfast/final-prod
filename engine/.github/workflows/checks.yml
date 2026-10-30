@@ -401,13 +401,16 @@ jobs:
 
           # 2. the junk set never prints; the controls do. ASCII names
           #    only (encoding-stable assertions); the deleted file
-          #    renders 0xE5 as _ELFILE.TXT.
+          #    renders 0xE5 as #ELFILE.TXT (N-172: the og's placeholder
+          #    is '#', FATSearchDLL FUN_180036350 :44166-44172 - the
+          #    0xE5 first byte renders as 0x23; pinned on Linux by
+          #    test_orchestrator.cpp's junk-gate suite).
           foreach ($junk in @('DESKTOP.INI','$USNJRNL','System Volume Information','TRACKER.TXT')) {
             if ($scanOut -match [regex]::Escape($junk)) {
               Write-Host "::error::junk name '$junk' leaked into the scan tree output (M-071 gate missing)"; $failed = $true
             }
           }
-          foreach ($good in @('DOC.TXT','KEEP.ME','_ELFILE.TXT')) {
+          foreach ($good in @('DOC.TXT','KEEP.ME','#ELFILE.TXT')) {
             if ($scanOut -notmatch [regex]::Escape($good)) {
               Write-Host "::error::control '$good' missing from the scan tree output"; $failed = $true
             }
@@ -422,7 +425,7 @@ jobs:
               Write-Host "::error::junk name '$junk' leaked into the session tree output (flag round-trip or M-071 gate missing)"; $failed = $true
             }
           }
-          foreach ($good in @('DOC.TXT','KEEP.ME','_ELFILE.TXT')) {
+          foreach ($good in @('DOC.TXT','KEEP.ME','#ELFILE.TXT')) {
             if ($treeOut -notmatch [regex]::Escape($good)) {
               Write-Host "::error::control '$good' missing from the session tree output"; $failed = $true
             }
@@ -459,7 +462,7 @@ jobs:
           }
           if ($written -notcontains 'DOC.TXT') { Write-Host '::error::recover-all did not write DOC.TXT'; $failed = $true }
           if ($written -notcontains 'KEEP.ME') { Write-Host '::error::recover-all did not write KEEP.ME'; $failed = $true }
-          if ($written -notcontains '_ELFILE.TXT') { Write-Host '::error::recover-all did not write the deleted _ELFILE.TXT'; $failed = $true }
+          if ($written -notcontains '#ELFILE.TXT') { Write-Host '::error::recover-all did not write the deleted #ELFILE.TXT (N-172: the og placeholder renders 0xE5 as #)'; $failed = $true }
 
           # 5. M-079: the auto-save <vol> half - the scan derives the
           #    fixture's BPB label (JUNKGATE) into the auto-save name;
@@ -471,10 +474,17 @@ jobs:
           $autoFiles = @(Get-ChildItem -Path $auto1 -Filter '*.crsf' -File)
           if ($autoFiles.Count -ne 1) { Write-Host "::error::expected exactly one auto session, got $($autoFiles.Count)"; $failed = $true }
           else {
-            # M-079's landed fill: the --image target's filename stem rides
-            # the name (fill_volume_label, 0b76757) - junk-gate-fat16.raw
-            # -> auto_junk-gate-fat16<stamp>
-            if ($autoFiles[0].Name -notmatch '^auto_junk-gate-fat16[0-9]{2}_') { Write-Host "::error::the auto-save name does not carry the fill_volume_label stem: $($autoFiles[0].Name)"; $failed = $true }
+            # N-133's corrected precedence (the assertion corrected
+            # 2026-10-30, run 41029969175's first-ever execution):
+            # --label > the ENGINE-decoded on-disk label > the image-stem
+            # fallback - "the og's session carries the engine label, not
+            # the filename stem" (rrecov.cpp:2032-2035). The fixture's
+            # BPB label is JUNKGATE, so the auto name is
+            # auto_JUNKGATE<stamp>; the stem (fill_volume_label, 0b76757)
+            # is the fallback for label-less volumes only. The mangle
+            # auto_JUNKGATEe-fat16 was the unterminated-copy bug fixed
+            # the same day (rrecov.cpp:2036 + cr_scan.cpp:2126).
+            if ($autoFiles[0].Name -notmatch '^auto_JUNKGATE[0-9]{2}_') { Write-Host "::error::the auto-save name does not carry the engine-decoded volume label (N-133 precedence): $($autoFiles[0].Name)"; $failed = $true }
           }
           $auto2 = Join-Path $work 'auto2'
           New-Item -ItemType Directory -Path $auto2 | Out-Null

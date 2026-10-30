@@ -995,6 +995,47 @@ TEST(FilterFolder, JunkGateFixtureFileScansAndFlagsHiddenSet) {
     EXPECT_TRUE(names.count("TRACKER.TXT"));
 }
 
+/* ---- N-133/M-079: the engine label replacement must TERMINATE ----
+ *
+ * The first-ever execution of the M-071 CI step (run 41029969175)
+ * exposed the auto-session-name mangle "auto_JUNKGATEe-fat16": BOTH
+ * label copies - the engine pass's er->stats (cr_scan.cpp:2126) and
+ * the CLI's autosave stats->cfg (rrecov.cpp:2037) - stop at the
+ * label's NUL without WRITING it, so a longer prior occupant leaks
+ * through ("JUNKGATE" written over "junk-gate-fat16" leaves the
+ * "e-fat16" tail). This pin runs the shipped fixture exactly as the
+ * CLI does (the derived stem in cfg, a pre-dirtied stats buffer - the
+ * reuse shape) and demands the engine label land cleanly terminated.
+ * The rrecov.cpp half is pinned by the CI step's M-079 assertion; this
+ * is the Linux-visible half. */
+TEST(Orchestrator, EngineLabelReplacesDerivedStemTerminated) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    /* the CLI's fill_volume_label stem leg (rrecov.cpp:446): the image
+     * filename stem as the derived, replaceable label */
+    std::memcpy(cfg.volume_label, "junk-gate-fat16", 15);
+    cfg.volume_label[15] = 0;
+    cfg.volume_label_derived = true;
+    ScanController ctrl(tree, cfg);
+    /* the reuse shape: a longer prior occupant of the stats label
+     * buffer - the exact leak surface of the unterminated copy */
+    ScanStats stats;
+    std::memcpy(stats.volume_label, "prior-occupant-longer-than-the-label", 35);
+    stats.volume_label[35] = 0;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+
+    EXPECT_STREQ(stats.volume_label, "JUNKGATE")
+        << "the engine-decoded label must land TERMINATED - a prior occupant's "
+           "tail must never leak into the auto-session name (the "
+           "auto_JUNKGATEe-fat16 mangle, run 41029969175)";
+}
+
 } // namespace
 
 /* ---- N-048: the engine logging seam ---- */

@@ -2123,8 +2123,15 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
      * label replace the stem; the session record + every post-scan
      * consumer read the updated cfg. */
     if (er.volume_label[0] != 0) {
-        for (size_t k = 0; k + 1 < sizeof(stats.volume_label) && er.volume_label[k]; ++k)
-            stats.volume_label[k] = er.volume_label[k];
+        /* terminate at the stop index - the copy must never leave a
+         * prior occupant's tail behind (the auto_JUNKGATEe-fat16
+         * mangle, run 41029969175: "JUNKGATE" written over the
+         * derived stem "junk-gate-fat16" leaked "e-fat16" into the
+         * auto-session name when stats carried a longer label) */
+        size_t sk = 0;
+        for (; sk + 1 < sizeof(stats.volume_label) && er.volume_label[sk]; ++sk)
+            stats.volume_label[sk] = er.volume_label[sk];
+        stats.volume_label[sk] = 0;
         if (cfg_.volume_label_derived) {
             /* replace the derived stem with the engine-decoded on-disk
              * label - copy INCLUDING the terminator so no stem bytes leak */

@@ -2034,9 +2034,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
          * precedence: the og's session carries the engine label, not the
          * filename stem) */
         if (stats.volume_label[0] != 0 && cfg.volume_label_derived) {
-            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
+            /* terminate at the stop index - the CLI's own cfg still
+             * carries the derived stem (the controller replaced ITS
+             * copy), so an unterminated overlay leaves the stem's tail
+             * in the name (the auto_JUNKGATEe-fat16 mangle, run
+             * 41029969175: "JUNKGATE" over "junk-gate-fat16") */
+            size_t k = 0;
+            for (; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
                 cfg.volume_label[k] = stats.volume_label[k];
-            cfg.volume_label[sizeof(cfg.volume_label) - 1] = 0;
+            cfg.volume_label[k] = 0;
         }
         const std::string name8 =
             session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
