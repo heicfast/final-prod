@@ -33,10 +33,11 @@ $behavior = [ordered]@{ tool = 'ours'; probes = @() }
 
 # ---------- probe 1: the unelevated refusal (the direct-era contract) ----------
 # The runner shell is elevated by construction, so the refusal state is
-# created the correct way: the shared LUA-token probe (the shell's own
-# mechanism for unelevated children; TokenElevation FALSE is exactly what
-# is_elevated() probes). The probe script captures the child's output +
-# exit code and writes the evidence file.
+# created the way the shell does it: the shared LUA-token probe
+# (CreateRestrictedToken + CreateProcessWithTokenW - the UAC-filtered
+# view; TokenElevation FALSE is exactly what is_elevated() probes). The
+# probe script captures the child's output + exit code and writes the
+# evidence file.
 $p1 = [ordered]@{ probe = 'unelevated' }
 $probeOut = Join-Path $WorkDir 'unelevated-probe.txt'
 & pwsh -NoProfile -File (Join-Path $PSScriptRoot '..\..\.github\scripts\Probe-Unelevated.ps1') `
