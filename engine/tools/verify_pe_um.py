@@ -34,6 +34,11 @@ ALLOWLIST_ADDITIONS = {
     # volume's drive letter before dismounting (RecoveryModule_decompiled.c:44699,
     # DeleteVolumeMountPointA there; W variant is the same syscall). Available
     # since Windows 2000 - Win7-inclusive by construction.
+    # S-010 repair quiesce: the mount point must go so the OS does not hand
+    # the volume back out (corpus RecoveryModule_decompiled.c :60412; the
+    # og's decompile cites the A variant there - the W variant is the same
+    # syscall). Win2000-era API.
+    "DeleteVolumeMountPointW": "S-010 repair quiesce (corpus :44699); Win2000-era API",
     # S-014 (diff-to-fix): the live auto-unlock read needs the per-volume
     # "Data" value (DRWService_decompiled.c:121 RegQueryValueExA there; W
     # variant is the same syscall) and the volume-GUID association
