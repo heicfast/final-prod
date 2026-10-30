@@ -1,4 +1,4 @@
-# release.yml - the combined release workflow (the sole source of builds).
+# release.yml - the core release workflow (the sole source of builds).
 #
 # docs/RELEASE.md is the convention document; docs/PREBUILT-ARTIFACTS.md is
 # the artifact contract this workflow produces. Mandate:
@@ -8,23 +8,12 @@
 #     release)
 #   - builds the core from the released commit in Release config (the one
 #     from-scratch build; vcpkg binary-cached like the checks lane)
-#   - fetches the prebuilt driver from heicfast/rda-driver at the
-#     compatibility tier (floor v0.2.4: the versioned-layout + -Uninstall
-#     era the consumers' teardown contract assumes), source-build fallback
-#     ONLY when no tier release exists (stamped built-from-source in
-#     MANIFEST.json)
-#   - TEST-DEVELOPMENT-SIGNS the driver with the repo's PERSISTENT dev
-#     certificate (GitHub secrets DEV_SIGN_CERT_PFX_B64 +
-#     DEV_SIGN_CERT_PASSWORD, CN=RRECOV-DEV-SIGN, 3-year self-signed
-#     code-signing cert). The public certificate ships as the release
-#     asset `rda-test-sign.cer` so ANY consumer (the test-benchmark lane,
-#     dev machines) can establish trust by importing it into LocalMachine
-#     Root + TrustedPublisher and load the signed driver - no secret
-#     needed at consume time. This replaces the job-local ephemeral-cert
-#     posture (which died with the job that minted it).
-#   - produces the full asset set: core-recovery-<tag>.zip + rda.sys
-#     (signed) + rda.inf + install.ps1 + uninstall.ps1 + rda-test-sign.cer
-#     + MANIFEST.json + SHA256SUMS
+#   - session-96: the kernel-driver tier is REMOVED (the direct raw I/O
+#     replacement) - nothing is fetched from rda-driver, nothing is
+#     signed, no service ships. The product is the core: a user-mode
+#     engine requiring administrator privilege for raw disk access at
+#     RUN time. The asset set is the core zip + MANIFEST.json +
+#     SHA256SUMS.
 #   - on publish, dispatches test-benchmark.yml against the fresh tag
 #     (the release-is-the-substrate chain: every release gets the full
 #     CLI+API test/benchmark pass automatically)
@@ -41,7 +30,7 @@
 #                  true  = cut the tag at this commit and publish
 #       skip_validation - DRILL ONLY: skip the checks gate (never for a
 #                  real release)
-name: Release (combined core + driver)
+name: Release (core)
 
 on:
   push:
@@ -263,148 +252,13 @@ jobs:
           path: core-recovery-${{ needs.resolve.outputs.tag }}.zip
           if-no-files-found: error
 
-  driver-tier:
-    needs: [validate, resolve]
-    if: ${{ !cancelled() && (needs.validate.result == 'success' || inputs.skip_validation) }}
-    runs-on: windows-2022
-    timeout-minutes: 30
-    outputs:
-      source: ${{ steps.tier.outputs.source }}
-      tag: ${{ steps.tier.outputs.tag }}
-    env:
-      DEV_SIGN_CERT_PFX_B64: ${{ secrets.DEV_SIGN_CERT_PFX_B64 }}
-      DEV_SIGN_CERT_PASSWORD: ${{ secrets.DEV_SIGN_CERT_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: tier
-        name: Fetch the prebuilt driver at the compatibility tier
-        shell: pwsh
-        run: |
-          # Compatibility tier (docs/RELEASE.md): core 1.x <-> driver wire
-          # major 1 -> the latest rda-driver release, floor v0.2.4 (the
-          # versioned-layout + -Uninstall era; the consumers' teardown
-          # contract sweeps rda<digits>.sys). Preferred path is the
-          # prebuilt release; the source-build fallback below runs ONLY
-          # when no tier release exists and is stamped in MANIFEST.json.
-          $req = 'rda.sys,rda.inf,install.ps1,uninstall.ps1,SHA256SUMS'
-          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir driver -Required $req -FloorVersion v0.2.4
-          if ($LASTEXITCODE -eq 0) {
-            $rec = Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json
-            "source=consumed" >> $env:GITHUB_OUTPUT
-            "tag=$($rec.tag)" >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          Write-Host '::warning::no consumable rda-driver tier release at floor v0.2.4 - BUILDING THE DRIVER FROM SOURCE; stamped built-from-source in MANIFEST.json'
-          "source=built-from-source" >> $env:GITHUB_OUTPUT
-          "tag=<source-build>" >> $env:GITHUB_OUTPUT
-
-      - name: Source-build fallback (ONLY when the tier release is missing)
-        if: steps.tier.outputs.source == 'built-from-source'
-        shell: pwsh
-        run: |
-          git clone --depth 1 https://github.com/heicfast/rda-driver.git rda-driver-src
-          $msbuild = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe' | Select-Object -First 1
-          & $msbuild.FullName rda-driver-src\rda.sln /p:Configuration=Release /p:Platform=x64 /m
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          New-Item -ItemType Directory -Force driver | Out-Null
-          $sys = Get-ChildItem rda-driver-src -Recurse -Filter rda.sys | Where-Object { $_.FullName -match 'x64\\Release' } | Select-Object -First 1
-          if (-not $sys) { Write-Host '::error::source build produced no rda.sys'; exit 1 }
-          Copy-Item $sys.FullName driver\rda.sys -Force
-          Copy-Item rda-driver-src\src\driver\rda.inf driver\rda.inf -Force
-          Copy-Item rda-driver-src\scripts\install.ps1 driver\install.ps1 -Force
-          Copy-Item rda-driver-src\scripts\uninstall.ps1 driver\uninstall.ps1 -Force
-
-      # The persistent dev-sign step. Fails LOUD when the secrets are
-      # missing (no silent fallback to an unsigned or ephemeral driver -
-      # the S-036 doctrine).
-      - name: Test-development-sign the driver (persistent dev certificate)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if (-not $env:DEV_SIGN_CERT_PFX_B64 -or -not $env:DEV_SIGN_CERT_PASSWORD) {
-            Write-Host '::error::missing GitHub secrets DEV_SIGN_CERT_PFX_B64 / DEV_SIGN_CERT_PASSWORD - the release cannot test-sign the driver. Generate a self-signed code-signing cert (CN=RRECOV-DEV-SIGN, codeSigning EKU, digitalSignature KU, RSA-2048 SHA-256), store the PFX base64 + password as repo secrets, and re-run.'
-            exit 1
-          }
-
-          # S-036 lesson: parse-gate the installer scripts BEFORE they ship
-          # (a parse-time crash in install.ps1 broke every CI install once).
-          foreach ($s in @('driver\install.ps1', 'driver\uninstall.ps1')) {
-            $errs = $null
-            [System.Management.Automation.Language.Parser]::ParseFile("$PWD\$s", [ref]$null, [ref]$errs) | Out-Null
-            if ($errs -and $errs.Count -gt 0) {
-              Write-Host "::error::PARSE ERROR in ${s} (the rda-driver release shipped a broken script):"
-              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
-              exit 1
-            }
-          }
-
-          # record the UNSIGNED hash (upstream provenance; fetch-release
-          # already verified it against the rda-driver SHA256SUMS)
-          $unsignedSha = (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash
-          "$unsignedSha" | Set-Content driver\sha256-unsigned.txt
-
-          # decode the persistent cert and sign (signtool from the newest
-          # Windows Kits install - the proven discovery glob)
-          [IO.File]::WriteAllBytes("$PWD\devsign.pfx", [Convert]::FromBase64String($env:DEV_SIGN_CERT_PFX_B64))
-          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $signtool) { Write-Host '::error::signtool.exe not found (Windows Kits layout changed?)'; exit 1 }
-          # No /tr timestamp by the N-084 posture: the signature is meant
-          # for CI/dev test-loading within the cert's 3-year window; a
-          # consumer needing signature validity past cert expiry should
-          # re-sign with their own cert (docs/DRIVER-RELEASE.md section 5).
-          & $signtool.FullName sign /fd SHA256 /f devsign.pfx /p $env:DEV_SIGN_CERT_PASSWORD driver\rda.sys
-          if ($LASTEXITCODE -ne 0) { Write-Host '::error::signtool failed'; exit 1 }
-
-          # verify the signature: import the public cert into this
-          # machine's Root store, then Get-AuthenticodeSignature must
-          # report Valid with the expected signer subject
-          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new("$PWD\devsign.pfx", $env:DEV_SIGN_CERT_PASSWORD)
-          $cerPath = "$PWD\rda-test-sign.cer"
-          [IO.File]::WriteAllBytes($cerPath, $cert.RawData)
-          Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
-          $sig = Get-AuthenticodeSignature driver\rda.sys
-          if ($sig.Status -ne 'Valid') {
-            Write-Host "::error::signature verification failed: $($sig.Status) - $($sig.StatusMessage)"
-            exit 1
-          }
-          if ($sig.SignerCertificate.Subject -notmatch 'RRECOV-DEV-SIGN') {
-            Write-Host "::error::unexpected signer subject: $($sig.SignerCertificate.Subject)"
-            exit 1
-          }
-
-          $signedSha = (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash
-          "$signedSha" | Set-Content driver\sha256-signed.txt
-          Copy-Item $cerPath driver\rda-test-sign.cer -Force
-          Write-Host "driver test-signed: signer $($sig.SignerCertificate.Subject)"
-          Write-Host "  unsigned sha256: $unsignedSha"
-          Write-Host "    signed sha256: $signedSha"
-          Remove-Item devsign.pfx -Force -ErrorAction SilentlyContinue
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: driver-tier
-          path: |
-            driver/rda.sys
-            driver/rda.inf
-            driver/install.ps1
-            driver/uninstall.ps1
-            driver/rda-test-sign.cer
-            driver/sha256-unsigned.txt
-            driver/sha256-signed.txt
-            driver/resolved-release.json
-          if-no-files-found: error
-
   assemble-and-publish:
-    needs: [build-core, driver-tier, resolve]
+    needs: [build-core, resolve]
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
       RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
-      DRIVER_SOURCE: ${{ needs.driver-tier.outputs.source }}
-      DRIVER_TAG: ${{ needs.driver-tier.outputs.tag }}
       PUBLISH: ${{ inputs.publish || startsWith(github.ref, 'refs/tags/') }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -412,45 +266,23 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: core-bundle
-      - uses: actions/download-artifact@v4
-        with:
-          name: driver-tier
-          path: driver
 
-      - name: Assemble the combined artifact set (MANIFEST.json + SHA256SUMS)
+      - name: Assemble the artifact set (MANIFEST.json + SHA256SUMS)
         shell: pwsh
         run: |
           $tag = $env:RELEASE_TAG
           $coreZip = "core-recovery-$tag.zip"
           if (-not (Test-Path $coreZip)) { throw "core zip missing: $coreZip (did build-core run?)" }
 
-          # normalize the driver tier to the release root (flat names)
-          Copy-Item driver\rda.sys, driver\rda.inf, driver\install.ps1, driver\uninstall.ps1, driver\rda-test-sign.cer . -Force
-          $assets = @($coreZip, 'rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', 'rda-test-sign.cer')
-          foreach ($a in $assets) {
-            if (-not (Test-Path $a -PathType Leaf)) { throw "missing release asset: $a" }
-          }
-
           $coreVersion = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'version-string'
-          $driverSource = $env:DRIVER_SOURCE
-          $driverTag = if ($env:DRIVER_TAG) { $env:DRIVER_TAG } else { '<none>' }
-          $unsignedSha = (Get-Content driver\sha256-unsigned.txt -Raw).Trim()
-          $signedSha = (Get-Content driver\sha256-signed.txt -Raw).Trim()
+          $assets = @($coreZip)
 
           $manifest = [ordered]@{
             release_tag  = $tag
             core_version = $coreVersion
             created_utc  = (Get-Date).ToUniversalTime().ToString('o')
-            driver_tier  = [ordered]@{
-              repo                = 'heicfast/rda-driver'
-              tag                 = $driverTag
-              source              = $driverSource # consumed | built-from-source
-              wire_major_required = 1 # core's compatibility contract
-              sha256_unsigned     = $unsignedSha
-              sha256_signed       = $signedSha
-              dev_sign_subject    = 'CN=RRECOV-DEV-SIGN'
-            }
-            signing_posture = 'rda.sys test-development-signed with the repo persistent dev certificate (CN=RRECOV-DEV-SIGN); the public cert ships as rda-test-sign.cer - import into LocalMachine Root + TrustedPublisher to load the driver; core binaries unsigned by design (byte-comparable builds)'
+            access_model = 'direct raw I/O from user mode under administrator privilege (session-96: no kernel driver, no service, nothing installed but the core)'
+            signing_posture = 'core binaries unsigned by design (byte-comparable builds)'
             artifacts    = @()
           }
           foreach ($name in $assets) {
@@ -458,8 +290,8 @@ jobs:
             $manifest.artifacts += [ordered]@{
               name        = $name
               sha256      = $hash
-              version     = if ($name -eq $coreZip) { $coreVersion } else { $driverTag }
-              source_tier = if ($name -eq $coreZip) { 'core-build-from-tag' } else { $driverSource }
+              version     = $coreVersion
+              source_tier = 'core-build-from-tag'
             }
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content MANIFEST.json
@@ -481,11 +313,6 @@ jobs:
           name: combined-release-set
           path: |
             core-recovery-*.zip
-            rda.sys
-            rda.inf
-            install.ps1
-            uninstall.ps1
-            rda-test-sign.cer
             MANIFEST.json
             SHA256SUMS
           if-no-files-found: error
@@ -509,15 +336,10 @@ jobs:
           tag_name: ${{ needs.resolve.outputs.tag }}
           files: |
             core-recovery-${{ needs.resolve.outputs.tag }}.zip
-            rda.sys
-            rda.inf
-            install.ps1
-            uninstall.ps1
-            rda-test-sign.cer
             MANIFEST.json
             SHA256SUMS
           body: |
-            # core_recovery ${{ needs.resolve.outputs.tag }} — combined core + driver release
+            # core_recovery ${{ needs.resolve.outputs.tag }} — core release
 
             **Read the manifest first:** `MANIFEST.json` lists every artifact
             with version, SHA256 and source tier. `SHA256SUMS` covers every
@@ -525,19 +347,14 @@ jobs:
 
             - **Core** built from the released commit (the release workflow
               is the sole source of builds — docs/PREBUILT-ARTIFACTS.md).
-            - **Driver tier:** ${{ needs.driver-tier.outputs.source == 'consumed' && format('consumed prebuilt from rda-driver {0}', needs.driver-tier.outputs.tag) || 'BUILT FROM SOURCE (no consumable tier release existed; stamped in MANIFEST.json)' }}.
-            - **Signing posture (truthful):** `rda.sys` is
-              test-development-signed with the repo's persistent dev
-              certificate (CN=RRECOV-DEV-SIGN). The public certificate
-              ships as `rda-test-sign.cer`: import it into
-              `LocalMachine\Root` AND `LocalMachine\TrustedPublisher`
-              (elevated), then run `install.ps1` — no test-signing boot
-              mode required on HVCI-off machines (GitHub windows-2022
-              runners are the execution-validated class). Core binaries
-              are unsigned by design (byte-comparable builds).
-            - **Compatibility:** core 1.x requires driver wire major 1
-              (query with `rrecov driver --json`; refusal taxonomy in
-              docs/DRIVER-REQUIRED.md).
+            - **Access model (truthful):** direct raw I/O from user mode —
+              the product reads `\\.\PhysicalDriveN` directly under
+              administrator privilege and ships no kernel driver, no
+              service, and no installer component beyond the core
+              (session-96). Run disk-requiring verbs from an elevated
+              prompt; image targets need no elevation.
+            - **Signing posture:** core binaries are unsigned by design
+              (byte-comparable builds).
             - **Every published release is automatically test+benchmarked:**
               publishing dispatches the test-benchmark workflow against
               this tag (CLI + API lanes over simulated disks —

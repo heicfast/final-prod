@@ -139,13 +139,13 @@ foreach ($mode in $ScanModes) {
             report = (Test-Path (Join-Path $OutDir "report-$mode.json"))
             dest = $dest
         }
-        # transport assertion (GAP-BENCH-5): with the rda service present the scan must
-        # actually have used \\.\RDA - a silent direct fallback would measure the wrong transport
-        if ($DriverInfo -match 'service=rda' -and $DriverInfo -match 'running') {
-            $rdaLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'RDA driver path' } | Measure-Object).Count
-            $modeInfo.rda_transport_assertion = @{ expected = $true; hits = $rdaLine }
-            if ($rdaLine -lt 1) {
-                Write-Host "TRANSPORT ASSERTION FAILED for $mode - scan never used the RDA driver path"
+        # transport assertion (GAP-BENCH-5): the scan must actually have used the
+        # direct transport - a silent fallback would measure the wrong transport
+        if ($DriverInfo -match 'transport=direct') {
+            $directLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'direct raw I/O' } | Measure-Object).Count
+            $modeInfo.rda_transport_assertion = @{ expected = $true; hits = $directLine }
+            if ($directLine -lt 1) {
+                Write-Host "TRANSPORT ASSERTION FAILED for $mode - scan never used the direct transport"
             }
         }
     }

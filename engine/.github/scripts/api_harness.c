@@ -9,9 +9,7 @@
  * shipped SDK is consumable out-of-the-box, exactly like a UI host.
  *
  * Modes (exit codes mirror the CLI contract: 0 ok, 1 hard failure,
- * 2 partial recovery - recovery errors or hash mismatch; 4 driver not
- * ready for the driver-status mode):
- *   --driver-status                       query cr_ui_driver_status, print JSON
+ * 2 partial recovery - recovery errors or hash mismatch):
  *   --abi-version                         ABI gate check
  *   --carve-count                         enumerate the carve registry
  *   --user-signs <file>                   register the shipped user-sign JSON
@@ -50,7 +48,6 @@
 #define HARNESS_OK 0
 #define HARNESS_FAIL 1
 #define HARNESS_PARTIAL 2
-#define HARNESS_DRIVER 4
 
 /* ---- event/progress sinks (thread-safe counters; callbacks must not block) */
 
@@ -142,43 +139,6 @@ static int write_text_file(const char* path, const char* content) {
     fputs(content, f);
     fclose(f);
     return 0;
-}
-
-static const char* driver_state_name(uint32_t st) {
-    switch (st) {
-    case CR_UI_DRIVER_STATE_READY: return "ready";
-    case CR_UI_DRIVER_STATE_ABSENT: return "absent";
-    case CR_UI_DRIVER_STATE_NOT_STARTED: return "not-started";
-    case CR_UI_DRIVER_STATE_UNAUTHORIZED: return "unauthorized";
-    case CR_UI_DRIVER_STATE_VERSION_MISMATCH: return "version-mismatch";
-    case CR_UI_DRIVER_STATE_ERRORED: return "errored";
-    default: return "unknown";
-    }
-}
-
-static int mode_driver_status(void) {
-    cr_ui_driver_status_t st;
-    memset(&st, 0, sizeof(st));
-    uint32_t rc = cr_ui_driver_status(&st);
-    if (rc != CR_UI_OK) {
-        printf("{\"harness\":\"driver-status\",\"query_rc\":%lu,\"error\":", (unsigned long)rc);
-        json_escape_into(stdout, cr_ui_last_error());
-        printf("}\n");
-        return HARNESS_FAIL;
-    }
-    printf("{\"harness\":\"driver-status\",\"state\":\"%s\",\"service_present\":%lu,"
-           "\"service_running\":%lu,\"device_openable\":%lu,\"authorized\":%lu,\"info_valid\":%lu,"
-           "\"major\":%lu,\"minor\":%lu,\"required_major\":%lu,\"flags\":%lu,\"max_disks\":%lu,"
-           "\"ioctl_base\":%lu,\"last_gle\":%lu}\n",
-           driver_state_name(st.state),
-           (unsigned long)st.service_present, (unsigned long)st.service_running,
-           (unsigned long)st.device_openable, (unsigned long)st.authorized,
-           (unsigned long)st.info_valid, (unsigned long)st.major, (unsigned long)st.minor,
-           (unsigned long)st.required_major, (unsigned long)st.flags,
-           (unsigned long)st.max_disks, (unsigned long)st.ioctl_base,
-           (unsigned long)st.last_gle);
-    if (st.state == CR_UI_DRIVER_STATE_READY) return HARNESS_OK;
-    return HARNESS_DRIVER;
 }
 
 static int mode_abi_version(void) {
@@ -612,7 +572,7 @@ int main(int argc, char** argv) {
 
     if (argc < 2) {
         fprintf(stderr,
-                "usage: api_harness --driver-status | --abi-version | --carve-count\n"
+                "usage: api_harness --abi-version | --carve-count\n"
                 "       api_harness --user-signs <json-file>\n"
                 "       api_harness --scan --target volume --letter Y --dest D --out O\n"
                 "                    [--stages quick|deep|deepcarve|all] [--threads N]\n"
@@ -622,7 +582,6 @@ int main(int argc, char** argv) {
         return HARNESS_FAIL;
     }
 
-    if (strcmp(argv[1], "--driver-status") == 0) return mode_driver_status();
     if (strcmp(argv[1], "--abi-version") == 0) return mode_abi_version();
     if (strcmp(argv[1], "--carve-count") == 0) return mode_carve_count();
     if (strcmp(argv[1], "--user-signs") == 0) {

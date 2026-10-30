@@ -2,11 +2,10 @@
 # red-blocking test gates for the app-installer milestone.
 #
 #   Gate 1 InstallerSilentRoundTrip  - clean install (/VERYSILENT, zero
-#        prompts, driver component included) -> ARP UninstallString +
+#        prompts, core only) -> ARP UninstallString +
 #        QuietUninstallString present and well-formed (the quiet form ends
 #        " /SILENT") -> silent uninstall via the ARP QuietUninstallString
-#        verbatim -> NO residue (files, ARP entry, version key, driver
-#        service, driver image files).
+#        verbatim -> NO residue (files, ARP entry, version key).
 #   Gate 2 InstallerVersionKeyWritten - the version key's write+verify path
 #        (HKLM\SOFTWARE\heicfast\core_recovery\Version reads back exactly the
 #        built version).
@@ -15,11 +14,10 @@
 #        no install needed.
 #
 # The lane builds the installer from source (the CI charter: from-scratch
-# validation is the point), fetches the prebuilt rda-driver release at the
-# compatibility tier, test-signs it with a job-local cert (the proven runner
-# mechanism - a production release consumes properly signed assets per
-# docs/PACKAGING.md section 10 / DRIVER-RELEASE), and runs the round trip on
-# the elevated runner.
+# validation is the point) and runs the round trip on the elevated runner.
+# session-96: the kernel-driver component is REMOVED (the direct raw I/O
+# replacement) - nothing is fetched, signed, or installed but the core;
+# the installer never touches the service control manager.
 #
 # Inno Setup: the ISS requires 6.3+ (x64compatible); the windows-2022
 # runner image ships 6.7.1 preinstalled - the lane detects it and only
@@ -110,31 +108,6 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           python tools/verify_pe_um.py build\win-x64-release\src\ui\Release\cr_ui.dll --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
-
-      - name: Fetch the prebuilt driver release (convention-enforced)
-        shell: pwsh
-        run: |
-          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir driver `
-            -Required 'rda.sys,rda.inf,install.ps1,uninstall.ps1,SHA256SUMS' -FloorVersion v0.2.4
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
-      - name: Test-sign the driver (job-local cert - the proven runner mechanism)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-CI" `
-            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
-            -CertStoreLocation Cert:\LocalMachine\My
-          $pw = ConvertTo-SecureString -String 'rrecov-ci' -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath rda-ci.pfx -Password $pw | Out-Null
-          Export-Certificate -Cert $cert -FilePath rda-ci.cer | Out-Null
-          Import-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
-          Import-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
-          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          & $signtool.FullName sign /fd SHA256 /f rda-ci.pfx /p rrecov-ci driver\rda.sys
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Write-Host 'driver test-signed (job-local cert)'
 
       - name: Build the installer
         shell: pwsh

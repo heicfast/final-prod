@@ -5,24 +5,21 @@
 #   -BuildDir    the cmake build directory (default build\win-x64-release;
 #                bin\ = src\app\Release\rrecov.exe + src\ui\Release\cr_ui.dll
 #                + the vcpkg runtime DLLs the build placed beside them)
-#   -DriverDir   a fetched+verified (and, in CI, test-signed) rda-driver
-#                release directory (rda.sys, rda.inf, install.ps1,
-#                uninstall.ps1, SHA256SUMS) - the same layout
-#                .github/scripts/fetch-release.ps1 produces
 #   -Version     the version string baked into AppVersion + the version key
 #   -OutputDir   where core-recovery-setup.exe lands (default dist)
 #   -Iscc        explicit ISCC.exe path (default: the standard
 #                %ProgramFiles(x86)%\Inno Setup 6 location)
 #
 # The payload layout is the release SDK's shape (bin/ include/ docs/ data/
-# LICENSE + driver/); the release workflow remains the real packager - this
-# script is the CI-gate and standalone-reproducibility path.
+# LICENSE); the release workflow remains the real packager - this script is
+# the CI-gate and standalone-reproducibility path. session-96: the kernel
+# driver is REMOVED from the product (direct raw I/O from user mode); the
+# payload carries the core only.
 #
 # Exit codes: 0 built; 1 missing input; 2 ISCC not found; 3 ISCC failed.
 
 param(
     [string] $BuildDir = 'build\win-x64-release',
-    [string] $DriverDir = 'driver',
     [string] $Version = '1.0.0',
     [string] $OutputDir = 'dist',
     [string] $Iscc = ''
@@ -41,16 +38,11 @@ $appExe = Join-Path $RepoRoot "$BuildDir\src\app\Release\rrecov.exe"
 $uiDll = Join-Path $RepoRoot "$BuildDir\src\ui\Release\cr_ui.dll"
 if (-not (Test-Path $appExe)) { Fail 1 "rrecov.exe not built: $appExe (run: cmake --preset win-x64-release; cmake --build --preset win-x64-release)" }
 if (-not (Test-Path $uiDll)) { Fail 1 "cr_ui.dll not built: $uiDll" }
-foreach ($f in @('rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', 'SHA256SUMS')) {
-    if (-not (Test-Path (Join-Path $RepoRoot "$DriverDir\$f"))) {
-        Fail 1 "driver release asset missing: $DriverDir\$f (fetch via .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver)"
-    }
-}
 
 # ---- stage the payload (clean first: no stale files ever ship) ----
 $Payload = Join-Path $PSScriptRoot 'payload'
 if (Test-Path $Payload) { Remove-Item -Recurse -Force $Payload }
-New-Item -ItemType Directory -Force -Path "$Payload\bin", "$Payload\driver" | Out-Null
+New-Item -ItemType Directory -Force -Path "$Payload\bin" | Out-Null
 
 # bin/ = the built engine (exe + dll + the vcpkg runtime the build placed
 # beside them - z.dll/lz4.dll/zstd.dll when the manifest resolved them)
@@ -66,14 +58,6 @@ if (Test-Path (Join-Path $RepoRoot 'data')) {
     Copy-Item (Join-Path $RepoRoot 'data') "$Payload\data" -Recurse -Force
 }
 Copy-Item (Join-Path $RepoRoot 'LICENSE') "$Payload\LICENSE" -Force
-
-# driver/ = the fetched release, verbatim (install.ps1 stays the source of
-# truth for SCM - the app installer calls it, never reimplements it)
-Copy-Item (Join-Path $RepoRoot "$DriverDir\rda.sys") "$Payload\driver\" -Force
-Copy-Item (Join-Path $RepoRoot "$DriverDir\rda.inf") "$Payload\driver\" -Force
-Copy-Item (Join-Path $RepoRoot "$DriverDir\install.ps1") "$Payload\driver\" -Force
-Copy-Item (Join-Path $RepoRoot "$DriverDir\uninstall.ps1") "$Payload\driver\" -Force
-Copy-Item (Join-Path $RepoRoot "$DriverDir\SHA256SUMS") "$Payload\driver\" -Force
 
 # ---- locate ISCC ----
 if (-not $Iscc) {

@@ -17,7 +17,7 @@
 #      trees, many-small, keep-control group - the deterministic corpus)
 #   1. feature probes: health, fix dry-run, user-signs registration,
 #      CLI-vs-API carve-registry parity, the cancel+resume session probe
-#   2. clean-volume benchmark: scan timings per mode + the driver bench verb
+#   2. clean-volume benchmark: scan timings per mode + the bench verb
 #      (info/seq/rand/open) on the benchmark disk - both lanes timed
 #   3. the scenario loop: reseed (deterministic) -> apply-scenario (the
 #      deletion) -> CLI lane -> API lane -> inventory+metrics -> gate ->
@@ -76,7 +76,7 @@ $SummariesDir = Join-Path $EvidenceRoot '06-comparison'
 $PerfDir = Join-Path $EvidenceRoot '07-performance'
 
 foreach ($d in @($WorkDir, $SummariesDir, $PerfDir,
-        (Join-Path $EvidenceRoot '00-environment'), (Join-Path $EvidenceRoot '01-driver'),
+        (Join-Path $EvidenceRoot '00-environment'),
         (Join-Path $EvidenceRoot '02-disk-setup'), (Join-Path $EvidenceRoot '03-baseline'),
         (Join-Path $EvidenceRoot '04-scenarios'), (Join-Path $EvidenceRoot '05-feature-probes'))) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
@@ -178,7 +178,7 @@ if ($healthExit -eq 0 -or $healthExit -eq 3) {
     Fail "health --disk ${multiDisk} exited $healthExit (expected 0 or 3)"
 }
 
-# S-040 image-create round-trip (class (a), the driver read view): the
+# S-040 image-create round-trip (class (a), the direct read view): the
 # produced flat image must hash byte-identical to the source device - the
 # digest was computed over the bytes READ FROM the device, so
 # sidecar-digest == Get-FileHash(image) proves the committed file equals
@@ -358,7 +358,7 @@ foreach ($mode in $ScanModes) {
     Write-Host ("  scan {0}: {1} ms (exit {2})" -f $mode, $sw.ElapsedMilliseconds, $LASTEXITCODE)
 }
 
-# the driver bench verb: info + seq + rand + open on the benchmark disk
+# the bench verb: info + seq + rand + open on the benchmark disk
 foreach ($bm in @(@('info', @('--mode', 'info')), @('seq', @('--mode', 'seq', '--mb', '256')), @('rand', @('--mode', 'rand')), @('open', @('--mode', 'open')))) {
     $name = $bm[0]; $margs = $bm[1]
     $out = & $RrecovExe bench --disk $benchDisk @margs --json 2>&1
@@ -515,7 +515,7 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
             ScanModes = $laneModes
             CapSec = $ScanCapSec
             Threads = $Threads
-            DriverInfo = 'service=rda state=running'   # arms the transport assertion (GAP-BENCH-5)
+            DriverInfo = 'transport=direct'   # arms the transport assertion (GAP-BENCH-5)
             RecoverCapSec = $RecoverCapSec
             TargetMode = [string]$sc.target_mode
         }
@@ -616,7 +616,7 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
                     }
                     if ($m.rda_transport_assertion -and [int]$m.rda_transport_assertion.hits -lt 1) {
                         $res.passed = $false
-                        $res.reasons += "mode $($m.mode) never used the RDA driver path (transport assertion)"
+                        $res.reasons += "mode $($m.mode) never used the direct transport (transport assertion)"
                     }
                 }
             }

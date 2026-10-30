@@ -5,28 +5,27 @@
 #        ARP UninstallString + QuietUninstallString present and well-formed
 #        (the quiet form ends " /SILENT") -> silent uninstall via the ARP
 #        QuietUninstallString verbatim -> NO residue (files, ARP, version
-#        key, driver service, driver image files).
+#        key).
 #   Gate 2 InstallerVersionKeyWritten: the version key's write+verify path -
 #        HKLM\SOFTWARE\heicfast\core_recovery\Version reads back exactly the
 #        version the installer was built with.
 #   Gate 3 InstallerOSGateMatrix lives in tools/test_installer_osgate.py
 #        (injectable version tuples + the ISS sync pin; no install needed).
 #
+# session-96: the kernel-driver component is REMOVED (the direct raw I/O
+# replacement) - the installer ships the core only and never touches the
+# service control manager; there is no driver component, no service gate,
+# and no -SkipDriver switch (the engine IS the whole product).
+#
 # Usage:
 #   pwsh -File installer\run-gates.ps1 -SetupExe dist\core-recovery-setup.exe `
-#        -Version 1.0.0-gate.4242 [-ServiceName RDA] [-SkipDriver]
-#
-# -SkipDriver: run the ENGINE-ONLY component set (the driver component off) -
-# for hosts where a kernel-service install is not possible. The default full
-# run exercises PACKAGING.md section 10 (the driver as an internal step).
+#        -Version 1.0.0-gate.4242
 #
 # Exit: 0 = all gates green, 1 = any failure (loud, with the failing check).
 
 param(
     [Parameter(Mandatory = $true)] [string] $SetupExe,
-    [Parameter(Mandatory = $true)] [string] $Version,
-    [string] $ServiceName = 'RDA',
-    [switch] $SkipDriver
+    [Parameter(Mandatory = $true)] [string] $Version
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,9 +51,8 @@ if (Test-Path $ArpKey) { Write-Host "::error::ARP entry already present - uninst
 if (Test-Path $VersionKey) { Write-Host "::error::version key already present - clean it first"; exit 1 }
 
 # ---- install: /VERYSILENT + /SUPPRESSMSGBOXES + /NORESTART (zero prompts) ----
-Write-Host "gate 1a: silent install (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART$(if (-not $SkipDriver) { ' + driver component' }))"
+Write-Host 'gate 1a: silent install (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART, core only)'
 $installArgs = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
-if ($SkipDriver) { $installArgs += '/COMPONENTS="engine"' }
 $proc = Start-Process -FilePath $SetupExe -ArgumentList $installArgs -Wait -PassThru
 Assert-Gate ($proc.ExitCode -eq 0) 'install exit code 0' "got $($proc.ExitCode)"
 
@@ -80,15 +78,6 @@ if (Test-Path $ArpKey) {
     Assert-Gate ($arp.DisplayVersion -ceq $Version) "ARP DisplayVersion == $Version" "$($arp.DisplayVersion)"
     Assert-Gate ([bool]$arp.Publisher) 'ARP Publisher present' "$($arp.Publisher)"
     Assert-Gate ([bool]$arp.InstallLocation -and (Test-Path $arp.InstallLocation)) 'ARP InstallLocation exists on disk' "$($arp.InstallLocation)"
-}
-
-# ---- the installed surface (driver = PACKAGING.md section 10 internal step) ----
-if (-not $SkipDriver) {
-    Write-Host "gate 1c: driver as internal step (service '$ServiceName')"
-    $svc = sc.exe query $ServiceName 2>$null | Select-String 'RUNNING'
-    Assert-Gate ([bool]$svc) "driver service '$ServiceName' RUNNING" (sc.exe query $ServiceName 2>$null | Out-String)
-    $qc = sc.exe qc $ServiceName 2>$null | Select-String 'Boot File System'
-    Assert-Gate ([bool]$qc) "service group 'Boot File System' (M-060 profile)"
 }
 
 # ---- the silent uninstall: the ARP QuietUninstallString VERBATIM ----
@@ -127,25 +116,24 @@ $proc = Start-Process -FilePath $exe -ArgumentList $quietArgs -PassThru
 try { $proc | Wait-Process -Timeout 180 -ErrorAction SilentlyContinue } catch { }
 
 # ---- gate 1e: NO residue (poll-bounded: the uninstaller's second phase) ----
-Write-Host 'gate 1e: no residue (files, ARP, version key, driver service)'
+Write-Host 'gate 1e: no residue (files, ARP, version key)'
 $deadline = (Get-Date).AddSeconds(90)
 do {
     Start-Sleep -Seconds 3
     $arpGone = -not (Test-Path $ArpKey)
     $dirGone = ((-not $installDir) -or (-not (Test-Path $installDir)))
     $verGone = -not (Test-Path $VersionKey)
-    $svcGone = $SkipDriver -or (-not (sc.exe query $ServiceName 2>$null | Select-String -Pattern 'SERVICE_NAME'))
-    $clean = $arpGone -and $dirGone -and $verGone -and $svcGone
+    $clean = $arpGone -and $dirGone -and $verGone
 } while (-not $clean -and (Get-Date) -lt $deadline)
 
 Assert-Gate $arpGone 'ARP entry removed'
 Assert-Gate $dirGone "install dir removed ($installDir)"
 Assert-Gate $verGone 'version key removed'
-if (-not $SkipDriver) {
-    Assert-Gate $svcGone "driver service '$ServiceName' removed"
-    $leftovers = Get-ChildItem "$env:SystemRoot\System32\drivers" -Filter "$ServiceName*.sys" -ErrorAction SilentlyContinue
-    Assert-Gate (-not $leftovers) "no driver image residue (System32\drivers\$ServiceName*.sys)" ($leftovers | Select-Object -ExpandProperty Name)
-}
+# session-96: nothing service-related may exist - the installer never
+# touches the SCM, so a leftover 'RDA' service would be pre-existing
+# contamination this gate now surfaces instead of ignoring
+$svcLeftover = sc.exe query RDA 2>$null | Select-String -Pattern 'SERVICE_NAME'
+Assert-Gate (-not $svcLeftover) "no kernel service installed by the product (sc query RDA must fail)" (sc.exe query RDA 2>$null | Out-String)
 
 # ---- verdict ----
 Write-Host ''

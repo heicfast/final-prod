@@ -1,12 +1,12 @@
 # test-benchmark.yml - the test + benchmark lane (prebuilt release, CLI + API).
 #
-# THE PIPELINE'S CONSUMER: loads the LATEST driver + core from the LATEST
-# combined release (fetch-release.ps1 enforces the documented convention:
-# SHA256SUMS + MANIFEST verification, never a build from source, never a
-# fallback to an older tag), then runs the versioned scenario matrix
-# (.github/scenarios/benchmark-matrix.json) against BOTH product surfaces:
+# THE PIPELINE'S CONSUMER: loads the LATEST core release (fetch-release.ps1
+# enforces the documented convention: SHA256SUMS + MANIFEST verification,
+# never a build from source, never a fallback to an older tag), then runs
+# the versioned scenario matrix (.github/scenarios/benchmark-matrix.json)
+# against BOTH product surfaces:
 #
-#   CLI  (rrecov.exe)   - the testing vehicle: scan/tree/recover/bench/driver
+#   CLI  (rrecov.exe)   - the testing vehicle: scan/tree/recover/bench
 #   API  (cr_ui.dll)    - THE PRODUCT SURFACE (the future UI binds to this
 #                         ABI): a purpose-built C harness (.github/scripts/
 #                         api_harness.c) drives the full lifecycle from the
@@ -14,13 +14,12 @@
 #                         the shipped SDK is consumable exactly as a UI host
 #                         would consume it
 #
-# What it proves, end to end, on a real windows-2022 runner with a real
-# kernel driver and real simulated disks:
+# What it proves, end to end, on a real windows-2022 runner with real
+# simulated disks (session-96: direct raw I/O - the runner's elevated
+# token is the access model; no kernel driver, no service, no trust
+# imports):
 #   1. the release is fetchable + hash-verified by convention (no builds here)
-#   2. the test-dev-SIGNED driver loads: rda-test-sign.cer imported into
-#      LocalMachine Root + TrustedPublisher -> install.ps1 -> service RUNNING
-#      -> rrecov driver --json reports ready + every facet green (also
-#      asserted through the API: cr_ui_driver_status)
+#   2. the ABI version is exactly the expected one (the v4 removal gate)
 #   3. recovery works across the scenario matrix: permanent delete, recycle
 #      bin (kept + emptied), quick format, partition delete (+ the lost-
 #      partition APPLY probe), and the full-profile decay/overwrite/mft
@@ -28,7 +27,7 @@
 #      with a deterministic 23-format corpus (CJK names, long paths, ADS,
 #      hard links, sparse, fragmented, nested, many-small)
 #   4. the session features: cancel mid-scan -> save -> resume
-#   5. performance: per-mode scan timings, recovery throughput, the driver
+#   5. performance: per-mode scan timings, recovery throughput, the
 #      bench verb (info/seq/rand/open), process sampling (CPU/WS) - all in
 #      the structured evidence artifact
 #
@@ -45,7 +44,8 @@
 # Evidence (the structured artifact, uploaded ALWAYS - a failure without
 # evidence is a second failure):
 #   00-environment/   runner image, toolchain, resolved releases, disk space
-#   01-driver/        install log, signature, service config, driver-status
+#   01-driver/        (retired with the driver - session-96; the directory
+#                      is no longer produced)
 #   02-disk-setup/    disk-state.json (per-disk numbers/letters/partitions)
 #   03-baseline/      seed manifests + pre-deletion listings (the truth)
 #   04-scenarios/<id>/{cli,api,state}  per-lane logs, trees, reports,
@@ -91,7 +91,7 @@ concurrency:
 
 jobs:
   test-and-benchmark:
-    runs-on: windows-2022 # the execution-validated driver class (HVCI off)
+    runs-on: windows-2022 # the execution-validated runner class
     timeout-minutes: ${{ inputs.profile == 'full' && 180 || 120 }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -167,10 +167,8 @@ jobs:
           if (-not $zip) { Write-Host "::error::release $($rel.tag_name) carries no core-recovery-*.zip asset"; exit 1 }
           Write-Host "resolved release: $($rel.tag_name) ($($rel.name))"
 
-          # the new-pipeline asset set; rda-test-sign.cer REQUIRED - releases
-          # from the old pipeline lack it and the signed-driver trust story
-          # does not exist for them (fail loud with the remediation)
-          $req = "$($zip.name),MANIFEST.json,SHA256SUMS,rda.sys,rda.inf,install.ps1,uninstall.ps1,rda-test-sign.cer"
+          # the core-only asset set (session-96: the driver tier is gone)
+          $req = "$($zip.name),MANIFEST.json,SHA256SUMS"
           $p = @{ Repo = 'heicfast/core_recovery'; OutDir = "$env:WORKROOT\release"; Required = $req }
           if ($tag) { $p.Tag = $tag }
           & .github/scripts/fetch-release.ps1 @p
@@ -208,19 +206,6 @@ jobs:
             staged_files = @(Get-ChildItem $staged -Recurse -File | ForEach-Object { $_.FullName.Substring($staged.Length + 1) })
           } | ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\staged-core.json" -Encoding utf8
           Write-Host "core staged + CLI smoke green (PATH: $staged\bin prepended)"
-
-      # ---- 4. the driver: trust, install, verify ---------------------------------
-      - name: Install + verify the test-dev-signed driver
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $p = @{
-            ReleaseDir  = "$env:WORKROOT\release"
-            ServiceName = 'rda'
-            RrecovExe   = "$env:STAGED\bin\rrecov.exe"
-            EvidenceDir = "$env:EVIDENCE\01-driver"
-          }
-          & .github/scripts/Install-ReleaseDriver.ps1 @p
-          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       # ---- 5. compile the API harness against the release SDK + API probes ------
       - name: Compile the API harness (release SDK include + lib/cr_ui.lib)
@@ -261,7 +246,7 @@ jobs:
           Copy-Item $harnessSrc.FullName "$env:EVIDENCE\05-feature-probes\api_harness.c" -Force
           Write-Host "api_harness.exe built against the release SDK (cr_ui.lib + cr_ui.dll adjacency in bin\)"
 
-      - name: API probes (ABI gate + driver status through the product surface)
+      - name: API probes (the ABI gate through the product surface)
         run: |
           $failed = $false
           $h = "$env:STAGED\bin\api_harness.exe"
@@ -269,13 +254,6 @@ jobs:
           $abi = & $h --abi-version 2>&1
           if ($LASTEXITCODE -eq 0) { Write-Host "PASS ABI: $abi" } else { Write-Host "::error::$abi"; $failed = $true }
 
-          $drv = & $h --driver-status 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "PASS driver status (API): $drv"
-          } else {
-            Write-Host "::error::API driver-status not ready: $drv (exit $LASTEXITCODE)"; $failed = $true
-          }
-          $drv | Set-Content "$env:EVIDENCE\01-driver\api-driver-status.json" -Encoding utf8
           if ($failed) { exit 1 }
           exit 0   # explicit: never inherit a probe's $LASTEXITCODE (the 40684826829 lesson)
 
@@ -299,7 +277,7 @@ jobs:
           exit $LASTEXITCODE
 
       # ---- 7. teardown (ALWAYS: the M-061 contract + the detach records) --------
-      - name: Teardown (driver uninstall + VHD detach + cert cleanup)
+      - name: Teardown (VHD detach + work-drive cleanup)
         if: always()
         run: |
           if (-not $env:WORKROOT) {
@@ -308,7 +286,6 @@ jobs:
           }
           $p = @{
             ReleaseDir   = "$env:WORKROOT\release"
-            ServiceName  = 'rda'
             DiskStatePath = "$env:WORKROOT\disk-state.json"
             EvidenceDir  = "$env:EVIDENCE\99-teardown"
           }

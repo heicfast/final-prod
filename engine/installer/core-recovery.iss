@@ -35,8 +35,10 @@
 ; Requires Inno Setup 6.3+ (x64compatible); the windows-2022 runner image
 ; ships 6.7.1 preinstalled (build-installer autodetects, choco is the
 ; fallback).
-; Requires Inno Setup 6.3+ (x64compatible); the windows-2022 runner image
-; ships 6.7.1 preinstalled (build-installer autodetects; choco fallback).
+; session-96: the kernel-driver component is REMOVED (the direct raw I/O
+; replacement) - the product is a user-mode engine requiring administrator
+; privilege for raw disk access at RUN time; the installer ships the core
+; only and never touches the service control manager.
 
 #define AppName "core_recovery"
 #ifndef AppVersion
@@ -50,7 +52,6 @@
 #define Vendor "heicfast"
 #define Product "core_recovery"
 #define ProductName "core_recovery"
-#define DriverService "RDA"
 #ifndef PayloadDir
 #define PayloadDir "payload"
 #endif
@@ -59,7 +60,7 @@
 AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher={#Vendor} / RDA contributors
+AppPublisher={#Vendor}
 DefaultDirName={autopf}\{#Product}
 ; single instance (PACKAGING.md section 9): one AppId, one ARP entry, in-place
 LicenseFile={#PayloadDir}\LICENSE
@@ -90,15 +91,14 @@ SolidCompression=yes
 WizardStyle=modern
 
 [Types]
-Name: "full"; Description: "Full installation (engine + kernel driver)"
+Name: "full"; Description: "Full installation"
 Name: "custom"; Description: "Custom installation"; Flags: iscustom
 
 [Components]
-; the driver step (PACKAGING.md section 10): the rda-driver deployer runs as
-; an INTERNAL step of the app install - the bundled install.ps1 stays the
-; source of truth (this script does not reimplement SCM)
+; session-96: the driver component is REMOVED with the kernel driver itself
+; (direct raw I/O from user mode replaced it; raw disk access needs the
+; elevated token at RUN time, not an installed service)
 Name: "engine"; Description: "core_recovery engine (rrecov CLI + cr_ui ABI)"; Types: full custom; Flags: fixed
-Name: "driver"; Description: "RDA kernel driver (raw disk access transport)"; Types: full custom; Flags: checkablealone
 
 [Files]
 Source: "{#PayloadDir}\bin\*"; DestDir: "{app}\bin"; Components: engine; Flags: ignoreversion recursesubdirs
@@ -106,11 +106,6 @@ Source: "{#PayloadDir}\include\*"; DestDir: "{app}\include"; Components: engine;
 Source: "{#PayloadDir}\docs\*"; DestDir: "{app}\docs"; Components: engine; Flags: ignoreversion recursesubdirs
 Source: "{#PayloadDir}\data\*"; DestDir: "{app}\data"; Components: engine; Flags: ignoreversion recursesubdirs
 Source: "{#PayloadDir}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE"; Flags: ignoreversion
-Source: "{#PayloadDir}\driver\rda.sys"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
-Source: "{#PayloadDir}\driver\rda.inf"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
-Source: "{#PayloadDir}\driver\install.ps1"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
-Source: "{#PayloadDir}\driver\uninstall.ps1"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
-Source: "{#PayloadDir}\driver\SHA256SUMS"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
 
 [Code]
 // OSGATE-V1: admit (6.1.7601+ | 6.2 | 6.3 | 10.0+ on x64); refuse (below 6.1.7601, any x86/arm64)
@@ -190,45 +185,12 @@ begin
   begin
     RaiseException('ARP QuietUninstallString write+verify FAILED (the value must end " /SILENT")');
   end;
-
-  // ---- section 10: the driver deployer as an INTERNAL step (the bundled
-  // install.ps1 stays the source of truth; exit codes propagate - a failed
-  // driver install fails the app install, the M-062 never-exit-0 lesson)
-  if IsComponentSelected('driver') then
-  begin
-    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-         '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\driver\install.ps1') +
-         '" -ServiceName {#DriverService} -Source "' + ExpandConstant('{app}\driver\rda.sys') +
-         '" -IoctlBase 0',
-         ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or
-       (ResultCode <> 0) then
-    begin
-      RaiseException('driver install FAILED (install.ps1 exit ' + IntToStr(ResultCode) + ') - the app install is rolled back; see the install.ps1 exit-code contract in the driver release docs');
-    end;
-  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var
-  ResultCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
   begin
-    // run the driver teardown BEFORE the files are deleted (the bundled
-    // uninstall.ps1 carries the verified-teardown contract; a missing service
-    // is a warning it already tolerates - exit 0 - so an engine-only install
-    // uninstalls cleanly)
-    if FileExists(ExpandConstant('{app}\driver\uninstall.ps1')) then
-    begin
-      Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-        '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\driver\uninstall.ps1') +
-        '" -ServiceName {#DriverService}',
-        ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      if ResultCode <> 0 then
-        MsgBox('driver uninstall reported exit ' + IntToStr(ResultCode) +
-               ' - check the service state manually (sc query {#DriverService}).',
-               mbError, MB_OK);
-    end;
     // the version key was written by [Code] (write+verify), so [Code] owns
     // its removal too - Inno only uninstalls [Registry]-section entries;
     // leaving it behind would be exactly the residue the round-trip gate
