@@ -11,10 +11,10 @@
 #   2. Read-size sweep x queue depth: [64 KiB, 256 KiB, 1 MiB, 4 MiB] x
 #      QD [1, 2, 4, 8] (FILE_FLAG_OVERLAPPED ring for QD>1; QD1 = the
 #      production shape, matching the reference's synchronous model).
-#   3. RDA driver round-trip (optional): grammar-path open + ReadFile with the
-#      F11 Information x512 unscale verified, same sweep subset.
-#   4. cr_ui cheap-op API latency (optional): late-bound DllImport loop over
+#   3. cr_ui cheap-op API latency (optional): late-bound DllImport loop over
 #      abi_version / last_error / carve_format_count / carve_format_info.
+#      (session-96: the optional kernel-driver grammar-path leg was REMOVED
+#      with the driver - the direct target IS the production transport now.)
 #   5. OQ-S4-3 (session 25): the chunk-strategy verdict - the sweep gains the
 #      og's 7 MiB VOLUME chunk (4 MiB device chunk already present) and a
 #      per-measurement cpu_ms (TotalProcessorTime delta); the verdict block
@@ -35,8 +35,6 @@
 
 param(
     [string] $Target = '\\.\C:',      # direct raw target (volume or disk path)
-    [string] $RdaService = 'rda',     # empty string = skip the RDA leg
-    [int] $RdaDisk = 0,               # disk number for the grammar path
     [string] $CrUiDll = '',           # path to cr_ui.dll (empty = skip API latency)
     [int] $SpanMiB = 512,             # bytes read per measurement
     [string] $OutJson = 'alignbench.json'
@@ -101,11 +99,6 @@ public static class AlignBench {
     static extern bool ResetEvent(IntPtr ev);
 
     // The reference PID-token transform (corpus Device_decompiled.c:342-351 /
-    // driver rda_compat.h RdaComputePidToken): 8-bit wrapping byte sums.
-    public static uint TokenFromPid(uint pid) {
-        uint b0 = pid & 0xFF, b1 = (pid >> 8) & 0xFF, b2 = (pid >> 16) & 0xFF, b3 = (pid >> 24) & 0xFF;
-        return b0 | (((b0 + b1) & 0xFF) << 8) | (((b1 + b2) & 0xFF) << 16) | (((b2 + b3) & 0xFF) << 24);
-    }
 
     static IntPtr Open(string path, bool noBuffering, bool overlapped) {
         uint flags = 0x80; // FILE_ATTRIBUTE_NORMAL
@@ -122,13 +115,13 @@ public static class AlignBench {
     // One sequential-read measurement. QD1: plain synchronous reads with the
     // 64-bit offset in OVERLAPPED (the production transport's shape). QD>1:
     // an overlapped ring (issue QD reads, harvest the oldest, re-issue) on
-    // FILE_FLAG_OVERLAPPED handles. F11: RDA handles report Information =
-    // len * 512 - unscale and verify.
+    // FILE_FLAG_OVERLAPPED handles. True byte counts (the driver-era F11
+    // scaling is gone with the driver).
     public static BenchResult SeqRead(string path, uint chunk, int qd, bool noBuffering,
-                                       bool rdaScaled, long spanBytes, int passes) {
+                                       long spanBytes, int passes) {
         var r = new BenchResult();
-        r.config = string.Format("{0} chunk={1} qd={2} nobuf={3} rda={4}",
-            path, chunk, qd, noBuffering ? 1 : 0, rdaScaled ? 1 : 0);
+        r.config = string.Format("{0} chunk={1} qd={2} nobuf={3}",
+            path, chunk, qd, noBuffering ? 1 : 0);
         bool ovh = qd > 1;
         IntPtr h = Open(path, noBuffering, ovh);
         var sw = Stopwatch.StartNew();
@@ -153,7 +146,7 @@ public static class AlignBench {
                                 throw new IOException("ReadFile failed GLE=" + Marshal.GetLastWin32Error()
                                     + " off=" + off);
                         }
-                        uint want = rdaScaled ? chunk * 512 : chunk;
+                        uint want = chunk;
                         if (got != want)
                             throw new IOException("short read: got=" + got + " want=" + want);
                         for (int i = 0; i < buf.Length; ++i) { check = (check ^ buf[i]) * 1099511628211UL; }
@@ -190,7 +183,7 @@ public static class AlignBench {
                         uint got2;
                         if (!GetOverlappedResult(h, ref ovs[ds], out got2, true))
                             throw new IOException("GetOverlappedResult failed GLE=" + Marshal.GetLastWin32Error());
-                        uint want = rdaScaled ? chunk * 512 : chunk;
+                        uint want = chunk;
                         if (got2 != want)
                             throw new IOException("short ov read: got=" + got2 + " want=" + want);
                         for (int i = 0; i < chunk; ++i) { check = (check ^ bufs[ds][i]) * 1099511628211UL; }
@@ -309,7 +302,7 @@ Write-Host "== 1. the 4-KiB-vs-64-KiB slow-path demonstration (NO_BUFFERING, QD1
 # 128 KiB = 64 KiB multiple (fast-path shape); 132 KiB = 4 KiB multiple, NOT a
 # 64 KiB multiple (the documented slow-path shape). Same span, same target.
 foreach ($chunk in @(128KB, 132KB)) {
-    $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, 1, $true, $false, $span, 2)
+    $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, 1, $true, $span, 2)
     Add-Result $r
 }
 
@@ -321,23 +314,7 @@ Write-Host "== 2. read-size x queue-depth sweep (production flag shape, QD1 sync
 # all cases - the comparison is chunk SIZE, not alignment).
 foreach ($chunk in @(64KB, 256KB, 1MB, 4MB, 7MB)) {
     foreach ($qd in @(1, 2, 4, 8)) {
-        $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, $qd, $false, $false, $span, 2)
-        Add-Result $r
-    }
-}
-
-if ($RdaService -and $RdaService -ne '') {
-    Write-Host "== 3. RDA driver grammar-path round-trip (F11 unscale verified) =="
-    $tok = [AlignBench]::TokenFromPid([uint32]$PID)
-    $rdaPath = "\\.\$RdaService\$tok\$RdaDisk\0"
-    Write-Host "  grammar path: $rdaPath"
-    foreach ($chunk in @(64KB, 256KB, 1MB)) {
-        $r = [AlignBench]::SeqRead($rdaPath, [uint32]$chunk, 1, $false, $true, $span, 2)
-        Add-Result $r
-    }
-    # direct-vs-driver comparison at the same chunk
-    foreach ($chunk in @(256KB)) {
-        $r = [AlignBench]::SeqRead("\\.\PhysicalDrive$RdaDisk", [uint32]$chunk, 1, $false, $false, $span, 2)
+        $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, $qd, $false, $span, 2)
         Add-Result $r
     }
 }

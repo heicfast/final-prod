@@ -160,7 +160,7 @@ def main():
         },
     }
     md = []
-    md.append('# Comparative Benchmark: core_recovery (rrecov + rda-driver) vs EaseUS DRW free (og)')
+    md.append('# Comparative Benchmark: core_recovery (rrecov) vs EaseUS DRW free (og)')
     md.append('')
     md.append(f'> Generated from CI artifacts only (run `{args.run_id or 'unspecified'}`).')
     md.append('> Ground truth = seed manifest + recorded deletion method. Verdicts: '

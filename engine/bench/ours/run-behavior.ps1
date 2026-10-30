@@ -1,9 +1,12 @@
-# run-behavior.ps1 - driver-presence, cancellation and session-resume probes.
+# run-behavior.ps1 - privilege-refusal, cancellation and session-resume probes.
 #
 # Probes (each writes JSON evidence; any probe failure fails the script):
-#   1. nodriver  - scan with the RDA driver ABSENT; the documented behavior is a
-#                  visible direct-path fallback ('[transport] RDA not available ... - direct path')
-#                  and a successful scan. Anything else is a finding, recorded verbatim.
+#   1. unelevated - scan from a NON-ELEVATED token (the LIMITED-run scheduled
+#                  task, the UAC-filtered state); the direct-era contract is the
+#                  exit-4 ERR_ELEVATION_REQUIRED refusal as the WHOLE response
+#                  (no scan output leaks past the gate). session-96: the old
+#                  'nodriver' probe asserted the driver-era fallback text and
+#                  died with the driver.
 #   2. cancel    - start a deep scan, send CTRL_BREAK to the child process group at T=6 s,
 #                  measure stop latency; rrecov must exit 3, save the session, print
 #                  'scan cancelled'.
@@ -28,37 +31,31 @@ New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
 $behavior = [ordered]@{ tool = 'ours'; probes = @() }
 
-# ---------- probe 1: driver absent ----------
-# Evidence from run 40064915424: the '[transport] RDA not available ... - direct
-# path' line is printed to STDOUT (pre-scan diagnostics); the --log stage file
-# only carries the scan summary lines. Primary check = stdout; the stage log
-# is kept as secondary evidence.
-$p1 = [ordered]@{ probe = 'nodriver'; driver_service_before = 'unknown' }
-try { $svc = Get-Service -Name rda -ErrorAction Stop; $p1.driver_service_before = $svc.Status } catch { $p1.driver_service_before = 'absent' }
-if ($p1.driver_service_before -eq 'Running') {
-    throw 'nodriver probe requires the rda service to be absent/uninstalled - run this before driver install'
+# ---------- probe 1: the unelevated refusal (the direct-era contract) ----------
+# The runner shell is elevated by construction, so the refusal state is
+# created the same way checks.yml does it: a LIMITED-run scheduled task (the
+# UAC-filtered token - TokenElevation FALSE, exactly what is_elevated()
+# probes). Output + exit code land in a file the task writes; this script
+# polls for the EXITCODE marker.
+$p1 = [ordered]@{ probe = 'unelevated' }
+$probeOut = Join-Path $WorkDir 'unelevated-probe.txt'
+Remove-Item $probeOut -ErrorAction SilentlyContinue
+$inner = "cmd /c `"`"`"$RrecovExe`" scan --volume $Letter`: --deep --no-carve --threads 4 --json > `"$probeOut`" 2>&1 && echo EXITCODE=%ERRORLEVEL% >> `"$probeOut`"`"`""
+schtasks /Create /TN cr_bench_unelev /TR $inner /SC ONCE /ST 00:00 /RL LIMITED /F | Out-Null
+schtasks /Run /TN cr_bench_unelev | Out-Null
+$deadline = (Get-Date).AddSeconds(120)
+while (-not ((Test-Path $probeOut) -and ((Get-Content $probeOut -ErrorAction SilentlyContinue) -match 'EXITCODE='))) {
+    if ((Get-Date) -gt $deadline) { throw 'the unelevated probe never completed (120s deadline)' }
+    Start-Sleep -Milliseconds 500
 }
-$sess = Join-Path $WorkDir 'nodriver-session.crsf'
-$so = Join-Path $WorkDir 'nodriver-scan.stdout'
-$se = Join-Path $WorkDir 'nodriver-scan.stderr'
-$log = Join-Path $WorkDir 'nodriver-stage.log'
-$p = Start-Process -FilePath $RrecovExe `
-    -ArgumentList @('scan', '--volume', "$Letter`:", '--deep', '--no-carve', '--threads', '4', '--out', $sess, '--log', $log, '--json') `
-    -RedirectStandardOutput $so -RedirectStandardError $se -PassThru -NoNewWindow -Wait
-$p1.exit_code = $p.ExitCode
-$p1.session_exists = (Test-Path $sess)
-$p1.transport_lines = @()
-$p1.transport_lines_log = @()
-if (Test-Path $so) {
-    $p1.transport_lines = @(Get-Content $so | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
-}
-if (Test-Path $log) {
-    $p1.transport_lines_log = @(Get-Content $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
-}
-$p1.fallback_seen = [bool]($p1.transport_lines | Where-Object { $_ -match 'RDA not available' -or $_ -match 'direct path' })
-$p1.passed = ($p1.exit_code -eq 0 -and $p1.session_exists -and $p1.fallback_seen)
+schtasks /Delete /TN cr_bench_unelev /F | Out-Null
+$probeText = (Get-Content $probeOut) -join "`n"
+$p1.exit_code = if ($probeText -match 'EXITCODE=(\d+)') { [int]$Matches[1] } else { -1 }
+$p1.refusal_seen = [bool]($probeText -match 'administrator privilege required')
+$p1.scan_leaked = [bool]($probeText -match 'starting scan|\[transport\]|\[stage')
+$p1.passed = ($p1.exit_code -eq 4 -and $p1.refusal_seen -and -not $p1.scan_leaked)
 $behavior.probes += $p1
-Write-Host "nodriver probe: exit=$($p1.exit_code) session=$($p1.session_exists) fallback=$($p1.fallback_seen) transport_stdout=$($p1.transport_lines.Count) transport_log=$($p1.transport_lines_log.Count)"
+Write-Host "unelevated probe: exit=$($p1.exit_code) refusal=$($p1.refusal_seen) leaked=$($p1.scan_leaked)"
 
 # ---------- probe 2: cancellation (hard-kill) -----------------------------------------
 # Cooperative CTRL_BREAK delivery to a console process group requires a custom

@@ -96,40 +96,23 @@ LEDGER_SLUG = re.compile(r"findings/(?:FIXED)/[\w.-]+\.md")
 
 
 def check_floorversion():
-    """Every -FloorVersion pin in live workflows: one set, one floor."""
+    """session-96: the driver dependency is REMOVED - no workflow may carry
+    a -FloorVersion pin (a new pin would mean an external dependency crept
+    back into the release lanes)."""
     pins = []
     for wf in sorted(WORKFLOWS.glob("*.yml")):
         text = wf.read_text(encoding="utf-8")
         for m in re.finditer(r"-FloorVersion\s+(v[0-9]+\.[0-9]+\.[0-9]+)", text):
             pins.append((wf.name, m.group(1)))
-    if not pins:
-        print("doc_truth_gate: FAIL: no -FloorVersion pins found in any workflow")
+    if pins:
+        print(
+            f"doc_truth_gate: FAIL: -FloorVersion pins found with no declared "
+            f"dependency (the driver tier was removed - session-96): "
+            f"{[(f, v) for f, v in pins]}"
+        )
         return False
-    versions = {v for _, v in pins}
-    ok = True
-    if len(versions) != 1:
-        print(
-            f"doc_truth_gate: FAIL: FloorVersion pins disagree: "
-            f"{[(f, v) for f, v in pins]} (one floor per dependency - "
-            f"docs/CI-CURRENT.md's contract)"
-        )
-        ok = False
-    floor = next(iter(versions))
-    ci_current = (DOCS / "CI-CURRENT.md").read_text(encoding="utf-8")
-    declared = set(re.findall(r"-FloorVersion\s+(v[0-9]+\.[0-9]+\.[0-9]+)", ci_current))
-    if declared != versions:
-        print(
-            f"doc_truth_gate: FAIL: CI-CURRENT.md declares {sorted(declared)} "
-            f"but the workflows pin {sorted(versions)}"
-        )
-        ok = False
-    if ok:
-        print(
-            f"doc_truth_gate: FloorVersion discipline holds: "
-            f"{len(pins)} pin(s) at {floor} "
-            f"({', '.join(sorted({f for f, _ in pins}))})"
-        )
-    return ok
+    print("doc_truth_gate: no -FloorVersion pins (the driver dependency is gone - session-96)")
+    return True
 
 
 def check_deleted_citations():
