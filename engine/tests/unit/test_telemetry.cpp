@@ -413,4 +413,3 @@ TEST(Telemetry, LiveAttachCounterTracksTheTree) {
     t.reset();
     EXPECT_EQ(t.live_files(), 0u);
 }
-
