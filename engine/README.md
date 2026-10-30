@@ -117,11 +117,13 @@ Per-capability truth with evidence per row lives in
 [docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md). The honest
 remaining gaps: NTFS XPRESS/LZX compressed $DATA (the registered shared
 limitation — the og is LZNT1-only too, no corpus surface exists; LZNT1
-itself landed and GAP-P1-1 is CLOSED per docs/CORE-GAP-LIST.md), ReFS
-container-map
-translation (N-036), ZFS multi-vdev topologies, and the HFS+ attributes
+itself landed and GAP-P1-1 is CLOSED per docs/CORE-GAP-LIST.md), ZFS
+multi-vdev topologies, and the HFS+ attributes
 UNVERIFIED-in-corpus items — every one registered with evidence, none
-hidden. The parity board (every finding fixed/invalid/superseded with
+hidden. (ReFS container-map translation, listed here for era v0.5.x,
+landed with N-036 at 6ea4179b — the container map from the
+system-directory records, cr_refs_engine.cpp:95-112, pinned by
+test_refs_volume.cpp:234.) The parity board (every finding fixed/invalid/superseded with
 proofs) is [`diff-to-fix/SUMMARY.md`](diff-to-fix/SUMMARY.md).
 
 CI runs on every push (docs-path-filtered): the **Checks** lane (MSVC /W4
@@ -154,7 +156,7 @@ docs/testing.md).
 | [docs/testing.md](docs/testing.md) · [docs/build.md](docs/build.md) | test philosophy · build details |
 | [docs/CI-CURRENT.md](docs/CI-CURRENT.md) · [docs/PREBUILT-ARTIFACTS.md](docs/PREBUILT-ARTIFACTS.md) · [docs/PACKAGING.md](docs/PACKAGING.md) | the 4-lane CI · the release-consumption convention · the app-installer milestone (S-038) |
 | [diff-to-fix/README.md](diff-to-fix/README.md) | the parity audit trail (findings → fixes → proofs) |
-| [worklog/](worklog/) | the session-prompt archive (the chronological worklog.md was retired 2026-10-28) |
+| [worklog/](worklog/) | the session-prompt archive + the five Phase-0 sheets (build/api/cli/doc surfaces) + `worklog.md`, the live chronological session handoff (actively appended — not retired) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | build lanes, test/gate inventory, commit style, the zero-behavior-change discipline |
 | [SECURITY.md](SECURITY.md) | BitLocker legitimate-unlock-only policy, consent model, transport boundary |
 

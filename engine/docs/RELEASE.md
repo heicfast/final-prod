@@ -15,10 +15,18 @@ they execute validate → build → driver-tier → assemble and upload the
 
 ## The pipeline (and why each stage exists)
 
-1. **validate** — the FULL pre-merge validation suite (`ci.yml` via
-   `workflow_call`: local-mirror, Linux/ASan, TSan, UBSan, fuzz, the Windows
-   build + ABI lane). **No release without green** — a red validation blocks
-   the release, without exception.
+1. **validate** — the FULL pre-merge validation lane (`checks.yml` via
+   `workflow_call`: the clang-format + dead-surface/architecture +
+   PowerShell-AST + workflow-YAML + doc-truth lint gates, then the MSVC
+   /W4 /WX Release build, the full ctest including the cr_ui ABI
+   C-consumer, the Win7 posture gate on every shipped PE, the G-09
+   report-schema validation, the driverless refusal-contract probes and
+   the M-071 CLI junk-gate contract). **No release without green** — a
+   red validation blocks the release, without exception.
+   (Historical: the pre-consolidation era ran this as the 7-job `ci.yml`
+   with Linux/ASan/TSan/UBSan/fuzz lanes; those were dropped by the
+   owner's windows-only directive — the sanitizer coverage keeps running
+   locally via `./ci-local.sh --san|--fuzz`, docs/CI-CURRENT.md.)
 2. **build-core** — the ONE from-scratch build, from the tagged commit (the
    release is defined by the tag). MSVC /W4 /WX Release, full ctest, Win7
    posture gate on every shipped PE, the proven SDK+CLI bundle packaging
@@ -45,12 +53,19 @@ The core REFUSES a wrong-major driver with `ERR_DRIVER_VERSION_MISMATCH`
 (`0x500B0004`) — the release notes state the contract; `rrecov driver
 --json` reports it per deployment.
 
-## Signing posture (this session, stated truthfully)
+## Signing posture (stated truthfully)
 
-Driver artifacts: **test-signed at install time** (the consumer's job-local
-certificate — the runner-proven mechanism; the shipped binaries themselves
-are unsigned, DRIVER-RELEASE §7). Core binaries: **unsigned**. Both facts
-are in every release's notes and in MANIFEST.json's `signing_posture`.
+Driver artifacts: **test-development-signed at release time** with the
+repo's persistent dev certificate (CN=RRECOV-DEV-SIGN, 3-year self-signed
+code-signing cert carried in the GitHub secrets DEV_SIGN_CERT_PFX_B64 /
+DEV_SIGN_CERT_PASSWORD; release.yml fails loud when they are missing —
+no silent fallback to an unsigned or ephemeral driver). The public
+certificate ships as the `rda-test-sign.cer` asset: import it into
+`LocalMachine\Root` AND `LocalMachine\TrustedPublisher` (elevated) to
+load the driver — no test-signing boot mode required on HVCI-off
+machines. Core binaries: **unsigned by design** (byte-comparable
+builds). Both facts are in every release's notes and in MANIFEST.json's
+`signing_posture`.
 
 ## Cadence policy (verbatim from the mandate)
 
