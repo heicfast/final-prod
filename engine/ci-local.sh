@@ -59,14 +59,22 @@ if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
 else
   ok "N-041 dead-surface lint clean"
 fi
-# Driver-only architecture (docs/DRIVER-REQUIRED.md): the removed transport
-# primitives must never return to production code.
+# Direct-access architecture (session-96: the driver replacement): the
+# kernel-driver surface must never return to production code - the driver
+# was REMOVED, not gated, not left as a fallback.
 if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
      -E 'rda_available\s*\(|win_pe_environment\s*\(|open_harddisk_volume\s*\(|prefer_rda' \
      src include 2>/dev/null | grep -vE '^\S+:[0-9]+:\s*(/\*|\*|//)'; then
-  fail "removed fallback primitives found in production code (driver-only architecture)"
+  fail "removed fallback primitives found in production code (direct-access architecture)"
 else
-  ok "driver-only architecture lint clean (no rda_available/win_pe_environment/open_harddisk_volume/prefer_rda)"
+  ok "removed-primitive lint clean (no rda_available/win_pe_environment/open_harddisk_volume/prefer_rda)"
+fi
+if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
+     -E 'open_rda_partition|open_rda_volume|query_driver_status|RdaTargetDevice|compute_pid_token|kDefaultDriverService|cr_ui_driver_status|ERR_DRIVER_' \
+     src include 2>/dev/null; then
+  fail "driver-era surface found in production code (the driver is REMOVED - session-96)"
+else
+  ok "direct-access architecture lint clean (no driver-era surface in src/ or include/)"
 fi
 # N-210: committed conflict markers must never survive a merge in ANY text
 # file (the M-120 class recurred in markdown, which -Werror cannot see).

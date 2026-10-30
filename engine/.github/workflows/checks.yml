@@ -10,15 +10,18 @@
 # Component map (mirrors ci-local.ps1, the developer entry point - the
 # numbering is that script's own):
 #   [1] clang-format --dry-run -Werror over src/ include/ tests/
-#   [2] N-041 dead-surface lint + the driver-only architecture lint
+#   [2] N-041 dead-surface lint + the direct-access architecture lints
 #   [3] MSVC /W4 /WX Release build (win-x64-release preset, vcpkg manifest)
 #   [4] full ctest (all GoogleTest suites + the cr_ui ABI check)
 #   [5] Win7 posture gate (stamp_osversion_um.py + verify_pe_um.py)
 #   [6] vcpkg.json manifest presence (the pinning policy)
-#   [7] G-09 report-schema validation + the driverless refusal-contract
-#       probes (rrecov driver/scan must exit 4 with the ERR_DRIVER_*
-#       taxonomy when no driver is installed - the standing regression
-#       probe this lane owns; no driver is ever installed here)
+#   [7] G-09 report-schema validation + the elevation refusal-contract
+#       probes (the unelevated-token probe: rrecov scan must exit 4 with
+#       the ERR_ELEVATION_REQUIRED refusal when the process token is not
+#       elevated - proven through a LIMITED-run scheduled task, the
+#       UAC-filtered token; and the elevated-path probe: bench --mode
+#       info passes the gate - the standing regression probe this lane
+#       owns)
 # Plus two CI-owned gates the local gate does not need:
 #   - the PowerShell AST parse gate over every CI-consumed script (the
 #     S-036 lesson: a PS 5.1 parse-time crash in install.ps1 broke every
@@ -36,8 +39,7 @@
 #
 # windows-2022 is pinned everywhere (not windows-latest): it is the
 # execution-validated runner class for this tree (VS2022 Enterprise
-# layout, VCPKG_INSTALLATION_ROOT, HVCI-off for any driver-touching
-# consumer; docs/PREBUILT-ARTIFACTS.md section 2).
+# layout, VCPKG_INSTALLATION_ROOT; docs/PREBUILT-ARTIFACTS.md section 2).
 name: Checks
 
 on:
@@ -108,7 +110,7 @@ jobs:
           Write-Host "clang-format clean ($($files.Count) files)"
 
       # ci-local.ps1 component [2], verbatim patterns.
-      - name: '[2/2] dead-surface + driver-only architecture lints'
+      - name: '[2/2] dead-surface + direct-access architecture lints'
         shell: pwsh
         run: |
           $failed = $false
@@ -120,8 +122,16 @@ jobs:
           $drv = Get-ChildItem -Recurse -Include *.cpp,*.h,*.c -Path src,include -ErrorAction SilentlyContinue |
             Select-String -Pattern 'rda_available\s*\(','win_pe_environment\s*\(','open_harddisk_volume\s*\(','prefer_rda' |
             Where-Object { $_.Line -notmatch '^\s*(/\*|\*|//)' } | Select-Object -First 5
-          if ($drv) { Write-Host '::error::removed fallback primitives in production code (driver-only architecture)'; $drv | ForEach-Object { Write-Host "  $_" }; $failed = $true }
-          else { Write-Host 'driver-only architecture lint clean' }
+          if ($drv) { Write-Host '::error::removed fallback primitives in production code (direct-access architecture)'; $drv | ForEach-Object { Write-Host "  $_" }; $failed = $true }
+          else { Write-Host 'removed-primitive lint clean' }
+
+          # session-96: the driver-era surface must never return (the driver
+          # is REMOVED, not gated, not left as a fallback)
+          $era = Get-ChildItem -Recurse -Include *.cpp,*.h,*.c -Path src,include -ErrorAction SilentlyContinue |
+            Select-String -Pattern 'open_rda_partition','open_rda_volume','query_driver_status','RdaTargetDevice','compute_pid_token','kDefaultDriverService','cr_ui_driver_status','ERR_DRIVER_' |
+            Select-Object -First 5
+          if ($era) { Write-Host '::error::driver-era surface found in production code (the driver is REMOVED - session-96)'; $era | ForEach-Object { Write-Host "  $_" }; $failed = $true }
+          else { Write-Host 'direct-access architecture lint clean (no driver-era surface)' }
 
           if (-not (Test-Path vcpkg.json)) { Write-Host '::error::vcpkg.json manifest missing (component 6)'; $failed = $true }
           else { Write-Host 'vcpkg.json manifest present (manifest mode = the pinning policy)' }
@@ -319,15 +329,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::report schema validation failed'; exit 1 }
           Write-Host 'G-09 report schema valid'
 
-      # The driverless refusal-contract probes (this lane's owned
-      # regression: no driver is ever installed on THIS runner). Every
-      # probe that asserts a NON-ZERO exit by design ends with this
-      # script's own explicit verdict - the exit-0-verdict lesson (three
-      # dispatches died to it historically).
-      - name: Driverless refusal-contract probes (exit-4 taxonomy)
+      # The elevation refusal-contract probes (session-96: the driver
+      # replacement - this lane's owned regression). The runner is
+      # elevated by construction, so the REFUSAL path is proven through
+      # a LIMITED-run scheduled task (the UAC-filtered token: the exact
+      # non-elevated state a desktop user's launched process runs under).
+      # Every probe that asserts a NON-ZERO exit by design ends with
+      # this script's own explicit verdict - the exit-0-verdict lesson
+      # (three dispatches died to it historically).
+      - name: Elevation refusal-contract probes (exit-4 taxonomy)
         shell: pwsh
         run: |
-          $rrecov = 'build\win-x64-release\src\app\Release\rrecov.exe'
+          $rrecov = (Resolve-Path 'build\win-x64-release\src\app\Release\rrecov.exe').Path
           if (-not (Test-Path $rrecov)) { Write-Host "::error::missing $rrecov"; exit 1 }
           $failed = $false
 
@@ -335,7 +348,7 @@ jobs:
           & $rrecov 2>&1 | Out-Null
           if ($LASTEXITCODE -eq 0) { Write-Host 'PASS usage: exit 0' } else { Write-Host "::error::usage exited $LASTEXITCODE (expected 0)"; $failed = $true }
 
-          # list: enumeration is classification (b) - works driverless, exit 0
+          # list: enumeration is classification (b) - file/registry work only, exit 0
           & $rrecov list 2>&1 | Out-Null
           if ($LASTEXITCODE -eq 0) { Write-Host 'PASS list: exit 0' } else { Write-Host "::error::list exited $LASTEXITCODE (expected 0)"; $failed = $true }
 
@@ -343,24 +356,38 @@ jobs:
           $carveOut = & $rrecov list-carve-formats 2>&1
           if ($LASTEXITCODE -eq 0) { Write-Host 'PASS list-carve-formats: exit 0' } else { Write-Host "::error::list-carve-formats exited $LASTEXITCODE (expected 0)"; $failed = $true }
 
-          # driver --json: MUST refuse with exit 4 + state absent
-          $drvJson = & $rrecov driver --json 2>&1
-          if ($LASTEXITCODE -eq 4 -and $drvJson -match '"state":"absent"') {
-            Write-Host 'PASS driver --json: exit 4, state absent (no driver installed - by design on this lane)'
-          } else {
-            Write-Host "::error::driver --json exited $LASTEXITCODE (expected 4 / absent); output: $drvJson"; $failed = $true
+          # the UNELEVATED probe: a LIMITED-run task drops the elevation
+          # from the token (TokenElevation FALSE - the exact is_elevated()
+          # probe the gate consults). Output + exit code land in a file the
+          # task writes; the runner polls for the EXITCODE marker.
+          $probeOut = Join-Path $env:RUNNER_TEMP 'cr-unelevated-probe.txt'
+          Remove-Item $probeOut -ErrorAction SilentlyContinue
+          $inner = "cmd /c `"`"`"$rrecov`" scan --disk 0 > `"$probeOut`" 2>&1 && echo EXITCODE=%ERRORLEVEL% >> `"$probeOut`"`"`""
+          schtasks /Create /TN cr_unelev_probe /TR $inner /SC ONCE /ST 00:00 /RL LIMITED /F | Out-Null
+          schtasks /Run /TN cr_unelev_probe | Out-Null
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not ((Test-Path $probeOut) -and (Get-Content $probeOut -ErrorAction SilentlyContinue) -match 'EXITCODE=')) {
+            if ((Get-Date) -gt $deadline) { Write-Host "::error::the unelevated probe never completed (60s deadline)"; $failed = $true; break }
+            Start-Sleep -Milliseconds 500
+          }
+          schtasks /Delete /TN cr_unelev_probe /F | Out-Null
+          if (Test-Path $probeOut) {
+            $scanOut = (Get-Content $probeOut) -join "`n"
+            if ($scanOut -match 'EXITCODE=4' -and $scanOut -match 'administrator privilege required') {
+              Write-Host 'PASS unelevated scan --disk 0: exit 4, the ERR_ELEVATION_REQUIRED refusal'
+            } else {
+              Write-Host "::error::unelevated scan --disk 0 did not refuse; output: $scanOut"; $failed = $true
+            }
+            if ($scanOut -match 'starting scan|\[transport\]|\[stage') {
+              Write-Host '::error::the refusal must be the whole response - scan output leaked past the privilege gate'; $failed = $true
+            }
           }
 
-          # scan --disk 0: MUST refuse BEFORE any scan output, exit 4
-          $scanOut = & $rrecov scan --disk 0 2>&1
-          if ($LASTEXITCODE -eq 4 -and $scanOut -match 'driver required') {
-            Write-Host 'PASS scan --disk 0: exit 4, refusal message present'
-          } else {
-            Write-Host "::error::scan --disk 0 exited $LASTEXITCODE (expected 4); output: $scanOut"; $failed = $true
-          }
-          if ($scanOut -match 'starting scan|stage|progress|\[transport\]') {
-            Write-Host '::error::the refusal must be the whole response - scan output leaked past the driver gate'; $failed = $true
-          }
+          # the ELEVATED probe: this shell's own token passes the gate -
+          # bench --mode info opens disk 0's geometry (exit 0; the gate
+          # passing is the assertion, not the geometry itself)
+          & $rrecov bench --disk 0 --mode info 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) { Write-Host 'PASS elevated bench --mode info: the gate passed (exit 0)' } else { Write-Host "::error::elevated bench --mode info exited $LASTEXITCODE (expected 0 - the elevated runner must pass the gate)"; $failed = $true }
 
           if ($failed) { exit 1 }
           Write-Host 'driverless refusal contract: all probes green'

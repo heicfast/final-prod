@@ -45,7 +45,6 @@
  * auto-mount is a registered host contract, PARITY-DELTAS D-90/N-121).
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
- *   driver [--service NAME] [--json]      the driver-status surface
  *   image --create --disk N --out file.img
  *                                         the og home page's Create Image
  *                                         flow (UIUX/07:36-37): flat raw
@@ -63,9 +62,9 @@
  * recover 2 partial (item errors / hash mismatch); apply / fix 2 on
  * open/plan/execute/undo failure; bench 2 on open/read failure or zero
  * hits;
- * 4 = the driver prerequisite is not met (any driver-requiring verb; the
- * refusal names the exact ERR_DRIVER_* class on stderr - see
- * docs/DRIVER-REQUIRED.md); image 3 cancelled (the partial is kept as
+ * 4 = the privilege prerequisite is not met (any raw-disk verb in a
+ * non-elevated process; the refusal names elevation on stderr - image
+ * targets are exempt); image 3 cancelled (the partial is kept as
  * '<out>.partial' and reported) / 2 failed (partial kept, reported).
  *
  * Everything is logged in detail (stage timings, per-stage counts, error
@@ -388,11 +387,10 @@ bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
 repair::IWriteDevice* scan_repair_open_writer(void* user) {
     auto* c = static_cast<RepairCliCtx*>(user);
     u32 e = 0;
-    /* driver-only (PLAN-DRIVER-ONLY R9): the direct RW retry is gone; an
-     * RW-open failure with a Ready driver is a truthful target error and
-     * the repair stays unavailable for this scan (orchestrator contract,
-     * cr_scan.h:212-216) */
-    auto w = win::open_disk_rw(c->disk, L"RDA", &e);
+    /* direct era (session-96): an RW-open failure under an elevated
+     * token is a truthful target error and the repair stays unavailable
+     * for this scan (orchestrator contract, cr_scan.h:212-216) */
+    auto w = win::open_disk_rw(c->disk, &e);
     if (!w) {
         wprintf(L"[repair] cannot open disk %u for write (rc=%08x): %hs\n", c->disk, e,
                 cr::win::is_elevated()
@@ -517,65 +515,29 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
     return true;
 }
 
-/* ---- Driver precondition (docs/DRIVER-REQUIRED.md; PLAN-DRIVER-ONLY
- * section 5): the data path is driver-only. require_driver() runs BEFORE
- * any other output in every driver-requiring verb - the refusal is the
- * whole response (no "starting scan", no partial progress, exit 4).
- * Returns 0 when the driver is Ready; the verb's exit code (4) otherwise. */
-int require_driver() {
-    win::DriverStatus st;
-    const u32 qrc = win::query_driver_status(win::kDefaultDriverService, &st);
-    if (qrc != OK) {
-        fwprintf(stderr, L"rrecov: driver status query failed (%hs 0x%08x)\n", err_text(qrc), qrc);
-        return 4;
-    }
-    const win::DriverState ds = win::driver_state(st);
-    if (ds == win::DriverState::Ready)
+/* ---- Privilege precondition (session-96: the driver replacement) ----
+ * The data path is direct raw I/O: \\.\PhysicalDriveN access needs an
+ * ELEVATED process token (a non-elevated admin's group membership is not
+ * enough - TokenElevation is the honest probe, cr_elevate.cpp).
+ * require_privilege() runs BEFORE any other output in every
+ * raw-disk-requiring verb - the refusal is the whole response. Returns 0
+ * when the token is elevated; the verb's exit code (4) otherwise. */
+int require_privilege() {
+    if (win::is_elevated())
         return 0;
-    const u32 rc = win::driver_state_error(ds);
-    switch (ds) {
-    case win::DriverState::Absent:
-        fwprintf(stderr,
-                 L"rrecov: driver required - the RDA driver is not installed (service \"%s\" "
-                 L"not found).\nrrecov: install it from the product installer or the rda-driver "
-                 L"release (install.ps1), then retry.\n",
-                 win::kDefaultDriverService);
-        break;
-    case win::DriverState::NotStarted:
-        fwprintf(stderr,
-                 L"rrecov: driver required - service \"%s\" is installed but not running.\n"
-                 L"rrecov: start it (elevated: sc start %s) or re-run the installer, then "
-                 L"retry.\n",
-                 win::kDefaultDriverService, win::kDefaultDriverService);
-        break;
-    case win::DriverState::Unauthorized:
-        fwprintf(stderr,
-                 L"rrecov: driver required - the driver denied access (its security descriptor "
-                 L"allows administrators and SYSTEM only).\nrrecov: run elevated / from an "
-                 L"administrator account, then retry.\n");
-        break;
-    case win::DriverState::VersionMismatch:
-        fwprintf(stderr,
-                 L"rrecov: driver required - driver version %u.%u is incompatible with this "
-                 L"core (requires major %u).\nrrecov: update the driver via the installer, then "
-                 L"retry.\n",
-                 st.major, st.minor, win::kDriverWireMajorRequired);
-        break;
-    default:
-        fwprintf(stderr,
-                 L"rrecov: driver required - service \"%s\" is running but its control device "
-                 L"is not usable (CreateFile/GET_INFO error %lu).\nrrecov: reinstall the "
-                 L"driver, then retry.\n",
-                 win::kDefaultDriverService, st.last_gle);
-        break;
-    }
-    fwprintf(stderr, L"rrecov: [%hs 0x%08x] - no operation was attempted\n", err_text(rc), rc);
+    fwprintf(stderr,
+             L"rrecov: administrator privilege required - raw disk access (%hs 0x%08x).\n"
+             L"rrecov: relaunch from an elevated prompt (or let your host trigger the UAC "
+             L"flow) and retry.\n"
+             L"rrecov: image targets (--image) and session/report/preview verbs that only "
+             L"read files work without elevation.\n",
+             err_text(ERR_ELEVATION_REQUIRED), ERR_ELEVATION_REQUIRED);
     return 4;
 }
 
-/* argv scan: does the tail carry a driver-independent target (--image)?
- * The scan/recover preconditions skip the driver gate for image targets
- * (classified (b), docs/DRIVER-REQUIRED.md - images never use the driver). */
+/* argv scan: does the tail carry a file-backed target (--image)?
+ * The scan/recover preconditions skip the privilege gate for image
+ * targets (classified (b) - images never touch raw disks). */
 bool argv_has_image_target(int argc, wchar_t** argv, int from) {
     for (int k = from; k < argc; ++k)
         if (wcscmp(argv[k], L"--image") == 0)
@@ -585,31 +547,24 @@ bool argv_has_image_target(int argc, wchar_t** argv, int from) {
 
 bool open_disk_view(u32 n, OpenResult& out) {
     u32 err = 0;
-    /* Driver-only data path (PLAN-DRIVER-ONLY R1): the grammar path is the
-     * ONLY leg - the probe->direct fallback is gone. The verb-level
-     * require_driver() gate owns the exit-code contract; this in-path check
-     * is the truth layer for direct callers (and the TOCTOU window). */
-    win::DriverStatus st;
-    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
-        const win::DriverState ds = win::driver_state(st);
-        if (ds != win::DriverState::Ready) {
-            const u32 rc = win::driver_state_error(ds);
-            wprintf(L"[driver] RDA driver not usable: %hs (0x%08x, last error %lu) - the data "
-                    L"path requires the driver (docs/DRIVER-REQUIRED.md)\n",
-                    err_text(rc), rc, st.last_gle);
-            return false;
-        }
+    /* Direct data path (session-96): \\.\PhysicalDriveN, no kernel
+     * component. The verb-level require_privilege() gate owns the
+     * exit-code contract; this in-path elevation check is the truth
+     * layer for direct callers (and the TOCTOU window). */
+    if (!win::is_elevated()) {
+        wprintf(L"[transport] raw disk access requires an elevated process (%hs 0x%08x)\n",
+                err_text(ERR_ELEVATION_REQUIRED), ERR_ELEVATION_REQUIRED);
+        return false;
     }
-    if (auto dev = win::open_rda_partition(L"RDA", n, 0, &err)) {
-        wprintf(L"[transport] RDA driver path (\\\\.\\RDA)\n");
+    if (auto dev = win::open_disk(n, &err)) {
+        wprintf(L"[transport] direct raw I/O (\\\\.\\PhysicalDrive%u)\n", n);
         out.device = std::move(dev);
         out.disk = n;
         return true;
     }
-    /* driver Ready but the TARGET would not open: a target error, never a
+    /* elevated but the TARGET would not open: a target error, never a
      * silent transport switch (%ls: the guidance literals are wchar_t) */
-    wprintf(L"[transport] cannot open disk %u through RDA (rc=%08x %hs): %ls\n", n, err,
-            err_text(err),
+    wprintf(L"[transport] cannot open disk %u (rc=%08x %hs): %ls\n", n, err, err_text(err),
             cr::win::is_elevated() ? L"write/device access denied even elevated - device busy, "
                                      L"locked, protected or the disk number is out of range"
                                    : L"administrator rights may be required (elevate and retry)");
@@ -1331,11 +1286,11 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
  * ------------------------------------------------------------------------- */
 
 int cmd_scan(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): the disk/volume
-     * data path is driver-only - the refusal (exit 4, stderr) is the whole
+    /* Privilege precondition FIRST: the disk/volume data path needs an
+     * elevated token - the refusal (exit 4, stderr) is the whole
      * response. Image targets are classified (b) and skip the gate. */
     if (!argv_has_image_target(argc, argv, i)) {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -1751,10 +1706,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
                 for (const auto& pd : list) {
                     u32 oerr = 0;
-                    /* driver-only (PLAN-DRIVER-ONLY R7): the direct retry is
-                     * gone - a member that will not open through RDA simply
-                     * does not resolve (non-LDM disks never did) */
-                    auto dev = win::open_disk(pd.number, L"RDA", &oerr);
+                    /* direct era (session-96): a member that will not open
+                     * simply does not resolve (non-LDM disks never did) */
+                    auto dev = win::open_disk(pd.number, &oerr);
                     if (!dev)
                         continue;
                     u8 sec[512];
@@ -2138,9 +2092,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                         target.volume_len != 0 ? target.volume_len
                                                : (target.device ? target.device->size() : 0)),
                     u32(stats.errors.ranges().size()));
-            wprintf(L"check the transport before retrying: `rrecov driver` reports the RDA "
-                    L"driver prerequisite; a green driver + these errors means the media "
-                    L"itself (cabling, health, encryption) is refusing reads\n");
+            wprintf(L"check the media before retrying: a fresh open + these errors means "
+                    L"the media itself (cabling, health, encryption) is refusing reads\n");
         } else {
             wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
         }
@@ -2265,10 +2218,10 @@ void print_tree_json(tree::ResultTree& t, const TreePrintFlags& f) {
  * singleton rule at :787). The og's results-page archive view backed by
  * archive.dll is the product shape; this is the headless half. */
 int cmd_archive_list(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (the read path re-opens the data source):
-     * --disk targets are driver-only; --image targets are classified. */
+    /* Privilege precondition FIRST (the read path re-opens the data source):
+     * --disk targets need elevation; --image targets are classified. */
     if (!argv_has_image_target(argc, argv, i)) {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -2447,11 +2400,11 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
  * ------------------------------------------------------------------------- */
 
 int cmd_recover(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): recovering a
-     * --disk target re-opens the data path - driver-only; --image targets
-     * are classified (b) and skip the gate. */
+    /* Privilege precondition FIRST: recovering a
+     * --disk target re-opens the data path and needs elevation; --image
+     * targets are classified (b) and skip the gate. */
     if (!argv_has_image_target(argc, argv, i)) {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -2874,17 +2827,17 @@ bool ends_with_ci(const std::wstring& s, const wchar_t* suffix) {
 
 /* S-040: the image verb - the og home page's "Create Image" flow at the
  * CLI (UIUX/07:36-37 + UIUX/06:27; the product then recommends scanning
- * the produced image as the damage posture, UIUX/11:17). Driver class
- * (a): require_driver() gates the data path first, exactly like
+ * the produced image as the damage posture, UIUX/11:17). Class (a):
+ * require_privilege() gates the data path first, exactly like
  * bench/fix/apply. The stream copies the device 64 KiB at a time (the
  * transport envelope) with live cumulative progress, Ctrl-C cancel, the
  * SHA-256 sidecar, and the truth contract: a cancelled or failed create
  * keeps '<path>.partial' and says so - never a silent success. */
 int cmd_image(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): image create
-     * reads the disk data path - classification (a), like bench. */
+    /* Privilege precondition FIRST: image create reads the disk data
+     * path - classification (a), like bench. */
     {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -2896,7 +2849,7 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     while (i < argc) {
         if (has_flag(argc, argv, i, L"--create")) {
             /* S-040's documented invocation form (the usage header above,
-             * the -h block, docs/DRIVER-REQUIRED.md:38, PLAN-API-EXPANSION
+             * the -h block, the S-040 invocation-form contract
              * Wave 4, CI-SCENARIOS.md:30, REFERENCE-API-GAP.md:336/:435 and
              * Run-Benchmark.ps1's image-create probe all specify
              * `image --create --disk N --out file.img`): the create-mode
@@ -2953,8 +2906,7 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
 
     const std::u16string out16(out.begin(), out.end());
     storage::ImageCreateStats stats{};
-    const u32 rc =
-        win::create_disk_image(disk, L"RDA", out16, &g_cancel_token, progress, &ctx, &stats);
+    const u32 rc = win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx, &stats);
     const std::string hex = crypto::to_hex(stats.sha256, 32);
     if (rc == OK) {
         wprintf(L"image complete: %llu bytes, sha256 %hs\n",
@@ -2975,11 +2927,10 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
 }
 
 int cmd_bench(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): bench measures
-     * the disk data path - driver-only. The --no-rda flag is REMOVED
-     * (PLAN-DRIVER-ONLY R10): there is no driverless measurement mode. */
+    /* Privilege precondition FIRST: bench measures the disk data path -
+     * direct raw I/O, elevated token required. */
     {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -3031,10 +2982,10 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
-    /* driver-only transport (PLAN-DRIVER-ONLY R10): the grammar path is
-     * the only leg; the label is the truth, not a choice */
+    /* direct transport (session-96): the direct open is the only leg;
+     * the label is the truth, not a choice */
     u32 err = 0;
-    auto dev = win::open_disk(disk, L"RDA", &err);
+    auto dev = win::open_disk(disk, &err);
     if (!dev) {
         wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
                 cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
@@ -3042,7 +2993,7 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
         return 2;
     }
     const Geometry& g = dev->geometry();
-    const char* transport = "rda";
+    const char* transport = "direct";
 
     auto qpc = []() -> double {
         LARGE_INTEGER c;
@@ -3092,13 +3043,13 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     }
 
     if (mode == L"open") {
-        /* open/close churn: measures the device-open cost (RDA grammar
-         * path vs CreateFile) without touching platters */
+        /* open/close churn: measures the direct device-open cost
+         * (CreateFile + geometry probe) without touching platters */
         const u32 n = iterations < 1 ? 1 : (iterations > 10000 ? 10000 : iterations);
         const double t0 = qpc();
         for (u32 k = 0; k < n; ++k) {
             u32 e2 = 0;
-            auto d2 = win::open_disk(disk, L"RDA", &e2);
+            auto d2 = win::open_disk(disk, &e2);
         }
         const double dt = (qpc() - t0) / freq;
         const double mean_ns = dt > 0 ? dt * 1e9 / n : 0;
@@ -3143,7 +3094,7 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     }
 
     if (mode == L"rand") {
-        /* LCG random offsets inside the span (rdabench-compatible) */
+        /* LCG random offsets inside the span (deterministic, reproducible) */
         u64 state = seed ? seed : 1;
         const u32 n = iterations < 1 ? 1 : (iterations > 100000 ? 100000 : iterations);
         const u64 limit = span < g.total_bytes ? span : g.total_bytes;
@@ -3212,10 +3163,10 @@ bool bootfix_cli_consent(void* user) {
 }
 
 int cmd_apply(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): the apply path
-     * reads and writes the disk - driver-only. */
+    /* Privilege precondition FIRST: the apply path reads and writes the
+     * disk - elevated token required. */
     {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -3281,7 +3232,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
      * shows only what the CURRENT disk still confirms) and the same view
      * serves plan_apply below. */
     u32 open_err = 0;
-    auto apply_view = win::open_disk(disk, L"RDA", &open_err);
+    auto apply_view = win::open_disk(disk, &open_err);
     if (!apply_view) {
         wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
         return 2;
@@ -3414,7 +3365,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     u32 e = 0; /* M-057: was referenced (&e) but never declared - the apply
                 * path could not compile on MSVC since it landed (the app
                 * layer had no parse gate until this session) */
-    auto wdev = win::open_disk_apply_rw(disk, L"RDA", &e);
+    auto wdev = win::open_disk_apply_rw(disk, &e);
     if (!wdev) {
         wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                 cr::win::is_elevated()
@@ -3601,11 +3552,10 @@ static int cmd_unlock(int argc, wchar_t** argv, int& i) {
 }
 
 int cmd_fix(int argc, wchar_t** argv, int& i) {
-    /* Driver precondition FIRST (docs/DRIVER-REQUIRED.md): the repair path
-     * reads and writes the disk - driver-only (--no-rda is REMOVED,
-     * PLAN-DRIVER-ONLY R10). */
+    /* Privilege precondition FIRST: the repair path reads and writes the
+     * disk - elevated token required. */
     {
-        const int drc = require_driver();
+        const int drc = require_privilege();
         if (drc != 0)
             return drc;
     }
@@ -3647,8 +3597,8 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 1;
     }
     /* ---- chkdsk mode (M-075): the escalation endpoint ----
-     * A volume-letter operation (no --disk, no driver: the RDA disk
-     * path is not involved; chkdsk itself needs only elevation - the
+     * A volume-letter operation (no --disk: the raw-disk path is not
+     * involved; chkdsk itself needs only elevation - the
      * og's WinChkdsk wrapper runs beside the engine, not under it).
      * The posture is the FIX form (the fix verb's own family):
      * chkdsk X: /f, the guidance string's second half. The refusal is
@@ -3717,7 +3667,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         }
         wprintf(L"undo log: %zu sector(s)\n", log.entries.size());
         u32 e = 0;
-        auto wdev = win::open_disk_rw(disk, L"RDA", &e);
+        auto wdev = win::open_disk_rw(disk, &e);
         if (!wdev) {
             wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                     cr::win::is_elevated()
@@ -3744,7 +3694,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 
     /* ---- analyze (read-only) ---- */
     u32 e = 0;
-    auto view = win::open_disk(disk, L"RDA", &e);
+    auto view = win::open_disk(disk, &e);
     if (!view) {
         wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
         return 2;
@@ -3843,7 +3793,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     }
 
     /* ---- execute (transactional writes) ---- */
-    auto wdev = win::open_disk_rw(disk, L"RDA", &e);
+    auto wdev = win::open_disk_rw(disk, &e);
     if (!wdev) {
         wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                 cr::win::is_elevated()
@@ -3876,69 +3826,6 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
     }
     return 0;
-}
-
-/* ---------------------------------------------------------------------------
- * driver (the driver-status surface; docs/DRIVER-REQUIRED.md)
- * ------------------------------------------------------------------------- */
-
-int cmd_driver(int argc, wchar_t** argv, int& i) {
-    std::wstring v;
-    std::wstring service = win::kDefaultDriverService;
-    bool json = false;
-    while (i < argc) {
-        if (get_opt(argc, argv, i, L"--service", &v)) {
-            service = v;
-            continue;
-        }
-        if (wcscmp(argv[i], L"--json") == 0) {
-            json = true;
-            ++i;
-            continue;
-        }
-        wprintf(L"unknown driver option: %s\n", argv[i]);
-        return 1;
-    }
-    win::DriverStatus st;
-    const u32 qrc = win::query_driver_status(service.c_str(), &st);
-    if (qrc != OK) {
-        wprintf(L"driver status query failed: %hs (0x%08x)\n", err_text(qrc), qrc);
-        return 1;
-    }
-    const win::DriverState ds = win::driver_state(st);
-    const u32 rc = win::driver_state_error(ds);
-    const auto yn = [](bool b) { return b ? "yes" : "no"; };
-    if (json) {
-        wprintf(L"{\"service\":\"%s\",\"state\":\"%hs\",\"present\":\"%hs\","
-                L"\"loaded\":\"%hs\",\"started\":\"%hs\",\"authorized\":\"%hs\","
-                L"\"healthy\":\"%hs\",\"major\":%u,\"minor\":%u,\"required_major\":%u,"
-                L"\"flags\":%u,\"max_disks\":%u,\"ioctl_base\":%u,\"last_gle\":%lu,"
-                L"\"error\":\"%hs\",\"error_code\":%u}\n",
-                service.c_str(), win::driver_state_name(ds), yn(st.service_present),
-                yn(st.service_running), yn(st.device_openable), yn(st.authorized),
-                yn(st.info_valid), st.major, st.minor, win::kDriverWireMajorRequired, st.flags,
-                st.max_disks, st.ioctl_base, st.last_gle, err_text(rc), rc);
-        return ds == win::DriverState::Ready ? 0 : 4;
-    }
-    wprintf(L"driver service \"%s\" (data-path prerequisite, docs/DRIVER-REQUIRED.md):\n",
-            service.c_str());
-    wprintf(L"  present:     %hs   (service installed)\n", yn(st.service_present));
-    wprintf(L"  loaded:      %hs   (service running)\n", yn(st.service_running));
-    wprintf(L"  started:     %hs   (control device opens)\n", yn(st.device_openable));
-    wprintf(L"  authorized:  %hs   (open not denied by the device DACL)\n", yn(st.authorized));
-    wprintf(L"  healthy:     %hs   (GET_INFO + GET_VERSION consistent)\n", yn(st.info_valid));
-    wprintf(L"  version:     %u.%u (core requires major %u)\n", st.major, st.minor,
-            win::kDriverWireMajorRequired);
-    wprintf(L"  capabilities: flags=%u max_disks=%u ioctl_base=0x%x\n", st.flags, st.max_disks,
-            st.ioctl_base);
-    if (ds == win::DriverState::Ready) {
-        wprintf(L"  state:       ready\n");
-        return 0;
-    }
-    wprintf(L"  state:       %hs - %hs (0x%08x, last error %lu)\n", win::driver_state_name(ds),
-            err_text(rc), rc, st.last_gle);
-    const int drc = require_driver();
-    return drc != 0 ? drc : 1;
 }
 
 } // namespace
@@ -3992,10 +3879,6 @@ int wmain(int argc, wchar_t** argv) {
             L"[--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
-            L"  rrecov driver [--service NAME] [--json]\n"
-            L"             (the driver-status surface: present/loaded/started/"
-            L"authorized/healthy/version facets; exit 0 = ready, 4 = the\n"
-            L"              driver prerequisite is not met - docs/DRIVER-REQUIRED.md)\n"
             L"  rrecov image --create --disk N --out file.img\n"
             L"             (the og home page's Create Image flow, UIUX/07:36-37 -\n"
             L"              the safe-scan posture's producer: scan the image\n"
@@ -4018,10 +3901,10 @@ int wmain(int argc, wchar_t** argv) {
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json]\n"
             L"\n"
-            L"driver prerequisite: scan/recover/fix/apply/bench (disk targets) refuse with\n"
-            L"exit 4 unless the RDA driver is present, loaded, started, authorized and\n"
-            L"version-compatible (rrecov driver reports each facet). --image targets are\n"
-            L"driver-independent by classification (docs/DRIVER-REQUIRED.md).\n");
+            L"privilege prerequisite: scan/recover/tree --disk/fix/apply/bench/image (disk\n"
+            L"targets) refuse with exit 4 unless the process token is elevated (run from\n"
+            L"an elevated prompt, or let your host trigger the UAC flow). --image scan\n"
+            L"targets are file-backed and need no elevation.\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
@@ -4064,8 +3947,6 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_image(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);
-    if (cmd == L"driver")
-        return cmd_driver(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());
     return 1;
 }

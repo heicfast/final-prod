@@ -1424,40 +1424,33 @@ void set_last_transport_error_(uint32_t e) {
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
-    /* Driver-only (docs/DRIVER-REQUIRED.md; PLAN-DRIVER-ONLY R4/R12): the
-     * WinPE gate, the availability probe and the direct fallback are all
-     * REMOVED. A non-Ready driver state is a classified refusal - the
-     * ERR_DRIVER_* code is the return value, the diagnostic channel
-     * (cr_ui_last_transport_error) and the UI presentation contract. */
-    win::DriverStatus st;
-    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
-        const win::DriverState ds = win::driver_state(st);
-        if (ds != win::DriverState::Ready) {
-            const u32 rc = win::driver_state_error(ds);
-            set_last_transport_error_(rc);
-            return ret_(rc,
-                        "driver prerequisite not met (state %s) - see "
-                        "docs/DRIVER-REQUIRED.md",
-                        win::driver_state_name(ds));
-        }
+    /* Direct raw I/O (session-96: the driver replacement). The single
+     * precondition is the process token: a non-elevated token is the
+     * classified refusal - ERR_ELEVATION_REQUIRED is the return value,
+     * the diagnostic channel (cr_ui_last_transport_error) and the UI
+     * presentation contract; the host triggers its own elevation flow
+     * (the standard OS UAC prompt) and retries. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
     }
     u32 err = 0;
-    if (auto dev = win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err)) {
+    if (auto dev = win::open_disk(disk, &err)) {
         auto* d = new CrDevice();
         d->dev = std::move(dev);
         d->disk = disk;
         d->disk_known = true;
-        d->transport = "rda";
+        d->transport = "direct";
         *out = reinterpret_cast<cr_ui_device*>(d);
         set_last_transport_error_(0);
         return ret_ok();
     }
-    /* driver Ready but the TARGET would not open: a target error, never a
-     * silent transport switch (the pre-driver-only code fell back to
-     * \\.\PhysicalDriveN here - CORE-DISK-ACCESS F5/F6). */
+    /* elevated but the TARGET would not open: a target error (absent disk
+     * number, protected or busy device), never a silent transport switch. */
     set_last_transport_error_(err);
-    return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u through the RDA driver path",
-                disk);
+    return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u (direct raw access)", disk);
 }
 
 u32 open_volume_impl(char letter, cr_ui_device** out) {
@@ -1490,29 +1483,22 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    /* Driver-only (PLAN-DRIVER-ONLY R5/R6): classified refusal - no probe,
-     * no whole-disk direct fallback (CORE-DISK-ACCESS F7/F8). */
-    win::DriverStatus st;
-    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
-        const win::DriverState ds = win::driver_state(st);
-        if (ds != win::DriverState::Ready) {
-            const u32 rc = win::driver_state_error(ds);
-            set_last_transport_error_(rc);
-            return ret_(rc,
-                        "driver prerequisite not met (state %s) - see "
-                        "docs/DRIVER-REQUIRED.md",
-                        win::driver_state_name(ds));
-        }
+    /* Direct raw I/O (session-96): the privilege gate, then the direct
+     * whole-disk open - the volume is its slice on the parent disk. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
     }
     u32 err = 0;
-    std::unique_ptr<IStorageDevice> whole =
-        win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err);
+    std::unique_ptr<IStorageDevice> whole = win::open_disk(disk, &err);
     if (!whole) {
         set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u for volume %c: through the RDA driver path", disk, letter);
+                    "cannot open disk %u for volume %c: (direct raw access)", disk, letter);
     }
-    const char* transport = "rda";
+    const char* transport = "direct";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
     /* M-119: an over-long declared window CLAMPS at the device end and
      * the volume opens (the og's tolerant create) - the clamp delta is
@@ -1584,29 +1570,22 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    /* Driver-only (PLAN-DRIVER-ONLY R5/R6): classified refusal - no probe,
-     * no whole-disk direct fallback (CORE-DISK-ACCESS F7/F8). */
-    win::DriverStatus st;
-    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
-        const win::DriverState ds = win::driver_state(st);
-        if (ds != win::DriverState::Ready) {
-            const u32 rc = win::driver_state_error(ds);
-            set_last_transport_error_(rc);
-            return ret_(rc,
-                        "driver prerequisite not met (state %s) - see "
-                        "docs/DRIVER-REQUIRED.md",
-                        win::driver_state_name(ds));
-        }
+    /* Direct raw I/O (session-96): the privilege gate, then the direct
+     * whole-disk open - the volume is its slice on the parent disk. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
     }
     u32 err = 0;
-    std::unique_ptr<IStorageDevice> whole =
-        win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err);
+    std::unique_ptr<IStorageDevice> whole = win::open_disk(disk, &err);
     if (!whole) {
         set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u for volume %c: through the RDA driver path", disk, letter);
+                    "cannot open disk %u for volume %c: (direct raw access)", disk, letter);
     }
-    const char* transport = "rda";
+    const char* transport = "direct";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
     /* M-119: an over-long declared window CLAMPS at the device end and
      * the volume opens (the og's tolerant create) - the clamp delta is
@@ -1671,56 +1650,6 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
                 unsigned(ptrs.size()));
 }
 
-/* The driver-status surface (docs/DRIVER-REQUIRED.md section 3; ABI-since
- * 2.x, additive): fills every facet from the platform query and maps the
- * classified state to the C enum. The QUERY itself never fails on a driver
- * condition - it reports it (out->state carries the class); only a null
- * argument or a query-machinery failure returns non-zero. */
-u32 driver_status_impl(cr_ui_driver_status_t* out) {
-    if (!out)
-        return ret_(ERR_BAD_PARAMETER, "bad argument: out");
-    std::memset(out, 0, sizeof(*out));
-    win::DriverStatus st;
-    const u32 qrc = win::query_driver_status(win::kDefaultDriverService, &st);
-    if (qrc != OK)
-        return ret_(qrc, "driver status query failed");
-    const win::DriverState ds = win::driver_state(st);
-    switch (ds) {
-    case win::DriverState::Ready:
-        out->state = CR_UI_DRIVER_STATE_READY;
-        break;
-    case win::DriverState::Absent:
-        out->state = CR_UI_DRIVER_STATE_ABSENT;
-        break;
-    case win::DriverState::NotStarted:
-        out->state = CR_UI_DRIVER_STATE_NOT_STARTED;
-        break;
-    case win::DriverState::Unauthorized:
-        out->state = CR_UI_DRIVER_STATE_UNAUTHORIZED;
-        break;
-    case win::DriverState::VersionMismatch:
-        out->state = CR_UI_DRIVER_STATE_VERSION_MISMATCH;
-        break;
-    case win::DriverState::Errored:
-    default:
-        out->state = CR_UI_DRIVER_STATE_ERRORED;
-        break;
-    }
-    out->service_present = st.service_present ? 1u : 0u;
-    out->service_running = st.service_running ? 1u : 0u;
-    out->device_openable = st.device_openable ? 1u : 0u;
-    out->authorized = st.authorized ? 1u : 0u;
-    out->info_valid = st.info_valid ? 1u : 0u;
-    out->major = st.major;
-    out->minor = st.minor;
-    out->required_major = win::kDriverWireMajorRequired;
-    out->flags = st.flags;
-    out->max_disks = st.max_disks;
-    out->ioctl_base = st.ioctl_base;
-    out->last_gle = st.last_gle;
-    return ret_ok();
-}
-
 #else /* !_WIN32 */
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
@@ -1755,16 +1684,6 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
                 "cr_ui_unlock_volume_with_dictionary requires the Windows platform layer");
 }
 
-u32 driver_status_impl(cr_ui_driver_status_t* out) {
-    if (!out)
-        return ret_(ERR_BAD_PARAMETER, "bad argument: out");
-    /* No platform layer on this lane: the surface is honestly unsupported
-     * (the classifier itself is platform-independent and unit-pinned in
-     * tests/unit/test_driver_status.cpp; the Windows runner proves the real
-     * query - PLAN-DRIVER-ONLY section 7). */
-    return ret_(ERR_UNSUPPORTED, "cr_ui_driver_status requires the Windows platform layer");
-}
-
 #endif
 
 u32 device_geometry_impl(cr_ui_device* dev, cr_ui_geometry* out) {
@@ -1779,10 +1698,10 @@ u32 device_geometry_impl(cr_ui_device* dev, cr_ui_geometry* out) {
     return ret_ok();
 }
 
-/* S-040: the image-create producer at the ABI. Class (a): the driver
+/* S-040: the image-create producer at the ABI. Class (a): the privilege
  * prerequisite is checked first, exactly like open_disk_impl - the
- * ERR_DRIVER_* family is the refusal. Progress is the recovery-style
- * cumulative-bytes bridge. */
+ * elevation refusal is ERR_ELEVATION_REQUIRED. Progress is the
+ * recovery-style cumulative-bytes bridge. */
 #ifdef _WIN32
 struct ImageCreateProgressBridge {
     cr_ui_recovery_progress_fn progress = nullptr;
@@ -1801,29 +1720,21 @@ u32 image_create_impl(uint32_t disk, const char* utf8_path, cr_ui_recovery_progr
     if (!utf8_path || !*utf8_path)
         return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path");
 #ifdef _WIN32
-    /* the class-(a) gate: a non-Ready driver state is a classified
-     * refusal (the same gate as open_disk_impl) */
-    {
-        win::DriverStatus st;
-        if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
-            const win::DriverState ds = win::driver_state(st);
-            if (ds != win::DriverState::Ready) {
-                const u32 rc = win::driver_state_error(ds);
-                set_last_transport_error_(rc);
-                return ret_(rc,
-                            "driver prerequisite not met (state %s) - see "
-                            "docs/DRIVER-REQUIRED.md",
-                            win::driver_state_name(ds));
-            }
-        }
+    /* the class-(a) gate: a non-elevated token is a classified refusal
+     * (the same gate as open_disk_impl) */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry");
     }
     const std::u16string path = u8_to_u16(utf8_path);
     if (path.empty())
         return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path (empty after decode)");
     ImageCreateProgressBridge bridge{progress, user};
     storage::ImageCreateStats stats{};
-    const u32 rc = win::create_disk_image(disk, win::kDefaultDriverService, path, nullptr,
-                                          image_create_progress_bridge, &bridge, &stats);
+    const u32 rc =
+        win::create_disk_image(disk, path, nullptr, image_create_progress_bridge, &bridge, &stats);
     if (rc == OK)
         return ret_ok();
     if (rc == ERR_CANCELLED)
@@ -1881,9 +1792,6 @@ extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out)
 extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                                          cr_ui_device** out) {
     return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
-}
-extern "C" CR_UI_API uint32_t cr_ui_driver_status(cr_ui_driver_status_t* out) {
-    return guarded(driver_status_impl, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(
     char letter, const char* const* utf8_user_passwords, uint32_t count) {
@@ -2088,7 +1996,7 @@ repair::IWriteDevice* ui_repair_open_writer(void* user) {
     if (d->disk_known) {
         u32 err = OK;
         /* driver-only (PLAN-DRIVER-ONLY R9): the direct RW retry is gone */
-        auto w = win::open_disk_rw(d->disk, win::kDefaultDriverService, &err);
+        auto w = win::open_disk_rw(d->disk, &err);
         if (!w)
             return nullptr;
         s->repair_writer = std::move(w);
@@ -2177,7 +2085,7 @@ void arm_ldm_resolver(CrScan* s) {
         u32 oerr = 0;
         /* driver-only (PLAN-DRIVER-ONLY R8): the direct retry is gone - a
          * member that will not open through RDA simply does not resolve */
-        auto dev = win::open_disk(pd.number, win::kDefaultDriverService, &oerr);
+        auto dev = win::open_disk(pd.number, &oerr);
         if (!dev)
             continue;
         u8 sec[512];
@@ -2239,7 +2147,7 @@ static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
     if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
         for (const auto& pd : list) {
             u32 oerr = 0;
-            auto dev = win::open_disk(pd.number, win::kDefaultDriverService, &oerr);
+            auto dev = win::open_disk(pd.number, &oerr);
             if (!dev)
                 continue;
             u8 sec[512];
@@ -2476,9 +2384,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2752,7 +2660,7 @@ std::unique_ptr<apply::IApplyDevice> ui_apply_open_writer(CrDevice* d) {
         /* driver-only (PLAN-DRIVER-ONLY R9): the direct apply-view retry is
          * gone; the S-029 device-control chain issues through the RDA bound
          * handle (the driver passes non-session IOCTLs through) */
-        return win::open_disk_apply_rw(d->disk, win::kDefaultDriverService, &err);
+        return win::open_disk_apply_rw(d->disk, &err);
     }
 #endif
     return nullptr;
@@ -3084,8 +2992,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else

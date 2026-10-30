@@ -91,18 +91,11 @@ const char* err_text(u32 code) {
     case ERR_INTERNAL:
         return "internal error";
 
-    /* driver precondition (docs/DRIVER-REQUIRED.md; the CLI prints the
-     * full remediation text, err_text carries the class name) */
-    case ERR_DRIVER_ABSENT:
-        return "RDA driver not installed";
-    case ERR_DRIVER_NOT_STARTED:
-        return "RDA driver service not running";
-    case ERR_DRIVER_UNAUTHORIZED:
-        return "RDA driver denied access (elevation required)";
-    case ERR_DRIVER_VERSION_MISMATCH:
-        return "RDA driver version incompatible with this core";
-    case ERR_DRIVER_ERRORED:
-        return "RDA driver running but not usable";
+    /* raw-disk privilege precondition (the direct-access mandate; the
+     * CLI prints the full remediation text, err_text carries the class
+     * name) */
+    case ERR_ELEVATION_REQUIRED:
+        return "raw disk access requires an elevated process (run as administrator)";
     default:
         return "unknown error";
     }

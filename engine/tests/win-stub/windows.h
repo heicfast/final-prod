@@ -330,7 +330,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t) - 1)
+#define _TRUNCATE ((size_t)-1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -563,40 +563,6 @@ inline int _pclose(FILE*) {
 #define CP_UTF8 65001U
 inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) {
     return 0;
-}
-
-/* ---- SCM surface (driver-status query, driver-only session) ----
- * query_driver_status (src/win/cr_transport.cpp) consumes the service
- * control manager to fill the present/loaded facets. Declaration-only
- * per this stub's charter: the Linux lane parses the win layer, the
- * Windows runner executes it. */
-#define SC_MANAGER_CONNECT 0x0001U
-#define SERVICE_QUERY_STATUS 0x0004U
-#define SERVICE_RUNNING 0x0004U
-#define SERVICE_STOPPED 0x0001U
-#define SERVICE_START_PENDING 0x0002U
-#define SERVICE_STOP_PENDING 0x0003U
-typedef void* SC_HANDLE;
-struct SERVICE_STATUS {
-    DWORD dwServiceType;
-    DWORD dwCurrentState;
-    DWORD dwControlsAccepted;
-    DWORD dwWin32ExitCode;
-    DWORD dwServiceSpecificExitCode;
-    DWORD dwCheckPoint;
-    DWORD dwWaitHint;
-};
-inline SC_HANDLE OpenSCManagerW(const wchar_t*, const wchar_t*, DWORD) {
-    return nullptr;
-}
-inline SC_HANDLE OpenServiceW(SC_HANDLE, const wchar_t*, DWORD) {
-    return nullptr;
-}
-inline BOOL QueryServiceStatus(SC_HANDLE, SERVICE_STATUS*) {
-    return FALSE;
-}
-inline BOOL CloseServiceHandle(SC_HANDLE) {
-    return TRUE;
 }
 
 /* S-040 (cr_image_create.cpp): the UTF-16 -> UTF-8 sidecar-name path */

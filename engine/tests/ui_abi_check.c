@@ -1158,17 +1158,6 @@ int main(int argc, char** argv) {
         uint32_t ac = 0;
         CHECK_EQ_U64(cr_ui_open_disk(0, &d), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_open_volume('C', &d), CR_UI_ERR_UNSUPPORTED);
-        /* driver-only session: the driver-status surface is a platform
-         * query - honestly unsupported on this lane (the classifier itself
-         * is pinned by tests/unit/test_driver_status.cpp; the Windows
-         * runner proves the real query). */
-        {
-            cr_ui_driver_status_t ds;
-            memset(&ds, 0xAB, sizeof(ds)); /* the impl must not write on refusal */
-            CHECK_EQ_U64(cr_ui_driver_status(&ds), CR_UI_ERR_UNSUPPORTED);
-            CHECK_EQ_U64(cr_ui_driver_status(NULL), CR_UI_ERR_BAD_PARAMETER);
-            CHECK(ds.state != 0u || ds.service_present != 0u); /* untouched */
-        }
         /* M-030 (ABI-since 2.2): the transport-open diagnostic is an
          * advisory read - callable on every platform, never gates an
          * open's return code. On the unsupported-transport stub nothing

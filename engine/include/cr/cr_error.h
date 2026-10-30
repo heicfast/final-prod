@@ -105,19 +105,19 @@ enum Err : u32 {
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,
 
-    /* --- driver precondition (docs/DRIVER-REQUIRED.md; the driver-only
-     * mandate's refusal taxonomy - each condition a distinct class, every
-     * driver-requiring operation fails fast with exactly one of them;
-     * classification state machine in cr/win/cr_driver_status.h) --- */
-    ERR_DRIVER_ABSENT = 0x500B0001,           /* service not installed */
-    ERR_DRIVER_NOT_STARTED = 0x500B0002,      /* installed, not running */
-    ERR_DRIVER_UNAUTHORIZED = 0x500B0003,     /* device DACL denied the open */
-    ERR_DRIVER_VERSION_MISMATCH = 0x500B0004, /* GET_INFO major != required */
-    ERR_DRIVER_ERRORED = 0x500B0005,          /* running but unusable (the
-                                               * v0.2.0 error-87 class, a
-                                               * GET_INFO failure on an
-                                               * opened device, or an
-                                               * inconsistent version pair) */
+    /* --- raw-disk privilege precondition (the direct-access mandate's
+     * refusal taxonomy; session-96: the driver era's 0x500B family was
+     * REMOVED with the driver itself - its five conditions described
+     * kernel-driver service states that no longer exist. The direct
+     * layer's single precondition state is the process token: elevated
+     * or not, probed by is_elevated() (cr/win/cr_elevate.h, the
+     * TokenElevation test). FRESH VALUE SPACE: 0x500C0001 is not a
+     * re-used 0x500B slot - hosts compiled against the driver-era
+     * header must never silently decode a re-used value as its old
+     * meaning. Every raw-disk operation fails fast with exactly this
+     * one code when the token is not elevated; image targets never
+     * touch raw disks and are exempt by classification.) --- */
+    ERR_ELEVATION_REQUIRED = 0x500C0001, /* raw disk access needs an elevated token */
 };
 
 /* Human-readable text for codes used in CLI output and logs. */

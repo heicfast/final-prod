@@ -9,15 +9,17 @@
 > This file inventories the surface as it EXISTS; historical/parity context lives in
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
 
-**Headline counts** (re-derived 2026-10-30, the coherence lane — the
+**Headline counts** (re-derived 2026-10-30, session-96 — the
 doc_truth_gate count invariants guard these in CI): C++ public headers 94
-under `include/cr/**` (29 module directories); C ABI **93 exports** (96 `CR_UI_API` lines minus 3
-`#define` macros in cr_ui.h = 93 `extern "C" CR_UI_API` definitions in
-src/ui/cr_ui.cpp, recount matches; +2 from the N-140 lane's carve-tally pair); CLI **14 verbs** (rrecov.cpp:4023-4062 — list,
+under `include/cr/**` (29 module directories); C ABI **92 exports** (95 `CR_UI_API` lines minus 3
+`#define` macros in cr_ui.h = 92 `extern "C" CR_UI_API` definitions in
+src/ui/cr_ui.cpp, recount matches; the v3->v4 bump REMOVED the
+driver-era `cr_ui_driver_status` export with the kernel driver); CLI **13 verbs** (rrecov.cpp — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
-fix, apply, image, bench, driver, unlock — the `unlock --turn-off` verb
-landed with M-078, rrecov.cpp:4051); error codes **44 + OK** (the enum-member
-census: 44 ERR_ members in cr_error.h — the long-standing "45" was the
+fix, apply, image, bench, unlock — the `driver` verb was REMOVED with
+the kernel driver, session-96); error codes **40 + OK** (the enum-member
+census: 40 ERR_ members in cr_error.h — session-96 removed the five
+ERR_DRIVER_* members and added ERR_ELEVATION_REQUIRED; the long-standing "45" was the
 doc_truth_gate's file-wide 0x5-literal regex counting the truncated
 prefixes of the two og-corpus comment literals at cr_error.h:6; the
 Session-84 truth repair anchors the census on enum-member lines, and
@@ -45,10 +47,13 @@ ABI event types **12** (the CR_EVT_* census).
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 93 exports / 13 verbs / 44+OK error codes / 12 ABI event types> (re-derived 2026-10-29, the S79 lane's N-140-rider count repair - the
+> counts: 92 exports / 13 verbs / 40+OK error codes / 12 ABI event types> (re-derived 2026-10-30, session-96 - the driver removal recount: the
+> cr_ui_driver_status export and the `driver` verb died with the kernel
+> driver, the five ERR_DRIVER_* members with it, ERR_ELEVATION_REQUIRED
+> added - the
 > doc_truth_gate guards these).
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
-> [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
+> [API.md](API.md).
 ---
 
 ## (a) C++ API inventory (grouped by module; one line per public operation)

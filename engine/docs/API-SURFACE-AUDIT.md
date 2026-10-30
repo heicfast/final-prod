@@ -29,10 +29,12 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 93 exports (re-derived 2026-10-30, the M-075 lane: 95
-CR_UI_API lines - 3 #defines; the doc_truth_gate count invariants hold
-these in CI now - the "as of <landing>" snapshot phrasing retired with
-the gate, it is how stale counts hid)
+`libcr_ui.so`): 92 exports (re-derived 2026-10-30, session-96: 95
+CR_UI_API lines - 3 #defines; the cr_ui_driver_status export was REMOVED
+with the kernel driver - the ABI bumped v3 -> v4 for the removal; the
+doc_truth_gate count invariants hold these in CI now - the "as of
+<landing>" snapshot phrasing retired with the gate, it is how stale
+counts hid)
 (`CR_UI_ABI_VERSION = 3` — v2: M-036 appended cr_ui_smart_report fields; v3:
 M-067 the cr_ui_user_sign field resize; the audit-time counts were 61 exports
 @ ABI 2), opaque handles, `cr_error`

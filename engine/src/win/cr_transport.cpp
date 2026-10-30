@@ -1,27 +1,27 @@
-/* cr_transport.cpp - the Windows transport layer: RDA grammar path for
- * the DATA path, driver-only (docs/DRIVER-REQUIRED.md).
+/* cr_transport.cpp - the Windows transport layer: DIRECT raw I/O under
+ * administrator privilege (session-96: the kernel-driver replacement).
  *
- * RDA wiring (rda-driver v0.2.x contract):
- *   - legacy PID-token grammar opens (EPMNtDrv / EUEDKEPM wire compat) -
- *     the SOLE production surface (N-041: the structured-open RdaClient
- *     had zero callers since introduction and was deleted; the wire
- *     structs stay documented in cr_rda.h)
- *   - F11 unscale: ReadFile results through RDA handles are divided by
- *     512 (the driver reports Information = Length * 512)
- *   - driver-only architecture (PLAN-DRIVER-ONLY R1-R14): the direct
- *     data-path fallbacks, the WinPE gate, --no-rda and the boolean
- *     rda_available probe are REMOVED; query_driver_status + the
- *     ERR_DRIVER_* taxonomy replace them. Control-path direct opens
- *     (enumeration/health/layout-refresh, classified (b) in
- *     DRIVER-REQUIRED.md) stay where they always lived.
+ * Direct wiring (\\.\PhysicalDriveN, no kernel component of ours):
+ *   - open_disk / open_disk_rw / open_disk_apply_rw: the direct whole-disk
+ *     opens (GENERIC_READ [ | GENERIC_WRITE], share R|W|D, OPEN_EXISTING) -
+ *     the exact posture the grammar path used, one layer down
+ *   - true byte counts: ReadFile/WriteFile report real transferred bytes
+ *     (the driver-era F11 Information=Length*512 scaling is deleted with
+ *     the driver)
+ *   - the S-010 quiesce chain and the S-029 device-control chain operate
+ *     on direct handles (they always did on the volume side; the layout
+ *     IOCTLs now issue on the direct disk handle - refresh_disk_properties
+ *     is the in-tree proof)
+ *   - writes staged through a sector-aligned buffer when the caller's is
+ *     unaligned (the direct-write rule: the storage stack requires
+ *     sector-aligned buffers on raw handles)
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/win/cr_transport.h"
-#include "cr/win/cr_rda.h"
 #include "cr/win/cr_enumerate.h" /* S-010: volume enumeration for the lock sequence */
-#include "cr/win/cr_winenv.h"    /* M-030: the PE-gate + quiesce-chain pins */
+#include "cr/win/cr_winenv.h"    /* M-030: the quiesce-chain pins */
 #include "cr/cr_log.h"           /* N-048 seam: the OFFLINE failure line */
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_directalign.h"
@@ -47,10 +47,10 @@ namespace {
 
 /* Shared OVERLAPPED read completion (W3-10, AUDIT-ARCH 8c #1): one
  * spelling of the ReadFile + ERROR_IO_PENDING + GetOverlappedResult
- * dance with the F11 unscale - the driver reports Information =
- * Length * 512 on RDA handles (kLegacyInformationScale); direct
- * handles and any future true-count RDA contract return plain len. */
-u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, DWORD* gle_out) {
+ * dance. Direct handles report true byte counts: success is got == len
+ * exactly (the driver-era F11 Information scaling is gone with the
+ * driver). */
+u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, DWORD* gle_out) {
     if (len == 0)
         return OK;
     OVERLAPPED ov = {};
@@ -76,8 +76,6 @@ u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, DWOR
     }
     if (got == len)
         return OK;
-    if (rda_scaled && got == len * rda::kLegacyInformationScale)
-        return OK; /* F11 contract */
     return ERR_READ_FAILED;
 }
 
@@ -190,15 +188,14 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
  * (ABI-CONTRACT section 3), so the shared HANDLE is safe here. The
  * per-thread bounce below additionally tolerates concurrent callers.
  * ------------------------------------------------------------------------ */
-u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, u64 dev_size,
-                    DWORD* gle_out) {
+u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, u64 dev_size, DWORD* gle_out) {
     if (len == 0)
         return OK;
     const io::DirectEnvelope e = io::direct_envelope(off, len, dev_size);
     if (!e.ok)
         return ERR_RANGE_OUT_OF_BOUNDS;
     if (e.direct)
-        return overlapped_read(h, off, buf, len, rda_scaled, gle_out); /* fast path: no copy */
+        return overlapped_read(h, off, buf, len, gle_out); /* fast path: no copy */
     /* bounded bounce: the writer chunks at 1 MiB; anything bigger means
      * caller-side chunking broke - refuse loudly instead of allocating
      * wildly */
@@ -208,8 +205,7 @@ u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, u64 
      * worker items concurrently) */
     thread_local std::vector<u8> bounce;
     bounce.resize(size_t(e.issued_len));
-    const u32 rc =
-        overlapped_read(h, e.issued_off, bounce.data(), u32(e.issued_len), rda_scaled, gle_out);
+    const u32 rc = overlapped_read(h, e.issued_off, bounce.data(), u32(e.issued_len), gle_out);
     if (rc != OK)
         return rc;
     if (e.take != u64(len))
@@ -253,7 +249,9 @@ bool reopen_handle(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_ino
 }
 
 /* ---------------------------------------------------------------------------
- * Direct (non-RDA) device: true byte counts from the IO manager.
+ * Direct device: true byte counts from the IO manager. THE data-path
+ * device of the direct era (the RDA grammar-path twin was removed with
+ * the driver - session-96).
  * ------------------------------------------------------------------------- */
 class DirectDevice final : public IStorageDevice {
 public:
@@ -269,11 +267,11 @@ public:
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
         DWORD gle = 0;
-        u32 rc = aligned_read_at(h_, off, buf, len, false, size(), &gle);
+        u32 rc = aligned_read_at(h_, off, buf, len, size(), &gle);
         if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
             std::lock_guard<std::mutex> g(heal_mu_);
             if (reopen_handle(path_.c_str(), access_, share_, &h_))
-                rc = aligned_read_at(h_, off, buf, len, false, size(), nullptr);
+                rc = aligned_read_at(h_, off, buf, len, size(), nullptr);
         }
         return rc;
     }
@@ -316,229 +314,16 @@ std::unique_ptr<IStorageDevice> open_path(const wchar_t* path, u32* err) {
                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE));
 }
 
-/* ---------------------------------------------------------------------------
- * RDA target device: bound handle with the F11 unscale; grammar-opened
- * (reopen = re-CreateFile the same grammar path - the driver re-binds the
- * target at IRP_MJ_CREATE) or structured-opened (reopen = bare handle +
- * re-issued OPEN_TARGET).
- * ------------------------------------------------------------------------- */
-class RdaTargetDevice final : public IStorageDevice {
-public:
-    RdaTargetDevice(HANDLE h, Geometry g, std::wstring path, DWORD access, DWORD share)
-        : h_(h), geom_(std::move(g)), path_(std::move(path)), access_(access), share_(share) {}
-    ~RdaTargetDevice() override {
-        if (h_ != INVALID_HANDLE_VALUE)
-            CloseHandle(h_);
-    }
-    u32 read_at(u64 off, void* buf, u32 len) override {
-        if (h_ == INVALID_HANDLE_VALUE)
-            return ERR_OPEN_FAILED;
-        if (off > size() || len > size() - off)
-            return ERR_RANGE_OUT_OF_BOUNDS;
-        DWORD gle = 0;
-        u32 rc = aligned_read_at(h_, off, buf, len, true, size(), &gle);
-        if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
-            std::lock_guard<std::mutex> g(heal_mu_);
-            if (reopen_and_rebind_())
-                rc = aligned_read_at(h_, off, buf, len, true, size(), nullptr);
-        }
-        return rc;
-    }
-    const Geometry& geometry() const override { return geom_; }
-    u64 size() const { return geom_.total_bytes; }
-
-private:
-    /* grammar path: reopen is just CreateFileW (the driver validates the
-     * PID token + resolves the target at CREATE). N-041: the structured
-     * OPEN_TARGET reopen variant died with RdaClient (zero callers). */
-    bool reopen_and_rebind_() { return reopen_handle(path_.c_str(), access_, share_, &h_); }
-    HANDLE h_;
-    Geometry geom_;
-    std::wstring path_;
-    DWORD access_ = GENERIC_READ;
-    DWORD share_ = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
-    std::mutex heal_mu_; /* M-055: N-041's deletion dropped the member but
-                          * kept read_at's heal lock; restored (DirectDevice
-                          * line ~271 keeps the same pattern) */
-};
-
 } // namespace
-
-/* =========================================================================
- * rda namespace: the PID-token handshake + service-name helpers (the
- * RdaClient driver-client class was deleted by N-041 - zero callers
- * since introduction; wire structs stay documented in cr_rda.h).
- * ======================================================================= */
-namespace rda {
-
-u32 compute_pid_token(u32 pid) {
-    const u8 b0 = u8(pid), b1 = u8(pid >> 8), b2 = u8(pid >> 16), b3 = u8(pid >> 24);
-    const auto add = [](unsigned a, unsigned b) -> unsigned { return (a + b) & 0xFF; };
-    return u32(b0) | (u32(add(b0, b1)) << 8) | (u32(add(b1, b2)) << 16) | (u32(add(b2, b3)) << 24);
-}
-
-std::wstring control_device_path(const wchar_t* service_name) {
-    std::wstring p = L"\\\\.\\";
-    p += service_name ? service_name : L"RDA";
-    return p;
-}
-
-} // namespace rda
 
 /* =========================================================================
  * Public transport API (cr_transport.h).
  * ======================================================================= */
 
-/* The driver-status query (docs/DRIVER-REQUIRED.md section 2-3; the pure
- * classifier lives in cr_driver_status.h where both lanes compile it).
- *
- * Mechanism per facet (DRIVER-CONTRACT.md section 8 - the driver's entire
- * user-mode surface is the control-device open + GET_INFO):
- *   present/loaded  SCM: OpenSCManagerW(CONNECT) + OpenServiceW(
- *                    QUERY_STATUS) + QueryServiceStatus
- *   started/
- *   authorized      CreateFileW on \\.\RDA (the bare control device;
- *                    ERROR_ACCESS_DENIED = the DACL denial)
- *   healthy/
- *   version         GET_INFO 0x6002440 (24-byte DriverInfo) +
- *                    GET_VERSION 0x6002448 (u64 (major<<32)|minor),
- *                    cross-checked against each other
- *
- * The query never fails on a driver CONDITION - it reports it; the caller
- * classifies (driver_state) and refuses (driver_state_error). Every handle
- * (SCM, service, device) is closed before returning; the call retains no
- * state and is thread-safe under its own handles. */
-u32 query_driver_status(const wchar_t* service_name, DriverStatus* out) {
-    if (!out)
-        return ERR_BAD_PARAMETER;
-    if (!service_name || !service_name[0])
-        service_name = kDefaultDriverService;
-    *out = DriverStatus{};
-
-    /* present + loaded (SCM). OpenSCManager failure is itself diagnostic
-     * (rare: SCM down) - reported as service_present=false and the caller
-     * classifies Absent; last_gle carries the SCM error for the log. */
-    SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
-    if (scm) {
-        SC_HANDLE svc = OpenServiceW(scm, service_name, SERVICE_QUERY_STATUS);
-        if (svc) {
-            out->service_present = true;
-            SERVICE_STATUS ss = {};
-            if (QueryServiceStatus(svc, &ss))
-                out->service_running = ss.dwCurrentState == SERVICE_RUNNING;
-            else
-                out->last_gle = GetLastError();
-            CloseServiceHandle(svc);
-        } else {
-            out->last_gle = GetLastError(); /* ERROR_SERVICE_DOES_NOT_EXIST (1060) = absent */
-        }
-        CloseServiceHandle(scm);
-    } else {
-        out->last_gle = GetLastError();
-    }
-
-    /* started + authorized (control-device open - the exact production
-     * posture rda_available used, minus the boolean collapse). */
-    const std::wstring path = rda::control_device_path(service_name);
-    SetLastError(0);
-    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        out->last_gle = GetLastError();
-        return OK; /* absent/not-started/unauthorized/errored - classified upstream */
-    }
-    out->device_openable = true;
-    out->authorized = true;
-
-    /* healthy + version: GET_INFO (the first core code to ever issue the
-     * documented extended IOCTLs - cr_rda.h's structs stop being
-     * documentation-only) cross-checked against GET_VERSION. FB-T06's
-     * contract rides here: GET_INFO failure on an OPENED device = wrong /
-     * ancient driver -> info_valid stays false -> Errored. */
-    rda::DriverInfo info = {};
-    DWORD br = 0;
-    if (DeviceIoControl(h, rda::kIoctlGetInfo, nullptr, 0, &info, sizeof(info), &br, nullptr) &&
-        br >= sizeof(info) && info.struct_size == sizeof(info)) {
-        u64 wire = 0;
-        if (DeviceIoControl(h, rda::kIoctlGetVersion, nullptr, 0, &wire, sizeof(wire), &br,
-                            nullptr) &&
-            br >= sizeof(wire) && u32(wire >> 32) == info.major_version &&
-            u32(wire) == info.minor_version) {
-            out->info_valid = true;
-            out->major = info.major_version;
-            out->minor = info.minor_version;
-            out->flags = info.flags;
-            out->max_disks = info.max_disks;
-            out->ioctl_base = info.ioctl_base;
-        } else if (!(br >= sizeof(wire))) {
-            out->last_gle = GetLastError();
-        }
-    } else {
-        out->last_gle = GetLastError();
-    }
-    CloseHandle(h);
-    return OK;
-}
-
-std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
-                                                   u32* err) {
-    const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
-    wchar_t path[256];
-    _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\%u\\%u", service_name, tok, disk, part);
-    HANDLE h =
-        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        if (err)
-            *err = ERR_OPEN_FAILED;
-        return nullptr;
-    }
-    Geometry g = probe_geometry(h, nullptr);
-    if (g.total_bytes == 0) {
-        CloseHandle(h);
-        if (err)
-            *err = ERR_OPEN_FAILED;
-        return nullptr;
-    }
-    if (err)
-        *err = OK;
-    return std::unique_ptr<IStorageDevice>(
-        new RdaTargetDevice(h, g, std::wstring(path), GENERIC_READ,
-                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE));
-}
-
-std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err) {
-    const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
-    wchar_t path[256];
-    _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\Volume\\%u", service_name, tok, volume);
-    HANDLE h =
-        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        if (err)
-            *err = ERR_OPEN_FAILED;
-        return nullptr;
-    }
-    Geometry g = probe_geometry(h, nullptr);
-    if (g.total_bytes == 0) {
-        CloseHandle(h);
-        if (err)
-            *err = ERR_OPEN_FAILED;
-        return nullptr;
-    }
-    if (err)
-        *err = OK;
-    return std::unique_ptr<IStorageDevice>(
-        new RdaTargetDevice(h, g, std::wstring(path), GENERIC_READ,
-                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE));
-}
-
-/* CONTROL-PATH open (enumeration's whole-disk view; classified (b) in
- * docs/DRIVER-REQUIRED.md - the og's own enumeration never touches the
- * driver, getdriverinfo:20-29). NOT a data-path leg: the scan/recover/
- * fix/apply/bench data path is open_rda_partition/open_disk. The
- * open_harddisk_volume sibling and the data-path direct fallbacks were
- * removed with the driver-only architecture. */
+/* CONTROL-PATH open (enumeration's whole-disk view - the og's own
+ * enumeration is WMI topology only, getdriverinfo:20-29). Shares the one
+ * direct mechanism with the data path (open_disk); kept as the classified
+ * control-consumer entry point. */
 std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err) {
     wchar_t path[64];
     _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
@@ -571,18 +356,18 @@ bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len) {
     return ok;
 }
 
-std::unique_ptr<IStorageDevice> open_disk(u32 disk, const wchar_t* service, u32* err) {
-    /* Driver-only (PLAN-DRIVER-ONLY R2): the grammar path is the ONLY leg.
-     * The direct fallback and the WinPE gate are REMOVED - a deliberate
-     * divergence from the og's environment-gated duality (the og opens the
-     * PhysicalDrive device directly in WinPE and never retries the other
-     * transport on failure, Device_decompiled.c :50653-50663; our product
-     * requires the driver everywhere, WinPE included - the driver ships
-     * scripts/winpe/regdrv-rda.reg for PE registration, DRIVER-RELEASE
-     * section 6). Callers needing the classified refusal check driver
-     * state first (query_driver_status); a failure here with a Ready
-     * driver is a TARGET error, not a driver-state refusal. */
-    return open_rda_partition(service ? service : kDefaultDriverService, disk, 0, err);
+std::unique_ptr<IStorageDevice> open_disk(u32 disk, u32* err) {
+    /* Direct raw I/O (session-96: the driver replacement): the whole-disk
+     * view is \\.\PhysicalDriveN opened GENERIC_READ share R|W|D - the
+     * exact posture the grammar path used, one layer down, no kernel
+     * component of ours in the path. Callers gate the privilege first
+     * (require_privilege in rrecov.cpp / the cr_ui open impls); a failure
+     * here under an elevated token is a TARGET error (absent disk number,
+     * protected or busy device), not a privilege refusal. WinPE needs no
+     * registration - the direct device is OS-native everywhere. */
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
+    return open_path(path, err);
 }
 
 /* ---------------------------------------------------------------------------
@@ -595,11 +380,10 @@ namespace {
 
 class RwDevice final : public cr::apply::IApplyDevice {
 public:
-    RwDevice(HANDLE h, Geometry g, bool via_rda, u32 disk = 0, std::wstring path = std::wstring(),
+    RwDevice(HANDLE h, Geometry g, u32 disk = 0, std::wstring path = std::wstring(),
              DWORD access = GENERIC_READ | GENERIC_WRITE,
              DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE)
-        : h_(h), geom_(g), via_rda_(via_rda), disk_(disk), path_(std::move(path)), access_(access),
-          share_(share) {}
+        : h_(h), geom_(g), disk_(disk), path_(std::move(path)), access_(access), share_(share) {}
     ~RwDevice() override {
         /* S-010: closing the held volume handles releases their locks
          * (the Win32 contract: a volume lock lasts until every handle
@@ -710,14 +494,14 @@ public:
             return ERR_RANGE_OUT_OF_BOUNDS;
         /* M-009 (GAP-S6-13 mandate) + core-api unification: route through
          * the 64 KiB direct-I/O envelope exactly like the scan-path devices
-         * (DirectDevice, RdaTargetDevice) - BOTH transports, one envelope. */
+         * (DirectDevice) - one envelope, one path. */
         DWORD gle = 0;
-        u32 rc = aligned_read_at(h_, off, buf, len, via_rda_, size(), &gle);
+        u32 rc = aligned_read_at(h_, off, buf, len, size(), &gle);
         if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
             /* og parity: heal the dead handle, retry once */
             std::lock_guard<std::mutex> g(heal_mu_);
             if (reopen_handle(path_.c_str(), access_, share_, &h_))
-                rc = aligned_read_at(h_, off, buf, len, via_rda_, size(), nullptr);
+                rc = aligned_read_at(h_, off, buf, len, size(), nullptr);
         }
         return rc;
     }
@@ -830,17 +614,17 @@ public:
     }
 
 private:
-    /* The staged WriteFile (direct path needs a sector-aligned DATA
-     * BUFFER; the RDA path MDL-locks the user buffer at any alignment).
-     * Records the failing GLE in write_gle_ for the heal decision. F11:
-     * the RDA driver reports Information = Length * 512 on writes too -
-     * either the scaled or true count is success. */
+    /* The staged WriteFile: the direct path needs a sector-aligned DATA
+     * BUFFER (the storage stack requires sector-aligned buffers on raw
+     * handles). Records the failing GLE in write_gle_ for the heal
+     * decision. Success is put == len exactly (direct handles report
+     * true byte counts - the driver-era F11 scaling is gone). */
     u32 write_impl_(u64 off, const void* buf, u32 len) {
         write_gle_ = 0;
         const u32 ssec = geom_.logical_sector ? geom_.logical_sector : 512;
         void* src = const_cast<void*>(buf);
         void* staged = nullptr;
-        if (!via_rda_ && (reinterpret_cast<uintptr_t>(buf) % ssec) != 0) {
+        if ((reinterpret_cast<uintptr_t>(buf) % ssec) != 0) {
             staged = _aligned_malloc(len, ssec);
             if (staged == nullptr)
                 return ERR_NO_MEMORY;
@@ -869,9 +653,7 @@ private:
         }
         if (staged)
             _aligned_free(staged);
-        if (via_rda_ && put != len && put != len * rda::kLegacyInformationScale)
-            return ERR_WRITE_FAILED;
-        if (!via_rda_ && put != len)
+        if (put != len)
             return ERR_WRITE_FAILED;
         return OK;
     }
@@ -922,7 +704,6 @@ private:
 
     HANDLE h_;
     Geometry geom_;
-    bool via_rda_ = false;
     u32 disk_ = 0;
     std::wstring path_;
     DWORD access_ = GENERIC_READ | GENERIC_WRITE;
@@ -937,19 +718,17 @@ private:
 
 } // namespace
 
-/* shared RW open (driver-only, PLAN-DRIVER-ONLY R3): the concrete RwDevice
- * is an apply::IApplyDevice (IS-A IWriteDevice), so the two public factories
- * are typed views of one open path. The direct \\.\PhysicalDriveN RW tail
- * is REMOVED - the grammar path is the only leg; a failure here with a
- * Ready driver is a target error (ERR_OPEN_FAILED), not a driver-state
- * refusal (callers check query_driver_status first when they need the
- * classified ERR_DRIVER_* contract). */
+/* shared RW open (session-96: the direct era): the concrete RwDevice is an
+ * apply::IApplyDevice (IS-A IWriteDevice), so the two public factories are
+ * typed views of one open path - \\.\PhysicalDriveN opened GENERIC_READ|
+ * GENERIC_WRITE, share R|W|D (write-capable raw access needs the narrower
+ * share so concurrent writers surface honestly). A failure here under an
+ * elevated token is a target error (ERR_OPEN_FAILED); the privilege gate is
+ * the caller's precondition (require_privilege / the cr_ui impls). */
 namespace {
-std::unique_ptr<RwDevice> open_rw_device(u32 disk, const wchar_t* service, u32* err) {
-    const wchar_t* svc = service ? service : kDefaultDriverService;
-    const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
-    wchar_t path[256];
-    _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\%u\\%u", svc, tok, disk, 0);
+std::unique_ptr<RwDevice> open_rw_device(u32 disk, u32* err) {
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
     HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -968,18 +747,17 @@ std::unique_ptr<RwDevice> open_rw_device(u32 disk, const wchar_t* service, u32* 
     if (err)
         *err = OK;
     return std::unique_ptr<RwDevice>(
-        new RwDevice(h, g, true, disk, std::wstring(path), GENERIC_READ | GENERIC_WRITE,
+        new RwDevice(h, g, disk, std::wstring(path), GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE));
 }
 } // namespace
 
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service, u32* err) {
-    return open_rw_device(disk, service, err);
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, u32* err) {
+    return open_rw_device(disk, err);
 }
 
-std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, const wchar_t* service,
-                                                            u32* err) {
-    return open_rw_device(disk, service, err);
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, u32* err) {
+    return open_rw_device(disk, err);
 }
 
 u32 refresh_disk_properties(u32 disk) {

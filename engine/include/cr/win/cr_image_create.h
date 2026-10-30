@@ -35,23 +35,23 @@
 namespace cr {
 namespace win {
 
-/* Produce a flat raw image of `src` (any device: the RDA-transport disk
+/* Produce a flat raw image of `src` (any device: the direct-transport disk
  * view, an image reader, a test device) at out_path_utf16. stats (may be
- * null) carries the committed prefix. Driver status is NOT checked here:
+ * null) carries the committed prefix. Privilege is NOT checked here:
  * the caller opens the device (see create_disk_image below for the
  * class-(a) convenience form). */
 u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
                       CancelToken* cancel, storage::ImageCreateProgressFn progress,
                       void* progress_user, storage::ImageCreateStats* stats);
 
-/* The class-(a) convenience form (DRIVER-REQUIRED table): opens physical
- * disk N through the RDA grammar read view (win::open_disk) and produces
- * its image. The driver check is the CALLER's precondition (the CLI's
- * require_driver() gate and the ABI's caller both refuse first - same
+/* The class-(a) convenience form: opens physical disk N through the
+ * direct read view (win::open_disk) and produces its image. The
+ * privilege check is the CALLER's precondition (the CLI's
+ * require_privilege() gate and the ABI's caller both refuse first - same
  * posture as scan/recover/fix/apply/bench). */
-u32 create_disk_image(u32 disk, const wchar_t* service, const std::u16string& out_path_utf16,
-                      CancelToken* cancel, storage::ImageCreateProgressFn progress,
-                      void* progress_user, storage::ImageCreateStats* stats);
+u32 create_disk_image(u32 disk, const std::u16string& out_path_utf16, CancelToken* cancel,
+                      storage::ImageCreateProgressFn progress, void* progress_user,
+                      storage::ImageCreateStats* stats);
 
 } // namespace win
 } // namespace cr

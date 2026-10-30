@@ -171,11 +171,11 @@ u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
     return rc;
 }
 
-u32 create_disk_image(u32 disk, const wchar_t* service, const std::u16string& out_path_utf16,
-                      CancelToken* cancel, storage::ImageCreateProgressFn progress,
-                      void* progress_user, storage::ImageCreateStats* stats) {
+u32 create_disk_image(u32 disk, const std::u16string& out_path_utf16, CancelToken* cancel,
+                      storage::ImageCreateProgressFn progress, void* progress_user,
+                      storage::ImageCreateStats* stats) {
     u32 err = 0;
-    std::unique_ptr<IStorageDevice> dev = open_disk(disk, service, &err);
+    std::unique_ptr<IStorageDevice> dev = open_disk(disk, &err);
     if (!dev)
         return err;
     return create_image_file(*dev, out_path_utf16, cancel, progress, progress_user, stats);

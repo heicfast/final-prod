@@ -1,24 +1,28 @@
 /*
- * cr_transport.h - the Windows transport layer: RDA driver grammar path
- * ONLY for the data path (driver-only architecture, docs/DRIVER-REQUIRED.md),
- * plus the driver-status query surface (cr_driver_status.h).
+ * cr_transport.h - the Windows transport layer: DIRECT raw I/O, user mode,
+ * administrator privilege (session-96: the kernel-driver replacement).
  *
- * The reference duality is GONE by deliberate divergence: the og gates on
- * environment (WinPE -> direct) and silently NULLs failed driver opens
- * (corpus Device.mo; REFERENCE-DRIVER-BEHAVIOR section 4); our core had
- * added a failure-gated direct fallback on top of it (CORE-DISK-ACCESS
- * section d, F1-F12) - that superset is REMOVED (PLAN-DRIVER-ONLY section 4,
- * PARITY-DELTAS). The driver is a prerequisite: every data-path open below
- * fails fast with its ERR_DRIVER_* class when the driver is absent, not
- * started, unauthorized, wrong-version, or errored.
+ * The RDA driver era is GONE - removed, not gated, not deprecated, not left
+ * as a fallback. The data path opens \\.\PhysicalDriveN directly with the
+ * same access/share/disposition the grammar path used, reads through the
+ * unified 64 KiB envelope (io::direct_envelope - the sector-rejection and
+ * GAP-S6-13 defenses), and reports true byte counts (the driver-era F11
+ * Information=Length*512 scaling is deleted with the driver).
  *
- * Classified driver-INDEPENDENT (never used the driver; og evidence per row
- * in docs/DRIVER-REQUIRED.md): enumeration (cr_enumerate.cpp - og
- * GetLogicalDrives/WMI topology), health (cr_health.cpp - og DiskHealth
- * direct SMART), BitLocker volume state, destination arming
- * (volume_extent(s)/destination_volume_letter), and the post-apply layout
- * refresh (refresh_disk_properties - og PR:46873-46880). Disk images are
- * driver-independent by design (S-030, cr_image.h).
+ * The privilege model (the mandate's honest-elevation contract): the direct
+ * layer's single precondition is the process token. Every raw-disk open in
+ * a non-elevated process refuses with ERR_ELEVATION_REQUIRED (0x500C0001);
+ * image targets never touch raw disks and are exempt by classification.
+ * The CLI prints the refusal and exits 4; the ABI host triggers its own
+ * elevation flow and retries. Nothing elevates silently; nothing runs a
+ * helper; nothing bypasses the OS flow.
+ *
+ * Classified driver-INDEPENDENT (never used the driver; the classification
+ * predates the removal): enumeration (cr_enumerate.cpp - WMI topology),
+ * health (cr_health.cpp - direct SMART), BitLocker volume state, destination
+ * arming (volume_extent(s)/destination_volume_letter), and the post-apply
+ * layout refresh (refresh_disk_properties). Disk images are file-backed by
+ * design (S-030, cr_image.h).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -31,7 +35,6 @@
 #include "cr/storage/cr_slice.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/apply/cr_apply.h"
-#include "cr/win/cr_driver_status.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -40,64 +43,55 @@ namespace cr {
 namespace win {
 
 /* ---------------------------------------------------------------------------
- * Driver-status surface (docs/DRIVER-REQUIRED.md; ABI: cr_ui_driver_status;
- * CLI: rrecov driver). Fills every facet, then classify via
- * driver_state()/driver_state_error() (cr_driver_status.h). Threading:
- * synchronous, thread-safe (opens its own SCM/database and device handles,
- * closes them before returning); no state is retained between calls.
- * Returns OK when the query itself completed (state is in *out - including
- * non-Ready states); returns ERR_BAD_PARAMETER on null arguments. The
- * QUERY never fails on driver condition - it REPORTS it (that is the whole
- * point of the diagnostic surface).
+ * The privilege precondition (the direct-access replacement of the
+ * driver-era status-query gate). is_elevated() (cr_elevate.h) probes the
+ * process token's TokenElevation: TRUE for an elevated token, FALSE for
+ * standard users AND non-elevated admins (raw \\.\PhysicalDriveN access
+ * needs the ELEVATED token, not mere group membership). Every data-path
+ * consumer checks this FIRST and refuses with ERR_ELEVATION_REQUIRED
+ * (0x500C0001) - the single refusal class of the direct era.
  * ------------------------------------------------------------------------- */
-u32 query_driver_status(const wchar_t* service_name, DriverStatus* out);
-
-/* Open the RDA driver's 3-segment EPMNtDrv grammar path
- * \\.\SVC\<token>\<disk>\<part> (FB-L01: no cascade - the 2-segment and
- * Volume\<n> variants are separate grammar functions, TRANSPORT-CONTRACT
- * 2.1; the structured-open RdaClient was deleted by N-041 - zero callers
- * since introduction). The DATA-PATH open: requires the driver (the caller
- * checks driver state first - see require-driver usage in rrecov.cpp /
- * open_*_impl in cr_ui.cpp); returns null + err (ERR_OPEN_FAILED and the
- * CreateFile GLE via rda probe diagnostics) when the driver is usable but
- * the TARGET cannot be opened. */
-std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
-                                                   u32* err);
-std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
 
 /* S-030 disk images: the platform-owned ImageFileIo (CreateFileW-backed)
- * used by rrecov --image; feeds cr::storage::open_image. Driver-independent
- * by classification (docs/DRIVER-REQUIRED.md). */
+ * used by rrecov --image; feeds cr::storage::open_image. File-backed by
+ * classification (images never touch raw disks). */
 storage::ImageFileIo& image_file_io();
+
+/* Whole-disk read view: \\.\PhysicalDriveN opened GENERIC_READ, share
+ * R|W|D (the exact open posture the grammar path used). The returned
+ * device serves every engine read through the 64 KiB envelope with true
+ * byte counts. A non-elevated token is the caller's precondition to check
+ * (require_privilege in rrecov.cpp / the cr_ui open impls); an open
+ * failure under an elevated token is a TARGET error: ERR_OPEN_FAILED
+ * (absent disk number, protected device, or a busy disk). */
+std::unique_ptr<IStorageDevice> open_disk(u32 disk, u32* err);
 
 /* CONTROL-PATH whole-disk open (\\.\PhysicalDriveN, read-only share) - used
  * by ENUMERATION only (cr_enumerate.cpp; the og's own enumeration never
- * touches the driver, getdriverinfo:20-29). NOT a data-path open: the scan/
- * recover/fix/apply/bench data path is open_rda_partition / open_disk below.
- * (Kept for the classified-(b) control consumers; open_harddisk_volume and
- * the data-path direct fallbacks were removed with the driver-only
- * architecture.) */
+ * needed more than this). Same mechanism as the data path; kept as the
+ * classified control-consumer entry point. */
 std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err);
 
-/* Whole-disk view with probed geometry over the RDA grammar path. The
- * driver is REQUIRED: the grammar open is the only leg (the direct
- * \\.\PhysicalDriveN fallback and the WinPE gate are REMOVED -
- * PLAN-DRIVER-ONLY R2/R12). Callers that need a refusal with the specific
- * ERR_DRIVER_* class check driver state first (query_driver_status); an
- * open failure here with a Ready driver is a target error (ERR_OPEN_FAILED
- * with the GLE), not a driver-state refusal. */
-std::unique_ptr<IStorageDevice> open_disk(u32 disk, const wchar_t* service, u32* err);
+/* Write-capable whole-disk view for the repair engine (RawFixer):
+ * \\.\PhysicalDriveN opened GENERIC_READ|GENERIC_WRITE. Writes are staged
+ * through a sector-aligned buffer when the caller's is unaligned (the
+ * direct-write rule - the storage stack requires sector-aligned buffers
+ * on raw handles). The S-010 quiesce chain (LOCK -> dismount -> offline,
+ * restore on release) guards every write to a mounted disk. Open the read
+ * view separately with open_disk() for analyze(). */
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, u32* err);
 
-/* Write-capable whole-disk view for the repair engine (RawFixer): an RDA
- * handle opened GENERIC_READ|GENERIC_WRITE (the driver forwards IRP_MJ_WRITE
- * with byte-offset semantics). Writes are staged through a sector-aligned
- * buffer when the caller's is unaligned (the direct-path alignment rule -
- * retained defensively for exotic alignment even though the RDA path
- * MDL-locks any alignment); reads honor the F11 Information=Length*512
- * contract on the RDA path. Open the read view separately with open_disk()
- * for analyze(). Driver REQUIRED (the direct RW fallback is REMOVED -
- * PLAN-DRIVER-ONLY R3). */
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service, u32* err);
+/* S-029 (apply): the APPLY-capable write view (lost-partition table
+ * writes). Same direct transport posture as open_disk_rw; the returned
+ * device additionally carries the corpus PartitionRecovery device-control
+ * chain (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100, IOCTL_DISK_SET_DRIVE_LAYOUT
+ * 0x7C010, the 0x7C058 0x18-byte modern record, IOCTL_DISK_UPDATE_PROPERTIES
+ * 0x70140 with the 3x Sleep(1000) retry tail - decompile cites in
+ * cr_apply.h), issued directly on the \\.\PhysicalDriveN handle (the driver
+ * merely passed these through; refresh_disk_properties is the in-tree proof
+ * the direct handle accepts them). Open the read view with open_disk() for
+ * planning. */
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, u32* err);
 
 /* S-029 (apply): IOCTL_DISK_UPDATE_PROPERTIES on \\.\PhysicalDriveN with
  * the corpus settle pattern (3 x Sleep(1000) retries, PartitionRecovery
@@ -105,21 +99,9 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* 
  * the new entry stays invisible to the volume manager. Returns OK when
  * the refresh was accepted (or the settle exhausted - the table write
  * itself already succeeded; the refresh is best-effort by contract, the
- * caller reports it, never fails the apply on it). Classified (b): the
- * og issues this device-management IOCTL on its own direct handle. */
+ * caller reports it, never fails the apply on it). */
 u32 refresh_disk_properties(u32 disk);
 
-/* S-029: the APPLY-capable write view (lost-partition table writes).
- * Same RDA-only transport posture as open_disk_rw; the returned device
- * additionally carries the corpus PartitionRecovery device-control chain
- * (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100, IOCTL_DISK_SET_DRIVE_LAYOUT
- * 0x7C010, the 0x7C058 0x18-byte modern record, IOCTL_DISK_UPDATE_PROPERTIES
- * 0x70140 with the 3x Sleep(1000) retry tail - decompile cites in
- * cr_apply.h) - issued through the RDA bound handle (the driver passes
- * non-session IOCTLs through to the bound target, DRIVER-CONTRACT 3).
- * Open the read view with open_disk() for planning. Driver REQUIRED. */
-std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, const wchar_t* service,
-                                                            u32* err);
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).
  * N-013: reports the FIRST extent only - kept for the source-disk lookup

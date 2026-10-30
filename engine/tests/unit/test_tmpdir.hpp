@@ -78,6 +78,13 @@ inline std::string read_repo_text(const char* relpath) {
     return raw;
 }
 
+/* session-96: the deleted-file pin - read_repo_file/read_repo_text assert
+ * on absence, so a "must not exist" pin needs a non-asserting probe. */
+inline bool repo_file_exists(const char* relpath) {
+    return std::filesystem::exists(
+        std::filesystem::path(std::string(CR_SOURCE_DIR) + "/" + relpath));
+}
+
 } // namespace cr_test
 
 #endif // CR_TEST_TMPDIR_HPP_

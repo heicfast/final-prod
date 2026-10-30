@@ -91,11 +91,7 @@ Single numeric space, shared with `cr_error.h`. Selected codes:
 | 0x50050001 | ERR_DEST_OVERLAP | destination overlaps the source (F12 refusal) |
 | 0x50060001 | ERR_FVE_LOCKED | BitLocker volume locked (legitimate unlock failed) |
 | 0x50060002 | ERR_FVE_ELEVATION_REQUIRED | FVE auto-unlock keys exist but require an elevated token (M-105 option (a): the harvest's ACL diagnosis; append-only in the FVE family) |
-| 0x500B0001 | ERR_DRIVER_ABSENT | driver service not installed (prerequisite gate, DRIVER-REQUIRED.md §4) |
-| 0x500B0002 | ERR_DRIVER_NOT_STARTED | driver installed, service not RUNNING |
-| 0x500B0003 | ERR_DRIVER_UNAUTHORIZED | device DACL denied the control-device open |
-| 0x500B0004 | ERR_DRIVER_VERSION_MISMATCH | GET_INFO (0x6002440) wire major != required |
-| 0x500B0005 | ERR_DRIVER_ERRORED | service RUNNING but unusable (open/GET_INFO/GET_VERSION failure class) |
+| 0x500C0001 | ERR_ELEVATION_REQUIRED | raw disk access needs an elevated process token (the direct-era prerequisite gate; the driver-era 0x500B family was removed with the driver — session-96) |
 | 0x50090001 | CR_UI_ERR_INTERNAL | internal invariant failure (bug — report it) |
 
 Diagnostics: `cr_ui_last_error()` returns thread-local text for the LAST
@@ -689,9 +685,8 @@ the live disk (UIUX/11:17). The reader half is S-030
 
 Contract:
 - `cr_ui_image_create(disk, utf8_path, progress, user)` — one-shot,
-  class (a) driver-required (DRIVER-REQUIRED.md): a non-Ready driver
-  state is a classified ERR_DRIVER_* refusal, the same gate as
-  `cr_ui_open_disk`.
+  class (a) privilege-required: a non-elevated token is an
+  ERR_ELEVATION_REQUIRED refusal, the same gate as `cr_ui_open_disk`.
 - Progress: the recovery-style cumulative-bytes callback (bytes done /
   bytes total, once per 64 KiB chunk); may be NULL.
 - Truth contract (the finding's acceptance): streamed to
@@ -872,7 +867,7 @@ full widths since v3 — `bytes[48]`, `mime[81]`, `sign_len` 1..48, `offset`
 memcpy of a 73-char MIME with no terminator inside the field — a host
 string read ran past it; the v3 resize is the completing half.
 
-### 7e. The transport-open diagnostic (M-030; driver-only since PLAN-DRIVER-ONLY)
+### 7e. The transport-open diagnostic (M-030; direct since session-96)
 
 `cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk` /
 `cr_ui_open_volume`-family call ended as it did. The advisory is
@@ -882,15 +877,16 @@ authoritative:
 
 - `0` — the last open succeeded (or no open was attempted yet; the
   unsupported-platform stub records the clean state).
-- `ERR_DRIVER_*` (`0x500B0001..0x500B0005`) — the last open refused at
-  the driver-prerequisite gate: the driver state was not Ready
-  (`absent` / `not_started` / `unauthorized` / `version_mismatch` /
-  `errored`), and the returned code equals the advisory
-  (`cr_ui.cpp` sets both from the same `driver_state_error()` value).
-- Any other `cr_error` — the driver was **Ready** but the TARGET would
-  not open (`ERR_OPEN_FAILED` etc.): a target error, never a silent
-  transport switch. There is no fallback leg anymore — the driver-only
-  architecture removed the RDA→direct fallback and the WinPE gate
-  entirely (DRIVER-REQUIRED.md; PLAN-DRIVER-ONLY R4/R12), so the
-  advisory never reports "the surviving leg" — it reports the one leg
-  there is.
+- `ERR_ELEVATION_REQUIRED` (`0x500C0001`) — the last open refused at
+  the privilege gate: the process token is not elevated (raw
+  `\\.\PhysicalDriveN` access needs the ELEVATED token — a
+  non-elevated admin's group membership is not enough), and the
+  returned code equals the advisory (`cr_ui.cpp` sets both from the
+  same probe). The host triggers its own elevation flow (the standard
+  OS UAC prompt) and retries.
+- Any other `cr_error` — the token **was** elevated but the TARGET
+  would not open (`ERR_OPEN_FAILED` etc.): a target error, never a
+  silent transport switch. There is no fallback leg — the direct
+  architecture is the one leg there is (the kernel driver was removed
+  entirely, session-96), so the advisory never reports "the surviving
+  leg" — it reports the one leg there is.

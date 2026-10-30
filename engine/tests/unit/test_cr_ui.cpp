@@ -3973,32 +3973,36 @@ TEST(CrUi, UserSignAbiCarriesTheFullS039Widths) {
 
 TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     /* M-030 claim (f): the ABI can now report the transport-open
-     * diagnostic (ABI-since 2.2, additive). DRIVER-ONLY SESSION UPDATE:
-     * the clean-state-zero premise is stale - there is no direct leg on
-     * Windows anymore. The current contract (docs/DRIVER-REQUIRED.md
-     * section 6): on a driverless host the open REFUSES with the
-     * classified ERR_DRIVER_ABSENT code and the advisory carries that
-     * class (the presentation channel for hosts that surface transport
-     * diagnostics); on a driver-attached host the grammar open succeeds
-     * and a successful open resets the advisory to 0. The Linux stub
-     * still answers UNSUPPORTED and records nothing. Fail-before (this
-     * session): the pre-driver-only Windows leg asserted the direct-open
-     * clean state that no longer exists. */
+     * diagnostic (ABI-since 2.2, additive). DIRECT-ERA UPDATE
+     * (session-96): the clean-state-zero premise holds again - the
+     * direct open is the only leg on Windows. The current contract:
+     * on a non-elevated host the open REFUSES with
+     * ERR_ELEVATION_REQUIRED and the advisory carries that code (the
+     * presentation channel for hosts that surface transport
+     * diagnostics); on an elevated host the direct open either
+     * succeeds (advisory resets to 0) or fails with the target error.
+     * The Linux stub still answers UNSUPPORTED and records nothing. */
     cr_ui_device* d = nullptr;
     const uint32_t rc = cr_ui_open_disk(0, &d);
 #ifdef _WIN32
-    cr_ui_driver_status_t st;
-    ASSERT_EQ(cr_ui_driver_status(&st), 0u) << "the status query itself must succeed";
-    if (st.state == CR_UI_DRIVER_STATE_READY) {
-        EXPECT_EQ(rc, 0u) << "driver-attached host: the grammar open succeeds";
-        ASSERT_NE(d, nullptr);
-        cr_ui_device_close(d);
-        EXPECT_EQ(cr_ui_last_transport_error(), 0u) << "success resets the advisory";
+    if (cr::win::is_elevated()) {
+        /* elevated: open succeeds (advisory 0) or fails with a target
+         * error; the advisory carries whichever it was */
+        if (rc == 0u) {
+            ASSERT_NE(d, nullptr);
+            cr_ui_device_close(d);
+            EXPECT_EQ(cr_ui_last_transport_error(), 0u) << "success resets the advisory";
+        } else {
+            EXPECT_EQ(d, nullptr);
+            /* the refusal class is visible through the advisory */
+            EXPECT_NE(cr_ui_last_transport_error(), 0u);
+        }
     } else {
-        EXPECT_EQ(rc, 0x500B0001u) << "driverless host: the classified ERR_DRIVER_ABSENT refusal";
+        /* non-elevated: the classified privilege refusal, exactly */
+        EXPECT_EQ(rc, 0x500C0001u) << "the ERR_ELEVATION_REQUIRED refusal";
         EXPECT_EQ(d, nullptr);
-        EXPECT_EQ(cr_ui_last_transport_error(), 0x500B0001u)
-            << "the advisory carries the refusal class (DRIVER-REQUIRED.md section 6)";
+        EXPECT_EQ(cr_ui_last_transport_error(), 0x500C0001u)
+            << "the advisory carries the refusal class";
     }
 #else
     EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
@@ -4006,7 +4010,8 @@ TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
 #endif
 }
 
-/* ---- api-fix session: ABI doc-truth pins (the driver-era drift batch) ---- */
+/* ---- api-fix session: ABI doc-truth pins (rewritten for the direct
+ * era by session-96 - the driver-era pins died with the driver) ---- */
 
 TEST(CrUi, AbiHeaderNamesNoPhantomErrorMacros) {
     /* api-fix: cr_ui.h once documented `CR_UI_ERR_INVALID_PARAM` in the
@@ -4019,93 +4024,53 @@ TEST(CrUi, AbiHeaderNamesNoPhantomErrorMacros) {
         << "the header must not name a macro that does not exist";
 }
 
-TEST(CrUi, TransportDocCarriesNoDirectValue) {
-    /* api-fix: the cr_ui_device_transport comment once listed "direct"
-     * as a third value - unreachable since PLAN-DRIVER-ONLY (the code
-     * only ever sets "rda"/"image"). The stale value must not return. */
+TEST(CrUi, TransportDocCarriesDirectTruth) {
+    /* session-96: the transport contract must advertise exactly the two
+     * live values - "direct" and "image" - and must not resurrect the
+     * removed "rda" value. */
     const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
     ASSERT_FALSE(hdr.empty());
     const size_t at = hdr.find("cr_ui_device_transport");
     ASSERT_NE(at, std::string::npos);
     /* the contract comment block sits just above the declaration */
     const std::string around = hdr.substr(at > 600 ? at - 600 : 0, 700);
-    EXPECT_EQ(around.find("\"rda\", \"direct\""), std::string::npos)
-        << "the transport contract must not advertise the removed direct value";
+    EXPECT_NE(around.find("\"direct\""), std::string::npos)
+        << "the transport contract must advertise the direct value";
+    EXPECT_EQ(around.find("\"rda\""), std::string::npos) << "the removed rda value must not return";
 }
 
-TEST(CrUi, AbiContractCarriesDriverEraTruth) {
-    /* api-fix: ABI-CONTRACT's normative error table (section 4) must
-     * carry the ERR_DRIVER_* family the ABI opens actually return, and
-     * the event block (section 6) must carry CR_EVT_FS_CHECK (type 10)
-     * with the M-041 struct tail. The section 7e rewrite must not
-     * resurrect the removed RDA->direct fallback story. */
+TEST(CrUi, AbiContractCarriesDirectEraTruth) {
+    /* session-96: ABI-CONTRACT's normative error table (section 4) must
+     * carry ERR_ELEVATION_REQUIRED (the direct era's single refusal
+     * class) and must NOT carry the removed ERR_DRIVER_* family; the
+     * event block (section 6) must still carry CR_EVT_FS_CHECK (type
+     * 10) with the M-041 struct tail. */
     const std::string doc = cr_test::read_repo_text("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
-    EXPECT_NE(doc.find("ERR_DRIVER_ABSENT"), std::string::npos)
-        << "section 4 must list the driver-prerequisite refusal family";
+    EXPECT_NE(doc.find("ERR_ELEVATION_REQUIRED"), std::string::npos)
+        << "section 4 must list the privilege-refusal class";
+    EXPECT_EQ(doc.find("ERR_DRIVER_ABSENT"), std::string::npos)
+        << "the removed driver family must not be documented";
     EXPECT_NE(doc.find("CR_EVT_FS_CHECK"), std::string::npos)
         << "section 6 must list event type 10";
     EXPECT_NE(doc.find("check_errors"), std::string::npos)
         << "section 6's struct sketch must carry the M-041 tail fields";
-    EXPECT_NE(doc.find("0x500B0005"), std::string::npos)
-        << "the full 0x500B family belongs in the error table";
-    /* the removed fallback story must stay gone */
-    const size_t s7e = doc.find("### 7e.");
-    ASSERT_NE(s7e, std::string::npos);
-    const std::string tail = doc.substr(s7e, 2200);
-    EXPECT_EQ(tail.find("direct fallback succeeds"), std::string::npos)
-        << "section 7e must describe the driver-only advisory, not the removed fallback";
-    EXPECT_EQ(tail.find("WinPE environment gate"), std::string::npos)
-        << "the WinPE gate was removed with the fallback";
 }
 
-TEST(CrUi, DriverWireCodesFreeOfPhantomZeroInDocs) {
-    /* api-fix: the extended IOCTL codes are 0x6002440/0x6002444/0x6002448
-     * (CTL_CODE_RDA(fn), wire-truth fix commit 3bda8e2). The
-     * phantom-zero 0x6000244x literals were swept from the normative
-     * docs and code comments; this pin keeps them out. The identity
-     * codes 0x60002400/0x60002404/0x60002408 are RAW values and stay. */
-    const char* const files[] = {
-        "docs/DRIVER-REQUIRED.md",
-        "docs/DRIVER-CONTRACT.md",
-        "docs/DRIVER-RELEASE.md",
-        "docs/PLAN-DRIVER-ONLY.md",
-        "docs/CORE-API-CURRENT.md",
-        "docs/CORE-DISK-ACCESS.md",
-        "docs/CAPABILITY-MATRIX.md",
-        "docs/PARITY-DELTAS.md",
-        "include/cr/win/cr_driver_status.h",
-        "src/win/cr_transport.cpp",
-    };
-    for (const char* f : files) {
-        const std::string txt = cr_test::read_repo_file(f);
-        ASSERT_FALSE(txt.empty()) << f;
-        EXPECT_EQ(txt.find("0x60002440"), std::string::npos)
-            << f << ": phantom-zero GET_INFO literal";
-        EXPECT_EQ(txt.find("0x60002444"), std::string::npos)
-            << f << ": phantom-zero OPEN_TARGET literal";
-        EXPECT_EQ(txt.find("0x60002448"), std::string::npos)
-            << f << ": phantom-zero GET_VERSION literal";
-    }
-}
-
-TEST(CrUi, BenchVerifyDriverIoctlCodesMatchContract) {
-    /* The driver-verification bench must call the CONTRACT's extended
-     * IOCTLs (cr_rda.h's CTL_CODE_RDA derivations: 0x6002440 GET_INFO /
-     * 0x6002448 GET_VERSION) — the phantom-zero 0x6000244x forms can
-     * never reach the real handlers, so a bench carrying them verifies
-     * nothing while reporting GET_INFO/GET_VERSION "rejected". The
-     * fail-before state: both bench calls carried the extra zero digit. */
-    const std::string txt = cr_test::read_repo_text("bench/ours/verify-driver.ps1");
-    ASSERT_FALSE(txt.empty()) << "bench/ours/verify-driver.ps1 unreadable";
-    EXPECT_EQ(txt.find("0x60002440"), std::string::npos)
-        << "phantom-zero GET_INFO literal in the bench (the contract code is 0x6002440)";
-    EXPECT_EQ(txt.find("0x60002448"), std::string::npos)
-        << "phantom-zero GET_VERSION literal in the bench (the contract code is 0x6002448)";
-    EXPECT_NE(txt.find("0x6002440"), std::string::npos)
-        << "the bench must issue the contract's GET_INFO code";
-    EXPECT_NE(txt.find("0x6002448"), std::string::npos)
-        << "the bench must issue the contract's GET_VERSION code";
+TEST(CrUi, DriverSurfaceGoneFromAbiHeader) {
+    /* session-96: the driver-status ABI surface is REMOVED, not stubbed.
+     * The header must not declare cr_ui_driver_status, the state
+     * constants, or the status struct; the ABI version is 4. */
+    const std::string hdr = cr_test::read_repo_text("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_EQ(hdr.find("cr_ui_driver_status"), std::string::npos)
+        << "the export must not be declared";
+    EXPECT_EQ(hdr.find("CR_UI_DRIVER_STATE"), std::string::npos)
+        << "the state constants must not be declared";
+    EXPECT_EQ(hdr.find("ERR_DRIVER_"), std::string::npos)
+        << "the driver-era refusal family must not be documented";
+    EXPECT_NE(hdr.find("#define CR_UI_ABI_VERSION 4u"), std::string::npos)
+        << "the removal bumps the ABI version to 4";
 }
 
 TEST(CrUi, OutOfScopeRowsCarryTruthfulRegistrations) {
@@ -4159,10 +4124,10 @@ TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
     }
     ASSERT_GE(verbs.size(), 8u) << "dispatch extraction broke (found " << verbs.size() << ")";
 
-    /* the usage block: between `usage:` and the driver-prerequisite note */
+    /* the usage block: between `usage:` and the privilege-prerequisite note */
     const size_t usage_at = src.find("usage:");
     ASSERT_NE(std::string::npos, usage_at);
-    const size_t usage_end = src.find("driver prerequisite:", usage_at);
+    const size_t usage_end = src.find("privilege prerequisite:", usage_at);
     ASSERT_NE(std::string::npos, usage_end);
     const std::string usage = src.substr(usage_at, usage_end - usage_at);
 
