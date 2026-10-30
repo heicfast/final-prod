@@ -27,13 +27,16 @@ nvramfix UEFI Boot#### updater + the win-layer runtime), safe writer
 WinDestIo and BitLocker contract suites.
 
 ## Layer 2 - integration (Windows hosts, scripts/)
-rda-driver integration: install the RDA service (scripts from the driver
-repo), then `rrecov list` / `rrecov scan --disk 0 --deep` against test
-media. Matrix: Win7 SP1 / Win10 / Win11 / WinPE; 512e, 4Kn, SMR; USB
-attach/detach during scan (cancel path).
+raw-disk integration: run from an ELEVATED prompt (administrator — the
+direct \\.\\PhysicalDriveN path refuses with exit 4 /
+ERR_ELEVATION_REQUIRED otherwise; the unelevated-refusal probe is part
+of the contract), then `rrecov list` / `rrecov scan --disk 0 --deep`
+against test media. Matrix: Win7 SP1 / Win10 / Win11 / WinPE (direct
+access needs nothing installed — no service, no registration); 512e,
+4Kn, SMR; USB attach/detach during scan (cancel path).
 
 ## Layer 3 - benchmark (docs/benchmarking.md, v0.2)
-Scan throughput on the transport paths (RDA vs direct), carve rate per
+Scan throughput on the transport paths (direct vs image), carve rate per
 format, session save/load rate.
 
 ## Fuzz + CodeQL CI status (M-006, diff-to-fix session)

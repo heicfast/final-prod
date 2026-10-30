@@ -31,9 +31,10 @@ phase 1 now proves the producer end-to-end on the staged multi-gpt disk —
 byte-identity proof: the digest is computed over the device-read stream),
 image size == Get-Disk size, and `scan --image` of the produced file
 exits 0 (the corpus-recommended safe-scan posture, UIUX/11:17).
-> current consumers are `checks.yml` (the refusal contract's driverless
-> probes), `test-benchmark.yml` (the install chain + the scenario
-> matrix), and `installer.yml` (the S-038 gates). The table is preserved
+> current consumers are `checks.yml` (the refusal contract's unelevated
+> probes), `test-benchmark.yml` (the scenario matrix — no driver-install or
+> verify; the elevated runner token IS the access model),
+> and `installer.yml` (the S-038 gates). The table is preserved
 > as the historical contract record; read every row as pre-consolidation
 > history, not as a live lane.
 
@@ -41,7 +42,7 @@ exits 0 (the corpus-recommended safe-scan posture, UIUX/11:17).
 > matrix is versioned with the scenario matrix
 > (`.github/scenarios/benchmark-matrix.json`, seeded by
 > `bench/seed/generate_seed.ps1`); every scenario runs on
-> windows-2022 with the REAL prebuilt driver + REAL prebuilt core (no mock,
+> windows-2022 with the REAL prebuilt core (no mock,
 > no from-scratch build — docs/PREBUILT-ARTIFACTS.md) and uploads an evidence
 > artifact that IS the acceptance proof.
 
@@ -62,7 +63,7 @@ never from either tool's output.
 | S-DEL-FAT32 | FAT32 | same | same | the FAT family's deleted-dirent + chain recovery |
 | S-DEL-EXFAT | exFAT | same | same | exFAT deleted-dentry recovery |
 | S-FMT-NTFS | NTFS | seeded, then quick-format | the format itself | post-quick-format recovery (the og's formatted-drive scenario): the FS metadata is rebuilt by the format, so recovery routes through the deep/carve layers |
-| S-DRV-REFUSE | n/a | driver absent → installed → stopped | n/a | the refusal contract (pre-consolidation: executed in driver-install.yml; now checks.yml's driverless ABSENT probes + test-benchmark's READY facet assertions): ABSENT (exit 4, `0x500B0001`, no scan output) → READY (exit 0, every facet green, scan proceeds past the gate) → NOT_STARTED (exit 4, `0x500B0002`) |
+| S-DRV-REFUSE | n/a | unelevated process → elevated retry | n/a | the refusal contract (historical, driver era: executed in driver-install.yml with the ERR_DRIVER_* codes; session-96 replaced it with the elevation gate): the current probe is bench/ours/run-behavior.ps1 probe 1 — a NON-ELEVATED run refuses with exit 4, `0x500C0001` (ERR_ELEVATION_REQUIRED), no scan output; the elevated retry proceeds past the gate |
 
 ## The evidence artifacts (the acceptance proof per scenario)
 
@@ -72,8 +73,8 @@ never from either tool's output.
 - `expected-vs-observed.json` — per-file expected/found/size comparison.
 - `recover-log.txt` / `recovered/` — the recovery run to a fresh destination.
 - `hash-verification.json` — per-file recovered-vs-seed SHA256 verdicts.
-- `env-manifest.json` — runner image, MSVC version, resolved driver+core
-  tags, the convention document reference.
+- `env-manifest.json` — runner image, MSVC version, resolved core
+  tag, the convention document reference.
 
 Verdict: PASS requires every expected file found AND hash-verified. Extra
 finds are informational, never failures (carve may emit more than the

@@ -1,5 +1,7 @@
 # PLAN-CI-REBUILD — prebuilt-artifact CI, combined release, local-first validation
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Superseded in part (2026-10-28 consolidation + M-088):** the lanes this
 > plan specified in §3.2–§3.4 (`driver-install.yml`, `core-install.yml`,
 > `staged-scenarios.yml`) were never created as separate workflows — the
@@ -7,8 +9,9 @@
 > release / test-benchmark / installer; docs/CI-CURRENT.md). Read those
 > sections as the historical design record; the contracts live on.
 
-> Session: driver-only mandate §4–§6. Current state: [CI-CURRENT.md](CI-CURRENT.md). Artifact shapes:
-> [DRIVER-RELEASE.md](DRIVER-RELEASE.md) (driver: tag `v*`, 7 flat assets), core release shape below.
+> Session: driver-only mandate §4–§6 (the driver-era mandate — historical). Current state: [CI-CURRENT.md](CI-CURRENT.md). Artifact shapes:
+> the driver-era release contract (deleted with the driver, session-96; it specified tag `v*` and 7 flat
+> assets), core release shape below.
 > Non-negotiables inherited verbatim from the mandate: **no from-scratch build in the correctness path**
 > (prebuilt releases by documented convention; the release workflow is the sole source of builds);
 > **no release without green**; **no push without local green**; **no test on a mock** (real driver, real
@@ -33,13 +36,13 @@ workflow consumes releases. That is the whole rule.
 
 **Driver (rda-driver):**
 - Latest release = GitHub API `GET /repos/heicfast/rda-driver/releases/latest` (tag `vX.Y.Z`, semver).
-- Required assets (exact names, from DRIVER-RELEASE §3): `rda.sys`, `rda.inf`, `install.ps1`,
+- Required assets (exact names, from the deleted driver-era release contract §3): `rda.sys`, `rda.inf`, `install.ps1`,
   `uninstall.ps1`, `SHA256SUMS` (rdacli.exe/run-integration.ps1 optional consumers).
 - Verification: SHA256SUMS per-line check with the documented `scripts/`-prefix tolerance
   (lines whose path does not resolve as a flat asset name are reported, not silently skipped —
   CI-CURRENT §3 documented the old fetcher's silent skip; the new one FAILS if a REQUIRED asset is
   missing or mismatches, and prints the missing list).
-- Functional floor: >= v0.2.1 (the bare-open error-87 fix; DRIVER-UTILIZATION:241-252); the convention
+- Functional floor: >= v0.2.1 (the bare-open error-87 fix; the deleted driver-era utilization doc's § at 241-252); the convention
   resolves "latest", and a latest below the floor fails loudly (the status query would classify it Errored
   anyway — belt and suspenders).
 
@@ -94,7 +97,7 @@ artifact other than the evidence bundle.
 
 windows-2022 (and `windows-latest` as a secondary matrix cell — documents where the runner supports it).
 Steps: resolve latest core release by convention → download + SHA256SUMS + MANIFEST cross-check → unzip →
-stage → smoke the staged binaries with NON-disk operations only (per PLAN-DRIVER-ONLY §1 classification):
+stage → smoke the staged binaries with NON-disk operations only (per the driver-era plan §1 classification):
 `rrecov list`, `rrecov sessions`, `rrecov driver` (expected: exit 4 ABSENT — the driver is not installed in
 this workflow; this doubles as the refusal-contract regression probe) → upload evidence (resolved tag,
 SHA256 outputs, smoke logs). No artifact other than staged-binaries evidence.

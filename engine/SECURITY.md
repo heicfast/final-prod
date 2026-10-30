@@ -28,11 +28,15 @@ media).
 
 ## Transport boundary
 
-The raw-disk transport (`rda-driver`) publishes its control device
-with an admin/SYSTEM-only DACL — the DACL is the security boundary;
-elevation is required to install the kernel service. The engine
-accesses raw devices under the caller's own privileges and never
-modifies the driver's ACLs.
+The raw-disk transport is DIRECT user-mode I/O: `\\.\\PhysicalDriveN`
+opens under the caller's own privileges — the OS security boundary on
+the raw-device namespace is the entire story (administrator privilege is
+required to open raw disks; a non-elevated process gets the
+`ERR_ELEVATION_REQUIRED` refusal, never a silent elevation). The engine
+never runs a helper process, never elevates silently, and never modifies
+any ACL. No kernel-mode driver, no service, no certificate import ships with
+the product (session-96 removed the driver-era transport whose
+control-device DACL was its boundary).
 
 ## No persistent service (M-105, the no-service posture)
 

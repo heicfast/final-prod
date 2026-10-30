@@ -1,5 +1,7 @@
 # PARITY-REFACTOR-PLAN — deep architecture parity & refactor session
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Gate document. Written and pushed BEFORE any refactor code** (protocol step 7).
 > Evidence base: `AUDIT-ARCH.md`, `AUDIT-FALLBACKS.md`, `AUDIT-NTFS.md`, `AUDIT-FAT.md`,
 > `AUDIT-LINUX-FS.md`, `AUDIT-PIPELINE.md` (six parallel audits at pin `08b44ac` =

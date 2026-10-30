@@ -12,15 +12,18 @@ rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
 - `seq` - sequential throughput (MiB/s) at 4 KiB..16 MiB blocks over a MiB
   span, QPC-timed, sector-aligned buffers
 - `rand` - LCG-seeded random reads: mean latency + IOPS
-- `open` - open/close churn (the RDA grammar path vs direct CreateFile)
+- `open` - open/close churn (the \\.\\PhysicalDriveN open path)
 - `read` - LBA0 contract probe through the active transport
-- `info` - geometry/transport report (4Kn detection, rda vs direct)
+- `info` - geometry/transport report (4Kn detection, direct vs image)
 
-The transport is DRIVER-ONLY (docs/DRIVER-REQUIRED.md): the grammar path
-is the only leg - bench requires the driver and refuses with exit 4
-otherwise - so the numbers measure the stack exactly as a scan experiences
-it. Mode names and metrics align with the rda-driver `rdabench` tool, so
-driver-level and core-level numbers compare directly.
+The transport is DIRECT USER-MODE RAW I/O (session-96: the kernel driver
+was replaced by \\.\\PhysicalDriveN opens under an elevated token) - bench
+refuses with exit 4 (ERR_ELEVATION_REQUIRED) when the process is not
+elevated, so the numbers measure the stack exactly as a scan experiences
+it. `rrecov bench` reports transport "direct" (or "image"). Mode names and
+metrics historically aligned with the rda-driver `rdabench` tool, so
+driver-era and core-level numbers compared directly (the historical
+driver-era numbers stay citable as history).
 
 ## 2. Recovery benchmark - WIPPED, superseded by the staged-scenario truth matrix
 
@@ -31,11 +34,12 @@ The historical from-source benchmark/comparison workflows
 the core (and drove the og leg) from source per run - the exact waste the
 prebuilt-artifact mandate removes. Their surviving value lives on:
 
-- the DRIVER-install mechanics (fetch release + SHA256SUMS verify +
+- the driver-era install mechanics (fetch release + SHA256SUMS verify +
   test-sign + service install + verification) historically rode the shared
   composite `.github/actions/install-driver/action.yml` (deleted by the CI
-  consolidation — the mechanism now lives in
-  `.github/scripts/Install-ReleaseDriver.ps1`);
+  consolidation — the mechanism lived on in
+  `.github/scripts/Install-ReleaseDriver.ps1` until session-96 removed the
+  driver and its install chain entirely);
 - the end-to-end recall/precision role is superseded by
   `staged-scenarios.yml` (docs/CI-SCENARIOS.md): seeded VHD + scripted
   deletion + scan + expected-vs-observed + recovery + SHA256 verification,
@@ -47,11 +51,12 @@ prebuilt-artifact mandate removes. Their surviving value lives on:
 
 ## 3. Performance numbers - where they live now
 
-Transport-level numbers: `rrecov bench` on a driver-attached host, and the
-rda-driver repo's own `rdabench` + runner-comparison docs. Baseline
+Transport-level numbers: `rrecov bench` on an elevated host. Baseline
 transcriptions live in docs/PERFORMANCE-BASELINE.md /
 docs/BENCHMARK-REPORT.md (historical, recorded when the from-source lanes
-ran). New performance evidence is produced by measuring the prebuilt
+ran; the standing driver-era reference run is 41042267586 (v0.6.1,
+driver-backed): bench seq 1 MiB 536.92 MiB/s, rand 1993.22 µs/502 IOPS,
+open 17,019 ns). New performance evidence is produced by measuring the prebuilt
 releases (the same artifacts users run) - never by rebuilding per run.
 
 ## 4. Engine counters (in-process)

@@ -1,5 +1,7 @@
 # core_recovery release notes
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the entries below are historical release records. -->
+
 **A-F1 (the honest residue, filed not fixed):** the mid-stage carved-
 count telemetry delta (N-166's property) does not materialize on
 Windows — four release validations' evidence, three independent test

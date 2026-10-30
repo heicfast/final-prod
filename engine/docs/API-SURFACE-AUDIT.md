@@ -2,7 +2,8 @@
 
 > Session: core-api (2026-10-26). Baselines: core `e6d5b01`, driver `7e88e38`,
 > corpus `03ad46c`. Method: four parallel read-legs covered the corpus
-> (driver usage, API-facing behavior), the driver repo, and the core repo;
+> (driver usage, API-facing behavior), the then-extant driver repo (the
+> historical companion, removed since), and the core repo;
 > every load-bearing claim below was then re-verified first-hand in code or
 > corpus artifact. Citations: `path:line` / `path §section`. Nothing here is
 > projected from memory.
@@ -31,13 +32,15 @@ boundary is:
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
 `libcr_ui.so`): 92 exports (re-derived 2026-10-30, session-96: 95
 CR_UI_API lines - 3 #defines; the cr_ui_driver_status export was REMOVED
-with the kernel driver - the ABI bumped v3 -> v4 for the removal; the
+with the driver-era kernel component - the ABI bumped v3 -> v4 for the
+removal; the
 doc_truth_gate count invariants hold these in CI now - the "as of
 <landing>" snapshot phrasing retired with the gate, it is how stale
 counts hid)
-(`CR_UI_ABI_VERSION = 3` — v2: M-036 appended cr_ui_smart_report fields; v3:
-M-067 the cr_ui_user_sign field resize; the audit-time counts were 61 exports
-@ ABI 2), opaque handles, `cr_error`
+(`CR_UI_ABI_VERSION = 4` — v2: M-036 appended cr_ui_smart_report fields; v3:
+M-067 the cr_ui_user_sign field resize; v4: session-96 removed the
+driver-era cr_ui_driver_status export with the kernel driver; the
+audit-time counts were 61 exports @ ABI 2), opaque handles, `cr_error`
 returns, UTF-8 strings with documented ownership, no exceptions across the
 boundary (verified against `include/cr/cr_ui.h` `CR_UI_API` decls;
 the
@@ -158,8 +161,9 @@ verify_identity positive path + completed-session no-op run, non-Windows
 
 **Windows-only surfaces** (open_disk/open_volume/enumerate/health) are
 exercised on the Windows lane via the platform-truth probes and, against
-real disks with the driver loaded, by the bench harness (verify-driver.ps1,
-run-behavior.ps1, alignbench). The mid-run cross-thread cancel/pause
+real disks on the elevated runner (the access model since session-96), by
+the bench harness (run-behavior.ps1 — probe 1 is the unelevated-refusal
+probe — run-alignbench.ps1). The mid-run cross-thread cancel/pause
 semantics live in the C++ suite (std::thread; CancelSaveAndResume,
 PauseBlocksAndResumes) per the documented threading split.
 

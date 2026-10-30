@@ -5,7 +5,6 @@
 > cites were re-verified against the current tree — §(a) Win platform layer,
 > §(b) ABI tables, §(c) CLI grammar, §(d).5 — and re-pinned where drifted;
 > §(e)/§(f) keep their historical 22e9657-era cites under the banner below.
-> Companion document: [CORE-DISK-ACCESS.md](CORE-DISK-ACCESS.md) (the transport decision map).
 > This file inventories the surface as it EXISTS; historical/parity context lives in
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
 
@@ -29,24 +28,30 @@ the other counts);
 ABI event types **12** (the CR_EVT_* census).
 
 >
-> **POST-EXPANSION STATE (driver-only session, commit e58bde1+):** this sheet
+> **POST-EXPANSION STATE (driver-only session, commit e58bde1+ — historical
+> banner; that era itself ended with session-96):** this sheet
 > is the pre-change census. Added since: the ERR_DRIVER_* family (0x500B),
 > the `cr_ui_driver_status` ABI export + `cr_ui_scan_stats` truth fields
 > (bytes_unreadable / probe_unreadable), the `rrecov driver` verb, exit code
 > 4 (driver prerequisite), and the read-truth scan verdict (ERR_READ_FAILED
-> on total blindness). Current contracts: [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md),
+> on total blindness). Contracts of that era: the driver-era refusal
+> contract (deleted with the kernel driver, session-96) and
 > [cr_ui.h](../include/cr/cr_ui.h).
 >
 > **SUPERSEDED SECTIONS (do not read as current):** §(e) items 1-7 and §(f)
 > in their entirety describe the PRE-driver-only status surface —
-> `rda_available`/`win_pe_environment` were REMOVED by PLAN-DRIVER-ONLY
-> (probe → `win::query_driver_status`); `cr_ui_device_transport` reports
+> `rda_available`/`win_pe_environment` were REMOVED by that era's removal
+> plan (probe → `win::query_driver_status`); `cr_ui_device_transport` reports
 > "rda"/"image" only (no "direct"); `cr_ui_last_transport_error` is the
 > driver-only advisory (ABI-CONTRACT §7e); the wire IOCTLs are now ISSUED
 > (D-DRV-5, GET_INFO 0x6002440 + GET_VERSION 0x6002448); every §(f) gap is
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
-> superseded (classified ERR_DRIVER_* refusal, no fallback). Current
+> superseded (classified ERR_DRIVER_* refusal, no fallback). Session-96 in
+> turn ended that era itself — no kernel-mode driver remains,
+> `cr_ui_device_transport` reports "direct"/"image", the elevation gate
+> (ERR_ELEVATION_REQUIRED) replaced the driver-era gate, and §(e)/§(f) stand as
+> the historical census of both ended eras. Current
 > counts: 92 exports / 13 verbs / 40+OK error codes / 12 ABI event types> (re-derived 2026-10-30, session-96 - the driver removal recount: the
 > cr_ui_driver_status export and the `driver` verb died with the kernel
 > driver, the five ERR_DRIVER_* members with it, ERR_ELEVATION_REQUIRED
@@ -162,33 +167,31 @@ ABI event types **12** (the CR_EVT_* census).
 
 | Symbol | Purpose |
 |---|---|
-| `win::query_driver_status(service_name, out)` | the driver-status diagnostic query — fills every facet, never fails on driver condition, it REPORTS it (cr_transport.h:53) |
-| `win::open_rda_partition/open_rda_volume` | grammar-path driver opens (cr_transport.h:64-66) |
-| `win::image_file_io()` | the Win32 ImageFileIo singleton (cr_transport.h:71) |
-| `win::open_physical_drive` | CONTROL-PATH whole-disk open (\\.\\PhysicalDriveN), enumeration-only — NOT a data-path open; `open_harddisk_volume` and the direct data-path fallbacks are REMOVED (cr_transport.h:80) |
-| `win::open_disk(disk, service, err)` | the whole-disk data-path open over the RDA grammar path — driver REQUIRED, the grammar open is the only leg (cr_transport.h:89) |
-| `win::open_disk_rw` / `open_disk_apply_rw` | write-capable views (repair/apply), RDA handles GENERIC_READ|WRITE (cr_transport.h:100/:121) |
+| `win::image_file_io()` | the Win32 ImageFileIo singleton (cr_transport.h:58) |
+| `win::open_physical_drive` | CONTROL-PATH whole-disk open (\\.\\PhysicalDriveN, read-only share), enumeration-only — the classified control-consumer entry point (cr_transport.h:69-73) |
+| `win::open_disk(disk, err)` | the whole-disk data-path open — DIRECT \\.\\PhysicalDriveN, GENERIC_READ, share R\|W\|D, through the 64 KiB envelope with true byte counts; the caller's elevation precondition (require_privilege / the cr_ui open impls) refuses ERR_ELEVATION_REQUIRED when the token is not elevated (cr_transport.h:60-67) |
+| `win::open_disk_rw` / `open_disk_apply_rw` | write-capable views (repair/apply): \\.\\PhysicalDriveN GENERIC_READ\|WRITE with sector-aligned write staging; apply carries the corpus device-control chain directly on the handle (cr_transport.h:75-94) |
 | `win::refresh_disk_properties` | S-029 IOCTL_DISK_UPDATE_PROPERTIES + settle (cr_transport.h:110) |
 | `win::volume_extent/volume_extents/destination_volume_letter` | N-013 destination arming (cr_transport.h:127-152) |
 | `win::enumerate_disks/enumerate_disk_interfaces/merge_disk_enumeration/enumerate_volumes` + `PhysicalDisk/VolumeEntry` + `decode_device_descriptor/decode_device_id_descriptor/bus_interface_name` | N-071 two-stack enumeration (cr_enumerate.h:37-258) |
 | `win::WinDestIo` | Win32 atomic temp+rename DestIo (cr_destio.h:17-45) |
-| `win::is_elevated()` | GAP-P1-5 elevation probe (cr_elevate.h:23) |
+| `win::is_elevated()` | GAP-P1-5 elevation probe (cr_elevate.h:23) — the direct era's single precondition check (TokenElevation; every raw-disk open refuses ERR_ELEVATION_REQUIRED without it) |
 | `win::health::read_smart/read_nvme_health/query_trim_state/looks_like_ssd/smart_attr_name` + `SmartReport/SmartAttribute/NvmeHealth` | health surface (cr_health.h:45-98) |
 | `win::bitlocker::is_fve_volume/status/unlock/try_auto_unlock(_offline)/unlock_with_dictionary` (+detail seams) | R8/S-014/N-064 BitLocker surface (cr_bitlocker.h:31-114) |
 | `win::bootfix::bcd_file_plan/bcd_file_execute/nvram_plan/nvram_execute/force_unload_bcd_hive/...` | M-040 win runtime (cr_bootfix.h:72-95) |
-| `rda::compute_pid_token/control_device_path` + all wire constants/structs | the driver wire contract mirror (cr_rda.h:38-225) — structs doc-only, no client issues them |
 | `health::parse_nvme_health_page/grade_smart/grade_nvme/classify_family/...` (cr_nvme.h, cr_grade.h, cr_smart_ata.h, cr_csmi.h) | pure health parsing/grading seams |
 
 ---
 
-## (b) The C UI ABI — every export (93 at the current tree; `CR_UI_ABI_VERSION 2`, cr_ui.h:79)
+## (b) The C UI ABI — every export (92 at the current tree; `CR_UI_ABI_VERSION 4`, cr_ui.h:81)
 
-> **Census honesty note (2026-10-30):** the tables below enumerate the
+> **Census honesty note (2026-10-30, session-96 recount):** the tables below enumerate the
 > surface as it stood at the v0.4.1-parity census — a historical count
-> (78 exports at that audit-time; the tree now derives 93). The 15 newer
+> (78 exports at that audit-time; the tree now derives 92). The newer
 > exports — the M-101 query-tag tails, the N-140 carve-tally
 > pair, `cr_ui_unlock_volume_with_dictionary` (N-064),
-> `cr_ui_driver_status`, `cr_ui_health_read`, `cr_ui_fsck_volume`
+> `cr_ui_driver_status` (the driver-era export, since removed with the
+> kernel driver — session-96), `cr_ui_health_read`, `cr_ui_fsck_volume`
 > (M-075), `cr_ui_turn_off_bitlocker` (M-078), `cr_ui_session_resume_last`,
 > `cr_ui_last_autosave_path` and their siblings — carry their full
 > contracts in `include/cr/cr_ui.h` (the normative header comments) and
@@ -212,14 +215,14 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 | Export | Contract |
 |---|---|
 | `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:296) |
-| `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with the classified ERR_DRIVER_* code when the RDA driver is absent/not-started/unauthorized/version-incompatible/errored — NO direct-handle fallback (PLAN-DRIVER-ONLY); transport (always "rda") reported by device_transport (cr_ui.h:314). S-051: scanning a whole-disk target reads the partition list at scan setup and makes every used, non-container partition a scan target (the og's CDoScanPartition flow; architecture/04-recovery-workflow.md §3.4) — a host-set fs_hint keeps the single-dispatch slice assertion, an unasserted target with a table never silently yields nothing; per-volume skips are surfaced in ScanStats.table_volumes* |
+| `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with ERR_ELEVATION_REQUIRED (0x500C0001) when the process token is not elevated — the host triggers its own UAC flow and retries (session-96: the direct \\.\\PhysicalDriveN path is the one leg); transport ("direct") reported by device_transport (cr_ui.h:383-387). S-051: scanning a whole-disk target reads the partition list at scan setup and makes every used, non-container partition a scan target (the og's CDoScanPartition flow; architecture/04-recovery-workflow.md §3.4) — a host-set fs_hint keeps the single-dispatch slice assertion, an unasserted target with a table never silently yields nothing; per-volume skips are surfaced in ScanStats.table_volumes* |
 | `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001) or `CR_UI_ERR_FVE_ELEVATION_REQUIRED` (0x50060002, M-105: the ACL diagnosis - the store exists but the token cannot read it); returns the volume slice on its parent disk (cr_ui.h:315) |
-| `cr_ui_last_transport_error()` | M-030: surviving transport leg's error from the LAST cr_ui_open_disk on this process; advisory, process-global, never clears (cr_ui.h:309; impl cr_ui.cpp:1505) |
+| `cr_ui_last_transport_error()` | M-030: the last open's classified transport error (the one leg there is — no fallback since session-96); advisory, process-global, never clears (cr_ui.h:334-340; impl cr_ui.cpp) |
 | `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:391) |
 | `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:407) |
 | `cr_ui_device_close(dev)` | closes; caller-owned close order (cr_ui.h:411) |
 | `cr_ui_device_geometry(dev, out)` | 4Kn-aware geometry (cr_ui.h:420) |
-| `cr_ui_device_transport(dev, buf, cap, needed)` | "rda" / "image" two-call string (cr_ui.h:427) |
+| `cr_ui_device_transport(dev, buf, cap, needed)` | "direct" / "image" two-call string (cr_ui.h:383-387) |
 
 ### b.3 Enumeration (2)
 
@@ -344,12 +347,14 @@ err_attempts M-049 triple), `CHECKPOINT` 5, `LOST_CANDIDATE` 6, `REPAIR` 7,
 
 ## (c) CLI grammar — every verb, flag, exit code (src/app/rrecov.cpp)
 
-Verbs dispatched in `wmain` (rrecov.cpp:3043-3063): **list, list-carve-formats, sessions, scan,
-tree, recover, health, fix, apply, bench, driver** (11). `rrecov` with no args prints usage, exit 0.
+Verbs dispatched in `wmain` (rrecov.cpp): **list, list-carve-formats, sessions, scan,
+tree, archive-list, recover, health, unlock, fix, apply, image, bench** (13; the
+driver-era `driver` verb was REMOVED with the kernel driver, session-96).
+`rrecov` with no args prints usage, exit 0.
 Unknown verb → `unknown command: %s`, exit 1. All output is wprintf (stdout); errors are
-printed to stdout too — the ONE deliberate stderr surface is the driver-refusal path
-(`require_driver`'s `fwprintf(stderr)` lines, rrecov.cpp:332-383: exit 4 carries the
-ERR_DRIVER_* class on stderr by contract, docs/DRIVER-REQUIRED.md) — "Everything is logged in
+printed to stdout too — the ONE deliberate stderr surface is the elevation-refusal path
+(`require_privilege`'s `fwprintf(stderr)` lines, rrecov.cpp:526-538: exit 4 carries the
+ERR_ELEVATION_REQUIRED code on stderr by contract) — "Everything is logged in
 detail ... for testing, validation and benchmarking workflows", rrecov.cpp:39-40; the
 `--log FILE` receives the detailed seam log, N-048 wiring rrecov.cpp:148-183).
 
@@ -372,7 +377,7 @@ Exit: 0 listed (unreadable files are per-row data, never a failure) /
 ### c.4 `scan` (rrecov.cpp:1064-1687)
 | Flag | Semantics |
 |---|---|
-| `--disk N` | whole-disk target; driver-only transport (open_disk_view — the grammar path is the only leg, PLAN-DRIVER-ONLY R1). S-051: a whole-disk scan ALWAYS builds its volume targets from the partition table (the og's CDoScanPartition flow — every used non-container entry probed per-target, scanned under per-volume display-name roots; a volume with no readable filesystem is skipped honestly and counted in table_volume_skipped; a table-less disk keeps the single-slice dispatch) |
+| `--disk N` | whole-disk target; direct transport (open_disk_view — \\.\\PhysicalDriveN is the one leg, under the elevated token; a non-elevated process refuses with exit 4 / ERR_ELEVATION_REQUIRED). S-051: a whole-disk scan ALWAYS builds its volume targets from the partition table (the og's CDoScanPartition flow — every used non-container entry probed per-target, scanned under per-volume display-name roots; a volume with no readable filesystem is skipped honestly and counted in table_volume_skipped; a table-less disk keeps the single-slice dispatch) |
 | `--volume C:` | volume target: BitLocker gate (fvek/dict/auto-unlock), extent map, parent disk, PartitionSlice, optional XTS wrap |
 | `--image file` | S-030 image target (.vmdk/.vhd/.vhdx/.img/.dmg/raw; .edisk refused) |
 | `--whole-disk` | ADDS lost-partition discovery on top of the always-on table-volume targets (N-044 honest name; needs --disk; S-051's reconciliation drops discovery candidates whose start LBA matches an already-scanned table volume — no double scan) |
@@ -416,21 +421,21 @@ TRIM. Exit: 0 / 1 (open/flag) / **3** every source unavailable (FB-H04 fix).
 
 ### c.8 `fix` (rrecov.cpp:2674-2880)
 `--disk N` (required, even for undo-apply — F-B-4), `--part P` (slice view; A-002 disk-absolute
-rebase), `--apply` (consent), `--undo file`, `--undo-apply file` (`--no-rda` is REMOVED —
-driver-only, rrecov.cpp:2470).
+rebase), `--apply` (consent), `--undo file`, `--undo-apply file` (`--no-rda` is REMOVED — with
+the driver era, session-96).
 Dry-run default (plan print). Exit 0 (incl. REFUSED/clean) / 1 (usage) / 2 (analyze/execute/undo failure).
 
 ### c.9 `apply` (rrecov.cpp:2375-2672)
 `--disk N --session file.crsf` required (`--in` alias accepted); `--candidate N` (1-based; required once >1),
-`--apply` (consent), `--undo file` (`--no-rda` is REMOVED — driver-only), `--boot-fix old-lba`,
+`--apply` (consent), `--undo file` (`--no-rda` is REMOVED — with the driver era, session-96), `--boot-fix old-lba`,
 `--boot-fix-bcd path` (M-040 post-apply BCD+NVRAM repair, advisory failures).
 Exit 0 (incl. dry-run/REFUSED) / 1 (usage) / 2 (open/plan/execute failure).
 
 ### c.10 `bench` (rrecov.cpp:2138-2339)
 `--disk N` required; `--mode seq|rand|open|read|info` (default seq), `--mb N` (≤65536),
 `--block-kb N` (4..16384), `--iterations N`, `--seed N`, `--json` (`--no-rda` is REMOVED —
-driver-only). Transport label is "rda" only — the grammar path is the one leg
-(PLAN-DRIVER-ONLY R10, rrecov.cpp:2195). Exit 0 / 1 (usage/unknown mode)
+with the driver era, session-96). Transport label is "direct" (or "image") — the \\.\\PhysicalDriveN
+path is the one leg. Exit 0 / 1 (usage/unknown mode)
 / 2 (open failure, zero hits, read failure).
 
 **Doc-drift note (HISTORICAL, both halves since fixed):** docs/API.md once listed
@@ -484,14 +489,15 @@ usage text in-binary remains the truth; the wmain dispatch is rrecov.cpp:2787-28
 | image 0x500A | 0x500A0001 | `ERR_IMAGE_CORRUPT` | image container structurally corrupt |
 | internal 0x5009 | 0x50090001 | `ERR_INTERNAL` | internal error |
 
-**Driver-condition representation today:** there is NO code for driver-absent /
-not-started / version-mismatch / unauthorized. Absent/stopped/forbidden all collapse
-into "rda_available probe CreateFile failed" → silent direct fallback (the GLE is printed
-by the CLI or available via `rda_available`'s `*last_error`); an errored driver grammar
-open collapses into `ERR_OPEN_FAILED` 0x50020001; read-time driver failures collapse into
+**Privilege-refusal representation (session-96):** the driver-era
+ERR_DRIVER_* family (0x500B0001-05) is REMOVED with the kernel driver —
+`ERR_ELEVATION_REQUIRED` 0x500C0001 is the single refusal class (a
+non-elevated process token on a raw-disk verb; image targets are exempt
+by classification); an open failure under an elevated token collapses
+into `ERR_OPEN_FAILED` 0x50020001; read-time failures collapse into
 `ERR_READ_FAILED` 0x50020002 (with the ERROR_INVALID_HANDLE self-heal first,
-cr_transport.cpp:252-261/314-323). The ABI advisory `cr_ui_last_transport_error` carries
-the surviving leg's cr::Err code (M-030). See CORE-DISK-ACCESS.md §(g).
+cr_transport.cpp). The ABI advisory `cr_ui_last_transport_error` carries
+the open's cr::Err code (M-030).
 
 **Error-context attribution (M-049):** `errmod::Module` ids 0..12 (kNone, kOrchestrator,
 kNtfs, kFat, kExfat, kExt4, kBtrfs, kHfsplus, kRefs, kZfs, kCarve, kLost, kLdm —
@@ -544,20 +550,19 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
   (read_chunk/rename_attempts/skip flags/conflict/progress — cr_ui.h:1114-1122),
   `cr_ui_query` (cr_ui.h:841-856).
 - CLI: PARAMETERS.md registry; every flag listed in §(c).
-- Transport config: service name (hardcoded `L"RDA"` at every call site;
-  the CLI `driver --service NAME` overrides for the status surface only).
-  No `prefer_rda` bools, no `--no-rda` flags (both REMOVED with the
-  driver-only architecture). No env vars, no config files.
+- Transport config: none — the direct \\.\\PhysicalDriveN path is the one leg
+  (no service name, no `prefer_rda` bools, no `--no-rda` flags — all removed
+  with the driver era, session-96). No env vars, no config files.
 
 ---
 
-## (e) Driver-related surfaces that exist today
+## (e) Driver-related surfaces (HISTORICAL — the pre-driver-only census; the driver era itself ended in session-96)
 
 1. **`win::rda_available(service, last_error)`** (cr_transport.h:110-114;
    cr_transport.cpp:441-457) — presence probe, GLE out. The only driver-status query
    primitive in the core.
 2. **`cr_ui_device_transport`** — "rda"/"direct"/"image" (cr_ui.h:355-357).
-3. **`cr_ui_last_transport_error`** — M-030 surviving-leg error (cr_ui.h:283-295).
+3. **`cr_ui_last_transport_error`** — M-030 the open's classified error (cr_ui.h:283-295).
 4. **CLI `[transport]` lines** — the CLI prints probe GLE / open error / chosen path
    (rrecov.cpp:317-340) and bench's `transport` field (rrecov.cpp:1820).
 5. **`win_pe_environment`** gate (cr_transport.h:116-124) + `cr_winenv.h` pins.
@@ -567,10 +572,14 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
    PID-token transform, the 18-code session protocol, F11 scale — all mirrored,
    static_assert-frozen, **and issued by nothing** (N-041 deleted the client;
    cr_rda.h:77-82, 109-114).
-7. **Bench lane** (bench/ours/verify-driver.ps1, run-alignbench.ps1; DRIVER-UTILIZATION
-   pinning addendum) — CI-side driver install/open verification per run; release pin
-   v0.2.2, floor >= v0.2.1 (v0.2.0 fails every bare \\.\RDA open with error 87 —
-   silently disables the transport via the probe).
+7. **Bench lane** (historical, driver era: bench/ours/verify-driver.ps1 — since
+   deleted, session-96 — plus run-alignbench.ps1; the pinning addendum lived in the
+   deleted driver-era utilization doc) — CI-side driver install/open verification
+   per run; release pin v0.2.2, floor >= v0.2.1 (v0.2.0 failed every bare \\.\RDA
+   open with error 87 — silently disabled the transport via the probe). The
+   current bench lane has no driver leg at all: the elevated runner token IS
+   the access model, and run-behavior.ps1's probe 1 is the unelevated-refusal
+   probe (exit-4).
 
 ---
 

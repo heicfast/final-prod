@@ -1,5 +1,7 @@
 # PARITY-UI — Pages / State / Wiring Parity Audit (Task 2-c)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 **Auditor:** parity sub-agent 2-c (read-only; no repo modifications — only this file + worklog entry written)
 **Date:** 2026-10-23
 

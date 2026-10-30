@@ -1,5 +1,7 @@
 # PARITY-OG-CORE-INVENTORY — og-codebase → core_recovery classification (Agent 3)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Gate artifact.** Per-entry classification of the shipped og installer payload
 > (og-codebase, mirrored in `easeus-drw-research/og-codebase/`) against
 > core_recovery. Trees are inputs, not verdicts: every entry is classified before

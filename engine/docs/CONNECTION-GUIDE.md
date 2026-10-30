@@ -1,7 +1,7 @@
 # Connection Guide — binding, driving, and connecting devices
 
 How a host connects to core_recovery: building, linking, the binding
-lifecycle, device connections (driver / image / encrypted),
+lifecycle, device connections (direct / image / encrypted),
 threading rules, and the consent model. For the complete surface
 inventory see [API.md](API.md); for tunables
 [PARAMETERS.md](PARAMETERS.md).
@@ -74,7 +74,7 @@ Rules that matter:
 
 | Connection | Path | Notes |
 |---|---|---|
-| RDA driver (the ONLY live-disk path) | `\\.\RDA\<token>\<disk>\<part>` (grammar + token, D-37) | the repo's own kernel transport ([rda-driver](https://github.com/heicfast/rda-driver)); direct reads ride the 64 KiB envelope. The driver-only architecture (PLAN-DRIVER-ONLY.md, enforced by the CI architecture lint) REMOVED the direct `PhysicalDrive`/volume fallbacks: `cr_ui_open_disk` REFUSES with the classified `ERR_DRIVER_*` code when the driver is absent/not-started/unauthorized/version-incompatible — no silent direct-handle leg. M-030's quiesce chain (LOCK → DeleteVolumeMountPoint → flush → DISMOUNT → OFFLINE) lives on in the fix/apply volume path below |
+| Direct raw disk (the ONLY live-disk path) | `\\.\PhysicalDriveN` / `\\.\HarddiskVolumeN` (GENERIC_READ [\| GENERIC_WRITE], share R\|W\|D) | direct user-mode raw I/O through the 64 KiB read envelope, true byte counts — no kernel driver, no service (session-96 removed the driver-era RDA transport). `cr_ui_open_disk` REFUSES with `ERR_ELEVATION_REQUIRED` (0x500C0001) when the process token is not elevated — the host triggers its own UAC flow and retries; image targets and control-path verbs need no elevation. M-030's quiesce chain (LOCK → DeleteVolumeMountPoint → flush → DISMOUNT → OFFLINE) lives on in the fix/apply volume path below |
 | Disk images | `cr_ui_open_image` | flat, VMDK (descriptor + monolithic sparse), VHD/VHDX (fixed + dynamic) — the same engine stack as physical devices |
 | Test/edge transports | implement `cr::IStorageDevice` | everything above the storage seam is transport-agnostic |
 
@@ -155,7 +155,7 @@ exit 3 and still save the session.
   `pickDirectory({excludeDeviceId})` — so when the binding session lands,
   the UI's contract documents and this repo's [ABI-CONTRACT.md](ABI-CONTRACT.md)
   must not contradict each other.
-- **rda-driver** (the kernel transport): not a linker consumer — the
-  core opens `\\.\RDA` at runtime with the service name `"RDA"` (§3); the
-  bench lane pins its release assets (see
-  [DRIVER-UTILIZATION.md](DRIVER-UTILIZATION.md) pinning addendum).
+- **rda-driver** (the historical kernel transport, removed in session-96):
+  not a consumer — the core opens raw disks directly (`\\.\PhysicalDriveN`)
+  under an elevated token now (§3); the driver-era bench-lane release pins
+  are historical record (worklog/reference/og-access-architecture-record.md).

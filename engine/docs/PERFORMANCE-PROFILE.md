@@ -55,7 +55,7 @@ the next bench dispatch re-measures them. No row is unexplained.
 | Path | Alignment today | Verdict | Action |
 |---|---|---|---|
 | Direct raw handles (`\\.\\PhysicalDriveN`, `\\.\\HarddiskVolumeN`) | 64 KiB envelope, pass-through when already aligned | **ABOVE (contract met)** - N-020 drift corrected: GAP-S6-13 LANDED in `7777e1c` (cr_directalign.h + cr_transport.cpp aligned_read_at; the pre-fix row described the 512-byte envelope and the ~3.5x slow path on 4 KiB-multiple/64 KiB-misaligned lengths) | the slow-path class is now the ALIGNED pass-through's rare fallback; per-read length checks stay gated in bench (len%512 and len*512 contracts) |
-| RDA driver transport | logical-sector envelope | kernel IRP path — not subject to the user-mode slow path; keep sector alignment | none (documented) |
+| RDA driver transport (driver-era, historical — session-96 removed it; the direct path above is the one leg) | logical-sector envelope | kernel IRP path — not subject to the user-mode slow path; keep sector alignment | none (documented) |
 | Engine reads (all FS engines) | `CachedDevice` 64 KiB block batching (N-020 drift corrected: **8 MiB cache at the orchestrator call site** - `cr_scan.cpp` CachedReader::create(..., 8<<20, 64*1024); the 1 MiB default in `cr_cached.h:25` is overridden; AUDIT-ARCH.md:37 cites 8 MiB correctly) | already 64 KiB-multiple by construction | none |
 | Recovery writer | 1 MiB chunks (default) + exact-size tail chunk | tail chunks unaligned → bounce path after fix; body chunks already 64 KiB multiples | covered by the envelope fix |
 | Remnant scanner | 4 MiB block-buffered | already 64 KiB multiples | none |

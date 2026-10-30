@@ -1,5 +1,7 @@
 # REFERENCE-API-GAP — the og engine→UI operation inventory vs. our core
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > Written by agent C2 (Task 2-c2). Corpus = `easeus-drw-research` @ `03ad46c` (11,495 files;
 > RE artifacts + og deployment tree). Gap baseline = [CORE-API-CURRENT.md](CORE-API-CURRENT.md)
 > (our v0.4.1-parity tree @ `22e9657`: 78 cr_ui exports, 9 CLI verbs, ~25 C++ modules).

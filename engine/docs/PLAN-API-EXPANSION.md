@@ -1,5 +1,7 @@
 # PLAN-API-EXPANSION — close the reference-documented API gaps
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > Session: driver-only mandate §3. Worklist source: [REFERENCE-API-GAP.md](REFERENCE-API-GAP.md)
 > (88 corpus-documented operations; 41 PRESENT / 15 PARTIAL / 29 GAP, ~14 flagged product-layer).
 > Rule of engagement, verbatim from the mandate: **no operation is added that the reference does not
@@ -11,9 +13,9 @@
 ## 0. Scope decisions (evidenced, not assumed)
 
 1. **Driver-status surface** — mandated by the session brief; the corpus is SILENT on any og UI
-   driver-status/version query (REFERENCE-API-GAP R-84 + §d corpus-silence list; REFERENCE-DRIVER-BEHAVIOR §3:
+   driver-status/version query (REFERENCE-API-GAP R-84 + §d corpus-silence list; the og-access-architecture record §3, worklog/reference/:
    the og exposes no driver-status surface — service-start result literally discarded). It is implemented
-   as a **product-scope truthfulness divergence** (shape per PLAN-DRIVER-ONLY §3), NOT as parity. This is the
+   as a **product-scope truthfulness divergence** (shape per the driver-era removal plan §3, deleted with the driver), NOT as parity. This is the
    single sanctioned non-corpus addition; everything else below is corpus-driven.
 2. **C ABI surface** — the merged UI consumes the core via the cr_ui C ABI today (cr_ui.h:5-22 documents the
    lineage: the og binds its UI in-process through C-export factories; our equivalent is the flat-C shim).
@@ -61,7 +63,7 @@ C11, same numeric error space, zero-init-safe structs, no escaping exceptions).
 | Op | Corpus | Shape | Tests |
 |---|---|---|---|
 | **preview caps shipped defaults** (R-34 PARTIAL) | UIUX/10:22-27 (100 MB / 15 s caps) | The existing caps seam gets shipped defaults: 100 MiB max bytes, 15 s max decode — the corpus numbers; config-overridable, zero-init = defaults ON (the og's caps are product policy, not user opt-in). | unit: oversized preview request is truncated + flagged in metadata; slow-decode guard pinned via the seam |
-| **image create** (R-93 PARTIAL) | UIUX/07:36-37 (disk → image) | CLI `image --create --disk N --out file.img` + `cr_ui_image_create(disk, path_utf8, progress_fn)`: streams the driver-required device to a flat `.img` via the destination-I/O layer (64 KiB envelope reads, safewriter-style progress/cancel, SHA256 sidecar). Raw-flat only — vhd/vhdx WRITERS are out of scope (documented; the og's create ships flat images to its own reader). Reads go through the driver (classification (a), PLAN-DRIVER-ONLY §1). | Windows scenario: create image of the staged disk → hash equals source device hash; resume-after-cancel unit test |
+| **image create** (R-93 PARTIAL) | UIUX/07:36-37 (disk → image) | CLI `image --create --disk N --out file.img` + `cr_ui_image_create(disk, path_utf8, progress_fn)`: streams the driver-required device to a flat `.img` via the destination-I/O layer (64 KiB envelope reads, safewriter-style progress/cancel, SHA256 sidecar). Raw-flat only — vhd/vhdx WRITERS are out of scope (documented; the og's create ships flat images to its own reader). Reads go through the driver (classification (a), the driver-era plan §1 — historical; session-96 replaced the driver with direct raw I/O). | Windows scenario: create image of the staged disk → hash equals source device hash; resume-after-cancel unit test |
 
 ### Wave 5 — BitLocker tail
 
@@ -82,7 +84,7 @@ C11, same numeric error space, zero-init-safe structs, no escaping exceptions).
 | AI recommend/dedup (R-29), quota/license/update/telemetry/crash-report (R-02/45/50/57/59/80/81/82) | various | product/monetization layer — no engine contract in the corpus beyond existence; adding them would be invention. |
 | hot-plug notify (R-87) | pending-op:43 | RegisterDeviceNotification is a windowed-process concern; the core's contract is pull enumeration (R-86). Host responsibility. |
 | NAS/Linux/cloud/WeChat (R-89/90/91/94), WinPE media creation (R-92) | various | remote transports + product scenarios; corpus documents them as product directions, not engine APIs. |
-| service lifecycle in core (R-83) | DRWService:9-30 | the og's DRWService is its product service; our driver's install lifecycle lives in rda-driver's install.ps1/uninstall.ps1 (DRIVER-RELEASE §5) and the product installer (DRIVER-REQUIRED). Core-side duplication would fork the install path. |
+| service lifecycle in core (R-83) | DRWService:9-30 | the og's DRWService is its product service; our driver's install lifecycle lived in rda-driver's install.ps1/uninstall.ps1 (the driver-era release contract §5) and the product installer's then-driver step (both historical — session-96 removed the driver). Core-side duplication would fork the install path. |
 | media-helper IPC / external viewers (R-38/39) | DRWUI arch:291-313 | UI-shim concerns (helper processes are host-owned). |
 | Versions node (R-20 part) | UIUX/09:27-36 | VSS previous-versions enumeration is a Windows-shell surface (\\?\shadow copies); requires VSS integration outside the scan engine. Tags-Extracted grouping IS delivered via the tag filter axis (Wave 2). |
 | periodic health monitor loop (R-61) | DiskHealth:20-28 | tray/notify/loop is host UI; the pull API (health_read) is the core contract. |
@@ -91,8 +93,8 @@ C11, same numeric error space, zero-init-safe structs, no escaping exceptions).
 ## 3. Cross-cutting contracts every wave obeys
 
 - **Driver precondition:** Waves 4's image-create and Wave 5's turn-off touch volumes/disks: image-create is
-  class (a) (driver check first, PLAN-DRIVER-ONLY §5); turn-off/chkdsk/list/health are class (b) (documented
-  in DRIVER-REQUIRED.md's table — no driver check, the og evidence says these never used it).
+  class (a) (privilege check first, the driver-era plan §5); turn-off/chkdsk/list/health are class (b) (documented
+  in the deleted driver-era refusal contract's table — no driver check, the og evidence says these never used it).
 - **Error space:** new codes registered in cr_error.h with err_text; no numeric reuse; the ABI returns the
   same numeric space (cr_ui.h:26-27).
 - **Contract text:** every new header symbol ships with full contract text (what/inputs/outputs/errors/

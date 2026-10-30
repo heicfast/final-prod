@@ -1,5 +1,7 @@
 # PARITY-ORCH — Parity-B: scan orchestration, staged model, progress, cancellation, sessions, CLI (rrecov)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 **Auditor**: task 2-b (read-only parity auditor). **Date**: 2026-10-23.
 
 **Pins**

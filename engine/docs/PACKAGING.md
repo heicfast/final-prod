@@ -18,10 +18,11 @@
 > [installer.yml](../.github/workflows/installer.yml)).
 >
 > Scope: the APP installer (the product's install/uninstall surface). The
-> DRIVER deployer (rda-driver's `install.ps1`/`uninstall.ps1` + the
-> [DRIVER-RELEASE](DRIVER-RELEASE.md) contract) is a separate, already-shipped
-> surface that this milestone ABSORBS as an internal step (§10) — it does not
-> replace it.
+> driver-era DRIVER deployer (rda-driver's `install.ps1`/`uninstall.ps1`)
+> was a separate surface this milestone once ABSORBED as an internal step
+> (§10) — session-96 removed the kernel driver entirely, so the installer
+> now ships the CORE ONLY: no driver component, no SCM step, and the
+> teardown asserts NO kernel service is installed.
 
 ## 1. The reference's install architecture (what the corpus shows)
 
@@ -56,8 +57,9 @@ Corpus citations: `artifacts/Installer/setupue-infoforsetup--bootstrap-pair.md`
 counterparts, `AliyunEnableUserInfoCollect`);
 `re-workspace/reversed/unins000.exe/strings_utf16.txt` (the Inno metadata keys,
 the ARP strings, the silent flags, `unins%.3d`, the admin requirement, the GAC
-assembly-removal strings); `architecture/02-kernel-driver-architecture.md`
-§99-105 (the lifecycle frame).
+assembly-removal strings); the og's driver-era lifecycle frame — historical
+corpus evidence, `architecture/02-kernel-driver-architecture.md` (historical
+record of the reference product's own install chain) §99-105.
 
 **The 13-parameter contract** (S-038's enumeration — K74/K76/K77):
 
@@ -105,8 +107,9 @@ Both entries are REQUIRED — this is the enterprise-deployable surface:
   - plus the standard `DisplayName`/`DisplayVersion`/`Publisher`/
     `InstallLocation`/`EstimatedSize` values
 - The silent round-trip is a TEST GATE (§11): install → ARP present →
-  quiet-uninstall → no residue (no files, no ARP entry, no version key, no
-  driver service — unless a scan is running).
+  quiet-uninstall → no residue (no files, no ARP entry, no version key —
+  and the teardown asserts NO kernel service is installed; session-96
+  removed the driver-era service step).
 
 ## 4. The silent flag set (parameters 1-5)
 
@@ -133,9 +136,8 @@ the precedent).
 
 The reference's 16-entry table stops at Server 2016. The merged product's
 gate (REGISTERED divergence, by evidence): the **documented target envelope
-is Win7 SP1 → Win11 + Server 2025** (the same envelope the driver's
-[DRIVER-RELEASE](DRIVER-RELEASE.md) §7 environments contract carries — the
-PE-header contract gates the BINARY; the installer gate is the deployment
+is Win7 SP1 → Win11 + Server 2025** (the same envelope the shipped PEs'
+PE-header contract gates — the installer gate is the deployment
 surface). The gate mechanism stays the reference's: native version probing
 (`RtlGetNtVersionNumbers`/`GetNativeSystemInfo`, WOW64-aware), a table of
 supported major.minor.build ranges with edition strings for the failure
@@ -148,8 +150,7 @@ message, and a REFUSAL (not a warning) outside the envelope. x64-only
 (verified) before the ARP entry is written. The reference's path
 (`SOFTWARE\EASEUS\DRW\Version`) is the SHAPE; the merged product's path is
 **REGISTERED (implemented): `HKLM\SOFTWARE\heicfast\core_recovery\Version`**
-(vendor `heicfast` — the same vendor string the driver's version resource
-carries; product `core_recovery` — the repo/product identity). The
+(vendor `heicfast` — the repo/product identity; product `core_recovery`). The
 write+verify (not write-and-hope) is the M-064 lesson applied at the app
 tier: the ISS `[Code]` write is followed by a read-back comparison, and a
 mismatch FAILS the install. The value is removed by the uninstaller's own
@@ -176,19 +177,19 @@ The reference supports shared/multi-copy installs via `unins%.3d` secondary
 uninstallers. The merged product's default: **single instance** (one
 `ProductId`, one ARP entry, an in-place upgrade path), with the multi-instance
 capability REGISTERED as out-of-scope-until-needed — a data-recovery tool's
-second copy on the same machine adds no capability (the driver service name
-collision is the Phase-1 M-064-remainder's territory, not the app's).
+second copy on the same machine adds no capability (the driver-era
+service-name collision question is moot — session-96 removed the service;
+the historical M-064-remainder note applied then, not now).
 
-## 10. The driver install as an internal step
+## 10. The driver install step (REMOVED — session-96)
 
-The rda-driver's `install.ps1`/`uninstall.ps1` (v0.2.3+, the Phase-1 hardened
-scripts: verified elevation guard, loud start-failure, verified teardown) run
-as an INTERNAL step of the app install — inheriting the silent posture, the
-elevation, and the exit-code discipline; the console-posture gap (N-085)
-closes here. The scripts stay the source of truth (the app installer calls
-them; it does not reimplement SCM). The M-064 remainder (the `%s%d` versioned
-coexistence + the `-Uninstall` verb) lands upstream first — this milestone
-consumes it, it does not fork it.
+The driver-era kernel component was replaced by direct user-mode raw I/O (\\.\\PhysicalDriveN
+opens under administrator privilege; ERR_ELEVATION_REQUIRED is the single
+refusal class). The app installer therefore ships the CORE ONLY — no driver
+component, no SCM step — and the §11 round-trip teardown asserts NO kernel
+service is installed. The historical internal-step design (the rda-driver
+install.ps1/uninstall.ps1 run as an internal step of the app install, the
+N-085 console-posture closure) is the driver-era record.
 
 ## 11. The test gates (from S-038's fix plan)
 
@@ -196,8 +197,9 @@ Three automated gates on the CI Windows lane, red-blocking the milestone:
 
 1. **InstallerSilentRoundTrip** — clean-VM install (zero prompts under
    /VERYSILENT) → ARP `UninstallString` + `QuietUninstallString` present and
-   well-formed → silent uninstall → no residue (files, ARP, version key,
-   driver service).
+   well-formed → silent uninstall → no residue (files, ARP, version key) and
+   the teardown asserts NO kernel service is installed (session-96: the
+   installer ships the core only).
 2. **InstallerVersionKeyWritten** — the version key's write+verify path.
 3. **InstallerOSGateMatrix** — the gate admits the supported envelope and
    REFUSES outside it (a scripted outside-range probe).
@@ -230,6 +232,8 @@ configured" (ERR_FVE_LOCKED) from "the store exists but this token
 cannot read it" (the new ERR_FVE_ELEVATION_REQUIRED, 0x50060002) via
 the cr_elevate TokenElevation probe. No SCM code, no /install verbs,
 no per-use orchestration, no plaintext auto.txt — the positive
-posture statement is in SECURITY.md. Revisit only if a non-elevated
+posture statement is in SECURITY.md, and session-96 extended the same
+no-service posture to the whole product (no kernel-mode driver either — the
+core reads \\.\\PhysicalDriveN directly under an elevated token). Revisit only if a non-elevated
 host surface becomes a product requirement (the finding's option (b)
 carries the full decoded contract to implement then).

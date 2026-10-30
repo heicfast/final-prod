@@ -5397,13 +5397,13 @@ TEST(CrUi, SessionResumeLastLoadsPointedAutoAndRefusesTampered) {
  * five-site surface (dispatch / -h / usage header / docs / the parser)
  * was four-site until now: 13fe7258 landed the verb with the documented
  * form `image --create --disk N --out file.img` (usage header :43, -h
- * block, docs/DRIVER-REQUIRED.md:38, PLAN-API-EXPANSION Wave 4,
+ * block, the driver-era doc set, PLAN-API-EXPANSION Wave 4,
  * CI-SCENARIOS.md:30, REFERENCE-API-GAP.md:336/:435, and
  * Run-Benchmark.ps1's image-create probe) while cmd_image's parser only
  * accepted --disk/--out - the documented invocation died at "unknown
  * image option: --create" (exit 1). The parser site is pinned here the
  * established source-truth way (M-079/N-074/N-071 pattern); the create
- * flow itself is Windows-lane behavior (driver class (a)). */
+ * flow itself is Windows-lane behavior (privilege class (a)). */
 TEST(CrUi, CliImageCreateFlagParses) {
     const std::string rrecov = cr_test::read_repo_text("src/app/rrecov.cpp");
     ASSERT_FALSE(rrecov.empty());

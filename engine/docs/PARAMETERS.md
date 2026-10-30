@@ -58,8 +58,9 @@ row cited below where it governs a parameter).
   standalone `undo` verb).
 - `bench --disk N [--mode seq|rand|open|read|info] [--mb N]
   [--block-kb N] [--iterations N] [--seed N] [--json]` —
-  transport/device microbenchmarks (`--no-rda` is REMOVED — the
-  driver-only architecture, PLAN-DRIVER-ONLY R10; the parser rejects it).
+  transport/device microbenchmarks (`--no-rda` is REMOVED — with the
+  driver era, session-96; the parser rejects it; `rrecov bench` reports
+  transport "direct" or "image").
 - `list`, `list-carve-formats`, `info` (via bench mode) — read-only.
 - `sessions [--dir D] [--json]` — the saved-session inventory.
 - `archive-list --in file.crsf (--disk N | --image file) --node ID
@@ -67,8 +68,10 @@ row cited below where it governs a parameter).
 - `image --create --disk N --out file.img` — the flat-raw disk-image
   producer + `.sha256` sidecar (S-040; VHD/VHDX writers out of scope,
   D-147).
-- `driver [--service NAME] [--json]` — the driver-status surface (exit
-  0 = ready, 4 = prerequisite not met).
+- (the driver-era `driver` verb is REMOVED with the kernel driver —
+  session-96; raw-disk verbs require an elevated token instead: exit 4
+  with `ERR_ELEVATION_REQUIRED` when the process is not elevated, the
+  host triggers its own UAC flow and retries)
 
 ## 2. ScanConfig (the C++ / ABI surface)
 
@@ -100,7 +103,7 @@ these field-for-field at the ABI.
 | Scan cache | 8 MiB / 256 KiB reactive LRU (the og: 4 MiB prefetch read-ahead — REGISTERED D-72, benchmark-gated) | `cr_cached.h` |
 | Direct-I/O envelope | 64 KiB multiples on every direct read (Windows slow-path avoidance; D-37/D-38 family) | transport layer |
 | Read chunking | 256 KiB blocks through the retry pipe | transport layer |
-| Enumerate bound | 200 disks (driver grammar disk# ≤ 199, D-85 scope) | `cr_enumerate.h` |
+| Enumerate bound | 200 disks (the driver-era grammar bound, kept as the census scope, D-85) | `cr_enumerate.h` |
 | Checkpoint cadence | stage boundaries (+ auto-checkpoint with `--out`) | orchestrator |
 
 ## 4. Caps and budgets (honest limits)

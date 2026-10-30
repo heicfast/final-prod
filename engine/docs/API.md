@@ -11,7 +11,7 @@ Companion documents:
 - [PARAMETERS.md](PARAMETERS.md) — every tunable (CLI flags, scan config,
   caps, budgets) with defaults and bounds.
 - [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md) — how a host binds, links,
-  drives the lifecycle, and connects devices (driver vs direct vs images).
+  drives the lifecycle, and connects devices (direct vs images).
 - [FORMATS.md](FORMATS.md) — what is parsed/written (filesystems, carve
   formats, session container, report schema).
 - [ABI-CONTRACT.md](ABI-CONTRACT.md) — the wire-level ABI rules
@@ -52,7 +52,6 @@ rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
                [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
                [--block-kb N] [--iterations N] [--seed N] [--json]
-rrecov driver  [--service NAME] [--json]
 rrecov image   --create --disk N --out file.img
                (the flat-raw disk-image producer + .sha256 sidecar, S-040;
                VHD/VHDX writers out of scope, D-147)
@@ -60,10 +59,15 @@ rrecov image   --create --disk N --out file.img
 
 (The historical `rrecov info` line above was doc drift - no such verb ever
 existed; `bench --mode info` is the geometry/transport report. `--no-rda`
-is REMOVED with the driver-only architecture: bench requires the driver.)
-The `driver` verb is the driver-status surface (docs/DRIVER-REQUIRED.md):
-present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
-4 = the prerequisite is not met.
+and the `driver` verb are REMOVED with the kernel driver itself
+(session-96): raw-disk verbs require an elevated process token instead.)
+
+**Privilege model:** raw-disk verbs (scan/recover/tree --disk/health/fix/
+apply/bench/image with disk targets) require an ELEVATED process token;
+a non-elevated process gets the `ERR_ELEVATION_REQUIRED` (0x500C0001)
+refusal — exit 4 on the CLI — and the host triggers its own UAC flow and
+retries. Image targets and session/report/preview/dictionary verbs need
+no elevation.
 
 **Exit codes**
 
@@ -73,7 +77,7 @@ present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
 | 1 | failure (scan failure, enumeration failure, unknown option, …) |
 | 2 | recover: partial — item errors or hash mismatch in the write set; apply/fix: open/plan/execute/undo failure; bench: open/read failure or zero hits |
 | 3 | scan cancelled (session saved when --out was given) / health: every source unavailable |
-| 4 | the DRIVER prerequisite is not met — scan/recover/fix/apply/bench refuse before any other output with the ERR_DRIVER_* class on stderr (docs/DRIVER-REQUIRED.md) |
+| 4 | the ELEVATION prerequisite is not met — raw-disk verbs (scan/recover/fix/apply/bench/image with disk targets) refuse before any other output with ERR_ELEVATION_REQUIRED (0x500C0001) on stderr; the host triggers its own UAC flow and retries |
 | 5 | scan only: the target device disconnected mid-scan (N-125) — distinct from failure (1) and cancel (3); with `--out` the session checkpoint resumes after reattach |
 
 Every command logs stage timings, per-stage counts and error maps
@@ -130,9 +134,8 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX). S-051: a scan over a whole-disk/disk-image target ALWAYS scans the partition table's volumes (one per-volume tree root; the og's CDoScanPartition partition-list read — a table-bearing disk never yields a silent empty verdict) |
 | `cr_ui_open_volume_with_key` | open a BitLocker volume with a user-supplied FVEK (in-stack XTS-AES decrypt, M-033) |
 | `cr_ui_unlock_volume_with_dictionary` | explicit-consent BitLocker password unlock (N-064; shipped 228-entry dict + user candidates) |
-| `cr_ui_driver_status` | the 6-facet driver-status query (present/loaded/started/authorized/healthy + version pair + last GLE) |
-| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`rda`/`image` — driver-only, no direct fallback), close |
-| `cr_ui_last_transport_error` | the last open's surviving/classified transport error (M-030; advisory-only, never gates a return code) |
+| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`direct`/`image`), close |
+| `cr_ui_last_transport_error` | the last open's classified transport error (M-030; advisory-only, never gates a return code) |
 
 ### 2.3 Scanning
 
@@ -210,8 +213,9 @@ struct cr::IStorageDevice {          // include/cr/storage/cr_device.h
 
 Everything above this seam (engines, carving, check, repair, sessions,
 writer) reads through it. Hosts provide it directly for exotic transports;
-the shipped implementations are the RDA grammar + direct PhysicalDrive/
-HarddiskVolume handles (Windows), `MemDevice` (tests), and the image
+the shipped implementations are the direct PhysicalDrive/HarddiskVolume
+handles (Windows, \\.\PhysicalDriveN under an elevated token),
+`MemDevice` (tests), and the image
 stack (flat/VMDK/VHD/VHDX, any platform). The retry pipe wraps a device
 with bounded retry + bisection and produces the `ReadErrorMap` that
 surfaces through stats/events/ABI.
@@ -285,8 +289,8 @@ inventories (S-032), and the post-processor hook (M-021).
   [error-fix-registry.md](error-fix-registry.md)).
 - Module attribution: `CR_ERRMOD_*` + operation + attempt count on every
   `ErrorRange` event (M-049) — the same triple the report carries.
-- Transport errors surface through `cr_ui_last_transport_error` after
-  fallback (M-030); scan never aborts on unreadable ranges — they become
+- Transport errors surface through `cr_ui_last_transport_error` (M-030,
+  advisory-only); scan never aborts on unreadable ranges — they become
   error-map spans that grade the affected nodes.
 
 ## 5. Stability classes

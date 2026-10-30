@@ -1,5 +1,7 @@
 # CORE-GAP-LIST — final consolidation register (production-complete gate)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Purpose.** Single authoritative list of every remaining delta between
 > `core_recovery` HEAD and the reference architecture (RE corpus
 > `easeus-drw-research` + `AUDIT-*` / `PARITY-*` findings), as verified

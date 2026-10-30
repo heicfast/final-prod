@@ -1,5 +1,7 @@
 # BENCHMARK-REPORT — core_recovery vs the og reference
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Status: W5 evidence-state report.** This document separates what is
 > MEASURED AND CITABLE today from what requires the benchmark machine, and
 > gives every parameter a verdict: **MATCH / EXCEEDS / BELOW / NOT-COMPARABLE

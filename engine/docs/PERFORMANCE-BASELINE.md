@@ -1,5 +1,7 @@
 # PERFORMANCE-BASELINE — measured numbers at session start
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > Session: core-api (2026-10-26). Baselines: core `e6d5b01`, driver `7e88e38`,
 > corpus `03ad46c`. Every number below is measured and citable, with its
 > environment recorded. Entries marked **NOT MEASURED** are explicit holes

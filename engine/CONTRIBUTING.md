@@ -17,15 +17,15 @@ same script on the runner image — the local-mirror rule, docs/CI-LOCAL.md):
 .\ci-local.ps1         # Windows (the exact script the CI local-mirror job runs)
 ```
 
-It runs the local gate — format check, the dead-surface + driver-only
+It runs the local gate — format check, the dead-surface + direct-access
 architecture lints, the warnings-as-errors build, the full unit + contract
 test suite, the repo truth self-tests, dependency pinning, the doc link
 check, the secrets scan of your diff, and the commit message convention.
 Every failure prints the exact files and the fix command. **Green locally,
 then push.** (CI-shape note, Session-84: the pre-consolidation CI this
 paragraph described — the `local-mirror` job, the Linux/TSan/UBSan/fuzz
-matrix lanes, CodeQL `if: false`, the driver-install/core-install
-correctness workflows — no longer exists. The CI today is the 4-lane
+matrix lanes, CodeQL `if: false`, the historical driver-install /
+core-install correctness workflows — no longer exists. The CI today is the 4-lane
 windows-2022 set: **Checks** (push/PR + the release's workflow_call gate:
 lint + MSVC Release build-and-test; doc-only paths are ignored by design),
 **Installer gates**, **Release**, and **Test & Benchmark**

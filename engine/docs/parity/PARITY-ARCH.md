@@ -1,5 +1,7 @@
 # PARITY-ARCH — Architecture & Structure Parity Audit (Task 2-d)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 **Auditor:** parity sub-agent 2-d (read-only; no repo modifications)
 **Date:** 2026-10-23
 

@@ -1,5 +1,5 @@
 /* test_scan_truth.cpp - the read-truth contract tests (the fake-scan fix;
- * docs/DRIVER-REQUIRED.md section 7, PARITY-DELTAS D-DRV-6).
+ * the driver-era doc set's section 7, PARITY-DELTAS D-DRV-6).
  *
  * The defect class these pin (user report: "the scan never works and
  * starts from 40% and shows no progress - it looks like fake scanning"):
@@ -20,7 +20,7 @@
  * The devices here are deterministic in-memory fakes (the same harness
  * class test_orchestrator.cpp uses) - the Linux lane pins the CONTRACT;
  * the real-transport behavior is proven on the Windows runner against the
- * real driver (the staged scenarios, docs/CI-SCENARIOS.md).
+ * real disks (the staged scenarios, docs/CI-SCENARIOS.md).
  */
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"

@@ -1,5 +1,7 @@
 # Error-Fix Registry — reference design defects corrected in this rewrite
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 Each entry: reference behavior (corpus evidence) -> our fix (file + test).
 
 | # | Reference defect | Corpus evidence | Our fix |

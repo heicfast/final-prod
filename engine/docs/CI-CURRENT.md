@@ -78,7 +78,7 @@ cancel-in-progress, lint fast-fails before the build job spends compute.
   dependency crept back).
 - **Signing posture**: core binaries are unsigned by design
   (byte-comparable builds). Nothing is signed at release time (session-96:
-  no kernel driver, no certificate, no trust import at consume time).
+  no kernel-mode driver, no certificate, no trust import at consume time).
 - Assets: `core-recovery-<tag>.zip` + `MANIFEST.json` + `SHA256SUMS`
   (self-exempt index files, as always).
 - Publishing dispatches **test-benchmark.yml** with `core_tag=<tag>`.
@@ -105,7 +105,7 @@ SHA256SUMS + MANIFEST; never builds, never falls back). Sequence:
      depth-6 nesting, many-small, keep-control group; deterministic PRNG)
    - **feature probes**: health, fix dry-run, user-signs, CLI-vs-API carve
      parity, cancel->save->resume session probe
-   - **clean-volume benchmark**: per-mode scan timings, driver bench verb
+   - **clean-volume benchmark**: per-mode scan timings, the bench verb
      (info/seq/rand/open), API lane timings, process sampling
    - **scenarios**: permanent_delete (NTFS/exFAT/FAT32), recycle_bin,
      folder_delete (bin emptied), quick_format, delete_partition (+ the
@@ -119,11 +119,12 @@ SHA256SUMS + MANIFEST; never builds, never falls back). Sequence:
      `observe` (known gaps recorded ungated — FAT32 delete, quick_format;
      see bench/root-causes.json). Ground truth is ALWAYS the manifest +
      deletion method, never a tool's own output; extra finds are recorded,
-     never failures. The transport assertion is a hard rule: with the
-     driver running, every scan must show `[transport] RDA driver path`.
-7. teardown ALWAYS: the release's own uninstall.ps1 with the M-061
-   post-state contract (service gone + versioned image gone), cert
-   cleanup, VHD detach + delete
+     never failures. The transport assertion is a hard rule: every scan
+     must show `[transport] direct` (the \\.\\PhysicalDriveN path; the
+     elevated runner token IS the access model — session-96).
+7. teardown ALWAYS: VHD detach + delete + work-drive cleanup (no driver
+   uninstall or cert cleanup exists to run — session-96 removed the
+   install chain; nothing is installed but the staged VHDs)
 8. the structured evidence artifact (00-environment .. 99-teardown)
    uploads ALWAYS
 

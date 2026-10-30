@@ -44,7 +44,7 @@ Engine reader (MFT batch / FAT chain run / carve window)
   -> CStorageDeviceWithCache equivalent (cr::CachedReader - bounded LRU)
      -> IStorageDevice (cr::IStorageDevice - ReadAt(off, buf, len))
         -> CPartitionVirtualVolumeDevice equivalent (cr::PartitionSlice - bounded view)
-           -> transport: RDA driver path | direct Windows handle
+           -> transport: direct Windows raw handle (\\.\\PhysicalDriveN)
 ```
 
 Contract points (corpus-verified):
@@ -79,7 +79,7 @@ Contract points (corpus-verified):
 | MFT batch | cache-coalesced 64 KiB reads: engine per-record reads through the 64-KiB-block CachedReader (device read count == og's 64 KB bootstrap buffer; NTFS-2/D-4x delta) | §2 + cr_scan.cpp pipe |
 | fastsearch ini default | ON (`search`/`ln`, default 1 - U-11 citation precision) | line 7163 |
 | MFTMirr cross-check | first 4 records' backup at volume midpoint | 52032/52102 |
-| Information scale on IO | legacy x512 convention (driver contract) | rda-driver |
+| Information scale on IO | legacy x512 convention — the historical driver-era wire contract; direct reads carry true byte counts now (session-96) | og-access-architecture-record (worklog/reference/) |
 
 ## 4. FAT on-disk contract (corpus: fat-exfat v1+v2)
 
@@ -149,16 +149,23 @@ Proven scheme we re-implement in our own .crsf format:
   attributes, runlist}` field map (corpus serializer table).
 - Marker byte per child on the wire (which node class) — we keep the pattern.
 
-## 10. RDA transport (corpus: rda-driver ground-truth + Device.mo strings)
+## 10. RDA transport (HISTORICAL corpus evidence — the driver era ended; session-96 replaced the kernel driver with direct raw I/O)
 
-- Driver open grammar: `\\.\RDA\<PID-TOKEN>\<disk>\<part>`, `...\Volume\<n>`,
+> The core reads raw disks directly now (\\.\PhysicalDriveN opens under an
+> elevated token, 64 KiB read envelope, true byte counts — no Information =
+> length*512 scale). The rows below are the corpus record of the og's
+> transport, kept for provenance; the full moved record is
+> worklog/reference/og-access-architecture-record.md.
+
+- Driver open grammar (the og's kernel path, historical): `\\.\RDA\<PID-TOKEN>\<disk>\<part>`, `...\Volume\<n>`,
   2-segment `\<token>\<disk>`; token = b0|(b0+b1)<<8|(b1+b2)<<16|(b2+b3)<<24.
-- READ contract: byte lengths/offsets; Information = length * 512 (legacy scale);
-  clients divide by sector size (verified both sides).
-- Direct fallbacks: **REMOVED** (driver-only architecture, docs/DRIVER-REQUIRED.md —
-  the failure-gated fallback superset was ours, not the og's; the og's own duality is
-  environment-gated WinPE-direct, REFERENCE-DRIVER-BEHAVIOR §4, and is itself diverged
-  from: the driver is required everywhere, PE included).
+- READ contract: byte lengths/offsets; Information = length * 512 (legacy scale,
+  historical); clients divide by sector size (verified both sides).
+- Direct fallbacks: the og's own duality is environment-gated WinPE-direct
+  (og-access-architecture-record §4, worklog/reference/); our driver-era
+  removal of the failure-gated fallback superset and that era's mandate
+  are themselves superseded — the refusal contract and the removal plan were
+  deleted with the driver (session-96).
 
 ## 11. UI binding surface (our contracts, G-01/G-02/G-12 - the og-parity wire)
 
@@ -170,7 +177,7 @@ corpus searchdll-family sec.1 + DRWUI-exe sec.9.2). Our equivalent is the
 
 | Contract | Value | Evidence |
 |---|---|---|
-| ABI identity | `CR_UI_ABI_VERSION 2u` (v2: M-036 appended cr_ui_smart_report fields; v1 fields/offsets unchanged); every `cr_ui_*` returns u32 from the cr::Err space; thread-local last-error; catch-all guard per export; abi_size-versioned PODs | include/cr/cr_ui.h; src/ui/cr_ui.cpp |
+| ABI identity | `CR_UI_ABI_VERSION 4u` (v4: session-96 removed the driver-era cr_ui_driver_status export; v2: M-036 appended cr_ui_smart_report fields; v1 fields/offsets unchanged); every `cr_ui_*` returns u32 from the cr::Err space; thread-local last-error; catch-all guard per export; abi_size-versioned PODs | include/cr/cr_ui.h; src/ui/cr_ui.cpp |
 | Config validity | configs are ZERO-INIT VALID (filters/paths/checkpoint optional) - the og factory pattern | cr_ui.h zero-init policy |
 | run() threading | runs on the CALLER's thread (the reference UI calls its controllers from its own worker); pause/cancel/telemetry/checkpoint_count safe from ANY thread, any time | cr_ui.h threading block; ScanController telemetry lock |
 | Progress callback | fired from scan worker threads, single-flight: serialized, strictly monotonic in overall_permille (stale out-of-order deliveries dropped; stage flips at a steady permille still emit) | scan_progress_bridge_ + CrScan::progress_mu |

@@ -95,7 +95,9 @@ base recovery wizard. Nothing here is optional; nothing here may be shipped as a
 
 - C++20; MSVC /W4 /WX and gcc -Wall -Wextra -Werror both clean.
 - Pure logic (wire structures, runlists, chains, table math, grammar classification)
-  compiles and is unit-tested on Linux as well — dual-verification like the driver.
+  compiles and is unit-tested on Linux as well — dual-verification (the same
+  discipline the historical driver-era companion repo practiced; the current
+  product needs no companion repo).
 - Every constant that exists on disk (magics, type codes, limits) is asserted against
   the RE corpus and cited in docs/ground-truth-contracts.md.
 - Reference design defects carry an F-number in docs/error-fix-registry.md and a test.
@@ -108,7 +110,8 @@ deferred: NAS and cloud recovery, and any other remote feature).
 Implemented in v0.2: RawFixer-class transactional repair (cr::repair),
 SMART disk health (cr::win::health), the ext4/HFS+/Btrfs/ZFS/ReFS
 engines, LDM recognition, PST/OST + RAR5 analysers, the extended carve
-set (30 formats), the RDA driver transport with bad-sector isolation,
+set (30 formats), the driver-era RDA transport with bad-sector isolation
+(since replaced by direct raw I/O — session-96),
 parallel scanning, and the benchmark + EaseUS-comparison workflows.
 
 Session 5 (v0.2.x) raises LDM from recognition to FULL decode + dynamic

@@ -29,7 +29,7 @@ exact files/issues and the fix command).
 | # | Component (local) | Strictness | CI mirror job |
 |---|---|---|---|
 | 1 | clang-format `--dry-run -Werror` over src/include/tests | the repo `.clang-format` | `local-mirror` (and the old lint job's toolchain, now inside the mirror) |
-| 2 | Lint: the N-041 dead-surface grep + the **driver-only architecture lint** (the removed transport primitives `rda_available` / `win_pe_environment` / `open_harddisk_volume` / `prefer_rda` must never return to production code) | exact greps, evidence-cited | `local-mirror` |
+| 2 | Lint: the N-041 dead-surface grep + the **direct-access architecture lint** (the removed driver-era surfaces `rda_available` / `win_pe_environment` / `open_harddisk_volume` / `prefer_rda` / `open_rda_*` / `query_driver_status` / `cr_ui_driver_status` / `ERR_DRIVER_*` must never return to production code — session-96) | exact greps, evidence-cited | `local-mirror` |
 | 3 | Warnings-as-errors build — gcc `-Wall -Wextra -Werror -Wshadow` / MSVC `/W4 /WX` (global in `CMakeLists.txt`; a preset build IS the Werror build) | identical flags | `windows` (MSVC) / `linux` (ASan) |
 | 4 | Unit + contract tests — the full ctest suite (engines, orchestrator incl. the scan-truth pins, cr_ui ABI lane, win-stub syntax gate) | same presets | `windows` / `linux` / `linux-tsan` / `linux-ubsan` |
 | 5 | Repo truth self-tests — G-09 report schema validation + the Win7 PE gate self-test (`tools/test_verify_pe_um.py`) | identical scripts | `linux` |
