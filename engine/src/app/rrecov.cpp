@@ -1702,7 +1702,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         table::LdmInfo probe;
         if (table::parse_ldm_database(target.device.get(), probe) == OK && probe.found) {
             win::PhysicalDiskList list;
-            if (win::enumerate_disks(32, list) == OK) {
+            if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
                 auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
                 for (const auto& pd : list) {
                     u32 oerr = 0;
