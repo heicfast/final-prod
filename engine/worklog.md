@@ -15280,3 +15280,72 @@ be cited to the historical tree, not to memory.
 (ACCESS-LAYER / CONSUMERS / DRIVER-CONTRACT / REFERENCE-ACCESS /
 DESIGN-CONSTRAINTS) before any design; design before any code;
 equivalence before tuning; the driver repo is never modified.
+
+## Session 96 — entry 3: the SA-9 concession of the parallel Phase-0 lane + the rider findings (this lane concedes T1-T3 to the landing window at c9a522f4 and continues as the implementation lane)
+
+**The race.** This lane ran the same session mandate in parallel with the
+landing window: repos pinned identically (core `619acec2`, driver `323e75ac`
+read-only, corpus `be0cfe9` reference-only), the prompt archived token-redacted,
+and a full five-sheet Phase-0 pass produced by four parallel read agents
+(ACCESS-LAYER/CONSUMERS/DRIVER-CONTRACT/REFERENCE-ACCESS/DESIGN-CONSTRAINTS).
+The landing window pushed first (b6418420 → b9430745 → aa16fb89 → c9a522f4:
+their own five sheets, the fresh pre-replacement baseline run 41042267586,
+and DESIGN.md). Per the SA-9 concession discipline: this lane's duplicate
+T1-T3 commits were dropped locally, the landing window's Phase-0 stands
+as the session's contract, and this entry records what the parallel pass
+uniquely found (the riders below) plus its first-hand verification set.
+
+**Converged independently (both passes, high confidence):** the
+transport-agnostic `IStorageDevice` seam is the surgical point; the core
+already contains the complete direct machinery (DirectDevice / open_path /
+the unified 64 KiB envelope / probe_geometry / the heal / the staged-write
+tail) in production shape; the driver's data path is a synchronous
+QD-1 forward-IRP with no alignment precondition and verbatim error
+propagation; F11 = requested-Length×512; the effective transport QD is 1
+by construction (the CachedReader mutex spans the transport call); the
+fresh driver baseline is the bar (536.92 MiB/s seq-1MiB, run 41042267586);
+the og's direct leg is environment-gated (WinPE-only) and buffered+sync;
+no failure fallback exists in the og at any gated site.
+
+**The rider findings (unique to this lane's pass, verified first-hand at
+c9a522f4 before recording — each filed for its owning TODO, not silently
+fixed):**
+- **R-A (CI defect, owns T18):** `.github/workflows/checks.yml:46/:49` —
+  the push/PR triggers read `branches: ain]` (a lost opening bracket):
+  pushes to `main` do NOT trigger Checks; only `workflow_call` (release
+  validation) and `workflow_dispatch` (the coherence lane's addition) fire.
+  This is why session-95 needed the dispatch trigger to re-prove a docs-only
+  fix (the 41026660604 class). The bracket is restored when the workflows
+  are touched for the driver-tier removal (T13-T18) — with the
+  paths-ignore discipline reconsidered at the same time.
+- **R-B (edge defect, owns T9/T10 wiring):** `src/app/rrecov.cpp:1751` —
+  the CLI LDM resolver still enumerates `enumerate_disks(32, ...)` while
+  cr_ui.cpp:1920 uses the M-030 `ENUMERATE_DISK_BOUND` 200-disk space: on
+  systems with >32 disks the CLI resolver misses LDM members. M-030's fix
+  landed only on the cr_ui side. The resolver is rewritten in the T9/T10
+  wiring anyway (the open_disk call it makes changes signature); the bound
+  rides that commit with this finding as its evidence.
+- **R-C (stale probe, owns T13/T17):** `bench/ours/run-behavior.ps1:31-39`
+  — probe 1 ("nodriver": scan with the RDA service absent, expecting the
+  driverless-refusal behavior) tests the surface this session deletes. The
+  probe is re-targeted to the non-elevated refusal (the privilege model's
+  observable) when the bench scripts are swept in T13/T17.
+
+**This lane's first-hand verification set at the concession (the
+environment facts for every later lane in this sandbox):** the gcc-14
+linux-release build green with zero warnings at -Wall -Wextra -Werror
+-Wshadow at `619acec2`; the full ctest suite green (1,747 tests, 169.4 s);
+the format gate green ONLY at the CI-pinned `clang-format==18.1.8` (a
+23.x pip install produces ~10 spurious violations in cr_ui.cpp /
+cr_health.cpp / tests/win-stub/windows.h — version drift, not code drift;
+the pin is checks.yml:97 and build-surface.md:130); cmake 4.4.4 +
+ninja pip-provisioned (the sandbox has no system cmake); background
+processes do not survive between sandbox tool calls (the gate must run
+synchronously); the secrets scan clean (the token never entered the tree).
+
+**The lane continues from c9a522f4 as the implementation lane** — T6 per
+DESIGN.md §9: the cr_transport direct-only rewrite, the error-family
+flip (ERR_DRIVER_* out, ERR_ELEVATION_REQUIRED 0x500C0001 in), cr_rda.h
+and cr_driver_status.h deleted, the caller sweep (rrecov/cr_ui/
+cr_image_create), the ABI v4 bump riding the cr_ui_driver_status removal,
+and both lanes' tests updated — every push through the full local gate.
