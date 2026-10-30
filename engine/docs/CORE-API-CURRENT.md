@@ -179,8 +179,9 @@ ABI event types **12** (the CR_EVT_* census).
 ## (b) The C UI ABI — every export (93 at the current tree; `CR_UI_ABI_VERSION 2`, cr_ui.h:79)
 
 > **Census honesty note (2026-10-30):** the tables below enumerate the
-> surface as it stood at the v0.4.1-parity census (78 exports then). The
-> 15 newer exports — the M-101 query-tag tails, the N-140 carve-tally
+> surface as it stood at the v0.4.1-parity census — a historical count
+> (78 exports at that audit-time; the tree now derives 93). The 15 newer
+> exports — the M-101 query-tag tails, the N-140 carve-tally
 > pair, `cr_ui_unlock_volume_with_dictionary` (N-064),
 > `cr_ui_driver_status`, `cr_ui_health_read`, `cr_ui_fsck_volume`
 > (M-075), `cr_ui_turn_off_bitlocker` (M-078), `cr_ui_session_resume_last`,
