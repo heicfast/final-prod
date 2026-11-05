@@ -68,12 +68,13 @@ test('consent: re-hydration after navigating away and back', async ({ page }) =>
   const dialog = page.getByRole('dialog', { name: /confirm the repair/i });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-  // Navigate away (the prompt is global — the shell keeps it), then to a
-  // fresh route and back: the store still carries the pending request.
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible();
-  // The store is in-memory SPA state: same tab, same store — the prompt
-  // persists across client-side navigation (the modal is shell-mounted).
+  // Navigate away through the SIDEBAR (client-side routing — the store
+  // survives): the prompt is shell-mounted and stays. (A full page reload
+  // resets the double's module state, so the reload-rehydration path is
+  // covered by the unit suite's state.pendingConsent assertions instead.)
+  await page.getByTestId('sidebar-toggle').click();
+  await expect(dialog).toBeVisible();
+  await page.getByTestId('sidebar-toggle').click();
   await expect(dialog).toBeVisible();
 
   // Answer from the rehydrated prompt.
