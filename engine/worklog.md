@@ -15500,3 +15500,84 @@ secrets gate is live (the token never enters the tree).
 **Next:** T2 — the five Phase-0 agents (A corpus / B core / C driver /
 D consumers / E platform) with this discovery set seeded into their
 briefs; the five sheets pushed before any code change.
+
+---
+
+## Session 97 — entry 2: T2 complete — the five Phase-0 sheets land (agents A–E, parallel)
+
+**The sheets** (all at HEAD `e6ee97da`, read-only research, pushed
+together before any code change per the mandate):
+
+- `worklog/REFERENCE-ARCHITECTURE.md` (Agent A/T2-a, 664 lines) — the
+  corpus-documented reference access/recovery architecture; 64-item
+  parity checklist ([M] 31 / [D] 15 / [U] 9 / [DD] 9); the og's cache
+  now line-cited end-to-end (4 MiB budget + prefetch thread + 10-run
+  ×1000-sector look-ahead ring, DRWUI_decompiled.c:919080/962250-962682);
+  og MFT growth probes read 2 MiB per device call vs core's 4 KiB
+  windows; every og read size is a 64 KiB multiple by construction;
+  measured og walls (quick 21-26 s on 129 GiB; full 880 s / 149.45 GB /
+  1.139M files); the og serializes QD1 through one per-volume device
+  (the core's pool fan-out is a deliberate divergence to own); grading
+  is two-pass post-scan in the og; CORRECTIONS #9 folded.
+- `worklog/ACCESS-LAYER-CURRENT.md` (Agent B/T2-b, 713 lines) — the
+  current direct layer's complete contract; **F1-F14 ranked opportunity
+  list** (F1 CachedReader mutex spans the transport call = effective
+  QD1; F2 no FILE_FLAG_OVERLAPPED so pipelining is inexpressible; F3
+  one 256 KiB block per fill, no coalescing; F4 the 64 KiB bounce on
+  every unaligned read = up to 128× amplification on probe-sized reads;
+  F5 the rand bench measures the bounce path; F6 image create 64 KiB
+  QD1 loop; F7 image mutex; F8 decrypt per-read alloc; F9 corpus-pinned
+  Sleeps; F10 no prefetch; F11 checkpoint rewrites; F12 3-IOCTL
+  geometry probe; F13 volume-open dance; F14 single-threaded discovery
+  probe); **the S-PART-DELETE forensics** — exact command
+  (`rrecov scan --disk 3 --deep --threads 4`), ≤0.5 s own-exit, every
+  fast-exit path traced, **H1: open_disk(3) fails in the PnP
+  reconfiguration window ~30 ms after Remove-Partition** (the disk WAS
+  raw-openable 35 ms earlier for the hash map; volume lanes scan
+  minutes after their mutations, this lane 30 ms); stale 'rda' gate at
+  Run-Benchmark.ps1:628-630.
+- `worklog/DRIVER-BASELINE.md` (Agent C/T2-c, 256 lines) — the driver's
+  data path end-to-end (control device \\.\RDA, DO_DIRECT_IO, MDL
+  system-VA map, fresh IRP per IO via IoBuildAsynchronousFsdRequest,
+  synchronous in-line wait, verbatim NTSTATUS, Information=Length×512,
+  no queue/no chunking/no retry/no alignment precondition); the 5
+  hardest guarantees (verbatim error passthrough, cancellation,
+  IOCTL fidelity, byte-exact read-size independence, lifecycle); the 5
+  headroom classes (the second-IRP re-issue, F11 scaling, IOCTL proxy
+  hop, open-path resolution walk, cancel-safe-IO −2.9% random price);
+  every run ID consolidated (39807929475, 41042267586, 40227375329,
+  40315255368, 40073093997, 40079065019, 39924932944, 40228880804).
+- `worklog/CONSUMER-PERFORMANCE.md` (Agent D/T2-d, 585 lines) — 27
+  consumers re-verified at HEAD; **verdict distribution: EXCEEDS 6,
+  MEETS 6, GAP 1 (marginal, single-sample), UNMEASURED 15, n/a 2**;
+  zero confirmed transport regressions; the 5 unmeasured metric
+  classes (CPU/byte + memory — data ALREADY in samples-deepcarve.csv,
+  untranscribed: direct −39% CPU/GiB (305 vs 502 CPU-s/GiB); cancel
+  time-to-stop; preview/thumbnail TTFB; transport legs at
+  consumer-native sizes; volume-size ladder); the harness defects
+  (stale rda gate, S-PART-DELETE, recall-0 pre-existing BOTH eras,
+  exception-path evidence gap, and the corrected record: run
+  41042267586 hit its 120-min budget mid-scenario — 4/7 scenarios, no
+  06-comparison — PERFORMANCE.md §1.1's "completed green" needs
+  correcting); the direct run finished all 7 scenarios + phase 4 in
+  1 h 42 m.
+- `worklog/PLATFORM-CAPABILITIES.md` (Agent E/T2-e, 469 lines) — 30+
+  Microsoft Learn pages cited; the current path is buffered,
+  synchronous QD1, PhysicalDrive-only (grep: zero OVERLAPPED/
+  NO_BUFFERING/IOCP/ReadFileScatter/CancelIoEx/VirtualLock/DASD-ext
+  anywhere in src/); top unexploited: FILE_FLAG_OVERLAPPED + QD2-4
+  (measured +12% at 64 KiB on the runner), NO_BUFFERING + aligned
+  buffers (kills the GAP-S6-13 class), CancelSynchronousIo,
+  IOCP/scatter-gather for imaging, DASD-ext (n/a today); the write-
+  to-mounted-volume refusal class bounds the session; Storport 255
+  outstanding per LU ceiling; 5 doc claims flagged unverifiable.
+
+**The convergent Phase-0 verdict:** on every metric measured so far the
+direct path already meets or beats the driver (seq +1.4%, open −46%,
+deepcarve −32%, API scan −26%, deep parity, CPU/GiB −39%); the
+session's real work is (1) the harness defects that block the gates
+(stale rda expectation, S-PART-DELETE H1, exception-path evidence),
+(2) the 15 unmeasured consumers/metrics, (3) the F1-F4 structural
+levers where the driver's own guarantees permit exceeding it, and
+(4) the 9 [U] parity-checklist items. Next: T3 — PERFORMANCE-TARGET.md
+as the gate document.
