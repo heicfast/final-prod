@@ -44,7 +44,6 @@ Ownership model (no duplication):
 
 | Constant | Value | Consumers |
 |---|---|---|
-| Driver service name | `RDA` (device `\\.\RDA`; installer pins; matches `engine`'s RDA transport probe and `driver`'s service-name-derived device grammar with `UPPER(SN)`) | installer (§installer/recoverywizard.nsi), bridge `get_driver_status`, `contracts/command-surface.json` |
 | Sessions directory | `%ProgramData%\HeicFast\Recovery Wizard\sessions\` | bridge `session_save`/`sessions_list`/`session_load`, installer (creates + ACLs) |
 | Logs directory | `%ProgramData%\HeicFast\Recovery Wizard\logs\` | bridge logger, installer (creates + ACLs) |
 | Product version | root `VERSION` file — the ONLY version constant; engine CMake, ui Cargo/tauri.conf/package.json, driver rda_version.h/INF, and the NSIS installer all derive from it and `build.ps1` fails on drift | everything |
