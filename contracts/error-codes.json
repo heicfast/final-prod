@@ -62,14 +62,14 @@
       "surface": "recovery item"
     },
     {
-      "code": "ERR_DRIVER_REQUIRED",
+      "code": "ERR_DEVICE_DISCONNECTED",
       "value": "0x50020007",
-      "uiCode": "device-permission",
+      "uiCode": "device-gone",
       "context": {
-        "rule": "INTERIM (consolidation session): the v2 engine still defines this code for the mandatory-driver posture, which this session removes. Until the P2 core advance merge retires it, the honest bucket is device-permission (raw-disk access refused). At P2 this value 0x50020007 becomes ERR_DEVICE_DISCONNECTED (reattach-then-resume) and re-points to device-gone.",
-        "refinement": "distinct from ERR_OPEN_FAILED: ERR_DRIVER_REQUIRED means the transport probe refused, ERR_OPEN_FAILED means a live transport's grammar open failed"
+        "rule": "P2 core advance: the v2 engine's ERR_DRIVER_REQUIRED at this seat is retired with the driver — v4 repurposes the value for the device-disconnected refusal (N-125). The UI surfaces the reattach-then-resume offer: the device vanished mid-operation; the bridge's fresh enumeration confirms absence. The dedicated resume affordance is BF-07.",
+        "refinement": "distinct from ERR_OPEN_FAILED: DEVICE_DISCONNECTED means a device that WAS open is gone now; ERR_OPEN_FAILED means the open itself failed"
       },
-      "surface": "disk/volume open (every scan, repair, apply)"
+      "surface": "mid-scan/mid-recovery device loss; session resume after yank"
     },
     {
       "code": "ERR_BAD_MAGIC",
@@ -211,6 +211,33 @@
       "surface": "recovery item"
     },
     {
+      "code": "ERR_DEST_PATH_TOO_LONG",
+      "value": "0x50050006",
+      "uiCode": "destination-invalid",
+      "context": {
+        "note": "M-074 destination taxonomy (v4): the three new destination refusal codes share the destination-invalid umbrella; distinct reasonKeys deferred (BF-15)."
+      },
+      "surface": "recovery destination"
+    },
+    {
+      "code": "ERR_DEST_PATH_INVALID",
+      "value": "0x50050007",
+      "uiCode": "destination-invalid",
+      "context": {
+        "note": "M-074: malformed destination path."
+      },
+      "surface": "recovery destination"
+    },
+    {
+      "code": "ERR_DEST_NETWORK",
+      "value": "0x50050008",
+      "uiCode": "destination-invalid",
+      "context": {
+        "note": "M-074: destination resolves to a network location the safe writer refuses."
+      },
+      "surface": "recovery destination"
+    },
+    {
       "code": "ERR_FVE_LOCKED",
       "value": "0x50060001",
       "uiCode": "device-permission",
@@ -219,6 +246,15 @@
         "rule": "During enumeration the volume's status becomes 'locked' (DeviceStatus union member). If a scan is nonetheless started on it, the bridge throws device-permission with detail {bitlocker:true, reasonKey:'errors.volumeLocked'} — the UI's unlock flow (openPath via cr_ui_open_volume_with_key / cr_ui_unlock_volume_with_dictionary consent actions) runs from the volume's status surface."
       },
       "surface": "volume enumeration / scan start"
+    },
+    {
+      "code": "ERR_FVE_ELEVATION_REQUIRED",
+      "value": "0x50060002",
+      "uiCode": "device-permission",
+      "context": {
+        "note": "The FVE key-protector store (live registry / offline hive) needs an elevated token to read."
+      },
+      "surface": "BitLocker auto-unlock"
     },
     {
       "code": "ERR_HEALTH_UNAVAILABLE",
@@ -275,6 +311,12 @@
       "surface": "lost-partition apply"
     },
     {
+      "code": "ERR_INTERNAL",
+      "value": "0x50090001",
+      "uiCode": "unknown",
+      "surface": "any"
+    },
+    {
       "code": "ERR_IMAGE_CORRUPT",
       "value": "0x500A0001",
       "uiCode": "unknown",
@@ -284,10 +326,13 @@
       "surface": "image open (unused by the 36)"
     },
     {
-      "code": "ERR_INTERNAL",
-      "value": "0x50090001",
-      "uiCode": "unknown",
-      "surface": "any"
+      "code": "ERR_ELEVATION_REQUIRED",
+      "value": "0x500C0001",
+      "uiCode": "device-permission",
+      "context": {
+        "rule": "THE driverless posture's core refusal (session-96, ABI v4): every raw-disk verb requires an elevated process token; a non-elevated caller gets this code (CLI exit 4). INTERIM mapping to device-permission until the P4 bridge introduces the dedicated 'elevation-required' ConnectorError code (banner + restart-as-administrator flow)."
+      },
+      "surface": "every raw-disk open, scan, health, repair, apply"
     }
   ],
   "bridgeOnlyCodes": [

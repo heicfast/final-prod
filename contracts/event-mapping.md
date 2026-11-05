@@ -39,6 +39,8 @@ BEFORE `cr_ui_scan_run`.
 | `CR_EVT_HEARTBEAT` | 8 | `timestamp_ms` | Liveness only: updates the scan entry's last-heartbeat instant (dead-scan detection after device yank). NO progress synthesis. |
 | `CR_EVT_SAVE_PROGRESS` | 9 | `stage_permille`, `overall_permille` | Drives the saveSession spinner: emits `save-progress:<scanId>` with a 0..1 permille fraction. |
 | `CR_EVT_FS_CHECK` | 10 | `check_errors` (0x1001..0x100e set count), `check_family` | Bumps the scan entry's damage-audit counter (surface: scan screen's truthful "X file-system issues found" note; the full detail lives in stats/session records). |
+| `CR_EVT_SESSION_LOAD_PROGRESS` | 11 | `stage_permille` (the load's own 0..1000), `bytes_done`/`bytes_total` (nodes deserialized / persisted node count); `stage` = 0xFFFFFFFF, `overall_permille` = 0xFFFFFFFF (no scan context) | W1b (R-54) load-path progress: fired coalesced (first tick, permille steps, terminal) from the CALLING thread while `cr_ui_session_load_with_events` deserializes the session tree — the `CR_EVT_SAVE_PROGRESS` mirror. Cancellation is the caller-owned cancel flag (polled per node even when the sink is NULL). The P4 bridge emits `session-load-progress:<path>` for the load spinner. |
+| `CR_EVT_AUTOSAVED` | 12 | `autosave_rc` (0 saved / the write error code) | W1c (R-52) completion auto-save outcome: fired ONCE after `run()` completes and `scan_config.autosave_dir` is set. The session lands as `<autosave_dir>/auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf` (the N-061 corpus convention). A cancelled run never auto-saves and never fires this event. The P4 bridge uses it to refresh the session list / feed `session_resume_last`. |
 
 ## Recovery progress (`RecoveryProgressEvent`)
 

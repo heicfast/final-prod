@@ -10,7 +10,7 @@ Ownership model (no duplication):
 
 | Truth | Owned by | Location |
 |---|---|---|
-| The engine ABI (78 `cr_ui_*` exports, structs, event POD) | engine | `engine/include/cr/cr_ui.h` — frozen ABI, append-only |
+| The engine ABI (92 `cr_ui_*` exports, structs, event POD) | engine | `engine/include/cr/cr_ui.h` — frozen ABI, append-only |
 | The engine error numeric space | engine | `engine/include/cr/cr_error.h` |
 | The UI seam (9 domains, 36 methods, `ConnectorErrorCode` vocabulary) | ui | `ui/src/connector/contract.ts` |
 | **How the two map to each other** | **this directory** | `error-codes.json`, `event-mapping.md`, `type-maps.md`, `command-surface.json` |
@@ -48,7 +48,7 @@ Ownership model (no duplication):
 | Sessions directory | `%ProgramData%\HeicFast\Recovery Wizard\sessions\` | bridge `session_save`/`sessions_list`/`session_load`, installer (creates + ACLs) |
 | Logs directory | `%ProgramData%\HeicFast\Recovery Wizard\logs\` | bridge logger, installer (creates + ACLs) |
 | Product version | root `VERSION` file — the ONLY version constant; engine CMake, ui Cargo/tauri.conf/package.json, driver rda_version.h/INF, and the NSIS installer all derive from it and `build.ps1` fails on drift | everything |
-| Required `cr_ui` ABI version | `2` (`CR_UI_ABI_VERSION` in `engine/include/cr/cr_ui.h`) — the bridge refuses to bind on any other value | bridge `abi.rs` startup gate |
+| Required `cr_ui` ABI version | `4` (`CR_UI_ABI_VERSION` in `engine/include/cr/cr_ui.h`) — the bridge refuses to bind on any other value | bridge `abi.rs` startup gate |
 
 Portable-mode override (documented deviation, `docs/PARITY-DELTAS.md`): when
 the portable marker (`recovery-wizard.portable`, written by
