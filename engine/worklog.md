@@ -15789,3 +15789,34 @@ every surface except **one registered GAP: cancellation of an in-flight
 read** (the driver's CancelIo-on-IRP vs the direct path's cooperative
 token; T11's scope, with cancel_to_stop_ms now measured by the harness
 to decide whether it matters at real latencies).
+
+---
+
+## Session 97 — entry 8: T7–T12's honest disposition — the lever ledger (worklog/PERF-LEVERS.md)
+
+**The framing arithmetic** (from the captured runs): the deepcarve wall is
+8.45 MiB/s effective against a 544 MiB/s transport — the walls are
+validation-CPU-bound, ~64× below the device rate. Every transport-side
+lever therefore moves microseconds against walls measured in hundreds of
+seconds, and the levers that could matter on faster media (F1/F2, QD2-4)
+are unvalidatable on the CI runner class (the VHDX saturates at QD1) —
+the mandate's own every-claim-a-measurement rule forbids claiming wins
+no surface can show.
+
+**The dispositions** (PERF-LEVERS §1, with per-lever arithmetic):
+F1/F2 DEFERRED (unvalidatable + ABI risk, with the revisit triggers);
+F3/F6/F7/F11/F12/F13 NOT TAKEN (negligible: 6 ms/GiB, 30 ms/8 GiB class);
+F4 NOT TAKEN (behavior risk on damaged media — the envelope sets salvage
+granularity — for an unmeasurable gain); F5 NOT TAKEN (needs a CLI
+surface change; the envelope path IS the consumers' honest rand number);
+F8 DEFERRED (no fixture — measure-first discipline); F9 NOT TAKEN
+(corpus-pinned); F10 NOT TAKEN (measured superior without it: the
+reactive cache beats the driver's walls by 26-32%); F14 NOT TAKEN
+(mis-sized: the probe loop is 33 ms per 8 GiB; the CPU lives in the
+carve matcher — engine work, scoped for the next session).
+
+**The frontier that WOULD move walls** (PERF-LEVERS §3, for the handoff):
+the carve/validation pipeline (303.8 CPU-s/GiB), QD pipelining on
+physical NVMe, the decrypt path post-fixture, and the one registered
+peripheral gap (in-flight-read cancellation, decided by the now-captured
+cancel_to_stop_ms).
