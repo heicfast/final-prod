@@ -1763,3 +1763,102 @@ session):
   commands/ 4,114 + lib.rs 104 + tauri-connector.ts 390 — the proven base
   to re-pin to ABI v4 (9 changed structs, 4 new, 2 new event types, the
   new export families per §4.1/§4.2).
+
+---
+
+## P4 complete — the UI is wired to the real engine (commits 8e61f4a8 → e33dd819)
+
+> Entry reconstructed from commit evidence + CI run records (the prior
+> session stopped at e33dd819 without writing it; same treatment as the
+> P3 entry). The lane's GREEN closure is this session's db7f588a (below).
+
+- 8e61f4a8 (58 files, +17,903/−778): the v4 bridge lands — bridge/ (abi,
+  error, events, state, consent, filefilter, logging, util), commands/ (12
+  domains), lib.rs, the 453-line tauri-connector.ts; the mock demoted to
+  TEST DOUBLE (VITE_CONNECTOR default flipped to tauri; the mock stays for
+  dev/vitest/e2e); contract.ts + error table to the 40-code v4 vocabulary;
+  the connector-tauri contract test (397 lines); Cargo.lock committed.
+  contracts-ci 42099166813 GREEN; ui-ci 42099166701 / ui-e2e 42099166668
+  RED (the Windows bridge compile errors).
+- 573fba98: the consent-surface proofs (+372 lines) — coverage back over
+  the gates (63.3/76.5 vs 60/70). ui-ci 42104591222 still red.
+- 70741eb7 (19 files): the convergent-lane reconcile — a PARALLEL P4 had
+  landed; first-landing-wins, three real defects fixed + the missing CI
+  gates. ui-ci 42105861785 red (7 Windows compile errors + 2 clippy).
+- 8c7b82f2: those seven compile errors + two clippy warnings, evidence-cited
+  (job 127520374557).
+- 0a43f678: the e2e consent re-hydration leg switched from page.goto() (a
+  hard reload that resets the double's module state) to the sidebar toggle.
+- e33dd819: ShellExecuteW's HWND is *mut c_void — null_mut (run 42107935888).
+  STILL RED: ui-ci 42109647269 (clippy: 4 dead-code constants + the
+  chunks_exact lint) and ui-e2e 42109647145 (the sidebar does not exist on
+  /scan routes — inExplorerFlow hides the whole nav).
+
+## Session resume (this session) — red main closed, P5 lands, P6 entered
+
+Stage check (measured): main @ e33dd819 RED on both ui lanes (above);
+engine-ci's last run GREEN at bb69f3d5 (no engine files touched since);
+contracts-ci GREEN throughout. The session's first unit was closing the
+red main; P5 and P6 follow.
+
+### db7f588a — the red-main fix (both lanes green)
+
+- Clippy (5 errors): error.rs ELEVATION_REQUIRED/DESTINATION_INVALID/
+  DESTINATION_OVERLAP removed — those cross as ENGINE numeric codes
+  (0x500C0001 + the 0x5005xxxx family the engine arms, F12/M-074) mapped
+  by the TS connector's numeric table (tauri-connector.ts:111-131); usage
+  census: 16/19 code:: members minted, these three never. preview.rs
+  THUMBNAIL_MIN_SIZE removed (M-115's ≤20-byte refusal is the ENGINE's
+  own ERR_UNSUPPORTED). chunks_exact(4) → as_chunks::<4>().0 (clippy 1.99).
+- e2e re-hydration: browser history is the only away-and-back that neither
+  answers the non-dismissable prompt (Radix overlay swallows in-page
+  clicks; no sidebar exists on /scan routes) nor hard-reloads the double
+  (hash router → goBack/goForward are same-document; the store + the
+  shell-mounted modal persist). Asserts home heading after back, scanning
+  line after forward.
+- .gitignore: ui/src-tauri/gen/ (tauri-build's generated ACL schemas).
+- Local proofs (all green, this tree): typecheck, format, eslint,
+  arch-lint(85), knip (KNIP_DISABLE_RAW_TRANSFER=1 — CI parity), jscpd
+  (1 clone = CI parity), 174/174 unit (24 files), 14/14 e2e incl. the
+  fixed leg (23.6 s), build + budget (134.5/200, 318.9/500 KB gzip),
+  cargo clippy --target x86_64-pc-windows-msvc -- -D warnings ZERO,
+  cargo check --tests ZERO (llvm-rc stub for the never-linked .res;
+  check-only). The cross-check trick: the windows-msvc target compiles the
+  windows-sys paths a Linux host build never sees.
+- CI: ui-ci 42122198423 GREEN, ui-e2e 42122198275 GREEN, contracts-ci
+  42122198375 GREEN. **Main green at every push.**
+
+### a5cfa11f — P5: workflows + CI finalization
+
+- SHA pinning (the session mandate's third-party re-pin): all 36 uses:
+  refs across the seven workflows pinned to full 40-hex SHAs with tag
+  comments (checkout 11d5960a, setup-node 49933ea5, upload-artifact
+  ea165f8d, cache 0057852b, rust-toolchain b725eda5=stable 2026-10-16,
+  msvc-dev-cmd 0b201ec7, pnpm b906affc, gh-release 3bb12739). All seven
+  YAMLs re-parsed.
+- forensic-repro.yml redesign (plan §6.3): default tag v0.7.0; the no-mock
+  gate on the live shipped DOM (__TAURI_INTERNALS__ present +
+  __rwInjectConsent absent — a shipped mock fails the run); launch-app.ps1
+  records the app's ACTUAL TokenElevation (OpenProcessToken P/Invoke);
+  NEW unelevated twin (runas /trustlevel:0x20000, CDP 9223): asserts the
+  elevation banner + the scan-start elevation-required refusal toast + the
+  no-mock gate. Dispatch-ONLY now — a push trigger on tools/forensic/**
+  would install the default tag at push time (false-red on an unborn
+  v0.7.0; the exact trap this push would have sprung).
+- drive-ui.mjs re-pinned to the v0.7.0 wizard: consent 'Confirm the repair'
+  + 'Decline' (old patterns kept for lineage; a missed match is the
+  28-min-stall class of run 40470191039); health cards are role=radio
+  (S2's button-only selector found NOTHING — 40468386932's S3 lesson);
+  'Poor' joins the status vocabulary (i18n health.statusBad).
+- docs: BUILD.md gains the benchmark-posture decision (no engine benchmark
+  lane in CI — core's own repo owns that ledger) + the pinning note;
+  TESTING.md corrected to the measured tree (174/24, coverage 84.7/63.3/
+  76.5/85.6 all-files + 84.2/79.4/88.9/87.9 connector/tauri, run
+  42109647269 step 14); filefilter 1,481 confirmed fresh.
+- Verified already-final (no edit needed): validation-evidence.yml's
+  kit-only T14 + ignored-test bridge measurements + T15 driver-free
+  matrix; ui-ci's filefilter:check; engine-ci's core posture.
+
+Next: P6 — the v0.7.0 tag on the green tree, the release workflow
+end-to-end, forensic-repro dispatched on the release, and the evidence
+files under worklog/RELEASE-VALIDATION/.
