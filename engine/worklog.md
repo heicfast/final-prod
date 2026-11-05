@@ -15768,3 +15768,24 @@ v0.7.0 binary) — the clean re-measure + the S-PART-DELETE H1/H2
 discrimination. The F12 arming fix (4d4ef333) postdates that dispatch's
 binary; the next dispatch (v0.7.1 or the source lane) validates the
 scenario recall floors.
+
+---
+
+## Session 97 — entry 7: T14's checklist work — the 9 [U] parity items dispositioned + the session PARITY-DELTAS sheet
+
+**worklog/PARITY-DELTAS.md** — the session's architectural parity record:
+§1 the 9 [U] items from the Phase-0 checklist, every one verified in
+source this session (4 [M] matches — the $MFTMirr fallback, the ext4
+journal gate, the candidate scoring, plus; 2 [D] — the layout-IOCTL
+byte-parse divergence, the core-own verified backup-SB grid; 3 [DD] —
+the writability-probe fail-later policy, the compiled carve registry,
+the fixed-bounds memory policy with the flat 53.7 MiB WS evidence) —
+**checklist re-tally: [M] 35 · [D] 17 · [DD] 12 · [U] 0**;
+§2 the session's own deltas (the F12 false-refusal divergence REMOVED,
+the stale rda harness label removed, the cache/fan-out/envelope
+divergences re-evidenced as measured-superior); §3 the peripheral-
+surface comparison against DRIVER-BASELINE's guarantees — EQUAL on
+every surface except **one registered GAP: cancellation of an in-flight
+read** (the driver's CancelIo-on-IRP vs the direct path's cooperative
+token; T11's scope, with cancel_to_stop_ms now measured by the harness
+to decide whether it matters at real latencies).
