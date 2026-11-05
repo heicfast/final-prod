@@ -1021,7 +1021,8 @@ ${lines.join('')}
     saveSession: async (scanId: string, path: string | null): Promise<SessionMeta> => {
       await latency(320, 120);
       const rt = this.requireScan(scanId);
-      const fileName = path ?? `session_${new Date().toISOString().replace(/[:.]/g, '-')}.rsf`;
+      const fileName =
+        path ?? `auto_session_${new Date().toISOString().replace(/[:.]/g, '-')}.crsf`;
       const meta: SessionMeta = {
         id: `sess-${this.nextSessionId++}`,
         fileName,
