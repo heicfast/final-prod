@@ -142,8 +142,11 @@ the unelevated-refusal contract probes (exit 4), the CLI junk-gate
 probes), the **Release** lane (tag-driven, calls Checks, builds the core
 only — no driver component), the **Test & Benchmark** lane (dispatched
 per publish: no driver-install or verify — the elevated runner token IS
-the access model — the 10-scenario matrix through CLI and API over
-staged VHDX disks), and the
+the access model — the scenario matrix through CLI and API over staged
+VHDX disks, with the driver-parity performance regression gate from
+`bench/baseline.json`), the **Benchmark (source)** lane (session-97:
+measures the checked-out commit through the release build recipe — the
+perf discipline that every optimization is measured before release), and the
 **Installer gates** lane (the S-038 silent round-trip + version-key +
 OS-gate matrix). The pre-consolidation Ubuntu sanitizer/fuzz lanes were
 dropped by the owner's windows-only directive — that coverage stays local
