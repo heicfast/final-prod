@@ -83,6 +83,14 @@ enum class FsKindCode : u32 {
     Fat16 = 1,
     Fat32 = 2,
     Ntfs = 3,
+    /* OQ-S52-1 (resolved): the og's ENGINE kind 4 = the EXT2/3 FAMILY
+     * (M-133's twin-key shift member; the DRWUI factory's cases 4 AND 5
+     * both create the EXT2 searcher - the family code is the proven
+     * member). Stamped by the ext engine per the decoded analyser rule:
+     * the pre-ext4 family shapes (incompat within {FILETYPE, HAS_JOURNAL,
+     * META_BG/EXT_ATTR} AND ro_compat within {SPARSE_SUPER, LARGE_FILE,
+     * DIR_INDEX}); ext4 (the 0x2c0 EXTENTS|64BIT|FLEX_BG shape) stays 9. */
+    Ext2 = 4,
     Raw = 6, /* carved / raw-signature files */
     Exfat = 7,
     Hfsplus = 8,

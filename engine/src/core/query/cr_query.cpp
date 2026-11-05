@@ -5,8 +5,12 @@
 
 #include "cr/query/cr_query.h"
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <functional>
+#include <unordered_map>
 
 namespace cr {
 namespace query {
@@ -45,17 +49,11 @@ std::string ext_of(const std::string& name) {
 }
 
 Category cat_of(const std::string& name) {
-    const std::string e = ext_of(name);
-    if (e.empty())
-        return Category::Other;
-    const filefilter_data::ExtCat* first = filefilter_data::kEntries;
-    const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
-    const filefilter_data::ExtCat* it = std::lower_bound(
-        first, last, e.c_str(),
-        [](const filefilter_data::ExtCat& m, const char* key) { return strcmp(m.ext, key) < 0; });
-    if (it != last && strcmp(it->ext, e.c_str()) == 0)
-        return it->cat;
-    return Category::Other;
+    /* N-126: delegate to category_for_extension - ONE source of truth
+     * for the extension -> category mapping (the pre-fix duplicate
+     * lookup desynced the moment the overlay landed: the filter path
+     * missed the Unsaved rows the public classifier returned). */
+    return category_for_extension(ext_of(name));
 }
 
 bool contains_ci(const std::string& hay, const std::string& needle) {
@@ -130,11 +128,18 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if (u32(n->confidence()) < f.confidence_min)
         return false;
-    if (f.deleted_only && n->deleted_state() == tree::DeletedState::Active)
+    /* M-072: the state dimension as a mask (deleted_only remains sugar
+     * for the Lost-files-only toggle; the mask expresses the og's group) */
+    if ((f.effective_state_mask() & (1u << u32(n->deleted_state()))) == 0)
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
-    if (f.category_mask != 0x1FF || !f.extensions.empty() || !f.name_substring.empty()) {
+    /* M-101: the two branch axes (both fast: no string work) */
+    if (f.version_group != 0 && (pr->version_group != f.version_group))
+        return false; /* the Versions branch's per-group membership */
+    if (f.tags_only && !pr->tags_extracted)
+        return false; /* the Tags-Extracted branch membership */
+    if (f.category_mask != 0x3FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
         if ((f.category_mask & (1u << u32(cat_out))) == 0)
@@ -156,8 +161,11 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
     /* the path-prefix filter (og AdvanceFilterCondition path group): the
      * row's full path must start with the prefix; the walk only passes a
      * materialized path when the filter is active (the plain count path
-     * keeps its no-string-conversion fast lane) */
+     * keeps its no-string-conversion fast lane). M-072 adds the substring
+     * form on the same axis (the og's filter-bar path box). */
     if (!f.path_prefix.empty() && !starts_with_ci(full_path, f.path_prefix))
+        return false;
+    if (!f.path_substring.empty() && !contains_ci(full_path, f.path_substring))
         return false;
     return true;
 }
@@ -170,7 +178,7 @@ void walk(const tree::FileNode* n, const std::string& prefix, Ctx& c) {
          * path-prefix filter is active (prefix carries the ancestors,
          * '/'-joined, no trailing separator - the Row::path_utf8 shape) */
         std::string full;
-        if (!c.f->path_prefix.empty()) {
+        if (!c.f->path_prefix.empty() || !c.f->path_substring.empty()) {
             const std::string name = ch->name_utf8();
             full = prefix.empty() ? name : prefix + "/" + name;
         }
@@ -190,6 +198,19 @@ Category category_for_extension(const std::string& ext_utf8) {
     const std::string e = lower_ascii(ext_utf8);
     if (e.empty())
         return Category::Other;
+    /* N-126: the og's "Unsaved File" category - the office
+     * unsaved-document family. The corpus decodes the Word autosave/
+     * backup pair (.asd/.wbk); the og's full membership table (the
+     * office tmp forms, the ~-prefixed locks) is not decoded anywhere
+     * in the corpus (the R-27 assistant space carries only the six
+     * 5-0xB categories; the UI's type-mask bit 6 owns the axis) - the
+     * overlay carries the decoded subset ahead of the generated
+     * FileFilter table (which has no autosave rows: the og's
+     * FileFilter.xml carries none either - the category is a UI-layer
+     * classification over engine results, which is why the overlay -
+     * not the generated table - is the right seam). */
+    if (e == "asd" || e == "wbk")
+        return Category::Unsaved;
     const filefilter_data::ExtCat* first = filefilter_data::kEntries;
     const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
     const filefilter_data::ExtCat* it = std::lower_bound(
@@ -213,7 +234,7 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         /* the root's own path segment (FullNode role, ASCII fallback) -
          * only materialized when the path filter is active */
         std::string root_seg;
-        if (!q.filter.path_prefix.empty() && r->is_full()) {
+        if ((!q.filter.path_prefix.empty() || !q.filter.path_substring.empty()) && r->is_full()) {
             const auto* fn = static_cast<const tree::FullNode*>(r);
             for (u16 ch : fn->role)
                 root_seg.push_back(char(u8(ch < 0x80 ? ch : u'_')));
@@ -406,6 +427,8 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         row.deleted = u32(node->deleted_state());
         row.confidence = u32(node->confidence());
         row.category = u32(cat_of(row.name_utf8));
+        row.version_group = pr ? pr->version_group : 0;            /* M-101 */
+        row.tags_extracted = (pr && pr->tags_extracted) ? 1u : 0u; /* M-101 */
         emit_path(node, row.path_utf8);
         out.rows.push_back(std::move(row));
     }
@@ -540,6 +563,238 @@ bool apply_size_bucket(Filter& f, u16 bucket, u64 custom_min, u64 custom_max) {
         /* 0x1005 is skipped by the og's menu; anything else is unknown */
         return false;
     }
+}
+
+/* ---- M-125: the og's progress display math (the DRWUI decode) ----
+ * The three-function family, ported verbatim from the decompile:
+ * FUN_1401af820 (the piecewise remap + the defensive stall cap),
+ * FUN_1401af950 (the type dispatch + the raw computation), and
+ * FUN_1401afa60 (the monotonic publish guard). The finding's own test
+ * table carried four transcription errors against these corpus
+ * constants (raw 20 -> 21.8 not 22; raw 29 -> 23.6 not 23.8; raw 98
+ * -> 99.0 not 99.4; raw 99 -> 99.0 not 99.99 - the stall cap only
+ * fires for raw > 100, the og's dead defensive branch): the constants
+ * here are the corpus's, and the tests pin the corrected table (the
+ * corpus wins, per the protocol). */
+double progress_display_remap(double raw_percent) {
+    double out;
+    if (11.0 <= raw_percent) {
+        if (30.0 <= raw_percent) {
+            out = raw_percent;
+            if (raw_percent <= 98.0) {
+                if (raw_percent <= 90.0) {
+                    out = raw_percent * 0.8;
+                } else {
+                    out = (raw_percent - 88.0) * 2.7 + 72.0;
+                }
+            }
+        } else {
+            out = (raw_percent - 11.0) * 0.2 + 20.0;
+        }
+    } else {
+        out = raw_percent * 2.0;
+    }
+    if (100.0 < out && raw_percent != 100.0)
+        out = 99.99; /* the defensive stall cap (dead for raw in [0,100]) */
+    return out;
+}
+
+double progress_display_percent(u32 message_type, u64 done, u64 total) {
+    if (total < 1)
+        return 0.0;
+    const double raw = (double(done) * 100.0) / double(total);
+    if (message_type == 0)
+        return 0.0; /* the reset message */
+    if (message_type == 1) {
+        double p = progress_display_remap(raw);
+        if (100.0 < p)
+            p = 100.0; /* FUN_1401af950's outer clamp */
+        return p;
+    }
+    return raw; /* the non-remapped message types */
+}
+
+double progress_display_publish(double current, double next) {
+    return next > current ? next : current; /* the monotonic guard */
+}
+
+/* ---- M-126: the og's ETA model (FUN_1401af410, DRWUI :314835-314887) ---- */
+
+EtaModel eta_compute(unsigned long long done, unsigned long long total,
+                     unsigned long long elapsed_ms, unsigned long long prev_smoothed,
+                     bool time_budget_variant, unsigned long long budget_seconds) {
+    EtaModel out;
+    /* FUN_1401af410's opening gate: done == 0, total < done, or
+     * total == 0 -> -1 (no estimate) */
+    if (done == 0 || total < done || total == 0)
+        return out;
+    const long long eta_s = (long long)(((total - done) * elapsed_ms) / done / 1000ull);
+    if (eta_s <= 0)
+        return out; /* the og: no positive estimate -> the field keeps -1 */
+    long long rate = (long long)((total - done) / (unsigned long long)eta_s);
+    if (prev_smoothed != 0)
+        rate = (rate * 2 + (long long)prev_smoothed * 8) / 10; /* EMA 0.2/0.8 */
+    out.smoothed_rate = (unsigned long long)rate;
+    if (!time_budget_variant) {
+        out.eta_seconds = eta_s; /* the type-0 leg: the plain whole-run ETA */
+        return out;
+    }
+    /* the time-budget variant (:314873-314883): projected whole-run
+     * seconds, floored at 1, then the remaining budget scaled by 0.6 */
+    long long elapsed_s = (long long)(elapsed_ms / 1000ull);
+    long long projected = (long long)((total * (unsigned long long)elapsed_s) / done);
+    if (projected == 0)
+        projected = 1;
+    out.eta_seconds = (long long)(((double)((long long)budget_seconds -
+                                            (long long)budget_seconds * elapsed_s / projected)) *
+                                  0.6);
+    return out;
+}
+
+std::string eta_format_m_s(long long seconds) {
+    if (seconds < 0)
+        return "3m00s"; /* the og's empty-label placeholder literal (:1527664) */
+    const long long m = seconds / 60;
+    const long long sec = seconds % 60;
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%02lldm%02llds", m, sec);
+    return std::string(buf);
+}
+
+long long eta_countdown_tick(const std::string& label) {
+    /* the og's section parse: minutes = the part before 'm', seconds =
+     * the part between 'm' and 's' (the leading zero padding and the
+     * countdown's unpadded re-render both parse) */
+    const size_t m = label.find('m');
+    const size_t sc = label.find('s');
+    if (m == std::string::npos || sc == std::string::npos || m == 0 || m + 1 >= sc)
+        return -1;
+    const std::string mpart = label.substr(0, m);
+    const std::string spart = label.substr(m + 1, sc - m - 1);
+    char* mend = nullptr;
+    char* send = nullptr;
+    const long long minutes = std::strtoll(mpart.c_str(), &mend, 10);
+    const long long seconds = std::strtoll(spart.c_str(), &send, 10);
+    if (mend == mpart.c_str() || send == spart.c_str())
+        return -1; /* non-numeric sections do not parse */
+    /* the og's stop condition: minutes*60 - 1 + seconds < 0 (the
+     * countdown reached zero -> FUN_1409cb4e0 stops the slot) */
+    const long long total = minutes * 60 + seconds;
+    if (total - 1 < 0)
+        return -1;
+    return total - 1;
+}
+
+/* ---- N-194: the og's two byte-size display formatters ---- */
+
+std::string display_size_log(u64 bytes) {
+    /* FUN_140163580/FUN_140163650 verbatim (DRWUI :264525-264583): the
+     * og's opening gate is param < 1 on a SIGNED input - byte 0 (and,
+     * unrepresentable here, negatives) writes nothing and returns 0. */
+    if (bytes < 1)
+        return "";
+    const double v = double(bytes);
+    char buf[32];
+    if (bytes < 0x40000001ull) {
+        if (bytes < 0x100001ull)
+            std::snprintf(buf, sizeof(buf), "%.2f KB", v / 1024.0);
+        else
+            std::snprintf(buf, sizeof(buf), "%.2f MB", v / 1048576.0);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%.2f GB", v / 1073741824.0);
+    }
+    return std::string(buf);
+}
+
+std::string display_size_ui(u64 bytes, int precision) {
+    /* the tr-family formatter (DRWUI :1556295-1556400): B..TB tiers,
+     * 'f' format, caller precision; the zero-bytes quirk forces
+     * precision 0 AFTER the tier pick (the og's local_100 = 0 - "0 B"). */
+    if (precision < 0)
+        precision = 0;
+    double v;
+    const char* unit;
+    if (bytes >= 0x10000000001ull) {
+        v = double(bytes) / 1099511627776.0;
+        unit = "TB";
+    } else if (bytes >= 0x40000001ull) {
+        v = double(bytes) / 1073741824.0;
+        unit = "GB";
+    } else if (bytes >= 0x100001ull) {
+        v = double(bytes) / 1048576.0;
+        unit = "MB";
+    } else if (bytes >= 0x401ull) {
+        v = double(bytes) / 1024.0;
+        unit = "KB";
+    } else {
+        v = double(bytes);
+        unit = "B";
+    }
+    if (bytes == 0)
+        precision = 0;
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "%.*f %s", precision, v, unit);
+    std::string out(buf);
+    /* the og's strip tail: ".%1".arg('0', precision) - the all-zero
+     * fraction spanning the FULL precision - is replaced with "" in the
+     * final string ("5.00 KB" -> "5 KB"; a partial fraction is kept) */
+    if (precision > 0) {
+        std::string frac = ".";
+        frac.append(size_t(precision), '0');
+        size_t at = out.find(frac);
+        if (at != std::string::npos)
+            out.erase(at, frac.size());
+    }
+    return out;
+}
+
+/* ---- M-101: the Versions-branch enumeration --------------------------- */
+std::vector<VersionGroup> version_groups(const tree::ResultTree& tree) {
+    std::vector<VersionGroup> out;
+    std::unordered_map<u64, size_t> index; /* id -> out index (multi-member only) */
+    std::unordered_map<u64, u32> counts;   /* id -> live member count */
+    /* pass 1: count (structure walks are the same DFS every query uses;
+     * junk-filtered nodes are never branch members - the M-018 stance) */
+    std::function<void(const tree::FileNode*)> count = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling()) {
+            const tree::FileProperties* pr = ch->props();
+            if (!ch->is_full() && pr != nullptr && pr->version_group != 0 &&
+                (pr->flags & tree::NODE_FLAG_JUNK_FILTERED) == 0)
+                ++counts[pr->version_group];
+            if (ch->first_child())
+                count(ch);
+        }
+    };
+    for (const tree::FileNode* r : tree.roots())
+        count(r);
+    /* pass 2: emit the multi-member groups (name from the first member
+     * - all members share it by construction: the id derives from
+     * (parent, name)) */
+    std::function<void(const tree::FileNode*)> collect = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling()) {
+            const tree::FileProperties* pr = ch->props();
+            if (!ch->is_full() && pr != nullptr && pr->version_group != 0) {
+                const auto it = counts.find(pr->version_group);
+                if (it != counts.end() && it->second >= 2) {
+                    size_t slot;
+                    const auto found = index.find(pr->version_group);
+                    if (found == index.end()) {
+                        slot = out.size();
+                        out.push_back(VersionGroup{pr->version_group, 0, pr->name});
+                        index.emplace(pr->version_group, slot);
+                    } else {
+                        slot = found->second;
+                    }
+                    ++out[slot].count;
+                }
+            }
+            if (ch->first_child())
+                collect(ch);
+        }
+    };
+    for (const tree::FileNode* r : tree.roots())
+        collect(r);
+    return out;
 }
 
 } // namespace query

@@ -64,15 +64,20 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
   attempting `create_temp` + `write` + `delete` for each. The og's
   `RecoveryModule.dll` calls `GetDiskFreeSpaceExA` before writing
   (`RecoveryModule_decompiled.c:47033`).
-- **N-009d refinement:** writer does NOT preserve timestamps or attributes.
-  Confirmed og ALSO resets attributes to `FILE_ATTRIBUTE_NORMAL`
-  (`RecoveryModule_decompiled.c:79677`) and does NOT call `SetFileTime`
-  (grep empty in `RecoveryModule_decompiled.c`). Both og and core drop
-  timestamps/attributes. The ACL drop IS the divergence (N-009d, already
-  filed). Narrowed to: N-009d is the complete divergence; no additional
-  timestamp/attribute gap. (The session-1 N-009d verdict was correct; this
-  re-verification confirms the og's behavior matches the core's on
-  timestamps/attributes, so the divergence is ACL-only.)
+- **N-009d refinement (REFUTED at the S-060 verification, 2026-10-29):** the
+  session-2 claim above — "og ALSO resets attributes to FILE_ATTRIBUTE_NORMAL
+  (`RecoveryModule_decompiled.c:79677`) and does NOT call SetFileTime" — was
+  grep-scoped to the WRONG BINARY (RecoveryModule, the progress dialog's
+  helper, not the export body). The export loop's own tail in DRWUI
+  (:874686-718, the binary's only SetFileTime/SetFileAttributesW pair) restores
+  the DOS attributes (word & ~0x2) and the mask-gated timestamp trio after
+  EVERY item, both failures non-fatal. S-060 (FIXED session-51) landed the
+  core's equivalent: `DestIo::set_metadata` + the writer's post-commit call
+  with per-field enables mirroring the engine emission (zero slots pass as
+  NULL); the Win32 backend implements the og's shape verbatim, the POSIX
+  translation (utimensat + the readonly-bit chmod) is registered in
+  PARITY-DELTAS. The ACL drop (N-009d proper) remains the only OTHER
+  divergence on this axis.
 
 ### Session 2 findings index (this module)
 
@@ -131,3 +136,139 @@ F62/A35/Q65 → MATCH.
 | A27 collision naming | **MATCH** — the og's two `%s_%d`/`%s_%d%s` branches (DRWUI :357116-357131), last-dot split, extensionless branch, counter from 1, cap 10,000, exhaustion fails the item (parallel-lane landing, verified green this session) |
 | S35 mkdir acceptance | **MATCH (semantic form, REGISTERED)** — the SHCreateDirectoryExW 0/0xB7 contract as exist-as-directory success / file-in-the-way fail / else propagate; the literal gate broke drive-root chains (MSVC test #227 incident, in-source comment) |
 | P46 D-19 doc truth | **MATCH** — the refuted "unevidenced" claim superseded by the decoded policy (PARITY-DELTAS:456+) |
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-071** (**FIXED** — the M-018 regression: recover-all and the CLI tree print
+lost their junk-filter gates in the N-064 rrecov.cpp reconstruction;
+`69507cb` → `cfa4c75`; the stale cr_scan.cpp:1200 comment. Fixed by the
+closing-fix session: both gates restored byte-exact from the M-018 form +
+the cr_ui session/snapshot bulk walks gated the same way + the
+explicit-selection semantic pinned by test — see the finding's Resolution).
+**M-074**
+(MAJOR — destination validation classification: path-too-long/invalid/network
+collapse to ERR_DEST_UNWRITABLE vs the og's distinct outcomes
+("Might be invalid path to save." / "The recovery path is too long." /
+PathIsNetworkPathW branch); fix = three appended 0x5005-family codes + the
+CreateFileW error classification).
+
+## Session-42-B addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane B's report-surface filing; renumbered at the S42-B merge: N-155→N-159)
+
+**N-159** (MINOR, renumbered from this lane's N-155 filing — the parallel window's HFS+ finding keeps the ID — the failed-files report's classification axis): the og's
+"recovery log" is an HTML report (`CSaveFailedFilesWithHtml` — the 2000-byte
+content buffer, `ShellExecuteW` open-the-report action), accumulated per failed
+file during the export loop (failed-count + failed-bytes counters), whose per-file
+rows carry a tree-classification column derived from the node (group 1 → "Lost
+Files" + "Reconstructed"@kind7 / "Tags Extracted"@kind6; group 0 → "Existing
+Files"@kind4 / "Lost Files"+"Deleted"@kind0; else the custom raw-category name) —
+`DRWUI_decompiled.c:642669-642822`, first-hand. The core's
+`cr_ui_recovery_report_json` (D13's deliberate structured superset) carries no
+classification field and no failed-bytes split. The register half: R-58's
+"per-run text log" (REFERENCE-API-GAP:104) and API-DELTA row 21's "og format NOT
+IN CORPUS" are refuted — the generator + row grammar are corpus-decodable. Fix
+shape: a per-item `tree_class` field + `failed_bytes` split (append-only schema
+bump) + the three register-site truth repairs. Evidence: the S42 decode pack §2.
+
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**S-054 (SEVERE — NEW, REGRESSION):** the N-013 multi-extent destination arming was
+clobbered back to first-extent-only at both production call sites by the unrelated
+M-036 NVMe commit `1ebd1bcc` (git-proven: the `3b5397a1` landing's spans loop +
+junction resolution removed in that commit's rrecov.cpp/cr_ui.cpp diffs).
+`volume_extents()` / `set_destination_spans()` / `destination_volume_letter()`
+survive as dead code (zero production consumers, grep-verified) while
+`cr_transport.h:124-126` still publishes "destination arming must use
+volume_extents() (all spans)" and the ledger records N-013 FIXED. The SafeWriter's
+refusal loop itself is intact and multi-span-aware (cr_safewriter.cpp:135-137) — it
+is fed an incomplete span set. F62 verdict: **DIVERGENCE-SEVERE** (the refused-write
+guarantee silently defeated for spanned/RAID second+ spans and junction-rooted
+destinations — the write-proceeds-onto-source-disk window); Q65: the suite is green
+over the regression (1117/1117) because no test pins the wiring. Fix: re-land the
+`3b5397a1` shape + the wiring-fence tests. Evidence:
+`evidence/decompiled-quotes/s12-destarming-regression.md`.
+
+## S42 continuation lane (2026-10-29 — the file-reconstruction focus battery; core `b26017a7`)
+
+Four new rows, all first-hand verified (worksheet:
+`../evidence/decompiled-quotes/s42-reconstruction-export-chain.md`):
+
+- **B2/F60 (recovery correctness under holes) — FIXED session-51 (S-059) → MATCH**: the og
+  writes zero chunks for sparse runs and always produces the full logical size
+  (DRWUI:875661-673 runlist path, :875062-75 chunked path); the core drops sparse
+  runs (`cr_runlist.cpp:190`), has no per-extent logical offset
+  (`cr_node.h:109-120`), left-shifts interior holes, and refuses with
+  ERR_TRUNCATED (`cr_safewriter.cpp:440-444`) — NTFS sparse files and
+  compressed-with-hole-unit files are lost or shifted; the mftwalk comments
+  claim a zero-fill the writer cannot perform.
+- **B9 (timestamp restoration) — FIXED session-51 (S-060) → MATCH**: the og restores
+  DOS attributes + the mask-gated SetFileTime creation/access/write trio after every
+  item (DRWUI:874686-718 — the binary's only SetFileTime; **the N-009d row above
+  ("og never calls SetFileTime") is REFUTED**); the core's DestIo now carries the
+  set_metadata surface, the writer restores post-commit with per-field enables
+  mirroring the engine emission, non-fatal + reported per row (4 tests RED→GREEN).
+- **E35 (read-failure policy) — MATCH, M-135 FIXED**: the og's error-9 family
+  landed: a hard read failure (post-retry, via the M-136 pipe's error map, or
+  the raw non-OK read on bases) truncates at the first unreadable byte, KEEPS
+  the partial (commit, never delete — the old ERR_TRUNCATED refusal included),
+  records Outcome::ReadError + the numbered cause (the compiled-in SEVEN-entry
+  list, cause 4 corrected first-hand from the runtime strings) + the boundary,
+  fires the verbatim three-line ReadSector log trio + "Failed to recover file:",
+  and the pass continues. The straddle clamp (:875666-68) landed with cause 4
+  for beyond-volume starts. Per failure class (the finding's plan): undecodable
+  compressed blocks keep zero-fill + Salvaged (the og's chunked-path behavior).
+  The runtime failure mark is the QueueItem's cause row (runtime-only, the og's
+  +0x73 bit 1 posture — decision registered). D-149 registers the byte-granular
+  truncation + the semantics-mapped causes (the og's mapper is corpus-undecoded).
+- **E35/R51 (the recovery read pipeline) — MATCH, M-136 FIXED**: both recovery
+  entry points construct the writer's source through the scan's own
+  `build_read_pipe` seam (SliceShim identity → Retry(3×, Skip) → 8 MiB /
+  256 KiB CachedReader — `rrecov.cpp` recover + `cr_ui.cpp` recovery_open,
+  the chain owned by the entry context and outliving the writer); one
+  transient read error retries exactly as the scan's reads do — the og's
+  stream-mediated export posture (arch/04 §7.5, `FUN_140540670`'s GetStream
+  dispatch). The LDM basis devices keep their raw member reads on BOTH
+  sides of the scan/export boundary (consistent within the core; the og's
+  per-volume CStorageDeviceWithCache for candidates is the scan-side
+  posture, not an export asymmetry).
+
+- **E35/R51 (the recovery read pipeline) — MATCH, M-136 FIXED (the S71 lane)**:
+  both entry points (the CLI recover handoff and the ABI `cr_ui_recovery`
+  create) now build the scan's own substrate over the source —
+  `orchestrator::build_read_pipe(slice, 8 MiB, 256 KiB)`: SliceShim →
+  RetryingDevice(3, Skip) → CachedReader — and hand the writer `rp.pipe`
+  (the pipe outlives the writer: a `ReadPipe` member beside it). The LDM
+  basis arms ride the same substrate (the session arm's Windows members each
+  get their own pipe chain; the non-Windows resolver and the enqueue-time
+  fallback source are the recovery pipe). Truthful accounting through the
+  pipe: `SafeWriter::set_read_error_source(rp.retry)` — an item whose reads
+  grew the retry layer's append-only error map commits Salvaged (the pipe's
+  Skip-mode zero-fill never hides as a clean Done). Proof:
+  `WriterReadPipe.TransientFailureRetriedNotZeroFilled` (byte-identical,
+  Done, not Salvaged — the finding's falsifiable case),
+  `WriterReadPipe.HardFailureZeroFillsOnlyAfterRetriesSpent` (>= 3 attempts
+  at the bad range before the zero-fill, Salvaged),
+  `WriterReadPipe.ConstructionIsTheScanSubstrate` (retry + cache-absorb
+  seam), `WriterReadPipe.BareDeviceLegacyShapeZeroFillsTransients` (the
+  pre-fix shape as the contrast pin). Suite 1507/1507.
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-159 FIXED — the failed-files report's tree-classification axis.** The
+register-truth half first (three sites repaired): R-58's "per-run text log"
+→ the truth (an HTML report: `CSaveFailedFilesWithHtml`, the generator class
+family decoded at DRWUI :642669-642892); API-DELTA row 21's "og format NOT
+IN CORPUS" → "decodable; the generator + grammar are in the decompile";
+D13's addendum below. The axis half: the og's per-row tree classification
+(:642755-642822 — group@+0x1e8 / kind@+0x1f0 / custom-name@+0x1d8 → the
+"Lost Files"/"Reconstructed"/"Tags Extracted"/"Existing Files"/"Deleted"/
+custom-name labels) lands as the report's per-item `tree_class` wire field
+(derived from the node's root role, the S-048/M-103 convention) + the
+`failed_bytes` totals split (the og's +0x254/+0x268 failed-count/failed-bytes
+accumulators). Both additive-within-schema-v1 per the schema doc's own
+version contract (the finding's "version bump" plan corrected). Tests:
+Report.FailedRowsCarryTreeClassification / FailedBytesSplitFromTotal /
+RawCategoryNameClassification / TreeClassIsAdditiveWithinSchemaV1. P13/P11 →
+MATCH; P46/P68 register-truth repaired.

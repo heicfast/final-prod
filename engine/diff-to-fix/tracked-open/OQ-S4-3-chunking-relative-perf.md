@@ -172,3 +172,171 @@ operative question ("meets, beats, or trails": meets at 64 KiB, beats
 at 256 KiB), so the M-030 divergence registration stands confirmed with
 numbers; the scan-level TTFR transcription is the only remaining step
 to move this file to FIXED/.
+
+## Probe-target correction (2026-10-28, the SA-6 probe lane)
+
+The file's remaining probe ("dispatch `comparative-bench.yml`") is STALE:
+the CI rebuild (`8943993`, "the prebuilt-artifact CI lands — benchmark
+lanes wiped, the correctness path never builds from source") deleted the
+comparative-bench lane deliberately — the measurement surface this OQ's
+TTFR half pointed at no longer exists. The remaining half's options:
+
+1. **Ride the staged-scenarios lane** (the surviving truth matrix — daily
+   cron + dispatch): its scan jobs run the real stack on seeded VHDs; a
+   TTFR metric (the scan event stream's first FilesFound timestamp vs the
+   scan start) would close the half with the same evidence strength.
+2. **Restore a bounded bench lane** — but the CI rebuild's own decision
+   ("the correctness path never builds from source; benchmark lanes
+   wiped") makes that an owner-level call, not an audit one.
+
+The transport-chunking half stays MEASURED-and-closed (the alignbench
+numbers above); only the TTFR half remains open, now with a corrected
+target. No engineering prerequisite exists for option 1 (the event stream
+already carries the timestamps).
+
+## The TTFR harness (2026-10-28, PARITY-FIX-5 — option 1 implemented)
+
+The probe harness landed (the measurement = the lane's next dispatch):
+
+- `rrecov scan` now consumes the typed event stream (GAP-S6-10) for the
+  TTFR datum: `TtfrProbe` + `ttfr_event_fn` log ONE line —
+  `ttfr_ms=<run-elapsed> first_files=<n> stage=<s>` — at the FIRST
+  FilesFound event with a positive count (the event's `timestamp_ms` is
+  run-elapsed, pause-compensated; counters coalesce at stage boundaries,
+  so the first positive boundary is the earliest observable first result —
+  the honest granularity the event stream carries). Set BEFORE the
+  ScanController construction (the controller copies the config); the
+  once-flag is atomic (events fire from worker threads). Parse-gated
+  (win_syntax_check); no new CLI flag — the existing `--log` carries it.
+- The extraction lives in the CI-rebuilt lane's harness
+  (`.github/scripts/Run-Benchmark.ps1` — the owner's 3-lane consolidation
+  replaced staged-scenarios.yml mid-landing; the harness already ran every
+  scan with `--log stage-<mode>.log`, so the probe line lands there without
+  a flag change): the per-mode scan block extracts `ttfr_ms` /
+  `ttfr_first_files` into the clean-benchmark performance JSON
+  (`$cleanPerf.scans[]`) and prints the TTFR line per mode.
+
+**Remaining:** the lane's next green dispatch transcribes the TTFR number
+into this file (execution-bound — daily cron 05:30 or a manual dispatch);
+the og-side TTFR comparison then closes the acceptance's second half with
+the same evidence strength as the transport numbers above.
+
+---
+
+## Session-11 S11 addendum (2026-10-29 — the execution plan refined + two stale references found)
+
+The S11 OQTRACE lane re-scoped the remaining TTFR half on the live tree:
+
+- **The harness is verified wired**: the core probe (`src/app/rrecov.cpp`'s
+  `TtfrProbe`/`ttfr_event_fn` → `ttfr_ms`/`first_files`/`stage`) lands in
+  `07-performance/` via `.github/scripts/Run-Benchmark.ps1`; the lane is
+  `test-benchmark.yml` (windows-2022, elevated, prebuilt release + test-signed
+  RDA driver + the fixed-VHD matrix). The og chunk evidence re-verified
+  first-hand: `Device_decompiled.c` ~:56545 (`0x400000/sector` — 4 MiB disk)
+  and the `CVolumeDevice` ctor ~:56912 (`0x700000/sector` — 7 MiB volume);
+  no corpus prose artifact on chunking exists (the numbers must come from the
+  harness).
+- **Linux infeasibility re-confirmed** (the session-14/37 rulings stand): the
+  core+tests build on Linux, but `rrecov` is WIN32-gated (`src/CMakeLists.txt`)
+  and the measurement is real-volume I/O through the RDA kernel driver — a
+  Linux container answers a different question.
+- **The minimum path to close**: (1) windows-2022-class elevated runner;
+  (2) dispatch Test & Benchmark (or ride release.yml's auto-dispatch);
+  (3) transcribe `ttfr_ms`/`ttfr_first_files` here + M-030 + SUMMARY;
+  (4) og-side TTFR needs a new probe in `bench/og/og-driver.ps1` (its
+  `Wait-OgRsf` samples only t_ms/working_set/cpu — no first-found capture
+  exists) or an owner scoped-closure decision.
+- **Two stale references in this file's earlier addenda** (correction for the
+  next reader): the "daily cron 05:30" lane reference is gone (no cron exists
+  in any current workflow — the lane was replaced), and `bench/README.md`
+  still points at the deleted `comparative-bench.yml` (the bench entry doc
+  needs the `test-benchmark.yml` re-point — registered here, a docs fix for
+  the fix lanes).
+## Session-40 disposition note (2026-10-29)
+
+Still OPEN (the scan-level time-to-first-result half; the transport half stays measured
+per the 40315255368 verdict above). NEW RELATED EVIDENCE this session: M-117 (the
+suppress_overlap pre-validator covered check, FIXED at `d7ba41f6`) removed the carve
+stage's quadratic mid-stream re-walk - the 220 MB contiguous TS fixture went from
+>600 s non-completion to 11.3 s (the scan-level throughput class adjacent to this OQ's
+question). The comparative-bench dispatch remains the OQ's own next step: the Windows
+bench leg with a 4 MiB-chunk build variant (engineering task, not audit). No claim is
+retired by the M-117 evidence - the OQ stays open exactly as recorded.
+
+## Session-47 dispatch-ride note (2026-10-29 — the TTFR half's execution state)
+
+The OQ's remaining TTFR half rode the dispatch path this session: the Test & Benchmark lane
+was dispatched mid-window (run **40783364141**, push-triggered on `a75d8198`, 2026-10-28
+22:53 UTC) and is **stale-in-progress at session close** (no status update for 60+ minutes —
+a likely-lost runner; the run has produced no clean-benchmark artifact yet). The transport-
+chunking half stays MEASURED-and-closed (run 40315255368's verdict above). The remaining step
+is UNCHANGED and precise: one green Test & Benchmark execution (re-dispatch if the run is
+confirmed dead) transcribes `ttfr_ms`/`ttfr_first_files` from the `$cleanPerf.scans[]` JSON
+into this file + M-030's Resolution addendum + SUMMARY's performance section; the og-side
+TTFR comparison then needs the new first-found probe in `bench/og/og-driver.ps1` (no
+first-found capture exists) or an owner's scoped-closure decision, exactly as the S11
+addendum recorded. No new engineering prerequisite; Linux-infeasibility re-confirmed (the
+measurement is real-volume I/O through the RDA driver on Windows).
+
+## Session-86 disposition note (2026-10-30, the S86 fix lane — pushed forward; the registered docs fix verified FIXED-ALREADY)
+
+Still OPEN for the TTFR half; the transport-chunking half stays
+MEASURED-and-closed (run 40315255368's verdict, standing). This
+session's verification:
+
+1. **The S37 addendum's two stale references: both FIXED-ALREADY,
+   verified first-hand this session** — bench/README.md:8-11 now carries
+   the `test-benchmark.yml` pointer (the 8943993 consolidation; the
+   comparative-bench.yml text remains only as the historical note of the
+   replacement, which is the truthful form), and NO cron reference
+   exists anywhere under .github/workflows/ (grep clean) — the "05:30
+   daily cron" lane is fully gone. The registered docs fix is closed
+   with this verification; no edit was owed.
+2. **The TTFR half: pushed forward, unchanged and precise.** The
+   measurement is real-volume I/O through the RDA kernel driver on
+   Windows (Linux-infeasibility per the standing session-14/37 rulings,
+   re-confirmed this session — the container answers a different
+   question). The next concrete step stands exactly as the session-47
+   note recorded: one green Test & Benchmark execution transcribing
+   `ttfr_ms`/`ttfr_first_files` from the `$cleanPerf.scans[]` JSON into
+   this file + M-030's Resolution + SUMMARY's performance section; the
+   og-side TTFR comparison then needs the first-found probe in
+   `bench/og/og-driver.ps1` (no first-found capture exists) or an
+   owner's scoped-closure decision.
+
+## Session-86 disposition note (2026-10-30 — pushed forward, harness verified at the current tree)
+
+Not resolvable from the Linux container (the question is Windows-hardware by
+nature - 64 KiB direct-I/O vs the og's 4/7 MiB buffered-synchronous
+chunking). Re-verified at the S86 tree: the acceptance machinery is intact -
+`bench/ours/run-alignbench.ps1` carries the og-strategy proxies (4 MiB +
+7 MiB) alongside the core-strategy proxies (64 KiB envelope + 256 KiB cache
+block) in one pass with cpu_ms recorded and the chunk_strategy_ratios
+verdict block emitted; `scripts/ps_parsecheck.ps1` gates the fleet syntax.
+The remaining step is EXACTLY ONE WINDOWS EXECUTION, unchanged: dispatch
+the API Benchmark workflow (or `run-alignbench.ps1 -Target '\\.\C:'
+-SpanMiB 512` on the Windows lane), then transcribe the
+chunk_strategy_ratios verdict + the comparative-bench scan-level
+time-to-first-result into this file, M-030's Resolution addendum, and
+SUMMARY's performance section. No new engineering owed on either half.
+
+## Session-93 disposition note (2026-10-30 — the TTFR execution DISPATCHED; the run in flight at handoff)
+
+The remaining half's exact next step was executed this session: the
+Test & Benchmark workflow was dispatched via the API (204 accepted;
+the run rode the newest main `afc52cbb`, **run 40956286997**, profile
+smoke, modes quick,deep,deepcarve — the dispatch inputs the lane's
+`Run-Benchmark.ps1` harness consumes, the same lane whose `--log
+stage-<mode>.log` wiring carries the `ttfr_ms=` probe lines). At this
+lane's handoff the run is IN PROGRESS (the Windows MSVC build stage
+passed the lint+parse gates; the lint+parse checks completed SUCCESS
+at the head). The single remaining step for the next lane: read the
+run's 07-performance artifacts (the clean-benchmark JSON's
+`$cleanPerf.scans[]` + the printed TTFR lines) and transcribe
+`ttfr_ms` / `ttfr_first_files` into this file + M-030's Resolution
+addendum + SUMMARY's performance section. The og-side TTFR comparison
+then needs the new first-found probe in bench/og/og-driver.ps1 (its
+Wait-OgRsf samples only t_ms/working_set/cpu — no first-found capture
+exists) or an owner's scoped-closure decision, exactly as the S11
+addendum recorded. The transport-chunking half stays
+MEASURED-and-closed (run 40315255368's verdict above).

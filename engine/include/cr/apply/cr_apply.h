@@ -260,6 +260,59 @@ u32 undo_apply(IApplyDevice& dev, const repair::UndoLog& undo);
  * the corpus for this path, registered in PARITY-DELTAS as convention). */
 u8 mbr_type_for_family(lost::CandidateFs fs);
 
+/* ---- N-145: the cross-run in-flight journal ---------------------------- */
+
+/* The og marks the target disk in ../res/rwConfig.ini's [QuickPartition]
+ * pendingMarkedDisk list while a whole-disk repartition op is in flight
+ * (the engine-side event 0x102d lifecycle: mark at begin, remove at
+ * completion - RecoveryModule_decompiled.c:48164-48315, the shared
+ * epmpublic utility static-linked into six modules; the trigger at
+ * MainModule:123130-123144, the CDiskRepartitionPendingOperation cast).
+ * The next product start can read the marker and detect an interrupted
+ * apply. The core's CRUNDO01 transaction is per-operation (stronger
+ * while the process lives); this journal is the missing cross-run trace
+ * when the process dies mid-apply.
+ *
+ * REGISTERED DECLINE (the og's own defect, per the finding's fix plan):
+ * the og's ini sits CWD-relative next to the process binary - two
+ * instances or a service/CLI pair with different working directories
+ * maintain different marker lists. The core's journal is a single file
+ * at a host-supplied state-directory path (the CLI derives it beside
+ * the session/undo artifacts); the library itself stays pure - the
+ * journal helpers are explicit calls the hosts bracket their
+ * execute_apply / undo_apply windows with.
+ *
+ * File format: one line per in-flight disk,
+ *   <identity>\t<begin-unix-seconds>\n
+ * identity is the host's stable disk identity string (the CLI uses
+ * "\\\\.\\PhysicalDriveN"; a UI host may use its own - the journal
+ * only requires the same string at begin and end). All three
+ * operations are idempotent: begin refreshes the timestamp of an
+ * existing identity line; end removes the line if present (a missing
+ * file or identity is OK - the no-op); probe on a missing file
+ * reports zero in-flight disks. */
+struct InFlightDisk {
+    char identity[96]; /* NUL-terminated host disk identity */
+    u64 begin_unix;    /* when the journaled apply began */
+};
+
+/* Marks the disk in flight (append or timestamp-refresh). Returns
+ * ERR_WRITE_FAILED on an unwritable path; the caller decides whether a
+ * journal failure is fatal (the CLI warns and proceeds - the journal is
+ * a crash trace, not a correctness gate). */
+u32 inflight_begin(const char* journal_path, const char* disk_identity);
+
+/* Removes the in-flight mark (the op completed or cleanly failed -
+ * either way it is no longer in flight; only process death leaves the
+ * mark behind, which is exactly the detectable class). */
+u32 inflight_end(const char* journal_path, const char* disk_identity);
+
+/* Reads the surviving marks (the next-start probe). out may be nullptr
+ * with max_records == 0 to count only. Returns OK with *found set;
+ * ERR_TRUNCATED when more records exist than max_records (found
+ * still carries the true count). A missing journal is OK / found == 0. */
+u32 inflight_probe(const char* journal_path, InFlightDisk* out, u32 max_records, u32* found);
+
 } // namespace apply
 } // namespace cr
 

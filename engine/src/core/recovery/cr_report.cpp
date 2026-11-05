@@ -143,6 +143,10 @@ const char* outcome_name(Outcome o) {
         return "salvaged";
     case Outcome::NothingToRecover:
         return "nothing_to_recover";
+    case Outcome::ReadError:
+        /* M-135: committed-but-truncated (the og's error-9 family - the
+         * partial exists on disk AND the file is in the failed list) */
+        return "read_error";
     }
     return "error";
 }
@@ -197,6 +201,32 @@ static void append_analysis(std::string& out, const ScanAnalysis& a) {
     append_num(out, "total", a.total, false);
     out.append(",\n");
     append_num(out, "small_result", a.small_result ? 1 : 0, false);
+    out.append(",\n");
+    append_num(out, "gauge_matched", a.gauge_matched, false);
+    out.append(",\n");
+    append_num(out, "gauge_total", a.gauge_total, false);
+    out.append(",\n");
+    append_num(out, "score", a.score, false);
+    out.append(",\n");
+    append_num(out, "ntfs_device_index_high", a.ntfs_device_index_high, false);
+    out.append(",\n");
+    /* N-140: the per-format carve tally - the og's post-scan per-extension
+     * breakdown (GetRawUserInfoMap), nonzero rows in unified id order */
+    out.append("    \"carve_formats\": [");
+    bool first_row = true;
+    for (u32 i = 0; i < a.carve_format_slots && i < 512; ++i) {
+        if (a.carve_format_counts[i] == 0)
+            continue;
+        out.append(first_row ? "" : ", ");
+        first_row = false;
+        out.append("{\"id\": ");
+        out.append(std::to_string(i));
+        out.append(", \"count\": ");
+        out.append(std::to_string(a.carve_format_counts[i]));
+        out.append("}");
+    }
+    out.append("],\n");
+    append_num(out, "carve_format_overflow", a.carve_format_overflow, false);
     out.append("\n  },\n");
 }
 
@@ -228,8 +258,12 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
     append_num(out, "resumed", t.resumed, true);
     append_num(out, "salvaged", t.salvaged, true);
     append_num(out, "nothing_to_recover", t.nothing_to_recover, true);
+    append_num(out, "read_error", t.read_error, true); /* M-135 */
     append_num(out, "pending", t.pending, true);
     append_num(out, "bytes", t.bytes, true);
+    /* N-159: the og's failed-bytes split (CSaveFailedFilesWithHtml's
+     * +0x268 accumulator) - additive-within-v1 per the schema doc. */
+    append_num(out, "failed_bytes", t.failed_bytes, true);
     out.append("},\n");
 
     /* S-023: the optional scan-analysis block (the og's RecoveryAssistant
@@ -253,6 +287,30 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
         append_num(out, "duration_ms", it.duration_ms, true);
         append_str(out, "sha256", it.sha256_hex, true);
         append_str(out, "hash_status", hash_status_name(it.hash_status), true);
+        /* N-159: the og's per-row tree classification (the failed-files
+         * HTML report's classification column, decoded at DRWUI
+         * :642755-642822). Emitted for EVERY row - the og surfaces it
+         * only on its failed-files funnel (D13), the core's report is
+         * the structured superset. Omitted when empty (additive-
+         * within-v1; unclassified value-enqueued rows). */
+        if (!it.tree_class.empty())
+            append_str(out, "tree_class", it.tree_class, true);
+        /* S-060: the metadata restoration outcome per row - "restored",
+         * "failed:<code>", "unsupported" (a metadata-less backend), or
+         * omitted when not attempted (dirs, refused items). The og
+         * traces both restoration failures and continues; the core's
+         * report tells the same truth per row. */
+        if (!it.metadata.empty())
+            append_str(out, "metadata", it.metadata, true);
+        /* M-135: the per-file failure record (the og's numbered-cause
+         * list + the std::filesystem size probe) - emitted only on
+         * failed rows (additive-within-v1). */
+        if (it.cause_id != 0) {
+            append_num(out, "cause_id", it.cause_id, true);
+            append_num(out, "first_failed_offset", it.first_failed_offset, true);
+        }
+        if (it.bytes_written != 0 && it.bytes_written != it.bytes)
+            append_num(out, "bytes_written", it.bytes_written, true);
         out.push_back('}');
     }
     out.append(items.empty() ? "]\n}\n" : "\n  ]\n}\n");

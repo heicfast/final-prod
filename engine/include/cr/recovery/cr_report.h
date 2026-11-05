@@ -41,6 +41,14 @@ enum class Outcome : u8 {
                            * size; the og emits no content for metadata-only
                            * entries (root-causes permanent_delete). Empty
                            * files (size 0) are real content and stay Done. */
+    ReadError = 8,        /* M-135: the og's error-9 family - the read failed
+                           * HARD (post-retry) and the item TRUNCATED at the
+                           * first unreadable byte; the PARTIAL FILE IS
+                           * COMMITTED (the og's runlist path breaks, keeps
+                           * what was written, and lists the file failed:
+                           * DRWUI :875684-875696 + the recorder :874072-
+                           * 874129). cause_id carries the numbered user-
+                           * facing cause; first_failed_offset the boundary. */
 };
 
 enum class HashStatus : u8 {
@@ -61,6 +69,50 @@ struct Item {
     std::string sha256_hex; /* lowercase hex, empty when not computed */
     HashStatus hash_status = HashStatus::NotComputed;
     bool is_dir = false;
+    /* N-159 (diff-to-fix): the results-tree classification the og's
+     * failed-files HTML report carries per row (CSaveFailedFilesWithHtml
+     * ::FUN_1403c6fc0, DRWUI :642755-642822 - the group/kind-to-label
+     * mapping decoded first-hand). Six-valued, derived from the node's
+     * root branch at report time (the D-107 lineage: og UI-surface
+     * semantics land as core data). Wire values (snake_case, stable;
+     * the og's display label for each is in the schema doc):
+     *   existing_files | lost_files | lost_files_reconstructed |
+     *   lost_files_tags_extracted | lost_files_deleted | <custom
+     *   raw-category name>
+     * Empty = unclassified (value-enqueued snapshot rows carry no node;
+     * the field is then omitted - additive-within-v1 per the schema
+     * doc's own version contract). */
+    std::string tree_class;
+    /* S-060: the metadata restoration outcome (the og's per-item
+     * SetFileAttributesW/SetFileTime tail). "restored" | "failed:<code>"
+     * | "unsupported" | "" (not attempted: dirs, refused items). The
+     * og logs both failures as traces and continues - the core reports
+     * the same non-fatal truth per row. */
+    std::string metadata;
+    /* ---- M-135: the og's per-file failure record (the numbered-cause
+     * taxonomy + the truncation boundary). ---- */
+    /* the og's numbered user-facing cause (RecoveryFailedInfo1..7, the
+     * COMPILED-IN defaults at DRWUI strings :30580-30596 - not the qm
+     * file's stale list): 1 insufficient storage space, 2 recovery path
+     * too long, 3 garbage characters in the name, 4 the sector reading
+     * location exceeds total sector number of the source partition,
+     * 5 the correct storage sector location cannot be found (the
+     * error-9 read-failure family), 6 exceeded the free quota (the og's
+     * licensing gate - the core never produces it), 7 other unknown
+     * reasons. 0 = no failure. The og's internal code->cause mapping
+     * function is corpus-UNDECODED (FUN_1400ed760 is a %d formatter,
+     * refuted first-hand); the core maps by the cause strings'
+     * semantics - failure_cause_text() in cr_safewriter.h renders the
+     * same numbering for the CLI. */
+    u32 cause_id = 0;
+    /* the committed byte count (the og's std::filesystem size probe at
+     * :874131-874205): equal to `bytes` for full commits; the truncation
+     * point for ReadError rows. Emitted in the report only when it
+     * differs from `bytes` (additive-within-v1). */
+    u64 bytes_written = 0;
+    /* the logical offset of the first unreadable byte (ReadError rows;
+     * 0 otherwise; emitted only when cause_id != 0). */
+    u64 first_failed_offset = 0;
 };
 
 struct Totals {
@@ -76,12 +128,25 @@ struct Totals {
     u64 nothing_to_recover = 0; /* GAP-S6-7: metadata-only items skipped
                                  * before any write (separate bucket, NOT a
                                  * done sub-bucket - nothing was written) */
-    u64 pending = 0;            /* never attempted in this pass (partial-run truth;
-                                 * queued == done + dirs + refused + errors +
-                                 * resumed + nothing_to_recover + pending, done
-                                 * subsumes the committed sub-buckets hash_mismatch
-                                 * and salvaged) */
-    u64 bytes = 0;              /* sum of committed file bytes */
+    /* M-135: committed-but-truncated items (the og's error-9 family:
+     * the partial IS on disk AND the file IS in the failed list -
+     * a separate bucket from done and errors). */
+    u64 read_error = 0;
+    u64 pending = 0; /* never attempted in this pass (partial-run truth;
+                      * queued == done + dirs + refused + errors +
+                      * resumed + nothing_to_recover + pending, done
+                      * subsumes the committed sub-buckets hash_mismatch
+                      * and salvaged) */
+    u64 bytes = 0;   /* sum of committed file bytes */
+    /* N-159: the og's failed-files counters split - CSaveFailedFiles
+     * WithHtml's collection slot accumulates the failed count + failed
+     * BYTES separately from the committed totals (the results singleton
+     * +0x254/+0x268, DRWUI :642729-642746). The failed class here =
+     * non-committed files (Error + Refused): the og's write failures
+     * plus the destination-refusal family the core's safety hardening
+     * adds. NothingToRecover items are excluded (nothing was
+     * attempted, no bytes moved). */
+    u64 failed_bytes = 0;
     u64 elapsed_ms = 0;
     std::string source;      /* UTF-8 source identity (caller-supplied) */
     std::string destination; /* UTF-8 destination identity */
@@ -105,6 +170,22 @@ struct ScanAnalysis {
     u64 matched = 0;
     u64 total = 0;
     bool small_result = false;
+    /* N-183 (append-only): the member-set gauge + the verdict score. */
+    u64 gauge_matched = 0;
+    u64 gauge_total = 0;
+    u32 score = 0;
+    u64 ntfs_device_index_high = 0;
+    /* N-140 (append-only): the per-format carve tally - the og's
+     * GetRawUserInfoMap per-extension breakdown (DRWUI :227538-227625
+     * renders it on the post-scan screen). Unified format-id space:
+     * grammar rows [0, carve::registry_size()), raw-sign rows
+     * [registry_size(), +kFormatCount), the aggregate user-sign slot at
+     * the end. Emitted as "carve_formats": [{"id": i, "count": n}, ...]
+     * in id order, NONZERO rows only; absent (slots == 0) when no carve
+     * stage ran or the session predates the tally. */
+    u32 carve_format_slots = 0;
+    u64 carve_format_overflow = 0;
+    u64 carve_format_counts[512] = {};
 };
 
 /* Serialize as a complete JSON document (trailing newline, UTF-8).

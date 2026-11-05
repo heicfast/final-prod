@@ -17,6 +17,8 @@
 #include "../tree/cr_node.h"
 #include "cr_signatures.h"
 #include <functional>
+#include <map>
+#include <mutex>
 #include <vector>
 
 namespace cr {
@@ -24,9 +26,32 @@ namespace carve {
 
 class CarvePostProcessor; /* M-021: defined below (CarveFlags binds it) */
 
+/* S-049: the session-wide per-prefix name counters - the og's DRWUI
+ * counter map (the ++ then read at :1877600/:1877724). Session-wide: the
+ * map spans every volume's carves (the orchestrator owns one per scan
+ * and binds it into every slice's CarveFlags); a null flags binding
+ * falls back to the carve call's local map. Thread-safe: the grammar
+ * layer's worker fan-out shares it. */
+struct CarveNameCounters {
+    std::map<std::u16string, u32> per_prefix;
+    std::mutex lock;
+};
+
+/* S-048: one scanned volume's carve grouping — the slice-relative
+ * [start, end) range and the volume's display name (the real-session
+ * forms: " (I:)" for an empty label with a letter, "System Reserved"
+ * for a label without one, "<label> (<X>:)" for both). */
+struct VolumeGroup {
+    u64 start = 0; /* slice-relative start (inclusive) */
+    u64 end = 0;   /* slice-relative end (exclusive) */
+    std::u16string name;
+};
+
 struct CarveStats {
     u64 hits = 0;       /* magic candidates */
-    u64 validated = 0;  /* grammar-confirmed */
+    u64 validated = 0;  /* emitted carve records - grammar + raw-sign + user-sign
+                         * layers (N-171/N-188); carved_found is assigned from
+                         * this counter at the orchestrator seam */
     u64 rejected = 0;   /* header-only noise (F8 guard) */
     u64 duplicates = 0; /* deduped vs structured/carved */
     u64 hashed = 0;
@@ -54,6 +79,28 @@ struct CarveStats {
      * near-free on zeros and keeps running (the finding's own profile
      * rule). */
     u64 zero_strides_skipped = 0;
+
+    /* N-140: the per-format tally — the og's GetRawUserInfoMap per-scan
+     * carve-statistics map<extension,count> (RAWSearchDLL's user-info
+     * singleton +0x90, FUN_18000ed00's insert-or-increment fed by the
+     * ~60 analyser detection sites, cleared at every searcher init
+     * [per-scan lifetime]; DRWUI's post-scan report builder renders the
+     * "found N .jpg / M .png" breakdown from it, DRWUI :227538-227625).
+     * The core's bounded projection: a fixed array over the unified
+     * format-id space — grammar FormatId rows [0, registry_size()),
+     * raw-sign rows [registry_size(), registry_size()+kFormatCount) (the
+     * same bound cr_ui_carve_format_count exposes), and ONE aggregate
+     * user-sign slot at [registry_size()+kFormatCount] (the og's map
+     * keys user-sign detections by their dynamic, unbounded extension
+     * strings; the aggregate is the honest fixed-table projection).
+     * Ticked at the same emission sites the `validated` counter ticks —
+     * no map allocation in the hot path. per_format_slots is the LIVE
+     * bound (0 = no carve stage ran); per_format_overflow counts formats
+     * beyond capacity (future registry growth - never a silent drop). */
+    static constexpr u32 kFormatTallyCapacity = 512;
+    u64 per_format[kFormatTallyCapacity] = {};
+    u32 per_format_slots = 0;
+    u64 per_format_overflow = 0;
 };
 
 struct CarveFlags {
@@ -99,6 +146,29 @@ struct CarveFlags {
      * emission, exactly the og's DLL-absent degrade. See
      * CarvePostProcessor below. */
     CarvePostProcessor* post_processor = nullptr;
+    /* S-049: the session-wide per-prefix name counters (see
+     * CarveNameCounters). The orchestrator binds one per scan; null =
+     * a per-call local map. */
+    CarveNameCounters* name_counters = nullptr;
+    /* ---- S-048 (diff-to-fix): the carve tree's volume grouping --------
+     * The og's persisted carve tree (the three REAL og sessions, ~2M rows,
+     * evidence/executions/s10b-real-rsf-session-mining.md): a
+     * "Reconstructed" root whose children are the scanned volumes' display
+     * names, each volume child carrying one EMPTY per-extension folder
+     * (lowercase, e.g. "jpg") per present extension with every carved
+     * file attached DIRECTLY to the volume node - never under the
+     * extension folders. The volume child is created LAZILY at the first
+     * carved-file emit inside its range (the real G session carries NO
+     * child for its carves-free G: volume). volume_groups: slice-relative
+     * [start, end) ranges with the volumes' display names; a candidate
+     * outside every range attaches to the carve root directly (the
+     * unattributable position - never mis-attributed to a wrong volume).
+     * Empty groups + non-empty volume_group_name = ONE group over the
+     * whole slice (the single-volume scan - the common case). Both empty
+     * = no grouping: the bare-root emission (the pre-S-048 shape, kept
+     * for standalone engine callers that know no volume identity). */
+    std::vector<VolumeGroup> volume_groups;
+    std::u16string volume_group_name;
 };
 
 /* ---- M-021: the post-carve processing hook -------------------------
@@ -147,10 +217,18 @@ public:
     virtual void on_candidate(IStorageDevice* /*slice*/, const CarveCandidateInfo& /*info*/) {}
 };
 
-/* Naming callback: returns the display name for a carved hit (host policy). */
+/* Naming callback: returns the display name for a carved hit (host policy).
+ * A namer overrides the og-contract default naming entirely (S-049). */
 using NameCallback = std::function<std::u16string(const Signature& sig, u64 size, u32 index)>;
 
-/* Default namer: File0001.jpg style (corpus default policy). */
+/* Default namer (S-049): the og's universal carved-file naming contract,
+ * "<UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>" (GZ_000001.GZ, PNG_000001.PNG),
+ * with the unpadded %d form past counter 99999 (DRWUI FUN_140c44770,
+ * decompiled :1878330-81; real-session-pinned per-format counters). The
+ * `index` parameter is the caller's PER-FORMAT counter (carve_slice's
+ * internal counter map when the default chain runs). The File%06u default
+ * this replaced was an invention (retired with S-049; the PARITY-DELTAS
+ * D-76 registration narrowed to nothing). */
 std::u16string default_namer(const Signature& sig, u64 size, u32 index);
 
 /*
@@ -163,6 +241,18 @@ std::u16string default_namer(const Signature& sig, u64 size, u32 index);
  * per-worker overlap sets + the tree extent index backstop the window-boundary
  * dedup. Progress stays monotonic (completed-window counter).
  */
+namespace detail {
+/* N-139 test seam: when non-null, the two OOM-realistic buffer
+ * allocations (the scan window and the raw-sign tail) call it with the
+ * requested byte count BEFORE allocating; returning true makes the site
+ * throw std::bad_alloc exactly as a real allocation failure would - the
+ * production guard path (the try/catch + the ERR_NO_MEMORY conversion +
+ * the diagnostic), triggered deterministically. Production code never
+ * sets it (nullptr = the normal path, zero overhead); the OOM tests
+ * inject, then reset. The precedent: cr_bitlocker.h's detail seams. */
+extern bool (*oom_test_hook)(size_t bytes);
+} // namespace detail
+
 u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,
                 bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
                 tree::FullNode* carve_root, const tree::ResultTree* dedup_tree,

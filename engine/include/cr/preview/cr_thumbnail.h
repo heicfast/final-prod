@@ -1,0 +1,199 @@
+/*
+ * cr_thumbnail.h - engine-side thumbnail generation over the bounded
+ * PreviewReader (session-owner directive; the og decodes thumbnails entirely
+ * UI-side - GDI+ GdipGetImageThumbnail at 256 px, the MediaGraph/ffmpeg
+ * media agent's <=1 MiB BMP payloads, EURawImg/LibRaw for RAW, libheif's
+ * embedded thumbnails - so the core capability is a deliberate, documented
+ * superset in the I-015 in-process-reader lineage; corpus anchors and the
+ * phased format matrix live in docs/PARITY-OG-CORE-INVENTORY.md Section C.2).
+ *
+ * Contract (mirrors the preview module's bounded-read doctrine):
+ *   - all bytes flow through the caller's PreviewReader; the engine
+ *     NEVER opens a file and never reads more than caps.max_read logical
+ *     bytes for one thumbnail (work is additionally bounded by caps.max_work
+ *     fetch units - deterministic counters, no wall-clock bound);
+ *   - dims-first decompression-bomb guard: the header-declared w*h is
+ *     checked against caps.max_pixels BEFORE any full decode allocates;
+ *     oversized inputs are refused honestly (Oversized), with the EXIF
+ *     embedded-thumbnail fast path (caps.allow_embedded, JPEG only) as the
+ *     og-parity escape - GDI+/LibRaw/libheif all prefer embedded thumbs;
+ *   - unreadable device spans are never silently thumbnailed: if any span
+ *     the reader could not fetch was touched during generation, the call
+ *     fails with UnreadableSpan (a thumbnail decoded over zero-fill would
+ *     misrepresent recovered content);
+ *   - output is straight-alpha RGBA8, row-major, width*4 stride, downscaled
+ *     aspect-preserving with max_edge applied to BOTH axes (the og's
+ *     width-derived GDI+ scale quirk is deliberately corrected), never
+ *     upscaled, premultiplied box-filter averaging;
+ *   - S-043: JPEG output is EXIF-oriented - the og reads GDI+ property
+ *     0x112 and applies the matching RotateFlip BEFORE the 256-px pass
+ *     (DRWUI :652307-309); the engine applies the same 8-case transform
+ *     to the full-decode path BEFORE the downscale (the embedded-fast
+ *     path serves camera-pre-rotated thumbs as-is);
+ *   - honesty: unsupported formats are named (webp/heic are documented
+ *     phase-2; the GDI+ metafile/icon family wmf/emf/ico is likewise
+ *     named-and-refused - the og's GDI+ path rasterizes them natively,
+ *     the core's matrix defers them), truncation is flagged, decode
+ *     failures carry a status name for logging - never a synthesized image.
+ *
+ * v1 format matrix: JPEG (baseline+progressive), PNG, BMP/DIB, GIF (first
+ * frame), TIFF baseline (uncompressed / PackBits / Deflate / LZW strips -
+ * M-085, 8/16-bit, gray / palette / RGB / RGBA, both endians - native),
+ * plus PSD / PNM / HDR
+ * via the vendored public-domain decoder (third_party/stb). Deferred with
+ * named dependencies: WebP (libwebp), HEIC (libheif+libde265, embedded
+ * first), RAW (LibRaw thumbnail API), video key-frames (ffmpeg), PDF page
+ * pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF, WMF/EMF metafiles + ICO/CUR
+ * icons (GDI+ on Windows - the og's own native path; refused by name).
+ * Landed natively (S-045's TIFF-RAW half): the camera-RAW family whose
+ * members are TIFF-based containers carrying a full-size JPEG preview
+ * (the JPEGInterchangeFormat pair 513/514 outside compression 6/7 -
+ * CR2/DNG/NEF/ARW-class files) - the preview extracts and decodes through
+ * the JPEG path, the og's EURawImg/LibRaw equivalent for this class;
+ * source_format "raw".
+ *
+ * Cache scope (deliberate, registered): no engine-side thumbnail cache -
+ * repeated renders are the host's layer (the og caches UI-side in
+ * ThumbnailFactory; the core's in-process doctrine keeps the engine
+ * stateless across calls). Recorded in modules/preview.md.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+
+#ifndef CR_THUMBNAIL_H_
+#define CR_THUMBNAIL_H_
+
+#include "cr/preview/cr_preview.h"
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace cr {
+namespace preview {
+
+/* Bounding policy for one thumbnail generation. Defaults follow the corpus
+ * anchors: max_edge 256 (the og UI-side GDI+ convention), max_pixels 64 MP
+ * (keeps worst-case decode memory at 256 MiB RGBA), max_read 200 MB
+ * (0xC800000 — M-109: the og's still-image eligibility gate, DRWUI
+ * FUN_1402636e0 :422425-429 'if (0xc800000 < size) skip'; the M-080-era
+ * 32 MiB default refused the og-served 32–200 MB band), max_work
+ * 1<<22 fetch units (the extract_metadata work-guard scale). */
+struct ThumbnailCaps {
+    u32 max_edge = 256;
+    u64 max_pixels = 64ull * 1024 * 1024;
+    /* M-109: 200 MB = 0xC800000 — the og's still-image eligibility gate
+     * (DRWUI_decompiled.c:422425-429, re-verified first-hand: the size
+     * read FUN_140089170 then 'if (0xc800000 < size) skip the item'; the
+     * 100 MB UIUX/10:23 cap is the PREVIEW panel, a different surface —
+     * not conflated). Below the gate the og decodes and thumbnails
+     * everything; above it the item is skipped (our BudgetExceeded is the
+     * named, honest refusal equivalent). The byte cap gates I/O; decode
+     * memory stays bounded by max_pixels (64 MP = 256 MiB RGBA worst
+     * case) — a raised INPUT bound cannot OOM the decode path. The
+     * M-080 comment's "the og's GDI+ path has no input cap" doctrine is
+     * the refuted premise this re-pin replaces (the gate is the cap).
+     * Byte-oversized JPEGs still take the embedded fast path first (a
+     * few KiB of reads). */
+    u32 max_read = 0xC800000;
+    u32 max_work = 1u << 22;
+    bool allow_embedded = true;
+};
+
+/* The generated thumbnail. `rgba` holds width*height*4 bytes (RGBA8,
+ * straight alpha, row-major). `source_format` names the decoded family
+ * (jpeg|png|bmp|gif|tiff|psd|pnm|hdr). `from_embedded` marks the EXIF
+ * embedded-thumbnail fast path (JPEG only). `truncated` is set when the
+ * input stream was short - on failures it accompanies the status, and on
+ * Ok it discloses a decoder-tolerated short stream (stb's JPEG zero-fill
+ * leniency: the image decoded, the short input is never silent); it is
+ * never a silent loss.
+ *
+ * S-043: the output is DISPLAY-ORIENTED - the og reads GDI+ property
+ * 0x112 (EXIF Orientation) and RotateFlips the bitmap immediately
+ * before its 256-px thumbnail pass (FUN_1402fcc30, call order :652307
+ * -> :652309). The same transform (the 8 EXIF cases, applied before the
+ * downscale) runs for JPEG (APP1/IFD0 tag 0x112) and TIFF (tag 274);
+ * formats without an EXIF block are left untransformed, matching the
+ * og's GetPropertyItemSize(0x112)==0 branch. The embedded fast path
+ * serves the IFD1 thumbnail as stored (the CIPA DC-008 convention:
+ * embedded thumbnails are stored upright) and honors an IFD1-declared
+ * 0x112 as the not-already-oriented marker. */
+struct Thumbnail {
+    u32 width = 0;
+    u32 height = 0;
+    std::vector<u8> rgba;
+    std::string source_format;
+    bool from_embedded = false;
+    bool truncated = false;
+    /* M-115 (diff-to-fix): the READ verdict, disclosed separately from
+     * the decode verdict - the og's thumbnail worker promotes the node
+     * grade on a CLEAN RECOVERY READ (FUN_1403eba50's verdict == 0,
+     * DRWUI :422442) and the later decode's failure never retracts it
+     * (:422507-514's guard has no decode input). read_ok is true when
+     * the generation's byte fetches were all clean (no unreadable span
+     * gained) - set on the Ok AND DecodeFailed paths (the damaged-
+     * stream case the disclosure exists for); the named refusals that
+     * never fetched a payload (Unsupported sniff, Oversized bomb guard,
+     * BudgetExceeded, BadParameter) leave it false. */
+    bool read_ok = false;
+};
+
+enum class ThumbStatus : int {
+    Ok = 0,         /* Thumbnail is filled */
+    Unsupported,    /* format sniffed and named, no v1 decoder (webp/heic/...) */
+    DecodeFailed,   /* damaged stream the decoder refused (truncated set) */
+    Oversized,      /* dims-first bomb guard refused (from header, before decode) */
+    BudgetExceeded, /* caps.max_read / max_work exhausted */
+    UnreadableSpan, /* the reader zero-filled a span we decoded over (refused) */
+    BadParameter,   /* caps out of range / empty input */
+};
+
+/* Stable status names for logging and tests. */
+const char* thumbnail_status_name(ThumbStatus s);
+
+/* v1 decoder surface (honest capability reporting; the deferred phases are
+ * documented in the module header). Accepts the canonical family names
+ * above ("jpeg", "png", ...) plus "txt" - the N-144 text-snapshot family
+ * (the og's TxtViewFiles thumbnails: the first <=100 bytes rendered as a
+ * text preview image, DRWUI FUN_1403d88e0 :652885-652959). */
+bool thumbnail_format_supported(std::string_view format);
+
+/* N-144: the og's text-snapshot thumbnail - the content-preview image the
+ * og renders for TxtViewFiles-eligible files (the results-grid surface;
+ * the preview-panel text VIEW is M-108's, a different surface). The og's
+ * decision sequence, decoded first-hand at FUN_1403d88e0: take the first
+ * min(size, 100) bytes verbatim (FUN_1403d7ce0 - a plain capped copy into
+ * the zeroed 110-byte buffer; the finding's "sanitize" characterization
+ * corrected: no substitution happens), decode UTF-16 when the head
+ * carries a BOM (FUN_1403d8840: len > 4 && (FF FE | FE FF), then the
+ * FUN_1403d7e20 wide->narrow conversion), refuse when the resulting text
+ * is EMPTY (:652938-941), else draw (Arial 13 via GDI, :652947-948) and
+ * promote (the M-112 trigger rides elsewhere). The core renders the
+ * decoded text onto a white max_edge x max_edge canvas with the embedded
+ * 6x12 bitmap font (cr_thumbnail_font.cpp - the Arial rasterization is a
+ * Windows font artifact the core cannot embed; the readable-preview
+ * CAPABILITY is the parity surface): LF/CR break lines, TAB advances to
+ * the next 8-column stop, non-printable bytes advance one blank cell,
+ * non-ASCII maps to '?' (the og's ANSI/CP_ACP lossy-conversion class).
+ * source_format = "txt"; read_ok follows the M-115 read-verdict rule. */
+ThumbStatus make_text_snapshot(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out);
+
+/* N-144: the embedded font surface (generated - scripts/gen_thumb_font.py).
+ * thumbnail_font_glyph answers 12 row-bytes for ASCII 32..126 (the low 6
+ * bits of each row = the pixel columns, bit 5 = leftmost) or nullptr for
+ * every other code; the cell metric pairs with it. */
+const unsigned char* thumbnail_font_glyph(unsigned int code);
+unsigned thumbnail_font_cell_w();
+unsigned thumbnail_font_cell_h();
+
+/* Generate one thumbnail from the node's logical content (the reader is
+ * non-const on purpose: read_at accumulates the reader's diagnostics, same
+ * contract as extract_metadata). On Ok the Thumbnail is fully populated;
+ * on failure no pixels are ever synthesized - `source_format`/
+ * `truncated` may carry diagnostics, nothing else is written. */
+ThumbStatus make_thumbnail(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out);
+
+} // namespace preview
+} // namespace cr
+
+#endif // CR_THUMBNAIL_H_

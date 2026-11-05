@@ -133,9 +133,11 @@ struct MemFile {
 
 /* Hand-build a minimal whole-disk session: state(all-done) + volume-info
  * (whole-disk basis) + one partition context (the persisted candidate) and
- * optionally the disk-layout snapshot. */
+ * optionally the disk-layout snapshot. pc_truncate emulates an older
+ * wire version by truncating the serialized partition-context record
+ * (61 = a v3 session pre-N-203; 0 = write the full record). */
 MemFile build_session(const lost::Candidate& cand, bool with_layout,
-                      const std::vector<DiskLayoutEntry>& layout) {
+                      const std::vector<DiskLayoutEntry>& layout, size_t pc_truncate = 0) {
     MemFile mf;
     Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
     if (w.open(9) != OK)
@@ -173,9 +175,15 @@ MemFile build_session(const lost::Candidate& cand, bool with_layout,
         pc.flags |= 0x1;
     if (cand.have_geometry)
         pc.flags |= 0x2;
-    if (serialize_partition_context(pc, blob) == OK)
-        if (w.add_record(REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())) != OK)
+    /* N-203 v4: the data-area extent rides the record (the og's
+     * CSearchedPartitionInfo replays with the full extent identity). */
+    pc.data_start_lba = cand.data_start_lba;
+    pc.data_sector_count = cand.data_sector_count;
+    if (serialize_partition_context(pc, blob) == OK) {
+        const size_t n = pc_truncate && pc_truncate < blob.size() ? pc_truncate : blob.size();
+        if (w.add_record(REC_PARTITION_CONTEXT, blob.data(), u32(n)) != OK)
             ADD_FAILURE();
+    }
 
     if (with_layout && serialize_disk_layout(layout, blob) == OK)
         if (w.add_record(REC_DISK_LAYOUT, blob.data(), u32(blob.size())) != OK)
@@ -508,4 +516,120 @@ TEST(ResumeRevalidation, ArbiterStartOffDiskDropsAndUnknownKeeps) {
         c.bytes_per_sector = 4096; /* the disk says 512 at that LBA now */
         EXPECT_FALSE(lost::revalidate_candidate(&disk, c));
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* N-203: the data-area extent rides the round-trip                    */
+/* ------------------------------------------------------------------ */
+
+TEST(ResumeRevalidation, RoundTripKeepsDataAreaExtent) {
+    /* The og's lostpart.dat record is a full CSearchedPartitionInfo image
+     * whose replay key {start, end, disk} (PRD:20825-20831, re-read
+     * first-hand) carries EndSec anchored at the data-area boundary - the
+     * extent identity survives by construction. The core's v4 tail gives
+     * the same guarantee: save -> load -> verify the anchored window. */
+    lost::Candidate in = fat_candidate();
+    in.data_start_lba = 2048 + 74; /* the planted FAT's first_data sector */
+    in.data_sector_count = 4096 - 74;
+    auto mf = build_session(in, false, {});
+    MemDevice disk(base_disk());
+    tree::ResultTree t;
+    ScanStats stats;
+    VolumeSessionInfo info;
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, t, stats, info, &disk));
+    ASSERT_EQ(1u, stats.lost_candidates.size());
+    const auto& c = stats.lost_candidates[0];
+    EXPECT_EQ(2048u + 74u, c.data_start_lba);
+    EXPECT_EQ(4096u - 74u, c.data_sector_count);
+}
+
+TEST(ResumeRevalidation, V3SessionResumeReDerivesDataArea) {
+    /* A v3 (61-byte) partition-context record carries no data-area tail:
+     * the candidate restores with the degenerate [0,0) window and the
+     * resume re-validation's live probe repairs it - the probe's scratch
+     * data area copies back into the candidate (the og's record replays
+     * with the extent by construction; the copy-back is the core's
+     * first-resume repair for pre-v4 records). */
+    lost::Candidate in = fat_candidate();
+    in.data_start_lba = 0;
+    in.data_sector_count = 0;
+    auto mf = build_session(in, false, {}, 61); /* truncate to the v3 wire */
+    MemDevice disk(base_disk());
+    tree::ResultTree t;
+    ScanStats stats;
+    VolumeSessionInfo info;
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, t, stats, info, &disk));
+    ASSERT_EQ(1u, stats.lost_candidates.size());
+    const auto& c = stats.lost_candidates[0];
+    /* the planted FAT boot: reserved 2 + 2x20 FATs + 512-entry root dir =
+     * first_data 74; total32 4096 -> the anchored data-area window */
+    EXPECT_EQ(2048u + 74u, c.data_start_lba)
+        << "the re-validation probe's data area must copy back into the "
+           "pre-v4 record's candidate";
+    EXPECT_EQ(4096u - 74u, c.data_sector_count);
+}
+
+TEST(ResumeRevalidation, RestoredWindowMatchesFreshDiscovery) {
+    /* The finding's dedup/containment/leader consumers operate on the
+     * anchored window; a restored candidate must present the SAME window
+     * a fresh discovery derives for the same boot (the architectural
+     * note: on a deep-rerun resume the fresh pass REPLACES the restored
+     * list, so the restored candidates' window feeds the listing/
+     * re-save/presentation consumers - this pin holds them to the fresh
+     * equivalent). */
+    lost::Candidate in = fat_candidate();
+    auto mf = build_session(in, false, {}, 61); /* pre-v4 record */
+    MemDevice disk(base_disk());
+    tree::ResultTree t;
+    ScanStats stats;
+    VolumeSessionInfo info;
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, t, stats, info, &disk));
+    ASSERT_EQ(1u, stats.lost_candidates.size());
+
+    /* the fresh-run truth: run discovery on the same disk image */
+    std::vector<u8> img = base_disk();
+    MemDevice fresh(std::move(img));
+    lost::DiscoveryResult dr;
+    std::vector<table::PartitionInfo> known;
+    ASSERT_EQ(OK, lost::discover(&fresh, known, 1, nullptr, nullptr, nullptr, dr));
+    const lost::Candidate* hit = nullptr;
+    for (const auto& fc : dr.candidates)
+        if (fc.fs == lost::CandidateFs::Fat && fc.start_lba == 2048)
+            hit = &fc;
+    ASSERT_NE(hit, nullptr);
+    EXPECT_EQ(stats.lost_candidates[0].data_start_lba, hit->data_start_lba);
+    EXPECT_EQ(stats.lost_candidates[0].data_sector_count, hit->data_sector_count);
+}
+
+TEST(ResumeRevalidation, EnrichedExtentIsIdempotentAcrossReSave) {
+    /* once enriched, a re-save persists the extent (v4) and a second
+     * load restores it verbatim - the repair never re-fires and never
+     * drifts */
+    lost::Candidate in = fat_candidate();
+    auto mf = build_session(in, false, {}, 61);
+    MemDevice disk(base_disk());
+    tree::ResultTree t;
+    ScanStats stats;
+    VolumeSessionInfo info;
+    {
+        Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+        ASSERT_EQ(OK, ScanController::load_session_summary(r, t, stats, info, &disk));
+    }
+    ASSERT_EQ(1u, stats.lost_candidates.size());
+    ASSERT_NE(0u, stats.lost_candidates[0].data_sector_count)
+        << "precondition: the v3 record was enriched at the first resume";
+    /* re-save the enriched candidate through the same v4 serializer the
+     * orchestrator's save path fills */
+    auto mf2 = build_session(stats.lost_candidates[0], false, {});
+    ScanStats stats2;
+    tree::ResultTree t2;
+    VolumeSessionInfo info2;
+    Reader r2(MemFile::rd, MemFile::sk, MemFile::sz, &mf2);
+    ASSERT_EQ(OK, ScanController::load_session_summary(r2, t2, stats2, info2, &disk));
+    ASSERT_EQ(1u, stats2.lost_candidates.size());
+    EXPECT_EQ(2048u + 74u, stats2.lost_candidates[0].data_start_lba);
+    EXPECT_EQ(4096u - 74u, stats2.lost_candidates[0].data_sector_count);
 }

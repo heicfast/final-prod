@@ -335,6 +335,80 @@ public static class BenchRaw
         return lines;
     }
 
+    // GAP-S6-5 (bench scorer truth): the physical-ceiling probe. Hashes the
+    // exact extent byte-ranges of each manifest file against the volume in
+    // ONE locked pass - called after a decay scenario, a file whose range
+    // content still hashes to its manifest sha256 is physically recoverable,
+    // and recall must be judged against that set (the decay cliff is a
+    // physical allocation-hint effect, not an engine defect).
+    // Input lines:  "rel\tbytesExpected\toff1,len1,off2,len2,..."
+    // Output lines: "rel\tsha256hex\tbytesRead\tbytesExpected\tshortReadFlag"
+    public static List<string> HashRanges(string letter, List<string> files)
+    {
+        List<string> outLines = new List<string>();
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
+        {
+            LockAndDismount(h);
+            using (FileStream fs = new FileStream(h, FileAccess.Read, 4096, false))
+            {
+                byte[] buf = new byte[1 << 20];
+                foreach (string line in files)
+                {
+                    string[] head = line.Split('\t');
+                    if (head.Length < 3) { continue; }
+                    string rel = head[0];
+                    long expect = 0;
+                    try { expect = long.Parse(head[1]); } catch { }
+                    string[] pairs = head[2].Split(',');
+                    long read = 0;
+                    bool shortRead = false;
+                    using (SHA256 sha = SHA256.Create())
+                    {
+                        for (int i = 0; i + 1 < pairs.Length; i += 2)
+                        {
+                            long off, len;
+                            try { off = long.Parse(pairs[i]); len = long.Parse(pairs[i + 1]); }
+                            catch { shortRead = true; continue; }
+                            if (len <= 0) { continue; }
+                            fs.Seek(off, SeekOrigin.Begin);
+                            long left = len;
+                            while (left > 0)
+                            {
+                                int n = (int)Math.Min(buf.Length, left);
+                                int got = 0;
+                                while (got < n)
+                                {
+                                    int r = fs.Read(buf, got, n - got);
+                                    if (r <= 0) break;
+                                    got += r;
+                                }
+                                if (got <= 0) { shortRead = true; break; }
+                                if (got == n)
+                                {
+                                    sha.TransformBlock(buf, 0, n, null, 0);
+                                }
+                                else
+                                {
+                                    byte[] t = new byte[got];
+                                    Array.Copy(buf, t, got);
+                                    sha.TransformBlock(t, 0, got, null, 0);
+                                    shortRead = true;
+                                }
+                                read += got;
+                                left -= got;
+                                if (got < n) break;
+                            }
+                        }
+                        sha.TransformFinalBlock(new byte[0], 0, 0);
+                        outLines.Add(rel + "\t" + Convert.ToHexString(sha.Hash) + "\t" + read + "\t"
+                                     + expect + "\t" + (shortRead ? 1 : 0));
+                    }
+                }
+            }
+        }
+        return outLines;
+    }
+
     // cluster size from the boot sector: NTFS/FAT u16 bps @0x0B + u8 spc @0x0D;
     // exFAT shift bytes @0x78/@0x79. Returns -1 when unrecognized.
     public static long GetBootClusterSize(string letter)
@@ -566,6 +640,56 @@ function Invoke-DiskHashCapture {
     $lines = [BenchRaw]::HashDisk($DiskNumber, $size, [long]$BlockMB * 1MB)
     $lines | Set-Content -Path $OutFile -Encoding utf8
     Write-Host "disk hash map: $((Get-Item $OutFile).Length) bytes -> $OutFile"
+}
+
+<# GAP-S6-5: the physical-ceiling probe. Hashes each manifest file's extent
+   byte-ranges against the post-decay volume in ONE locked pass. The extents
+   were captured at seed time (BEFORE deletion - deletion never moves bytes),
+   so the ranges still address the file's content; whatever the decay fillers
+   overwrote surfaces as a post-decay hash mismatch = physically
+   unrecoverable, and the scorer judges recall against the intact set.
+   Emits physical-ceiling.json next to the scenario artifacts. #>
+function Invoke-PhysicalCeilingProbe {
+    param([string] $Letter, [array] $Entries, [long] $ClusterBytes, [string] $OutFile)
+    if ($ClusterBytes -le 0) { throw "physical-ceiling probe needs a valid cluster size (got $ClusterBytes)" }
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $skipped = 0
+    foreach ($e in $Entries) {
+        if (-not $e.extents -or $e.extents.Count -eq 0) { $skipped++; continue }
+        $pairs = @()
+        [long] $expect = 0
+        foreach ($x in $e.extents) {
+            # BENCH-F4c shape: [long](expr) - the array-literal comma parse trap
+            $off = [long]($x[0] * $ClusterBytes)
+            $len = [long]($x[1] * $ClusterBytes)
+            if ($len -le 0) { continue }
+            $pairs += "$off,$len"
+            $expect += $len
+        }
+        if ($pairs.Count -eq 0) { $skipped++; continue }
+        $lines.Add(($e.rel, "$expect", ($pairs -join ',')) -join "`t")
+    }
+    $out = [BenchRaw]::HashRanges($Letter, $lines)
+    $records = @{}
+    foreach ($l in $out) {
+        $p = $l -split "`t"
+        if ($p.Count -lt 5) { continue }
+        $records[$p[0]] = @{
+            post_decay_sha256 = $p[1].ToLowerInvariant()
+            bytes_read        = [long]$p[2]
+            bytes_expected    = [long]$p[3]
+            short_read        = ($p[4] -eq '1')
+        }
+    }
+    $result = @{
+        cluster_bytes    = $ClusterBytes
+        files_probed     = $records.Count
+        files_no_extents = $skipped
+        records          = $records
+    }
+    $result | ConvertTo-Json -Depth 4 | Set-Content -Path $OutFile -Encoding utf8
+    Write-Host "physical ceiling: $($records.Count) files probed, $skipped without extents -> $OutFile"
+    return $result
 }
 
 function Get-BootClusterSize {

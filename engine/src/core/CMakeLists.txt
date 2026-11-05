@@ -12,6 +12,7 @@ add_library(cr_core STATIC
     health/cr_csmi.cpp
     health/cr_grade.cpp
     health/cr_family.cpp
+    health/cr_fve_policy.cpp
     storage/cr_devmap.cpp
     storage/cr_image.cpp
     storage/cr_slice.cpp
@@ -50,6 +51,7 @@ add_library(cr_core STATIC
     carve/cr_usersigns.cpp
     carve/cr_rawsigns_data.cpp
     session/cr_crsf.cpp
+    session/cr_lastscan.cpp
     session/cr_records.cpp
     recovery/cr_safewriter.cpp
     recovery/cr_report.cpp
@@ -57,17 +59,29 @@ add_library(cr_core STATIC
     recovery/cr_dict_data.cpp
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
+    orchestrator/cr_folderfilter.cpp
     preview/cr_preview.cpp
+    preview/cr_preview_text_exts.cpp
+    preview/cr_preview_text_exts_data.cpp
+    preview/cr_thumbnail.cpp
+    preview/cr_thumbnail_font.cpp
     query/cr_query.cpp
+    query/cr_config_display_data.cpp
     query/cr_filefilter_data.cpp
     check/cr_fscheck.cpp
+    check/cr_fsck_launch.cpp
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
+    reghive/cr_offlineos.cpp
+    reghive/cr_mountpoints2.cpp
+    reghive/cr_reghive_edit.cpp
+    reghive/cr_surgery.cpp
     bcdfix/cr_bcdfix.cpp
     nvramfix/cr_nvramfix.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
+    orchestrator/cr_vollabel.cpp
     tree/cr_node.cpp
     tree/cr_grading.cpp
     tree/cr_diskmap.cpp
@@ -80,6 +94,10 @@ add_library(cr::core ALIAS cr_core)
 set_target_properties(cr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+# cr_thumbnail's vendored public-domain decoder (third_party/stb) - a
+# PRIVATE include: the stb header never appears in any public cr/ header.
+target_include_directories(cr_core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/stb)
 # G-09: the engine version baked into every recovery report
 target_compile_definitions(cr_core PRIVATE
     CR_ENGINE_VERSION="${PROJECT_VERSION}")

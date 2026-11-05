@@ -10,6 +10,30 @@
 namespace cr {
 namespace win {
 
+/* M-074: the og's destination-validation taxonomy (UIUX/11:16 - distinct
+ * numbered strings: "Might be invalid path to save." / "The recovery path
+ * is too long." + the PathIsNetworkPathW branch, architecture/04:136-140).
+ * Classify a failed create/mkdir: path-too-long, invalid path, the
+ * network-destination shape (a UNC path grammar check - the static
+ * backslash-backslash prefix covers the corpus's named case; MAPPED
+ * drives are the documented limitation: the dynamic PathIsNetworkPathW
+ * half needs the shell path API and adds no recovery-relevant decision
+ * on this branch). Everything else stays ERR_DEST_UNWRITABLE. */
+namespace {
+u32 classify_dest_error(DWORD e, const std::u16string& path) {
+    if (e == ERROR_FILENAME_EXCED_RANGE)
+        return ERR_DEST_PATH_TOO_LONG;
+    if (e == ERROR_INVALID_NAME || e == ERROR_BAD_PATHNAME)
+        return ERR_DEST_PATH_INVALID;
+    /* the UNC network shape (not the \?\ / \\.\ device prefixes,
+     * which are local device paths) */
+    if (path.size() >= 3 && path[0] == u'\\' && path[1] == u'\\' && path[2] != u'?' &&
+        path[2] != u'.')
+        return ERR_DEST_NETWORK;
+    return ERR_DEST_UNWRITABLE;
+}
+} // namespace
+
 u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
                            const std::u16string& temp_suffix) {
     std::u16string temp = final_path + temp_suffix; /* per-item suffix (audit row 35c) */
@@ -21,7 +45,7 @@ u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
         const DWORD e = GetLastError();
         if (e == ERROR_DISK_FULL || e == ERROR_HANDLE_DISK_FULL)
             return ERR_DEST_FULL;
-        return ERR_DEST_UNWRITABLE;
+        return classify_dest_error(e, temp);
     }
     open_[item_id] = Open{h, temp, final_path};
     return OK;
@@ -114,6 +138,48 @@ bool WinDestIo::exists(const std::u16string& path_utf16) {
            INVALID_FILE_ATTRIBUTES;
 }
 
+u32 WinDestIo::set_metadata(u64 item_id, const std::u16string& final_path_utf16,
+                            const FileMeta& meta) {
+    (void)item_id; /* the og addresses the destination by PATH, not the
+                    * (already closed) temp handle - DRWUI :874684-718 */
+    const wchar_t* path = reinterpret_cast<const wchar_t*>(final_path_utf16.c_str());
+    /* the og's tail, shape for shape: attributes first (word & ~0x2,
+     * :874686-690 - failure only traced, the flow CONTINUES to the
+     * times), then the timestamp trio via a fresh CreateFileW handle
+     * (:874697-714: creation, access, write FILETIME* slots - NULL for
+     * the un-set fields, the og's mask gates). Either failure surfaces
+     * as the call's return code; the WRITER keeps the item Done either
+     * way (the og's non-fatal contract). */
+    u32 rc = OK;
+    if (meta.set_attributes && !SetFileAttributesW(path, meta.attributes))
+        rc = ERR_WRITE_FAILED; /* the og's "Failed to set file attribute" */
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return rc != OK ? rc : u32(ERR_WRITE_FAILED); /* "Failed to set file time" */
+    FILETIME ft_create, ft_access, ft_write;
+    FILETIME *p_create = nullptr, *p_access = nullptr, *p_write = nullptr;
+    if (meta.set_created) {
+        ft_create.dwLowDateTime = DWORD(meta.created & 0xFFFFFFFFu);
+        ft_create.dwHighDateTime = DWORD(meta.created >> 32);
+        p_create = &ft_create;
+    }
+    if (meta.set_accessed) {
+        ft_access.dwLowDateTime = DWORD(meta.accessed & 0xFFFFFFFFu);
+        ft_access.dwHighDateTime = DWORD(meta.accessed >> 32);
+        p_access = &ft_access;
+    }
+    if (meta.set_modified) {
+        ft_write.dwLowDateTime = DWORD(meta.modified & 0xFFFFFFFFu);
+        ft_write.dwHighDateTime = DWORD(meta.modified >> 32);
+        p_write = &ft_write;
+    }
+    if (!SetFileTime(h, p_create, p_access, p_write))
+        rc = rc != OK ? rc : u32(ERR_WRITE_FAILED); /* first failure wins */
+    CloseHandle(h);
+    return rc;
+}
+
 u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
     /* G-08: create every component of the chain; a component that already
      * EXISTS AS A DIRECTORY is success (idempotent reconstruction).
@@ -150,7 +216,7 @@ u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
         const DWORD attr = GetFileAttributesW(reinterpret_cast<const wchar_t*>(prefix.c_str()));
         if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
             continue; /* exist-as-directory: the EEXIST contract */
-        return ERR_DEST_UNWRITABLE;
+        return classify_dest_error(GetLastError(), prefix);
     }
     return OK;
 }

@@ -8,8 +8,16 @@ This is the parameter taxonomy every module is scored against. A module may be
 Every applicable parameter that is not `MATCH`/`DIVERGENCE-INFORMATIONAL`
 generates a finding file under `findings/`.
 
-**Audited core commit:** `67193b6` (baseline includes concurrent fixes through
-`9fc82b0`). **Corpus commit:** `03ad46c`.
+**Audited core commit:** session-8 wave-2 `ff879f9` (this wave's rows in
+CROSS-REF-MATRIX); the taxonomy itself is commit-independent. **Corpus
+commit:** `be0cfe9` (was `03ad46c`; the one-commit move is CORRECTIONS #9,
+absorbed). Historical: `67193b6`/`9fc82b0` baseline.
+> **Session-9 currency note (2026-10-28, SA-9 lane):** corpus pin advanced to
+> `be0cfe9` (CORRECTIONS.md #9 — absorbed per session-8's T1; the taxonomy is
+> unchanged). The SA-9 lane's contributions score against existing rows only
+> (carve B1/A28/C19/P29; transport P47/doc-truth) — no new parameters invented.
+> The lane's finding set reconciled into the session-8 board at push time
+> (see worklog SA-9/T3; the unique survivor: N-127 driver doc-vs-code truth).
 
 ## Group B — Behavioral parameters
 
@@ -136,6 +144,29 @@ generates a finding file under `findings/`.
 | Q69 | Stub/mock/TODO scan | None in shipped paths. |
 | Q70 | Win7-inclusive posture | Import allowlist and OS-version gates intact. |
 
+## Group K — Packaging & installer parameters (added by the dev-sign session, corpus-derived)
+
+> Derived from `architecture/02-kernel-driver-architecture.md` §5,
+> `artifacts/Installer/setupue-infoforsetup--bootstrap-pair.md`, the
+> unins000/SetupUE/InfoForSetup string tables,
+> `artifacts/per-binary/deepening-batch1--japanese-winchkdsk-setupdrv-legacy.md`
+> §3, `artifacts/DRWService-exe--bitlocker-service.md`, the BUILDPE tree
+> (regdrv.reg / winpeshl.ini / auto.bat / software.reg / Unattend.xml),
+> `artifacts/WinPE/*`, `artifacts/Licensing/licensing-activation-chain.md`,
+> and `og-codebase/EuShare/{install,uninstall}.bat`. Full parameter source
+> map: `SURFACE-INVENTORY.md` §5-§6.
+
+| # | Parameter | Scope notes |
+|---|---|---|
+| K71 | Installer executability & error semantics | The documented install path runs; failures surface loudly (per-call SCM error strings in the reference; no warning-and-exit-0). |
+| K72 | Service configuration parity | Group, Type/Start/ErrorControl, Parameters registry values, ImagePath form — the installed service matches the documented shape (the reference writes + verifies). |
+| K73 | Uninstall lifecycle | Stop → verify stopped → delete → remove file → verify gone; the reference treats uninstall as a definite, verified (and instrumented) lifecycle step. |
+| K74 | Silent / unattended surface | /SILENT /VERYSILENT /SUPPRESSMSGBOXES /NORESTART(+Applications) install; ARP `QuietUninstallString`; admin-required uninstaller; no visible console in the customer path. |
+| K75 | Signing posture & environment matrix | Release artifact signature state; the dev/test sign mechanism; HVCI/SecureBoot/testsigning constraints; timestamp policy; per-OS validation evidence. |
+| K76 | Versioned coexistence & upgrade | `%s%d` numbered driver layouts (eprdtdrv2.sys-style), unins%03d multi-uninstallers — old and new versions coexist deliberately. |
+| K77 | Install-time registry & telemetry contract | `SOFTWARE\EASEUS\DRW\Version`-class keys, OS gate (16-entry table), install/uninstall telemetry verbs (/SendInfo /SendInfoEx /UninstallStart /UninstallEnd). |
+| K78 | Boot-media deployment | winpeshl launch order; offline-hive service matrix + UpperFilters; auto.bat phases (OEM branch, companion deploy); the WAIK/DISM/IMAPI2 media builder; installer stamping of shipped config. |
+
 ## Application notes
 
 - Engine modules (ntfs, fat, exfat, ext4, hfsplus, btrfs, zfs, refs) are scored
@@ -151,3 +182,11 @@ generates a finding file under `findings/`.
 - `writer`+`report` score D13/F62/B2 plus shared groups.
 - `health`, `rawfixer`, `visualization`(preview/query), `abi`, `cli` score their
   applicable subsets.
+- **driver-install / packaging** (new module row) scores the K group
+  (K71-K78) — the Phase-1 dev-sign findings (S-036, M-060..M-063, N-084,
+  N-085, I-026) are K71-K75 verdicts; the app-installer/WinPE waves cover
+  K74/K76-K78.
+- **Session note (CORRECTIONS #5)**: the corpus errata corrected the
+  RawConfig toggle count (37 → 34). M-024's mechanism is unaffected; the
+  count references across the trail are being reconciled by the dev-sign
+  session's propagation wave.

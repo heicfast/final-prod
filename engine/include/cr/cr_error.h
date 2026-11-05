@@ -32,13 +32,14 @@ enum Err : u32 {
     ERR_RANGE_OUT_OF_BOUNDS = 0x50020004,
     ERR_CANCELLED = 0x50020005,
     ERR_RETRY_EXHAUSTED = 0x50020006,
-    /* Mandatory-driver session (2026-10-27): the RDA kernel driver is a
-     * REQUIRED product component — every raw-disk read/write path rides
-     * it and there is no direct-handle fallback (the user directive that
-     * supersedes the reference's duality; docs/PARITY-DELTAS.md D-FALL).
-     * Returned when the \\.\{service} control device cannot be opened
-     * (driver not installed, not started, or blocked by signing policy). */
-    ERR_DRIVER_REQUIRED = 0x50020007,
+    /* N-125: the target device went away mid-scan (yanked USB, ejected
+     * media, disconnected NAS mount) - the device-gone GLE family, NOT
+     * a dying-disk read failure. Distinct so hosts can branch into the
+     * reattach-then-resume flow (the session checkpoint machinery) the
+     * og's "Drive Disconnected" Retry/Cancel dialog drives from its UI
+     * layer (UIUX/08:39-47; the core's deliberately lighter engine
+     * posture is registered in PARITY-DELTAS D-121). */
+    ERR_DEVICE_DISCONNECTED = 0x50020007,
 
     /* --- format / parse --- */
     ERR_BAD_MAGIC = 0x50030001,
@@ -68,9 +69,22 @@ enum Err : u32 {
      * DRWUI :357131 `if (10000 < counter) break` - the file is FAILED,
      * never a synthesized fallback name) */
     ERR_DEST_NAME_EXHAUSTED = 0x50050005,
+    /* M-074: the destination-validation taxonomy the og surfaces as
+     * distinct numbered strings (UIUX/11:16) - path-too-long, invalid
+     * path, and the network-destination branch. Append-only family. */
+    ERR_DEST_PATH_TOO_LONG = 0x50050006,
+    ERR_DEST_PATH_INVALID = 0x50050007,
+    ERR_DEST_NETWORK = 0x50050008,
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,
+    /* M-105 option (a): the FVE auto-unlock harvest's ACL diagnosis - the
+     * store exists (ERROR_ACCESS_DENIED, not FILE_NOT_FOUND) but this
+     * token cannot read it. The og bridges this ACL with its transient
+     * LocalSystem service ("Read FVE Server"); the core's registered
+     * posture keeps the in-process harvest and surfaces the elevation
+     * claim instead (PARITY-DELTAS D-16x, the no-service posture). */
+    ERR_FVE_ELEVATION_REQUIRED = 0x50060002,
 
     /* --- health / repair --- */
     ERR_HEALTH_UNAVAILABLE = 0x50070001,
@@ -90,6 +104,20 @@ enum Err : u32 {
 
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,
+
+    /* --- raw-disk privilege precondition (the direct-access mandate's
+     * refusal taxonomy; session-96: the driver era's 0x500B family was
+     * REMOVED with the driver itself - its five conditions described
+     * kernel-driver service states that no longer exist. The direct
+     * layer's single precondition state is the process token: elevated
+     * or not, probed by is_elevated() (cr/win/cr_elevate.h, the
+     * TokenElevation test). FRESH VALUE SPACE: 0x500C0001 is not a
+     * re-used 0x500B slot - hosts compiled against the driver-era
+     * header must never silently decode a re-used value as its old
+     * meaning. Every raw-disk operation fails fast with exactly this
+     * one code when the token is not elevated; image targets never
+     * touch raw disks and are exempt by classification.) --- */
+    ERR_ELEVATION_REQUIRED = 0x500C0001, /* raw disk access needs an elevated token */
 };
 
 /* Human-readable text for codes used in CLI output and logs. */

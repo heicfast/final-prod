@@ -19,7 +19,7 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
   register; BE-pool refusal (`ERR_UNSUPPORTED`) — documented deliberate hardening.- **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
   (3-blkptr headers), BPE (embedded block pointers), per-object compression registry
   (LZJB/LZ4/zle/gzip → codec-tagged extents; lzjb/zle hardened ports in storage module);
-  **OQ-T6** multi-vdev (refused, single-disk resolvable only — og extent unknown).
+  multi-vdev — **OQ-T6 RESOLVED (session-11, I-032)**: the og DOES resolve multi-vdev DVAs (ZfsSearchDLL `FUN_1800168b0 :19544-19556` — the vdev-id registry search falls back to the FIRST registry entry on no-match, never fails; mirror OK, stripe local-half, raidz checksum-drops); the core's M-019 landing is convergent — MATCH.
 - **B3** — `M` checksum-aware reads at blkptr level.
 - **B4 deleted classification** — `M` (S-034 FIXED): the ring-txg-history walk recalls
   deleted-in-window files as Deleted nodes (the og walks every ring state; the old
@@ -29,11 +29,8 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 - **B5 orphan** — `M` snapshots surfaced as roots when present in the DSL tree (og
   deep-dive §3 parity; core snapshot surfacing implemented).
 - **B7 sparse** — `M` holes via blkptr l0==0 and gang leaders.
-- **B8 multi-volume** — **OQ-T6.2** (multi-vdev).
-- **B9 timestamps** — `M`-note: core uses `unix_to_filetime` (sub-second dropped) —
-  one-second precision where the og's ZPL node carries nanoseconds; recorded as a
-  precision note (not graded: og's persisted time semantics for ZFS not decoded;
-  revisit with OQ-T6).
+- **B8 multi-volume** — **MATCH (OQ-T6.2 resolved with OQ-T6 — I-032)**: the og's first-registry-entry fallback resolves multi-vdev pools; core convergent via M-019.
+- **B9 timestamps** — `M` **(closed MATCH, session-11 — I-032)**: the og persists ZPL times at 8-byte precision (the ATIME/MTIME/CTIME/CRTIME family all read through `FUN_180010ef0`, hard-capped `< 9` bytes at `:14937` — no nanosecond persistence anywhere); the core's one-second `unix_to_filetime` matches the og's shape. The prior "og carries nanoseconds" precision note is refuted by the decode.
 - **B10 Unicode** — `M` post-S-005-fix (dnode names, zap child names AND the
   nvlist pool display name decode via `text::utf8_to_u16`;
   `Zfs.NonAsciiNamesDecodedNotByteLifted` covers all three + a CJK pool name).
@@ -86,7 +83,7 @@ in the finding's addendum with the next corpus sites.
 
 | ID | Severity | One-line |
 |---|---|---|
-| OQ-T6 | tracked-open | nvlist anchor; multi-vdev DVA resolution; uberblock geometry; checksum depth |
+| OQ-T6 | ~~tracked-open~~ **RESOLVED (session-11, I-032)** | nvlist anchor; multi-vdev DVA resolution (the og resolves via first-registry-entry fallback — MATCH with M-019); uberblock geometry; checksum depth — see `evidence/decompiled-quotes/s11-zfsrefs-function-walk.md` §4 |
 | S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |
 
 ---
@@ -204,3 +201,6 @@ multivdev-fallback/checksum side.)
 | ID | Severity | One-line |
 |---|---|---|
 | S-034 | SEVERE → **FIXED** | CONVERGENT second fix the same window (the DFX33b landing above is canonical per first-landing-wins): same corpus decode executed independently (ring iteration FUN_180006b90 :5685-5841, addBlock chain, FUN_180012450 plain ctor = no engine dedup, last_txg display-only :5703); the DFX37 variant (deleted-tree parallel emission, identity = head+objid+logical birth @blkptr+80) superseded — its Resolution preserved in findings/FIXED/S-034 as the convergent record, including the fixture block-placement lesson (a second state's 16K dnode-array footprint spans +0x4000; the root ZAP must sit past its end). |
+### Session-11-lead row (2026-10-29)
+
+- **N-148 item 2** (MINOR): cr_zfs_engine.h:58's vdev comment contradicts D-09's corrected posture (gang blocks ARE assembled at cr_zfs_engine.cpp:594-621; only mirror/raidz are report-only).

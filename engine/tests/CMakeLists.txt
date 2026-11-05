@@ -15,6 +15,7 @@ add_executable(cr_tests
     unit/test_retry.cpp
     unit/test_parallel.cpp
     unit/test_node_tree.cpp
+    unit/test_m101_branches.cpp
     unit/test_grading.cpp
     unit/test_health_grade.cpp
     unit/test_health_csmi.cpp
@@ -23,12 +24,17 @@ add_executable(cr_tests
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp
     unit/test_ext4_volume.cpp
+    unit/test_ext4_m144_large_volume.cpp
+    unit/test_ext4_m143_journal_inode_image.cpp
     unit/test_hfsplus_volume.cpp
     unit/test_btrfs_volume.cpp
     unit/test_zfs_volume.cpp
     unit/test_refs_ldm.cpp
     unit/test_ldm.cpp
     unit/test_lostpart.cpp
+    unit/test_folderfilter.cpp
+    unit/test_reghive_edit.cpp
+    unit/test_mountpoints2.cpp
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_dict.cpp
@@ -36,20 +42,29 @@ add_executable(cr_tests
     unit/test_resume_revalidation.cpp
     unit/test_text.cpp
     unit/test_carve.cpp
+    unit/test_config_display.cpp
+    unit/test_vollabel.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp
     unit/test_transport_logic.cpp
+    unit/test_privilege.cpp
+    unit/test_scan_truth.cpp
     unit/test_pause_resume.cpp
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
+    unit/test_writer_readpipe.cpp
+    unit/test_ldm_recovery.cpp
     unit/test_report.cpp
     unit/test_reghive.cpp
     unit/test_bcdfix.cpp
     unit/test_nvramfix.cpp
     unit/test_preview.cpp
+    unit/test_thumbnail.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp
     unit/test_fscheck.cpp
+    unit/test_fscheck_launch.cpp
+    unit/test_fve_policy.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
     unit/test_apply.cpp
@@ -69,6 +84,11 @@ add_custom_command(TARGET cr_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data/exfat
             $<TARGET_FILE_DIR:cr_tests>/data/exfat)
+# cr_thumbnail fixtures (scripts/gen_thumbnail_fixtures.py output)
+add_custom_command(TARGET cr_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/thumbnails
+            $<TARGET_FILE_DIR:cr_tests>/data/thumbnails)
 
 # N-045 doc-truth pin lane: the register-vs-source consistency tests
 # (e.g. Cached.ScanCacheBudgetIsTheRegisteredDivergence) read repo files
@@ -95,12 +115,40 @@ if(WIN32)
     cr_deploy_vcpkg_binaries(cr_destio_tests)
     add_test(NAME destio COMMAND cr_destio_tests)
 
+    # Session-97 recall-0 fix: the F12/N-013 overlap-arming policy (the
+    # same-disk precondition). Pure logic over VolExtent sets - the live
+    # arming path itself is exercised by the benchmark scenario matrix
+    # (cross-disk destinations must RECOVER, not refuse).
+    add_executable(cr_transport_tests unit/test_transport_win.cpp)
+    target_link_libraries(cr_transport_tests PRIVATE cr::win GTest::gtest_main)
+    cr_deploy_vcpkg_binaries(cr_transport_tests)
+    add_test(NAME transport_win COMMAND cr_transport_tests)
+
     # S-014: BitLocker auto-unlock contracts (live-path seam, per-GUID
     # enumeration with corpus caps, offline-hive harvest + selection)
     add_executable(cr_bitlocker_tests unit/test_bitlocker_win.cpp)
     target_link_libraries(cr_bitlocker_tests PRIVATE cr::win GTest::gtest_main)
     cr_deploy_vcpkg_binaries(cr_bitlocker_tests)
     add_test(NAME bitlocker COMMAND cr_bitlocker_tests)
+
+    # M-075: the chkdsk launch endpoint's wiring contracts (the seam
+    # battery; the pure grammar battery rides cr_tests on both lanes)
+    add_executable(cr_fsck_win_tests unit/test_fsck_win.cpp)
+    target_link_libraries(cr_fsck_win_tests PRIVATE cr::win GTest::gtest_main)
+    cr_deploy_vcpkg_binaries(cr_fsck_win_tests)
+    add_test(NAME fsck_win COMMAND cr_fsck_win_tests)
+
+    # S-040: the flat-raw image producer's file disposition contract
+    # (atomic temp+rename commit, .sha256 sidecar, the explicit .partial
+    # on cancel/failure; the class-(a) driver path rides the
+    # staged-scenarios lane)
+    add_executable(cr_image_create_tests unit/test_image_create_win.cpp)
+    target_link_libraries(cr_image_create_tests PRIVATE cr::win GTest::gtest_main)
+    target_include_directories(cr_image_create_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    target_compile_definitions(cr_image_create_tests PRIVATE
+        CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    cr_deploy_vcpkg_binaries(cr_image_create_tests)
+    add_test(NAME image_create COMMAND cr_image_create_tests)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -186,3 +234,14 @@ if(NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../tools/win_syntax_check.sh
                 ${CMAKE_SOURCE_DIR})
 endif()
+
+# N-231: the duplicate-gtest-name lint (the M-120/N-230 build-red class's
+# root-cause gate - two same-named TEST() macros = the gtest redefinition
+# error; the marker lint cannot see it). Full-tree, deterministic, sub-second.
+# Both CI lanes ship python (the doc_truth_gate/stamp_osversion tooling
+# depends on it), so REQUIRED is the honest form - a python-less
+# environment fails loudly here, never silently skips.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME test_name_uniqueness
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/verify/verify_test_names.py)
+set_tests_properties(test_name_uniqueness PROPERTIES LABELS lint)

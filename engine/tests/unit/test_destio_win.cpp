@@ -33,8 +33,56 @@ std::u16string u16_from(const std::string& s) {
      * shape the shim hands WinDestIo after u8_to_u16 */
     std::u16string out;
     for (char c : s)
-        out.push_back(char16_t(unsigned char(c)));
+        /* static_cast: the multi-word functional cast (unsigned char(c))
+         * is an MSVC-only extension - standard C++ functional casts take
+         * a simple-type-specifier only; identical conversion either way
+         * (the N-228 parse gate requires the standard form). */
+        out.push_back(char16_t(static_cast<unsigned char>(c)));
     return out;
+}
+
+/* M-074: the og's destination-validation taxonomy - path-too-long,
+ * invalid-path, and the network shape surface as DISTINCT codes, never the
+ * collapsed ERR_DEST_UNWRITABLE (UIUX/11:16's numbered strings). */
+TEST(WinDestIo, M074DestinationCodesDifferentiated) {
+    /* the UNC shape classifies as the network destination even though a
+     * UNC create fails with a generic code on a network-less host */
+    {
+        WinDestIo io;
+        const u32 rc = io.create_temp(1, u16_from("\\\\no-such-server\\share\\file.bin"), u".tmp");
+        EXPECT_EQ(u32(ERR_DEST_NETWORK), rc) << "the UNC shape is the network branch";
+    }
+    /* path-too-long: a >MAX_PATH destination under a real temp root.
+     * The parent directory is created first so the length is the ONLY
+     * failure axis - on the runner, a missing parent makes CreateFileW
+     * fail with ERROR_PATH_NOT_FOUND before the length check, and the
+     * classification (correctly) reports ERR_DEST_UNWRITABLE (the
+     * release-27 validation catch; the test had never completed a
+     * Windows run). */
+    {
+        WinDestIo io;
+        std::u16string base = u16_from(cr_test::tmp_path("destio", "m074"));
+        std::filesystem::create_directories(cr_test::tmp_path("destio", "m074"));
+        /* N-239: the runner has long paths ENABLED - the 300-char shape
+         * is a VALID path there (release-357 red first-hand: the create
+         * proceeded past the length check and failed on a different
+         * axis, mapping to ERR_DEST_UNWRITABLE - the collapsed code
+         * this finding exists to prevent). Only > 32,767 chars - a
+         * deep chain of < 255-char components - guarantees
+         * ERROR_FILENAME_EXCED_RANGE on EVERY host configuration. */
+        std::u16string deep;
+        for (int i = 0; i < 140; ++i)
+            deep += u"\\" + std::u16string(240, u'x');
+        const u32 rc = io.create_temp(2, base + deep, u".tmp");
+        EXPECT_EQ(u32(ERR_DEST_PATH_TOO_LONG), rc) << "ERROR_FILENAME_EXCED_RANGE classifies";
+    }
+    /* invalid path: the reserved-name / malformed shape */
+    {
+        WinDestIo io;
+        const u32 rc = io.create_temp(3, u16_from("C:\\bad|name\\file.bin"), u".tmp");
+        EXPECT_TRUE(rc == u32(ERR_DEST_PATH_INVALID) || rc == u32(ERR_DEST_UNWRITABLE))
+            << "the malformed-name class (the host's error set varies by version)";
+    }
 }
 
 TEST(WinDestIo, MkdirCreatesMissingChainUnderDriveLetterRoot) {
@@ -160,7 +208,7 @@ TEST(DestArming, JunctionResolvesToTargetVolume) {
      * same ASCII byte-lift u16_from does, widened. */
     std::wstring junc;
     for (char c : root + "\\to_windows")
-        junc.push_back(wchar_t(unsigned char(c)));
+        junc.push_back(wchar_t(static_cast<unsigned char>(c)));
     wchar_t before = 0;
     if (!win::destination_volume_letter(junc, &before)) {
         /* root dir may not exist yet */

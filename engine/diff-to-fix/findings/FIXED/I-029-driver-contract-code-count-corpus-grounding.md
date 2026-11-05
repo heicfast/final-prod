@@ -1,0 +1,65 @@
+# INFORMATIONAL I-029 — DRIVER-CONTRACT's "EUDCPEPM contract — 19 recognized codes, byte-for-byte" overstates the corpus grounding for 4 of them: 0x800C2AC0 (DISCOVERY) and the RRWR trio 0x800C2B3E/B40/B42 appear in no corpus artifact, decompile, or og binary string — they are core-driver wire, not reference wire
+
+**Severity:** INFORMATIONAL
+**Module / Surface:** transport / driver contract (docs/DRIVER-CONTRACT.md)
+**Parameters affected:** 46 (contract documentation), B22-adjacent (the wire-code registry's provenance)
+**Corpus references:** Corpus coverage: `easeus-drw-research/re-workspace/artifacts/PartitionRecovery/eudcpepm-euedkepm--hook-drivers.md:52-75` (the EUDCPEPM session codes, range 0x800C2AC8…0x800C2B38 = **15 codes**); grep-verified across the corpus this session: zero hits for 0x800C2AC0, 0x800C2B3E/B40/B42, or the "RRWR" magic in any decompile (ghidra-drivers/), artifact, or the og binaries' strings.
+**Core references:** audited commit `ff879f9` — `docs/DRIVER-CONTRACT.md:131-153` (§4.4: "the EUDCPEPM contract — 19 recognized codes … preserved byte-for-byte"); `include/cr/win/rda_ioctl.h:224-225` (the RRWR magic) + :118-142 (the code set, kept after N-041 deleted the RdaClient that issued them — "driver-wire mirror").
+**Status:** READ-ONLY FINDING — no fix applied
+**Prior audit check:** The v0.2.4 verification (session-3 legs) re-verified "all 19 session codes first-hand" — against the DRIVER repo's own header, not the corpus; the corpus covers 15. The four extras may exist in an og filter-driver build not represented in the corpus.
+
+## Summary
+
+The four extra codes are not verifiable against the corpus ground truth — they come from the core driver's own wire contract. No behavioral impact (the issuing client is deleted; the codes are a mirror), but the doc's "byte-for-byte with the og" phrasing claims a provenance the corpus cannot support for those four. Informational: the fix is the provenance note, not the codes.
+
+## What the reference does
+
+The corpus's 15-code range as cited; no og evidence for the four extras (absence verified by grep this session).
+
+## What our core does
+
+19 codes with the byte-for-byte claim as cited.
+
+## Gap
+
+Falsifiable: grep the corpus for the four constants/the RRWR magic — zero hits (done this session).
+
+## Impact
+
+Doc-truth precision on the driver wire contract; zero runtime impact.
+
+## Reproduction / verification
+
+The grep sweep (this session) + the artifact's 15-code table.
+
+## Fix plan (for the engineering team)
+
+1. Amend DRIVER-CONTRACT §4.4: 15 codes carry og-corpus provenance; 4 (0x800C2AC0 + the RRWR trio) are core-driver wire with no corpus counterpart (kept for the driver contract's completeness; issuer deleted by N-041). 2. If the driver lane ever wants them verified: the only path is an og filter-driver build not in the corpus — record that as the open corpus question.
+
+## Tests to add
+
+None (doc fix).
+
+## Related findings
+
+N-041 (the deleted client whose codes these mirror); D-DRV-5 (the identity-IOCTL register with real corpus provenance).
+
+## Open questions
+
+Whether an og EUDCPEPM build using the four codes exists outside the corpus — a corpus-lane question (this session's two-repo scope: recorded, not pursued).
+
+
+## SA-10 cite-refresh note (session 10 — one cite re-point; the substance stands)
+
+The RRWR session-code cite `include/cr/win/rda_ioctl.h:224-225` names a path that does not
+exist in the core tree — the header lives in the driver repo at `src/shared/inc/rda_ioctl.h`
+(per `DRIVER-CONTRACT.md:202`'s own pointer). Re-point the cite at the driver-repo path; the
+substance is unchanged (`DRIVER-CONTRACT.md:131`'s 19-code claim + `:202`'s byte-for-byte
+preservation note both stand at HEAD).
+
+## Resolution
+
+**Status:** INVALID (the central claim is refuted by first-hand corpus decode; the SA-10 cite re-point observation remains valid and is absorbed into N-155's landing)
+**Fixed in commit:** this session's I-029 INVALID record + the N-155 landing (session-42; cite-by-title: "fix(docs): N-155 + I-029 - the RRWR direction decode lands, the four-code provenance verified first-hand, I-029's premise refuted")
+**Verified by:** `re-workspace/reversed/ghidra-drivers/EUDCPEPM_decompiled.c` read first-hand this session: the `FilterDispatch` custom-delta ladder at `:1290-1360` handles ALL FOUR "unverifiable" codes — `-0x7ff3d540` = 0x800C2AC0 (DISCOVERY: diskId write, Information=4, out≥4 gate), `-0x7ff3d4c2`/`-0x7ff3d4be` = 0x800C2B3E/0x800C2B42 (→ `FUN_00013310`, the RRWR data handler with the exact wire the core documents: magic `0x52455752`@+0, sectorSize@+8, declaredOutLen@+0xC, lba@+0x10, sectorCount@+0x18), `-0x7ff3d4c0` = 0x800C2B40 (version probe: `0x604`@+8, Information=0xC, magic-gated). The "zero hits" grep was defective: the decompile encodes the codes as negative IoctlBase deltas (not `0x800C…` literals) and the magic as `0x52455752` (not the "RRWR" string).
+**Resolution notes:** The four codes ARE reference wire — the og's own EUDCPEPM driver implements them; the DRIVER-CONTRACT §4.4 "19 recognized codes … preserved byte-for-byte" claim stands and is now FIRST-HAND VERIFIED (it previously rested on the driver repo's own header). The corpus artifact's 15-code census (`eudcpepm-euedkepm--hook-drivers.md:52-75`, "range observed 0x800C2AC8…0x800C2B38") missed the four filter-side codes — recorded as a corpus-erratum entry (the decompile is the truth). The finding's one valid residue — the SA-10 cite re-point (`include/cr/win/rda_ioctl.h` → the driver-repo path `src/shared/inc/rda_ioctl.h`) — is absorbed into N-155's §4.4 landing (the provenance note carries the driver-repo-relative cites explicitly). The finding's real value was triggering the decode: it surfaced **N-155** (the RRWR pair's direction-naming inversion in the doc, now fixed, with the driver-lane verification step). No core code change; the doc amendment this finding's fix plan proposed (the "15 og + 4 core-wire" split) is REJECTED as factually wrong.

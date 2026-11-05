@@ -1,0 +1,26 @@
+parsed 186 score rows, round tag range [0]
+
+=== round tag 0: 186 rows ===
+  leader: 1 NTFS files 3618 folders 3304 score 1.0 w 168818
+  d_max=  0: int-like 72/185, median |frac|=0.0454
+  d_max= 10: int-like 80/185, median |frac|=0.0453
+  d_max= 20: int-like 82/185, median |frac|=0.0453
+  d_max= 26: int-like 82/185, median |frac|=0.0453
+  d_max= 30: int-like 82/185, median |frac|=0.0453
+  d_max= 45: int-like 86/185, median |frac|=0.0453
+  d_max= 50: int-like 79/185, median |frac|=0.0453
+  d_max= 60: int-like 72/185, median |frac|=0.0453
+  -- implied dSugg under d_max=0:
+     idx=  1 w= 168818 s=1.000000 -> d=    0.000
+     idx=  2 w=    429 s=0.503579 -> d=   -0.039
+     idx=  3 w=    373 s=0.491958 -> d=   -0.033
+     idx=  4 w=    349 s=0.486433 -> d=   -0.029
+     idx=  5 w=    334 s=0.482783 -> d=   -0.029
+     idx=  6 w=    329 s=0.481530 -> d=   -0.028
+  -- implied dSugg under d_max=60:
+     idx=  1 w= 168818 s=1.000000 -> d=   60.000
+     idx=  2 w=    429 s=0.503579 -> d=    0.038
+     idx=  3 w=    373 s=0.491958 -> d=    0.032
+     idx=  4 w=    349 s=0.486433 -> d=    0.031
+     idx=  5 w=    334 s=0.482783 -> d=    0.028
+     idx=  6 w=    329 s=0.481530 -> d=    0.028

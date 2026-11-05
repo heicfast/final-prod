@@ -2,8 +2,8 @@
  *
  * FAT16 fixture (5074 sectors x 512B, 5000 clusters -> flavor FAT16):
  *   reserved 2 | FAT1 2x20 | FAT2 2x20 | root 32 | data
- *   root entries: LFN readme (clusters 10-12), _EL.TXT deleted-intact
- *   (20-21), _ONE.TXT deleted-unlinked (30 FREE), SUBDIR dir (cluster 5)
+ *   root entries: LFN readme (clusters 10-12), #EL.TXT deleted-intact
+ *   (20-21), #ONE.TXT deleted-unlinked (30 FREE), SUBDIR dir (cluster 5)
  *   containing INNER.TXT (cluster 15).
  *
  * FAT32 fixture (66562 sectors, 65530 clusters): root cluster chain 2->3,
@@ -11,7 +11,11 @@
  */
 #include <gtest/gtest.h>
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/session/cr_records.h"
+#include "cr/cr_text.h"
 #include "cr/storage/cr_device.h"
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -163,7 +167,7 @@ std::vector<u8> build_fat16_image() {
     u8 chk = lfn_checksum(name11);
     make_lfn_slot(root + 0 * 32, 0x42, chk, u"ment_v1.txt"); /* seq2|last */
     make_lfn_slot(root + 1 * 32, 0x01, chk, u"readme_docu"); /* seq1 */
-    make_dentry(root + 2 * 32, "README~1TXT", 0x20, 10, 1200, 0x5A46 /*2022-01-06*/, 0x6000, false);
+    make_dentry(root + 2 * 32, "README~1TXT", 0x20, 10, 1200, 0x5A46 /*2025-02-06*/, 0x6000, false);
     make_dentry(root + 3 * 32, "DEL     TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
     make_dentry(root + 4 * 32, "GONE    TXT", 0x20, 30, 500, 0x5A46, 0x6000, true);
     make_dentry(root + 5 * 32, "SUBDIR     ", ATTR_DIRECTORY, 5, 0, 0x5A46, 0x6000, false);
@@ -265,9 +269,9 @@ TEST(FatEngine, Fat16EndToEnd) {
         std::string nm = n->name_utf8();
         if (nm == "readme_document_v1.txt")
             readme = n; /* LFN applied */
-        else if (nm == "_EL.TXT")
-            del = n; /* deleted 8.3, '_' restored */
-        else if (nm == "_ONE.TXT")
+        else if (nm == "#EL.TXT")
+            del = n; /* deleted 8.3 - the og's '#' placeholder (N-172) */
+        else if (nm == "#ONE.TXT")
             gone = n;
         else if (nm == "SUBDIR")
             subdir = n;
@@ -302,6 +306,89 @@ TEST(FatEngine, Fat16EndToEnd) {
     EXPECT_EQ(readme->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+TEST(FatEngine, LfnIllegalCharFallsBackTo83) {
+    /* N-176 (diff-to-fix): an assembled LFN containing any of the nine
+     * characters a real Windows name can never carry is discarded and
+     * the 8.3 alias used (FATSearchDLL :32084-32099, the strncpy of
+     * "?*|\\/:\"<>" + the nested compare loop). Checksum-valid
+     * corrupt remnants are the recovery population this shapes. */
+    const char16_t illegal[9] = {u'?', u'*', u'|', u'\\', u'/', u':', u'"', u'<', u'>'};
+    for (int k = 0; k < 9; ++k) {
+        auto img = build_fat16_image();
+        u8* root = img.data() + 42 * 512;
+        /* two slots: "re<illegal>adme.txt" style - 14 chars, seq 1|2 */
+        char16_t longname[20];
+        int ln = 0;
+        longname[ln++] = u'r';
+        longname[ln++] = u'e';
+        longname[ln++] = illegal[k];
+        longname[ln++] = u'a';
+        longname[ln++] = u'd';
+        longname[ln++] = u'm';
+        longname[ln++] = u'e';
+        longname[ln++] = u'_';
+        longname[ln++] = u'1';
+        longname[ln++] = u'.';
+        longname[ln++] = u't';
+        longname[ln++] = u'x';
+        longname[ln++] = u't';
+        longname[ln] = 0;
+        u8 name11[11] = {'R', 'E', 'A', 'D', 'M', 'E', '~', '2', 'T', 'X', 'T'};
+        u8 chk = lfn_checksum(name11);
+        std::u16string nm(longname);
+        const size_t half = nm.size() > 13 ? 13 : nm.size();
+        /* slot 2 = tail (13 chars max), slot 1 = head */
+        std::u16string tail = nm.size() > 13 ? nm.substr(13) : std::u16string();
+        std::u16string head = nm.substr(0, half);
+        while (head.size() < 13)
+            head.push_back(char16_t(0));
+        make_lfn_slot(root + 0 * 32, u8(0x42), chk, tail.c_str() + 0); /* seq2|last */
+        make_lfn_slot(root + 1 * 32, u8(0x01), chk, head.c_str() + 0); /* seq1 */
+        make_dentry(root + 6 * 32, "README~2TXT", 0x20, 40, 100, 0x5A46, 0x6000, false);
+        /* link cluster 40 EOC for the planted file */
+        set_fat16_entry(img, 2 * 512, 40, 0xFFFF);
+        set_fat16_entry(img, 22 * 512, 40, 0xFFFF);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        FatScanFlags flags;
+        FatScanStats stats;
+        ASSERT_EQ(
+            scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+            OK);
+        auto all = collect_all(tree);
+        bool saw_alias = false, saw_illegal = false;
+        for (auto* n : all) {
+            if (n->name_utf8() == "README~2.TXT")
+                saw_alias = true;
+            for (char c : n->name_utf8())
+                if (c == char(illegal[k]))
+                    saw_illegal = true;
+        }
+        EXPECT_TRUE(saw_alias) << "the 8.3 alias must serve (illegal char index " << k << ")";
+        EXPECT_FALSE(saw_illegal) << "the corrupt LFN must be discarded (index " << k << ")";
+    }
+}
+
+TEST(FatEngine, LfnValidNameUnchanged) {
+    /* N-176 regression pin: valid LFNs (all legal characters) still
+     * ride the LFN path - the fixture's own "readme_document_v1.txt". */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_lfn = false;
+    for (auto* n : all)
+        if (n->name_utf8() == "readme_document_v1.txt")
+            saw_lfn = true;
+    EXPECT_TRUE(saw_lfn) << "valid LFNs are unaffected by the illegal-char gate";
+}
+
 TEST(FatEngine, LfnCorruptFallsBackToShort) {
     /* corrupt the LFN checksum -> 8.3 name used */
     auto img = build_fat16_image();
@@ -319,6 +406,179 @@ TEST(FatEngine, LfnCorruptFallsBackToShort) {
         if (n->name_utf8() == "README~1.TXT")
             readme = n;
     ASSERT_NE(readme, nullptr); /* 8.3 fallback survived the corrupt LFN */
+}
+
+TEST(FatEngine, ShortNameOemBytesDecoded) {
+    /* N-087: an 8.3 name with high-half OEM bytes decodes through CP437
+     * at the boundary - byte 0x93 is 'o'-circumflex (U+00F4), not the
+     * identity-mapped U+0093 control the pre-fix code produced. The
+     * og's own behavior: the raw bytes persist and the mounting
+     * codepage supplies the glyphs (ifileproperties-part1:121); the
+     * core's UTF-16 carrier needs the conversion. */
+    auto img = build_fat16_image();
+    /* a new dentry: bytes {0x93, 'A', 'B'} + ext "TXT", chain 15 (EOO) */
+    u8* root = img.data() + 42 * 512;
+    u8 oem[11] = {0x93, 'A', 'B', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(oem), 0x20, 15, 100, 0x5A46, 0x6000,
+                false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    /* CP437 0x93 = U+00F4 (o-circumflex) + "AB.TXT" */
+    bool found = false;
+    for (auto* n : all) {
+        if (n->props() == nullptr)
+            continue;
+        const std::u16string& nm = n->props()->name;
+        if (nm.size() == 7 && nm[0] == 0xF4 && nm[1] == u'A' && nm[2] == u'B' && nm[3] == u'.' &&
+            nm[4] == u'T' && nm[5] == u'X' && nm[6] == u'T') {
+            found = true;
+            /* and NOT the identity-mapped control U+0093 */
+            EXPECT_NE(u16(0x93), nm[0]);
+        }
+        for (u16 c : nm)
+            ASSERT_NE(u16(0x93), c) << "the pre-fix identity map must be gone";
+    }
+    EXPECT_TRUE(found) << "the OEM name must decode through CP437";
+}
+
+TEST(FatEngine, ShortNameAsciiUnchanged) {
+    /* N-087: ASCII 8.3 names are byte-identical before/after (the
+     * conversion touches only the high half) */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_del = false, saw_inner = false;
+    for (auto* n : all) {
+        if (n->name_utf8() == "#EL.TXT") /* the og placeholder convention (N-172) */
+            saw_del = true;
+        if (n->name_utf8() == "INNER.TXT")
+            saw_inner = true;
+    }
+    EXPECT_TRUE(saw_del);
+    EXPECT_TRUE(saw_inner);
+}
+
+TEST(FatEngine, ShortNameKaniMarkerPathUnchanged) {
+    /* N-087: the 0x05-first-byte KANJI escape (cr_fat_quick.cpp:202-203
+     * rewrites 0x05 -> 0xE5 before the name build) and the deleted
+     * 0xE5 first byte both still reach the marker logic - the decode
+     * happens after, so 0xE5-as-name (CP437 alpha) decodes to U+00D1
+     * when the marker was consumed. A live 0x05-led dentry name */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* 0x05 lead byte (the KANJI lead-in for a real 0xE5 first char) */
+    u8 kani[11] = {0x05, 'X', ' ', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(kani), 0x20, 15, 100, 0x5A46, 0x6000,
+                false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_kani = false;
+    for (auto* n : all) {
+        if (n->props() == nullptr || n->props()->name.empty())
+            continue;
+        if (n->props()->name[0] == 0x05) {
+            ADD_FAILURE() << "the KANJI escape must be consumed (rewritten to 0xE5)";
+        }
+        /* the caller rewrites 0x05 -> 0xE5; CP437 0xE5 = U+03C3 (sigma)
+         * - the decoded name is sigma + "X.TXT" (the Latin-1 identity
+         * map would have produced U+00E5 - the pre-fix bug) */
+        const std::u16string& nm = n->props()->name;
+        if (nm.size() == 6 && nm[0] == 0x3C3 && nm[1] == u'X' && nm[2] == u'.' && nm[3] == u'T' &&
+            nm[4] == u'X' && nm[5] == u'T')
+            saw_kani = true;
+    }
+    EXPECT_TRUE(saw_kani) << "0x05 -> 0xE5 -> CP437 U+00D1, the full marker path";
+}
+
+TEST(FatEngine, NtResCaseFoldFourWay) {
+    /* N-175 (diff-to-fix): Windows stores the display case of 8.3 names
+     * in the NT reserved byte; the og's name builder applies it
+     * (FATSearchDLL :44191-44216, the four-way exact-value switch).
+     * A mixed-case on-disk name "File001 Txt" separates all five paths:
+     *   0x00 -> FILE001.TXT   0x08 -> file001.TXT
+     *   0x10 -> FILE001.txt   0x18 -> file001.txt
+     *   0x01 -> File001.Txt   (raw - the og's switch is exact, not a mask)
+     */
+    struct Case {
+        u8 ntres;
+        const char* expect;
+    };
+    const Case cases[] = {
+        {0x00, "FILE001.TXT"}, {0x08, "file001.TXT"}, {0x10, "FILE001.txt"},
+        {0x18, "file001.txt"}, {0x01, "File001.Txt"},
+    };
+    for (const auto& c : cases) {
+        auto img = build_fat16_image();
+        u8* root = img.data() + 42 * 512;
+        /* slot 6, own EOC cluster 40 (unlinked-elsewhere, linked here) */
+        set_fat16_entry(img, 2 * 512, 40, 0xFFFF);
+        set_fat16_entry(img, 22 * 512, 40, 0xFFFF);
+        /* mixed-case on-disk bytes separate all five render paths */
+        make_dentry(root + 6 * 32, "File001 Txt", 0x20, 40, 100, 0x5A46, 0x6000, false);
+        root[6 * 32 + 12] = c.ntres; /* the NTRes byte */
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        FatScanFlags flags;
+        FatScanStats stats;
+        ASSERT_EQ(
+            scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+            OK);
+        auto all = collect_all(tree);
+        bool found = false;
+        for (auto* n : all) {
+            if (n->props() == nullptr || n->props()->name.empty())
+                continue;
+            if (n->name_utf8().rfind("File001", 0) == 0 ||
+                n->name_utf8().rfind("FILE001", 0) == 0 ||
+                n->name_utf8().rfind("file001", 0) == 0) {
+                EXPECT_EQ(n->name_utf8(), c.expect) << "NTRes=0x" << std::hex << int(c.ntres);
+                found = true;
+            }
+        }
+        EXPECT_TRUE(found) << "the planted dentry must surface (NTRes=0x" << std::hex
+                           << int(c.ntres) << ")";
+    }
+}
+
+TEST(FatEngine, NtResFoldLeavesLfnCaseUntouched) {
+    /* N-175 regression pin: the fold applies ONLY to the 8.3 alias path -
+     * LFN names carry their true case and must never be re-folded. The
+     * fixture's LFN "readme_document_v1.txt" must surface exactly as
+     * stored, not uppercased by the NTRes=0 dentry beside it. */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_lfn = false;
+    for (auto* n : all) {
+        if (n->name_utf8() == "readme_document_v1.txt")
+            saw_lfn = true;
+    }
+    EXPECT_TRUE(saw_lfn) << "the LFN keeps its true case";
 }
 
 TEST(FatEngine, Fat32RootChainAndBackupBoot) {
@@ -592,7 +852,7 @@ TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
     for (auto* n : all) {
         if (n->name_utf8() == "TWELVE.TXT")
             twelve = n;
-        if (n->name_utf8() == "_OLD.TXT")
+        if (n->name_utf8() == "#OLD.TXT")
             old = n;
     }
     ASSERT_NE(twelve, nullptr) << "live FAT12 file missing";
@@ -612,6 +872,131 @@ TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
     EXPECT_EQ(old->deleted_state(), tree::DeletedState::Deleted);
     EXPECT_EQ(old->confidence(), tree::Confidence::Excellent);
     EXPECT_EQ(stats.chains_broken, 0u);
+}
+
+TEST(FatEngine, FatOriginClusterCarriedForChainlessDeleted) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the og's CFATFileProperties
+     * +0x3e first-cluster anchor is stamped from the DENTRY pair
+     * (+0x14/+0x1A) independent of chain resolution — for deleted entries
+     * the reconstruction helper FUN_180012e60 ALWAYS closes with
+     * props->SetFirstCluster(start & 0xffffffff), where start = the
+     * dentry's OWN first-cluster when the reconstruction produced nothing
+     * (FATSearchDLL_decompiled.c:13702-13738). A chainless deleted file
+     * (the FAT entry at its origin cluster is FREE) therefore KEEPS the
+     * origin datum in the og's record; pre-fix the core reconstructed
+     * nothing and dropped it (RED: fat_origin_cluster read 0). */
+    auto img = build_fat12_image();
+    /* a second deleted dentry: _GONE.TXT, first cluster 9, FAT[9] FREE
+     * (the zero-initialized FAT never links it - chainless by
+     * construction); its content marker sits in the data area as the
+     * only witness the dentry points at */
+    u8* root = img.data() + 6 * 512;
+    make_dentry(root + 2 * 32, "GGONE   TXT", 0x20, 9, 512, 0x5A46, 0x6000, true);
+    std::memcpy(img.data() + 38 * 512 + (9 - 2) * 512, "FAT12GONE", 9);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags; /* quick semantics: no deleted-chain reconstruction */
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode* gone = nullptr;
+    tree::FileNode* twelve = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "#GONE.TXT")
+            gone = n;
+        if (n->name_utf8() == "TWELVE.TXT")
+            twelve = n;
+    }
+    ASSERT_NE(gone, nullptr) << "chainless deleted dentry not emitted";
+    ASSERT_NE(twelve, nullptr) << "live FAT12 file missing";
+
+    /* the chainless deleted file: FAT[9] is FREE, so the FAT verified
+     * NOTHING - the default-flags pass reconstructs a single-cluster
+     * contiguous candidate (GAP-S6-2) capped at PartialRisk, never
+     * Excellent. Whatever the chain machinery produced, the dentry's
+     * origin cluster survives as the passive anchor datum */
+    EXPECT_EQ(gone->props()->extents.size(), 1u);                   /* the inferred [9,10) run */
+    EXPECT_EQ(gone->props()->extents[0].offset, u64(38 + 7) * 512); /* cluster 9 */
+    EXPECT_EQ(gone->confidence(), tree::Confidence::PartialRisk);   /* honesty cap */
+    EXPECT_EQ(gone->props()->fat_origin_cluster, 9u);
+    EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
+
+    /* the live file carries the anchor too (the og stamps every FAT
+     * record's +0x3e; the census observed it on all-chain-resolved
+     * records - TWELVE.TXT is exactly that shape) */
+    EXPECT_EQ(twelve->props()->fat_origin_cluster, 2u);
+}
+
+TEST(FatEngine, ParentAnchorCarriesContainingDirCluster) {
+    /* N-131: the og's CFATFileProperties +0x42 parent-directory anchor —
+     * every child's +0x42 is the CONTAINING DIRECTORY NODE's +0x3e origin
+     * cluster (FATSearchDLL :11654, local_110 from :11500 for CFAT
+     * parents). Root-level files anchor at 0 (the og's volume-root node
+     * is created with SetFirstCluster(0) at engine init FUN_18000e130 —
+     * every flavor, FAT32 included); a subdirectory's children anchor at
+     * the dir's own first cluster. RED pre-fix: the field did not exist
+     * (compile-error on the reverted tree). */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode *readme = nullptr, *subdir = nullptr, *inner = nullptr, *del = nullptr;
+    for (auto* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "readme_document_v1.txt")
+            readme = n;
+        else if (nm == "SUBDIR")
+            subdir = n;
+        else if (nm == "INNER.TXT")
+            inner = n;
+        else if (nm == "#EL.TXT")
+            del = n;
+    }
+    ASSERT_NE(readme, nullptr);
+    ASSERT_NE(subdir, nullptr);
+    ASSERT_NE(inner, nullptr);
+    ASSERT_NE(del, nullptr);
+
+    /* root-level files (live and deleted alike): parent 0 — the og's
+     * volume-root node anchors at 0 by construction */
+    EXPECT_EQ(readme->props()->fat_parent_cluster, 0u);
+    EXPECT_EQ(del->props()->fat_parent_cluster, 0u);
+    /* the SUBDIR itself is a root-level entry: parent 0 */
+    EXPECT_EQ(subdir->props()->fat_parent_cluster, 0u);
+    /* INNER.TXT lives inside SUBDIR (first cluster 5): parent 5 — the
+     * dir's own origin cluster, exactly the og's +0x42 = parent's +0x3e */
+    EXPECT_EQ(subdir->props()->fat_origin_cluster, 5u);
+    EXPECT_EQ(inner->props()->fat_parent_cluster, 5u);
+
+    /* the lineage datum survives a save/load round trip (the finding's
+     * falsifiable: "ask a RELOADED session for the parent cluster") */
+    std::vector<u8> blob;
+    ASSERT_EQ(cr::session::serialize_tree(tree, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(cr::session::deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    auto all2 = collect_all(t2);
+    tree::FileNode* inner2 = nullptr;
+    for (auto* n : all2)
+        if (n->name_utf8() == "INNER.TXT")
+            inner2 = n;
+    ASSERT_NE(inner2, nullptr);
+    ASSERT_NE(inner2->props(), nullptr);
+    EXPECT_EQ(inner2->props()->fat_parent_cluster, 5u)
+        << "the FS-native parent datum must survive the session round trip";
 }
 
 TEST(FatEngine, DeletedLfnFragmentOrder) {
@@ -759,7 +1144,7 @@ TEST(FatEngine, DeletedLfnTornChecksumKeepsHonestFallback) {
     for (auto* n : all) {
         if (n->name_utf8().find("averylongfilename") != std::string::npos)
             saw_fabricated_long_name = true;
-        if (n->name_utf8() == "_VERYL~1.TXT")
+        if (n->name_utf8() == "#VERYL~1.TXT")
             saw_fallback = true;
     }
     EXPECT_FALSE(saw_fabricated_long_name) << "torn slot set must not yield a long name";
@@ -824,7 +1209,7 @@ TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_NLINK.TXT")
+        if (n->name_utf8() == "#NLINK.TXT")
             victim = n;
     ASSERT_NE(victim, nullptr) << "unlinked deleted entry must surface";
     /* the FULL 4-cluster contiguous run (was: 1 cluster pre-fix) */
@@ -834,6 +1219,68 @@ TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
     EXPECT_EQ(victim->props()->logical_size, 2048u);
     /* inferred chain: PartialRisk, never Excellent */
     EXPECT_EQ(victim->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(FatEngine, TruncatedVolumeOverflowChainStance) {
+    /* N-165: the og destroys out-of-volume runlists at SCAN time (both
+     * FAT factories gate each run's end against the volume sector limit
+     * and ReleaseTrace "File overflows partition!" + release the runlist,
+     * FATSearchDLL :10873-10903 / :28045-28070). The core's REGISTERED
+     * deliberate superset (PARITY-DELTAS D-136): a volume truncated
+     * mid-FAT (BPB claims more clusters than the device holds — the
+     * truncated-tail recovery target validate_boot deliberately allows)
+     * keeps the file LISTED with its extents; the readable prefix
+     * recovers and the beyond-device tail fails per-read (the FB-R02
+     * Salvaged family - deferred honest failure over scan-time
+     * destruction). This pin names the stance; do NOT "fix" it toward
+     * the og without re-registering. */
+    auto img = build_fat16_image();
+    /* a deleted file whose chain runs past the device cut: clusters
+     * 100->101->102->103->104 EOC (sector 172..176, one sector per
+     * cluster in this fixture); the device ends at sector 176, so the
+     * LAST cluster's sector is entirely beyond the cut */
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512;
+    auto link16 = [&](u32 c, u16 v) {
+        set_fat16_entry(img, FAT1, c, v);
+        set_fat16_entry(img, FAT2, c, v);
+    };
+    link16(100, 101);
+    link16(101, 102);
+    link16(102, 103);
+    link16(103, 104);
+    link16(104, 0xFFFF);
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "OVER    TXT", 0x20, 100, 2560, 0x5A46, 0x6000, true);
+    /* THE CUT: the BPB still claims 5074 sectors; the device holds 176
+     * (sectors 0..175) - cluster 104 = sector 176 is past the cut */
+    img.resize(u64(176) * 512);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#VER.TXT")
+            victim = n;
+    ASSERT_NE(victim, nullptr)
+        << "the core stance: the overflow-tail file stays LISTED (the og destroys the runlist)";
+    /* the chain's extents emit UNGUARDED - the readable prefix (sectors
+     * 172..175) plus the beyond-device tail the recovery layer surfaces
+     * as Salvaged (FB-R02) instead of scan-time destruction */
+    ASSERT_EQ(victim->props()->extents.size(), 1u);
+    EXPECT_EQ(victim->props()->extents[0].offset, u64(172) * 512);
+    EXPECT_EQ(victim->props()->extents[0].length, u64(5) * 512);
+    /* the scan-time grade is the chain's OWN (FAT-verified, intact:
+     * Excellent) - the beyond-device tail is a recovery-time disclosure
+     * (Salvaged), never a scan-time destruction; the honest-partial
+     * truth rides the recovery report, not a silently dropped file */
+    EXPECT_EQ(victim->confidence(), tree::Confidence::Excellent);
 }
 
 TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
@@ -858,7 +1305,7 @@ TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_RUNC.TXT")
+        if (n->name_utf8() == "#RUNC.TXT")
             victim = n;
     ASSERT_NE(victim, nullptr);
     ASSERT_EQ(victim->props()->extents.size(), 1u);
@@ -883,7 +1330,7 @@ TEST(FatEngine, DeletedLinkedChainStillPrefersFatTruth) {
     auto all = collect_all(tree);
     tree::FileNode* del = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_EL.TXT")
+        if (n->name_utf8() == "#EL.TXT")
             del = n;
     ASSERT_NE(del, nullptr);
     ASSERT_EQ(del->props()->extents.size(), 1u);
@@ -1399,6 +1846,75 @@ TEST(FatEngine, ValidDateYieldsCorrectFileTime) {
     EXPECT_EQ(r->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+/* ---- A-014: out-of-range FAT time words yield the ZERO FileTime --------- */
+
+namespace {
+
+/* Plant three live dentries whose DATE is valid (0x5A46 = 2025-02-06) but
+ * whose TIME words carry out-of-range components: hour 24 (0xC000), minute
+ * 60 (0x6780), 2-second field 30 (= 60 s, 0x601E). DosDateTimeToFileTime
+ * rejects all three component classes (FATSearchDLL :32135-54 zero-on-fail);
+ * the pre-fix core folded them into shifted plausible timestamps. */
+std::vector<u8> build_fat16_image_with_bad_times() {
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "HOUR24  TXT", 0x20, 15, 100, 0x5A46, 0xC000, false);
+    make_dentry(root + 7 * 32, "MIN60   TXT", 0x20, 15, 100, 0x5A46, 0x6780, false);
+    make_dentry(root + 8 * 32, "SEC60   TXT", 0x20, 15, 100, 0x5A46, 0x601E, false);
+    return img;
+}
+
+} // namespace
+
+TEST(FatEngine, TimeWordHour24YieldsZeroFileTime) {
+    /* A-014: hour bits 24 flow unvalidated into the epoch math and add a
+     * full day - the fabricated "date + 1 day 00:00" timestamp. The og's
+     * DosDateTimeToFileTime fails, the node slot is zeroed. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xC000, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xF800, 0), 0u) << "hour 31: same class";
+}
+
+TEST(FatEngine, TimeWordMinute60YieldsZeroFileTime) {
+    /* A-014: minute bits 60 (the 6-bit field can hold 60..63). */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x6780, 0), 0u);
+}
+
+TEST(FatEngine, TimeWordSecondField30YieldsZeroFileTime) {
+    /* A-014: the 2-second field 30 decodes 60 s (the 5-bit field can hold
+     * 30/31 = 60/62 s); the og's accept set tops out at field 29 = 58 s. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x601E, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x601F, 0), 0u) << "field 31 = 62 s: same class";
+}
+
+TEST(FatEngine, ValidTimeWordBoundaryUnchanged) {
+    /* A-014 regression guard: the boundary-legal maximum time word
+     * 23:59:58 (0xBF7D) still converts - the accept set shrinks by nothing.
+     * 2025-02-06 23:59:58 = unix 1738886398. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xBF7D, 0), 1738886398ULL);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x6000, 0), 1738843200ULL) << "12:00:00 unchanged";
+}
+
+TEST(FatEngine, InvalidTimeStampsPersistAsZeroInTree) {
+    /* A-014 end-to-end: corrupt-dentry time words (the deleted population
+     * recovery targets) surface as the honest zero FileTime in the results
+     * tree, never as a shifted plausible date. */
+    auto img = build_fat16_image_with_bad_times();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    for (const char* name : {"HOUR24.TXT", "MIN60.TXT", "SEC60.TXT"}) {
+        tree::FileNode* n = find_node(tree, name);
+        ASSERT_NE(n, nullptr) << name << " must be scanned";
+        EXPECT_EQ(n->props()->times.created, 0ULL) << name << " created";
+        EXPECT_EQ(n->props()->times.modified, 0ULL) << name << " modified";
+    }
+}
+
 /* ---- N-010a/N-010b/N-010c/N-022 (diff-to-fix session) ------------------ */
 
 TEST(FatEngine, FlavorBoundary65524IsFat32) {
@@ -1827,4 +2343,1372 @@ TEST(FatEngine, NonRecycleDollarFilesStayRaw) {
     EXPECT_EQ(raw_i, 1u) << "out-of-bin $I-named file stays a raw result";
     EXPECT_EQ(raw_r, 1u) << "out-of-bin $R-named file stays a raw result";
     EXPECT_EQ(vac, 0u) << "no remap outside the bin";
+}
+
+/* ---- S-051/M-104 (diff-to-fix): the boot-sector volume label ---- */
+
+namespace {
+
+/* a minimal FAT16 boot sector with the given 11-byte label */
+std::vector<u8> fat16_boot_image(const char* label) {
+    std::vector<u8> img(200 * 512, 0);
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    b[0x0B] = 0x00;
+    b[0x0C] = 0x02; /* bps 512 */
+    b[0x0D] = 1;    /* spc */
+    b[0x0E] = 1;    /* reserved */
+    b[0x10] = 1;    /* one FAT */
+    b[0x11] = 0x00;
+    b[0x12] = 0x02; /* 512 root entries */
+    b[0x13] = 200;  /* total16 = 200 sectors */
+    b[0x15] = 0xF8;
+    b[0x16] = 2; /* spf16 */
+    char lbl[11] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+    for (int i = 0; i < 11 && label[i]; ++i)
+        lbl[i] = label[i];
+    std::memcpy(b + 0x2B, lbl, 11);
+    std::memcpy(b + 0x36, "FAT16   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    return img;
+}
+
+} // namespace
+
+TEST(FatEngine, ReadVolumeLabelDecodesBootSector) {
+    /* the FAT12/16 label sits at +0x2B (11 bytes, space padded); the trim
+     * keeps interior spaces ("MY DISK") and drops the pad. */
+    std::u16string label;
+    MemDevice dev1(fat16_boot_image("MY DISK"));
+    ASSERT_EQ(read_volume_label(&dev1, label), OK);
+    std::string utf8;
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "MY DISK");
+
+    MemDevice dev2(fat16_boot_image("VOLONE"));
+    ASSERT_EQ(read_volume_label(&dev2, label), OK);
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "VOLONE");
+}
+
+TEST(FatEngine, ReadVolumeLabelRejectsLabelLessAndNonFat) {
+    /* an all-space label is the honest "no label" error - the caller's
+     * fallback tier takes over (never a blank display name); a non-FAT
+     * slice is rejected by validate_boot before the field is read. */
+    std::u16string label;
+    MemDevice blank(fat16_boot_image("           "));
+    EXPECT_EQ(read_volume_label(&blank, label), ERR_BAD_PARAMETER);
+    /* a label of 10 spaces + '1' (all 11 field bytes): the trim keeps
+     * every interior space - only TRAILING pad is stripped */
+    MemDevice sparse(fat16_boot_image("          1"));
+    ASSERT_EQ(read_volume_label(&sparse, label), OK);
+    std::string utf8;
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "          1");
+
+    /* zeroed sector: no FAT structure at all */
+    std::vector<u8> zeros(512, 0);
+    MemDevice zerosec(std::move(zeros));
+    EXPECT_EQ(read_volume_label(&zerosec, label), ERR_BAD_MAGIC);
+    /* null device */
+    EXPECT_EQ(read_volume_label(nullptr, label), ERR_BAD_PARAMETER);
+}
+
+TEST(FatEngine, ClusterOffsetBeyond2TiB) {
+    /* N-162: the og computes (cluster-2) x spc as a 32-bit product at four
+     * verified sites (FATSearchDLL :11239/:13194 - the (uint) cast and the
+     * 32-bit operand promotion, both re-read first-hand; :28172/:39068-39080
+     * the geometry twins) - it wraps on data areas beyond 2^32 sectors (a
+     * 2 TiB displacement at the spec-max cluster with spc=32). The core is
+     * full u64 (cr_chain.cpp's cluster_offset) - the deliberate
+     * non-adoption of an og arithmetic defect, registered as
+     * PARITY-DELTAS D-119 (the D-56/D-68 numeric-hygiene family's FAT
+     * member). This pin holds the u64 path so a future parity session
+     * cannot "fix" the core DOWN to the wrapping form. */
+    FatParams p;
+    p.bytes_per_sector = 512;
+    p.sectors_per_cluster = 32;
+    p.cluster_bytes = u64(32) * 512; /* the derived field the math reads */
+    p.first_data_sector = 100;
+    /* the spec-max cluster 0x0FFFFFF4: the 32-bit product would wrap to
+     * 0xFFFFFE40 sectors (~2 TiB displacement); the u64 product is exact */
+    const u32 cluster = 0x0FFFFFF4u;
+    const u64 off = FatTable::cluster_offset(p, cluster);
+    const u64 want = (u64(cluster) - 2) * u64(32 * 512) + u64(100 * 512);
+    EXPECT_EQ(off, want) << "the u64 product is exact at the spec-max cluster";
+    EXPECT_GT(off, u64(1) << 32) << "the address is beyond the 32-bit wrap band";
+    /* the wrapped form the og would compute (the down-fix guard) */
+    const u64 wrapped = u64((u32(cluster) - 2u) * u32(32 * 512)) + u64(100 * 512);
+    EXPECT_NE(off, wrapped) << "the u64 path must NOT equal the og's wrapping form";
+}
+
+TEST(FatEngine, DeletedFirstCharPlaceholderIsHash) {
+    /* N-172: the og's deleted-entry placeholder is '#' (FATSearchDLL
+     * FUN_180036350 :44166-44172, re-read first-hand: the 0xE5 first
+     * byte - -0x1b signed - renders as 0x23). The no-oracle branch
+     * aligned for bench comparability; the LFN-oracle branch stays the
+     * registered superset (PARITY-DELTAS D-120: the checksum bijection
+     * restores the ORIGINAL byte where the og shows the placeholder). */
+    /* the shape is pinned end-to-end by Fat16EndToEnd's #EL.TXT / #ONE.TXT
+     * rows (the re-pinned set); this unit pin holds the convention by
+     * name so the N-172 mapping is discoverable from the test list. */
+    const char og_placeholder = '#'; /* 0x23, the decompile's uVar8 */
+    EXPECT_EQ(int(u8(og_placeholder)), 0x23);
+}
+
+TEST(FatEngine, DeletedLfnChecksumRecoversOriginalByte) {
+    /* N-172's superset pin: the LFN-checksum bijection restores the
+     * destroyed first byte where the og renders '#' - the deterministic
+     * brute-force over 256 candidates validated against the stored
+     * checksum (GAP-S6-1, bench 40079065019; the stored checksum is
+     * computed at WRITE time over the ORIGINAL 11 bytes). The
+     * per-candidate loop shape is pinned at LfnDeletedChecksumRecovers
+     * (above); this pin holds the PRESENTATION contract: an
+     * oracle-validated recovery yields the original byte, never the
+     * placeholder. */
+    const u8 orig11[11] = {'H', 'E', 'L', 'L', 'O', ' ', ' ', ' ', 'T', 'X', 'T'};
+    u8 raw[11];
+    std::memcpy(raw, orig11, 11);
+    raw[0] = 0xE5; /* the deletion marker destroyed the 'H' */
+    const u8 orig = 'H';
+    const u8 chk = lfn_checksum(orig11); /* the STORED value: over the original */
+    LfnEntry slot = {};
+    slot.checksum = chk; /* the surviving LFN slot's oracle */
+    u8 first = 0, got_chk = 0;
+    std::vector<const LfnEntry*> slots = {&slot};
+    ASSERT_TRUE(lfn_deleted_checksum_recover(slots, raw, first, got_chk));
+    EXPECT_EQ(first, orig) << "the oracle branch restores the ORIGINAL byte";
+    EXPECT_NE(first, u8('#')) << "never the placeholder";
+    EXPECT_EQ(got_chk, chk);
+}
+
+TEST(FatEngine, Date2107ConvertsFullyNoClamp) {
+    /* N-173: the FAT year field reaches 2107 (year 127); the og's
+     * DosDateTimeToFileTime (FATSearchDLL :32135/:32144/:32151) converts
+     * the full range with no 2106 cutoff. The pre-fix core clamped unix
+     * seconds to u32 - dates past 2106-02-07 06:28:15 collapsed to 0
+     * (the invalid 1601 FileTime). The clamp is gone; the u64 path
+     * converts the FAT-legal maximum. (The finding's example word
+     * 0xFFBF decodes 2107-11-31 - day 31 of November, an INVALID date;
+     * the true 2107-12-31 word is 0xFF9F - the correction recorded in
+     * the Resolution.) */
+    /* 2107-12-31 12:00:00 = unix 4354776000 (past u32) */
+    EXPECT_EQ(fat_date_to_unix(0xFF9F, 0x6000, 0), 4354776000ULL);
+    /* the exact u32 boundary: 2106-02-07 06:28:14 = 0xFFFFFFFE */
+    EXPECT_EQ(fat_date_to_unix(0xFC47, 0x3387, 0), 0xFFFFFFFEULL);
+    /* one step past the boundary: 2106-02-07 06:28:16 = 0x100000000 -
+     * the pre-fix clamp returned 0 here (the regression pin) */
+    EXPECT_EQ(fat_date_to_unix(0xFC47, 0x3388, 0), 0x100000000ULL);
+    /* the N-021 invalid class is UNCHANGED: 0 stays exactly the
+     * zero-date/month-13/day-0 class, never a clamped valid date */
+    EXPECT_EQ(fat_date_to_unix(0x0000, 0x6000, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x01A1, 0x6000, 0), 0u); /* month 13 */
+    EXPECT_EQ(fat_date_to_unix(0x0020, 0x6000, 0), 0u); /* day 0 */
+}
+
+TEST(FatEngine, StringFat16LowClusterCountScansAsFat16) {
+    /* S-064: the og's engine-open flavor validator is STRING-DRIVEN
+     * (FUN_18002f970 :38044: "FAT16   " at +0x36 + BPB shape gates ->
+     * flavor 1; NO cluster-count term exists in the function - the
+     * bracket machinery FUN_180004610 is the lost/Calc side). A
+     * "FAT16   "-stringed volume with 2926 data clusters (< 4085, the
+     * FAT12 bracket) is flavor 1 in the og: 16-bit entries, chains
+     * terminate at 0xFFF8-0xFFFF. The pre-fix core bracketed it to
+     * Fat12 and decoded 12-bit entries - different chains, different
+     * recovered bytes. The string wins; the bracket survives only for
+     * string-less volumes (the D-94/I-002 superset). */
+    std::vector<u8> img(u64(3000) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x13, 3000); /* total sectors: 2926 data clusters */
+
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512, DATA = 74 * 512;
+    auto link = [&](u32 c, u16 v) {
+        set_fat16_entry(img, FAT1, c, v);
+        set_fat16_entry(img, FAT2, c, v);
+    };
+    set_fat16_entry(img, FAT1, 0, 0xFFF8);
+    set_fat16_entry(img, FAT1, 1, 0xFFFF);
+    set_fat16_entry(img, FAT2, 0, 0xFFF8);
+    set_fat16_entry(img, FAT2, 1, 0xFFFF);
+    /* the chain under test: 10 -> 11 -> 12 -> EOC, with data at each */
+    link(10, 11);
+    link(11, 12);
+    link(12, 0xFFFF);
+    for (u32 c : {10u, 11u, 12u})
+        std::memcpy(img.data() + DATA + (c - 2) * 512, "SIXTEENBITCLUSTER", 17);
+    u8* root = img.data() + ROOT;
+    make_dentry(root + 0 * 32, "STRFMT16TXT", 0x20, 10, 1500, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRFMT16.TXT");
+    ASSERT_NE(n, nullptr) << "the string-gated volume opens and scans";
+    /* the flavor the engine actually used rides the record: 1 = Fat16
+     * (corpus codes) - never the 0 the pre-fix bracket produced */
+    EXPECT_EQ(n->props()->fs_kind, 1u) << "the string drives the flavor, not the bracket";
+    /* and the chain decoded at 16-bit width: clusters 10-12 are
+     * contiguous and coalesce into ONE 1536-byte extent (the 12-bit
+     * decode of the same bytes breaks the chain - the pre-fix core
+     * read entry 10 from the packed offsets and got FREE) */
+    ASSERT_EQ(n->props()->extents.size(), 1u) << "the contiguous chain coalesces";
+    EXPECT_EQ(n->props()->extents[0].offset, u64(DATA + 8 * 512)) << "cluster 10's position";
+    EXPECT_EQ(n->props()->extents[0].length, u64(3 * 512)) << "three 16-bit-walked clusters";
+}
+
+TEST(FatEngine, StringFat32UnderBracketScansAsFat32) {
+    /* S-064's FAT32 twin: "FAT32   " at +0x52 with a cluster count in
+     * the FAT16 bracket - the og's string branch (FUN_18002f970
+     * :38061-:38090) assigns flavor 2 (the spf32 gate, no cluster
+     * term). The pre-fix core bracketed it to Fat16. */
+    /* spf32 = 256: the M-011 Fat32 window floor ([0x100, 0x96000]);
+     * total = 2 + 512 + 5000 -> 5000 data clusters (FAT16 bracket) */
+    std::vector<u8> img(u64(5514) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSWIN4.1", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;         /* spc 1: 5000 data clusters (FAT16 bracket) */
+    put16(img, 0x0E, 2); /* reserved */
+    b[0x10] = 2;         /* FAT count */
+    put16(img, 0x11, 0); /* root entries 0 (FAT32 shape) */
+    put16(img, 0x13, 0); /* total16 unused */
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);     /* spf16 unused */
+    put32v(img, 0x20, 5514); /* total32 */
+    put32v(img, 0x24, 256);  /* spf32 - the string branch's gate + the window floor */
+    put32v(img, 0x2C, 2);    /* root cluster 2 */
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 2 * 512, FAT2 = 258 * 512, DATA = 514 * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    put32v(img, FAT1, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFF8);
+    put32v(img, FAT2, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT2 + 4, 0x0FFFFFF8);
+    link32(2, 3);
+    link32(3, 0x0FFFFFFF);
+    link32(100, 0x0FFFFFFF);
+    std::memcpy(img.data() + DATA + 8, "BIGFAT32DATA", 12);
+    u8* d = img.data() + DATA; /* root dir cluster 2 */
+    std::memcpy(d, "STRFMT32TXT", 11);
+    d[0x0B] = 0x20;
+    d[0x1A] = 100;
+    d[0x1C] = 12;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRFMT32.TXT");
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->fs_kind, 2u)
+        << "the FAT32 string drives flavor 2 under the FAT16 bracket";
+}
+
+/* ---- N-201 (diff-to-fix): the media-word re-flavor -----------------
+ * The og's quick-open consumer FUN_180021000 :26318-26350 re-flavors
+ * the volume from the FAT media words after the string-first validator:
+ * FAT1's first sector, then FAT2's (last read wins), against the
+ * canonical shape family decoded verbatim (see cr_fat_engine.h). The
+ * refinement runs ONLY on string-derived flavors (the og bails at 0xE
+ * before the media-word legs when no string assigned one). ---- */
+
+TEST(FatEngine, HybridStringFat16MediaFat32ReflavorsToFat32) {
+    /* N-201's canonical gap: "FAT16   " string + a valid FAT16 BPB
+     * shape, but the FAT media words carry the FAT32-canonical pair
+     * (torn/interrupted FAT16->FAT32 conversion shape). The og
+     * re-flavors to 2 and scans 32-bit entries; the pre-fix core
+     * refused the volume (M-015's exact Fat16 media check). The
+     * conversion remnant carries usable FAT32 fields: spf32 in the
+     * M-011 Fat32 window (256 here - the remnant of the new format's
+     * larger FAT), root cluster at +0x2C pointing into the flavor-2
+     * data area (beyond the new, larger FAT pair). */
+    std::vector<u8> img(u64(5074) * 512, 0);
+    build_fat16_boot(img);  /* FAT16 BPB: reserved 2, 2 FATs, spf16 20,
+                             * root 512 entries (32 sectors), total 5074 */
+    put32v(img, 0x24, 256); /* spf32: the conversion remnant's new field */
+    put32v(img, 0x2C, 2);   /* root cluster: the FAT32 root chain head */
+
+    /* flavor-2 layout: FAT1 @2 (256 sectors), FAT2 @258, data @514.
+     * The og's FAT2 probe reads at the STRING-FIRST flavor's spf field
+     * (spf16=20 -> sector 22, the old-layout FAT2 position) - the torn
+     * conversion remnant carries the new media words at BOTH positions */
+    const size_t FAT1 = 2 * 512, FAT2 = 258 * 512, DATA = 514 * 512;
+    const size_t OLD_FAT2 = 22 * 512;
+    /* FAT32-canonical media words in both FATs (the shape that fires
+     * the re-flavor): FAT[0] = 0x0FFFFFF8, FAT[1] = 0x0FFFFFFF */
+    put32v(img, FAT1 + 0, 0x0FFFFFF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFFF);
+    put32v(img, FAT2 + 0, 0x0FFFFFF8);
+    put32v(img, FAT2 + 4, 0x0FFFFFFF);
+    put32v(img, OLD_FAT2 + 0, 0x0FFFFFF8);
+    put32v(img, OLD_FAT2 + 4, 0x0FFFFFFF);
+    /* the root chain + one single-cluster file, 32-bit entries in both
+     * FATs: root 2->3 EOC; file cluster 10 EOC */
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 3);
+    link32(3, 0x0FFFFFFF);
+    link32(10, 0x0FFFFFFF);
+    /* cluster 2 @514 (the root dir), cluster 3 @515, cluster 10 @522 */
+    u8* root2 = img.data() + DATA;
+    make_dentry(root2 + 0 * 32, "HYBRID  TXT", 0x20, 10, 100, 0x5A46, 0x6000, false);
+    std::memcpy(img.data() + DATA + 8 * 512, "HYBRIDDATA!", 11);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK)
+        << "the hybrid volume re-flavors to FAT32 and scans (og parity)";
+    tree::FileNode* n = find_node(tree, "HYBRID.TXT");
+    ASSERT_NE(n, nullptr) << "the FAT32 root chain surfaces the file";
+    EXPECT_EQ(n->props()->fs_kind, 2u) << "the media words re-flavored the volume";
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(DATA + 8 * 512))
+        << "cluster 10 at the flavor-2 data-area base (sector 514 + 8)";
+}
+
+TEST(FatEngine, Fat2ReadWinsOverFat1) {
+    /* N-201: the last-read-wins order - FAT1's media words FAT32-shaped,
+     * FAT2's canonical FAT16: the final flavor is the FAT2 leg's (1).
+     * The intermediate FAT1 assignment never takes effect (the og
+     * assigns only at each leg's end, FAT2 overwriting FAT1). */
+    auto img = build_fat16_image();
+    /* overwrite FAT1's media words to the FAT32-canonical pair; FAT2
+     * keeps the fixture's canonical FAT16 pair (0xFFFFFFF8) */
+    const size_t FAT1 = 2 * 512;
+    put32v(img, FAT1 + 0, 0x0FFFFFF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    tree::FileNode* n = find_node(tree, "readme_document_v1.txt");
+    ASSERT_NE(n, nullptr) << "the FAT16 decode stands (FAT2's leg won)";
+    EXPECT_EQ(n->props()->fs_kind, 1u) << "last read wins: FAT2's canonical "
+                                          "FAT16 media word pair";
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(74 * 512 + 8 * 512))
+        << "the FAT16 geometry (fixed root area) still holds";
+}
+
+TEST(FatEngine, ConsistentVolumeUnreflavored) {
+    /* N-201 control: a canonical FAT16 volume (string + media words
+     * agree) scans byte-identically - the refinement's assignment
+     * matches the incoming flavor and nothing re-derives. */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    tree::FileNode* n = find_node(tree, "readme_document_v1.txt");
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->fs_kind, 1u);
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(74 * 512 + 8 * 512));
+    EXPECT_EQ(n->props()->extents[0].length, u64(3 * 512));
+}
+
+TEST(FatEngine, StringlessSmallVolumeStillBracketsFat12) {
+    /* S-064 control: the D-94/I-002 deliberate superset SURVIVES the
+     * string-first rule - a string-less volume in the FAT12 bracket
+     * still brackets to Fat12 (the og declines it; the core recovers
+     * it structurally). N-201 note: the canonical FAT16 media words in
+     * this fixture must NOT re-flavor it - the og never runs the
+     * media-word probe on a string-less (0xE) volume, and the core's
+     * superset keeps its bracket flavor. */
+    std::vector<u8> img(u64(3000) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x13, 3000);
+    put16(img, 0x16, 12);                    /* spf 12: inside the Fat12 window [1,12] */
+    std::memset(img.data() + 0x36, 0x20, 8); /* blank the FAT16 string */
+    /* FAT12-shaped media words (family-tolerant validator); layout:
+     * reserved 2 + 2x12 FAT + 32 root -> FAT2 at 14, root at 26, data 58 */
+    const size_t FAT1 = 2 * 512, FAT2 = 14 * 512, ROOT = 26 * 512, DATA = 58 * 512;
+    set_fat16_entry(img, FAT1, 0, 0xFFF8);
+    set_fat16_entry(img, FAT1, 1, 0xFFFF);
+    set_fat16_entry(img, FAT2, 0, 0xFFF8);
+    set_fat16_entry(img, FAT2, 1, 0xFFFF);
+    /* a FAT12-readable chain: 10 -> 11 -> EOC (12-bit entries at
+     * odd/even offsets - written via the packed form) */
+    /* FAT12 packing: entry 10 (even, byte 15): b15 | (b16&0xF)<<8 =
+     * 0x00B; entry 11 (odd, byte 16): (b16>>4) | (b17<<4) = 0xFFF EOC */
+    img[FAT1 + 15] = 0x0B;
+    img[FAT1 + 16] = 0xF0;
+    img[FAT1 + 17] = 0xFF;
+    img[FAT2 + 15] = 0x0B;
+    img[FAT2 + 16] = 0xF0;
+    img[FAT2 + 17] = 0xFF;
+    for (u32 c : {10u, 11u})
+        std::memcpy(img.data() + DATA + (c - 2) * 512, "TWELVEBITDATA!", 14);
+    u8* root = img.data() + ROOT;
+    make_dentry(root + 0 * 32, "STRLESS TXT", 0x20, 10, 700, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "STRLESS.TXT");
+    ASSERT_NE(n, nullptr) << "the string-less superset still opens";
+    EXPECT_EQ(n->props()->fs_kind, 0u) << "the bracket owns string-less volumes (Fat12)";
+}
+
+TEST(FatEngine, StringGateRejectsShapelessVolume) {
+    /* S-064 guard: the og's shape gates still gate the string path -
+     * "FAT16   " with root_entries < 224 (FUN_18002f970 :38054's
+     * 0xdf < root) declines at engine open even when the string and
+     * the bracket agree. */
+    std::vector<u8> img(u64(5074) * 512, 0);
+    build_fat16_boot(img);
+    put16(img, 0x11, 32); /* root entries below the 224 floor */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    const u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    EXPECT_EQ(rc, u32(ERR_BAD_PARAMETER)) << "the shape gates gate the string branch";
+}
+
+TEST(FatEngine, TimeWordOutOfRangeYieldsZeroTimestamp) {
+    /* A-014: the og's DosDateTimeToFileTime (FATSearchDLL
+     * :32135-32154, three zero-on-fail slots) rejects hour >= 24,
+     * minute >= 60 and second >= 60; the rejected slot becomes the
+     * zero FileTime. The core's shared converter used to fold those
+     * into the epoch math - fabricating shifted plausible timestamps
+     * (time 0xC000 = hour 24 = exactly +1 day). Every out-of-range
+     * time word on a valid date now yields 0 (the invalid class). */
+    /* hour 24 (0xC000): the finding's worked example - was date+1 day.
+     * (The finding's example date word 0x65C4 decodes month 14 - an
+     * invalid date; the clean 2024-06-12 word 0x58CC is used here so
+     * the test isolates the TIME-word class exactly.) */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xC000, 0), 0u) << "hour 24";
+    /* hour 31 (0xF800): the 5-bit field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xF800, 0), 0u) << "hour 31";
+    /* minute 60 (0x0780): the 6-bit field past the bound */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x0780, 0), 0u) << "minute 60";
+    /* minute 63 (0x07E0): the 6-bit field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x07E0, 0), 0u) << "minute 63";
+    /* 2s field 30 (0x001E) = 60 s: the >59 second class */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001E, 0), 0u) << "second field 30";
+    /* 2s field 31 (0x001F) = 62 s: the field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001F, 0), 0u) << "second field 31";
+}
+
+TEST(FatEngine, ValidTimeWordBoundaryConvertsUnchanged) {
+    /* A-014 regression edge: the boundary-legal values 23:59:58
+     * (0xBF7D) and 00:00:00 (0x0000) still convert - the gate accepts
+     * exactly the DosDateTimeToFileTime range. */
+    /* 2024-06-12 23:59:58 */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xBF7D, 0), 1718236798ULL);
+    /* midnight on the same date */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x0000, 0), 1718150400ULL);
+    /* 2s field 29 (0x001D) = 58 s is the last legal second */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001D, 0), 1718150458ULL);
+}
+
+TEST(FatEngine, InvalidTimeStampsPersistAsZero) {
+    /* A-014 end-to-end: a live dentry whose write time word carries
+     * hour 24 gets the ZERO FileTime on the record (the og's
+     * zero-on-fail slot), not a day-shifted plausible value. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* plant a dentry whose CREATE time is valid (12:00) but whose WRITE
+     * time carries hour 24 - the og zeroes the failing slot only
+     * (per-slot zeroing, FATSearchDLL :32144-:32148 vs :32135-:32138) */
+    /* slot 6 = the first free slot (0-5 used; a zero slot would end the
+     * directory walk before this dentry is reached) */
+    DirEntry* bad = reinterpret_cast<DirEntry*>(root + 6 * 32);
+    const char nm[11] = {'B', 'A', 'D', 'T', 'I', 'M', 'E', ' ', 'T', 'X', 'T'};
+    for (int i = 0; i < 11; ++i)
+        bad->name[i] = u8(nm[i]);
+    bad->attributes = 0x20;
+    bad->nt_reserved = 0;
+    bad->creation_tenths = 0;
+    bad->creation_time = 0x6000; /* 12:00 - valid */
+    bad->creation_date = 0x58CC; /* 2024-06-12 */
+    bad->access_date = 0x58CC;
+    bad->first_cluster_high = 0;
+    bad->first_cluster_low = 15;
+    bad->write_time = 0xC000; /* hour 24 - invalid */
+    bad->write_date = 0x58CC;
+    bad->file_size = 100;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* z = find_node(tree, "BADTIME.TXT");
+    ASSERT_NE(z, nullptr) << "the invalid-time dentry is still a result";
+    EXPECT_EQ(z->props()->times.modified, 0u)
+        << "hour 24 persists as the zero FileTime, not date+1 day";
+    /* creation (time 0x6000 = 12:00 valid) stays real: only the
+     * failing slot is zeroed - the og zeroes per-slot, not per-file */
+    EXPECT_NE(z->props()->times.created, 0u);
+}
+
+TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
+    /* A-014 convergence pin (the S57 lane's supplementary): the og
+     * passes time word 0 for the access slot (FATSearchDLL
+     * :32151-32154 - access has no time field in FAT), so a dentry
+     * whose write/create time words carry hour 24 keeps a REAL
+     * accessed timestamp while created/modified/changed zero out;
+     * changed mirrors modified (cr_fat_quick.cpp:362). Neither remote
+     * family asserted the accessed slot. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "ACCREAL TXT", 0x20, 15, 100, 0x58CC, 0xC000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "ACCREAL.TXT");
+    ASSERT_NE(n, nullptr) << "the invalid-time dentry is still a result";
+    EXPECT_EQ(n->props()->times.created, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.modified, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.changed, 0u) << "changed mirrors modified";
+    EXPECT_EQ(n->props()->times.accessed,
+              fat_date_to_unix(0x58CC, 0, 0) * 10000000ULL + 116444736000000000ULL)
+        << "access (time word 0) keeps the real date";
+}
+
+/* ---- M-130: the dentry shape-validator family -------------------------- */
+
+namespace {
+/* Plant a raw 32-byte dentry at a root slot (fields the make_dentry
+ * helper cannot express: raw attribute bytes, crafted metadata quads). */
+void plant_raw(std::vector<u8>& img, size_t slot, const DirEntry& e) {
+    std::memcpy(img.data() + 42 * 512 + slot * 32, &e, sizeof(e));
+}
+DirEntry raw_dentry(const char* name8_3, u8 attr, u16 high, u16 low, u32 size) {
+    DirEntry e = {};
+    for (int i = 0; i < 11; ++i)
+        e.name[i] = u8(name8_3[i]);
+    e.attributes = attr;
+    e.creation_time = 0x6000;
+    e.creation_date = 0x58CC;
+    e.access_date = 0x58CC;
+    e.write_time = 0x6000;
+    e.write_date = 0x58CC;
+    e.first_cluster_high = high;
+    e.first_cluster_low = low;
+    e.file_size = size;
+    return e;
+}
+} // namespace
+
+TEST(FatEngine, DentryAttrReservedBitsStopWalk) {
+    /* M-130: an attribute byte with reserved bits (>= 0x40) fails the
+     * og's validator (FUN_1800365a0 :44295-96 - the u32 at +0x08's top
+     * byte IS the attribute byte; the audit's "ext-tail" attribution
+     * corrected) and the walk BREAKS (:8792-93): the dentries after the
+     * corrupt slot are lost - parity means matching the loss. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    plant_raw(img, 7, raw_dentry("RESERVEDTXT", 0x40, 0, 10, 100));
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr) << "before the corrupt slot";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped at the 0x40 attr";
+    EXPECT_EQ(find_node(tree, "RESERVED.TXT"), nullptr);
+    EXPECT_GE(stats.shape_rejected, 1u);
+}
+
+TEST(FatEngine, DentryErasedPatternQuadStopsWalk) {
+    /* M-130: the extension+attribute quad equal to the
+     * ntres/tenths/creation-time quad (and not 0x20) is the erased /
+     * repeated-pattern class (:44293-94) - including the all-zero
+     * dentry. The walk stops. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    DirEntry pat = raw_dentry("PATTERN TXT", 0x20, 0, 10, 100);
+    pat.nt_reserved = 'T';      /* 0x54 */
+    pat.creation_tenths = 'X';  /* 0x58 */
+    pat.creation_time = 0x2054; /* 'T' | 0x20 << 8 */
+    plant_raw(img, 7, pat);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "PATTERN.TXT"), nullptr) << "the erased-pattern quad rejects";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped";
+}
+
+TEST(FatEngine, DentryHistogramEleventhRepeatStopsWalk) {
+    /* M-130: the byte-histogram gate (:44356-69) - 21-byte metadata
+     * window, nonzero bytes; the ELEVENTH occurrence of any value
+     * rejects (the pre-increment compare is > 9; the audit's ">9
+     * occurrences" boundary corrected to 10-pass/11-reject). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    DirEntry eleven = raw_dentry("HISTO   TXT", 0x20, 0, 10, 100);
+    eleven.nt_reserved = 0x42;
+    eleven.creation_tenths = 0x42;
+    eleven.creation_time = 0x4242;
+    eleven.creation_date = 0x4242;
+    eleven.access_date = 0x4242;
+    eleven.write_time = 0x4242;
+    eleven.write_date = 0x4242; /* the 11th 0x42 */
+    plant_raw(img, 7, eleven);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "HISTO.TXT"), nullptr) << "11 repeats reject";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped";
+}
+
+TEST(FatEngine, DentryHistogramTenRepeatsStillEmit) {
+    /* M-130 boundary: TEN occurrences of the same nonzero byte PASS -
+     * the emitted dentry is a real result (the og's pre-increment
+     * compare fires on the 11th, not the 10th). */
+    auto img = build_fat16_image();
+    DirEntry ten = raw_dentry("HIST10  TXT", 0x20, 0, 10, 100);
+    ten.nt_reserved = 0x42;
+    ten.creation_tenths = 0x42;
+    ten.creation_time = 0x4242;
+    ten.creation_date = 0x4242;
+    ten.access_date = 0x4242;
+    ten.write_time = 0x4242; /* exactly ten 0x42 bytes */
+    plant_raw(img, 6, ten);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "HIST10.TXT"), nullptr) << "10 repeats are legal";
+}
+
+TEST(FatEngine, DentryImpureLabelStopsWalk) {
+    /* M-130: label purity (:44298-44301) - an entry with the volume bit
+     * that is NOT a pure label (attr in {8, 0x28}, hidden clear) is
+     * corrupt and the walk stops; a PURE label is skipped as a result
+     * and the walk continues (the pin below). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    plant_raw(img, 7, raw_dentry("IMPLABEL   ", 0x18, 0, 5, 0)); /* dir+volume */
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the impure label stopped the walk";
+}
+
+TEST(FatEngine, PureVolumeLabelSkippedWalkContinues) {
+    /* M-130 pin: a PURE volume label (attr 0x08) passes the validator
+     * and is skipped as a result - the walk continues past it. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    plant_raw(img, 6, raw_dentry("VOLLABEL   ", 0x08, 0, 0, 0));
+    make_dentry(root + 7 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "VOLLABEL"), nullptr) << "a label is never a result";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued past the label";
+}
+
+TEST(FatEngine, SizeChainXorSkippedButWalkContinues) {
+    /* M-130: the emission-walk shape gates (:44344-48, the param_2 = 1
+     * site) - a zero-size file WITH a chain (and a sized file with NO
+     * chain) are inconsistent shapes: NOT emitted, but the walk does
+     * NOT stop (this is the skip class, not the break class). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "ZEROSIZETXT", 0x20, 10, 0, 0x58CC, 0x6000, false);
+    make_dentry(root + 7 * 32, "NOCHAIN TXT", 0x20, 0, 500, 0x58CC, 0x6000, false);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "ZEROSIZE.TXT"), nullptr) << "zero size with a chain: skipped";
+    EXPECT_EQ(find_node(tree, "NOCHAIN.TXT"), nullptr) << "sized with no chain: skipped";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued (skip, not break)";
+    EXPECT_GE(stats.shape_rejected, 2u);
+}
+
+TEST(FatEngine, DirSizeAndHighClusterSkipped) {
+    /* M-130: the dir shape gate (:44350) - a directory with size != 0
+     * AND a nonzero high cluster word is the corrupt-dir shape: not
+     * emitted, walk continues. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    plant_raw(img, 6, raw_dentry("BADDIR     ", ATTR_DIRECTORY, 0x1234, 5, 777));
+    make_dentry(root + 7 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "BADDIR"), nullptr) << "the corrupt dir shape: skipped";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued";
+}
+
+TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
+    /* N-173 end-to-end: a live dentry dated 2107-12-31 carries the REAL
+     * FileTime (unix 4354776000 * 1e7 + the epoch), not the zero/1601
+     * emission the pre-fix clamp produced. */
+    auto img = build_fat16_image_with_bad_dates(0xFF9F, 0x01A1, 0x0020);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* z = find_node(tree, "ZERODAT.TXT");
+    ASSERT_NE(z, nullptr) << "the 2107-dated dentry must be a result";
+    EXPECT_EQ(z->props()->times.modified, 4354776000ULL * 10000000ULL + 116444736000000000ULL)
+        << "the 2107 date converts fully (the og has no cutoff)";
+}
+
+/* A-014 convergence note (S52-B severe-first lane): this lane's five unit
+ * boundary tests were DROPPED at the hot-window reconciliation - the
+ * earlier S45/S51 pushes landed the byte-equivalent gate and the same
+ * boundary pins (TimeWordHour24YieldsZeroFileTime &c. above); per SA-9
+ * the merged battery is the superset. The unique supplement survives
+ * below: the third-slot access-date pin. */
+
+TEST(FatEngine, AccessSlotStampsDateAtMidnightWhenTimeWordInvalid) {
+    /* A-014 convergence supplement (the S52-B severe-first lane): the og's
+     * THIRD DosDateTimeToFileTime call (FATSearchDLL_decompiled.c
+     * :32151-32154, re-verified raw at 0x180028a51) converts the ACCESS
+     * date with time 0 - so an invalid WRITE-time word zeroes the
+     * create/write slots but NEVER the access slot, which keeps the real
+     * date-at-midnight. The merged battery (the S45/S51 pins) covers the
+     * create/write zeroing with distinct times; this pin holds the third
+     * slot's independence so a future "gate the whole timestamp set"
+     * regression cannot pass unnoticed. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* cluster 15 carries an EOC chain in the fixture; reuse it. Slot 6 =
+     * the first free root slot, contiguous with the base dentries (the
+     * scan stops at the first 0x00 slot, FAT end-of-directory). */
+    make_dentry(root + 6 * 32, "BADTIME TXT", 0x20, 15, 100, 0x5A46, 0xC000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* b = find_node(tree, "BADTIME.TXT");
+    ASSERT_NE(b, nullptr) << "the bad-time dentry is still a result (N-021: "
+                             "invalid dates never delete the entry)";
+    EXPECT_EQ(b->props()->times.created, 0ULL)
+        << "hour 24 zeroes the create slot (DosDateTimeToFileTime failure)";
+    EXPECT_EQ(b->props()->times.modified, 0ULL) << "hour 24 zeroes the write slot";
+    EXPECT_EQ(b->props()->times.accessed, 1738800000ULL * 10000000ULL + 116444736000000000ULL)
+        << "the access slot passes time 0 and keeps the real date";
+}
+
+/* ===================================================================== */
+/* M-127 (diff-to-fix): the chain cycle guard's data structure - the   */
+/* og's range tree (each contiguous run one interval, corpus            */
+/* fat-exfat-engine-algorithms-v2.md:43-56) vs the core's O(n^2)       */
+/* visited-vector scan (the 2.1e9-comparison stall class on maximal    */
+/* chains - the no-freeze directive's hit).                              */
+/* ===================================================================== */
+
+TEST(FatChain, RunCoalescingDetectsOverlap) {
+    /* the semantic pin: the run-tree guard stops EXACTLY where the
+     * vector guard stopped - the backward pointer, the A->B->A loop,
+     * the self-loop, and the re-entry into an earlier run. */
+    /* the TruncatedVolumeOverflow fixture's exact boot shape (the
+     * 66,562-sector FAT32 that loads clean), with the chain links added */
+    std::vector<u8> img(u64(66562) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put32v(img, 0x20, 66562);
+    put32v(img, 0x24, 512);
+    put32v(img, 0x2C, 2);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 8 * 512, FAT2 = 520 * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* A -> B -> A (the two-node loop) */
+    link32(100, 101);
+    link32(101, 100);
+    /* (a self-loop is unreachable through a validated table: the og's
+     * whole-table validation rejects v == i entries outright - the
+     * M-015 sweep - so the guard's self-loop semantics ride the same
+     * visit() re-entry path the backward pointer below exercises) */
+    /* the long run 300..400 then a backward pointer to 350 */
+    for (u32 c = 300; c < 400; ++c)
+        link32(c, c + 1);
+    link32(400, 350);
+    /* the clean long run (no cycle): 500..700 -> EOC */
+    for (u32 c = 500; c < 700; ++c)
+        link32(c, c + 1);
+    link32(700, 0x0FFFFFF8);
+
+    u8 boot[512];
+    std::memcpy(boot, b, 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(70000) * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+
+    ChainResult ab = follow_chain(t, 100, 0x10000, nullptr);
+    EXPECT_TRUE(ab.cycle);
+    ASSERT_EQ(2u, ab.clusters.size());
+
+    ChainResult back = follow_chain(t, 300, 0x10000, nullptr);
+    EXPECT_TRUE(back.cycle) << "the backward pointer into the run re-enters";
+    ASSERT_EQ(101u, back.clusters.size()) << "300..400 walked, 350 re-entered";
+
+    ChainResult clean = follow_chain(t, 500, 0x10000, nullptr);
+    EXPECT_FALSE(clean.cycle);
+    EXPECT_FALSE(clean.broken);
+    EXPECT_EQ(201u, clean.clusters.size());
+}
+
+TEST(FatChain, CycleGuardPerf) {
+    /* the finding's synthetic stall fixture: 100 maximal-length
+     * contiguous chains (65,536 clusters each) on a memory FAT - the
+     * pre-fix vector guard costs ~2.1e9 comparisons PER CHAIN (the
+     * 100+ s CPU class); the run-tree guard walks each chain in
+     * milliseconds. Budget: the whole fixture under 10 s wall (the
+     * pre-fix shape cannot come close - RED by >20x). */
+    const u32 CHAIN_LEN = 0x10000;
+    const u32 CHAINS = 100;
+    /* the geometry, reference-shaped: cluster ids up to 2 + 100*65,536 -
+     * 1; the FAT32 table covers them at 4 bytes/entry; spc = 1 keeps the
+     * image at a lazy-mapped ~3.4 GB (only the ~52 MB of FAT pages are
+     * ever touched - follow_chain reads no data). */
+    const u64 max_cluster_needed = 2 + u64(CHAINS) * CHAIN_LEN;
+    const u32 spf = u32((max_cluster_needed * 4 + 511) / 512) + 8;
+    const u64 total_secs = 8 + u64(2) * spf + 32 + max_cluster_needed;
+    std::vector<u8> img(total_secs * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put32v(img, 0x20, u32(total_secs));
+    put32v(img, 0x24, spf);
+    put32v(img, 0x2C, 2);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 8 * 512, FAT2 = (8 + spf) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* CHAINS disjoint maximal contiguous chains, each ending in EOC */
+    for (u32 ch = 0; ch < CHAINS; ++ch) {
+        const u32 base = 2 + u64(ch) * CHAIN_LEN;
+        for (u32 i = 0; i + 1 < CHAIN_LEN; ++i)
+            link32(base + i, base + i + 1);
+        link32(base + CHAIN_LEN - 1, 0x0FFFFFF8);
+    }
+    u8 boot[512];
+    std::memcpy(boot, b, 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, total_secs * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (u32 ch = 0; ch < CHAINS; ++ch) {
+        ChainResult r = follow_chain(t, 2 + u64(ch) * CHAIN_LEN, 0x10000, nullptr);
+        ASSERT_FALSE(r.cycle);
+        ASSERT_EQ(CHAIN_LEN, r.clusters.size()) << "chain " << ch;
+    }
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count();
+    /* measured at the M-127 landing: the pre-fix vector guard walks
+     * this fixture in 62.2 s (the stall class); the run-tree guard in
+     * 1.55 s - a 40x improvement. The 10 s budget fails the pre-fix
+     * shape by 6.2x and passes the fix with 6.4x headroom. */
+    EXPECT_LT(ms, 10000) << "100 maximal chains took " << ms << " ms - the stall class";
+}
+
+/* ---- S-068: the deleted FAT32 high-16 re-base (the last-good hint) ----
+ * The og's machinery (FATSearchDLL, all three sites re-read first-hand):
+ * a scan-global hint holds the most recently successfully-walked
+ * non-directory file's first cluster (:13753-13758); a deleted dentry
+ * whose first-cluster field is LOW-16-ONLY (below 0x10000 and below the
+ * hint - the torn/stale high-word shape) is re-based by borrowing the
+ * hint's high 16 bits before the walk (:14753-14755); the failed re-based
+ * walk falls back to the raw value. FAT32 only - the high word exists
+ * only there. */
+
+namespace {
+/* a FAT32 volume whose data clusters live ABOVE 0x10000 (the high word
+ * is meaningful - the re-base's population), with a live anchor file at
+ * 0x10000 and a deleted file whose dentry lost the high word.
+ * Geometry: reserved 8, FAT 2x545 sectors (69632 entries covers
+ * clusters 2..0x10FFE), data from sector 1098; ~35 MiB image. */
+std::vector<u8> build_fat32_high16_image(u32 deleted_first /* the RAW dentry value */,
+                                         bool plant_true_chain = true,
+                                         u32 true_first = 0x10000 + 0x123) {
+    const u32 SPF = 545;                /* sectors per FAT */
+    const u32 DATA_START = 8 + 2 * SPF; /* sector of cluster 2 */
+    const u32 TOTAL = DATA_START + 0x11000 + 64;
+    std::vector<u8> img(u64(TOTAL) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1; /* 512B clusters */
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0); /* FAT32: no fixed root */
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    put32v(img, 0x20, TOTAL);
+    put32v(img, 0x24, SPF);
+    put32v(img, 0x2C, 2); /* root cluster */
+    put16(img, 0x32, 6);
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 6 * 512, b, 512);
+
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + SPF) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 0x0FFFFFFF);    /* root: single cluster */
+    link32(0x10000, 0x10001); /* the anchor file's chain */
+    link32(0x10001, 0x0FFFFFFF);
+    if (plant_true_chain)
+        link32(true_first, 0x0FFFFFFF); /* the deleted file's true chain */
+
+    /* root dir at cluster 2 */
+    u8* root = img.data() + u64(DATA_START) * 512;
+    /* the anchor: a LIVE file at 0x10000 - walks successfully, moves the
+     * hint to 0x10000 (the high word the re-base borrows) */
+    make_dentry(root + 0 * 32, "ANCHOR  BIN", 0x20, 0x10000, 1024, 0x5A46, 0x6000, false);
+    /* the deleted file: the dentry's high word is ZERO (torn) - the raw
+     * value is the true chain's low 16 only */
+    make_dentry(root + 1 * 32, "TORN    DAT", 0x20, deleted_first, 512, 0x5A46, 0x6000, true);
+
+    /* content markers: the TRUE chain's bytes (the wrong-content
+     * discriminator - the recovered bytes must come from the TRUE chain) */
+    const u64 data_base = u64(DATA_START) * 512; /* cluster 2 */
+    auto cluster_off = [&](u32 c) { return data_base + u64(c - 2) * 512; };
+    std::memcpy(img.data() + cluster_off(0x10000), "ANCHORDATA", 10);
+    if (plant_true_chain)
+        std::memcpy(img.data() + cluster_off(true_first), "TRUEDATA", 8);
+    return img;
+}
+const u32 S068_DATA_START = 8 + 2 * 545; /* shared: the fixture's data start */
+} // namespace
+
+TEST(FatEngine, DeletedHigh16ZeroRebasesFromHint) {
+    /* S-068: the anchor's walk moves the hint to 0x40000; the deleted
+     * dentry's torn high word (raw first_cluster = 0x123) re-bases to
+     * 0x40000|0x123 = the TRUE chain - the recovered extent is the true
+     * cluster's, not the low cluster's wrong content. Before the fix:
+     * the raw walk started at cluster 0x123 (free space / another
+     * file's chain) - wrong bytes under the deleted name or a drop. */
+    auto img = build_fat32_high16_image(0x123);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the torn dentry re-based from the hint";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the re-based walk recovers the file";
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    const u64 true_off = data_base + u64(0x10000 + 0x123 - 2) * 512;
+    ASSERT_EQ(torn->props()->extents.size(), 1u);
+    EXPECT_EQ(torn->props()->extents[0].offset, true_off)
+        << "the extent is the TRUE chain's cluster, not the low cluster";
+    /* the repaired pair is stamped (the og's write-back semantics) */
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x10000u + 0x123u);
+    /* the assumed flag: never Excellent */
+    EXPECT_EQ(torn->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(FatEngine, DeletedHigh16RebaseFallsBackToRawWalk) {
+    /* S-068: the re-based walk fails (no chain at the re-based cluster -
+     * the true content is gone too): the emission falls back to the raw
+     * dentry value's walk (the og's first-leg behavior), the raw walk
+     * produces whatever cluster 0x123 holds (here: nothing - empty
+     * chain, the Overwritten grade), and the re-base counter stays 0. */
+    auto img = build_fat32_high16_image(0x123, /*plant_true_chain=*/false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 0u) << "a failed re-based walk never adopts";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the fallback emission still surfaces the dentry";
+    /* the raw walk at 0x123 (a FREE cluster) reconstructs the
+     * contiguous candidate [0x123, 0x124) - the GAP-S6-2 heuristic's
+     * shape, or an empty chain. Either way the extent is NOT at the
+     * re-based cluster. */
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    const u64 raw_off = data_base + u64(0x123 - 2) * 512;
+    if (!torn->props()->extents.empty()) {
+        EXPECT_EQ(torn->props()->extents[0].offset, raw_off)
+            << "the fallback walks the RAW dentry value";
+    }
+}
+
+TEST(FatEngine, LastGoodHintUpdatesOnlyOnFileWalks) {
+    /* S-068: directories and volume labels never move the hint (the og's
+     * `attr & 0x10 == 0` gate, :13753). A deleted dentry whose raw value
+     * is below a DIRECTORY's cluster (no file walked above 0x10000 yet
+     * except the anchor) re-bases off the ANCHOR's hint - the directory
+     * in between does not clobber it. Proven negatively: the re-base
+     * still fires after a directory dentry sits between the anchor and
+     * the torn file in directory order. */
+    auto img = build_fat32_high16_image(0x123);
+    /* insert a DIRECTORY dentry (cluster 3, an ordinary low cluster)
+     * between the anchor and the torn file */
+    u8* root = img.data() + u64(S068_DATA_START) * 512;
+    make_dentry(root + 1 * 32, "ASUBDIR    ", ATTR_DIRECTORY, 3, 0, 0x5A46, 0x6000, false);
+    make_dentry(root + 2 * 32, "TORN    DAT", 0x20, 0x123, 512, 0x5A46, 0x6000, true);
+    /* root must stay one cluster (cluster 3 is the directory's own chain
+     * start - plant its '.' self-entry so the recursion walks it harmlessly */
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + 545) * 512;
+    put32v(img, FAT1 + 3 * 4, 0x0FFFFFFF);
+    put32v(img, FAT2 + 3 * 4, 0x0FFFFFFF);
+    const u64 data_base = u64(S068_DATA_START) * 512;
+    u8* sub = img.data() + data_base + (3 - 2) * 512;
+    make_dentry(sub + 0 * 32, ".          ", ATTR_DIRECTORY, 3, 0, 0x5A46, 0x6000, false);
+    make_dentry(sub + 1 * 32, "..         ", ATTR_DIRECTORY, 2, 0, 0x5A46, 0x6000, false);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u)
+        << "the directory dentry between them does not clobber the hint";
+}
+
+TEST(FatEngine, FAT16NoRebase) {
+    /* S-068: the machinery is FAT32-only - the high word exists only
+     * there. On the FAT16 fixture a deleted dentry whose value is below
+     * 0x10000 (which is EVERY cluster on a FAT16 volume) never re-bases:
+     * the flavor gate refuses before the hint is consulted. */
+    auto img = build_fat16_image();
+    /* the fixture's own deleted entries (20/21 intact, 30 FREE) - all
+     * below 0x10000 by construction; a re-base would need a hint > the
+     * value, and FAT16's flavor gate must keep the counter at 0 even if
+     * one existed (the GONE entry at 30 walks nothing, DEL at 20 walks
+     * successfully and would move a hint on FAT32) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.high16_rebased, 0u) << "FAT16 never re-bases (no high word)";
+}
+
+namespace {
+/* N-220: the wider S-068 geometry - the hint's high word must DIFFER from
+ * the anchor's own high word for the walked-END discriminator, so the
+ * true chain lives one 0x10000-cluster bank above the anchor. Geometry:
+ * reserved 8, FAT 2x1030 sectors (0x20C00 entries covers the bank-2
+ * clusters), data from sector 2068; ~67 MiB image (the only fixture
+ * whose hint can cross a 64K bank boundary at CI scale). */
+enum class EndHintKind { WalkedEnd, FailedHigh };
+std::vector<u8> build_fat32_endhint_image(EndHintKind kind) {
+    const u32 SPF = 1030;
+    const u32 DATA_START = 8 + 2 * SPF;
+    const u32 TOTAL = DATA_START + 0x20280;
+    std::vector<u8> img(u64(TOTAL) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1; /* 512B clusters */
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    put32v(img, 0x20, TOTAL);
+    put32v(img, 0x24, SPF);
+    put32v(img, 0x2C, 2);
+    put16(img, 0x32, 6);
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 6 * 512, b, 512);
+
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + SPF) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    link32(2, 0x0FFFFFFF); /* root: single cluster */
+    /* the TRUE chain of the torn dentry: one cluster at 0x20123 (bank 2) */
+    link32(0x20123, 0x0FFFFFFF);
+
+    u8* root = img.data() + u64(DATA_START) * 512;
+    if (kind == EndHintKind::WalkedEnd) {
+        /* a LIVE, WALKABLE anchor at 0x10000 whose DECLARED size (0x10000
+         * clusters) crosses the bank boundary: the og's hint is the
+         * walked END = first + the size-derived cluster count
+         * (FUN_180012e60 :13722-13727 computes uVar6 BEFORE the walk;
+         * :13754-13756 stamps local_res8 + uVar6) - 0x20000, bank 2.
+         * Under the bare-FIRST reading the hint would stay bank 1. The
+         * planted chain is only 2 clusters (the walk succeeds on EOC;
+         * the og never consults the walked length for the hint). */
+        link32(0x10000, 0x10001);
+        link32(0x10001, 0x0FFFFFFF);
+        make_dentry(root + 0 * 32, "ANCHOR  BIN", 0x20, 0x10000, 0x10000 * 512, 0x5A46, 0x6000,
+                    false);
+    } else {
+        /* a LIVE anchor at 0x1FF00 whose chain is BROKEN (the FAT entry
+         * points out of range) and whose declared size (0x200 clusters)
+         * still feeds the hint through the og's failed-but-high arm
+         * (:13755, `|| (0x10000 < local_res8)`): the high-water mark
+         * moves to 0x1FF00 + 0x200 = 0x20100, bank 2 - even though the
+         * walk never completed. Under a success-only hint this torn
+         * dentry would find no hint at all (no prior walk). */
+        link32(0x1FF00, 0x0F000000); /* out of range: the walk breaks */
+        make_dentry(root + 0 * 32, "BROKEN  BIN", 0x20, 0x1FF00, 0x200 * 512, 0x5A46, 0x6000,
+                    false);
+    }
+    /* the deleted file: the torn high word (raw = low 16 only) */
+    make_dentry(root + 1 * 32, "TORN    DAT", 0x20, 0x123, 512, 0x5A46, 0x6000, true);
+
+    const u64 data_base = u64(DATA_START) * 512;
+    std::memcpy(img.data() + data_base + u64(0x20123 - 2) * 512, "TRUEDATA", 8);
+    if (kind == EndHintKind::WalkedEnd)
+        std::memcpy(img.data() + data_base + u64(0x10000 - 2) * 512, "ANCHORDATA", 10);
+    return img;
+}
+} // namespace
+
+TEST(FatEngine, DeletedHigh16HintIsTheWalkedEndCluster) {
+    /* N-220: the hint's VALUE is the walked END (first + the dentry's
+     * size-derived cluster count), not the bare first cluster. The
+     * discriminator: the anchor's declared size crosses a 64K bank, so
+     * the two readings re-base the torn dentry into DIFFERENT banks -
+     * the true chain is planted in the END reading's bank. Before the
+     * fix the hint stayed bank 1, the probe at 0x10123 found no chain,
+     * and no re-base fired (high16_rebased 0). */
+    auto img = build_fat32_endhint_image(EndHintKind::WalkedEnd);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the walked-END hint re-bases across the bank";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr) << "the re-based walk recovers the file";
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x20123u)
+        << "the re-based cluster comes from the END hint's bank";
+}
+
+TEST(FatEngine, DeletedHigh16FailedHighWalkStillFeedsTheHint) {
+    /* N-220: the og's failed-but-high arm (:13755) - a broken chain
+     * whose start sits above 0x10000 still moves the hint to its
+     * would-be END. Without the arm, a torn dentry following a broken
+     * high anchor finds no hint at all. */
+    auto img = build_fat32_endhint_image(EndHintKind::FailedHigh);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 1u) << "the broken high anchor still feeds the hint";
+    auto all = collect_all(tree);
+    tree::FileNode* torn = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#ORN.DAT")
+            torn = n;
+    ASSERT_NE(torn, nullptr);
+    EXPECT_EQ(torn->props()->fat_origin_cluster, 0x20123u)
+        << "the re-based cluster comes from the failed-high hint's bank";
+}
+
+TEST(FatEngine, DeletedDirectoryHigh16RetryHoldsBelowBigVolumeGate) {
+    /* N-220 Site B (FUN_180014530 :14826-14848): the deleted-DIRECTORY
+     * retry is gated on the big-volume hint (0x310000 < hint, :14834).
+     * Below the gate a broken raw walk must NOT adopt a re-based
+     * candidate even when one is FAT-linked and walkable - the exact
+     * inverse pin of the 9b4a9302 substitution (which placed THIS gate
+     * on the file path, suppressing the file re-base on every small
+     * volume). */
+    auto img = build_fat32_high16_image(0x123);
+    /* turn the torn dentry into a DIRECTORY whose raw chain BREAKS:
+     * FAT[0x123] points out of range -> the raw walk fails; the
+     * re-based candidate 0x10123 IS planted, FAT-linked and walkable -
+     * the adoption would happen if the gate were missing. */
+    const size_t FAT1 = 8 * 512, FAT2 = size_t(8 + 545) * 512;
+    put32v(img, FAT1 + 0x123 * 4, 0x0F000000);
+    put32v(img, FAT2 + 0x123 * 4, 0x0F000000);
+    u8* root = img.data() + u64(S068_DATA_START) * 512;
+    make_dentry(root + 1 * 32, "ASUBDIR    ", ATTR_DIRECTORY, 0x123, 0, 0x5A46, 0x6000, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK)
+        << err_text(0);
+    EXPECT_EQ(stats.high16_rebased, 0u)
+        << "the directory retry never fires below the big-volume gate";
+}
+
+TEST(FatEngine, DirRetryRebaseClusterSeamMatrix) {
+    /* N-220: the Site B gate seam - the og's literal shape
+     * (:14834-14836): the ONLY gate is the big-volume check; the
+     * candidate is hint_high | raw_low16. */
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x310001), 0x310123u)
+        << "above the big-volume gate: the re-based candidate";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x310000), 0u) << "the gate is strict (> 0x310000)";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x10000), 0u)
+        << "every fixture-scale volume: no retry";
+    EXPECT_EQ(dir_retry_rebase_cluster(0x123, 0x400000), 0x400123u);
+    EXPECT_EQ(dir_retry_rebase_cluster(0x1FF00, 0x400000), 0x40FF00u)
+        << "the literal form re-bases the raw's low 16 whatever they are";
+    EXPECT_EQ(dir_retry_rebase_cluster(0, 0x400000), 0x400000u)
+        << "degenerate candidates are the caller's bounds-check's job";
 }

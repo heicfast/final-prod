@@ -11,7 +11,7 @@ Companion documents:
 - [PARAMETERS.md](PARAMETERS.md) — every tunable (CLI flags, scan config,
   caps, budgets) with defaults and bounds.
 - [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md) — how a host binds, links,
-  drives the lifecycle, and connects devices (driver vs direct vs images).
+  drives the lifecycle, and connects devices (direct vs images).
 - [FORMATS.md](FORMATS.md) — what is parsed/written (filesystems, carve
   formats, session container, report schema).
 - [ABI-CONTRACT.md](ABI-CONTRACT.md) — the wire-level ABI rules
@@ -25,47 +25,95 @@ Companion documents:
 
 ```
 rrecov list
-rrecov scan    --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
-               [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
-               [--log file] [--csv] [--filter s] [--deleted-only]
-               [--bitlocker-fvek hex] [--bitlocker-dict [file]]
-               [--user-signs file] [--repair [plan]] [--repair-apply]
-               [--check]
+rrecov list-carve-formats
+rrecov sessions [--dir D] [--json]
+rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
+               [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
+               [--resume file.crsf] [--autosave-dir D] [--json] [--log file] [--csv]
+               [--filter s] [--deleted-only] [--bitlocker-fvek hex]
+               [--bitlocker-dict [file]] [--user-signs file] [--repair]
+               [--repair-apply] [--repair-undo file] [--check]
+               [--filter-folder DIR] (repeatable; the scan-time folder filter,
+                                       M-073: out-of-prefix folders never enter
+                                       the session; volume-root relative)
+rrecov archive-list --in file.crsf (--disk N | --image file) --node ID [--json]
+               (the browse-inside archive inventory, M-116)
 rrecov tree    --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
-rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
-               [--report file.json]
+rrecov recover --in file.crsf (--disk N | --image file) --to DIR
+               [--deleted-only] [--filter s] [--report file.json]
 rrecov health  --disk N
 rrecov fix     --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+rrecov fix     --chkdsk C:  (launch Windows chkdsk /f on the volume - the
+               check ladder's fix endpoint, M-075)
+rrecov unlock  --turn-off C:  (turn BitLocker OFF on the volume - the
+               M-078 consented destructive op: decrypt, never bypass;
+               the OS decrypt continues in background; exit 2 on refusal)
+rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
+               [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
-               [--block-kb N] [--iterations N] [--seed N] [--json] [--no-rda]
-rrecov info    --disk N [--part P] | --image file
+               [--block-kb N] [--iterations N] [--seed N] [--json]
+rrecov image   --create --disk N --out file.img
+               (the flat-raw disk-image producer + .sha256 sidecar, S-040;
+               VHD/VHDX writers out of scope, D-147)
 ```
+
+(The historical `rrecov info` line above was doc drift - no such verb ever
+existed; `bench --mode info` is the geometry/transport report. `--no-rda`
+and the `driver` verb are REMOVED with the kernel driver itself
+(session-96): raw-disk verbs require an elevated process token instead.)
+
+**Privilege model:** raw-disk verbs (scan/recover/tree --disk/health/fix/
+apply/bench/image with disk targets) require an ELEVATED process token;
+a non-elevated process gets the `ERR_ELEVATION_REQUIRED` (0x500C0001)
+refusal — exit 4 on the CLI — and the host triggers its own UAC flow and
+retries. Image targets and session/report/preview/dictionary verbs need
+no elevation.
 
 **Exit codes**
 
 | Code | Meaning |
 |---|---|
 | 0 | success |
-| 1 | failure (scan failure, enumeration failure, …) |
-| 2 | recover: partial — item errors or hash mismatch in the write set |
-| 3 | cancelled (scan; the session file is still saved when `--out` was given) / health: every source unavailable |
+| 1 | failure (scan failure, enumeration failure, unknown option, …) |
+| 2 | recover: partial — item errors or hash mismatch in the write set; apply/fix: open/plan/execute/undo failure; bench: open/read failure or zero hits |
+| 3 | scan cancelled (session saved when --out was given) / health: every source unavailable |
+| 4 | the ELEVATION prerequisite is not met — raw-disk verbs (scan/recover/fix/apply/bench/image with disk targets) refuse before any other output with ERR_ELEVATION_REQUIRED (0x500C0001) on stderr; the host triggers its own UAC flow and retries |
+| 5 | scan only: the target device disconnected mid-scan (N-125) — distinct from failure (1) and cancel (3); with `--out` the session checkpoint resumes after reattach |
 
 Every command logs stage timings, per-stage counts and error maps
 (`--log`). `scan --json` emits the run summary machine-readably;
 `tree --json` the result tree; `--csv` the flat file list.
 
+**Whole-disk scan semantics** (S-051): `scan --disk N` always builds its
+scan targets from the disk's partition table — every used, non-container
+entry is probed per-target and scanned under its own display-name volume
+root (the og's CDoScanPartition flow reads the partition list at scan
+setup; a plain disk scan never silently returns an empty tree on a
+healthy partitioned disk). A target with no readable filesystem is
+skipped honestly and counted (`table_volume_skipped`). `--whole-disk`
+adds the lost-partition discovery on top; table volumes are never
+scanned twice (the discovery's table-match candidates for already-
+scanned targets are dropped).
+
 **Consent-bearing flags** (the safety architecture): `--repair-apply`,
 `--repair-undo`, `--undo-apply`, `--bitlocker-dict`, `--bitlocker-fvek`,
-`--apply`. Each one is an explicit operator action; nothing write-side or
+`--apply`, `--boot-fix` (fires only under `--apply` — the shared apply
+consent, M-040). Each one is an explicit operator action; nothing write-side or
 unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md#consent).
 
 ---
 
 ## 2. The `cr_ui` C ABI (`cr_ui.dll` / `libcr_ui.so`)
 
-Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**2**).
+Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**4**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 78 exported functions in the current header, all
+append-only-flat-C except for the v4 removal: 92 exported functions in
+the current header (the count re-derived 2026-10-30, session-96: 95
+`CR_UI_API` lines minus 3 `#define` macros; the v3->v4 bump REMOVED the
+driver-era `cr_ui_driver_status` export with the kernel driver itself -
+the one sanctioned removal, documented in ABI-CONTRACT §4/§7e;
+CI-guarded by the doc_truth_gate count
+invariants), all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
 thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 
@@ -74,17 +122,20 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | Export | Purpose |
 |---|---|
 | `cr_ui_abi_version` | the ABI version gate (call first) |
+| `cr_ui_last_error` | thread-local text for the last failing call on that thread (never NULL) |
 | `cr_ui_string_free` | free every returned string |
 
 ### 2.2 Device layer
 
 | Export | Purpose |
 |---|---|
-| `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope) |
-| `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX) |
+| `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope); each call re-queries the OS — no cache, calling again IS the refresh (N-098) |
+| `cr_ui_enumerate_disks_ex` | the opt-in census (M-076): `CR_ENUM_FLAG_TRIM` adds the per-row TRIM chip datum (`trim_known`/`trim_on` — the og's home-page SSD recovery-chance indicator, UIUX/07:17) to every `cr_ui_disk_info` row; unknown flag bits are refused with `CR_UI_ERR_BAD_PARAMETER`; the query is one fresh fsutil read per invocation (OS-global datum) and a failed query leaves `trim_known == 0` — never a guessed value |
+| `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX). S-051: a scan over a whole-disk/disk-image target ALWAYS scans the partition table's volumes (one per-volume tree root; the og's CDoScanPartition partition-list read — a table-bearing disk never yields a silent empty verdict) |
 | `cr_ui_open_volume_with_key` | open a BitLocker volume with a user-supplied FVEK (in-stack XTS-AES decrypt, M-033) |
-| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`rda`/`direct`), close |
-| `cr_ui_last_transport_error` | the surviving transport leg's error after an RDA→direct fallback (M-030; the silent-fallback closure) |
+| `cr_ui_unlock_volume_with_dictionary` | explicit-consent BitLocker password unlock (N-064; shipped 228-entry dict + user candidates) |
+| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`direct`/`image`), close |
+| `cr_ui_last_transport_error` | the last open's classified transport error (M-030; advisory-only, never gates a return code) |
 
 ### 2.3 Scanning
 
@@ -108,10 +159,13 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | Export | Purpose |
 |---|---|
 | `cr_ui_session_load` / `cr_ui_session_close` / `cr_ui_session_resume` | session container lifecycle |
+| `cr_ui_session_list(dir, rows, count)` | W1a (R-56): the saved-session directory list - the light per-file summary (LastScanRecordView); two-call size pattern |
+| `cr_ui_session_load_with_events(path, fn, user, cancel_flag, out)` | W1b (R-54): the load with progress events + the caller-owned cancel flag (the N-060 save machinery's load twin) |
 | `cr_ui_session_get_info` / `cr_ui_session_stats` / `cr_ui_session_regrade` / `cr_ui_session_snapshot` | summary, per-root stats, re-grading, snapshotting |
-| `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window |
+| `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window (`cr_ui_snapshot_close` releases) |
 | `cr_ui_query_run` / `cr_ui_query_rows_free` / `cr_ui_query_apply_buckets` | the server-side query (filter/sort/page/bucket IDs, M-029) |
 | `cr_ui_preview_open_session` / `cr_ui_preview_open_snapshot` / `cr_ui_preview_read` / `cr_ui_preview_size` / `cr_ui_preview_metadata` / `cr_ui_preview_close` / `cr_ui_preview_unreadable` | budgeted content preview (caps honest, M-028) |
+| `cr_ui_thumbnail_generate(dev, sess, ...)` / `cr_ui_thumbnail_format_supported(utf8_format)` | the thumbnail surface (N-137's ABI landing): byte-identical thumbnail generation with the og's decode gates, + the per-format codec-support probe (the formats the shipped decoders cover; both rows added by N-150's truth pass - they were on the header but absent from this table since the M-102 landing) |
 
 ### 2.5 Recovery, repair, apply, unlock
 
@@ -120,7 +174,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | `cr_ui_recovery_create` / `cr_ui_recovery_close` | the writer session |
 | `cr_ui_recovery_set_destination` / `cr_ui_recovery_enqueue_node` / `cr_ui_recovery_enqueue_subtree` / `cr_ui_recovery_enqueue_snapshot` (+ `_subtree_snapshot` variants) / `cr_ui_recovery_queue_count` / `cr_ui_recovery_process` / `cr_ui_recovery_get_stats` / `cr_ui_recovery_report_json` | the safe recovery writer (queue, collision policy, atomic writes, hash verify) |
 | `cr_ui_health_read` | SMART/NVMe health with the 4-status grading (Unknown/Good/Caution/Bad) |
-| `cr_ui_apply_lost_partition` / `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo` | lost-partition table apply + undo (consent-gated, D-98a..d safety registers) |
+| `cr_ui_apply_lost_partition` / `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo` | lost-partition table apply + undo (consent-gated, D-98a..d safety registers). M-137: `cr_ui_apply_candidate` carries the append-only presentation tail `disk_layout`/`disk_flags` (the og's found-partition row context, UIUX/08 §2) — zero-initialize the struct before filling |
 | `cr_ui_unlock_volume_with_dictionary` | the consented BitLocker password-dictionary aid (N-064, D-80 canonical: cr::dict's 228-entry shipped table first, then user candidates) |
 | `cr_ui_register_user_signs` / `cr_ui_user_sign_count` / `cr_ui_user_sign_info` | the user-extensible signature database (M-048) |
 | `cr_ui_carve_format_count` / `cr_ui_carve_format_info` | carve-format enumeration (N-033) |
@@ -159,8 +213,9 @@ struct cr::IStorageDevice {          // include/cr/storage/cr_device.h
 
 Everything above this seam (engines, carving, check, repair, sessions,
 writer) reads through it. Hosts provide it directly for exotic transports;
-the shipped implementations are the RDA grammar + direct PhysicalDrive/
-HarddiskVolume handles (Windows), `MemDevice` (tests), and the image
+the shipped implementations are the direct PhysicalDrive/HarddiskVolume
+handles (Windows, \\.\PhysicalDriveN under an elevated token),
+`MemDevice` (tests), and the image
 stack (flat/VMDK/VHD/VHDX, any platform). The retry pipe wraps a device
 with bounded retry + bisection and produces the `ReadErrorMap` that
 surfaces through stats/events/ABI.
@@ -234,8 +289,8 @@ inventories (S-032), and the post-processor hook (M-021).
   [error-fix-registry.md](error-fix-registry.md)).
 - Module attribution: `CR_ERRMOD_*` + operation + attempt count on every
   `ErrorRange` event (M-049) — the same triple the report carries.
-- Transport errors surface through `cr_ui_last_transport_error` after
-  fallback (M-030); scan never aborts on unreadable ranges — they become
+- Transport errors surface through `cr_ui_last_transport_error` (M-030,
+  advisory-only); scan never aborts on unreadable ranges — they become
   error-map spans that grade the affected nodes.
 
 ## 5. Stability classes

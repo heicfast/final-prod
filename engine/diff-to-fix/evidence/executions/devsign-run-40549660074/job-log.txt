@@ -1,0 +1,388 @@
+﻿2026-10-27T17:20:37.8097095Z Current runner version: '2.338.0'
+2026-10-27T17:20:37.8116377Z ##[group]Runner Image Provisioner
+2026-10-27T17:20:37.8116927Z Hosted Compute Agent
+2026-10-27T17:20:37.8117250Z Version: 20261021.618
+2026-10-27T17:20:37.8117593Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-27T17:20:37.8118071Z Build Date: 2026-10-21T00:45:21Z
+2026-10-27T17:20:37.8118492Z Worker ID: {15565fca-d8b2-4d04-a9e5-311532c5f1d3}
+2026-10-27T17:20:37.8118944Z Region: centralus
+2026-10-27T17:20:37.8119308Z Cloud: Azure
+2026-10-27T17:20:37.8119651Z ##[endgroup]
+2026-10-27T17:20:37.8120427Z ##[group]Operating System
+2026-10-27T17:20:37.8120794Z Microsoft Windows Server 2022
+2026-10-27T17:20:37.8121127Z 10.0.20348
+2026-10-27T17:20:37.8121436Z Datacenter
+2026-10-27T17:20:37.8121712Z ##[endgroup]
+2026-10-27T17:20:37.8122042Z ##[group]Runner Image
+2026-10-27T17:20:37.8122387Z Image: windows-2022
+2026-10-27T17:20:37.8122699Z Version: 20261022.344.1
+2026-10-27T17:20:37.8123590Z Included Software: https://github.com/actions/runner-images/blob/win22/20261022.344/images/windows/Windows2022-Readme.md
+2026-10-27T17:20:37.8124472Z Image Release: https://github.com/actions/runner-images/releases/tag/win22%2F20261022.344
+2026-10-27T17:20:37.8124992Z ##[endgroup]
+2026-10-27T17:20:37.8125635Z ##[group]GITHUB_TOKEN Permissions
+2026-10-27T17:20:37.8126791Z Contents: read
+2026-10-27T17:20:37.8127108Z Metadata: read
+2026-10-27T17:20:37.8127398Z ##[endgroup]
+2026-10-27T17:20:37.8128836Z Secret source: Actions
+2026-10-27T17:20:37.8129399Z Cache mode: write
+2026-10-27T17:20:37.8129790Z Prepare workflow directory
+2026-10-27T17:20:37.8359428Z Prepare all required actions
+2026-10-27T17:20:37.8400120Z Getting action download info
+2026-10-27T17:20:38.1996247Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-27T17:20:38.2781596Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-27T17:20:38.5093174Z Complete job name: driver-refusal-and-install
+2026-10-27T17:20:38.6097252Z ##[group]Run actions/checkout@v4
+2026-10-27T17:20:38.6098008Z with:
+2026-10-27T17:20:38.6098262Z   repository: heicfast/core_recovery
+2026-10-27T17:20:38.6100723Z   token: ***
+2026-10-27T17:20:38.6100961Z   ssh-strict: true
+2026-10-27T17:20:38.6101210Z   ssh-user: git
+2026-10-27T17:20:38.6101468Z   persist-credentials: true
+2026-10-27T17:20:38.6101746Z   clean: true
+2026-10-27T17:20:38.6102014Z   sparse-checkout-cone-mode: true
+2026-10-27T17:20:38.6102307Z   fetch-depth: 1
+2026-10-27T17:20:38.6102557Z   fetch-tags: false
+2026-10-27T17:20:38.6102823Z   show-progress: true
+2026-10-27T17:20:38.6103089Z   lfs: false
+2026-10-27T17:20:38.6103321Z   submodules: false
+2026-10-27T17:20:38.6103576Z   set-safe-directory: true
+2026-10-27T17:20:38.6103862Z   allow-unsafe-pr-checkout: false
+2026-10-27T17:20:38.6104253Z ##[endgroup]
+2026-10-27T17:20:38.7225762Z Syncing repository: heicfast/core_recovery
+2026-10-27T17:20:38.7226991Z ##[group]Getting Git version info
+2026-10-27T17:20:38.7227488Z Working directory is 'D:\a\core_recovery\core_recovery'
+2026-10-27T17:20:38.7766302Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-27T17:20:39.1059751Z git version 2.56.0.windows.3
+2026-10-27T17:20:39.1093770Z ##[endgroup]
+2026-10-27T17:20:39.1108163Z Temporarily overriding HOME='D:\a\_temp\0d7fa5e8-7b1f-437b-bf81-37ad6fdda598' before making global git config changes
+2026-10-27T17:20:39.1116854Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-27T17:20:39.1117666Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-27T17:20:39.1647158Z Deleting the contents of 'D:\a\core_recovery\core_recovery'
+2026-10-27T17:20:39.1650890Z ##[group]Initializing the repository
+2026-10-27T17:20:39.1658365Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\core_recovery\core_recovery
+2026-10-27T17:20:39.2311436Z Initialized empty Git repository in D:/a/core_recovery/core_recovery/.git/
+2026-10-27T17:20:39.2344577Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/heicfast/core_recovery
+2026-10-27T17:20:39.2872425Z ##[endgroup]
+2026-10-27T17:20:39.2873086Z ##[group]Disabling automatic garbage collection
+2026-10-27T17:20:39.2880093Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-27T17:20:39.3130833Z ##[endgroup]
+2026-10-27T17:20:39.3131981Z ##[group]Setting up auth
+2026-10-27T17:20:39.3139542Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-27T17:20:39.3375421Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-27T17:20:40.5608571Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-27T17:20:40.5855895Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-27T17:20:41.0072051Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-27T17:20:41.0309144Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-27T17:20:41.4305032Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-27T17:20:41.4563457Z ##[endgroup]
+2026-10-27T17:20:41.4563837Z ##[group]Fetching the repository
+2026-10-27T17:20:41.4578049Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +dd82db9db4a17c892ad4ab77168f34a793aa9dfc:refs/remotes/origin/main
+2026-10-27T17:20:43.2419118Z From https://github.com/heicfast/core_recovery
+2026-10-27T17:20:43.2419687Z  * [new ref]         dd82db9db4a17c892ad4ab77168f34a793aa9dfc -> origin/main
+2026-10-27T17:20:43.2446495Z ##[endgroup]
+2026-10-27T17:20:43.2446882Z ##[group]Determining the checkout info
+2026-10-27T17:20:43.2448418Z ##[endgroup]
+2026-10-27T17:20:43.2456052Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-27T17:20:43.2811889Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-27T17:20:43.3082484Z ##[group]Checking out the ref
+2026-10-27T17:20:43.3092082Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+2026-10-27T17:20:43.5423357Z Switched to a new branch 'main'
+2026-10-27T17:20:43.5475877Z branch 'main' set up to track 'origin/main'.
+2026-10-27T17:20:43.5514427Z ##[endgroup]
+2026-10-27T17:20:43.5888669Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-27T17:20:43.6105462Z dd82db9db4a17c892ad4ab77168f34a793aa9dfc
+2026-10-27T17:20:43.6437819Z ##[group]Run # the zip name carries the resolved tag - fetch metadata first
+2026-10-27T17:20:43.6438323Z [36;1m# the zip name carries the resolved tag - fetch metadata first[0m
+2026-10-27T17:20:43.6440136Z [36;1m$hdr = @{ Authorization = "token ***" }[0m
+2026-10-27T17:20:43.6440312Z [36;1mif ('') {[0m
+2026-10-27T17:20:43.6440621Z [36;1m  $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/tags/" -Headers $hdr[0m
+2026-10-27T17:20:43.6440922Z [36;1m} else {[0m
+2026-10-27T17:20:43.6441184Z [36;1m  $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/latest" -Headers $hdr[0m
+2026-10-27T17:20:43.6441504Z [36;1m}[0m
+2026-10-27T17:20:43.6441789Z [36;1m$zip = ($rel.assets | Where-Object { $_.name -like 'core-recovery-*.zip' } | Select-Object -First 1).name[0m
+2026-10-27T17:20:43.6442867Z [36;1mif (-not $zip) { Write-Host "::error::no core-recovery zip in $($rel.tag_name)"; exit 1 }[0m
+2026-10-27T17:20:43.6443202Z [36;1m& .github/scripts/fetch-release.ps1 -Repo heicfast/core_recovery -OutDir core `[0m
+2026-10-27T17:20:43.6443559Z [36;1m  -Required @($zip, 'MANIFEST.json', 'SHA256SUMS', 'rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1') `[0m
+2026-10-27T17:20:43.6443831Z [36;1m  $(if ('') { @('-Tag', '') })[0m
+2026-10-27T17:20:43.6443995Z [36;1mif ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-27T17:20:43.6444219Z [36;1mExpand-Archive "core\$zip" -DestinationPath core-staged -Force[0m
+2026-10-27T17:20:43.6444512Z [36;1m"CORE_TAG=$($rel.tag_name)" | Add-Content -Path $env:GITHUB_ENV -Encoding utf8[0m
+2026-10-27T17:20:43.6712603Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:43.6712878Z ##[endgroup]
+2026-10-27T17:20:44.8061342Z resolved release: heicfast/core_recovery @ v0.5.1 (latest)
+2026-10-27T17:20:47.3249051Z manifest cross-check: 5 artifact(s) verified
+2026-10-27T17:20:47.3398250Z PREBUILT-ARTIFACTS: heicfast/core_recovery @ v0.5.1 verified (5 hash-checked asset(s)) -> core
+2026-10-27T17:20:47.8560500Z ##[group]Run $rrecov = "core-staged\bin\rrecov.exe"
+2026-10-27T17:20:47.8560801Z [36;1m$rrecov = "core-staged\bin\rrecov.exe"[0m
+2026-10-27T17:20:47.8561084Z [36;1mif (-not (Test-Path $rrecov)) { Write-Host "::error::staged core missing rrecov.exe"; exit 1 }[0m
+2026-10-27T17:20:47.8561398Z [36;1m# PATH for the app-local runtime (vcpkg dlls sit beside the exe)[0m
+2026-10-27T17:20:47.8561632Z [36;1m$env:PATH = "$PWD\core-staged\bin;$env:PATH"[0m
+2026-10-27T17:20:47.8561802Z [36;1m[0m
+2026-10-27T17:20:47.8561962Z [36;1m# the driver verb: exit 4, the ABSENT class, facets all false.[0m
+2026-10-27T17:20:47.8562216Z [36;1m# (error_code prints DECIMAL in the JSON: 1342898177 == 0x500B0001)[0m
+2026-10-27T17:20:47.8562440Z [36;1m$out = & $rrecov driver --json 2>&1[0m
+2026-10-27T17:20:47.8562614Z [36;1m$code = $LASTEXITCODE[0m
+2026-10-27T17:20:47.8562761Z [36;1m$out | Write-Host[0m
+2026-10-27T17:20:47.8563025Z [36;1mif ($code -ne 4) { Write-Host "::error::driver verb: expected exit 4 (absent), got $code"; exit 1 }[0m
+2026-10-27T17:20:47.8563410Z [36;1mif (-not ($out -match '"state":"absent"')) { Write-Host "::error::driver verb: expected state absent"; exit 1 }[0m
+2026-10-27T17:20:47.8563874Z [36;1mif (-not ($out -match '"error_code":1342898177')) { Write-Host "::error::driver verb: expected ERR_DRIVER_ABSENT (0x500B0001) class surfaced"; exit 1 }[0m
+2026-10-27T17:20:47.8564207Z [36;1m[0m
+2026-10-27T17:20:47.8564371Z [36;1m# the scan verb: refusal is the WHOLE response (stderr, exit 4,[0m
+2026-10-27T17:20:47.8564580Z [36;1m# no scan output, no progress)[0m
+2026-10-27T17:20:47.8564748Z [36;1m$scanOut = & $rrecov scan --disk 0 2>&1[0m
+2026-10-27T17:20:47.8564922Z [36;1m$scanCode = $LASTEXITCODE[0m
+2026-10-27T17:20:47.8565072Z [36;1m$scanOut | Write-Host[0m
+2026-10-27T17:20:47.8565329Z [36;1mif ($scanCode -ne 4) { Write-Host "::error::scan verb: expected exit 4 refusal, got $scanCode"; exit 1 }[0m
+2026-10-27T17:20:47.8565744Z [36;1mif (-not ($scanOut -match 'driver required')) { Write-Host "::error::scan refusal must name the driver requirement"; exit 1 }[0m
+2026-10-27T17:20:47.8566103Z [36;1mif ($scanOut -match 'starting scan|stage|progress|\[transport\]') {[0m
+2026-10-27T17:20:47.8566429Z [36;1m  Write-Host "::error::the refusal must be the whole response - no scan-phase output allowed"; exit 1[0m
+2026-10-27T17:20:47.8566683Z [36;1m}[0m
+2026-10-27T17:20:47.8566920Z [36;1mWrite-Host "PHASE 1 (ABSENT): refusal contract verified - exit 4, ERR_DRIVER_ABSENT, no scan output"[0m
+2026-10-27T17:20:47.8567286Z [36;1mexit 0   # explicit: the probe commands exit 4 by design; the STEP verdict is this script's own[0m
+2026-10-27T17:20:47.8592689Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:47.8592897Z env:
+2026-10-27T17:20:47.8593161Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:47.8593282Z ##[endgroup]
+2026-10-27T17:20:48.0866618Z {"service":"RDA","state":"absent","present":"no","loaded":"no","started":"no","authorized":"no","healthy":"no","major":0,"minor":0,"required_major":1,"flags":0,"max_disks":0,"ioctl_base":0,"last_gle":2,"error":"RDA driver not installed","error_code":1342898177}
+2026-10-27T17:20:48.1015285Z rrecov: driver required - the RDA driver is not installed (service "RDA" not found).
+2026-10-27T17:20:48.1016290Z rrecov: install it from the product installer or the rda-driver release (install.ps1), then retry.
+2026-10-27T17:20:48.1017458Z rrecov: [RDA driver not installed 0x500b0001] - no operation was attempted
+2026-10-27T17:20:48.1050719Z PHASE 1 (ABSENT): refusal contract verified - exit 4, ERR_DRIVER_ABSENT, no scan output
+2026-10-27T17:20:48.1575827Z Prepare all required actions
+2026-10-27T17:20:48.1631255Z ##[group]Run ./.github/actions/install-driver
+2026-10-27T17:20:48.1631440Z with:
+2026-10-27T17:20:48.1631576Z   service: rda
+2026-10-27T17:20:48.1631692Z   driver_dir: driver
+2026-10-27T17:20:48.1631804Z env:
+2026-10-27T17:20:48.1631906Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:48.1632024Z ##[endgroup]
+2026-10-27T17:20:48.1674203Z ##[start-action display=Fetch + verify the prebuilt driver release (convention-enforced);id=__self.resolve]
+2026-10-27T17:20:48.1764379Z ##[group]Run # expression-bound parameters (the $args-array token form binds
+2026-10-27T17:20:48.1764709Z [36;1m# expression-bound parameters (the $args-array token form binds[0m
+2026-10-27T17:20:48.1764998Z [36;1m# -Required's values positionally and fails); -Required accepts the[0m
+2026-10-27T17:20:48.1765235Z [36;1m# comma-joined string form in the script[0m
+2026-10-27T17:20:48.1765508Z [36;1m$req = 'rda.sys,rda.inf,install.ps1,uninstall.ps1,SHA256SUMS'[0m
+2026-10-27T17:20:48.1765717Z [36;1mif ('') {[0m
+2026-10-27T17:20:48.1765938Z [36;1m  & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir 'driver' `[0m
+2026-10-27T17:20:48.1766222Z [36;1m    -Required $req -FloorVersion v0.2.1 -Tag ''[0m
+2026-10-27T17:20:48.1766398Z [36;1m} else {[0m
+2026-10-27T17:20:48.1766604Z [36;1m  & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir 'driver' `[0m
+2026-10-27T17:20:48.1766859Z [36;1m    -Required $req -FloorVersion v0.2.1[0m
+2026-10-27T17:20:48.1767020Z [36;1m}[0m
+2026-10-27T17:20:48.1767151Z [36;1mif ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-27T17:20:48.1767385Z [36;1m$rec = Get-Content 'driver\resolved-release.json' -Raw | ConvertFrom-Json[0m
+2026-10-27T17:20:48.1767621Z [36;1m"tag=$($rec.tag)" >> $env:GITHUB_OUTPUT[0m
+2026-10-27T17:20:48.1793445Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:48.1793646Z env:
+2026-10-27T17:20:48.1793769Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:48.1793891Z ##[endgroup]
+2026-10-27T17:20:48.7324398Z resolved release: heicfast/rda-driver @ v0.2.2 (latest)
+2026-10-27T17:20:51.0356057Z   (sums line for absent non-required asset 'LICENSE' - reported, not skipped silently)
+2026-10-27T17:20:51.0467952Z   (sums line for absent non-required asset 'README.md' - reported, not skipped silently)
+2026-10-27T17:20:51.0473088Z   (sums line for absent non-required asset 'signing.md' - reported, not skipped silently)
+2026-10-27T17:20:51.0479218Z   (sums line for absent non-required asset 'testing.md' - reported, not skipped silently)
+2026-10-27T17:20:51.0484344Z   (sums line for absent non-required asset 'win7-compat.md' - reported, not skipped silently)
+2026-10-27T17:20:51.0684970Z PREBUILT-ARTIFACTS: heicfast/rda-driver @ v0.2.2 verified (6 hash-checked asset(s)) -> driver
+2026-10-27T17:20:51.1232619Z ##[end-action id=__self.resolve;outcome=success;conclusion=success;duration_ms=2955]
+2026-10-27T17:20:51.1247074Z ##[start-action display=Test-sign + install + start the driver (service 'rda');id=__self.__run]
+2026-10-27T17:20:51.1327984Z ##[group]Run $ErrorActionPreference = 'Stop'
+2026-10-27T17:20:51.1328238Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-27T17:20:51.1328598Z [36;1m# job-local code-signing cert (the proven runner mechanism: no[0m
+2026-10-27T17:20:51.1328846Z [36;1m# test-signing boot mode required on windows-2022)[0m
+2026-10-27T17:20:51.1329133Z [36;1m$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-CI" `[0m
+2026-10-27T17:20:51.1329441Z [36;1m  -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `[0m
+2026-10-27T17:20:51.1329676Z [36;1m  -CertStoreLocation Cert:\LocalMachine\My[0m
+2026-10-27T17:20:51.1329921Z [36;1m$pw = ConvertTo-SecureString -String 'rrecov-ci' -Force -AsPlainText[0m
+2026-10-27T17:20:51.1330400Z [36;1mExport-PfxCertificate -Cert $cert -FilePath rda-ci.pfx*** | Out-Null[0m
+2026-10-27T17:20:51.1332113Z [36;1mExport-Certificate -Cert $cert -FilePath rda-ci.cer | Out-Null[0m
+2026-10-27T17:20:51.1332456Z [36;1mImport-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null[0m
+2026-10-27T17:20:51.1332866Z [36;1mImport-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null[0m
+2026-10-27T17:20:51.1333258Z [36;1m$signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |[0m
+2026-10-27T17:20:51.1333564Z [36;1m  Sort-Object FullName -Descending | Select-Object -First 1[0m
+2026-10-27T17:20:51.1333846Z [36;1m& $signtool.FullName sign /fd SHA256 /f rda-ci.pfx /p rrecov-ci 'driver\rda.sys'[0m
+2026-10-27T17:20:51.1334093Z [36;1mif ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-27T17:20:51.1334319Z [36;1m# the release's own installer (sc create type= kernel start= demand)[0m
+2026-10-27T17:20:51.1334588Z [36;1mpowershell -ExecutionPolicy Bypass -File 'driver\install.ps1' `[0m
+2026-10-27T17:20:51.1334855Z [36;1m  -ServiceName 'rda' -Source "$PWD\driver\rda.sys" -IoctlBase 0[0m
+2026-10-27T17:20:51.1335065Z [36;1mif ($LASTEXITCODE -ne 0) {[0m
+2026-10-27T17:20:51.1335373Z [36;1m  Write-Host "install.ps1 failed ($LASTEXITCODE) - manual sc.exe fallback (the proven path from the api-benchmark lane)"[0m
+2026-10-27T17:20:51.1335758Z [36;1m  Copy-Item 'driver\rda.sys' "$env:SystemRoot\System32\drivers\rda.sys" -Force[0m
+2026-10-27T17:20:51.1336124Z [36;1m  sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"[0m
+2026-10-27T17:20:51.1336429Z [36;1m  if ($LASTEXITCODE -ne 0) { exit 1 }[0m
+2026-10-27T17:20:51.1336586Z [36;1m}[0m
+2026-10-27T17:20:51.1336835Z [36;1msc.exe start rda[0m
+2026-10-27T17:20:51.1337000Z [36;1mif ($LASTEXITCODE -ne 0) {[0m
+2026-10-27T17:20:51.1337153Z [36;1m  sc.exe query rda[0m
+2026-10-27T17:20:51.1337387Z [36;1m  Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host[0m
+2026-10-27T17:20:51.1337628Z [36;1m  exit 1[0m
+2026-10-27T17:20:51.1337737Z [36;1m}[0m
+2026-10-27T17:20:51.1337890Z [36;1m# layer-1 evidence: service RUNNING + control device opens[0m
+2026-10-27T17:20:51.1338118Z [36;1m$svc = sc.exe query rda | Select-String 'RUNNING'[0m
+2026-10-27T17:20:51.1338364Z [36;1mif (-not $svc) { Write-Host "service not RUNNING after start"; exit 1 }[0m
+2026-10-27T17:20:51.1338615Z [36;1m$h = [IO.File]::Open('\\.\rda', 'Open', 'Read', 'ReadWrite')[0m
+2026-10-27T17:20:51.1338804Z [36;1m$h.Close()[0m
+2026-10-27T17:20:51.1339000Z [36;1mWrite-Host "driver installed: service RUNNING + control device open OK"[0m
+2026-10-27T17:20:51.1364415Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:51.1364612Z env:
+2026-10-27T17:20:51.1364727Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:51.1364870Z ##[endgroup]
+2026-10-27T17:20:52.8138864Z Done Adding Additional Store
+2026-10-27T17:20:52.8514581Z Successfully signed: driver\rda.sys
+2026-10-27T17:20:52.8514868Z 
+2026-10-27T17:20:56.3655913Z D:\a\core_recovery\core_recovery\driver\install.ps1 : You cannot call a method on a null-valued expression.
+2026-10-27T17:20:56.3656329Z     + CategoryInfo          : InvalidOperation: (:) [install.ps1], RuntimeException
+2026-10-27T17:20:56.3657828Z     + FullyQualifiedErrorId : InvokeMethodOnNull,install.ps1
+2026-10-27T17:20:56.3658027Z  
+2026-10-27T17:20:56.4036445Z install.ps1 failed (1) - manual sc.exe fallback (the proven path from the api-benchmark lane)
+2026-10-27T17:20:56.4146272Z [SC] CreateService SUCCESS
+2026-10-27T17:20:56.4269741Z 
+2026-10-27T17:20:56.4270246Z SERVICE_NAME: rda 
+2026-10-27T17:20:56.4270532Z         TYPE               : 1  KERNEL_DRIVER  
+2026-10-27T17:20:56.4270790Z         STATE              : 4  RUNNING 
+2026-10-27T17:20:56.4271078Z                                 (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+2026-10-27T17:20:56.4271406Z         WIN32_EXIT_CODE    : 0  (0x0)
+2026-10-27T17:20:56.4271639Z         SERVICE_EXIT_CODE  : 0  (0x0)
+2026-10-27T17:20:56.4273081Z         CHECKPOINT         : 0x0
+2026-10-27T17:20:56.4273356Z         WAIT_HINT          : 0x0
+2026-10-27T17:20:56.4273595Z         PID                : 0
+2026-10-27T17:20:56.4273843Z         FLAGS              : 
+2026-10-27T17:20:56.4439990Z driver installed: service RUNNING + control device open OK
+2026-10-27T17:20:56.4929220Z ##[end-action id=__self.__run;outcome=success;conclusion=success;duration_ms=5368]
+2026-10-27T17:20:56.5043018Z ##[group]Run $rrecov = "core-staged\bin\rrecov.exe"
+2026-10-27T17:20:56.5043327Z [36;1m$rrecov = "core-staged\bin\rrecov.exe"[0m
+2026-10-27T17:20:56.5043525Z [36;1m$env:PATH = "$PWD\core-staged\bin;$env:PATH"[0m
+2026-10-27T17:20:56.5043716Z [36;1m$out = & $rrecov driver --json 2>&1[0m
+2026-10-27T17:20:56.5043888Z [36;1m$code = $LASTEXITCODE[0m
+2026-10-27T17:20:56.5044033Z [36;1m$out | Write-Host[0m
+2026-10-27T17:20:56.5044280Z [36;1mif ($code -ne 0) { Write-Host "::error::driver verb: expected exit 0 (ready), got $code"; exit 1 }[0m
+2026-10-27T17:20:56.5044608Z [36;1mforeach ($facet in @('"present":"yes"','"loaded":"yes"','"started":"yes"',[0m
+2026-10-27T17:20:56.5044857Z [36;1m                     '"authorized":"yes"','"healthy":"yes"')) {[0m
+2026-10-27T17:20:56.5045088Z [36;1m  if (-not ($out -match [regex]::Escape($facet))) {[0m
+2026-10-27T17:20:56.5045307Z [36;1m    Write-Host "::error::facet not green: $facet"; exit 1[0m
+2026-10-27T17:20:56.5045521Z [36;1m  }[0m
+2026-10-27T17:20:56.5045628Z [36;1m}[0m
+2026-10-27T17:20:56.5045834Z [36;1mif (-not ($out -match '"state":"ready"')) { Write-Host "::error::expected state ready"; exit 1 }[0m
+2026-10-27T17:20:56.5046106Z [36;1m& $rrecov driver > driver-status-ready.txt[0m
+2026-10-27T17:20:56.5046317Z [36;1mGet-Content driver-status-ready.txt | Write-Host[0m
+2026-10-27T17:20:56.5046560Z [36;1m# the scan proceeds past the gate (it will fail later for lack of a[0m
+2026-10-27T17:20:56.5046821Z [36;1m# usable disk target - any rc EXCEPT 4 proves the gate passed)[0m
+2026-10-27T17:20:56.5047070Z [36;1m$scan = & $rrecov scan --disk 99 2>&1   # disk 99 does not exist[0m
+2026-10-27T17:20:56.5047270Z [36;1m$scanCode = $LASTEXITCODE[0m
+2026-10-27T17:20:56.5047421Z [36;1m$scan | Write-Host[0m
+2026-10-27T17:20:56.5047728Z [36;1mif ($scanCode -eq 4) { Write-Host "::error::scan refused with a DRIVER class on a Ready driver - a target error was expected"; exit 1 }[0m
+2026-10-27T17:20:56.5048172Z [36;1mWrite-Host "PHASE 2 (READY): all facets green; scan proceeds past the driver gate (target rc=$scanCode)"[0m
+2026-10-27T17:20:56.5048532Z [36;1mexit 0   # explicit: the facet probes + the target-error scan exit non-zero BY DESIGN[0m
+2026-10-27T17:20:56.5074294Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:56.5074496Z env:
+2026-10-27T17:20:56.5074618Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:56.5074735Z ##[endgroup]
+2026-10-27T17:20:56.7359720Z {"service":"RDA","state":"ready","present":"yes","loaded":"yes","started":"yes","authorized":"yes","healthy":"yes","major":1,"minor":0,"required_major":1,"flags":2,"max_disks":200,"ioctl_base":0,"last_gle":0,"error":"OK","error_code":0}
+2026-10-27T17:20:56.7633008Z driver service "RDA" (data-path prerequisite, docs/DRIVER-REQUIRED.md):
+2026-10-27T17:20:56.7635697Z   present:     yes   (service installed)
+2026-10-27T17:20:56.7638541Z   loaded:      yes   (service running)
+2026-10-27T17:20:56.7641756Z   started:     yes   (control device opens)
+2026-10-27T17:20:56.7644869Z   authorized:  yes   (open not denied by the device DACL)
+2026-10-27T17:20:56.7647852Z   healthy:     yes   (GET_INFO + GET_VERSION consistent)
+2026-10-27T17:20:56.7651454Z   version:     1.0 (core requires major 1)
+2026-10-27T17:20:56.7653776Z   capabilities: flags=2 max_disks=200 ioctl_base=0x0
+2026-10-27T17:20:56.7656942Z   state:       ready
+2026-10-27T17:20:56.7736136Z [transport] cannot open disk 99 through RDA (rc=50020001 open failed): write/device access denied even elevated - device busy, locked, protected or the disk number is out of range
+2026-10-27T17:20:56.7753151Z PHASE 2 (READY): all facets green; scan proceeds past the driver gate (target rc=1)
+2026-10-27T17:20:56.8240181Z ##[group]Run sc.exe stop rda | Out-Null
+2026-10-27T17:20:56.8240464Z [36;1msc.exe stop rda | Out-Null[0m
+2026-10-27T17:20:56.8240630Z [36;1mStart-Sleep -Seconds 2[0m
+2026-10-27T17:20:56.8240798Z [36;1m$rrecov = "core-staged\bin\rrecov.exe"[0m
+2026-10-27T17:20:56.8240999Z [36;1m$env:PATH = "$PWD\core-staged\bin;$env:PATH"[0m
+2026-10-27T17:20:56.8241195Z [36;1m$out = & $rrecov driver --json 2>&1[0m
+2026-10-27T17:20:56.8241368Z [36;1m$code = $LASTEXITCODE[0m
+2026-10-27T17:20:56.8241520Z [36;1m$out | Write-Host[0m
+2026-10-27T17:20:56.8241787Z [36;1mif ($code -ne 4) { Write-Host "::error::driver verb: expected exit 4 (not-started), got $code"; exit 1 }[0m
+2026-10-27T17:20:56.8242185Z [36;1mif (-not ($out -match '"state":"not-started"')) { Write-Host "::error::expected state not-started"; exit 1 }[0m
+2026-10-27T17:20:56.8242678Z [36;1mif (-not ($out -match '"error_code":1342898178')) { Write-Host "::error::expected ERR_DRIVER_NOT_STARTED (0x500B0002) class surfaced"; exit 1 }[0m
+2026-10-27T17:20:56.8243071Z [36;1mWrite-Host "PHASE 3 (NOT_STARTED): refusal class verified"[0m
+2026-10-27T17:20:56.8243269Z [36;1mexit 0[0m
+2026-10-27T17:20:56.8268908Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:56.8269122Z env:
+2026-10-27T17:20:56.8269244Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:56.8269371Z ##[endgroup]
+2026-10-27T17:20:59.0502443Z {"service":"RDA","state":"not-started","present":"yes","loaded":"no","started":"no","authorized":"no","healthy":"no","major":0,"minor":0,"required_major":1,"flags":0,"max_disks":0,"ioctl_base":0,"last_gle":2,"error":"RDA driver service not running","error_code":1342898178}
+2026-10-27T17:20:59.0542623Z PHASE 3 (NOT_STARTED): refusal class verified
+2026-10-27T17:20:59.0998511Z ##[group]Run $driverTag = '<not-fetched>'
+2026-10-27T17:20:59.0998783Z [36;1m$driverTag = '<not-fetched>'[0m
+2026-10-27T17:20:59.0998986Z [36;1mif (Test-Path driver\resolved-release.json) {[0m
+2026-10-27T17:20:59.0999290Z [36;1m  $driverTag = (Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json).tag[0m
+2026-10-27T17:20:59.0999565Z [36;1m}[0m
+2026-10-27T17:20:59.0999686Z [36;1m[ordered]@{[0m
+2026-10-27T17:20:59.0999821Z [36;1m  runner_image  = $env:ImageOS[0m
+2026-10-27T17:20:59.1000011Z [36;1m  toolchain     = "MSVC on runner; core $env:CORE_TAG"[0m
+2026-10-27T17:20:59.1000205Z [36;1m  driver_tag    = $driverTag[0m
+2026-10-27T17:20:59.1000360Z [36;1m  core_tag      = $env:CORE_TAG[0m
+2026-10-27T17:20:59.1000565Z [36;1m  phases        = 'absent -> ready -> not-started (S-DRV-REFUSE)'[0m
+2026-10-27T17:20:59.1000809Z [36;1m} | ConvertTo-Json | Set-Content env-manifest.json[0m
+2026-10-27T17:20:59.1001071Z [36;1mGet-Content env-manifest.json | Write-Host[0m
+2026-10-27T17:20:59.1026383Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:59.1026610Z env:
+2026-10-27T17:20:59.1026736Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:59.1026865Z ##[endgroup]
+2026-10-27T17:20:59.3389587Z {
+2026-10-27T17:20:59.3392840Z   "runner_image": "win22",
+2026-10-27T17:20:59.3395387Z   "toolchain": "MSVC on runner; core v0.5.1",
+2026-10-27T17:20:59.3397824Z   "driver_tag": "v0.2.2",
+2026-10-27T17:20:59.3400294Z   "core_tag": "v0.5.1",
+2026-10-27T17:20:59.3404104Z   "phases": "absent -> ready -> not-started (S-DRV-REFUSE)"
+2026-10-27T17:20:59.3406855Z }
+2026-10-27T17:20:59.3847968Z ##[group]Run sc.exe stop rda 2>$null | Out-Null
+2026-10-27T17:20:59.3848275Z [36;1msc.exe stop rda 2>$null | Out-Null[0m
+2026-10-27T17:20:59.3848451Z [36;1msc.exe delete rda 2>$null | Out-Null[0m
+2026-10-27T17:20:59.3848733Z [36;1mRemove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue[0m
+2026-10-27T17:20:59.3873461Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-27T17:20:59.3873661Z env:
+2026-10-27T17:20:59.3873776Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:59.3873895Z ##[endgroup]
+2026-10-27T17:20:59.6573377Z ##[group]Run actions/upload-artifact@v4
+2026-10-27T17:20:59.6573599Z with:
+2026-10-27T17:20:59.6573750Z   name: driver-install-evidence-40549660074
+2026-10-27T17:20:59.6574065Z   path: env-manifest.json
+driver\resolved-release.json
+core\resolved-release.json
+driver-status-ready.txt
+
+2026-10-27T17:20:59.6574360Z   if-no-files-found: error
+2026-10-27T17:20:59.6574502Z   compression-level: 6
+2026-10-27T17:20:59.6574624Z   overwrite: false
+2026-10-27T17:20:59.6574749Z   include-hidden-files: false
+2026-10-27T17:20:59.6574882Z env:
+2026-10-27T17:20:59.6574988Z   CORE_TAG: v0.5.1
+2026-10-27T17:20:59.6575100Z ##[endgroup]
+2026-10-27T17:20:59.7993701Z (node:8100) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-27T17:20:59.7994126Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-27T17:20:59.8050039Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-27T17:20:59.8052292Z The least common ancestor is D:\a\core_recovery\core_recovery. This will be the root directory of the artifact
+2026-10-27T17:20:59.8052821Z With the provided path, there will be 4 files uploaded
+2026-10-27T17:20:59.8056141Z Artifact name is valid!
+2026-10-27T17:20:59.8057141Z Root directory input is valid!
+2026-10-27T17:21:00.1169431Z Beginning upload of artifact content to blob storage
+2026-10-27T17:21:00.1325687Z (node:8100) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-27T17:21:00.2800893Z Uploaded bytes 1444
+2026-10-27T17:21:00.3238157Z Finished uploading artifact content to blob storage!
+2026-10-27T17:21:00.3238767Z SHA256 digest of uploaded artifact zip is 7e62ae2da471fbabe5adec2545dc78cf3665b9823d636eed61f2fc5e91cbf7cd
+2026-10-27T17:21:00.3240183Z Finalizing artifact upload
+2026-10-27T17:21:00.7705782Z Artifact driver-install-evidence-40549660074.zip successfully finalized. Artifact ID 12753284086
+2026-10-27T17:21:00.7706321Z Artifact driver-install-evidence-40549660074 has been successfully uploaded! Final size is 1444 bytes. Artifact ID is 12753284086
+2026-10-27T17:21:00.7713955Z Artifact download URL: https://github.com/heicfast/core_recovery/actions/runs/40549660074/artifacts/12753284086
+2026-10-27T17:21:00.7966046Z Post job cleanup.
+2026-10-27T17:21:00.9123466Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-27T17:21:00.9343712Z git version 2.56.0.windows.3
+2026-10-27T17:21:00.9391314Z Temporarily overriding HOME='D:\a\_temp\b00daafd-862b-40f1-bafc-cf3ce94bc8fa' before making global git config changes
+2026-10-27T17:21:00.9391961Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-27T17:21:00.9399608Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-27T17:21:00.9652306Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-27T17:21:00.9899909Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-27T17:21:01.4122177Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-27T17:21:01.4334456Z http.https://github.com/.extraheader
+2026-10-27T17:21:01.4368980Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-27T17:21:01.4610434Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-27T17:21:01.8817167Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-27T17:21:01.9068681Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-27T17:21:02.3349035Z Cleaning up orphan processes
+2026-10-27T17:21:02.3465969Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

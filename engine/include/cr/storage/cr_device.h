@@ -44,11 +44,19 @@ struct Geometry {
     u64 total_bytes = 0;     /* derived size in bytes */
     u32 logical_sector = 0;  /* bytes per logical sector (512 / 4096) */
     u32 physical_sector = 0; /* bytes per physical sector (512e reports 4096) */
-    u64 sector_count = 0;    /* total_bytes / logical_sector */
+    u64 sector_count = 0;    /* CEIL(total_bytes / logical_sector) - N-206 */
 
+    /* N-206: the sector count is the og's geometry-EX CEIL form
+     * (Device_decompiled.c:56536-56538: (L-1+ss)/ss, the 0x7405C result
+     * overwriting the 0x74004 floor) - the final partial sector of a
+     * non-sector-multiple source is ADDRESSABLE, driver-padded. The
+     * validity range is therefore the ceil window: the byte size lies
+     * in ((count-1)*ss, count*ss]. Sector-multiple sources (real disks)
+     * sit at the exact top of the window - unchanged behavior. */
     constexpr bool valid() const {
         return logical_sector != 0 && physical_sector != 0 && total_bytes != 0 &&
-               sector_count != 0 && total_bytes == sector_count * logical_sector;
+               sector_count != 0 && total_bytes <= sector_count * logical_sector &&
+               total_bytes > (sector_count - 1) * logical_sector;
     }
     /* 4Kn and 512e reporting. */
     constexpr bool is_4kn() const { return logical_sector >= 4096; }

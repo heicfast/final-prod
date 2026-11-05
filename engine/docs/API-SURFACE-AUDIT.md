@@ -2,7 +2,8 @@
 
 > Session: core-api (2026-10-26). Baselines: core `e6d5b01`, driver `7e88e38`,
 > corpus `03ad46c`. Method: four parallel read-legs covered the corpus
-> (driver usage, API-facing behavior), the driver repo, and the core repo;
+> (driver usage, API-facing behavior), the then-extant driver repo (the
+> historical companion, removed since), and the core repo;
 > every load-bearing claim below was then re-verified first-hand in code or
 > corpus artifact. Citations: `path:line` / `path §section`. Nothing here is
 > projected from memory.
@@ -29,9 +30,20 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 61 exports, `CR_UI_ABI_VERSION = 2` (v2: M-036 appended cr_ui_smart_report fields), opaque handles, `cr_error`
+`libcr_ui.so`): 92 exports (re-derived 2026-10-30, session-96: 95
+CR_UI_API lines - 3 #defines; the cr_ui_driver_status export was REMOVED
+with the driver-era kernel component - the ABI bumped v3 -> v4 for the
+removal; the
+doc_truth_gate count invariants hold these in CI now - the "as of
+<landing>" snapshot phrasing retired with the gate, it is how stale
+counts hid)
+(`CR_UI_ABI_VERSION = 4` — v2: M-036 appended cr_ui_smart_report fields; v3:
+M-067 the cr_ui_user_sign field resize; v4: session-96 removed the
+driver-era cr_ui_driver_status export with the kernel driver; the
+audit-time counts were 61 exports @ ABI 2), opaque handles, `cr_error`
 returns, UTF-8 strings with documented ownership, no exceptions across the
-boundary (verified: `include/cr/cr_ui.h:69-705`, all `CR_UI_API` decls; the
+boundary (verified against `include/cr/cr_ui.h` `CR_UI_API` decls;
+the
 in-proc single-library binding model is the documented equivalent of the og's
 in-proc factory model — `docs/architecture.md`, "the shim binds, not hosts").
 
@@ -91,7 +103,7 @@ engine boundary — a C host composes it from existing exports).
 | # | Reference operation | Core equivalent | Verdict | Notes |
 |---|---|---|---|---|
 | 25 | Preview open (per-type stubs, tri-state) | `cr_ui_preview_open_session/_snapshot` | **MATCH** | private-props copy; device must outlive (F-1 basis rule verified cr_ui.cpp:2071-2106) |
-| 26 | Preview stream read (`IInWindowStream`) | `cr_ui_preview_read` | **MATCH** | 4 MiB/call cap, short only at EOF, unreadable spans reported (cr_preview.cpp:19-25). og's 100 MB/15 s caps are UI-policy (host-side), NOT IN CORPUS as engine limits |
+| 26 | Preview stream read (bounded range reader - N-088: no og-named contract; M-028 proved `IInWindowStream` is the 7-Zip/LZMA SDK input interface) | `cr_ui_preview_read` | **MATCH** | 4 MiB/call cap, short only at EOF, unreadable spans reported (cr_preview.cpp:19-25). og's 100 MB/15 s caps are UI-policy (host-side), NOT IN CORPUS as engine limits |
 | 27 | Media thumbnail IPC (TCP 20171) | n/a — UI-process internals | **N/A-by-layer** | og's video-preview child-process IPC; not an engine-boundary operation |
 | 28 | Choose destination (source-volume hard block) | `cr_ui_recovery_set_destination` + F12 overlap refusal | **MATCH+** | og blocks same-volume by raw `\\.\X:` open (04-recovery-workflow.md §7.3); core refuses overlap deterministically via `volume_extent` (ERR_DEST_OVERLAP) — registered superset |
 | 29 | Recover/export (per-target loop, ACL restore, failure log) | `cr_ui_recovery_create/enqueue_*/process/get_stats/report_json` | **MATCH** | og's per-file overwrite policy NOT IN CORPUS; core exposes conflict modes (rename/skip/overwrite) + rename_attempts=64 default. ACL restoration = N-009d (open, tracked). Report: G-09 schema-versioned JSON |
@@ -122,10 +134,10 @@ engine boundary — a C host composes it from existing exports).
 |---|---|---|---|
 | A-ABI-1 | **Versioning policy contradiction**: `cr_ui.h:40-42` says "new functions and appended struct fields bump [ABI version] too"; `docs/ABI-CONTRACT.md` §9 says adding exports = no bump. Header wins by ABI-CONTRACT's own preamble — but the header is the wrong side. | HIGH (blocks every future export decision, incl. §2.1 #7-#8) | adopt the ABI-CONTRACT §9 policy (append-only = compatible = no bump; remove/rename/re-semanticize = bump); correct the header comment. This matches the og's practice: the og added exports across versions without a versioned ABI at all |
 | A-ABI-2 | **SQLite session sidecar documented-but-absent**: ABI-CONTRACT §8 + §5 ("scan_save_session also writes the sidecar index") describe a feature with zero implementation (grep: no sqlite anywhere in src/). GAP-S6-12 register row says MISSING. | HIGH (a normative contract claim that is false) | **CUT the claim.** The reference has no sidecar index — .rsf records ARE the session store (corpus rsf-format §2-§5). Per mandate ("do not invent operations the reference does not have"; "removing an invented degradation path… is required"), the doc is corrected and GAP-S6-12 is closed as REJECTED-BY-REFERENCE with corpus cite |
-| A-ABI-3 | Export-count drift: docs say "57 exports" (UI-READINESS-PLAN.md:48, RELEASE-NOTES.md:17); actual 61 | LOW | refresh counts |
+| A-ABI-3 | RETIRED-EXECUTED (N-150, the S56 lane): the export count is now DERIVED from the header by the doc_truth_gate count invariants (86 at the 2026-10-29 re-derive) - drift of this class fails CI, the audit row's "refresh counts" action is automated | LOW | closed by automation |
 | A-ABI-4 | ABI-CONTRACT §5 names nonexistent functions (`session_disk_map`, `scan_disk_map`) | LOW | fix names to `cr_ui_disk_map` |
 | A-ABI-5 | ABI-CONTRACT §6 claims events fire "on the thread running run() only" vs. header truth (worker threads allowed) | MEDIUM (threading contract is load-bearing for hosts) | header wins; fix doc |
-| A-ABI-6 | `codeql` lane disabled (`if: false`) in ci.yml:174-175 while RELEASE-NOTES.md:71 claims "CodeQL clean" | MEDIUM | re-enable or re-word the claim honestly |
+| A-ABI-6 | `codeql` lane disabled (`if: false`) in ci.yml:174-175 while RELEASE-NOTES.md:71 claimed "CodeQL clean" | MEDIUM | **RESOLVED — api-exp S3-1 truth pass (this session, first-hand re-verified)**: the RELEASE-NOTES claim is GONE at this tree (grep: zero CodeQL hits anywhere in RELEASE-NOTES.md; line 71 is now the Win7 import-gate bullet) and the lane deferral IS the recorded decision (ci.yml:173-175 "recorded, not silent" + CI-CURRENT.md:115) — no false claim stands; re-enabling the lane stays an owner-lane option, recorded not silent |
 
 ## 4. C consumer test coverage (the `/W4 /WX` gate)
 
@@ -149,8 +161,9 @@ verify_identity positive path + completed-session no-op run, non-Windows
 
 **Windows-only surfaces** (open_disk/open_volume/enumerate/health) are
 exercised on the Windows lane via the platform-truth probes and, against
-real disks with the driver loaded, by the bench harness (verify-driver.ps1,
-run-behavior.ps1, alignbench). The mid-run cross-thread cancel/pause
+real disks on the elevated runner (the access model since session-96), by
+the bench harness (run-behavior.ps1 — probe 1 is the unelevated-refusal
+probe — run-alignbench.ps1). The mid-run cross-thread cancel/pause
 semantics live in the C++ suite (std::thread; CancelSaveAndResume,
 PauseBlocksAndResumes) per the documented threading split.
 
@@ -167,15 +180,17 @@ PauseBlocksAndResumes) per the documented threading split.
    `Query.PathPrefixFilterMatchesAndPrunes` + ABI + C-consumer blocks; tag
    group documented NOT-EXPOSED (D-53 lineage).
 5. **DONE** — Doc drifts A-ABI-3/4/5 fixed (export counts, §5 names, §6
-   threading); A-ABI-6 (codeql `if: false` vs the RELEASE-NOTES claim)
-   remains open — a policy decision for the repo owner (re-enable the lane
-   or re-word the claim), flagged in the audit's findings table.
+   threading); A-ABI-6 closed at the api-exp S3-1 truth pass: the
+   RELEASE-NOTES claim is gone at this tree and the deferral is the
+   recorded decision (ci.yml:173-175 + CI-CURRENT.md:115) — re-enabling
+   the lane remains an owner-lane option, recorded not silent.
 6. **DONE** — C-consumer expansion (§4 above).
 7. M-023 (category taxonomy) remains engine-scope, tracked in diff-to-fix —
    not blocking this session's API completion (D-55 registers it honestly).
 
 Post-session statuses: ops #7/#8 → MATCH; op #20 → MATCH on 6-of-7 groups
 (tag NOT-EXPOSED with rationale); every cross-platform ABI export family has
-C-consumer coverage. Remaining tracked items: M-023 (engine scope), A-ABI-6
-(codeql policy), Windows-only-surface real-disk coverage rides the bench
-harness.
+C-consumer coverage. Remaining tracked items: M-023 (engine scope) and
+Windows-only-surface real-disk coverage rides the bench harness (A-ABI-6
+closed at S3-1; the codeql deferral itself stays recorded in CI-CURRENT
+§7).

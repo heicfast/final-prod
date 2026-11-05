@@ -119,6 +119,342 @@ enum FormatId : u32 {
      * lowercase CAB key; it shares validate_cab with FMT_CAB. Id APPENDED
      * (serialized carve_format values stay stable). */
     FMT_CAB_LC,
+    /* S-037 (diff-to-fix): the og's registry binds FreeHand 11 (key 0x11C
+     * -> BruteForce::CFH11Analyser, id 0x1d; decompile:1952-1961) and the
+     * three Corel PhotoPaint generations CPT7/CPT8/CPT9 (keys
+     * 0x37545043/0x38545043/0x39545043 -> RawSpeed::CPTAnalyser + the
+     * FileCPTAnalyser fallback, census :93/:128) - both were absent from
+     * every core format list. All APPENDED (serialized carve_format
+     * values stay stable). */
+    FMT_FH11,
+    FMT_CPT7,
+    FMT_CPT8,
+    FMT_CPT9,
+    /* S-007 niche batch 1 (SCAN-2f): the og-only keyed formats absent from
+     * every core list - each key re-read first-hand at its RAWSearchDLL
+     * registration site (retdec decompile, the static initializer at
+     * :5450-6600 + the u16 layer at :6205-6590) before this row landed.
+     * All APPENDED (serialized carve_format values stay stable).
+     * Multi-key formats keep the og's duplicate-key policy (one row per
+     * key, shared validator - MRW/HLP/WMF mirror the og's separate
+     * registrations; census :127 "deliberate registry bloat"). */
+    FMT_MID, /* "MThd" 0x6468544d -> MIDAnalyser+FileMID, idx 38 */
+    FMT_OGG, /* "OggS" 0x5367674f -> OGGAnalyser+CFileOgg, idx 82 */
+    FMT_RM,  /* ".RMF" 0x464d522e -> RM_RMVB chain, idx 94 */
+    FMT_MXF, /* 06 0E 2B 34 0x342b0e06 -> MXFAnalyser, idx 120 */
+    FMT_DMG, /* "BZh1" 0x31685a42 -> DMG chain, idx 113 (level-1 bzip2) */
+    FMT_X3F, /* "FOVb" 0x62564f46 -> X3F chain, idx 108 */
+    FMT_CRW, /* II\x1A\x00 0x001a4949 -> Brance::CRWAnalyser/FileCRW, id 0x12 (M-081/SCAN-4: Canon
+                CIFF, NOT MRW) */
+    FMT_CRW_MM,  /* MM\x1A\x00 0x001a4d4d -> the CRW chain's BE sibling key (M-081/SCAN-4) */
+    FMT_MRW,     /* \x00MRM 0x004d524d -> FileMRWAnalyser, idx 102, id 0x66 (the ONLY true MRW key -
+                    M-081/SCAN-4) */
+    FMT_WPG,     /* "wpg\0" 0x00677077 -> FileInfo {min 20, max 0x5F5E100}, stamp 69 */
+    FMT_WPD,     /* \xFFWPC 0x435057ff -> FileWPDAnalyser, idx 68 */
+    FMT_PSP,     /* "Pain" 0x6e696150 -> PSPAnalyser chain, idx 55 */
+    FMT_SIT,     /* "Stuf" 0x66757453 -> SIT chain, idx 93 */
+    FMT_GZ,      /* u16 0x8B1F (1F 8B) -> GZAnalyzer+FileGZ, idx 39 */
+    FMT_APE,     /* "MAC " 0x2043414d -> CAPEAnalyser, idx 81 */
+    FMT_AU,      /* ".snd" 0x646e732e -> FileAUAnalyser, idx 9 */
+    FMT_AIFF,    /* "FORM" 0x4d524f46 -> CFileAIFAnalyzer, idx 80 */
+    FMT_LOWDOC,  /* DB A5 2D 00 0x002da5db -> FileLowDocAnalyser, id 0x17 (SCAN-4: old-Word .doc
+                    family, NOT HLP) */
+    FMT_LOWDOC2, /* 94 A6 2E 00 0x002ea694 -> FileLowDocAnalyser, id 0x17 (second key) */
+    FMT_HLP, /* 3F 5F 03 00 0x00035f3f -> FileHLPAnalyser, idx 32, id 0x20 (the ONLY true HLP key -
+                E49) */
+    FMT_ICO, /* 00 00 01 00 0x00010000 -> FileICOAnalyser, idx 34 */
+    FMT_CUR, /* 00 00 02 00 0x00020000 -> FileICOAnalyser (cursor dir) */
+    FMT_WMF_PL,   /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
+    FMT_WMF,      /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
+    FMT_TTF,      /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
+    FMT_MDB,      /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
+                   * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
+    FMT_TAR,      /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
+    FMT_EPS,      /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
+    FMT_AI,       /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
+    FMT_DXF,      /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_DXF_C999, /* u16 "99" 0x3939 -> the SAME CDXF chain, idx 25
+                   * (N-152: RAWSearchDLL :2722-2733 - the 999-comment
+                   * entry key; comment-led CAD exports dispatch through
+                   * the u16 map, the probe's comment branch accepts them) */
+    FMT_3GP,      /* ftyp brand 3gp (the og's File3GP legacy row) */
+    /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
+     * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
+    FMT_CHM,      /* "ITSF" 0x46535449 -> FileCHMAnalyser, id 0x0e */
+    FMT_ONE,      /* E4 52 5C 7B 0x7b5c52e4 -> OneAnalyser/FileONE, id 0x31 */
+    FMT_MNY,      /* u16 "MS" 0x534d -> FileMNYAnalyser, id 0x28 */
+    FMT_EMF,      /* list-layer " EMF" @+0x28 -> FileEMFAnalyser, id 0x1a */
+    FMT_SWF,      /* list-layer "FWS" -> FileSWFAnalyser, id 0x3e (ZWS NOT accepted) */
+    FMT_SWF_CWS,  /* list-layer "CWS" -> FileSWFAnalyser, id 0x3e (2nd key) */
+    FMT_3DS,      /* u16 "MM" 0x4d4d -> New3DS/File3DS, id 0x01 ('=='@+0x10 or NCSD@+0x100) */
+    FMT_3DS_NCSD, /* "NCSD" @+0x100 -> the same id-0x01 chain's LIST-layer registration
+                   * (:3223-3243, first-hand) - the CCI form whose NCSD header sits at
+                   * +0x100; the late magic re-expresses that probe */
+    /* M-084 (diff-to-fix): the og second Jet-family signature - the
+     * "Standard ACE DB" branch of FUN_180015260 (:16515-16517, type 0x4C,
+     * the Access 2007+ .accdb generation). Id APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_ACCDB,
+    /* S-047 (diff-to-fix): the og's two list-layer TS sync scanners
+     * (BruteForce::CMTSAnalyser id 0x76 / CM2TSAnalyser id 0x74), fully
+     * decoded at :3143-3149/:3173-3179 + FUN_18002e430 :35578-35677 +
+     * FUN_180032460 :38457-38536. Candidate generation rides the 1-byte
+     * 0x47 magic: TS anchors the sync at +0 (188-byte packets), M2TS at
+     * +4 (192-byte BDAV packets, the 4-byte TP_extra_header in front) -
+     * the og's own auto-detect order. APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_TS,   /* 0x47 sync + follow-byte gate, 188-byte packet walk (CMTS) */
+    FMT_M2TS, /* 0x47 sync at +4 + follow-byte gate, 192-byte packet walk (CM2TS;
+               * the og stamps the M2TS extension for this family) */
+    /* M-092 (diff-to-fix): the og's HTML chain - four u16 keys (<h/<H/<!
+     * + the UTF-16LE BOM 0xfeff, census erratum E59) -> HTMLAnalyser id
+     * 0x21; the case-insensitive <HTML / <!DOCTYPE HTML / wide probes;
+     * the </html> end-tag walk (1 MiB cap, sector round-up). One row per
+     * key, shared validator (the og's duplicate-key policy). */
+    FMT_HTML,       /* u16 "<h" 0x683c */
+    FMT_HTML_H,     /* u16 "<H" 0x483c */
+    FMT_HTML_BANG,  /* u16 "<!" 0x213c */
+    FMT_HTML_UTF16, /* u16 FF FE 0xfeff - the BOM chain */
+    /* M-093 (diff-to-fix): the og's XML/SVG chain - four u32 keys
+     * (<?xm / UTF-8 BOM+'<' / the numeric dword 0x1CD / <svg), one
+     * shared validator, the probe stamping id 0x13 (generic XML, the
+     * "csl" marker) or 0x5b (SVG) by CONTENT (carried by
+     * CarveResult::format_override). Ids APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_XML,      /* u32 "<?xm" - the declaration path */
+    FMT_XML_BOM,  /* u32 EF BB BF 3C - the UTF-8 BOM path */
+    FMT_SVG_CD01, /* u32 CD 01 00 00 (the decoded numeric key 0x1cd) */
+    FMT_SVG,      /* u32 "<svg" - the direct SVG path + the probe's override target */
+    /* M-096 (diff-to-fix): the og's MOBI analyser (id 0x85, the RawConfig
+     * "MOBI" toggle - shipped =1/enabled) - the full-salvage PalmDB gate
+     * (the BOOKMOBI pair at +0x3C, NOTHING before it validated) + the
+     * 512-step end-tag walk (0A 0D 8E E9), cap 500 MB. The magic carries
+     * the probe's own acceptance (the pair at +0x3C). */
+    FMT_MOBI, /* "BOOKMOBI" @+0x3C - the weak gate, ported exactly */
+    /* N-111 (diff-to-fix): the og's JP2 family (JP2Analyser id 0x80,
+     * list-layer, the RawConfig "JP2" token :3544-3559). The probe gates
+     * the "jP  " signature-box type @+4, the 0x0D0A870A payload @+8 and
+     * the ftyp box @+0x10, then maps the major brand @+0x14 through an
+     * exact-match std::map walk (:21886-21936): "jp2 " -> 0x80,
+     * "jpx " -> 0x81, "jpm " -> 0x82 - every other brand REJECTS. The
+     * signature-box length @+0 is never read (the salvage posture). The
+     * size machinery decoded at :21941-22115 (the finding had recorded
+     * it as the follow-up; this session read it first-hand): the box
+     * walk advances by BE u32 box lengths (len==1 -> the u64 extended
+     * form at +8; len==0 -> the FF D9 EOC byte scan with a 16-zero
+     * back-off, guard 0x1F3FFFFF; high-bit length -> size 0); a "jp2c"
+     * box latches the codestream flag and the FIRST NON-jp2c box after
+     * it ends the extent (the jp2c-consecutive rule - the og's end
+     * detector). FMT_JP2 carries the og's own scan key (the jP box);
+     * FMT_JPX/FMT_JPM carry the brand-position keys (the map's
+     * discriminative keys) so each family member resolves its own
+     * extension. Ids APPENDED (serialized carve_format values stay
+     * stable). */
+    FMT_JP2, /* brand "jp2 " (the og id 0x80) - the jP-box scan key */
+    FMT_JPX, /* brand "jpx " (the og id 0x81) - the brand-position key */
+    FMT_JPM, /* brand "jpm " (the og id 0x82) - the brand-position key */
+    /* N-112 (diff-to-fix): the og's LZH (LHARC/LHA) archive family
+     * (Brance::LZHAnalyser + FileLZHAnalyser, id 0x24, LIST-layer
+     * registration only - no u32 key; erratum E53: the census's E4 52 5C
+     * 7B key binds OneNote). The probe (FUN_18003db20 :46937-46973) gates
+     * the level-1 method field: *(u32*)(buf+2) in {"-lh0" 0x30686c2d,
+     * "-lh5" 0x35686c2d, "-lhd" 0x64686c2d, "-lh7" 0x37686c2d} AND
+     * buf[6]=='-'. The size walk (FUN_18003dd70 :47045+, decoded
+     * first-hand + the .data method constants dumped from the binary at
+     * RVA 0x9388c: -lh0/-lhd pair, -lh5, -lh7) chains entries with
+     * PER-METHOD strides: -lh0/-lhd advance hdr_u8@0 + comp_u32@7 + 2
+     * (the CRC; the +2 suppressed once the ext flag latched), -lh5
+     * advances hdr_u8@0 only and latches the ext flag, -lh7 advances
+     * hdr_u8@0 + comp_u32@7 and latches it; a non-matching position
+     * triggers the -2/+2 CRC step-back dance and ends the chain with
+     * size = pos + 1 (the single end-marker byte); 0x401 iterations per
+     * window; the FileInfo ctor bound 0xC800000 (200 MiB). One row per
+     * method key (the M-092 duplicate-key policy), all ext "lzh" - the
+     * og stamps one id (0x24) regardless of key. Ids APPENDED. */
+    FMT_LZH,  /* the "-lh0-" key (stored) */
+    FMT_LZH5, /* the "-lh5-" key (the dominant compressed method) */
+    FMT_LZHD, /* the "-lhd-" key (directory entries) */
+    FMT_LZH7, /* the "-lh7-" key (newer compressed method) */
+    /* N-113 (diff-to-fix): the og's small text-format list probes, the
+     * five-grammar school (every probe + walk re-verified first-hand this
+     * session; the POS open question settled by reading FUN_18001a470):
+     *   VCF  (id 0x88, :3390-3453): _memicmp(buf,"BEGIN:VCARD",11)==0
+     *        (case-insensitive - the registry magic carries the canonical
+     *        uppercase form, the RFC-universal writer shape); the walk
+     *        scans 0x400 chunks for the exact-case "END:VCARD\r\n" (the
+     *        u64/u16/byte compare chain), extent += find+11, then the
+     *        MULTI-CARD continuation (the next 11 bytes memicmp
+     *        "BEGIN:VCARD" again -> keep walking); cap 0x1400000 (20 MiB).
+     *   GPX  (id 0x97, :3947-4074): memcmp(buf,"<?xml version=\"",15) at
+     *        0 OR +3 (the UTF-8 BOM form), then a u32 "<gpx" scan in
+     *        [+0x16, +0x216) (the root element window); the walk scans
+     *        0x200 chunks for "</gpx>", extent = find+6; cap 0x6400000
+     *        (100 MiB - the id!=0xa0 branch of the shared walk).
+     *   OSP  (id 0x8f, :3695-3758): the 10-byte prefix u64+u16 compare
+     *        ('{\r\n "di": '); the walk scans 0x200 chunks for
+     *        "\"libopenshot\":" within 2 MiB; extent = find+14+0xF; the
+     *        needle NOT FOUND -> size 0 -> REJECT (the family's only
+     *        reject-on-missing - the og sets the size field to 0).
+     *   POS  (id 0x8b, :3631-3694): _memicmp(buf,"{\"diagram\":",11)==0;
+     *        the walk needle (the finding's open question, settled from
+     *        FUN_18001a470): "ProcessOn Schema File" (21 bytes); 0x200
+     *        chunks, extent = find+21+0x13; cap 0x6400000.
+     *   CHFP (id 0x90, :3759-3822): the XML declaration (case-SENSITIVE
+     *        memcmp) AND _memicmp(buf+0x28,"<BiffProject",12)==0; the
+     *        walk scans 0x200 chunks for "</BiffProject>", extent =
+     *        find+14; cap 0x6400000.
+     * The 0x200-chunk finds are PER-CHUNK (a needle straddling a 512-byte
+     * boundary is missed by the og's own chunked std::string find -
+     * ported exactly); VCF's 0x401-position loop over-reads 10 bytes past
+     * the 0x400 advance (the u64 compare chain - also ported). The og's
+     * 64 KiB sliding-window trailing-NUL trim (the >16-zero tail check) is
+     * adapted as the family's bounded fallback at the slice cap (the
+     * M-092/M-093 convention for this school's walks). Ids APPENDED. */
+    FMT_VCF,     /* "BEGIN:VCARD" - the vCard key */
+    FMT_GPX,     /* "<?xm" + the <gpx window - the GPX key */
+    FMT_GPX_BOM, /* EF BB BF 3C - the BOM-form GPX key */
+    FMT_OSP,     /* '{\r\n "di": ' - the OpenShot key */
+    FMT_POS,     /* '{"diagram":' - the ProcessOn key */
+    FMT_CHFP,    /* "<?xm" + <BiffProject@0x28 - the CHFP key */
+    /* N-115 (diff-to-fix): the og's OfficeTagFromXML typing set - the
+     * ZIP-path classifier discriminates the OOXML trio by the per-entry
+     * rels-path map (word/_rels/document.xml.rels -> DOCX 0x49,
+     * xl/_rels/workbook.xml.rels -> XLSX 0x4a,
+     * ppt/_rels/presentation.xml.rels -> PPTX 0x4b, the "word"-prefix
+     * fallback -> 0x49; RAWSearchDLL :53164-53194, the names matched on
+     * the ENTRY NAME with the office context flag) plus the wider tag
+     * corpus (the floss strings :6699-6729 + the strings table
+     * :768-905): the ODF trio by the mimetype entry's content
+     * (application/vnd.oasis.opendocument.{text,spreadsheet,
+     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork
+     * (Index/[*].iwa + index.apxl), Hangul (application/hwp+zip), CorelDRAW (content/riffData.cdr).
+     * All rows share the LFH dispatch key and are OVERRIDE TARGETS (the typing walk stamps the id
+     * by content; the FMT_DOCX row wins the registry-order tie). The og's id mapping for the
+     * non-OOXML families is undecoded - the family granularity here is the tag strings' own. Ids
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_XLSX,  /* xl/_rels/workbook.xml.rels (the og id 0x4a) */
+    FMT_PPTX,  /* ppt/_rels/presentation.xml.rels (the og id 0x4b) */
+    FMT_ODT,   /* mimetype: ...opendocument.text */
+    FMT_ODS,   /* mimetype: ...opendocument.spreadsheet */
+    FMT_ODP,   /* mimetype: ...opendocument.presentation */
+    FMT_EPUB,  /* mimetype: application/epub+zip (OPS/chapter1.html tag) */
+    FMT_IWORK, /* Index/[*].iwa + index.apxl */
+    FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
+    FMT_CDR,   /* content/riffData.cdr */
+    /* M-121 (diff-to-fix; the renumber chain M-117 -> M-118 -> M-121
+     * per SA-9: M-117 was triple-consumed [the session-40
+     * suppress-overlap landing keeps it, FIXED-LEDGER row 442; the
+     * S41 filing; the parallel fix lane's 1d4c96b6 message], then the
+     * parallel lostpart finding consumed the M-118 this renumber
+     * first took): the og's Outlook Express Dbx analyser
+     * (RawSpeed::DbxAnalyser, idx 0x15=21) - three registry keys
+     * (RAWSearchDLL_decompiled.c:2192-2232, first-hand + disassembly-
+     * verified): "JMF6" 0x36464d4a,
+     * CF AD 12 FE 0xfe12adcf, F7 89 34 2C 0x2c3489f7. The identity
+     * probe (FUN_180016740 :17509-17562) gates the 16-byte window:
+     * the JMF6+03 00 10 00 form (u64 0x0010000336464D4A, disasm-settled:
+     * movl $0x36464d4a + movl $0x00100003 at 0x180016766/0x18001676f -
+     * the parallel lane's reading CONFIRMED, my first landing's
+     * 03 00 01 00 was a literal-expansion error, corrected), one of FOUR OE store GUIDs, or the
+     * marked 16-byte pattern {2c3489f7, 6deef0f7, d18922af, b0f0ff00} (the 0x6deef0f7 dword is F7
+     * F0 EE 6D on disk - the parallel lane's F7 F0 DE 6D read was a byte error, corrected here).
+     * Plain forms size from u32@+0x7C (disasm `mov 0x7c(%rdx),%eax` at 0x180016ac0); the marked
+     * form walks sector windows to zero termination with FUN_180042b30's extent (the non-zero
+     * prefix rounded UP TO EVEN
+     * - the bisection's mid+1 landing; Ghidra+retdec+simulation
+     * cross-pinned). The marked form's 272-byte name buffer is
+     * memset-0-then-copied (disasm 0x180016a16 memset ->
+     * 0x180016a1b walk): the embedded name is EMPTY. Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_DBX_JMF6,   /* "JMF6" - the versioned container key */
+    FMT_DBX,        /* CF AD 12 FE - the classic OE store key (GUID family) */
+    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder variant key */
+    /* M-098 (diff-to-fix): the og's HIK (Hikvision surveillance) analyser
+     * (CHIKAnalyser id 0x92 - list-layer, the RawConfig "HIK" token
+     * :3823-3894, shipped HIK=1/enabled). The probe (FUN_1800272a0
+     * :30412-30484) discriminates the vendor's private_stream_1 PES
+     * inside an MPEG-PS pack: the 00 00 01 BA pack header, the pack
+     * length (buf[0xD]&7)+0xE, then EITHER the system-header path
+     * (00 00 01 BB at the pack end -> the LE-u32 skip length at +4,
+     * bounded < 0x40000001 and total < 0x400001 -> 00 00 01 BD at the
+     * skip end) OR the direct 00 00 01 BD at the pack end; the size
+     * starts at the PES's BE-u16 length; the walk (FUN_180027480
+     * :30489-30524) continues the PS structure with the 0x40000000
+     * (1 GiB) cap; the analyser names its files L"HIK" (DAT_18006b428,
+     * dumped from the binary: 48 00 49 00 4B 00). Keyed on the MPEG-PS
+     * pack magic - the trial order puts this row BEFORE FMT_MPEGPS so
+     * the generic stream never shadows the HIK discriminator. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_HIK,
+    /* M-099 (diff-to-fix): the og's AEP (After Effects project) analyser
+     * (AEPAnalyser id 0x9c - list-layer, the RawConfig "AEP" token
+     * :4024-4074, shipped AEP=1/enabled). The probe (FUN_18000efa0
+     * :11550-11598) accepts BARE RIFX (0x58464952, big-endian RIFF) with
+     * NO body check - the og's own deliberate weak grammar (any RIFX
+     * passes; porting it AS-IS is the parity target, an "Egg!" gate the
+     * og lacks must NOT be added); the analyser names its files L"AEP"
+     * (DAT_180067008, dumped from the binary: 41 00 45 00 50 00). The
+     * size walk (FUN_18000f0d0 :11603-11840): size = the BE-u32 chunk
+     * length at +4 (the byteswapped read :11690-11695); >= 0x1e00001 ->
+     * the 0x1e00000 (30 MiB) cap exact; else the chunked scan - 0x200
+     * windows from size+8 (the first window's +8 offset), stepping
+     * 0x200 with the size counter, for the 13-byte "<?xpacket end" XMP
+     * terminator; found -> size = the marker's position + 6; a window
+     * whose last 8 bytes are all zero triggers the zero-run walk (the
+     * first 8 consecutive zero bytes in the window ends the extent at
+     * size + the run's offset); the cap exit sets 0x1e00000 exact. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_AEP,
+    /* N-158 (diff-to-fix): the og's five-branch ZIP typing tail - the
+     * RAWSearchDLL LFH-handler walk stamps five more typed ids on
+     * entry-name/content matches (the decompile :53025-53100, re-read
+     * first-hand + disassembly-verified this session):
+     *   XMIND (og id 0x86): the content probe on entries named
+     *     content.xml/meta.xml - the og's FUN_180045110 builds a
+     *     300-byte RAW window at record+30+strlen(name) (the entry's
+     *     data start, extra field skipped - the og quirk) and types
+     *     when EITHER needle hits: the ASCII "xmlns=\"urn:xmind" (16
+     *     bytes, the stored-XML namespace declaration) OR the 14-byte
+     *     binary constant at .data RVA 0x93980 (f4 4a c6 40 1a bc a7
+     *     76 cf e1 a0 d1 cc 9d - the deflated-stream prolog
+     *     fingerprint; disasm 0x180045629-0x18004564f: find returns
+     *     npos -> the C-buffer second find with len 0xe). The probe
+     *     returns 1 when the id is ALREADY 0x86 (disasm
+     *     0x18004516d: mov eax,1 - the idempotent re-stamp).
+     *   MMAP  (og id 0x87): entry name == "xsd/MindManagerApplication.xsd"
+     *   EDDX  (og id 0x8c): entry name == "rels/_rels.xml" OR
+     *                       "rels/page1_rels.xml"
+     *   WFP   (og id 0x8d): entry name == "ProjectFolder/Anon/" OR
+     *                       "ProjectFolder/project_info.json"
+     *   DRP   (og id 0x91): entry name == "MediaPool/Master/MpFolder.xml"
+     * The og's display labels (the L"XMIND"/L"MMAP"/L"EDDX" inline
+     * strings + the .rdata-resolved UTF-16 "WFP" @0x6d940 / "DRP"
+     * @0x67c88) ride the rows. The og's chain walk (:18411-18450) has
+     * NO typing stop - the shared id slot is last-match-wins across
+     * every walked record. The [Filter] coupling: RawConfig.ini ships
+     * XMIND/MMAP/EDDX/WFP/DRP=1 keys for exactly these ids; the og's
+     * exact suppression mechanism is undecoded (the IAnalyserFilter
+     * callback takes no id), so the core gates row-level through the
+     * M-024 disabled_formats surface (the conservative landing the
+     * finding prescribes, registered in PARITY-DELTAS). Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_XMIND, /* the content.xml/meta.xml probe -> 0x86 */
+    FMT_MMAP,  /* xsd/MindManagerApplication.xsd -> 0x87 */
+    FMT_EDDX,  /* rels/_rels.xml | rels/page1_rels.xml -> 0x8c */
+    FMT_WFP,   /* ProjectFolder/Anon/ | ProjectFolder/project_info.json -> 0x8d */
+    FMT_DRP,   /* MediaPool/Master/MpFolder.xml -> 0x91 */
+    /* M-107 member 6's S91 sub-format rider: the WordPerfect family's
+     * third sub-format. The og's tier-1 (FUN_180041f50) stamps the
+     * row id into result+0x18 - WPD 0x44 / WPG 0x45 / SHW 0x3d - and
+     * the ENGINE (not the report layer) assigns the name: the plain
+     * CRawFileInfo child's +0x28 processor (0x18000b7a0) reads
+     * child+0x18, indexes the 9-byte-stride name table at
+     * 0x18008f070, and assigns the id's name string to the result
+     * (first-hand decode). The WPG pair carries via format_override
+     * onto the existing FMT_WPG row; SHW takes this appended row (the
+     * override target, the N-115 pattern). Id APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_SHW,
     FMT_COUNT
 };
 
@@ -143,13 +479,65 @@ struct CarveResult {
     u16 confidence = 0;              /* 0..1000 */
     const char* note = "";           /* evidence note for the node registry */
     std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
-    /* N-063: the analyser's OWN name for the carved file (the og's
-     * per-analyser SetName - content/metadata-derived, e.g. the MP4/MOV
-     * "Lost Name File (<time>)_EaseUS" template, RAWSearchDLL
-     * :33312/:33408/:33447/:33531). Empty = no og naming rule for this
-     * format -> the emit site falls back to the namer callback / the
-     * documented File%06u deliberate default. */
-    std::u16string embedded_name;
+    /* S-049: the analyser's CONTENT-DERIVED naming prefix (the og's
+     * per-analyser prefix string that reaches DRWUI's FUN_140c44770
+     * "%s_%06d" naming - DRWUI_decompiled.c:1878330-81, both caller
+     * sites :1877600/:1877724). The og's engine-side analysers supply
+     * a prefix extracted from the file's own content - real-session
+     * evidence (evidence/executions/s10b-real-rsf-session-mining.md):
+     * JPEG SOF dims (JPG_192x144) / EXIF Model (GT-S7562) / EXIF
+     * Software (Adobe Photoshop 7.0), MP4/MOV mvhd duration (MP4_08m07s),
+     * MP3 ID3v2 title, PDF Title/Creator-Producer + CreationDate,
+     * DOCX docProps created, ZIP first central-directory entry name.
+     * Empty = no decoded content prefix -> the emit site names via the
+     * og default: the format's own UPPERCASE extension as the prefix.
+     *
+     * History: this carrier was N-063's `embedded_name` (the RAWSearchDLL
+     * "Lost Name File (<time>)_EaseUS" template, :33312/:33408). The
+     * three REAL og sessions prove the template NEVER fires for carved
+     * MP4/MOV in the shipped product (57/57 real MP4/MOV carve rows are
+     * MP4_%06d.MP4 / MP4_<duration>_%06d.MP4 / MOV_*): the DRWUI tree
+     * naming layer names every unnamed carve record through the
+     * %s_%06d contract and the engine template does not survive it.
+     * The carrier's semantics moved from full-name to PREFIX with the
+     * S-049 landing (the N-063 landing superseded on the carve-tree
+     * application by executed evidence). */
+    std::u16string name_prefix;
+    /* S-049 (the S42 lane's convergent arbitration): the ANALYSER STRING
+     * that keys the og's per-string counter map (the DRWUI branch-2 key).
+     * The rule is real-session-pinned first-hand (the G/H CSV census,
+     * this session): every analyser-STRING family carries its own
+     * counter (ZIP: META-INF_ 1..193, META-INF_MANIFEST.MF 1..56,
+     * classes.dex 1..28 - every family 1-based dense; PDF keyed by the
+     * producer string: TeX 1..453, GPL Ghostscript 9.56.1 1..158,
+     * LaTeX-with-hyperref-packa 1..46; DOCX keyed by the creator:
+     * jacko 1..6 across six DIFFERENT dates, KIS2 1..2, Wei Chen 1..2;
+     * EXIF: Adobe Photoshop 7.0 1..45 dense), while the DERIVED forms
+     * (the JPEG dims JPG_<w>x<h>, the MP4/MOV duration MP4_06s, the
+     * DOCX/PDF date-alone compositions) share the branch-1 PER-FORMAT
+     * counter with the plain rows (the H-session JPG plain+dims union
+     * 1..952 at 96.7% density; the MP4 families interleave one 1..8
+     * counter; the date-alone DOCX rows 1..19 across three different
+     * dates). Empty = the per-format branch (dims/duration/plain). */
+    std::string name_counter_key;
+    /* M-101: the extracted TAG FAMILY value — the og's Tags Extracted
+     * branch axis ("We classify and organize the found files by
+     * extracted tags to help you easily locate desirable files.",
+     * UIUX/09:27; the node-type 6 branch at DRWUI:642790). The EXIF
+     * Model string, else the EXIF Software string (the same priority
+     * the S-049 prefix derives — "GT-S7562", "Adobe Photoshop 7.0").
+     * Empty = no extracted tag (the file stays out of the branch). The
+     * emit site copies it onto FileProperties::tag_group (runtime-only
+     * per the finding's fix plan: the og does not persist tags). */
+    std::string tag_group;
+    /* M-093: the og stamps the FORMAT ID at the probe, not at the
+     * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
+     * for the generic-XML marker regardless of which of its four keys
+     * fired. When a validator sets this (default 0xFFFFFFFF = none),
+     * the emit site uses it for carve_format and resolves the effective
+     * Signature (ext/name/base-confidence) from the registry row of the
+     * overridden id. */
+    u32 format_override = 0xFFFFFFFFu;
 };
 
 /*
@@ -186,8 +574,8 @@ size_t registry_size();
 
 /* M-024 (diff-to-fix): the runtime per-format enable/disable surface.
  * The og rebuilds its working registry per search from a host-supplied
- * IAnalyserFilter driven by RawConfig.ini [Filter] (37 named toggles;
- * STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
+ * IAnalyserFilter driven by RawConfig.ini [Filter] (34 named toggles in the
+ * shipped file - CORRECTIONS #5; STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
  * FUN_180006b30 :4386-4434 - an analyser whose filter callback rejects
  * it is destroyed out of the u32 map / u16 multimap / list). The core's
  * form: CarveFlags::disabled_formats carries a comma/space/semicolon-
@@ -198,6 +586,13 @@ size_t registry_size();
  * names + enabled state in one stable order (N-033's surface). */
 bool carve_token_listed(const char* disabled_list, const char* ext, const char* name);
 bool carve_format_listed(const char* disabled_list, const Signature& sig);
+
+/* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the working analyser
+ * list (the removal loop's mask 0x1000801 over id-0x30, RAWSearchDLL
+ * :4412-4418). Every grammar row of the three families reports true; the
+ * disable surface refuses to switch them off (the raw-sign list layer is
+ * outside the mask's range and stays disableable). */
+bool carve_format_always_on(FormatId id);
 
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */

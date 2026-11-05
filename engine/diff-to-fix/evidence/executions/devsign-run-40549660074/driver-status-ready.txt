@@ -1,0 +1,9 @@
+driver service "RDA" (data-path prerequisite, docs/DRIVER-REQUIRED.md):
+  present:     yes   (service installed)
+  loaded:      yes   (service running)
+  started:     yes   (control device opens)
+  authorized:  yes   (open not denied by the device DACL)
+  healthy:     yes   (GET_INFO + GET_VERSION consistent)
+  version:     1.0 (core requires major 1)
+  capabilities: flags=2 max_disks=200 ioctl_base=0x0
+  state:       ready

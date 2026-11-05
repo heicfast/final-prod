@@ -19,7 +19,8 @@
   remnant sweeps / lost-partition candidates (extends the corpus's
   host-fans-out model; the corpus also shows engine-side workers - FAT
   QuickSearchWorker, FATSearchDLL:26931). DONE
-- Full RDA driver integration: transport with the F11 Information=Lengthx512
+- Full RDA driver integration (driver-era history, since replaced by direct
+  raw I/O — session-96): transport with the F11 Information=Lengthx512
   contract, GET_INFO/OPEN_TARGET/GET_VERSION IOCTLs, bad-sector-isolating
   retry layer with ReadErrorMap. DONE
 - ext2/3/4 engine (superblock gate, GDT, extents, deleted sweep, journal
@@ -49,7 +50,8 @@
 - `rrecov fix` / `rrecov bench` commands. DONE
 - Structure-aware fuzzing: 4 libFuzzer targets (pure primitives, engines,
   carve pipeline, session containers) + CI fuzz job. DONE
-- Recovery benchmark (benchmark.yml): seeded VHD, RDA driver, ground-truth
+- Recovery benchmark (benchmark.yml): seeded VHD, the driver-era RDA
+  transport (historical), ground-truth
   recall/precision scoring across recycle/permanent/wipe/folder scenarios. DONE
 - EaseUS comparison (comparison.yml): og DRW vs rrecov on the same seeded
   disk, .rsf extraction (byte-exact validated), side-by-side reports. DONE

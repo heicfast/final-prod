@@ -1,9 +1,13 @@
 # Testing
 
 ## Layer 1 - unit (every push, both platforms)
-926 tests discovered on the Linux lanes (count via
-`ctest --preset linux-gcc` — numbers move fast with every landing wave):
-the pure-core engine suite + the cr_ui binding suite (35) + the plain-C
+1,717 `TEST`/`TEST_F` macros across `tests/unit/` (72 files, recounted
+2026-10-30 by the Session-84 coherence lane — the number moves with every landing wave, so
+every session entry pins its own counts; the latest
+executed green counts: **1,003/1,003 release+ASan at the thumbnail landing
+(`05e6786`, 20 thumbnail tests included)** and 970/970 at the A-011/N-089
+landing; the macro-vs-executed delta is the Windows-only suites + platform
+skips): the pure-core engine suite + the cr_ui binding suite + the plain-C
 ABI consumer + the win-layer syntax gate. Coverage per subsystem:
 fixup, runlist, tables (GPT/MBR/EBR + the corrected LDM GUIDs), slices,
 cache (incl. the failed-blocks-not-pinned regression), retry/bisection,
@@ -23,13 +27,16 @@ nvramfix UEFI Boot#### updater + the win-layer runtime), safe writer
 WinDestIo and BitLocker contract suites.
 
 ## Layer 2 - integration (Windows hosts, scripts/)
-rda-driver integration: install the RDA service (scripts from the driver
-repo), then `rrecov list` / `rrecov scan --disk 0 --deep` against test
-media. Matrix: Win7 SP1 / Win10 / Win11 / WinPE; 512e, 4Kn, SMR; USB
-attach/detach during scan (cancel path).
+raw-disk integration: run from an ELEVATED prompt (administrator — the
+direct \\.\\PhysicalDriveN path refuses with exit 4 /
+ERR_ELEVATION_REQUIRED otherwise; the unelevated-refusal probe is part
+of the contract), then `rrecov list` / `rrecov scan --disk 0 --deep`
+against test media. Matrix: Win7 SP1 / Win10 / Win11 / WinPE (direct
+access needs nothing installed — no service, no registration); 512e,
+4Kn, SMR; USB attach/detach during scan (cancel path).
 
 ## Layer 3 - benchmark (docs/benchmarking.md, v0.2)
-Scan throughput on the transport paths (RDA vs direct), carve rate per
+Scan throughput on the transport paths (direct vs image), carve rate per
 format, session save/load rate.
 
 ## Fuzz + CodeQL CI status (M-006, diff-to-fix session)

@@ -1,5 +1,31 @@
 # modules/orchestration.md — scan orchestrator audit verdicts
 
+**S47 addendum (2026-10-29):** M-126 FIXED (`089b7cc8`) — the og's ETA model landed (FUN_1401af410's whole-run base + 0.2/0.8 rate EMA + the x0.6 time-budget variant + the '3m00s' placeholder + the 1 Hz countdown): the query-layer `eta_compute`/`eta_format_m_s`/`eta_countdown_tick` helper family beside the M-125 progress-display math, `ScanTelemetrySnapshot.eta_seconds`/`eta_smoothed_rate` computed live (the EMA state server-side), and the CLI's remaining-time line. O39's 'UI-side formatting' premise is superseded — the decode shows a computed model, and it is now a core surface. #38/#39 → MATCH.
+
+## S12 addendum (2026-10-29 — the session-2 deep-dive — progress/ETA mathematics + state management)
+
+New active findings on this module: **M-125** (the og's piecewise progress remap +
+99.99% cap decoded via FUN_1401af820 — unregistered; the O38 "M-equivalent" verdict
+superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
+premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
+cadence — the :210-213 claim inaccurate); **N-167 FIXED (Session-44 —
+ScanStats::bytes_found stamped from tree total_logical at every count refresh; the
+session record grew to v3; the CLI renders the og's "(X GB)" shape; RED→GREEN
+proven; findings/FIXED/N-167)** (no found-size aggregate);
+premise superseded); **N-166 FIXED (session-46 lane)** (live counters: the emit-time
+live-refresh landed — ResultTree's atomic attach counters [live_files/live_raw,
+bumped in add_file] feed every emit_event_/emit_progress_event_ through
+refresh_live_counts_, monotonically; deleted_found stays boundary-only [the
+engines assign the deleted-state post-attach]; the header contract
+re-truthed; the old :210-213-style "counters refreshing at progress ticks"
+claim is NOW true and the STAGE-BOUNDARY admission is gone); **N-167** (no found-size aggregate);
+**N-178** (the pause CLI legs); **I-041 (ACKNOWLEDGED — registered this lane)** (stopped-vs-finished: the og's verdict is a heuristic — FUN_1400f1b10 [DRWUI:205797-205813, the 0x62=98 threshold re-read first-hand this session] infers "stopped" from progress<98% at the advanced-end transition and persists/restores it [:314692-712, :837740-800]; the core derives it truthfully — stage-done bits stamp only on OK completion [cr_scan.cpp:2134-2137, the G-07 integrity comment] and resume skips only truthfully-completed stages [:2766-2770]. The explicit mapping — og states 3/7 = core cancelled-stage; og 4/8 = core stage-done bit — registered so parity tables stop looking for a "state 7" equivalent); **I-042 (ACKNOWLEDGED — registered this lane)** (paused observability: the og surfaces pause on four surfaces [enum 2/6, nStatus==2, the "Scanning Paused." strip, sigTaskBarPaused], the core exposes `ScanTelemetrySnapshot.paused` [cr_scan.h:520] + cr_ui.h:689 only, no dedicated `cr_ui_scan_paused` query — hosts render pause from telemetry; a library-appropriate subset, the taskbar a host concern); **I-043 (ACKNOWLEDGED — PARITY-DELTAS D-122)** (state ownership). Key decodes this session:
+the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
++0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a
+verified RE-parity), the stop-organize -> completion-handler chain, the 7-input
+hang-trace table (no unregistered hang asymmetry).
+
+
 Reference: og stage model per `architecture/04-recovery-workflow.md` +
 `DRWUI-exe--main-ui-architecture.md` §9.2 (quick → advanced composition: all full FS
 searchers + RAW gated on settings+0x60), progress semantics (status strings, "Remaining
@@ -16,10 +42,24 @@ Core (audited `67193b6` + concurrent fixes in tree): `src/core/orchestrator/cr_s
   carve; the og's quick/advanced split maps to core's quick/deep+carve (carve is a
   separate stage in core; in the og, RAWSearcher is part of the advanced set — S-006/M-005
   cover the composition differences).
-- **O38 progress** — `M`-equivalent: weighted single-division permilles, per-stage
-  monotonic, pause-compensated elapsed; og's 40→65% save formula and bottomarea
-  semantics are UI-session constructs (session module note); engine-level callbacks
-  bridge with veto (progress-false → cancel) — matches the og's cancel cadence.
+- **O38 progress** — MATCH (M-125 FIXED, the S42 fix lane): the engine's weighted
+  single-division permilles (per-stage monotonic, pause-compensated elapsed) stay the
+  TRUTHFUL engine telemetry — the deliberate engine-side truth registered in
+  PARITY-DELTAS D-127 (renumbered at the N-191 repair) — and the og's DISPLAY math now lands as the query-layer helper
+  family (`query::progress_display_remap/_percent/_publish`, cr_query.h:88-119):
+  FUN_1401af820's five-segment piecewise remap verbatim (raw<11 → ×2; 11..30 →
+  (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 → identity; the
+  defensive 99.99 stall cap — dead for raw in [0,100], the og's defensive branch
+  ported as decoded), FUN_1401af950's type dispatch (0 → reset, 1 → remap+clamp, else
+  raw), FUN_1401afa60's monotonic publish guard (the 98-boundary discontinuity: the
+  2.7 segment tops at 99.0 and the identity tail DROPS to 98.5 — the guard exists to
+  hide exactly that). Tests ProgressDisplay.* (5) + the engine's linear regression
+  pin; og's 40→65% save formula and bottomarea semantics remain UI-session constructs
+  (session module note); engine-level callbacks bridge with veto (progress-false →
+  cancel) — matches the og's cancel cadence. The finding's own test table carried
+  four transcription errors against the corpus constants (raw 20 → 21.8 not 22; 29 →
+  23.6 not 23.8; 98 → 99.0 not 99.4; 99 → 99.0 not 99.99) — corrected per the corpus
+  (the corpus wins).
 - **O39 ETA** — `M`-note: core exposes telemetry for ETA computation (elapsed, rates);
   the og's "Remaining time" formatting is UI-side. No engine gap.
 - **O40 threading** — `M`: engine pass single-threaded with intra-engine parallelism
@@ -120,6 +160,11 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
   its message-pump implementation detail).
 - Registered non-adoptions (in the Resolution): the og's UNDECODED NTFS
   vt+0xb8/vt+0x100 sub-rule and its internal matched/total composition.
+  N-148 note (the passive-datum registration): the ReFS engine's
+  og_prop_flags (the type-2/1/3 property-flag decode, cr_refs_engine.cpp:
+  1180-1211) is a PASSIVE datum - tracked for og-parity documentation,
+  not consumed by the core's grading model (the og's grading consumers
+  of the flags are undecoded; wiring it in needs that decode first).
 
 ---
 
@@ -187,3 +232,272 @@ never feed the gate; the dedup tree stays the safety net.
 target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
 verdicts: MATCH (the interval shape is the finding's own sanctioned
 first step; the og's sparse-file mmap stays profiling-gated).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-073** (MAJOR — the scan-time folder filter absent: the og pushes the
+AdvanceFilterCondition into the scan controller at start (PushFolderFilter,
+UIUX/31:142, runtime-verified), constraining incremental tree insertion; the
+core's ScanConfig has no filter input — post-hoc query only. Fix = a
+`filter_folders` vector + post-parse pre-insertion prune + the ABI twin + the
+CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
+(load progress threading, cancel propagation, the completion auto-save leg).
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's rows)
+
+- **S-044 (FIXED this session)** — the completion auto-save's gating chain
+  (see modules/session.md): results-found, not-already-saved AND
+  not-import gates all landed (the resume path suppresses via the
+  is_resumed flag, as this row suggested); the og's singleton byte-flag
+  enable surface is the registered delta D-105.
+- Progressive result emission dispositioned MATCH: the core's carve
+  stage attaches nodes live (carve_slice streams into the tree during
+  the pass, cr_scan.cpp:1877-88) with counters refreshing at progress
+  ticks — the og's live tree growth (UIUX/30:14) has its equivalent.
+- **N-106 (MINOR)** — GetDriverInfo.dll (the TB-lineage drive-letter
+  topology MOM module) dispositioned: OUT-OF-SCOPE by lineage; the
+  og's recovery-flow enumeration remains the N-071 census (WMI/
+  setupapi/VDS/StorageSpaces/FunctionDiscovery).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-125**: the drive-disconnect mid-scan states (the "Drive Disconnected" Retry/Cancel
+  flow, UIUX/08:39-47) — no classification, no reattach-continue model, no registration;
+  from R-16, never formalized through every prior session.
+
+## Session-10 wave-2 addendum (2026-10-29, continuation lane — audited `84a1832`; EXECUTED evidence)
+
+- **S-051 (SEVERE — FIXED at `6ecd6bb4`, session 40)** — the whole-disk scan target now consults the
+  partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without
+  `--whole-disk`) probes LBA 0 (the MBR), dispatches Unknown, and returns
+  rc=0 with ZERO files on a healthy multi-volume disk. The og's
+  CDoScanPartition flow reads the partition list and scans every known
+  volume (architecture/04 §2/§3.4; the real G session carries both volumes'
+  trees). EXECUTED: evidence/executions/s10-wholedisk-scan-targets.md RUN 2.
+- **M-104 (MAJOR)** — with `--whole-disk`, the in-table volumes are found
+  only via the discovery's +500 table-match candidates, surfacing as
+  anonymous `"Candidate @ <LBA>"` roots: no display names, no FS-type
+  markers, known-vs-lost indistinguishable, Found/Deleted roots empty. The
+  og's real-session per-volume display-name shape (`Local Disk(G:)` +
+  `System Reserved (NTFS)` + the `NTFS` marker) is unreachable. EXECUTED:
+  the same evidence file RUN 1 + the first-hand G-session depth-1 census.
+- The two findings compose with S-048/M-103 (the per-volume branch family)
+  and M-079 (the volume-label plumbing): one whole-disk shape pass in the
+  fix order resolves the family coherently.
+
+## Session-11D fix lane (2026-10-29 — lane D; S-051 + M-104 FIXED, this session)
+
+**DU-merge note:** the S40 lane's block above documents THEIR convergent
+landing (`6ecd6bb4`); the merged tree keeps the union — their host-hint
+gate + stats names, this lane's display names/skip accounting/scanned-only
+reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
+
+- **S-051 → FIXED** (`run_engine_pass`'s partition-list target block): a
+  whole-disk-basis scan with an unforced hint now parses the partition
+  table and makes every used, non-container, non-LDM entry a scan target —
+  per-target `probe_family`, `scan_candidate` under the volume's own root,
+  F-1 subtree rebase, honest skips counted in `table_volume_skipped` (rc
+  stays OK), a Warn/Info log line per target (the og's insertion-trace
+  analog). The discovery reconciliation (run_deep) drops candidates whose
+  start LBA matches an already-scanned target — the no-double-scan
+  acceptance; a target skipped for a dead probe stays discoverable (the
+  og's lost partitions are additional targets, never replacements). The
+  superfloppy and forced-hint paths are pinned unchanged (tests).
+- **M-104 → FIXED** (rides the same builder): the volume roots carry
+  display names — tier 1 the FAT-family boot-sector label
+  (`fat::read_volume_label`, validate_boot-gated; NTFS/ext4/exFAT label
+  decodes compose via N-133's landing), tier 2 the `NTFS @ <LBA>`
+  FS-marker, tier 3 the anonymous LBA form now reserved for genuinely-lost
+  discovery candidates. One tree per volume (deleted as a node flag, the
+  og's shape); the names round-trip through the session format.
+- **A-012 (ACUTE, discovered during the S-051 verification)** — see
+  modules/carve.md's row and the finding file: the 81ee9775 rebase-window
+  sweep dropped M-093's FMT_SVG registry row, hard-downing the carve stage
+  on main; restored this session (`RegistryF8Gate` RED→GREEN).
+- Residuals recorded in the Resolutions: the og's FS-type marker ROW
+  (corpus-ambiguous per the finding's own open question) and the
+  standard-root narrowing stay the S-048/M-103 wave's scope.
+### Session-11-lead rows (2026-10-29)
+
+- **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.
+- **N-145** (MINOR): the cross-run apply-interruption marker (the og's pendingMarkedDisk; core's CRUNDO01-only posture) — the in-flight journal recommendation.
+- **N-148 item 6** (MINOR): the ReFS og_prop_flags decoded-but-unconsumed datum (the consumer decode or the passive-datum registration).
+
+## S42 continuation lane (2026-10-29 — the scan-mode semantics focus battery; core `b26017a7`)
+
+- **O31/O38 (the auto-advance state machine) — REGISTERED (I-044, ACKNOWLEDGED — landed `f0163182`)**: decoded engine-side
+  (CDoScanPartition::DoScan pushes state 1 unconditionally, DRWUI:567875-892; the
+  ScanThread pops states with telemetry events 0-3; controllers 0/1/5/4 = quick/
+  advanced/recycle-bin; the recoverability grade only selects coaching text) — the
+  C1 disposition's "UI-layer state machine" rationale is corrected; the core's
+  default-on stages are confirmed as the correct parity translation. Also
+  registered: settings+0x60/+0x6c are hardwired constants (:947721-22), the
+  4 MiB all-allocated chunk skip (FUN_140585150), the FUN_140581500-vs-FUN_140580720
+  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent). **The register's doc-side fix plan landed at `f0163182`** (C1/A1/A5 annotations + D-36 citation correction + the CORPUS-ERRATA row); the citation erratum's corpus-side twin is recorded for the corpus doc's own errata list.
+- **O37 (stage order) — DIVERGENCE-MINOR, N-181**: the og starts the RAW carve
+  controllers before the FS deep engines (:916484-916509); the core's carve stage
+  is strictly last — time-to-first-carved-result diverges, result sets identical.
+- **O31/A2 (the deep range) — DIVERGENCE-MINOR, N-182**: the og's deep-only resolver
+  (FUN_14035a6d0: device-type-6 sub-ranges, the 300 MB small-volume rule,
+  neighbor-entry extension); the core reuses the quick slice — D-36's "same
+  StartSector" is the common case, not an invariant.
+- **Grading cells (the recovery-chances battery)**: S-058 (SEVERE — the extension-
+  table gate polarity inverted; the s5 erratum), S-061 (SEVERE — ReFS/Btrfs
+  insert-time High absent), M-138 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair), M-134 — FIXED (session-52: the deep-read grade + the one-shot full-tree re-grade landed; suite 1379/1379; the pre-check trio stays OQ-S42-3) (the deep-read
+  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
+  Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings touching this module: **M-146 — FIXED (the S65 lane)**
+(probe_family's NTFS gate family landed: the analyser's zero sweeps + spc
+raw-nonzero + the FUN_180005470 record/index shape gates via the M-147 getter
+twins — index_block_size_from_dbr added to the wire header; the pow2-spc and
+mft_lcn gates dropped; the misattributed comment re-truthed; 5/7 tests RED
+pre-fix, suite 1496/1496),
+**N-199 — FIXED (S60 lane)** (the ReFS second signature FSRS@+0x10 landed in probe_family — both compares, Refs.RecognitionRequiresFsrsMarker),
+**N-194** (the size display formatters absent — the query surface). Verified-MATCH
+this session (the state-management axis, the user's focus battery): the scan
+lifecycle states and every transition writer re-walked against cr_scan's
+single-owner model (the I-041/I-042/I-043/D-122 registers corroborated — no new
+state divergence), the watchdog's bounded teardown, the CUIScanProgressInfo
+monotonicity protocol, the telemetry clamp family (the 99→100 clamp kept distinct
+from the 98% classifier and the 99.99 display cap — three different constants,
+now each pinned), and the progress/stage weighting. The pause type-gate and the
+"Reading sector" ticker are recorded as precise next probes in
+`evidence/s54-deepdive-orchestration.md` (UNRESOLVED #1/#2).
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane)
+
+**N-166 FIXED — the live file-count telemetry.** ResultTree's atomic attach
+counters (live_files/live_raw, bumped in add_file under its own lock) +
+refresh_live_counts_ at every emit_event_/emit_progress_event_ (monotonic;
+the boundary stamps stay the authoritative close-of-stage sample).
+deleted_found deliberately boundary-only: the engines assign the
+deleted-state AFTER the attach — the finding's "already atomics" premise
+corrected in the Resolution. The header contract re-truthed (cr_scan.h).
+TelemetryCountersMoveDuringCarveStage RED pre-fix (the frozen mid-stage
+counts), GREEN post; suite 1312.
+- **Grading cells (the recovery-chances battery)**: S-058 **FIXED** (the
+  extension-table gate polarity righted — the S52 winning landing ea405392 with
+  the S57/S56 convergence records; this lane's in-place s5 erratum + the
+  CORPUS-ERRATA row ride the S56 commit), S-061 **FIXED** (the S52 lane's
+  same-commit ReFS/Btrfs insert-time High), M-138 — FIXED (session-52: the
+  twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg
+  registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair),
+  M-134 (the deep-read  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **N-211 (MINOR, NEW):** the `cr_scan.h` autosave_dir contract comment ("a cancelled run
+  never auto-saves - the og's flow is the completion window", `include/cr/orchestrator/
+  cr_scan.h:321-22` at the re-verified pin) contradicts S-057's landed stop-window
+  auto-save (`src/app/rrecov.cpp`: "the stopped scan's partial results land in the auto
+  session exactly like a finished run's"). The header-contract drift class — the
+  doc_truth_gate covers docs/*.md + README, not headers. Evidence:
+  `s79-lead-verification.md` §A.
+- **Lane-sheet notes (not filed):** the CachedReader mutex-across-I/O
+  (`cr_cached.cpp` — the lock held across the inner read) and the absence of any explicit
+  read deadline — the og's deadline/watchdog is host-layer (the DRWUI watchdog decode);
+  the OS-level disk timeout bounds both engines. The deserialize count bomb is filed under
+  session.md (M-150). The stage/loop-bounds census (55+ loops: 50 BOUNDED, 0 UNBOUNDED,
+  5 assumption-laden) is in `evidence/s79-lane-sheets/agentD-core-map.md`.
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New finding touching this module: **N-216** (MINOR — version.ini's
+`MaxFileSize ` per-file cap surface [trailing space in the key, GiB units,
+default 0x400 → 1 TiB] read into two config objects [DRWUI:337923-337925 +
+:749901-749903, first-hand]; the consumer is undecoded — the finding carries
+the precise next probe; core has no equivalent). **N-182's addendum** (the
+deep-range resolver's full decode) is registered under lost-partition.
+Verified-MATCH this lane: the autosave trigger gates + stop window
+(S-044/S-057, re-verified at `271f5d06`); the FAT DOS-timestamp invalid
+class (A-014, vs FAT:32135/:32144/:32151 first-hand). The not-reached
+register: the engine-side cancel-pause poll census + the quick→advanced
+transition trigger (subagent infra timeouts; the policy level is
+dispositioned by D-18/S54-Axis-4 — the per-engine poll-site census stays
+open for a future lane). Evidence: `evidence/s69-lane-sheets/`.
+
+## Session-81 addendum — N-211: the autosave_dir header contract re-truthed (2026-10-29)
+
+**The doc-truth drift closed, with a gate.** The `autosave_dir` field's
+contract comments in `cr_scan.h` (and the twin the new gate caught in
+`cr_ui.h:636`) claimed "a cancelled run never auto-saves" — contradicted
+by the landed S-057 behavior at both consuming sites (`rrecov.cpp`'s
+`autosave_if_due(true)` cancel-path call; `cr_ui.cpp:2418`'s cancel-branch
+`autosave_if_due_(s)`). Both comments now state the og truth: the field is
+honored on completion AND on the stop window (the og's stop path runs its
+own organize into the shared completion handler — DRWUI :1549399-421 →
+:339076-79 → FUN_140395e50, the gates at :612571-587 carrying no
+stopped-check; re-verified against the corpus this session). The guard:
+`tools/doc_truth_gate.py` gains `check_header_contract_phrases()` — the
+retired-phrase class now fails CI in any public header (RED pre-fix: it
+caught the cr_ui.h twin; GREEN post-fix). The P46 row: MATCH.
+## Session-79 addendum (2026-10-29 — the MAJOR-first fix lane; opened at `e17a4e6d`)
+
+**M-073 FIXED — the scan-time folder filter.** The og's PushFolderFilter
+(UIUX/31:142, re-verified first-hand at the fix) constrains tree insertion;
+the core now prunes at every stage boundary BEFORE the checkpoint emit:
+`ScanConfig.filter_folders` (UTF-8 prefixes, empty = off) + the pure prune
+module `cr_folderfilter` (cr_query's own prefix family: ASCII
+case-insensitive, files = starts-with, folders = prefix-compatible
+either-direction) + `ResultTree::detach_child` (the parent-side splice +
+destroy primitive) + the boundary wiring (after the extent rebase; the
+counters decrement to the pruned tree, `ScanStats.folder_filtered` the
+diagnostic) + the ABI append
+(`cr_ui_scan_config{filter_folders_utf8, filter_folder_count}`, zero-init
+safe) + the CLI `--filter-folder` (repeatable; three-site lock) +
+`REC_SCAN_FILTER` (the optional session record; resume adopts the stored
+filter when the host carries none). Scoping decisions registered: the carve
+root and the pathless "File Path Lost" root are EXEMPT (pathless content
+has no folder to filter); the prune precedes M-018's junk pass (they
+compose). Directory detection follows the tree's two-shaped convention
+(FullNode folders + light nodes with the DOS 0x10 attribute — the FAT
+engines' shape). S31/D16/P42 → MATCH. 15 tests (module + pipeline + ABI),
+RED first-hand (the wiring-disabled variant) → GREEN; suite 1581/1581.
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-182 closes by registration)
+
+**N-182 FIXED** (the option-2 closure, the finding's own fix plan): the
+deep-range resolver's divergence is now the REGISTERED deliberate
+divergence — D-36's addendum in PARITY-DELTAS, wording corrected ("same
+target in the common case; the og's deep resolver derives type-6
+sub-ranges"). The decision evidence, gathered this session: every
+sub-rule decoded first-hand (FUN_14035a6d0 read in full — the 300 MB
+backward extension with the controller+0x118 flag, the matching-entry
+size, the ONE-following-FAT16 {0x0E,0x06} extension, the parent clamp,
+the FUN_1400d03e0 sub-device, the any-failure fallback), but the
+load-bearing device-type-6 gate's CLASS is undecoded after the probe
+round (Partition.mo's CDiskDeviceType defaults 4 with no 6-writer in
+any mo decompile; Device.mo's :546-611 listings are MOM wrappers; the
+controller-side FUN_14006db20 gate decoded as the plain controller+0xb8
+null check). Implementing without the gate would apply the extensions to
+every volume — a behavior the og never exhibits; a guessed type mapping
+is the same defect one layer down. The core's same-slice deep pass is
+output-equivalent on every non-type-6 device and conservative on
+type-6 shapes. The next probe (the concrete vtable +0xa8 getter
+mapping + the enumeration-chain 6-writer) is recorded in the D-36
+addendum for the implementing lane.
+
+## S80/S81 fix-lane addendum 2 (2026-10-29 — N-181 lands)
+
+**N-181 FIXED:** the RAW-first start order. The carve stage now runs
+BEFORE the deep extras whenever quick_done_ (the engine pass already
+emitted its nodes — the standard configuration and the quick-done
+resume legs): the ScanStage sequence reads quick → carve → deep, and
+the carved results surface before the deep stage begins — the og's
+controller-start order (FUN_140580720's first loop starts the
+CRAWSearchController casts first, DRWUI:916484-916509) and the finding's
+time-to-first-carved-result observable. The quick-disabled
+configuration keeps deep-first BY DESIGN (the engine pass rides inside
+run_deep and must precede carve for the F9 carve-vs-structured dedup).
+The finding's concurrent variant deliberately narrowed to the reorder
+(the og's shared-chunk-stream interleaving is the O37-registered
+architecture delta; the residual stays registered). Stage masks stay
+truthful; the weighted telemetry is stage-indexed, not order-dependent.
+Tests: ScanEvents.CarveStageBeginsBeforeDeepStage +
+DeepFirstWhenQuickDisabledForTheCarveDedup + the re-pinned
+CrUi.TypedEventStreamFullLifecycle (the M-140 precedent); suites 1564
+ran / 0 failed + 84/84.

@@ -171,7 +171,7 @@ TEST(Health, SmartCommandListMatchesImplementation) {
      * (src/core/health/cr_smart_ata.cpp - S-024's fix, moved to the pure
      * seam by N-032); 0xD8 RETURN_STATUS was a claimed-but-never-issued
      * command and must not return to the comment until the code issues it. */
-    const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_health.h");
+    const std::string hdr = cr_test::read_repo_text("include/cr/win/cr_health.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(hdr.find("0xD1 READ_THRESHOLDS"), std::string::npos)
         << "S-024's threshold reads ship - the header must keep claiming them";
@@ -180,13 +180,13 @@ TEST(Health, SmartCommandListMatchesImplementation) {
            "must not claim it (re-adding requires issuing it in code first)";
     /* the issuance lives in the pure seam since N-032 (the win layer
      * supplies transports only) */
-    const std::string seam = cr_test::read_repo_file("src/core/health/cr_smart_ata.cpp");
+    const std::string seam = cr_test::read_repo_text("src/core/health/cr_smart_ata.cpp");
     ASSERT_FALSE(seam.empty());
     EXPECT_NE(seam.find("0xD1"), std::string::npos) << "the threshold read must actually ship";
     EXPECT_EQ(seam.find("0xD8"), std::string::npos)
         << "if 0xD8 ever ships, update cr_health.h's comment in the same "
            "change (this pin forces the lockstep)";
-    const std::string win_src = cr_test::read_repo_file("src/win/cr_health.cpp");
+    const std::string win_src = cr_test::read_repo_text("src/win/cr_health.cpp");
     ASSERT_FALSE(win_src.empty());
     EXPECT_EQ(win_src.find("0xD8"), std::string::npos)
         << "the win layer issues no SMART commands of its own - transports only";

@@ -163,8 +163,11 @@ TEST(LostDiscovery, FindsScoresAndRejectsNoise) {
 
     EXPECT_EQ(exfat_c->fs, CandidateFs::Exfat);
     EXPECT_EQ(exfat_c->structural_points, 35); /* 15 + 20 */
-    /* M-017: count 0 (no content, no bonus pinned) -> 1/ln(60) = 244 */
-    EXPECT_EQ(exfat_c->score, 244);
+    /* M-149: count 0 (no content, no bonus) -> the og's ZERO floor
+     * (CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000');
+     * the old 1.0-numerator edge inflated it to 244 and tied it with
+     * genuine 1-file candidates */
+    EXPECT_EQ(exfat_c->score, 0);
     EXPECT_EQ(exfat_c->sector_count, 2048u);
 
     /* sorted desc */
@@ -190,6 +193,123 @@ TEST(LostDiscovery, OverlapClassification) {
     EXPECT_EQ(classify_overlap(1100, 50, known), Overlap::Inside);
     EXPECT_EQ(classify_overlap(900, 200, known), Overlap::Overlaps);
     EXPECT_EQ(classify_overlap(900, 800, known), Overlap::Contains);
+}
+
+/* ---- N-200: the og's lost-scan NTFS acceptance requires positive MFT
+ * evidence (PartitionRecoveryD FUN_180011150 :9889-9906: the classifier
+ * rejects into the 0xfffffff1 slot when FUN_180011560's 4-record read
+ * validates NEITHER at the primary $MFT LCN NOR at the $MFTMirr retry
+ * :10023-10075). A forged OEM with a plausible BPB surfaces no candidate;
+ * a torn-primary volume with an intact mirror surfaces WITH the mirror
+ * evidence label. The record-0 probe is a soft requirement: primary
+ * first, mirror retry, reject only when both fail. ---- */
+
+/* a standalone MFT record plant (the record-planting half of plant_ntfs,
+ * split out so the mirror-retry fixtures can target an arbitrary LBA) */
+void plant_mft_record(std::vector<u8>& img, u64 abs_lba) {
+    const u64 rec_off = abs_lba * 512;
+    put32v(img, rec_off + 0, 0x454C4946); /* 'FILE' */
+    put16(img, rec_off + 4, 0x30);        /* USA offset */
+    put16(img, rec_off + 6, 3);           /* USA size: 2+1 */
+    put16(img, rec_off + 8, 1);           /* sequence */
+    put16(img, rec_off + 0x14, 0x38);     /* attribute offset */
+    put16(img, rec_off + 0x18, 1);        /* in-use */
+    put32v(img, rec_off + 0x1C, 1024);
+    put32v(img, rec_off + 0x20, 1024);
+    put32v(img, rec_off + 0x2C, u32(0));
+    /* USA slots: USN, orig0, orig1 */
+    put16(img, rec_off + 0x30, 0x1234);
+    put16(img, rec_off + 0x32, 0xAAAA);
+    put16(img, rec_off + 0x34, 0xBBBB);
+    /* tails carry the USN */
+    img[rec_off + 510] = 0x34;
+    img[rec_off + 511] = 0x12;
+    img[rec_off + 1022] = 0x34;
+    img[rec_off + 1023] = 0x12;
+}
+
+/* one NTFS boot sector at 2048 with a coherent BPB (mft_lcn 100,
+ * mftmirr_lcn 108, volume-relative) and record plants under the
+ * caller's control: primary / mirror / neither */
+std::vector<u8> build_ntfs_mft_evidence_disk(bool plant_primary, bool plant_mirror) {
+    std::vector<u8> img(u64(4096) * 512, 0); /* 2 MiB disk */
+    const u64 lba = 2048;
+    u8* b = img.data() + lba * 512;
+    std::memcpy(b + 3, "NTFS    ", 8);
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = 1; /* spc */
+    b[0x15] = 0xF8;
+    put64(img, lba * 512 + 0x28, 1024);
+    put64(img, lba * 512 + 0x30, 100);
+    put64(img, lba * 512 + 0x38, 108);
+    b[0x40] = 2; /* clusters/record: 1024B */
+    b[0x44] = 2;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    if (plant_primary)
+        plant_mft_record(img, lba + 100);
+    if (plant_mirror)
+        plant_mft_record(img, lba + 108);
+    return img;
+}
+
+TEST(LostPart, ForgedOemNoMftEvidenceRejected) {
+    /* forged OEM + plausible BPB + NO MFT record at either LCN: the og's
+     * classifier rejects (both FUN_180011560 legs fail) - nothing surfaces */
+    auto img = build_ntfs_mft_evidence_disk(false, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    for (const auto& c : r.candidates)
+        EXPECT_NE(c.start_lba, 2048u)
+            << "forged OEM with no MFT evidence must not surface a candidate";
+}
+
+TEST(LostPart, TornPrimaryMftMirrorEvidenceScored) {
+    /* torn primary $MFT + intact mirror: the og's mirror retry accepts;
+     * the candidate surfaces with the mirror evidence label */
+    auto img = build_ntfs_mft_evidence_disk(false, true);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* c2048 = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 2048)
+            c2048 = &c;
+    ASSERT_NE(c2048, nullptr) << "torn primary + valid mirror must surface";
+    EXPECT_EQ(c2048->fs, CandidateFs::Ntfs);
+    EXPECT_EQ(c2048->structural_points, 70); /* 15 boot + 25 bpb + 30 mirror */
+    bool mirror_tag = false;
+    for (const auto& e : c2048->evidence)
+        if (std::string_view(e.tag) == "mft-mirror-probe")
+            mirror_tag = true;
+    EXPECT_TRUE(mirror_tag) << "mirror-validated acceptance carries its evidence label";
+    EXPECT_EQ(c2048->score, 1000) << "the og's acceptance is mirror-blind: the "
+                                     "strong-probe bonus applies";
+}
+
+TEST(LostPart, HealthyCandidateMftEvidenceUnchanged) {
+    /* control: the primary record-0 probe path is unchanged (label + score) */
+    auto img = build_ntfs_mft_evidence_disk(true, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* c2048 = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 2048)
+            c2048 = &c;
+    ASSERT_NE(c2048, nullptr);
+    EXPECT_EQ(c2048->structural_points, 70);
+    bool primary_tag = false, mirror_tag = false;
+    for (const auto& e : c2048->evidence) {
+        if (std::string_view(e.tag) == "mft-probe")
+            primary_tag = true;
+        if (std::string_view(e.tag) == "mft-mirror-probe")
+            mirror_tag = true;
+    }
+    EXPECT_TRUE(primary_tag);
+    EXPECT_FALSE(mirror_tag);
+    EXPECT_EQ(c2048->score, 1000);
 }
 
 /* ---- GAP-S6-6: TWO deleted NTFS partitions must BOTH surface ----
@@ -364,6 +484,62 @@ TEST(LostDiscovery, Ext4BlockGroupCopyNotACandidateStart) {
         EXPECT_NE(c.start_lba, 6144u) << "block-group copy must not anchor a candidate";
 }
 
+TEST(LostDiscovery, ExtMixedJournalIndicatorsRejected) {
+    /* N-214: the og's PRD classifier (FUN_180002b90 :1273-1293) requires
+     * the two journal indicators to AGREE — feature_compat HAS_JOURNAL
+     * (SB+0x5C bit 2) and s_journal_inum (SB+0xE0). Exactly one set is
+     * the torn-SB class the og drops with no classification at all (its
+     * -6 return): a set journal flag with a zeroed journal inode, or a
+     * clear flag with a surviving journal inode, never becomes a
+     * lost-partition candidate. */
+    for (int shape = 0; shape < 2; ++shape) {
+        std::vector<u8> img(u64(32768) * 512, 0);
+        plant_ext4_sb(img, 6144, 2048, 2048, 2048, 2048, 0, 100);
+        const u64 sb = 6144 * 512 + 1024;
+        if (shape == 0) {
+            /* torn shape A: the journal FLAG set, the journal INODE zeroed */
+            put32v(img, sb + 0x5C, 0x4); /* feature_compat HAS_JOURNAL */
+            put32v(img, sb + 0xE0, 0);   /* s_journal_inum torn to zero */
+        } else {
+            /* torn shape B: the journal FLAG clear, the journal INODE
+             * surviving (the classic ext2-upgraded-to-ext3 tear) */
+            put32v(img, sb + 0x5C, 0);
+            put32v(img, sb + 0xE0, 8); /* s_journal_inum = the ext3 default */
+        }
+        MemDevice dev(std::move(img));
+        DiscoveryResult r;
+        ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK) << "shape " << shape;
+        for (const auto& c : r.candidates)
+            EXPECT_NE(c.start_lba, 6144u)
+                << "torn shape " << shape
+                << ": mixed journal indicators must not anchor a candidate";
+    }
+}
+
+TEST(LostDiscovery, ExtJournalIndicatorsConsistentAccepted) {
+    /* N-214's control: the two og-ACCEPTED shapes still surface. Both
+     * indicators clear = ext2 (the existing
+     * Ext4SuperblockAnchorsDeletedPartition pins that shape); both set =
+     * ext3/4 — a journaled volume with its journal inode intact anchors
+     * with the full evidence set, scores unchanged by the gate. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ext4_sb(img, 6144, 2048, 2048, 2048, 2048, 0, 100);
+    const u64 sb = 6144 * 512 + 1024;
+    put32v(img, sb + 0x5C, 0x4); /* feature_compat HAS_JOURNAL */
+    put32v(img, sb + 0xE0, 8);   /* s_journal_inum — both set: ext3/4 */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* ext_c = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            ext_c = &c;
+    ASSERT_NE(ext_c, nullptr) << "the consistent journaled (ext3/4) shape must anchor";
+    EXPECT_EQ(ext_c->fs, CandidateFs::Ext2);
+    EXPECT_GE(ext_c->score, 70); /* 15 magic + 25 validation + 30 GDT probe */
+    EXPECT_EQ(ext_c->sector_count, 2048u * 4096u / 512u);
+}
+
 TEST(LostDiscovery, HfsPlusVolumeHeaderAnchorsDeletedPartition) {
     std::vector<u8> img(u64(16384) * 512, 0);
     plant_hfsplus_vh(img, 6144, 4096, 1024); /* 1024 4-KiB blocks = 4 MiB */
@@ -376,7 +552,10 @@ TEST(LostDiscovery, HfsPlusVolumeHeaderAnchorsDeletedPartition) {
             h = &c;
     ASSERT_NE(h, nullptr);
     EXPECT_EQ(h->fs, CandidateFs::HfsPlus);
-    EXPECT_GE(h->score, 40); /* 35 vh + 5 geometry */
+    /* M-149: no content walk for HFS+ -> count 0 -> the og's zero
+     * floor; the structural evidence lives in structural_points */
+    EXPECT_EQ(h->score, 0);
+    EXPECT_GE(h->structural_points, 40); /* 35 vh + 5 geometry */
     EXPECT_EQ(h->sector_count, 1024u * 4096u / 512u);
 }
 
@@ -392,7 +571,8 @@ TEST(LostDiscovery, BtrfsSuperblockAnchorsDeletedPartition) {
             b = &c;
     ASSERT_NE(b, nullptr);
     EXPECT_EQ(b->fs, CandidateFs::Btrfs);
-    EXPECT_GE(b->score, 35);
+    EXPECT_EQ(b->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(b->structural_points, 35);
 }
 
 TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
@@ -407,8 +587,74 @@ TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
             z = &c;
     ASSERT_NE(z, nullptr);
     EXPECT_EQ(z->fs, CandidateFs::Zfs);
-    EXPECT_GE(z->score, 35);              /* 25 magic + 10 txg liveness */
+    EXPECT_EQ(z->score, 0);               /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(z->structural_points, 35);  /* 25 magic + 10 txg liveness */
     EXPECT_TRUE(z->size_from_device_end); /* flagged fallback (honest) */
+}
+
+TEST(LostDiscovery, TailBoundUsesCeiledSectorCount) {
+    /* N-206: the device-tail bound rides the CEILED sector count (the
+     * og's geometry-EX form, Device_decompiled.c:56536-56538). A device
+     * of 6144 full sectors + 129 real bytes of a 6145th PARTIAL sector
+     * carries 6145 ADDRESSABLE sectors (the tail driver-padded); an FVE
+     * VBR anchored at the last FULL sector (6143) gets the tail-fallback
+     * size 2 = 6145 - 6143 - covering the partial sector. The pre-fix
+     * floor bound (disk->size()/512 = 6144) gave the candidate 1 sector:
+     * the addressable tail was structurally unreachable from the bound.
+     * (A 55AA-gated VBR cannot anchor IN the partial sector itself - its
+     * +510/+511 signature bytes are driver-pad zeros on both sides; the
+     * bound math is the honest divergence surface.) */
+    class OddTailDevice final : public IStorageDevice {
+    public:
+        explicit OddTailDevice(std::vector<u8> padded, u64 true_bytes)
+            : data_(std::move(padded)), bytes_(true_bytes) {
+            geom_.logical_sector = 512;
+            geom_.physical_sector = 512;
+            geom_.total_bytes = bytes_;
+            geom_.sector_count = (bytes_ + 511) / 512; /* N-206: the og's ceil */
+        }
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            /* the driver-padded semantics: the whole ceiled range reads,
+             * the bytes past the file's true end are zero */
+            const u64 bound = geom_.sector_count * 512;
+            if (off > bound || len > bound - off)
+                return ERR_RANGE_OUT_OF_BOUNDS;
+            std::memcpy(buf, data_.data() + off, len);
+            return OK;
+        }
+        const Geometry& geometry() const override { return geom_; }
+
+    private:
+        std::vector<u8> data_; /* padded to the ceiled bound */
+        u64 bytes_;
+        Geometry geom_;
+    };
+    /* 6144 full sectors + 129 real bytes of a partial 6145th */
+    const u64 true_bytes = 6144 * 512 + 129;
+    std::vector<u8> img(6145 * 512, 0);
+    /* the FVE VBR at LBA 6143 - the last FULL sector (its 55AA is real) */
+    u8* b = img.data() + 6143 * 512;
+    b[0] = 0xEB;
+    b[1] = 0x52;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "-FVE-FS-", 8);
+    std::memcpy(b + 0x0B, "2013.0.0", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    OddTailDevice dev(std::move(img), true_bytes);
+    EXPECT_EQ(dev.geometry().sector_count, 6145u);
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fve = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6143)
+            fve = &c;
+    ASSERT_NE(fve, nullptr) << "the last-full-sector VBR must surface";
+    EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
+    EXPECT_EQ(fve->score, 0); /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(fve->structural_points, 15);
+    EXPECT_EQ(fve->sector_count, 2u) << "RED pre-fix: the floor bound gave 1";
+    EXPECT_TRUE(fve->size_from_device_end);
 }
 
 TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
@@ -426,7 +672,8 @@ TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
             rf = &c;
     ASSERT_NE(rf, nullptr);
     EXPECT_EQ(rf->fs, CandidateFs::Refs);
-    EXPECT_GE(rf->score, 40);              /* 35 pages + 5 checkpointed */
+    EXPECT_EQ(rf->score, 0);               /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(rf->structural_points, 40);  /* 35 pages + 5 checkpointed */
     EXPECT_TRUE(rf->size_from_device_end); /* flagged fallback (honest) */
 }
 
@@ -493,7 +740,8 @@ TEST(LostDiscovery, LostBitlockerPartitionDiscovered) {
             fve = &c;
     ASSERT_NE(fve, nullptr) << "the lost BitLocker partition must surface";
     EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
-    EXPECT_GE(fve->score, 40);              /* 15 boot-sig + 25 fve-shape */
+    EXPECT_EQ(fve->score, 0);               /* M-149: the og's zero floor for count 0 */
+    EXPECT_GE(fve->structural_points, 40);  /* 15 boot-sig + 25 fve-shape */
     EXPECT_TRUE(fve->size_from_device_end); /* geometry corpus-undecoded: marked fallback */
     EXPECT_GT(fve->sector_count, 0u);
     /* evidence tags carry the og-gate + shape breakdown */
@@ -872,9 +1120,13 @@ TEST(LostScoring, MatchesLogRows) {
      * (ln(2) < 1 < ln(3) - the quirk's true extent) */
     EXPECT_NEAR(score_ratio(1, 199924), 0.081928, 1e-5);
     EXPECT_GT(score_ratio(1, 199924), score_ratio(2, 199924));
-    /* degenerate denominators stay 1.0 */
+    /* degenerate denominators: count==1 keeps the identity 1.0; the
+     * count==0 edge is the og's ZERO floor (M-149: the per-entry loop's
+     * null-payload branch stamps 0.0 — CalcPartition.log's
+     * 'files:0 folders:0 dSuggestted:0.000000' row; the old 1.0 edge
+     * tied empty candidates with genuine 1-file candidates) */
     EXPECT_DOUBLE_EQ(score_ratio(1, 1), 1.0);
-    EXPECT_DOUBLE_EQ(score_ratio(0, 1), 1.0);
+    EXPECT_DOUBLE_EQ(score_ratio(0, 1), 0.0);
     /* the og's per-FS weights (FUN_14050fda0 :842176-842200) */
     EXPECT_EQ(u64(429 + 50 * 3), weighted_count(3, 429, 3)); /* NTFS family */
     EXPECT_EQ(u64(10 + 10 * 3), weighted_count(8, 10, 3));   /* HFS+ f+10d */
@@ -933,6 +1185,73 @@ TEST(LostDiscovery, TableMatchBonus500) {
     EXPECT_EQ(ntfs_c->score, 831);
 }
 
+TEST(LostDiscovery, ScoringTableMatchBonusIsNumeratorOnly) {
+    /* M-149: the +500 lands in the NUMERATOR only — the og's max loop
+     * (:842210-842240) has NO bonus walk. The leader-matched shape the
+     * old single-pass code corrupted: a table-matched FAT leader (2020
+     * + 500 = 2520) scores ln(2520)/ln(2020) = 1029 permille (>1000 —
+     * the og's raw double >1.0) and the NTFS runner-up keeps
+     * ln(60)/ln(2020) = 537 (NOT deflated). The old code: den =
+     * ln(2520), the leader exactly 1000, the runner-up 522. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ntfs(img, 1024, 512, 64);     /* unmatched NTFS: count 60 */
+    plant_fat16_content(img, 4096, 40); /* the FAT leader: 40*50+20 = 2020 */
+    MemDevice dev(std::move(img));
+    table::PartitionInfo live;
+    live.start_lba = 4096; /* the FAT's start: the table match */
+    live.sector_count = 512;
+    live.used = true;
+    live.fs = table::FsKind::Fat32;
+    std::vector<table::PartitionInfo> known{live};
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, known, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate *fat_c = nullptr, *ntfs_c = nullptr;
+    for (const auto& c : r.candidates) {
+        if (c.fs == CandidateFs::Fat)
+            fat_c = &c;
+        if (c.fs == CandidateFs::Ntfs)
+            ntfs_c = &c;
+    }
+    ASSERT_NE(fat_c, nullptr);
+    ASSERT_NE(ntfs_c, nullptr);
+    EXPECT_TRUE(fat_c->table_match);
+    EXPECT_EQ(fat_c->content_count, u64(2520)); /* 2020 + the +500 numerator bonus */
+    /* the og's >1.0 leader, in permille */
+    EXPECT_EQ(fat_c->score, 1029);
+    /* the runner-up is NOT deflated by the bonus (the denominator never
+     * saw the +500) */
+    EXPECT_EQ(ntfs_c->score, 537);
+    EXPECT_EQ(ntfs_c->content_count, u64(60));
+}
+
+TEST(LostDiscovery, ScoringZeroCountScoresZero) {
+    /* M-149: a candidate with weighted count 0 scores ZERO (the og's
+     * own log row: files:0 folders:0 -> dSuggestted:0.000000). The old
+     * numerator edge scored it 1.0/ln(max) — an empty candidate TIED a
+     * genuine 1-file candidate and could outrank it on the structural
+     * tie-break. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ntfs(img, 1024, 512, 64); /* empty NTFS: count 60 (the bonus) */
+    /* an empty, bonus-less family: a ReFS boot with no content walk ->
+     * weighted 0 + no fs_bonus -> count 0 (the fs_bonus table: ReFS has
+     * none). Plant a bare ReFS-shaped boot at a disjoint start. */
+    /* NOTE: planting a full ReFS boot is heavy; the empty-ext probe
+     * class (failed materialize / no walk families) reaches count 0 via
+     * the Unknown family — a start with nothing recognizable. The
+     * candidate list may then carry a zero-count entry only through the
+     * known-table channel; the unit discriminator below pins the
+     * formula directly instead (the end-to-end shape is the
+     * ScoringEmptyCandidateNeverOutranksOneFile test). */
+    (void)img;
+    /* the formula's edge, pinned directly (the og's null-payload
+     * branch): */
+    EXPECT_DOUBLE_EQ(score_ratio(0, 168849), 0.0);
+    EXPECT_EQ(int(score_ratio(0, 168849) * 1000.0), 0);
+    /* the ordering discriminator: an empty candidate NEVER outscores a
+     * 1-file candidate (0 < ln(1)... 1.0 identity) */
+    EXPECT_LT(score_ratio(0, 199924), score_ratio(1, 199924));
+}
+
 TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {
     /* AdjustPartitionInfoOrder :842776-93 + :842851: the first
      * size-matching candidate AFTER at least one non-matching one (the
@@ -956,4 +1275,48 @@ TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {
     /* the non-matching candidate keeps its own ln score and #3 */
     EXPECT_EQ(r.candidates[2].start_lba, u64(1024));
     EXPECT_EQ(r.candidates[2].score, 537);
+}
+
+/* ---- M-137: the geometry fallback (DRWUI:904185-187) ---- */
+
+namespace {
+/* a device whose geometry query reports logical_sector 0 (the failed /
+ * absent geometry query) while its reads stay healthy - the shape the
+ * og's `if (sector_size == 0) sector_size = 0x200;` fallback serves. */
+class ZeroGeomDevice final : public IStorageDevice {
+public:
+    explicit ZeroGeomDevice(std::vector<u8> b) : data_(std::move(b)) {
+        /* logical_sector deliberately 0: the unreadable geometry */
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+};
+} // namespace
+
+TEST(LostDiscovery, ZeroSectorSizeFallsBackTo512) {
+    /* M-137: the og proceeds at 512 when the device sector-size query
+     * fails (DRWUI:904185-187) - the old core refused the whole
+     * discovery with ERR_BAD_PARAMETER; the fallback keeps the
+     * discovery alive on the 512-byte floor. The table layer's own
+     * parse legitimately refuses the unreadable geometry (its LBA math
+     * needs the sector size), so the zero-geometry shape is the
+     * tableless discovery - exactly the og's fallback context. */
+    auto img = build_disk();
+    ZeroGeomDevice dev(std::move(img));
+    DiscoveryResult r;
+    u32 rc = discover(&dev, {}, 1, nullptr, nullptr, nullptr, r);
+    EXPECT_EQ(rc, OK) << "the zero-geometry query proceeds at 512, never refuses";
+    EXPECT_FALSE(r.candidates.empty()) << "the planted volumes still surface";
 }

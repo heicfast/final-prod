@@ -195,8 +195,13 @@ std::vector<u8> build_fat16_wide(size_t root_files) {
         for (int k = 0; k < 11; ++k)
             e[k] = u8(n11[k]);
         e[11] = 0x20;                           /* plain file */
-        put16(img, ROOT + i * 32 + 26, u16(2)); /* cluster 2, zero-size stream */
-        put32v(img, ROOT + i * 32 + 28, 0);
+        put16(img, ROOT + i * 32 + 26, u16(2)); /* cluster 2 */
+        /* M-130: a sized stream - the og's emission-walk shape gate
+         * (FUN_1800365a0 :44344-48) rejects zero-size dentries that
+         * carry a chain; the fixture's old cluster-2/size-0 shape is
+         * the illegal class (fixtures derive from the dentry contract,
+         * never from a lax implementation - the S-042 rule). */
+        put32v(img, ROOT + i * 32 + 28, 1);
     }
     /* one carvable JPEG in the tail (beyond the last root slot) - gives
      * the carve stage something to validate in these fixtures */
@@ -386,4 +391,25 @@ TEST(Telemetry, QueryDuringScanIsThreadSafe) {
     stop.store(true);
     q1.join();
     q2.join();
+}
+
+/* ---- N-166: live counter refresh on progress samples ------------------ */
+
+TEST(Telemetry, LiveAttachCounterTracksTheTree) {
+    /* the O(1) attach counter: every add_file ticks, detach subtracts,
+     * reset zeroes - the telemetry overlay's data source. */
+    tree::ResultTree t;
+    auto* r = t.add_root(u"Found");
+    EXPECT_EQ(t.live_files(), 0u);
+    for (int i = 0; i < 5; ++i) {
+        auto* p = new tree::FileProperties();
+        p->name = u"f";
+        t.add_file(r, p);
+        p->release();
+    }
+    EXPECT_EQ(t.live_files(), 5u);
+    t.refresh_stats();
+    EXPECT_EQ(t.live_files(), 5u); /* refresh does not disturb the counter */
+    t.reset();
+    EXPECT_EQ(t.live_files(), 0u);
 }

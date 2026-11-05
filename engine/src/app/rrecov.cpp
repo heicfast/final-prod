@@ -2,22 +2,70 @@
  * rrecov - the core_recovery CLI (Windows).
  *
  * Commands:
- *   list                                  enumerate disks/volumes
- *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
- *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
- *         [--log file] [--csv] [--filter s] [--deleted-only]
- *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]] [--check]
+ *   list [--trim]                         enumerate disks/volumes; --trim adds the
+ *                                         per-row TRIM chip datum (the og's home-page
+ *                                         SSD recovery-chance indicator, UIUX/07:17)
+ *   list-carve-formats                    the two-layer carve registry
+ *   sessions [--dir D] [--json]          the saved-session list (light
+ *                                         summary per file; the og's
+ *                                         LastScanRecordView surface)
+ *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
+ *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
+ *         [--resume file.crsf] [--autosave-dir D] [--label s] [--json]
+ *         [--log file] [--csv] [--pause-stdin]
+ *         [--filter s] [--deleted-only] [--bitlocker-fvek hex]
+ *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
+ *         [--repair-apply] [--repair-undo file] [--check]
+ *         (--pause-stdin: N-178's keyboard pause surface - 'p'/SPACE
+ *          pauses the scan, 'r'/Enter resumes, Ctrl-C still cancels; the
+ *          same PausableToken the ABI's pause pair drives. No-op when
+ *          stdin is redirected - a console input buffer is required.)
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
- *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
- *         [--report file.json]
+ *   archive-list --in file.crsf (--disk N | --image file) --node ID
+ *                                         the browse-inside inventory (the og's
+ *                                         archive view; M-116's smoke surface)
+ *   recover --in file.crsf (--disk N | --image file) --to DIR
+ *         [--deleted-only] [--filter s] [--report file.json]
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *         [--chkdsk C:] (the M-075 escalation endpoint: launch Windows
+ *          chkdsk /f on a volume - the fix rung of the check ladder;
+ *          no --disk needed: a volume-letter operation)
+ *   unlock --turn-off C: (the M-078 destructive consent twin of the
+ *          unlock surface: turn BitLocker OFF on a volume - decrypt,
+ *          never bypass; the OS decrypt continues in the background)
+ *   apply --disk N --session file.crsf [--candidate N] [--apply]
+ *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
+ *
+ * Boot-fix contract (N-121/D-90's register): --boot-fix-bcd expects the
+ * path of the BCD store to repair - the HOST discovers and mounts the EFI
+ * System Partition (type GUID C12A7328-F81F-11D2-BA4B-00A0C93EC93B) for
+ * unlettered ESPs and unmounts it afterwards; the core repairs the store
+ * at the path it is given (the og's CUpdateGptSystemBootPartition
+ * auto-mount is a registered host contract, PARITY-DELTAS D-90/N-121).
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
+ *   image --create --disk N --out file.img
+ *                                         the og home page's Create Image
+ *                                         flow (UIUX/07:36-37): flat raw
+ *                                         producer + .sha256 sidecar; cancel
+ *                                         keeps '<out>.partial' (S-040)
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
- * was given); list 1 on enumeration failure; health 3 when every health
- * source is unavailable; recover 2 partial (item errors / hash mismatch).
+ * was given) / 5 the target disconnected mid-scan (N-125: distinct from
+ * failure and cancel - the reattach-then-resume contract, the checkpoint
+ * from --out resumes after the device returns); list 1 on enumeration
+ * failure; list-carve-formats 1 on the
+ * empty registry; sessions 1 on enumeration failure (unreadable files are
+ * per-row data, never a failure); health 3 when every health source is
+ * unavailable;
+ * recover 2 partial (item errors / hash mismatch); apply / fix 2 on
+ * open/plan/execute/undo failure; bench 2 on open/read failure or zero
+ * hits;
+ * 4 = the privilege prerequisite is not met (any raw-disk verb in a
+ * non-elevated process; the refusal names elevation on stderr - image
+ * targets are exempt); image 3 cancelled (the partial is kept as
+ * '<out>.partial' and reported) / 2 failed (partial kept, reported).
  *
  * Everything is logged in detail (stage timings, per-stage counts, error
  * maps) for testing, validation and benchmarking workflows.
@@ -36,6 +84,7 @@
 #include "cr/apply/cr_apply.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/session/cr_lastscan.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/table/cr_ldm.h"
@@ -44,16 +93,26 @@
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
+#include "cr/win/cr_mountpoints.h" /* M-118: the register channel's live HKCU walk */
 #include "cr/win/cr_transport.h"
+#include "cr/win/cr_winenv.h"       /* ENUMERATE_DISK_BOUND: the 200-disk product space */
+#include "cr/win/cr_image_create.h" /* S-040: the image verb */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
+#include "cr/win/cr_fsck.h" /* M-075: the chkdsk escalation endpoint */
+#include "cr/check/cr_fsck_launch.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
-#include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
+#include "cr/crypto/cr_sha256.h"   /* S-040: the digest line */
+#include "cr/cr_text.h"            /* N-009c: --filter UTF-8 encoding */
+#include "cr/preview/cr_preview.h" /* M-116: the archive-list verb surfaces the inventory */
 #include <windows.h>
 #include <map>
 #include <chrono>
+#include <atomic>
 #include <cstdarg>
+#include <cwctype> /* W1a: towlower (the sessions *.crsf tail check) */
+#include <ctime>   /* W1a: localtime_s (the sessions save-time display) */
 #include <filesystem>
 #include <cstdio>
 #include <cstdlib>
@@ -88,6 +147,21 @@ std::string narrow(const std::wstring& s) {
     return n;
 }
 
+/* N-145 journal paths: byte-truncating wide->narrow. This is the EXACT
+ * semantics of the std::string(begin, end) range construction it replaces
+ * (each wchar_t's low byte, same order) - kept as its own helper because
+ * narrow() maps >=0x80 to '?', which would change the journal file name for
+ * non-ASCII paths. The per-element explicit char(c) makes the narrowing
+ * intentional so MSVC /W4 C4244 has no implicit site inside xutility's
+ * copy template (the range ctor's instantiation point). */
+std::string narrow_bytes(const std::wstring& s) {
+    std::string n;
+    n.reserve(s.size());
+    for (wchar_t c : s)
+        n.push_back(char(c));
+    return n;
+}
+
 /* stdout progress line: "\r  42.1% | quick 100% deep 12% carve 0%" */
 struct ProgressDisplay {
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -101,9 +175,22 @@ struct ProgressDisplay {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
                             .count();
-        wprintf(L"\r  %5.1f%%  (%lld s)   ", pct, static_cast<long long>(ms) / 1000);
+        /* M-126: the og's remaining-time label beside the elapsed time
+         * (FUN_1401af410's whole-run model + the "XmYs" render; the
+         * empty-label placeholder is the og's literal "3m00s") */
+        const query::EtaModel em =
+            query::eta_compute(permille, 1000ull, u64(ms), prev_rate, false, 0);
+        prev_rate = em.smoothed_rate;
+        wchar_t eta[32] = L"";
+        if (em.eta_seconds > 0) {
+            const std::string m126 = query::eta_format_m_s(em.eta_seconds);
+            std::mbstowcs(eta, m126.c_str(), 31);
+        }
+        wprintf(L"\r  %5.1f%%  (%lld s)  remaining: %ls   ", pct, static_cast<long long>(ms) / 1000,
+                em.eta_seconds > 0 ? eta : L"3m00s");
         return true;
     }
+    u64 prev_rate = 0;
     /* Success summary only - a failed/cancelled run must never print
      * "100.0% done" (AUDIT-ARCH F-B-15). */
     void done() { wprintf(L"\r  100.0%%  done          \n"); }
@@ -125,6 +212,51 @@ BOOL WINAPI ctrl_c_handler(DWORD type) {
         return TRUE;
     }
     return FALSE;
+}
+
+/* ---------------------------------------------------------------------------
+ * N-178: the CLI pause surface (--pause-stdin). The og ships a
+ * pixel-verified Pause control on its bottom bar (UIUX/35:175-176; the
+ * paused state "Scan Paused" + the frozen gauge, :182) driven through
+ * the ABI's pause pair (cr_ui_scan_pause/resume -> the PausableToken).
+ * The CLI's only control was Ctrl-C (cancel - the S-057/A-013 loss
+ * paths); --pause-stdin maps the keyboard onto the SAME token: 'p' or
+ * SPACE pauses, 'r' or ENTER resumes, the transitions print, Ctrl-C
+ * stays cancel. The reader polls the Win32 console input buffer with a
+ * timeout (never a blocking read - the process can always exit on
+ * cancel) and terminates when the token cancels or the scan ends.
+ * ------------------------------------------------------------------------- */
+DWORD WINAPI pause_stdin_reader(LPVOID) {
+    const HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    if (in == INVALID_HANDLE_VALUE || in == nullptr)
+        return 0;
+    for (;;) {
+        if (g_cancel_token.cancelled())
+            return 0;
+        if (WaitForSingleObject(in, 200) != WAIT_OBJECT_0)
+            continue; /* poll loop: cancel stays responsive */
+        INPUT_RECORD recs[8];
+        DWORD n = 0;
+        if (!ReadConsoleInputW(in, recs, 8, &n) || n == 0)
+            continue;
+        for (DWORD k = 0; k < n; ++k) {
+            if (recs[k].EventType != KEY_EVENT || !recs[k].Event.KeyEvent.bKeyDown)
+                continue;
+            const WCHAR ch = recs[k].Event.KeyEvent.uChar.UnicodeChar;
+            if (ch == L'p' || ch == L'P' || ch == L' ') {
+                if (!g_cancel_token.paused()) {
+                    g_cancel_token.pause();
+                    wprintf(L"\n[pause] scan paused - press 'r' or Enter to resume "
+                            L"(Ctrl-C still cancels)\n");
+                }
+            } else if (ch == L'r' || ch == L'R' || ch == L'\r' || ch == L'\n') {
+                if (g_cancel_token.paused()) {
+                    g_cancel_token.resume();
+                    wprintf(L"[pause] scan resumed\n");
+                }
+            }
+        }
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -173,6 +305,28 @@ void log_line(const char* fmt, ...) {
     fflush(g_log);
 }
 
+/* OQ-S4-3's TTFR probe (the acceptance's scan-level time-to-first-result
+ * half; probe-target correction 97cc3b2 = ride the staged-scenarios lane):
+ * the typed event stream's FIRST FilesFound event with a positive count is
+ * the earliest observable "first result" (counters coalesce at stage
+ * boundaries - the event's timestamp_ms is run-elapsed, pause-compensated).
+ * One log line, once; the staged-scenarios evidence JSON extracts it
+ * (verify-scenario.ps1). Events may fire from engine worker threads - the
+ * once-flag is atomic. */
+struct TtfrProbe {
+    std::atomic<bool> fired{false};
+};
+
+static void ttfr_event_fn(const orchestrator::event::Event& evt, void* user) {
+    auto* probe = static_cast<TtfrProbe*>(user);
+    if (evt.type == orchestrator::event::Type::FilesFound && evt.files_found > 0 &&
+        !probe->fired.exchange(true)) {
+        log_line("ttfr_ms=%llu first_files=%llu stage=%u",
+                 static_cast<unsigned long long>(evt.timestamp_ms),
+                 static_cast<unsigned long long>(evt.files_found), evt.stage);
+    }
+}
+
 /* ---------------------------------------------------------------------------
  * Device opening (shared by scan/recover/bench).
  * ------------------------------------------------------------------------- */
@@ -186,8 +340,11 @@ struct OpenResult {
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
-    bool is_image = false;   /* S-030: the target is a disk-image file */
-    std::wstring image_path; /* the --image argument (identity + resume) */
+    wchar_t volume_letter = 0; /* M-079: the --volume target's letter (the
+                                * label derivation's source; 0 = not a
+                                * letter-addressed volume) */
+    bool is_image = false;     /* S-030: the target is a disk-image file */
+    std::wstring image_path;   /* the --image argument (identity + resume) */
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -231,7 +388,10 @@ bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
 repair::IWriteDevice* scan_repair_open_writer(void* user) {
     auto* c = static_cast<RepairCliCtx*>(user);
     u32 e = 0;
-    auto w = win::open_disk_rw(c->disk, L"RDA", &e);
+    /* direct era (session-96): an RW-open failure under an elevated
+     * token is a truthful target error and the repair stays unavailable
+     * for this scan (orchestrator contract, cr_scan.h:212-216) */
+    auto w = win::open_disk_rw(c->disk, &e);
     if (!w) {
         wprintf(L"[repair] cannot open disk %u for write (rc=%08x): %hs\n", c->disk, e,
                 cr::win::is_elevated()
@@ -268,6 +428,54 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
 }
 
+/* M-079 + N-133: the volume label for the session record + the
+ * auto-save name (the og's GetVolumeName - rsf-format:167; the
+ * auto_<vol>_ naming :443-451 with every corpus sample labeled). The og
+ * derives it from the scanned volume itself; the CLI asks the win layer
+ * by letter for live volumes. An explicit --label always wins (checked
+ * by the caller: empty = derive, nonempty = the user's). Whole-disk
+ * targets have no volume name (the timestamp-only shape is the
+ * documented fallback). Image targets: the filename stem is the
+ * DERIVED fallback - N-133 corrected M-079's refuted premise (the og's
+ * engines DO decode the on-disk label, image scans included: NTFS
+ * $Volume NTFSSearchDLL:647-676/:50963-50980, ext4 s_volume_name
+ * algorithms-v2 SS2 step 5); the derived marker lets the orchestrator's
+ * engine pass replace the stem with the engine-decoded on-disk label
+ * (the corrected precedence: --label > engine label > image stem). */
+void fill_volume_label(OpenResult& target, orchestrator::ScanConfig& cfg) {
+    if (cfg.volume_label[0] != 0)
+        return; /* the explicit --label override */
+    if (target.is_image) {
+        /* the image filename's stem: "disk.img" -> "disk" - the derived
+         * fallback (replaced by the engine-decoded on-disk label at scan
+         * time when the volume carries one) */
+        const wchar_t* path = target.image_path.c_str();
+        const wchar_t* base = wcsrchr(path, L'\\');
+        base = base ? base + 1 : path;
+        const wchar_t* dot = wcsrchr(base, L'.');
+        size_t n = dot ? size_t(dot - base) : wcslen(base);
+        if (n == 0)
+            return;
+        if (n > sizeof(cfg.volume_label) - 1)
+            n = sizeof(cfg.volume_label) - 1;
+        for (size_t k = 0; k < n && base[k] < 0x80; ++k)
+            cfg.volume_label[k] = char(base[k]);
+        cfg.volume_label[n] = 0;
+        cfg.volume_label_derived = true; /* N-133: replaceable by the engine */
+        return;
+    }
+    if (target.volume_letter == 0)
+        return; /* whole-disk: no volume name (documented fallback) */
+    wchar_t root[4] = {target.volume_letter, L':', L'\\', 0};
+    wchar_t label[64] = {};
+    if (!GetVolumeInformationW(root, label, 64, nullptr, nullptr, nullptr, nullptr, 0))
+        return; /* unformatted/locked/label-less: the timestamp-only shape */
+    size_t k = 0;
+    for (; k + 1 < sizeof(cfg.volume_label) && label[k] && label[k] < 0x80; ++k)
+        cfg.volume_label[k] = char(label[k]);
+    cfg.volume_label[k] = 0;
+}
+
 /* S-030: open a disk-image file as the scan target (the og's "Import a
  * disk image" flow - DRWUI's extension factory with the flat fallback).
  * Prints the format + the LBA0 layout classification exactly like the
@@ -300,33 +508,67 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
                  : lay == storage::Lba0Layout::Gpt ? L"GPT"
                                                    : L"unknown layout";
     }
-    wprintf(L"[image] %s (%s, %s, %llu MiB)\n", path.c_str(), fmt_name, layout,
-            static_cast<unsigned long long>(dev->size() >> 20));
+    wprintf(L"[image] %s (%s, %s, %hs)\n", path.c_str(), fmt_name, layout,
+            query::display_size_log(dev->size()).c_str());
     out.device = std::move(dev);
     out.is_image = true;
     out.image_path = path;
     return true;
 }
 
+/* ---- Privilege precondition (session-96: the driver replacement) ----
+ * The data path is direct raw I/O: \\.\PhysicalDriveN access needs an
+ * ELEVATED process token (a non-elevated admin's group membership is not
+ * enough - TokenElevation is the honest probe, cr_elevate.cpp).
+ * require_privilege() runs BEFORE any other output in every
+ * raw-disk-requiring verb - the refusal is the whole response. Returns 0
+ * when the token is elevated; the verb's exit code (4) otherwise. */
+int require_privilege() {
+    if (win::is_elevated())
+        return 0;
+    fwprintf(stderr,
+             L"rrecov: administrator privilege required - raw disk access (%hs 0x%08x).\n"
+             L"rrecov: relaunch from an elevated prompt (or let your host trigger the UAC "
+             L"flow) and retry.\n"
+             L"rrecov: image targets (--image) and session/report/preview verbs that only "
+             L"read files work without elevation.\n",
+             err_text(ERR_ELEVATION_REQUIRED), ERR_ELEVATION_REQUIRED);
+    return 4;
+}
+
+/* argv scan: does the tail carry a file-backed target (--image)?
+ * The scan/recover preconditions skip the privilege gate for image
+ * targets (classified (b) - images never touch raw disks). */
+bool argv_has_image_target(int argc, wchar_t** argv, int from) {
+    for (int k = from; k < argc; ++k)
+        if (wcscmp(argv[k], L"--image") == 0)
+            return true;
+    return false;
+}
+
 bool open_disk_view(u32 n, OpenResult& out) {
     u32 err = 0;
-    /* Mandatory-driver session (2026-10-27): the RDA grammar is the ONLY
-     * raw-disk transport - the direct PhysicalDriveN leg is removed
-     * (docs/PARITY-DELTAS.md D-FALL). */
-    u32 rda_gle = 0;
-    if (!win::rda_available(L"RDA", &rda_gle)) {
-        wprintf(L"[transport] the RDA raw-disk driver is required and not available "
-                L"(\\\\.\\RDA CreateFile error %lu) - install/start the driver and retry\n",
-                rda_gle);
+    /* Direct data path (session-96): \\.\PhysicalDriveN, no kernel
+     * component. The verb-level require_privilege() gate owns the
+     * exit-code contract; this in-path elevation check is the truth
+     * layer for direct callers (and the TOCTOU window). */
+    if (!win::is_elevated()) {
+        wprintf(L"[transport] raw disk access requires an elevated process (%hs 0x%08x)\n",
+                err_text(ERR_ELEVATION_REQUIRED), ERR_ELEVATION_REQUIRED);
         return false;
     }
-    if (auto dev = win::open_rda_partition(L"RDA", n, 0, &err)) {
-        wprintf(L"[transport] RDA driver path (\\\\.\\RDA)\n");
+    if (auto dev = win::open_disk(n, &err)) {
+        wprintf(L"[transport] direct raw I/O (\\\\.\\PhysicalDrive%u)\n", n);
         out.device = std::move(dev);
         out.disk = n;
         return true;
     }
-    wprintf(L"[transport] RDA grammar open failed for disk %u: %hs\n", n, err_text(err));
+    /* elevated but the TARGET would not open: a target error, never a
+     * silent transport switch (%ls: the guidance literals are wchar_t) */
+    wprintf(L"[transport] cannot open disk %u (rc=%08x %hs): %ls\n", n, err, err_text(err),
+            cr::win::is_elevated() ? L"write/device access denied even elevated - device busy, "
+                                     L"locked, protected or the disk number is out of range"
+                                   : L"administrator rights may be required (elevate and retry)");
     return false;
 }
 
@@ -548,7 +790,7 @@ bool has_flag(int argc, wchar_t** argv, int& i, const wchar_t* name) {
  * list
  * ------------------------------------------------------------------------- */
 
-int print_disks() {
+int print_disks(bool with_trim) {
     win::PhysicalDiskList list;
     if (win::enumerate_disks(200, list) != OK) {
         wprintf(L"enumeration failed\n");
@@ -557,21 +799,32 @@ int print_disks() {
     }
     win::VolumeEntryList vols;
     win::enumerate_volumes(vols);
-    wprintf(L"%zu disk(s), %zu volume(s)\n", list.size(), vols.size());
+    /* M-076: the --trim chip datum - one fresh fsutil query per run (the
+     * datum is OS-global; the ABI's CR_ENUM_FLAG_TRIM opt-in is the same
+     * primitive and the same one-query shape). A failed query prints the
+     * unknown form - never a guessed value. */
+    bool trim_on = false;
+    const bool trim_known = with_trim && win::health::query_trim_state(trim_on) == OK;
+    wprintf(L"%zu disk(s), %zu volume(s)%s\n", list.size(), vols.size(),
+            with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]") : L" [TRIM ?]")
+                      : L"");
     for (const auto& d : list) {
-        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s\n", d.number, d.size_bytes >> 20,
-                d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
+        wprintf(L"  Disk %u: %hs (%s) %s [%s] %s%s\n", d.number,
+                query::display_size_log(d.size_bytes).c_str(), d.model.c_str(), d.serial.c_str(),
+                d.removable ? L"removable" : L"fixed",
                 d.table_ok
                     ? (d.table.layout == table::TableLayout::Gpt
                            ? L"GPT"
                            : (d.table.layout == table::TableLayout::Mbr
                                   ? L"MBR"
                                   : (d.table.layout == table::TableLayout::Ebr ? L"EBR" : L"-")))
-                    : L"no-table");
+                    : L"no-table",
+                trim_known ? (trim_on ? L" TRIM:ON" : L" TRIM:OFF") : L"");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
-                wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),
-                        v.label.c_str(), v.bytes >> 20, v.bitlocker ? L"[BitLocker]" : L"");
+                wprintf(L"    %c: %s %s %hs %s\n", v.letter, v.fs_name.c_str(), v.label.c_str(),
+                        query::display_size_log(v.bytes).c_str(),
+                        v.bitlocker ? L"[BitLocker]" : L"");
             }
         }
     }
@@ -693,13 +946,37 @@ bool name_matches(const tree::FileNode* n, const TreePrintFlags& f) {
     return name_contains_ci(n->name_utf8(), f.filter);
 }
 
+/* S-053 display-layer placeholder for name-destroyed rows (ReFS unnamed
+ * $DATA-only records): the stored name is EMPTY - the og's engine emits
+ * them nameless and its sessions persist empty - so the human-readable
+ * tree print gives each one a stable, per-print numbered placeholder.
+ * Data exports (csv/json) and the session never see this string. */
+std::string unnamed_display_name(u32 counter) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "File%06u", counter);
+    return buf;
+}
+
 void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
+    /* S-053: name-destroyed ReFS rows carry an EMPTY stored name (the og's
+     * own engine emits them nameless; the session persists empty). The
+     * human-readable print gives them a stable display placeholder so the
+     * row is visible and addressable - DISPLAY LAYER ONLY: the csv/json
+     * exports and the session keep the true empty name (never a synthetic
+     * one baked into data). */
+    u32 unnamed_display_counter = 0;
     std::function<void(tree::FileNode*, const std::string&, int)> walk =
         [&](tree::FileNode* n, const std::string& path, int depth) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018/M-071: the og's FilterFolder hidden
+                               * set never prints (the gate the N-064
+                               * reconstruction dropped) */
                 const std::string name = c->name_utf8();
+                const std::string shown =
+                    name.empty() ? unnamed_display_name(++unnamed_display_counter) : name;
                 const std::string full = path.empty() ? name : path + "\\" + name;
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
@@ -722,7 +999,7 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
                     const char* org = c->origin() == tree::Origin::Carved
                                           ? " [carved]"
                                           : (c->origin() == tree::Origin::Lost ? " [lost]" : "");
-                    wprintf(L"%hs (%llu)%hs%hs\n", name.c_str(),
+                    wprintf(L"%hs (%llu)%hs%hs\n", shown.c_str(),
                             static_cast<unsigned long long>(c->props()->logical_size), st, org);
                 }
                 if (is_dir)
@@ -765,11 +1042,259 @@ u64 file_size_cb(void* user) {
     return u64(end);
 }
 
+/* A-013: the CLI's atomic checkpoint sink - the N-014/CkSink shape
+ * (cr_ui.cpp:334-389) adopted at the CLI layer. Every emit stages into
+ * <path>.tmp and commits by rename, so the sink NEVER opens the final
+ * path for truncation: the resume file - which effective_out aliases
+ * whenever --out is absent, the exact command the save-on-cancel flow
+ * prints as the documented recovery path - survives untouched until
+ * the first SUCCESSFUL checkpoint replaces it wholesale. A failed or
+ * cancelled-before-first-checkpoint resume leaves the source file
+ * byte-identical (the og's fresh-file-per-save crash safety,
+ * rsf-format §5.5, at the CLI). */
+struct CliCkSink {
+    FILE* f = nullptr; /* the STAGING file (<path>.tmp) */
+    std::wstring final_path;
+    std::wstring tmp_path;
+};
+u32 cli_ck_write_cb(void* user, const void* bytes, u32 len) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? (fwrite(bytes, 1, len, s->f) == len ? OK : ERR_SESSION_IO) : u32(ERR_SESSION_IO);
+}
+u64 cli_ck_tell_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? u64(_ftelli64(s->f)) : u64(0);
+}
+u32 cli_ck_seek_cb(void* user, u64 absolute) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f && _fseeki64(s->f, static_cast<long long>(absolute), SEEK_SET) == 0
+               ? OK
+               : ERR_SESSION_IO;
+}
+u32 cli_ck_commit_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    if (!s || !s->f)
+        return ERR_SESSION_IO;
+    std::fflush(s->f);
+    std::fclose(s->f);
+    s->f = nullptr;
+    /* the staging handle is CLOSED: the replace-rename cannot hit a
+     * sharing violation (MoveFileExW on an open file needs
+     * FILE_SHARE_DELETE, which fopen does not request). */
+    if (!MoveFileExW(s->tmp_path.c_str(), s->final_path.c_str(), MOVEFILE_REPLACE_EXISTING))
+        return ERR_SESSION_IO;
+    /* staging for the NEXT emit (a fresh truncating open of the tmp -
+     * never the final path) */
+    if (_wfopen_s(&s->f, s->tmp_path.c_str(), L"wb") != 0 || !s->f)
+        return ERR_SESSION_IO;
+    return OK;
+}
+
+/* ---------------------------------------------------------------------------
+ * sessions (W1a / R-56: the og's LastScanRecordView surface, corpus
+ * UIUX/07-home-phase-deep-dive.md:21 + rsf-format--scan-session.md 5.2):
+ * list every *.crsf in a directory with the per-file light summary -
+ * SESSION_STATE + VOLUME_INFO only; the heavy tree record is
+ * header-skipped (ScanController::read_summary), so a listing costs
+ * milliseconds even against 100 MB sessions. Unreadable files are
+ * per-row data (never a failure); only enumeration failure exits 1.
+ * ------------------------------------------------------------------------- */
+
+int print_sessions(int argc, wchar_t** argv, int& i) {
+    std::wstring dir = L"."; /* default: the current directory */
+    std::wstring v;
+    bool json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--dir", &v)) {
+            dir = v;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--json") == 0) {
+            json = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown sessions option: %s\n", argv[i]);
+        return 1;
+    }
+    std::wstring pattern = dir;
+    /* accept both "C:\x\y" and "C:\x\y\" - exactly one separator */
+    if (!pattern.empty() && pattern.back() == L'\\')
+        pattern += L"*.crsf";
+    else
+        pattern += L"\\*.crsf";
+    std::vector<std::wstring> files;
+    WIN32_FIND_DATAW fd;
+    HANDLE h =
+        FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
+    const std::wstring sep = (!dir.empty() && dir.back() == L'\\') ? L"" : L"\\";
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-vs-missing discriminator (the list_crsf_files seam,
+         * runs 40694592245 + 40700058960): the FindFirstFileExW error
+         * code is NOT the reliable axis on real windows (the observed
+         * matrix inverted from the docs), so the DIRECTORY-EXISTS probe
+         * decides - an existing directory with zero matches prints the
+         * zero-row list and exits 0 (the ABI surface's own contract),
+         * a missing path (or a plain FILE handed as a dir) stays the
+         * genuine enumeration failure: FB-K01, exit 1. */
+        const DWORD attr = GetFileAttributesW(dir.c_str());
+        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
+            return 1; /* FB-K01: enumeration failure is never exit-0 */
+        }
+    } else {
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                continue;
+            /* the 8.3 short-name quirk: the pattern can match on the SHORT
+             * name - verify the LONG name's tail too (case-insensitive) */
+            const std::wstring name(fd.cFileName);
+            if (name.size() < 5)
+                continue;
+            const wchar_t* t = name.c_str() + name.size() - 5;
+            if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+                towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+                continue;
+            files.push_back(dir + sep + name);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    std::sort(files.begin(), files.end()); /* the deterministic enumeration INPUT (the ROW order is
+                                              the ABI's time key below) */
+
+    struct SRow {
+        std::wstring path;
+        bool opened = false;
+        u32 rc = 0;
+        session::SessionSummary s;
+    };
+    std::vector<SRow> rows;
+    rows.reserve(files.size());
+    for (const std::wstring& f : files) {
+        SRow row;
+        row.path = f;
+        FILE* fin = nullptr;
+        if (_wfopen_s(&fin, f.c_str(), L"rb") == 0 && fin) {
+            row.opened = true;
+            session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+            row.rc = orchestrator::ScanController::read_summary(r, row.s);
+            fclose(fin);
+        } else {
+            row.rc = ERR_OPEN_FAILED;
+        }
+        rows.push_back(std::move(row));
+    }
+    /* N-116: rows re-sorted by the ABI's time key (save_unix DESC, path
+     * tie-break) - the og's LastScanRecordView order, so the verb's first
+     * row is the most recent session exactly like cr_ui_session_list's */
+    std::sort(rows.begin(), rows.end(), [](const SRow& a, const SRow& b) {
+        const u64 ta = (a.opened && a.rc == OK) ? a.s.volume.save_unix : 0;
+        const u64 tb = (b.opened && b.rc == OK) ? b.s.volume.save_unix : 0;
+        if (ta != tb)
+            return ta > tb;
+        return a.path < b.path;
+    });
+
+    if (json) {
+        /* FROZEN schema (GAP-TREE-JSON lineage): path/label UTF-8,
+         * save_unix = the embedded save time (0 = pre-v5 session). */
+        std::string doc = "[";
+        bool first = true;
+        for (const SRow& row : rows) {
+            if (!first)
+                doc += ',';
+            first = false;
+            doc += "{\"path\":\"";
+            doc += recovery::report::escape_json(text::wide_to_utf8(row.path));
+            doc += "\",\"valid\":";
+            doc += std::to_string(row.opened && row.rc == OK ? 1 : 0);
+            doc += ",\"error\":";
+            doc += std::to_string(row.rc);
+            doc += ",\"fs_family\":";
+            doc += std::to_string(row.s.have_volume ? row.s.volume.fs_kind : 0u);
+            doc += ",\"stage_done_mask\":";
+            doc += std::to_string(row.s.state.stage_done_mask);
+            doc += ",\"configured_mask\":";
+            doc += std::to_string(row.s.configured_mask);
+            doc += ",\"files_found\":";
+            doc += std::to_string(row.s.state.files_found);
+            doc += ",\"deleted_found\":";
+            doc += std::to_string(row.s.state.deleted_found);
+            doc += ",\"carved_found\":";
+            doc += std::to_string(row.s.state.carved_found);
+            doc += ",\"bytes_scanned\":";
+            doc += std::to_string(row.s.state.bytes_scanned);
+            doc += ",\"elapsed_ms\":";
+            doc += std::to_string(row.s.volume.elapsed_ms);
+            doc += ",\"save_unix\":";
+            doc += std::to_string(row.s.volume.save_unix);
+            doc += ",\"label\":\"";
+            doc += recovery::report::escape_json(row.s.volume.label);
+            doc += "\"}";
+        }
+        doc += "]";
+        wprintf(L"%hs\n", doc.c_str());
+        return 0;
+    }
+
+    wprintf(L"%zu session(s) in %s\n", rows.size(), dir.c_str());
+    for (const SRow& row : rows) {
+        const wchar_t* base = row.path.c_str();
+        if (const wchar_t* slash = wcsrchr(base, L'\\'))
+            base = slash + 1;
+        if (!row.opened || row.rc != OK) {
+            wprintf(L"  %s  [unreadable: %hs (0x%08x)]\n", base, err_text(row.rc), row.rc);
+            continue;
+        }
+        wchar_t stages[32] = L"(none recorded)";
+        {
+            const u32 m = row.s.state.stage_done_mask;
+            if (m != 0) {
+                wchar_t* p = stages;
+                *p = 0;
+                if (m & 1u)
+                    p += swprintf(p, 4, L"quick");
+                if (m & 2u)
+                    p += swprintf(p, 4, p != stages ? L"+deep" : L"deep");
+                if (m & 4u)
+                    p += swprintf(p, 6, p != stages ? L"+carve" : L"carve");
+            }
+        }
+        wchar_t when[32] = L"(save time not recorded)";
+        if (row.s.volume.save_unix != 0) {
+            /* the platform seam pattern (cr_query.cpp: localtime_s on
+             * MSVC, localtime_r elsewhere - rrecov is Windows-only at
+             * link time but the parse gate compiles this file on gcc) */
+            std::tm lt{};
+            std::time_t tt = std::time_t(row.s.volume.save_unix);
+#ifdef _WIN32
+            localtime_s(&lt, &tt);
+#else
+            localtime_r(&tt, &lt);
+#endif
+            swprintf(when, 32, L"%04d-%02d-%02d %02d:%02d:%02d", lt.tm_year + 1900, lt.tm_mon + 1,
+                     lt.tm_mday, lt.tm_hour, lt.tm_min, lt.tm_sec);
+        }
+        wprintf(L"  %s  %hs  %s  %llu file(s) (%llu deleted, %llu carved)  %s\n", base,
+                row.s.volume.label, stages, row.s.state.files_found, row.s.state.deleted_found,
+                row.s.state.carved_found, when);
+    }
+    return 0;
+}
+
 /* ---------------------------------------------------------------------------
  * scan
  * ------------------------------------------------------------------------- */
 
 int cmd_scan(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: the disk/volume data path needs an
+     * elevated token - the refusal (exit 4, stderr) is the whole
+     * response. Image targets are classified (b) and skip the gate. */
+    if (!argv_has_image_target(argc, argv, i)) {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
     /* M-033 pre-pass: --bitlocker-fvek may appear anywhere on the line
      * (the target --volume is opened in the main loop below). N-064 adds
      * --bitlocker-dict the same way: the explicit consent flag, with an
@@ -809,6 +1334,52 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 user_signs_path = argv[k + 1];
                 break;
             }
+        }
+        /* M-065: the shipped default set - the og's install-tree
+         * EUUserData posture (111 entries; the release zip ships the
+         * same file as data/userdata-defaults.json). Precedence: an
+         * explicit --user-signs file replaces the default entirely
+         * (install_set's replace semantics); with no flag, the
+         * executable-adjacent default loads when present; absent
+         * default + absent flag = the empty registry + one log line
+         * (the og's degraded install posture, never an error). */
+        bool default_loaded = false;
+        if (user_signs_path.empty()) {
+            wchar_t exe[MAX_PATH] = {};
+            if (GetModuleFileNameW(nullptr, exe, MAX_PATH) != 0) {
+                std::wstring dir(exe);
+                const size_t slash = dir.find_last_of(L"\\/");
+                if (slash != std::wstring::npos)
+                    dir.resize(slash + 1);
+                std::wstring def = dir + L"userdata-defaults.json";
+                FILE* f = nullptr;
+                if (_wfopen_s(&f, def.c_str(), L"rb") == 0 && f != nullptr) {
+                    std::vector<char> json;
+                    char buf[4096];
+                    size_t got = 0;
+                    while ((got = fread(buf, 1, sizeof(buf), f)) > 0)
+                        json.insert(json.end(), buf, buf + got);
+                    fclose(f);
+                    carve::usersigns::UserSignSet set;
+                    u32 rc = carve::usersigns::parse(json.data(), size_t(json.size()), set);
+                    if (rc == 0)
+                        rc = carve::usersigns::install_set(std::move(set));
+                    if (rc == 0) {
+                        default_loaded = true;
+                        wprintf(L"[user-signs] %u default user signature(s) loaded\n",
+                                carve::usersigns::active_count());
+                    } else {
+                        /* the shipped default is corrupt: loud, but the
+                         * scan proceeds empty (the og treats a bad
+                         * config file as absent - degrade, never abort) */
+                        wprintf(L"[user-signs] userdata-defaults.json is not a valid "
+                                L"signature database; proceeding with none\n");
+                    }
+                }
+            }
+            if (!default_loaded)
+                wprintf(L"[user-signs] no default signature database; proceeding "
+                        L"with none\n");
         }
         if (!user_signs_path.empty()) {
             FILE* f = nullptr;
@@ -851,6 +1422,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     bool json = false;
     bool repair = false, repair_apply = false;
     TreePrintFlags print_flags;
+    bool pause_stdin = false; /* N-178: the keyboard-driven pause surface */
 
     while (i < argc) {
         std::wstring v;
@@ -865,6 +1437,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 return 1;
             if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
                 return 1;
+            target.volume_letter = v[0]; /* M-079: the label source */
             have_target = true;
             continue;
         }
@@ -898,7 +1471,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             /* N-044: the honest name. The og's "Deep Scan" toggle means the
              * complete-searcher engine pass - which this CLI ALWAYS runs;
              * this flag instead enables whole-disk lost-partition discovery.
-             * The deep stage is always on; --quick-only disables it. */
+             * The deep stage is always on; --quick-only disables it.
+             * S-051 (both lanes, merged): the table's own volumes are
+             * ALWAYS scan targets now (the og's CDoScanPartition flow
+             * reads the partition list at scan setup) - this flag only
+             * adds the LOST-partition sweep on top; a plain --disk scan
+             * already finds every in-table volume. */
             cfg.whole_disk = true;
             continue;
         }
@@ -925,12 +1503,61 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             cfg.threads = u32(wcstoul(v.c_str(), nullptr, 10));
             continue;
         }
+        if (get_opt(argc, argv, i, L"--filter-folder", &v)) {
+            /* M-073: the scan-time folder filter (the og's
+             * PushFolderFilter surface - the pre-set AdvanceFilter
+             * condition pushed into the scan controller at scan start,
+             * UIUX/31:142). Repeatable; each value is one UTF-8 path
+             * prefix, volume-root relative. Out-of-prefix folders never
+             * reach the saved session (pruned at the stage boundaries). */
+            if (!v.empty())
+                cfg.filter_folders.push_back(text::wide_to_utf8(v));
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--out", &out_path))
             continue;
+        if (get_opt(argc, argv, i, L"--autosave-dir", &v)) {
+            /* W1c (R-52): the completion auto-save directory (the og's
+             * auto_<vol>_<ts> SaveScan flow, rsf-format section 5.5).
+             * Set on the CORE config (the shared host trigger) and honored
+             * below on run() completion only - never a cancelled run. */
+            const std::string d8 = text::wide_to_utf8(v);
+            for (size_t k = 0; k + 1 < sizeof(cfg.autosave_dir) && k < d8.size(); ++k)
+                cfg.autosave_dir[k] = d8[k];
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--label", &v)) {
+            /* M-079: explicit label override (the ABI card's
+             * volume_label_utf8 seam, CLI-side). The derived label only
+             * fills an EMPTY field, so caller text always wins. */
+            const std::string l8 = text::wide_to_utf8(v);
+            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && k < l8.size(); ++k)
+                cfg.volume_label[k] = l8[k];
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--resume", &resume_path))
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
+        /* N-178: the CLI pause surface - maps the keyboard onto the SAME
+         * PausableToken the ABI pair drives ('p'/SPACE pause, 'r'/ENTER
+         * resume; Ctrl-C stays cancel). The reader thread starts below,
+         * only for the scan verb, only when a console is attached. */
+        if (wcscmp(argv[i], L"--pause-stdin") == 0) {
+            pause_stdin = true;
+            ++i;
+            continue;
+        }
+        /* [N-150] a second, ASCII-truncating --label handler lived here -
+         * dead from birth (the live handler above matched first and
+         * `continue`d), a rebase leftover whose semantics DIVERGED from
+         * the live one (ASCII truncation vs the N-016b U+FFFD rule). It
+         * is removed so a future reorder cannot silently flip the CLI
+         * contract; the live handler's semantics are pinned at the ABI
+         * seam (cfg.volume_label_utf8 -> the session card) by
+         * CrUi.SessionListVolumeLabelFullWidthRoundTrips (the N-090
+         * landing). No CLI-process harness exists - the app is a
+         * standalone executable, not linked into the test binary. */
         if (get_opt(argc, argv, i, L"--filter", &v)) {
             print_flags.filter = text::wide_to_utf8(v); /* N-009c: UTF-8, not '?' */
             continue;
@@ -984,7 +1611,35 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d repair=%d/%d",
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
+    /* M-118: the register channel - the og's third candidate source (the
+     * Explorer MountPoints2\\CPC\\Volume history walk, engine-side
+     * PartitionRecoveryD :8930-8965). The live HKCU walk feeds the
+     * remembered placements into the scan config; lost::discover probes
+     * each at the remembered start and merges the accepted ones with the
+     * sweep's candidates (the og's three-wave assembly,
+     * DRWUI.log:637-643). Zero placements on a profile without mount
+     * history - the og's failed-open path walks nothing. */
+    if (cfg.whole_disk && target.device) {
+        const u32 reg_bps = target.device->geometry().logical_sector;
+        if (reg_bps != 0) {
+            std::vector<u64> history;
+            if (win::mountpoints2_volume_history(reg_bps, history) == OK && !history.empty()) {
+                cfg.register_history_lbas = std::move(history);
+                log_line("rrecov scan: register channel armed: %zu remembered placement(s)",
+                         cfg.register_history_lbas.size());
+            }
+        }
+    }
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
+    fill_volume_label(target, cfg);
+    /* S-048: the volume's drive letter rides the scan config (the og's
+     * carve-tree volume grouping names the group child "<label> (<L>:)" -
+     * the real-session " (H:)" form). Uppercased; 0 for disk/image
+     * targets. */
+    cfg.volume_letter = target.volume_letter ? char(toupper(unsigned(target.volume_letter)))
+                                             : 0; /* M-079: the <vol> half of the
+                                                   * auto-save name + the session
+                                                   * record (derive unless --label) */
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
@@ -1038,23 +1693,36 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
      * for the whole scan. Non-LDM disks simply have no GUID entry and
      * never resolve. */
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-148: every member's reads ride the same retry+cache substrate the
+     * scan's own reads use (the og's engines read CStorageDeviceWithCache
+     * devices - NTFSSearchDLL:7167's RTTI check; the recovery side's
+     * session_arm_ldm_basis pipes members identically). The pipes own their
+     * chains beside the members they wrap and live for the whole scan. */
+    std::vector<orchestrator::ReadPipe> ldm_member_pipes;
     if (cfg.whole_disk && target.volume_len == 0) {
         table::LdmInfo probe;
         if (table::parse_ldm_database(target.device.get(), probe) == OK && probe.found) {
             win::PhysicalDiskList list;
-            if (win::enumerate_disks(32, list) == OK) {
+            if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
                 auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
                 for (const auto& pd : list) {
                     u32 oerr = 0;
-                    auto dev = win::open_disk(pd.number, L"RDA", &oerr);
+                    /* direct era (session-96): a member that will not open
+                     * simply does not resolve (non-LDM disks never did) */
+                    auto dev = win::open_disk(pd.number, &oerr);
                     if (!dev)
-                        continue; /* mandatory driver: no member reads without it */
+                        continue;
                     u8 sec[512];
                     if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK &&
                         std::memcmp(sec, "PRIVHEAD", 8) == 0) {
                         table::LdmGuid g{};
                         std::memcpy(g.b, sec + 0x30, 16);
-                        (*guid_map)[g] = dev.get();
+                        /* M-148: the member reads through its own pipe -
+                         * raw members made multi-disk LDM scans lose files
+                         * to transient faults the primary volume retries */
+                        ldm_member_pipes.push_back(
+                            orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024));
+                        (*guid_map)[g] = ldm_member_pipes.back().pipe;
                     }
                     ldm_members.push_back(std::move(dev));
                 }
@@ -1074,31 +1742,52 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     const std::wstring effective_out = out_path.empty() ? resume_path : out_path;
 
     /* G-13 checkpoint sink (ARCH-2/SESS-3 wiring): --out enables
-     * stage-boundary auto-checkpoints. Each emit seeks to 0 and
-     * overwrites, so the file always holds the newest complete
-     * checkpoint (a torn one is no worse than no checkpoint - the
-     * reader re-indexes forward by construction). */
-    FILE* ck_file = nullptr;
+     * stage-boundary auto-checkpoints. A-013: the sink is the atomic
+     * CliCkSink - every emit stages into <path>.tmp and commits by
+     * rename, so the final path (which IS the resume file whenever
+     * --out is absent) is never opened for truncation: the resume
+     * source survives until the first successful checkpoint replaces
+     * it wholesale, and a crash mid-emit leaves the previous good
+     * state (the og's fresh-file-per-save crash safety). */
+    CliCkSink ck_sink;
+    bool ck_sink_live = false;
     if (!effective_out.empty()) {
-        if (_wfopen_s(&ck_file, effective_out.c_str(), L"wb") != 0 || !ck_file) {
+        ck_sink.final_path = effective_out;
+        ck_sink.tmp_path = effective_out + L".tmp";
+        if (_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L"wb") != 0 || !ck_sink.f) {
             wprintf(L"cannot create session file %s\n", effective_out.c_str());
             return 1;
         }
-        cfg.checkpoint.write = file_write_cb;
-        cfg.checkpoint.tell = file_tell_cb;
-        cfg.checkpoint.seek = file_seek_cb;
-        cfg.checkpoint.user = ck_file;
+        ck_sink_live = true;
+        cfg.checkpoint.write = cli_ck_write_cb;
+        cfg.checkpoint.tell = cli_ck_tell_cb;
+        cfg.checkpoint.seek = cli_ck_seek_cb;
+        cfg.checkpoint.commit = cli_ck_commit_cb;
+        cfg.checkpoint.user = &ck_sink;
     }
 
     tree::ResultTree tree;
     std::unique_ptr<orchestrator::ScanController> ctrl;
     orchestrator::ScanStats stats;
+    /* OQ-S4-3's TTFR probe: consume the typed event stream for the
+     * first-result timestamp - set BEFORE the controller construction
+     * (the controller copies the config); the once-flag lives in scan's
+     * frame so the probe outlives run(); events fire from worker threads */
+    TtfrProbe ttfr_probe;
+    cfg.event_fn = &ttfr_event_fn;
+    cfg.event_user = &ttfr_probe;
     if (!resume_path.empty()) {
+        /* A-013 note: the sink stages into <path>.tmp and commits by
+         * rename - this read always sees the intact source file. */
         FILE* fin = nullptr;
         if (_wfopen_s(&fin, resume_path.c_str(), L"rb") != 0 || !fin) {
             wprintf(L"cannot open session %s\n", resume_path.c_str());
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
@@ -1111,8 +1800,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         wprintf(L"[resume] session mask 0x%x - skipping completed stage(s)\n",
@@ -1148,6 +1841,21 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         ctrl.reset(new orchestrator::ScanController(tree, cfg));
     }
     ProgressDisplay prog;
+    /* N-178: the pause reader rides only when asked for and a console is
+     * attached (a redirected stdin has no console input buffer - the flag
+     * is a no-op there, the scan runs exactly as without it). Detached on
+     * purpose: the loop exits on the token's cancel or at process exit;
+     * the scan thread never waits on the reader. */
+    HANDLE pause_reader = nullptr;
+    if (pause_stdin) {
+        DWORD console_mode = 0;
+        if (GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &console_mode)) {
+            pause_reader = CreateThread(nullptr, 0, pause_stdin_reader, nullptr, 0, nullptr);
+            if (pause_reader != nullptr)
+                wprintf(L"[pause] keyboard control active: 'p' or SPACE pauses, 'r' or Enter "
+                        L"resumes, Ctrl-C cancels\n");
+        }
+    }
     log_line("scan start");
     const u32 rc = ctrl->run(
         target.device.get(), &g_cancel_token,
@@ -1155,8 +1863,20 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
         },
         &prog, stats);
-    if (ck_file)
-        fclose(ck_file); /* checkpoints done; the final save reopens fresh */
+    if (pause_reader != nullptr) {
+        g_cancel_token.cancel(); /* the reader's exit signal */
+        WaitForSingleObject(pause_reader, 1000);
+        CloseHandle(pause_reader);
+    }
+    if (ck_sink_live) {
+        /* A-013: checkpoints done; the staging tmp is removed (the final
+         * save reopens fresh through its own tmp+rename) - the final
+         * path holds the last COMMITTED checkpoint, never a torn state */
+        if (ck_sink.f)
+            fclose(ck_sink.f);
+        std::error_code ec;
+        std::filesystem::remove(ck_sink.tmp_path, ec);
+    }
     log_line("scan end rc=0x%08x files=%llu deleted=%llu carved=%llu lost_parts=%llu "
              "bytes=%llu elapsed_ms=%llu errors=%zu",
              rc, stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
@@ -1255,6 +1975,67 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         return true;
     };
+    /* S-057: the shared auto-save routine - the completion path below and
+     * the user-stop (cancel) path above both call it. Returns whether an
+     * auto-save was DUE (dir set + results found + no explicit sink) so the
+     * cancel hint only prints when NO sink is configured at all. */
+    auto autosave_if_due = [&](bool stopped_window) -> bool {
+        if (cfg.autosave_dir[0] == '\0' || !effective_out.empty())
+            return false;
+        if (stats.files_found == 0 && stats.lost_partitions == 0)
+            return false;
+        /* N-133: the engine-decoded on-disk label replaces the derived
+         * image-stem fallback before the name is composed (the corrected
+         * precedence: the og's session carries the engine label, not the
+         * filename stem) */
+        if (stats.volume_label[0] != 0 && cfg.volume_label_derived) {
+            /* terminate at the stop index - the CLI's own cfg still
+             * carries the derived stem (the controller replaced ITS
+             * copy), so an unterminated overlay leaves the stem's tail
+             * in the name (the auto_JUNKGATEe-fat16 mangle, run
+             * 41029969175: "JUNKGATE" over "junk-gate-fat16") */
+            size_t k = 0;
+            for (; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
+                cfg.volume_label[k] = stats.volume_label[k];
+            cfg.volume_label[k] = 0;
+        }
+        const std::string name8 =
+            session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
+        std::wstring dir;
+        for (char c : std::string(cfg.autosave_dir))
+            dir.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII dirs; the
+                                                            * corpus SaveScan folder is ASCII */
+        if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/')
+            dir += L'\\';
+        std::wstring wide_name = dir;
+        for (char c : name8)
+            wide_name.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII names
+                                                                  * (the sanitizer guarantees it) */
+        /* M-154 (diff-to-fix): the og's retention loop (DRWUI:442815-
+         * 442833) - delete the previous auto session before writing the
+         * new one (exactly one live auto session; the unbounded
+         * accumulation ends). Manual saves never touched; a dead
+         * pointer is a no-op. The pointer write follows a successful
+         * save (the og's [Info] four fields). */
+        (void)session::last_scan_retention_delete_previous(std::string(cfg.autosave_dir));
+        if (save_session_to(wide_name)) {
+            session::LastScanInfo info;
+            std::string full8;
+            for (wchar_t c : wide_name)
+                full8.push_back((c & 0x80) ? '?' : char(c)); /* ASCII dirs/names */
+            info.save_path = full8;
+            info.name = name8;
+            info.count = u64(stats.files_found) + stats.deleted_found + stats.carved_found;
+            info.time = u64(std::time(nullptr));
+            (void)session::last_scan_info_write(std::string(cfg.autosave_dir), info);
+            wprintf(stopped_window ? L"session auto-saved (stopped): %s\n"
+                                   : L"session auto-saved: %s\n",
+                    wide_name.c_str());
+        } else {
+            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
+        }
+        return true;
+    };
 
     if (rc != OK) {
         if (rc == ERR_CANCELLED) {
@@ -1269,23 +2050,88 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                             effective_out.c_str(), effective_out.c_str());
                 }
             } else {
-                wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
+                /* S-057: the og's stop window auto-saves - the stop path
+                 * runs its own organize into the shared completion
+                 * handler (DRWUI :1549399-421 -> :339076-79 ->
+                 * FUN_140395e50) whose gates (:612571-587) carry no
+                 * stopped-check. With --autosave-dir set and results
+                 * found, the stopped scan's partial results land in the
+                 * auto session exactly like a finished run's; the hint
+                 * below only prints when NO sink is configured at all. */
+                const bool stopped_autosaved = autosave_if_due(true);
+                if (!stopped_autosaved)
+                    wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
         }
-        wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
+        /* N-125: the disconnect case - the target went away mid-scan
+         * (yanked USB, ejected media). Exit 5, distinct from failure (1)
+         * and cancel (3); the reattach-then-resume contract: the session
+         * checkpoint (if --out was given) resumes the scan after the
+         * device returns. */
+        if (rc == ERR_DEVICE_DISCONNECTED) {
+            wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
+                    L"loss boundary\n");
+            if (!out_path.empty())
+                wprintf(L"reattach the device, then resume: `rrecov scan --resume %ls` "
+                        L"continues from the session checkpoint\n",
+                        out_path.c_str());
+            else
+                wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
+                        L"resumable checkpoint instead of a restart\n");
+            return 5;
+        }
+        /* read-truth refusal (the fake-scan fix): the volume was (essentially)
+         * fully unreadable - the scan did NOT scan. The specific text names
+         * the coverage; the generic branch keeps the code. */
+        if (rc == ERR_READ_FAILED && stats.bytes_unreadable > 0) {
+            wprintf(L"scan REFUSED: %llu of %llu byte(s) on this target were unreadable "
+                    L"(%u error range(s)) - nothing could actually be read, so nothing was "
+                    L"scanned\n",
+                    static_cast<unsigned long long>(stats.bytes_unreadable),
+                    static_cast<unsigned long long>(
+                        target.volume_len != 0 ? target.volume_len
+                                               : (target.device ? target.device->size() : 0)),
+                    u32(stats.errors.ranges().size()));
+            wprintf(L"check the media before retrying: a fresh open + these errors means "
+                    L"the media itself (cabling, health, encryption) is refusing reads\n");
+        } else {
+            wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
+        }
         return 1;
     }
+    /* read-truth summary: ALWAYS visible on completion (the error map used
+     * to live only in the log - a scan with unreadable regions looked
+     * perfectly healthy). The zero-fill salvage semantics are unchanged;
+     * the truth is no longer optional output. */
+    if (stats.probe_unreadable)
+        wprintf(L"[scan] volume header unreadable - filesystem family unknown because "
+                L"sector 0 could not be read (raw/deep recovery mode)\n");
+    if (!stats.errors.ranges().empty())
+        wprintf(L"[scan] read errors: %u range(s), %hs unreadable - those regions were "
+                L"NOT scanned; recovered content may be incomplete\n",
+                u32(stats.errors.ranges().size()),
+                query::display_size_log(stats.bytes_unreadable).c_str());
     prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
-                L"\"bytes_scanned\":%llu,\"elapsed_ms\":%llu}\n",
+                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"bytes_found\":%llu,"
+                L"\"error_ranges\":%u,"
+                L"\"probe_unreadable\":%hs,\"elapsed_ms\":%llu}\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
-                stats.bytes_scanned, stats.elapsed_ms);
+                stats.bytes_scanned, stats.bytes_unreadable, stats.bytes_found,
+                u32(stats.errors.ranges().size()), stats.probe_unreadable ? "true" : "false",
+                stats.elapsed_ms);
     } else {
-        wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s) "
-                L"in %llu.%01u s\n",
-                stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
+        /* N-167: the og's completion headline shape - "Files Found: N
+         * (X GB)" (dynamic-ground-truth--scan-phase-captured.md:125;
+         * the corpus capture pins 1,139,286 files / 147.12 GB on a
+         * 149.45 GB volume - the binary 1024^3 divisor, GB-labeled per
+         * the Windows convention the og follows) */
+        wprintf(L"scan complete: %llu file(s) (%.2f GB), %llu deleted, %llu carved, "
+                L"%llu lost partition(s) in %llu.%01u s\n",
+                stats.files_found, double(stats.bytes_found) / (1024.0 * 1024.0 * 1024.0),
+                stats.deleted_found, stats.carved_found, stats.lost_partitions,
                 stats.elapsed_ms / 1000, u32(stats.elapsed_ms % 1000) / 100);
     }
 
@@ -1296,6 +2142,19 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return 1;
         wprintf(L"session saved: %s\n", effective_out.c_str());
     }
+    /* W1c (R-52): the completion auto-save (the og's SaveScan window;
+     * S-057/N-211: the user-stop path above calls the same helper with
+     * stopped_window=true, so BOTH completed and stopped-with-results runs
+     * auto-save - the og's stop path feeds the shared completion handler,
+     * DRWUI :1549399-421 -> :339076-79 -> FUN_140395e50 with no
+     * stopped-check). The N-061 corpus naming + sanitizer; silent write,
+     * one printed outcome line - never silent failure.
+     * S-044: the og's trigger-site gates (FUN_1402857c0's call sites,
+     * evidence s8-autosave-and-stamps.md): results-found (an empty
+     * scan never auto-saves) and not-already-saved (--out/--resume is
+     * the explicit save - effective_out non-empty means the session was
+     * saved, which also covers the not-import case for resumed runs). */
+    autosave_if_due(false);
     return 0;
 }
 
@@ -1353,6 +2212,136 @@ void print_tree_json(tree::ResultTree& t, const TreePrintFlags& f) {
 /* ---------------------------------------------------------------------------
  * tree (load a session and print)
  * ------------------------------------------------------------------------- */
+
+/* M-116: the browse-inside smoke surface - the archive inventory over
+ * one session node (the same engine extract the cr_ui two-call ABI
+ * serves; the CLI goes through the core directly per the no-second-
+ * singleton rule at :787). The og's results-page archive view backed by
+ * archive.dll is the product shape; this is the headless half. */
+int cmd_archive_list(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST (the read path re-opens the data source):
+     * --disk targets need elevation; --image targets are classified. */
+    if (!argv_has_image_target(argc, argv, i)) {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
+    std::wstring in_path, image_path, v;
+    u32 disk = 0;
+    u64 node_id = 0;
+    bool have_disk = false, have_image = false, have_node = false, json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--in", &in_path))
+            continue;
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--image", &v)) {
+            if (v.empty())
+                return 1;
+            image_path = v;
+            have_image = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--node", &v)) {
+            node_id = wcstoull(v.c_str(), nullptr, 10);
+            have_node = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--json")) {
+            json = true;
+            continue;
+        }
+        wprintf(L"unknown archive-list option: %s\n", argv[i]);
+        return 1;
+    }
+    if (in_path.empty() || (!have_disk && !have_image) || !have_node) {
+        wprintf(L"archive-list needs --in file.crsf (--disk N | --image file) --node ID\n");
+        return 1;
+    }
+    FILE* fin = nullptr;
+    if (_wfopen_s(&fin, in_path.c_str(), L"rb") != 0 || !fin) {
+        wprintf(L"cannot open session %s\n", in_path.c_str());
+        return 1;
+    }
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    OpenResult src;
+    if (have_image) {
+        if (!open_image_view(image_path, src))
+            return 1;
+    } else if (!open_disk_view(disk, src)) {
+        return 1;
+    }
+    const u32 rc = orchestrator::ScanController::load_session(r, tree, stats, src.device.get());
+    fclose(fin);
+    if (rc != OK) {
+        wprintf(L"session load failed: %hs\n", err_text(rc));
+        return 1;
+    }
+    /* the node walk (the same id the tree view prints) */
+    tree::FileNode* node = nullptr;
+    std::function<bool(tree::FileNode*)> walk = [&](tree::FileNode* n) -> bool {
+        if (n->node_id() == node_id) {
+            node = n;
+            return true;
+        }
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
+            if (walk(c))
+                return true;
+        return false;
+    };
+    for (auto* root : tree.roots())
+        if (walk(root))
+            break;
+    if (!node) {
+        wprintf(L"node %llu not found in the session tree\n",
+                static_cast<unsigned long long>(node_id));
+        return 1;
+    }
+    if (!node->props() || node->is_full()) {
+        wprintf(L"node %llu has no previewable content\n",
+                static_cast<unsigned long long>(node_id));
+        return 1;
+    }
+    preview::PreviewReader reader(src.device.get(), node->props());
+    const preview::Metadata m = preview::extract_metadata(reader, preview::Caps{});
+    if (json) {
+        wprintf(L"{\"kind\": \"%hs\", \"format\": \"%hs\", \"truncated\": %s, "
+                L"\"entries\": [",
+                m.kind.c_str(), m.format.c_str(), m.truncated ? L"true" : L"false");
+        for (size_t e = 0; e < m.entries.size(); ++e) {
+            const auto& en = m.entries[e];
+            std::string name8 = en.name;
+            if (name8.size() > 259)
+                name8.resize(259); /* the JSON smoke stays on one line */
+            std::string esc;
+            for (char ch : name8) {
+                if (ch == '"' || ch == '\\')
+                    esc += '\\';
+                esc += ch;
+            }
+            wprintf(L"%s{\"name\": \"%hs\", \"size\": %llu, \"compressed\": %llu, "
+                    L"\"crc_present\": %s}",
+                    e ? L", " : L"", esc.c_str(), static_cast<unsigned long long>(en.size),
+                    static_cast<unsigned long long>(en.compressed),
+                    en.crc_present ? L"true" : L"false");
+        }
+        wprintf(L"]}\n");
+        return 0;
+    }
+    wprintf(L"%llu entr%s (kind=%hs format=%hs%s)\n",
+            static_cast<unsigned long long>(m.entries.size()),
+            m.entries.size() == 1 ? L"y" : L"ies", m.kind.c_str(), m.format.c_str(),
+            m.truncated ? L", TRUNCATED" : L"");
+    for (const auto& en : m.entries)
+        wprintf(L"  %10llu %10llu  %hs\n", static_cast<unsigned long long>(en.size),
+                static_cast<unsigned long long>(en.compressed), en.name.c_str());
+    return 0;
+}
 
 int cmd_tree(int argc, wchar_t** argv, int& i) {
     std::wstring in_path;
@@ -1412,6 +2401,14 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
  * ------------------------------------------------------------------------- */
 
 int cmd_recover(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: recovering a
+     * --disk target re-opens the data path and needs elevation; --image
+     * targets are classified (b) and skip the gate. */
+    if (!argv_has_image_target(argc, argv, i)) {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
     std::wstring in_path, to_dir, filter, report_path, image_path;
     bool deleted_only = false;
     u32 disk = 0;
@@ -1503,12 +2500,57 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
 
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
-    recovery::SafeWriter writer(io, src.device.get(), wcfg);
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u64 dstart = 0, dlen = 0;
-        u32 ddisk = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen))
-            writer.set_destination(dstart, dlen);
+    /* M-136: the recovery pass reads through the SAME read chain the scan
+     * built (build_read_pipe - SliceShim identity over the absolute source
+     * -> RetryingDevice x3 Skip-mode -> 8 MiB / 256 KiB CachedReader, the
+     * M-058 single construction seam). The og's export reads are
+     * stream-mediated through the engine/scan-session reader
+     * (architecture/04 §7.5; FUN_140540670's props+0x30 -> vt+0x78
+     * GetStream dispatch at DRWUI:873629-873671) - never a bare device
+     * handle; a transient read error the scan retried past must not
+     * zero-fill the very same span during export. `rp` owns the chain and
+     * outlives the writer (declared first, destroyed last). */
+    orchestrator::ReadPipe rp =
+        orchestrator::build_read_pipe(src.device.get(), 8ull << 20, 256 * 1024);
+    recovery::SafeWriter writer(io, rp.pipe, wcfg);
+    /* M-135 + M-136: the pipe's live error map is the post-retry
+     * hard-failure signal (Skip-mode reads return OK with zero-filled
+     * bad sectors) - the S71 convergence seam's name kept */
+    if (rp.retry != nullptr)
+        writer.set_read_error_source(rp.retry);
+
+    /* destination validation + overlap refusal (F12 + N-013, restored per
+     * S-054 after the 1ebd1bcc clobber): any path that resolves to a
+     * volume is evaluated (the og opens \\.\X: for every local
+     * destination - a drive-letter gate misses UNC/relative/junction
+     * destinations; junctions resolve to the TARGET's volume). Arming
+     * uses ALL extents (spanned/RAID destinations have more than one -
+     * first-extent-only missed overlap on the second+ spans, silently
+     * defeating the F12 refusal for destinations whose later spans live
+     * on the source disk). Session-97 recall-0 fix: the refusal is armed
+     * ONLY when an extent actually sits on the SOURCE disk (dest_overlap_
+     * spans) - cross-disk destinations are disjoint by hardware, and
+     * image sources never arm (node extents are image-internal). */
+    {
+        wchar_t dletter = 0;
+        if (have_disk && !have_image && win::destination_volume_letter(to_dir, &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                std::vector<std::pair<u64, u64>> spans;
+                if (win::dest_overlap_spans(ve, true, disk, &spans)) {
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u - overlap "
+                            L"refusal armed\n",
+                            disk);
+                    writer.set_destination_spans(spans);
+                } else {
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s)) - not on source "
+                            L"disk %u: overlap refusal not armed (same-disk precondition)\n",
+                            dletter, ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size(), disk);
+                }
+            }
+        }
     }
 
     /* normalize the destination dir (trailing backslash) */
@@ -1524,6 +2566,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018/M-071: recover-all never writes the
+                               * og's hidden junk set (the gate the N-064
+                               * reconstruction dropped) */
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
                 if (is_dir) {
@@ -1580,6 +2626,25 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             L", %llu salvaged (zero-filled spans), %llu nothing-to-recover (metadata-only)\n",
             wstats.done, wstats.refused, wstats.errors, wstats.hash_mismatch, wstats.salvaged,
             wstats.nothing_to_recover);
+    /* M-135: the og's failed-file list with its numbered causes - each
+     * truncated partial surfaces with the og's own cause string (the
+     * compiled-in RecoveryFailedInfo list, DRWUI strings :30580-30596) */
+    if (wstats.read_error != 0) {
+        wprintf(L"%llu file(s) kept as partial (read failed; the og's "
+                L"truncate-and-keep):\n",
+                wstats.read_error);
+        for (const auto& it : writer.queue()) {
+            if (it.cause_id == 0)
+                continue;
+            const char* cause8 = recovery::failure_cause_text(it.cause_id);
+            std::u16string name16 = it.final_name;
+            std::wstring namew(name16.begin(), name16.end());
+            wprintf(L"  %s - %llu/%llu bytes (cause %u: %hs)\n", namew.c_str(),
+                    static_cast<unsigned long long>(it.bytes_written),
+                    static_cast<unsigned long long>(it.bytes_total), it.cause_id,
+                    cause8 != nullptr ? cause8 : "unknown");
+        }
+    }
 
     /* G-09: machine-readable report (schema: docs/recovery-report-schema.md).
      * Emitted even when items failed - the per-item outcomes carry the
@@ -1602,6 +2667,13 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         analysis.matched = stats.assistant.matched;
         analysis.total = stats.assistant.total;
         analysis.small_result = stats.assistant.small_result;
+        /* N-140: the per-format carve breakdown (the og's GetRawUserInfoMap
+         * surface; rides the session record so a reloaded session reports
+         * it without a tree walk) */
+        analysis.carve_format_slots = stats.carve_per_format_slots;
+        analysis.carve_format_overflow = stats.carve_per_format_overflow;
+        for (u32 k = 0; k < stats.carve_per_format_slots && k < 512; ++k)
+            analysis.carve_format_counts[k] = stats.carve_per_format[k];
         const std::string doc = recovery::report::build_report(
             writer.report_items(),
             writer.report_totals(narrow(in_path), narrow(to_dir),
@@ -1729,7 +2801,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     wprintf(L"seek-penalty (SSD heuristics): %hs\n",
             win::health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
     bool trim = false;
-    if (win::health::query_trim_state(h, trim) == OK)
+    if (win::health::query_trim_state(trim) == OK)
         wprintf(L"TRIM: %hs%hs\n", trim ? "enabled" : "disabled",
                 trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
                      : "");
@@ -1740,7 +2812,128 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     return any_health_source ? 0 : 3;
 }
 
+/* S-040: case-insensitive suffix check over the ASCII container names
+ * (towlower per W1a - no CRT _wcsicmp dependency in the parse-gated
+ * layer; the stub set stays the exact SDK surface) */
+bool ends_with_ci(const std::wstring& s, const wchar_t* suffix) {
+    const size_t n = std::wcslen(suffix);
+    if (s.size() < n)
+        return false;
+    for (size_t i = 0; i < n; ++i)
+        if (towlower(s[s.size() - n + i]) != towlower(suffix[i]))
+            return false;
+    return true;
+}
+
+/* S-040: the image verb - the og home page's "Create Image" flow at the
+ * CLI (UIUX/07:36-37 + UIUX/06:27; the product then recommends scanning
+ * the produced image as the damage posture, UIUX/11:17). Class (a):
+ * require_privilege() gates the data path first, exactly like
+ * bench/fix/apply. The stream copies the device 64 KiB at a time (the
+ * transport envelope) with live cumulative progress, Ctrl-C cancel, the
+ * SHA-256 sidecar, and the truth contract: a cancelled or failed create
+ * keeps '<path>.partial' and says so - never a silent success. */
+int cmd_image(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: image create reads the disk data
+     * path - classification (a), like bench. */
+    {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    std::wstring out;
+    bool have_out = false;
+    while (i < argc) {
+        if (has_flag(argc, argv, i, L"--create")) {
+            /* S-040's documented invocation form (the usage header above,
+             * the -h block, the S-040 invocation-form contract
+             * Wave 4, CI-SCENARIOS.md:30, REFERENCE-API-GAP.md:336/:435 and
+             * Run-Benchmark.ps1's image-create probe all specify
+             * `image --create --disk N --out file.img`): the create-mode
+             * selector - the verb's only mode. Accepted as a valueless
+             * flag so the documented command line parses; without it the
+             * documented form died at "unknown image option: --create"
+             * (exit 1) - the parser was the one site of the five-site
+             * surface (dispatch/-h/usage-header/docs/parse) never wired
+             * by 13fe7258. */
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--out", &v)) {
+            out = v;
+            have_out = true;
+            continue;
+        }
+        wprintf(L"unknown image option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk || !have_out) {
+        wprintf(L"image needs --disk N and --out file.img\n");
+        return 1;
+    }
+    if (!ends_with_ci(out, L".img") && !ends_with_ci(out, L".raw") && !out.empty()) {
+        /* the og's create ships FLAT images; vhd/vhdx/vmdk writers are out
+         * of scope (D-147) - name the container honestly instead of
+         * writing a flat file under a container extension */
+        wprintf(L"image --out writes the FLAT raw form only (see docs/PARITY-DELTAS.md "
+                L"D-147); use a .img/.raw path\n");
+        return 1;
+    }
+
+    /* live progress: one line per ~10% (throttled; the callback fires per
+     * 64 KiB chunk, printing all of them would dominate the stream) */
+    struct Ctx {
+        u64 next_mark = 0;
+    } ctx;
+    ctx.next_mark = 0;
+    auto progress = +[](void* user, u64 done, u64 total) {
+        auto* c = static_cast<Ctx*>(user);
+        if (done < c->next_mark && done != total)
+            return;
+        wprintf(L"image: %llu / %llu bytes (%llu%%)\n", static_cast<unsigned long long>(done),
+                static_cast<unsigned long long>(total),
+                total ? static_cast<unsigned long long>(done * 100 / total) : 100ull);
+        const u64 mark = total / 10 ? total / 10 : 1;
+        c->next_mark = done + mark;
+    };
+
+    const std::u16string out16(out.begin(), out.end());
+    storage::ImageCreateStats stats{};
+    const u32 rc = win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx, &stats);
+    const std::string hex = crypto::to_hex(stats.sha256, 32);
+    if (rc == OK) {
+        wprintf(L"image complete: %llu bytes, sha256 %hs\n",
+                static_cast<unsigned long long>(stats.bytes_written), hex.c_str());
+        wprintf(L"sidecar: %s.sha256\n", out.c_str());
+        return 0;
+    }
+    if (rc == ERR_CANCELLED) {
+        wprintf(L"image CANCELLED at %llu bytes (Ctrl-C); the partial image is kept as "
+                L"'%s.partial'\n",
+                static_cast<unsigned long long>(stats.bytes_written), out.c_str());
+        return 3;
+    }
+    wprintf(L"image FAILED at %llu bytes (rc=%08x): %hs\n",
+            static_cast<unsigned long long>(stats.bytes_written), rc, err_text(rc));
+    wprintf(L"the partial image is kept as '%s.partial'\n", out.c_str());
+    return 2;
+}
+
 int cmd_bench(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: bench measures the disk data path -
+     * direct raw I/O, elevated token required. */
+    {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
     std::wstring v;
     u32 disk = 0;
     bool have_disk = false;
@@ -1789,22 +2982,18 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
-    /* transport: the MANDATORY RDA driver - no direct fallback */
+    /* direct transport (session-96): the direct open is the only leg;
+     * the label is the truth, not a choice */
     u32 err = 0;
-    auto dev = win::open_disk(disk, L"RDA", &err);
+    auto dev = win::open_disk(disk, &err);
     if (!dev) {
-        if (err == ERR_DRIVER_REQUIRED)
-            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
-                    L"available - install/start it (rc=%08x)\n",
-                    disk, err);
-        else
-            wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
-                    cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
-                                           : "administrator rights required (elevate and retry)");
+        wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
+                cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
+                                       : "administrator rights required (elevate and retry)");
         return 2;
     }
     const Geometry& g = dev->geometry();
-    const char* transport = "rda";
+    const char* transport = "direct";
 
     auto qpc = []() -> double {
         LARGE_INTEGER c;
@@ -1854,13 +3043,13 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     }
 
     if (mode == L"open") {
-        /* open/close churn: measures the device-open cost (RDA grammar
-         * path vs CreateFile) without touching platters */
+        /* open/close churn: measures the direct device-open cost
+         * (CreateFile + geometry probe) without touching platters */
         const u32 n = iterations < 1 ? 1 : (iterations > 10000 ? 10000 : iterations);
         const double t0 = qpc();
         for (u32 k = 0; k < n; ++k) {
             u32 e2 = 0;
-            auto d2 = win::open_disk(disk, L"RDA", &e2);
+            auto d2 = win::open_disk(disk, &e2);
         }
         const double dt = (qpc() - t0) / freq;
         const double mean_ns = dt > 0 ? dt * 1e9 / n : 0;
@@ -1905,7 +3094,7 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     }
 
     if (mode == L"rand") {
-        /* LCG random offsets inside the span (rdabench-compatible) */
+        /* LCG random offsets inside the span (deterministic, reproducible) */
         u64 state = seed ? seed : 1;
         const u32 n = iterations < 1 ? 1 : (iterations > 100000 ? 100000 : iterations);
         const u64 limit = span < g.total_bytes ? span : g.total_bytes;
@@ -1974,6 +3163,13 @@ bool bootfix_cli_consent(void* user) {
 }
 
 int cmd_apply(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: the apply path reads and writes the
+     * disk - elevated token required. */
+    {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
     std::wstring v;
     u32 disk = 0;
     bool have_disk = false;
@@ -2036,14 +3232,9 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
      * shows only what the CURRENT disk still confirms) and the same view
      * serves plan_apply below. */
     u32 open_err = 0;
-    auto apply_view = win::open_disk(disk, L"RDA", &open_err);
+    auto apply_view = win::open_disk(disk, &open_err);
     if (!apply_view) {
-        if (open_err == ERR_DRIVER_REQUIRED)
-            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
-                    L"available - install/start it (rc=%08x)\n",
-                    disk, open_err);
-        else
-            wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
         return 2;
     }
 
@@ -2079,9 +3270,25 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     wprintf(L"session candidates:\n");
     for (size_t k = 0; k < stats.lost_candidates.size(); ++k) {
         const auto& c = stats.lost_candidates[k];
-        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d%s\n", k + 1,
+        /* M-137: the og's found-partition row context (UIUX/08 §2 -
+         * Disk / Basic / Dynamic / MBR / GPT / File System) */
+        const wchar_t* layout = c.disk_layout == 1   ? L"MBR"
+                                : c.disk_layout == 2 ? L"EBR"
+                                : c.disk_layout == 3 ? L"GPT"
+                                : c.disk_layout == 4 ? L"GPT-damaged"
+                                                     : L"none";
+        const wchar_t* dyn = c.disk_dynamic ? L"dynamic" : L"basic";
+        const wchar_t* tok = c.disk_table_ok ? L"ok" : L"no-table";
+        wchar_t label[13] = L"";
+        for (int m = 0; m < 12 && c.volume_label[m]; ++m)
+            label[m] = wchar_t(u8(c.volume_label[m]));
+        /* (the hot-window merge dropped a %s from this format - MSVC's
+         * C4474 too-many-arguments red; the 11 args need 5 %s after
+         * "table": tok, label-open, label, label-close, selected) */
+        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s%s\n", k + 1,
                 static_cast<unsigned long long>(c.start_lba),
-                static_cast<unsigned long long>(c.sector_count), c.score,
+                static_cast<unsigned long long>(c.sector_count), c.score, layout, dyn, tok,
+                label[0] ? L", label \"" : L"", label[0] ? label : L"", label[0] ? L"\"" : L"",
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
@@ -2125,6 +3332,32 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         return 0;
     }
 
+    /* N-145: the cross-run in-flight journal. The og marks the target
+     * disk while a whole-disk repartition op is in flight (rwConfig.ini
+     * pendingMarkedDisk, engine event 0x102d) so the next start can
+     * detect an interrupted apply; the core's CRUNDO01 container is
+     * per-operation. The journal file lives beside the input session
+     * (the og's CWD-relative ini is the registered decline); a journal
+     * failure is a WARNING, never a gate - the journal is a crash
+     * trace, not a correctness mechanism. */
+    std::wstring journal_w =
+        in_path.empty() ? L"rrecov-apply-inflight.jrn" : in_path + L".inflight";
+    std::string journal_path = narrow_bytes(journal_w);
+    char disk_identity[96];
+    std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
+    {
+        apply::InFlightDisk marks[8] = {};
+        u32 found = 0;
+        if (apply::inflight_probe(journal_path.c_str(), marks, 8, &found) == OK) {
+            for (u32 m = 0; m < found && m < 8; ++m)
+                if (std::strcmp(marks[m].identity, disk_identity) == 0)
+                    wprintf(L"[apply] WARNING: an earlier apply on disk %u was interrupted "
+                            L"(in flight since unix %llu) - the table may be half-applied; "
+                            L"the undo log / a re-scan will reconcile\n",
+                            disk, static_cast<unsigned long long>(marks[m].begin_unix));
+        }
+    }
+
     /* execute (consent-gated transactional write) */
     /* the union's apply-capable view: the RW transport carrying the corpus
      * device-control chain (0x7C100/0x7C010/0x7C058/0x70140 + the 3x
@@ -2132,24 +3365,24 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     u32 e = 0; /* M-057: was referenced (&e) but never declared - the apply
                 * path could not compile on MSVC since it landed (the app
                 * layer had no parse gate until this session) */
-    auto wdev = win::open_disk_apply_rw(disk, L"RDA", &e);
+    auto wdev = win::open_disk_apply_rw(disk, &e);
     if (!wdev) {
-        if (e == ERR_DRIVER_REQUIRED) {
-            wprintf(L"cannot open disk %u for write: the RDA raw-disk driver is required "
-                    L"and not available - install/start it (rc=%08x)\n",
-                    disk, e);
-        } else {
-            wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
-                    cr::win::is_elevated()
-                        ? "write access denied even elevated (device busy, locked or protected)"
-                        : "administrator rights required (elevate and retry)");
-        }
+        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required (elevate and retry)");
         return 2;
     }
     ApplyCliCtx ctx;
     ctx.apply = do_apply;
     repair::UndoLog log;
+    if (apply::inflight_begin(journal_path.c_str(), disk_identity) != OK)
+        wprintf(L"[apply] warning: could not write the in-flight journal - crash detection "
+                L"for this run is unavailable\n");
     rc = apply::execute_apply(wdev.get(), plan, apply_cli_consent, &ctx, log);
+    /* the op ended (committed or rolled back - either way not in
+     * flight; only process death leaves the mark, the detectable class) */
+    (void)apply::inflight_end(journal_path.c_str(), disk_identity);
     if (rc != OK) {
         wprintf(L"execute FAILED: rc=%08x %hs (any written bytes were rolled back)\n", rc,
                 err_text(rc));
@@ -2276,13 +3509,63 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+/* M-078: the CBitlockerTurnOffOperation endpoint. The explicit-consent
+ * verb: turn BitLocker OFF on a volume (decrypt, never bypass). The
+ * refusal is loud on every path (bad letter, both command forms
+ * failing); the OS decrypt continues in the background after the
+ * request is accepted (manage-bde's own documented shape). */
+static int cmd_unlock(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    bool turn_off_req = false;
+    while (i < argc) {
+        if (wcscmp(argv[i], L"--turn-off") == 0 && i + 1 < argc && argv[i + 1][0]) {
+            v = argv[i + 1];
+            ++i;
+            turn_off_req = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown unlock option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!turn_off_req || v.empty()) {
+        wprintf(L"unlock needs --turn-off C: (the volume letter to turn BitLocker off on)\n");
+        return 1;
+    }
+    const wchar_t c0 = v[0];
+    if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+        wprintf(L"--turn-off needs a volume letter (e.g. --turn-off C:)\n");
+        return 1;
+    }
+    wprintf(L"turning BitLocker off on %c: (the decrypt continues in the background; check "
+            L"'manage-bde -status %c:' for progress)\n",
+            c0, c0);
+    const u32 rc = cr::win::bitlocker::turn_off(c0);
+    if (rc != OK) {
+        wprintf(L"turn-off refused (rc=%08x %hs) - the volume is unchanged, never a silent "
+                L"success\n",
+                rc, err_text(rc));
+        return 2;
+    }
+    wprintf(L"turn-off request accepted on %c:\n", c0);
+    return 0;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
+    /* Privilege precondition FIRST: the repair path reads and writes the
+     * disk - elevated token required. */
+    {
+        const int drc = require_privilege();
+        if (drc != 0)
+            return drc;
+    }
     std::wstring v;
     u32 disk = 0;
     bool have_disk = false;
     int part = -1; /* -1 = whole disk (LBA0 view, superfloppy/lost FS) */
     bool apply = false;
     std::wstring undo_path, undo_apply_path;
+    std::wstring chkdsk_vol; /* M-075: the escalation endpoint (fix --chkdsk C:) */
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
@@ -2306,9 +3589,52 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
             ++i;
             continue;
         }
+        if (get_opt(argc, argv, i, L"--chkdsk", &v)) {
+            chkdsk_vol = v;
+            continue;
+        }
         wprintf(L"unknown fix option: %s\n", argv[i]);
         return 1;
     }
+    /* ---- chkdsk mode (M-075): the escalation endpoint ----
+     * A volume-letter operation (no --disk: the raw-disk path is not
+     * involved; chkdsk itself needs only elevation - the
+     * og's WinChkdsk wrapper runs beside the engine, not under it).
+     * The posture is the FIX form (the fix verb's own family):
+     * chkdsk X: /f, the guidance string's second half. The refusal is
+     * loud: an absent volume or a bad letter prints and exits 2. */
+    if (!chkdsk_vol.empty()) {
+        const wchar_t c0 = chkdsk_vol[0];
+        if (c0 < L'A' || (c0 > L'Z' && c0 < L'a') || c0 > L'z') {
+            wprintf(L"--chkdsk needs a volume letter (e.g. --chkdsk C:)\n");
+            return 1;
+        }
+        const wchar_t letter = chkdsk_vol[0];
+        int32_t exit_code = -1;
+        const u32 rc = cr::win::fsck::fsck_volume(letter, cr::check::fsck_launch::CHKDSK_FIX,
+                                                  900000u, &exit_code);
+        if (rc == ERR_UNSUPPORTED && !cr::win::is_elevated()) {
+            wprintf(L"chkdsk /f needs administrator rights (elevate and retry)\n");
+            return 2;
+        }
+        if (rc != OK) {
+            wprintf(L"cannot launch chkdsk on %c: (rc=%08x %hs)\n", letter, rc, err_text(rc));
+            return 2;
+        }
+        if (exit_code == 259) {
+            wprintf(L"chkdsk still running after the 15-minute bound - it was left to finish "
+                    L"on its own; re-run to read the final state\n");
+            return 0;
+        }
+        wprintf(L"chkdsk %c: exit code %d\n", letter, int(exit_code));
+        if (cr::check::fsck_launch::chkdsk_exit_means_errors_remain(exit_code)) {
+            wprintf(L"the volume still reports errors (chkdsk could not fix them without a "
+                    L"dismount - close open files and re-run)\n");
+            return 3;
+        }
+        return 0;
+    }
+
     if (!have_disk) {
         /* undo-apply also needs the disk: the undo log carries absolute
          * sector offsets for a specific disk. Without this guard,
@@ -2341,7 +3667,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         }
         wprintf(L"undo log: %zu sector(s)\n", log.entries.size());
         u32 e = 0;
-        auto wdev = win::open_disk_rw(disk, L"RDA", &e);
+        auto wdev = win::open_disk_rw(disk, &e);
         if (!wdev) {
             wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                     cr::win::is_elevated()
@@ -2349,7 +3675,15 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
                         : "administrator rights required for repairs (elevate and retry)");
             return 2;
         }
+        /* N-145: the undo is an in-flight write op too - journaled beside
+         * the undo log the same way apply journals beside the session */
+        std::wstring journal_w = undo_apply_path + L".inflight";
+        std::string journal_path = narrow_bytes(journal_w);
+        char disk_identity[96];
+        std::snprintf(disk_identity, sizeof(disk_identity), "\\\\.\\PhysicalDrive%u", disk);
+        (void)apply::inflight_begin(journal_path.c_str(), disk_identity);
         rc = repair::undo(*wdev, log);
+        (void)apply::inflight_end(journal_path.c_str(), disk_identity);
         if (rc != OK) {
             wprintf(L"undo FAILED (rc=%08x %hs) - verify the disk state!\n", rc, err_text(rc));
             return 2;
@@ -2360,18 +3694,18 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 
     /* ---- analyze (read-only) ---- */
     u32 e = 0;
-    auto view = win::open_disk(disk, L"RDA", &e);
+    auto view = win::open_disk(disk, &e);
     if (!view) {
-        if (e == ERR_DRIVER_REQUIRED)
-            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
-                    L"available - install/start it (rc=%08x)\n",
-                    disk, e);
-        else
-            wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
         return 2;
     }
     IStorageDevice* slice = view.get();
-    std::unique_ptr<IStorageDevice> part_slice;
+    /* M-119 repair (win_syntax_check red at the landing; CONVERGENT with
+     * the S53 lane's N-188 fix - byte-equivalent retype): the concrete
+     * type - the clamp-delta surface (was_clamped/length/clamp_delta) is
+     * PartitionSlice's own, not IStorageDevice's; .get() still feeds the
+     * base-typed slice below. */
+    std::unique_ptr<cr::PartitionSlice> part_slice;
     u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;
@@ -2393,7 +3727,20 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
             wprintf(L"cannot slice partition %d (rc=%08x)\n", part, prc);
             return 2;
         }
-        slice = part_slice.get();
+        /* M-119: an over-long table entry (corrupt length, a table from
+         * larger media, a shrunken device) CLAMPS at the device end and
+         * the volume scans - the og's tolerant create - with the clamp
+         * delta surfaced instead of the pre-fix whole-volume refusal. */
+        if (part_slice->was_clamped()) {
+            wprintf(L"warning: partition %d declared %llu sectors past the device end; "
+                    L"scanning the clamped %llu sectors (delta %llu bytes)\n",
+                    part, static_cast<unsigned long long>(p.sector_count),
+                    static_cast<unsigned long long>(part_slice->length() /
+                                                    view->geometry().logical_sector),
+                    static_cast<unsigned long long>(part_slice->clamp_delta()));
+        }
+        slice =
+            part_slice.get(); /* the base-pointer handoff (PartitionSlice IS-A IStorageDevice) */
         wprintf(L"analyzing partition %d @ LBA %llu (%llu sectors)\n", part,
                 static_cast<unsigned long long>(p.start_lba),
                 static_cast<unsigned long long>(p.sector_count));
@@ -2446,18 +3793,12 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     }
 
     /* ---- execute (transactional writes) ---- */
-    auto wdev = win::open_disk_rw(disk, L"RDA", &e);
+    auto wdev = win::open_disk_rw(disk, &e);
     if (!wdev) {
-        if (e == ERR_DRIVER_REQUIRED) {
-            wprintf(L"cannot open disk %u for write: the RDA raw-disk driver is required "
-                    L"and not available - install/start it (rc=%08x)\n",
-                    disk, e);
-        } else {
-            wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
-                    cr::win::is_elevated()
-                        ? "write access denied even elevated (device busy, locked or protected)"
-                        : "administrator rights required for repairs (elevate and retry)");
-        }
+        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required for repairs (elevate and retry)");
         return 2;
     }
     repair::UndoLog log;
@@ -2498,52 +3839,112 @@ int wmain(int argc, wchar_t** argv) {
         wprintf(
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
-            L"  rrecov list\n"
+            L"  rrecov list [--trim]\n"
+            L"             (--trim: the per-row TRIM chip - the SSD recovery-chance\n"
+            L"              indicator; the datum is the OS-global fsutil state)\n"
             L"  rrecov list-carve-formats\n"
             L"             (the carve-capability projection of the ABI registry -\n"
             L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
+            L"  rrecov sessions [--dir D] [--json]\n"
+            L"             (the saved-session list: per-file light summaries,\n"
+            L"              the og's LastScanRecordView surface; unreadable files\n"
+            L"              are per-row data, only enumeration failure exits 1)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
-            L"             [--whole-disk] [--quick-only] [--no-carve]\n"
+            L"             [--deep] [--whole-disk] [--quick-only] [--no-carve]\n"
             L"             (deep stage always on; --quick-only disables it; --whole-disk = "
             L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
+            L"             [--autosave-dir D] [--label s]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
-            L"             [--repair] [--repair-apply] [--repair-undo file]\n"
+            L"             [--pause-stdin]  (N-178's keyboard pause: 'p'/SPACE pauses,\n"
+            L"                               'r'/Enter resumes, Ctrl-C cancels; no-op\n"
+            L"                               when stdin is redirected)\n"
+            L"             [--filter-folder DIR] (repeatable: the scan-time folder filter -\n"
+            L"                                   out-of-prefix folders never enter the session;\n"
+            L"                                   volume-root relative, e.g. --filter-folder "
+            L"Users\\\\alice)\n"
+            L"             [--repair] [--repair-apply] [--repair-undo file] [--check]\n"
             L"             [--bitlocker-fvek hex]  (locked volume: user-supplied FVEK,\n"
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
+            L"             [--bitlocker-dict [file]]  (consent: try the password\n"
+            L"                                     dictionary; default table or the\n"
+            L"                                     og-format dictionary file)\n"
+            L"             [--user-signs file]  (teach the carver new formats;\n"
+            L"                                  invalid input aborts honestly)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+            L"  rrecov archive-list --in file.crsf (--disk N | --image file) --node ID\n"
+            L"              [--json]  (the browse-inside archive inventory)\n"
             L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] "
             L"[--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
+            L"  rrecov image --create --disk N --out file.img\n"
+            L"             (the og home page's Create Image flow, UIUX/07:36-37 -\n"
+            L"              the safe-scan posture's producer: scan the image\n"
+            L"              instead of the live disk on damaged drives, UIUX/11:17;\n"
+            L"              flat raw only, VHD/VHDX writers out of scope -\n"
+            L"              docs/PARITY-DELTAS.md D-147; a .sha256 sidecar is\n"
+            L"              written; cancel keeps '<out>.partial', never a\n"
+            L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov fix --chkdsk C:  (launch Windows chkdsk /f on the volume -\n"
+            L"                           the check ladder's fix endpoint, M-075; no\n"
+            L"                           --disk needed: volume-letter operation)\n"
+            L"  rrecov unlock --turn-off C:  (turn BitLocker OFF on the volume - the\n"
+            L"                           M-078 consented destructive op: decrypt, never\n"
+            L"                           bypass; the OS decrypt continues in background)\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
             L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
             L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
             L"             rewrites the BCD offsets + UEFI NVRAM entry after the apply)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
-            L"              [--iterations N] [--seed N] [--json]\n");
+            L"              [--iterations N] [--seed N] [--json]\n"
+            L"\n"
+            L"privilege prerequisite: scan/recover/tree --disk/fix/apply/bench/image (disk\n"
+            L"targets) refuse with exit 4 unless the process token is elevated (run from\n"
+            L"an elevated prompt, or let your host trigger the UAC flow). --image scan\n"
+            L"targets are file-backed and need no elevation.\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
     int i = 2;
-    if (cmd == L"list")
-        return print_disks();
+    if (cmd == L"list") {
+        /* M-076: the --trim opt-in (the og's per-row chip; the datum is the
+         * OS-global fsutil state - refused-unknown, never guessed) */
+        bool with_trim = false;
+        while (i < argc) {
+            if (has_flag(argc, argv, i, L"--trim"))
+                with_trim = true;
+            else {
+                wprintf(L"unknown list flag: %s\n", argv[i]);
+                return 1;
+            }
+        }
+        return print_disks(with_trim);
+    }
     if (cmd == L"list-carve-formats")
         return print_carve_formats();
+    if (cmd == L"sessions")
+        return print_sessions(argc, argv, i);
     if (cmd == L"scan")
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")
         return cmd_tree(argc, argv, i);
+    if (cmd == L"archive-list")
+        return cmd_archive_list(argc, argv, i);
     if (cmd == L"recover")
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")
         return cmd_health(argc, argv, i);
+    if (cmd == L"unlock")
+        return cmd_unlock(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
     if (cmd == L"apply")
         return cmd_apply(argc, argv, i);
+    if (cmd == L"image")
+        return cmd_image(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());

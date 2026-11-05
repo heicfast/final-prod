@@ -4,9 +4,11 @@
  */
 
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/table/cr_ldm.h" /* S-052: the LdmBasisTable's device type */
 #include "cr/tree/cr_snapshot.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_text.h" /* N-016b: raw-name restore derivation */
+#include "cr/cr_log.h"  /* M-135: the og's read-failure log family */
 #include <chrono>
 #include <cstring>
 
@@ -19,8 +21,53 @@ bool intersects(u64 a_start, u64 a_len, u64 b_start, u64 b_len) {
 }
 } // namespace
 
-SafeWriter::SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg)
-    : io_(io), source_(source), cfg_(std::move(cfg)) {}
+/* ---- S-052: the LDM basis table ---- */
+
+void LdmBasisTable::add(::cr::table::LdmVolumeDevice* dev) {
+    if (dev != nullptr)
+        devs_.push_back(dev);
+}
+
+::cr::table::LdmVolumeDevice* LdmBasisTable::at(u32 basis) const {
+    if (basis == 0 || basis > devs_.size())
+        return nullptr;
+    return devs_[basis - 1];
+}
+
+std::vector<LdmBasisTable::Span> LdmBasisTable::spans(u32 basis, u64 offset, u64 length) const {
+    std::vector<Span> out;
+    const ::cr::table::LdmVolumeDevice* dev = at(basis);
+    if (dev == nullptr)
+        return out;
+    for (const auto& ps : dev->physical_spans(offset, length))
+        out.push_back(Span{ps.dev, ps.offset, ps.length});
+    return out;
+}
+
+/* walk a live node to its root's basis stamp (S-052: only roots carry
+ * the stamp; descendants read it through the parent chain) */
+static u32 node_basis_of(const tree::FileNode* n) {
+    const tree::FileNode* r = n;
+    while (r != nullptr && r->parent() != nullptr)
+        r = r->parent();
+    return r != nullptr ? r->basis() : 0;
+}
+
+/* walk a snapshot row to its root row's basis stamp */
+static u32 snap_basis_of(const tree::Snapshot& snap, u32 index) {
+    u32 i = index;
+    u32 guard = 0;
+    while (snap.node(i).parent != tree::SNAP_NONE) {
+        i = snap.node(i).parent;
+        if (++guard > snap.node_count()) /* corrupt parent loop: honest 0 */
+            return 0;
+    }
+    return snap.node(i).basis;
+}
+
+SafeWriter::SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg,
+                       const LdmBasisTable* bases)
+    : io_(io), source_(source), bases_(bases), cfg_(std::move(cfg)) {}
 
 void SafeWriter::set_destination(u64 dest_disk_start, u64 dest_disk_bytes) {
     set_destination_spans({{dest_disk_start, dest_disk_bytes}});
@@ -102,7 +149,7 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
 u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     if (node == nullptr || node->props() == nullptr || source_ == nullptr)
         return ERR_BAD_PARAMETER;
-    return enqueue_common(node->props(), node, nullptr, dest_dir);
+    return enqueue_common(node->props(), node, nullptr, dest_dir, node_basis_of(node));
 }
 
 u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
@@ -118,33 +165,71 @@ u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
         return ERR_NO_MEMORY;
     value_store_.push_back(std::move(owned));
     const tree::FileProperties* value = value_store_.back().get();
-    return enqueue_common(value, nullptr, value, dest_dir);
+    return enqueue_common(value, nullptr, value, dest_dir, snap_basis_of(snap, snap_index));
 }
 
 u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
                                const tree::FileProperties* value_props,
-                               const std::u16string& dest_dir) {
+                               const std::u16string& dest_dir, u32 basis) {
     if (pr == nullptr)
         return ERR_BAD_PARAMETER;
     const bool is_dir = cfg_.reconstruct_dirs && (pr->attributes & 0x10) != 0;
 
-    /* R7.2 / F12: hard refusal on source/destination overlap. The extents
-     * are ABSOLUTE device offsets; the destination extent is the
-     * destination volume's disk placement. Directory nodes carry no
-     * extents - never refused (G-08). */
+    /* S-052: resolve the item's read source. Basis 0 (and any basis the
+     * table cannot resolve) reads through the ABSOLUTE source - for an
+     * unresolvable LDM basis the reads then fail honestly per-extent
+     * (the Skip policy zero-fills + Salvaged outcome, the documented
+     * bad-span semantics - never silent wrong bytes from a wrong disk). */
+    IStorageDevice* read_src = source_;
+    if (basis != 0 && bases_ != nullptr) {
+        if (IStorageDevice* dev = const_cast<LdmBasisTable*>(bases_)->at(basis))
+            read_src = dev;
+    }
+
+    /* R7.2 / F12: hard refusal on source/destination overlap. Basis-0
+     * extents are ABSOLUTE device offsets on `source_`; the destination
+     * extent is the destination volume's disk placement. S-052: for an
+     * LDM basis the layout-relative offsets are NOT device offsets -
+     * the check maps them to PHYSICAL member spans first (only spans on
+     * `source_` itself can intersect the destination under the
+     * same-disk convention the arming documents; spans on other member
+     * disks are different hardware - disjoint by construction).
+     * Directory nodes carry no extents - never refused (G-08). */
     if (!is_dir && have_dest_ && !dest_spans_.empty()) {
-        for (const auto& e : pr->extents) {
-            for (const auto& span : dest_spans_) { /* N-013: every span */
-                if (intersects(e.offset, e.length, span.first, span.second)) {
-                    QueueItem refused;
-                    refused.node = node;
-                    refused.value_props = value_props;
-                    refused.dest_dir = dest_dir;
-                    refused.item_id = next_id_++;
-                    refused.state = ItemState::Refused;
-                    refused.error = ERR_DEST_OVERLAP;
-                    queue_.push_back(refused);
-                    return ERR_DEST_OVERLAP;
+        if (basis == 0) {
+            for (const auto& e : pr->extents) {
+                for (const auto& span : dest_spans_) { /* N-013: every span */
+                    if (intersects(e.offset, e.length, span.first, span.second)) {
+                        QueueItem refused;
+                        refused.node = node;
+                        refused.value_props = value_props;
+                        refused.dest_dir = dest_dir;
+                        refused.item_id = next_id_++;
+                        refused.state = ItemState::Refused;
+                        refused.error = ERR_DEST_OVERLAP;
+                        queue_.push_back(refused);
+                        return ERR_DEST_OVERLAP;
+                    }
+                }
+            }
+        } else if (bases_ != nullptr) {
+            for (const auto& e : pr->extents) {
+                for (const auto& ps : bases_->spans(basis, e.offset, e.length)) {
+                    if (ps.dev != source_)
+                        continue; /* other member disk: disjoint by hardware */
+                    for (const auto& span : dest_spans_) {
+                        if (intersects(ps.offset, ps.length, span.first, span.second)) {
+                            QueueItem refused;
+                            refused.node = node;
+                            refused.value_props = value_props;
+                            refused.dest_dir = dest_dir;
+                            refused.item_id = next_id_++;
+                            refused.state = ItemState::Refused;
+                            refused.error = ERR_DEST_OVERLAP;
+                            queue_.push_back(refused);
+                            return ERR_DEST_OVERLAP;
+                        }
+                    }
                 }
             }
         }
@@ -153,6 +238,8 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
     QueueItem it;
     it.node = node;
     it.value_props = value_props; /* G-02b: null for node-based enqueues */
+    it.read_src = read_src;
+    it.basis = basis;
     it.dest_dir = dest_dir;
     if (!it.dest_dir.empty() && it.dest_dir.back() != u'\\' && it.dest_dir.back() != u'/')
         it.dest_dir.push_back(u'\\');
@@ -224,6 +311,143 @@ u32 SafeWriter::ensure_dir_(const std::u16string& dir) {
     return OK;
 }
 
+/* the file-local UTF-16 -> UTF-8 helper (defined below in this file's
+ * anonymous namespace; the M-135 failure log rides it) */
+namespace {
+std::string utf16_to_utf8_local(const std::u16string& in);
+} // namespace
+
+/* M-135: the og's numbered user-facing failure causes - the
+ * COMPILED-IN defaults (DRWUI.exe strings_ascii.txt :30580-30596,
+ * RecoveryFailedInfo1..7), corrected first-hand this session: the
+ * finding's six-string qm citation missed cause 7 and misread cause 4
+ * (the qm's "4.The file name is most likely lost" is a search-help
+ * string; the runtime list's 4 is the sector-location cause). The
+ * og's internal code->cause mapping function is corpus-UNDECODED
+ * (FUN_1400ed760 is a %d string formatter, refuted first-hand); the
+ * core maps by the cause strings' own semantics. */
+const char* failure_cause_text(u32 cause_id) {
+    static const char* const kCauseText[8] = {
+        nullptr,
+        "1.Insufficient storage space.",
+        "2.The recovery path is too long.",
+        "3.The file name contains garbage characters.",
+        "4.The sector reading location exceeds total sector number of the "
+        "source partition.",
+        "5.The correct storage sector location cannot be found.",
+        "6.The data amount you want to recover has exceeded the free quota.",
+        "7.Other unknown reasons.",
+    };
+    return cause_id < 8 ? kCauseText[cause_id] : nullptr;
+}
+
+/* M-135: the og's three-line read-failure log family, format strings
+ * verbatim from the runlist export body (DRWUI :875684-875691, the
+ * CFileRecoverWorker::ReadAndWriteDataRunList failure branch; the
+ * strings sit adjacently in .rdata at strings_ascii.txt :35720-35722).
+ * The VALUES are the core's byte-granular analogs: m_s64StartSector =
+ * the extent ("run") start sector; pDataRuns64LCN = the same run start
+ * (the og logs the run's LCN + the volume base + spc; the writer's
+ * extents are byte-granular absolute placements, so the base is 0 and
+ * the identity spc is 1 - documented, never invented NTFS values);
+ * StartSector = the failing read's absolute start; ReadCount = its
+ * sector count; SectorTotalSize = the device's total sectors. */
+void SafeWriter::log_read_failure_(const tree::FileProperties* pr, size_t ext_i, u64 in_ext,
+                                   u64 read_len, const IStorageDevice* dev) {
+    if (!log::enabled() || pr == nullptr || ext_i >= pr->extents.size() || dev == nullptr)
+        return;
+    const u64 sec = dev->geometry().logical_sector != 0 ? u64(dev->geometry().logical_sector) : 512;
+    const u64 run_start = pr->extents[ext_i].offset;
+    const u64 read_start = run_start + in_ext;
+    log::write(log::Level::Error, "Failed to ReadSector! ");
+    log::write(
+        log::Level::Error, "m_s64StartSector:%llu,\tpDataRuns64LCN:%llu,\tm_nSectorPerCluster:%llu",
+        static_cast<unsigned long long>(run_start / sec),
+        static_cast<unsigned long long>(run_start / sec), static_cast<unsigned long long>(1));
+    log::write(log::Level::Error, "StartSector:%llu,\tReadCount:%llu,\tSectorTotalSize:%llu",
+               static_cast<unsigned long long>(read_start / sec),
+               static_cast<unsigned long long>((read_len + sec - 1) / sec),
+               static_cast<unsigned long long>(dev->size() / sec));
+}
+
+/* M-135: the og's error-9 truncation tail. The runlist path BREAKS at
+ * the failing read, LEAVES the partial on disk (no delete anywhere in
+ * the path - DRWUI :875684-875696), and the per-item recorder
+ * (:874072-874129) pushes the failure into the collection, marks the
+ * tree node failed (+0x73 |= 1 - runtime-only, matching this
+ * QueueItem-level record; the session never persists it, the og's
+ * rsf grammar does not either), logs "Failed to recover file: %s", and
+ * probes the destination size (:874131-874205). The pass CONTINUES
+ * (WRITER-1). */
+u32 SafeWriter::commit_partial_(QueueItem& it, const tree::FileProperties* pr, crypto::Sha256* hash,
+                                u32 cause_id, u64 first_failed_offset, u64 hard_offset,
+                                WriterStats& stats) {
+    it.cause_id = cause_id;
+    it.first_failed_offset = first_failed_offset;
+    it.bytes_written = hard_offset;
+    it.bytes_done = hard_offset;
+    /* the streamed digest covers exactly the committed prefix; no
+     * stored-hash comparison on the truncated stream (the truncation is
+     * the failure of record - the og computes no hash on this path) */
+    if (hash != nullptr) {
+        u8 digest[32];
+        hash->final(digest);
+        static const char* hexd = "0123456789abcdef";
+        char hex[65];
+        for (int i = 0; i < 32; ++i) {
+            hex[i * 2] = hexd[digest[i] >> 4];
+            hex[i * 2 + 1] = hexd[digest[i] & 0xF];
+        }
+        hex[64] = 0;
+        it.sha256_hex.assign(hex);
+        it.hash_status = report::HashStatus::Computed;
+    }
+    if (u32 rc = io_.commit(it.item_id)) {
+        io_.close(it.item_id);
+        it.state = ItemState::Error;
+        it.error = rc;
+        ++stats.errors;
+        return rc;
+    }
+    io_.close(it.item_id);
+    /* S-060's tail runs after every item (the only SetFileTime/
+     * SetFileAttributesW pair in the export body) - the partial keeps
+     * it; non-fatal by the same contract */
+    if (pr != nullptr && !it.is_dir) {
+        DestIo::FileMeta meta;
+        meta.created = pr->times.created;
+        meta.accessed = pr->times.accessed;
+        meta.modified = pr->times.modified;
+        meta.attributes = pr->attributes & 0xfffdu;
+        meta.set_created = pr->times.created != 0;
+        meta.set_accessed = pr->times.accessed != 0;
+        meta.set_modified = pr->times.modified != 0;
+        meta.set_attributes = pr->attributes != 0;
+        const std::u16string final_path = it.dest_dir + it.final_name;
+        it.metadata_rc = io_.set_metadata(it.item_id, final_path, meta);
+    }
+    it.state = ItemState::Done; /* the file IS committed; the failure is
+                                 * the cause row, not a missing file */
+    /* M-135 (the S71 rider): the og's runtime tree-node mark (+0x73
+     * bit 1 at :874087) - hosts holding the LIVE tree observe the
+     * failure without re-reading the report; runtime-only like the
+     * og's (never persisted). */
+    if (it.node != nullptr)
+        it.node->mark_recover_failed();
+    /* M-135 (the S71 rider): the og's settings-gated accounting skip
+     * (FUN_1400b3c60()+0x10 at :874072-874076) - when the host sets
+     * the gate, error-9-class items skip the failed list and count as
+     * recovered; the default accounts truthfully. */
+    if (cfg_.suppress_read_error_accounting)
+        ++stats.done;
+    else
+        ++stats.read_error;
+    if (log::enabled())
+        log::write(log::Level::Error, "Failed to recover file: %s",
+                   utf16_to_utf8_local(it.final_name).c_str());
+    return OK;
+}
+
 u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
     /* G-09: per-item duration for EVERY exit path (report evidence) */
     const auto t0 = std::chrono::steady_clock::now();
@@ -235,6 +459,16 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
 }
 
 u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
+    /* S-052: the item's basis-resolved read source (enqueue_common
+     * stamped it; basis 0 / unresolvable = the absolute source_) */
+    IStorageDevice* const read_dev = it.read_src != nullptr ? it.read_src : source_;
+    /* M-136: the retry layer's error map BEFORE this item's reads - a
+     * growth by the commit point means the pipe's Skip policy zero-
+     * filled a hard-failure span during THIS item (the map is
+     * append-only; pre-existing entries never grow it), so the Salvaged
+     * accounting stays truthful through the pipe (without this check
+     * the retry layer's zero-fill would hide as a clean Done). */
+    const u64 err_before = retry_src_ != nullptr ? retry_src_->error_map().total_bytes() : u64(0);
     /* G-02b: node-based items read the live props; snapshot items read
      * the writer-owned value - exactly one of the two is non-null. */
     const tree::FileProperties* pr = it.node ? it.node->props() : it.value_props;
@@ -314,8 +548,23 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
     u64 done = emit;
     it.bytes_done = done;
     const u64 total = pr->logical_size;
+    /* S-059: positioned mode - extents that carry explicit logical
+     * positions and/or hole markers (sparse NTFS files, compressed
+     * files with zero units, any engine that stamps `logical`). The
+     * legacy shape (all logical == 0, no holes - old sessions, engines
+     * that never stamp) keeps the cumulative walk: identical results by
+     * construction. In positioned mode `ext_pos` is the CURRENT
+     * extent's logical start, logical gaps are zero-filled (the og's
+     * type-2 zero chunk, :875062-75), and hole extents write zeros for
+     * their full length with no read. */
+    bool positioned = false;
+    for (const auto& e : pr->extents)
+        if (e.hole || e.logical != 0) {
+            positioned = true;
+            break;
+        }
     size_t ext_i = 0;
-    u64 ext_pos = 0;
+    u64 ext_pos = 0; /* legacy: cumulative sum; positioned: e.logical */
     while (done < total) {
         if (cancel && cancel->checkpoint()) {
             io_.close(it.item_id);
@@ -328,8 +577,29 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             want = cfg_.read_chunk;
         /* locate (extent, offset) for `done` */
         while (ext_i < pr->extents.size() && ext_pos + pr->extents[ext_i].length <= done) {
-            ext_pos += pr->extents[ext_i].length;
             ++ext_i;
+            ext_pos = positioned ? (ext_i < pr->extents.size() ? pr->extents[ext_i].logical : 0)
+                                 : ext_pos + pr->extents[ext_i - 1].length;
+        }
+        if (positioned && ext_i < pr->extents.size() && pr->extents[ext_i].logical > done) {
+            /* a logical gap before the next extent: zero-fill it (the
+             * og's zero chunk with no read; the compressed expander's
+             * hole units and any unstamped tail-lead land here) */
+            u64 gap = pr->extents[ext_i].logical - done;
+            if (gap > want)
+                gap = want;
+            std::memset(chunk.data(), 0, size_t(gap));
+            if (u32 rc = io_.write(it.item_id, done, chunk.data(), u32(gap))) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = rc;
+                ++stats.errors;
+                return rc;
+            }
+            hash.update(chunk.data(), u32(gap));
+            done += gap;
+            it.bytes_done = done;
+            continue;
         }
         if (ext_i >= pr->extents.size()) {
             if (!pr->resident_data.empty()) {
@@ -348,11 +618,39 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
                 it.bytes_done = done;
                 continue;
             }
-            io_.close(it.item_id);
-            it.state = ItemState::Error;
-            it.error = ERR_TRUNCATED;
-            ++stats.errors;
-            return ERR_TRUNCATED;
+            /* M-135: the extents end before the logical size with no
+             * resident payload. The og's runlist path simply ENDS the
+             * file there (the loop drains the runs, the file stays, no
+             * failure is recorded - its engine never emits a short
+             * runlist); the old core REFUSED and deleted the partial.
+             * Parity on disk + core-report truth: commit the partial
+             * and record it (cause 7 - no og cause string names a
+             * metadata shortfall; the report is the core's superset). */
+            return commit_partial_(it, pr, &hash, 7, done, done, stats);
+        }
+        if (pr->extents[ext_i].hole) {
+            /* S-059: a hole extent - `length` logical bytes of zeros at
+             * the logical position, NO device read (the og's type-2
+             * chunk: a pre-zeroed buffer written in full, :875062-75) */
+            const u64 in_ext = done - ext_pos;
+            u64 avail_in_ext = pr->extents[ext_i].length - in_ext;
+            if (want > avail_in_ext)
+                want = avail_in_ext;
+            if (want > chunk.size())
+                want = chunk.size();
+            const u32 got = u32(want);
+            std::memset(chunk.data(), 0, size_t(got));
+            if (u32 rc = io_.write(it.item_id, done, chunk.data(), got)) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = rc;
+                ++stats.errors;
+                return rc;
+            }
+            hash.update(chunk.data(), got);
+            done += got;
+            it.bytes_done = done;
+            continue;
         }
         const u64 in_ext = done - ext_pos;
         u64 avail_in_ext = pr->extents[ext_i].length - in_ext;
@@ -376,7 +674,7 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             }
             std::vector<u8> packed(static_cast<size_t>(psize), 0);
             std::vector<u8> plain(static_cast<size_t>(lsize), 0);
-            if (source_->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
+            if (read_dev->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
                 std::memset(packed.data(), 0, size_t(psize)); /* Skip policy */
                 std::memset(plain.data(), 0, size_t(lsize));
                 it.had_unreadable = true; /* FB-R02: zero-filled span */
@@ -405,12 +703,67 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
                 ++ext_i, ext_pos += lsize; /* consumed this extent */
             continue;
         }
-        const u32 got_raw = u32(want);
-        if (source_->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got_raw) != OK) {
-            /* zero-fill the unreadable span (Skip policy) and continue -
-             * the hash will intentionally mismatch on damaged content */
-            std::memset(chunk.data(), 0, got_raw);
-            it.had_unreadable = true; /* FB-R02: committed-but-partial */
+        u32 got_raw = u32(want);
+        const u64 read_off = pr->extents[ext_i].offset + in_ext;
+        u32 rrc = read_dev->read_at(read_off, chunk.data(), got_raw);
+        if (rrc == ERR_RANGE_OUT_OF_BOUNDS && read_off < read_dev->size()) {
+            /* M-135: the og's straddling-read clamp (DRWUI :875666-875668:
+             * a read that STARTS inside the volume but ends past it reads
+             * only the remaining tail - the og clamps ReadCount to
+             * SectorTotalSize - StartSector); only a start beyond the
+             * volume end is a failure (cause 4) */
+            got_raw = u32(read_dev->size() - read_off);
+            rrc = got_raw != 0 ? read_dev->read_at(read_off, chunk.data(), got_raw) : rrc;
+        }
+        if (rrc != OK) {
+            /* M-135: the og's error-9 family - a HARD read failure (the
+             * raw failure the pipe-less bases see; post-retry pipe
+             * failures surface through the error map below) truncates
+             * the item here, KEEPS the partial on disk, records the
+             * numbered cause (5 = the sector location cannot be found;
+             * 4 = the location exceeds the source partition), fires the
+             * log trio, and the pass continues (the runlist path's
+             * break semantics - never the old zero-fill-and-continue) */
+            log_read_failure_(pr, ext_i, in_ext, want, read_dev);
+            const u32 cause = (rrc == ERR_RANGE_OUT_OF_BOUNDS) ? 4 : 5;
+            return commit_partial_(it, pr, &hash, cause, done, done, stats);
+        }
+        if (retry_src_ != nullptr) {
+            /* M-135 + M-136: the Skip-mode pipe zero-fills bad sectors
+             * and returns OK - the live error map is the ONLY post-retry
+             * hard-failure signal. A mapped range intersecting this read
+             * window means real unreadable bytes (re-reads of a mapped
+             * range zero-fill again): truncate at the FIRST one, keeping
+             * the readable prefix (the og truncates at its failing
+             * read's start; the retry pipe's bisection knows the exact
+             * boundary - every byte before it is real data) */
+            const ReadErrorMap em = retry_src_->error_map_copy();
+            bool hit = false;
+            u64 first_bad = 0;
+            for (const auto& r : em.ranges()) {
+                if (r.offset < read_off + got_raw && read_off < r.offset + r.length) {
+                    const u64 b = r.offset > read_off ? r.offset : read_off;
+                    if (!hit || b < first_bad) {
+                        first_bad = b;
+                        hit = true;
+                    }
+                }
+            }
+            if (hit) {
+                log_read_failure_(pr, ext_i, in_ext, want, read_dev);
+                const u64 good = first_bad - read_off; /* the readable prefix */
+                if (good != 0) {
+                    if (u32 rc = io_.write(it.item_id, done, chunk.data(), u32(good))) {
+                        io_.close(it.item_id);
+                        it.state = ItemState::Error;
+                        it.error = rc;
+                        ++stats.errors;
+                        return rc;
+                    }
+                    hash.update(chunk.data(), u32(good));
+                }
+                return commit_partial_(it, pr, &hash, 5, done + good, done + good, stats);
+            }
         }
         if (u32 rc = io_.write(it.item_id, done, chunk.data(), got_raw)) {
             io_.close(it.item_id);
@@ -464,8 +817,34 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
         return rc;
     }
     io_.close(it.item_id);
+    /* S-060: the og's per-item restoration tail - after the content
+     * copy succeeds, restore the DOS attributes (word & ~0x2) and the
+     * mask-gated timestamp trio (DRWUI :874686-718: SetFileAttributesW
+     * then CreateFileW + SetFileTime with NULL for the un-set fields,
+     * both failures ReleaseTrace'd and non-fatal). The per-field
+     * enables mirror which timestamps the engine actually emitted: a
+     * zero slot is the og's honest no-date (N-021/A-014 zero-FileTime)
+     * and passes as NULL, exactly the og's mask behavior. The
+     * destination path is the collision-resolved final (post-rename).
+     * Non-fatal by contract: a refusal never fails the item; the
+     * report row carries the code. */
+    if (!it.is_dir) {
+        DestIo::FileMeta meta;
+        meta.created = pr->times.created;
+        meta.accessed = pr->times.accessed;
+        meta.modified = pr->times.modified;
+        meta.attributes = pr->attributes & 0xfffdu; /* the og clears 0x2 */
+        meta.set_created = pr->times.created != 0;
+        meta.set_accessed = pr->times.accessed != 0;
+        meta.set_modified = pr->times.modified != 0;
+        meta.set_attributes = pr->attributes != 0;
+        const std::u16string final_path = it.dest_dir + it.final_name;
+        it.metadata_rc = io_.set_metadata(it.item_id, final_path, meta);
+    }
     it.state = ItemState::Done;
     ++stats.done;
+    if (retry_src_ != nullptr && retry_src_->error_map().total_bytes() > err_before)
+        it.had_unreadable = true; /* FB-R02 + M-136: the pipe zero-filled */
     if (it.had_unreadable)
         ++stats.salvaged; /* committed sub-bucket: partial-content commits
                              visible in the report (FB-R02) */
@@ -590,6 +969,51 @@ std::string utf16_to_utf8_local(const std::u16string& in) {
     }
     return out;
 }
+
+/* N-159 (diff-to-fix): the og's per-row tree classification - the
+ * failed-files HTML report's classification column
+ * (CSaveFailedFilesWithHtml::FUN_1403c6fc0, DRWUI :642755-642822,
+ * decoded first-hand: group/kind field reads at +0x1e8/+0x1f0 + the
+ * custom-name field at +0x1d8 [FUN_1400d3ee0/FUN_14008b040/
+ * FUN_14008a650], the label appends "Lost Files"+kind-qualifier /
+ * "Existing Files" / "Lost Files"+"Deleted" / the custom raw-category
+ * name). The core's tree models the og's group/kind integers as ROOT
+ * ROLES (the S-048/M-103 convention), so the classification derives
+ * from the node's top-level root:
+ *   "Found"                      -> existing_files        (og kind 4)
+ *   "File Path Lost"/"Lost Files"-> lost_files           (og group 1)
+ *   "Reconstructed"/legacy carved -> lost_files_reconstructed (og kind 7)
+ *   "Tags Extracted"             -> lost_files_tags_extracted (og kind 6;
+ *                                   the branch is M-101's open scope -
+ *                                   the mapping lands ready for it)
+ *   "Deleted"                    -> lost_files_deleted   (og kind 0)
+ *   any other role                -> the custom raw-category name (the
+ *                                   og's FUN_14008a650 non-zero branch)
+ * The og renders the labels in its HTML fragments; the wire values are
+ * the stable snake_case forms (the schema doc carries the mapping - the
+ * joiner between the og's compound label parts is .rdata-unresolved per
+ * the finding's open question, so no invented compound is emitted). */
+static std::string tree_class_of(const tree::FileNode* node) {
+    const tree::FileNode* n = node;
+    while (n != nullptr && n->parent() != nullptr)
+        n = n->parent();
+    if (n == nullptr || !n->is_full())
+        return {};
+    const std::u16string& role = static_cast<const tree::FullNode*>(n)->role;
+    if (role == u"Found")
+        return "existing_files";
+    if (role == u"File Path Lost" || role == u"Lost Files")
+        return "lost_files";
+    if (role == u"Reconstructed" || role == u"Other Deleted Files (Carved)")
+        return "lost_files_reconstructed";
+    if (role == u"Tags Extracted")
+        return "lost_files_tags_extracted";
+    if (role == u"Deleted")
+        return "lost_files_deleted";
+    /* the custom raw-category name (a configured raw root role) - the
+     * og's custom branch appends the category name itself */
+    return utf16_to_utf8_local(role);
+}
 } // namespace
 
 report::Totals SafeWriter::report_totals(const std::string& source, const std::string& destination,
@@ -604,6 +1028,7 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     t.resumed = stats.resumed;
     t.salvaged = stats.salvaged;
     t.nothing_to_recover = stats.nothing_to_recover;
+    t.read_error = stats.read_error; /* M-135: committed-but-truncated */
     {
         /* partial-run truth: items still Pending at report time were
          * queued but never attempted - without this count, queued cannot
@@ -616,9 +1041,24 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     }
     u64 bytes = 0;
     for (const auto& it : queue_)
-        if (!it.is_dir && it.state == ItemState::Done && !it.resumed)
+        if (!it.is_dir && it.state == ItemState::Done && !it.resumed && it.cause_id == 0)
             bytes += it.bytes_total;
     t.bytes = bytes;
+    /* N-159: the og's failed-bytes accumulator (+0x268) - the bytes of
+     * every file that did NOT fully commit (Error + Refused + the
+     * M-135 ReadError partials - the og's failed list counts them;
+     * the og's write failures + the core's destination-refusal
+     * family). Pending items are excluded (never attempted in this
+     * pass), as is NothingToRecover (no bytes ever moved). */
+    u64 failed_bytes = 0;
+    for (const auto& it : queue_)
+        if (!it.is_dir && !it.resumed &&
+            (it.state == ItemState::Error || it.state == ItemState::Refused || it.name_exhausted ||
+             /* the read-error partial: failed-listed unless the host set
+              * the og's accounting-skip gate (the S71 rider) */
+             (it.cause_id != 0 && !cfg_.suppress_read_error_accounting)))
+            failed_bytes += it.bytes_total;
+    t.failed_bytes = failed_bytes;
     t.elapsed_ms = elapsed_ms;
     t.source = source;
     t.destination = destination;
@@ -638,6 +1078,19 @@ std::vector<report::Item> SafeWriter::report_items() const {
         r.duration_ms = it.duration_ms;
         r.sha256_hex = it.sha256_hex;
         r.hash_status = it.hash_status;
+        r.tree_class = it.node != nullptr ? tree_class_of(it.node) : std::string();
+        /* S-060: the metadata restoration outcome per row (non-fatal
+         * truth; the default 0xFFFFFFFF marks "not attempted") */
+        if (it.metadata_rc == 0xFFFFFFFFu)
+            r.metadata = (it.is_dir || it.state != ItemState::Done) ? std::string()
+                                                                    : std::string("unsupported");
+        else if (it.metadata_rc == OK)
+            r.metadata = "restored";
+        else {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "failed:0x%x", it.metadata_rc);
+            r.metadata = buf;
+        }
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;
@@ -649,6 +1102,14 @@ std::vector<report::Item> SafeWriter::report_items() const {
         } else if (it.nothing_to_recover) {
             /* GAP-S6-7: skipped before any write - metadata-only item */
             r.outcome = report::Outcome::NothingToRecover;
+        } else if (it.cause_id != 0) {
+            /* M-135: committed-but-truncated (the og's error-9 family -
+             * the partial exists AND the file is in the failed list with
+             * its numbered cause + the boundary + the committed size) */
+            r.outcome = report::Outcome::ReadError;
+            r.cause_id = it.cause_id;
+            r.first_failed_offset = it.first_failed_offset;
+            r.bytes_written = it.bytes_written;
         } else if (it.state == ItemState::Error) {
             r.outcome = report::Outcome::Error;
             r.reason = it.error;

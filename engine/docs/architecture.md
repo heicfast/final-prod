@@ -30,9 +30,12 @@ bounded storage views (cr::storage)
    ReadErrorMap   - R1.6 persistent error tracking
    ▼
 platform transports (cr::win)               [Windows]
-   RDA driver client (\\.\RDA\<token>\<d>\<p> | Volume\<n>) - PID-token handshake
-   direct handles (\\.\PhysicalDriveN / HarddiskVolumeN) - reference duality
-   enumeration (geometry 4Kn/512e, GPT/MBR via pure core)
+   direct raw I/O (\\.\PhysicalDriveN | Volume) - GENERIC_READ[|WRITE],
+   share R|W|D, 64 KiB read envelope, true byte counts; the privilege
+   gate refuses ERR_ELEVATION_REQUIRED when the token is not elevated
+   (session-96: no kernel driver, no service)
+   enumeration (geometry 4Kn/512e, GPT/MBR via pure core) - control path,
+   never used the driver (og evidence; the census needs no data-path open)
    BitLocker detect + legitimate unlock (fix F13) + in-stack XTS-AES
    decrypt for user-key opt-in (M-033: DecryptingDevice wraps the volume
    slice, per-sector LE-index tweaks; FVEK input surface; locked-without-
@@ -43,15 +46,20 @@ platform transports (cr::win)               [Windows]
 ## 2. Pure core / platform split
 
 Everything under `src/core` compiles identically on gcc (Linux CI, ASan) and
-MSVC (/W4 /WX) - no OS headers. Everything Windows-specific lives in
-`src/win` and compiles only there. The engines are fed `IStorageDevice`
+MSVC (/W4 /WX) - no OS headers (one guarded exception: `src/core/session/
+cr_lastscan.cpp:12` includes `windows.h` under `#ifdef _WIN32` with a
+`unistd.h` else-branch — M-154's last-scan pointer sidecar needed the
+platform rename/clock calls; everything else in core stays OS-free).
+Everything Windows-specific lives in `src/win` and compiles only there. The engines are fed `IStorageDevice`
 views; a fake in-memory device (the tests) and the Windows transports are
 interchangeable - the same property that let the reference product ship its
 "CellTest" harness.
 
 ## 3. Key contracts (details in docs/ground-truth-contracts.md)
 
-- Open grammar + PID token: rda-driver wire contract (both sides verified).
+- Direct raw I/O: \\.\PhysicalDriveN opens (GENERIC_READ [| GENERIC_WRITE],
+  share R|W|D) under an elevated token, 64 KiB read envelope, true byte
+  counts (session-96: the kernel transport was replaced by direct raw I/O).
 - NTFS: USA fixup mandatory; 'FILE' magic; $ATTRIBUTE_LIST chase (depth
   limit); $Bitmap viability grading (fix F5); hard links via per-link props;
   ADS children; remnant sweep (R2.5).

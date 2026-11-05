@@ -1,5 +1,7 @@
 # PERFORMANCE-BASELINE — measured numbers at session start
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > Session: core-api (2026-10-26). Baselines: core `e6d5b01`, driver `7e88e38`,
 > corpus `03ad46c`. Every number below is measured and citable, with its
 > environment recorded. Entries marked **NOT MEASURED** are explicit holes
@@ -138,8 +140,8 @@ The second measured run (40228880804) also re-confirms legs 1-3 within noise
 recorded as `checksum_match` telemetry since the live OS volume legitimately
 mutates between passes).
 
-Tooling: `bench/ours/run-alignbench.ps1` +
-`.github/workflows/api-benchmark.yml` (windows-2022; driver from the
+Tooling: `bench/ours/run-alignbench.ps1` (historically driven by the
+deleted `.github/workflows/api-benchmark.yml`; windows-2022; driver from the
 rda-driver release, SHA256SUMS-verified, test-signed, installed as `rda`,
 verified via verify-driver.ps1; no continue-on-error; artifacts always).
 

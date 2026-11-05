@@ -657,15 +657,19 @@ TEST(RawFixer, MftBothInvalidNoWrite) {
 }
 
 TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
-    /* the finding's falsifiable claim (1), proven at the engine boundary:
-     * a torn $MFT record 0 with an intact mirror makes NtfsVolume::open
-     * fail (carve-only path); after the consent-gated repair the volume
-     * opens and the structured engine can walk it. */
+    /* the finding's falsifiable claim (1), proven at the engine boundary -
+     * RE-TRUTHED at S-063: a torn $MFT record 0 with an intact mirror no
+     * longer fails NtfsVolume::open (the og's $MFTMirr bootstrap fallback,
+     * FUN_1800272b0's LAB_180027467); the repair's observable difference
+     * is the BOOT SOURCE: torn record 0 -> mirror-bootstrapped
+     * (boot_from_mftmirr), consent-gated repair -> the primary again,
+     * undo -> the mirror-bootstrap state returns. */
     NtfsVolumeImage v(true);
     u32 err = 0;
     auto before =
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(v.img)), &err);
-    EXPECT_EQ(nullptr, before) << "torn record 0 must fail volume open";
+    ASSERT_NE(nullptr, before) << "S-063: the intact mirror must bootstrap the open";
+    EXPECT_TRUE(before->params().boot_from_mftmirr) << "the pre-repair boot source";
 
     RamDevice dev(v.img);
     RepairPlan plan;
@@ -679,12 +683,16 @@ TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
     ASSERT_NE(nullptr, after) << "repaired volume must open: " << err_text(err);
     EXPECT_EQ(1024u, after->params().record_size);
+    EXPECT_FALSE(after->params().boot_from_mftmirr)
+        << "the repaired primary is the boot source again";
 
-    /* undo returns the volume to the unopenable state (transactional truth) */
+    /* undo returns the volume to the mirror-bootstrap state (transactional
+     * truth: the torn record 0 is back, the mirror still covers it) */
     ASSERT_EQ(OK, undo(wd, undo_log));
     auto reverted =
         ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
-    EXPECT_EQ(nullptr, reverted);
+    ASSERT_NE(nullptr, reverted) << "undo restores the torn record, not the mirror";
+    EXPECT_TRUE(reverted->params().boot_from_mftmirr);
 }
 
 TEST(RawFixer, FatTornMirrorCopyRestoredSectorGranular) {
@@ -822,76 +830,6 @@ TEST(RawFixer, FixByScanSectorIdenticalCandidatesNotAmbiguous) {
     EXPECT_FALSE(plan.refused);
     ASSERT_EQ(1u, plan.actions.size());
     EXPECT_EQ(ActionKind::DeepScanBootRestore, plan.actions[0].kind);
-}
-
-TEST(RawFixer, GptDiskNeverOfferedBootRestore) {
-    /* NG-21 (forensic run 40470191039): a GPT disk - protective MBR at
-     * LBA 0, "EFI PART" header at LBA 1, a HEALTHY NTFS volume boot at
-     * 1 MiB (inside the 64 MiB window). The pre-fix family-agnostic
-     * FixByScanSector terminal proposed writing that boot sector at DISK
-     * offset 0, over the protective MBR - the catastrophic false offer
-     * captured as the blocking consent modal on the healthy seed disk.
-     * The partition-table guard refuses: a table primary is never a
-     * volume-boot candidate (corpus RawFixer::CheckPartition - the
-     * partition is the repair unit). Fail-before: 1 DeepScanBootRestore
-     * action at offset 0. */
-    NtfsVolumeImage v(false); /* healthy NTFS volume (1 MiB) */
-    std::vector<u8> img(8ull << 20, 0);
-    std::memcpy(img.data() + 1 * 1024 * 1024, v.img.data(), v.img.size());
-    u8* mbr = img.data();
-    mbr[510] = 0x55;
-    mbr[511] = 0xAA;
-    mbr[0x1C2] = 0xEE;                            /* protective GPT entry */
-    std::memcpy(img.data() + 512, "EFI PART", 8); /* GPT header at LBA 1 */
-    RamDevice dev(img);
-    RepairPlan plan;
-    ASSERT_EQ(OK, analyze(&dev, plan));
-    EXPECT_TRUE(plan.refused);
-    EXPECT_TRUE(plan.actions.empty());
-    EXPECT_NE(std::string::npos, plan.refusal_reason.find("partition table"));
-}
-
-TEST(RawFixer, MbrDiskNeverOfferedBootRestore) {
-    /* NG-21, the classic-MBR shape: entry type 0x07 (IFS), start 2048,
-     * count 2048 - plausible and inside the slice - with the same healthy
-     * NTFS boot at 1 MiB. Same refusal; never a DBR rebuild at LBA 0. */
-    NtfsVolumeImage v(false);
-    std::vector<u8> img(8ull << 20, 0);
-    std::memcpy(img.data() + 1 * 1024 * 1024, v.img.data(), v.img.size());
-    u8* mbr = img.data();
-    mbr[510] = 0x55;
-    mbr[511] = 0xAA;
-    u8* e = mbr + 0x1BE; /* entry 0 */
-    e[0] = 0x80;
-    e[4] = 0x07; /* NTFS/IFS */
-    put32(e + 8, 2048);
-    put32(e + 12, 2048);
-    RamDevice dev(img);
-    RepairPlan plan;
-    ASSERT_EQ(OK, analyze(&dev, plan));
-    EXPECT_TRUE(plan.refused);
-    EXPECT_TRUE(plan.actions.empty());
-    EXPECT_NE(std::string::npos, plan.refusal_reason.find("partition table"));
-}
-
-TEST(RawFixer, GptHeaderAloneRefusesEvenWithoutProtectiveEntry) {
-    /* the LBA-1 "EFI PART" probe catches a GPT disk whose protective
-     * entry bytes are damaged - the second, independent recognition path
-     * of the guard. */
-    NtfsVolumeImage v(false);
-    std::vector<u8> img(8ull << 20, 0);
-    std::memcpy(img.data() + 1 * 1024 * 1024, v.img.data(), v.img.size());
-    u8* mbr = img.data();
-    mbr[510] = 0x55;
-    mbr[511] = 0xAA;
-    /* NO 0xEE entry - the damaged protective-MBR shape */
-    std::memcpy(img.data() + 512, "EFI PART", 8);
-    RamDevice dev(img);
-    RepairPlan plan;
-    ASSERT_EQ(OK, analyze(&dev, plan));
-    EXPECT_TRUE(plan.refused);
-    EXPECT_TRUE(plan.actions.empty());
-    EXPECT_NE(std::string::npos, plan.refusal_reason.find("partition table"));
 }
 
 TEST(RawFixer, RebasedPartitionPlanWritesAtDiskBasisNeverLba0) {

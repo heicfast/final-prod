@@ -1,38 +1,19 @@
-# session-diff-fix-prompt.md — the mandate for this fix session (token redacted)
+# Session fix mandate — prompt record (token redacted)
 
-Repositories (only two, in scope):
-- Core (modified): heicfast/core_recovery
-- Research corpus (ground truth, read-only): heicfast/easeus-drw-research
-- GitHub token: REDACTED (env/git-config only, never committed, never logged)
+Session type: fix session (the diff-to-fix roadmap). Mandate: for every finding —
+ACUTE/SEVERE/MAJOR/MINOR/INFORMATIONAL/TRACKED-OPEN — independently verify,
+fix, prove with tests, mark fixed in the audit trail with evidence. Corpus is
+ground truth (easeus-drw-research, read-only). Core repo: heicfast/core_recovery.
+Token redacted per hygiene rule (env/git config only).
 
-Mandate: execute the roadmap in core_recovery/diff-to-fix/. For every finding —
-ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN — independently verify
-the finding against the corpus and the running code, fix it in the codebase,
-prove the fix with tests and benchmarks, and mark it fixed in the audit trail
-with evidence. A false finding is corrected in the audit trail rather than
-"fixed" by breaking good code.
+Key SOPs: verify → reproduce → classify → fix → re-review → test → benchmark →
+document → push → loop. One finding, one verified fix, one push. No shortcuts,
+no stubs, no hallucinated parity. Windows direct I/O: multiples of 4KB/64KB.
+Win7-inclusive import gate. Signing stays disabled.
 
-Per-finding loop: Reproduce -> Re-verify vs corpus -> Classify
-(CONFIRMED-DIVERGENCE / ALREADY-FIXED / FALSE-POSITIVE / OUTDATED-EVIDENCE /
-NEW-FINDING) -> Fix -> Test (fail-before/pass-after) -> Benchmark when
-performance-tagged -> Document -> Push.
+First 20 TODOs: T1 pull+record, T2 read diff-to-fix, T3 read core, T4-T5 acute
+classify+fix, T6-T7 severe, T8-T9 major, T10 perf baseline/fix/rebench, T11-T12
+minor, T13 informational, T14 tracked-open, T15 matrix, T16 summary, T17 module
+docs, T18 CI sweep, T19 discovered tests, T20 tag release + handoff.
 
-SOPs: re-implement from understanding (never paste decompiled code, never copy
-proprietary strings, cite corpus artifact in commit message); fix the cause not
-the symptom; match architecture and wiring; one finding = one verified fix =
-one push; pull frequently, never force-push, keep main green; safety hardenings
-preserved; ReFS/LDM first-class; no stubs/mocks/fallbacks that mask failure; no
-hallucinated parity — every FIXED has a failing-then-passing test; remove
-resolved TODO/FIXME notes; update PARITY-DELTAS for deliberate divergences;
-CI green Linux (ASan/UBSan/TSan on touched code) and Windows-equivalent gates;
-Win7-inclusive import gate; signing disabled.
-
-Resolution template per finding file (append, never delete):
-## Resolution
-**Status:** FIXED | FIXED-ALREADY | INVALID | SUPERSEDED
-**Fixed in commit:** <sha>
-**Verified by:** <tests + benchmarks / command evidence>
-**Resolution notes:** <paragraph with corpus + code citations>
-
-Target: close every open finding; fixed findings move state into findings/FIXED/
-(updated docs/counts). Work long-horizon, commit and push often, worklog current.
+Priority note from user: fix all findings, priority to major first, aim 20+ fixes.

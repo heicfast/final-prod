@@ -47,6 +47,12 @@ struct ExfatParams {
     bool boot_main_ok = false;
     bool boot_backup_ok = false;
     bool boot_checksum_ok = false;
+    /* S-066: the recognition re-base - 12 when the scan anchor was the
+     * surviving BACKUP boot and the FAT media words confirmed the true
+     * base 12 sectors earlier (FUN_180001630 :377-378's `base -= 0xc`);
+     * 0 otherwise. The fat/heap offsets in this struct are ALREADY
+     * relative to the corrected base when this is set. */
+    u16 base_shift_sectors = 0;
 };
 
 /* Validate main + backup boot regions (checksum per rules above). */
@@ -86,6 +92,10 @@ struct ExfatScanStats {
     u64 chains_broken = 0;
     u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */
     u64 fat_window_refills = 0; /* S-013: windowed-FAT cache refills (big-FAT volumes) */
+    u64 base_shifted = 0;       /* S-066: volumes re-based -12 sectors off the
+                                 * surviving backup boot (the skip-honesty
+                                 * counter family: the shift is surfaced,
+                                 * never silent) */
     /* N-067 (diff-to-fix): the og's volume analyzer validates the upcase
      * table as part of volume integrity (boot + upcase checks,
      * CExFatVolumeAnalyer - fat-exfat-engine-internals.md:63-64). Grade,
@@ -95,6 +105,11 @@ struct ExfatScanStats {
     u64 upcase_validated =
         0; /* in-use upcase dentries whose structure passed the og's shape gates */
     u64 upcase_mismatches = 0; /* checksum/length/read integrity failures (0 = clean or absent) */
+    /* N-174 (diff-to-fix): macOS AppleDouble "._"-prefixed sidecars the
+     * og sinks silently at the props builder (exFATSearchDLL :45151) - the
+     * Finder writes these beside every real file on exFAT media; the og
+     * suppresses them as metadata-only noise. Counted, never emitted. */
+    u64 apple_doubles_sunk = 0;
     /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
      * exFAT ("mirrored from FAT engine", fat-exfat-engine-internals.md
      * :71 - IRecycleBinNode2UI, multiple _stricmp sites) */

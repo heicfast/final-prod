@@ -27,6 +27,7 @@ additions: explicit versioning, per-record CRC32, corruption skip-forward.
 +0x04 type u32     1 SESSION_STATE | 2 VOLUME_INFO | 3 PARTITION_CONTEXT
                     4 RESULT_TREE   | 5 ERROR_MAP | 6 ASSISTANT_STATS
                     7 ALLOC_MAP     | 8 DISK_LAYOUT (M-042)
+                    9 FS_CHECK (M-041)
 +0x08 session_id u64
 +0x10 chain u32    on-disk bytes after the header (patched on finalize)
 +0x14 crc32 u32    CRC32 of the DECOMPRESSED payload
@@ -54,7 +55,12 @@ per node:
 ```
 u32 parent_id (0xFFFFFFFF = top level; attaches under the synthetic
       "Restored" root on load)
-u16 reserved
+u16 node flags (bit0 extent codec/psize pairs, bit1 resident_data,
+      bit2 short_name, bit3 grade byte, bit4 RAW provenance, bit5
+      name_raw, bit6 per-FS secondary, bit7 FAT origin cluster,
+      bit8 NTFS origin LCN, bit9 NTFS total clusters, bit10 (S-052)
+      root basis id follows: u32 — the LDM dynamic-volume basis the
+      root's extents read through; basis 0/absent = ABSOLUTE offsets)
 u8  marker (0 light, 1 full)
 u8  origin, u8 deleted_state, u8 confidence
 u64 record_ref, u32 fs_kind
@@ -66,7 +72,59 @@ u32 extent_count + {u64 offset, u64 length}*
 u32 carve_format, u16 carve_confidence
 u8  hash_valid + 16B sha-128 id (when valid)
 full nodes add: u16 role_len + role (UTF-16LE) + 4x u64 stats
+      (+ u32 basis when node-flags bit10 is set — S-052)
 ```
+
+## LDM_LAYOUTS payload (S-052; optional record, skip-unknown rule)
+
+```
+u32 count + per layout:
+  u8 kind (LdmVolumeKind), u64 vol_obj_id, u64 total_sectors,
+  u64 chunk_sectors, u32 columns, u64 missing_members, u8 complete
+  u16 name_len + bytes
+  u32 copies + per copy: u32 members + per member:
+    u64 part_obj_id, u64 disk_obj_id, 16B disk GUID,
+    u64 disk_lba, u64 part_start, u64 sectors, u64 vol_offset,
+    u32 index, u8 disk_present
+```
+
+The layouts the scan reconstructed, in basis-id order (basis id =
+index+1); the tree's LDM roots carry the matching ids (node-flags bit10).
+Recovery/preview re-arm the virtual volume devices from this record
+after a load (the members re-anchor through their own PRIVHEADs).
+
+## VOLUME_INFO payload (v1..v6 — the record LENGTH carries the version)
+
+```
+v1 (80 B):  u32 fs_kind, u64 slice_offset, u64 slice_bytes,
+            u32 logical_sector, u32 physical_sector,
+            char label[32] (UTF-8, NUL padded),
+            u64 scanned_bytes, u64 elapsed_ms,
+            u32 flags (bits 0-2 = quick|deep|carve CONFIGURED)
+v2 (+84):   char model[48], char serial[32], u32 boot_hash
+            (the SESS-2 identity card; zeros = unverifiable)
+v3 (+256):  char image[256] (S-030: the image target's file path;
+            empty for disk/volume targets)
+v4 (+608):  char firmware[32], char wwn[32], char interface_desc[32],
+            u8 boot_snapshot[512] (N-066: the og record-3 identity axes
+            + the first-sector image)
+v5 (+8):    u64 save_unix (W1a/R-56: the embedded save time, unix
+            seconds UTC — our mirror of the og record-2's SYSTEMTIME
+            scanTime, rsf-format--scan-session.md section 5.2 +0x6C;
+            the session list shows the recorded time; 0 = pre-v5 file)
+v6 (+100):  char label_full[100] (N-090: the COMPLETE volume label at
+            the og record-2 volumeName[100] width — strncpy(...,99),
+            rsf-format--scan-session.md section 5.2 +0x04; label[32]
+            above stays the legacy 31-char prefix view; zeros on
+            v1..v5 files = the legacy card is the whole truth)
+```
+
+A reader stops at the length it knows; every absent tail deserializes
+as zeros with "not recorded" semantics (never a guess). The W1a
+(R-56) session-list surface decodes ONLY this record + SESSION_STATE
+per file — the heavy payloads are skipped by type before any payload
+I/O (ScanController::read_summary + Reader::peek_record; the og's list
+likewise reads record 2 per file, never the 36 MB record 4).
 
 ## PARTITION_CONTEXT payload (M-042 v2)
 
@@ -94,3 +152,34 @@ On the next search the freshly enumerated layout is compared against it
 restored lost candidate is re-read at its start LBA against the CURRENT
 disk and stale records are DROPPED before they reach the UI (the og's
 PRD:20748-20842 search-start re-validation).
+
+## FS_CHECK payload (M-041)
+
+```
+u32 error_count
+per error: { u32 code, u64 param, u32 record_no,
+             u32 path_len, u8 path_hint[path_len] }
+u32 fat_copies_compared
+u32 fat_entries_checked
+u32 clusters_visited
+u32 mft_records_examined
+u32 family_detected        0/1
+u8  family[]               NUL-terminated ASCII
+(zero pad to an 8-byte multiple; the writer pads, the reader stops
+ at the NUL)
+```
+
+The damage-audit check-phase report (the og's FileSystemCheck error set,
+codes 0x1001..0x100E: 0x1001 volume-too-small, 0x1002 duplicate claim,
+0x1003 orphan / free-but-allocated cluster, 0x1004 size-vs-chain, 0x1005
+FAT-copy mismatch, 0x1006 FAT-table invalid, 0x1007 dir-tree audit,
+0x1008 $MFT-name, 0x1009 $MFTMirr, 0x100A NTFS version gate, 0x100B
+$Bitmap floor, 0x100D DBR invalid, 0x100E catastrophic). `param` carries
+the cluster/LCN/version-word context where the og passes one;
+`record_no` the claiming record; `path_hint` an ASCII fragment populated
+by the dir-walk contexts (0x1007 per-entry, 0x1006's walk hits, 0x1004's
+size-vs-chain). OPTIONAL record with the same skip-unknown-types rule:
+sessions saved without the check stage simply lack it and the report
+reads as empty (cr_crsf.h:70-75; serializer src/core/check/
+cr_fscheck.cpp:1009-1044, deserializer :1046-1089 —
+`check::serialize_fs_check`).

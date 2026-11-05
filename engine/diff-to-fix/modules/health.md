@@ -172,3 +172,57 @@ covers it).
 | P42 transport-chain contract | **MATCH** — the og CAtaSmart accessor model (one transport family serves IDENTIFY/READ DATA/READ THRESHOLDS; per-disk accessor pick) is now the pure seam cr::health::read_smart_ata; ERR_HEALTH_UNAVAILABLE stays the clean final fallback |
 | Q65 | 9-test set: wire format pins (request/response/builder guards/error set) + fallback-chain pair + attribute-parse proof + name-table pin |
 
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-076 — FIXED (session-42 main lane)**: the per-row TRIM chip datum
+landed in the opt-in shape — `cr_ui_disk_info` carries `trim_known`/`trim_on`
+(append-only, zero-init = unknown), `cr_ui_enumerate_disks_ex` +
+`CR_ENUM_FLAG_TRIM` is the opt-in (unknown bits refused `ERR_BAD_PARAMETER`
+before the platform check — lane-uniform grammar), one fresh fsutil read per
+invocation (the OS-global datum; per-disk re-query would run the identical
+process N times), the CLI `list --trim` renders the chip + the unknown form.
+Tests: `CrUi.EnumerationExFlagGrammarRefusesUnknownBits` (runtime, all lanes)
++ `Enumerate.TrimChipOptInShipsInAbiAndCli` (the three-layer source pin);
+the failed-query rule (trim_known == 0, never guessed) is contract text +
+pin. R-63's row closed. **M-078**
+(MAJOR — BitLocker turn-off absent: the og's CBitlockerTurnOffOperation
+pending-op + bitlockerhelp.mo/BitLockerLib.dll decrypt flows vs the core's
+unlock-only surface; the legitimate-only stance D-16 is untouched — turn-off
+is a consented destructive op). **N-097**: auto.txt's true semantics (the FVE
+auto-unlock key snapshot DRWUI persists — the security datum for hosts; core
+never persists key material, the safer posture, now stated).
+
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **I-038** (INFO, acknowledged-retired): the diskhealth companion tree
+  registered — the 818-file never-walked surface censused this lane (the
+  EaseUS DiskHealth / *DiskSmart* Qt-QML companion product, CrystalDiskInfo
+  lineage; RENUMBERED TWICE: draft I-035 → I-037, both seats consumed by the remote lanes). 13 COVERED (the
+  engine surface re-verified: SMART chain, 0xD1 thresholds, the 4-status
+  grading, vendor classification, CSMI CC-0x19, the NVMe STORAGE_QUERY route +
+  fields/units/grade — all MATCH against the core's pinned tests), 12
+  NOT-CORE-SCOPE, 5 never-dispositioned transport surfaces REGISTERED (the 6
+  vendor-NVMe CMD_TYPE routes, the USB-bridge quirk table, the AAM/APM
+  device-write setters, the `sc config Winmgmt` mutation, the diskHealthIndex=
+  launch contract — D-82/I-027 extensions), 4 U-datums with next artifacts
+  (evidence/s42c-diskhealth-walk.md). M-076's retirement by the window (4bd5ee7a) leaves the module with NO active divergence. No core code changes proposed. The remote S12 lane's I-035
+  "DiskHealth resident shell" row is the shallow complement this walk supersedes
+  in depth.
+
+## Session-86 update — the F61 lane's ACL diagnosis (M-105 option (a) landed; 2026-10-30)
+
+The F61 parameter's harvest half gains the og's service-equivalent
+diagnosis: the locked-volume path's failure now distinguishes "no keys
+configured" (ERR_FVE_LOCKED) from "the store exists but this token
+cannot read it" (the new ERR_FVE_ELEVATION_REQUIRED, 0x50060002) via
+the cr_elevate TokenElevation probe — the pure rule in
+include/cr/health/cr_fve_policy.h (health::fve_denial_diagnosis, the
+M-075 cr_fsck_launch pattern), wired through try_auto_unlock's
+live-open capture (ERROR_ACCESS_DENIED vs FILE_NOT_FOUND) and
+try_auto_unlock_offline's hive-file open capture. The legitimate-
+unlock-only stance (D-16) is untouched: no decryption, no bypass; the
+diagnosis is a REPORTED error, not an unlock. F61's harvest half:
+MATCH (the og's service bridge → the core's elevation claim, the
+D-166 registered posture).

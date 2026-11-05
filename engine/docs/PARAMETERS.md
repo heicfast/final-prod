@@ -15,14 +15,18 @@ row cited below where it governs a parameter).
 | Flag | Default | Meaning |
 |---|---|---|
 | `--disk N` / `--volume C:` / `--image file` | — (one required) | target: PhysicalDrive N, volume letter, or a disk image (`.img`/`.vmdk`/`.vhd`/`.vhdx`/raw `.dmg`) |
-| `--part P` | whole disk | limit to partition P (with `--disk`) |
 | `--whole-disk` | off | lost-partition discovery over the full disk view (implies the disk target) |
+| `--deep` | — | DEPRECATED alias for `--whole-disk` (N-044, rrecov.cpp:1527-1535: sets lost-partition discovery, prints a note, kept one release). NOT the deep-stage selector — the deep engine stage is always on; `--quick-only` is what disables it |
 | `--quick-only` | off | quick stage only (deep + carve disabled) |
 | `--no-carve` | off | disable the carve stage |
 | `--threads N` | 0 = auto | worker threads; 0 = hw−1 clamped 1..8; 1 = single-threaded |
 | `--out file.crsf` | — | save the durable session (atomic; also enables auto-checkpoints) |
 | `--resume file.crsf` | — | resume the saved session (revalidates device identity) |
+| `--autosave-dir D` | — | auto-session directory (retention-one: the pointer-named previous auto session is deleted before every write, M-154) |
+| `--label s` | — | the auto-save volume-label override (M-079) |
+| `--pause-stdin` | off | N-178's keyboard pause surface ('p'/SPACE pauses, 'r'/Enter resumes; no-op when stdin is redirected) |
 | `--filter s` | — | name substring filter (ASCII case-insensitive) |
+| `--filter-folder DIR` | — | repeatable scan-time folder filter (M-073: out-of-prefix folders never enter the session; volume-root relative) |
 | `--deleted-only` | off | deleted results only (carved files count as deleted, S-031) |
 | `--json` / `--csv` / `--log file` | off | machine-readable run summary / flat list / detailed log |
 | `--bitlocker-fvek hex` | — | **consent**: open a locked volume with a user-supplied FVEK (in-stack XTS-AES, M-033) |
@@ -42,15 +46,32 @@ row cited below where it governs a parameter).
   item errors / hash mismatch).
 - `health --disk N` — SMART/NVMe grading (exit 3 = every source
   unavailable).
-- `fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]`
-  — RawFixer analyze/dry-run by default; `--apply` **consent**;
-  `--undo-apply` restores.
-- `apply` / `undo` — lost-partition table apply and its undo
-  (**consent**; plan is read-only with refusals listed).
+- `fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+  [--chkdsk C:]` — RawFixer analyze/dry-run by default; `--apply`
+  **consent**; `--undo-apply` restores; `--chkdsk C:` the M-075
+  escalation endpoint (launches Windows chkdsk /f on a volume; a
+  volume-letter operation, no --disk).
+- `apply --disk N --session file.crsf [--candidate N] [--apply]
+  [--undo file] [--boot-fix lba] [--boot-fix-bcd file]` — lost-partition
+  table apply (**consent**; plan is read-only with refusals listed; the
+  undo surface is `--undo` here and `--undo-apply` on fix — there is no
+  standalone `undo` verb).
 - `bench --disk N [--mode seq|rand|open|read|info] [--mb N]
-  [--block-kb N] [--iterations N] [--seed N] [--json] [--no-rda]` —
-  transport/device microbenchmarks.
+  [--block-kb N] [--iterations N] [--seed N] [--json]` —
+  transport/device microbenchmarks (`--no-rda` is REMOVED — with the
+  driver era, session-96; the parser rejects it; `rrecov bench` reports
+  transport "direct" or "image").
 - `list`, `list-carve-formats`, `info` (via bench mode) — read-only.
+- `sessions [--dir D] [--json]` — the saved-session inventory.
+- `archive-list --in file.crsf (--disk N | --image file) --node ID
+  [--json]` — the browse-inside archive inventory (M-116).
+- `image --create --disk N --out file.img` — the flat-raw disk-image
+  producer + `.sha256` sidecar (S-040; VHD/VHDX writers out of scope,
+  D-147).
+- (the driver-era `driver` verb is REMOVED with the kernel driver —
+  session-96; raw-disk verbs require an elevated token instead: exit 4
+  with `ERR_ELEVATION_REQUIRED` when the process is not elevated, the
+  host triggers its own UAC flow and retries)
 
 ## 2. ScanConfig (the C++ / ABI surface)
 
@@ -75,14 +96,14 @@ these field-for-field at the ABI.
 | exFAT structural gates | secondary_count ∈ [2,18]; timestamp sanity; stream non-zero; name flags (M-014) | `cr_exfat_engine.h` |
 | ZFS ring walk | every uberblock state, newest-first, identity dedup (S-034); label retry delay-execution (N-072) | `cr_zfs_engine.h` |
 | Btrfs re-scan cache | OFF by default; caller-supplied directory (D-89) | `cr_btrfs_cache.h` |
-| Carve window | 4–8 MiB scan windows; window-aware read view (M-025, D-101 stateless validator architecture) | `cr_carve.h` |
-| Raw-sign table | 139 formats + user signs (caps: 256 entries / 8 signs / 16 bytes / offset ≤ 512, M-048) | `cr_rawsigns.h`, `cr_usersigns.h` |
+| Carve window | 1 MiB sequential scan windows + 4 KiB overlap (M-025, D-101 stateless validator architecture) | `cr_carve.h`, `cr_carve.cpp:35-36` |
+| Raw-sign table | 139 formats + user signs (caps: 256 entries / 12 signs / 48 bytes / offset ≤ 1024 / mime ≤ 80, M-048 + S-039/M-067 v3) | `cr_rawsigns.h`, `cr_usersigns.h:40-47` |
 | User-sign tag space | 0xFFFE0000; fixed confidence 600; MIME on carve_note | M-048 |
 | Overlap policy | accumulated base+verdict ranking; two-generation fallback REGISTERED D-75 | N-070 |
 | Scan cache | 8 MiB / 256 KiB reactive LRU (the og: 4 MiB prefetch read-ahead — REGISTERED D-72, benchmark-gated) | `cr_cached.h` |
 | Direct-I/O envelope | 64 KiB multiples on every direct read (Windows slow-path avoidance; D-37/D-38 family) | transport layer |
 | Read chunking | 256 KiB blocks through the retry pipe | transport layer |
-| Enumerate bound | 200 disks (driver grammar disk# ≤ 199, D-85 scope) | `cr_enumerate.h` |
+| Enumerate bound | 200 disks (the driver-era grammar bound, kept as the census scope, D-85) | `cr_enumerate.h` |
 | Checkpoint cadence | stage boundaries (+ auto-checkpoint with `--out`) | orchestrator |
 
 ## 4. Caps and budgets (honest limits)

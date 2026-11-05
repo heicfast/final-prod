@@ -61,6 +61,20 @@ Flavor flavor_from_clusters(u32 cluster_count_data);
  * the deep-scan gates - N-010b/N-034). */
 u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
 
+/* S-051/M-104 (diff-to-fix): the FAT-family volume label decoded from the
+ * boot sector - the on-disk label (FAT12/16 +0x2B, FAT32 +0x47; 11 bytes,
+ * space-padded), trimmed of trailing pad spaces. The og's scan flow reads
+ * each volume's label as the target's display name (the real G session's
+ * depth-1 roots are the volumes' own labels - "Local Disk(G:)",
+ * "System Reserved"; evidence/executions/s10-wholedisk-scan-targets.md).
+ * validate_boot gates the decode: a non-FAT slice returns an error and
+ * the caller falls to its next naming tier (the FS-type string, then the
+ * LBA form - modules/orchestration.md). One 512-byte read; the label is
+ * ASCII (codepage 437 in practice) - carried as-is into u16. An all-space
+ * or all-zero label returns ERR_BAD_PARAMETER (the honest "no label" -
+ * never a blank display name). */
+u32 read_volume_label(IStorageDevice* slice, std::u16string& out);
+
 /* Engine-open gates (N-010b, diff-to-fix): the og's FATSearchDLL boot
  * validator FUN_18002f970 + its quick-search consumer FUN_180021000
  * (:26318 bails on flavor 0xE). Layered on top of validate_boot's
@@ -77,6 +91,49 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
  *     recovery as the documented I-002-family superset (PARITY-DELTAS).
  * Returns OK or ERR_BAD_PARAMETER. */
 u32 boot_passes_open_gates(const u8* sector512, u32 device_sector, const FatParams& p);
+
+/* N-201 (diff-to-fix): the og's quick-open media-word re-flavor -
+ * FATSearchDLL FUN_180021000 :26318-26350 (the quick-search consumer that
+ * runs AFTER the string-first validator FUN_18002f970). The og reads the
+ * FIRST SECTOR of FAT1 (reserved + base) and applies canonical-shape
+ * tests to the first two u32s, then re-issues the same read at FAT2
+ * (spf + reserved + base, the spf field chosen by the PRE-refinement
+ * flavor) and OVERWRITES the flavor - last read wins. The shape family,
+ * transcribed from the RAW ASSEMBLY (objdump 0x180021171-0x18002127c;
+ * Ghidra's text drops a mask digit and mis-renders one branch target):
+ *   FAT32-shaped -> flavor 2:
+ *     (FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF8 AND
+ *       ((FAT[1] & 0x0FFFFFF8) == 0x0FFFFFF8 OR (FAT[1] & 0x07FFFFF8) == 0x07FFFFF8), OR
+ *     (FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF0 AND (FAT[1] & 0x0FFFFFF0) == 0x0FFFFFF0
+ *   FAT16-canonical -> flavor 1: FAT[0] == 0xFFFFFFF8 (checked only when
+ *     the FAT32 family did not match)
+ *   FAT[0] == 0xFFFFFFFF assigns NOTHING in either leg (leg 1 jumps to
+ *     the second read, leg 2 to the end - 0x18002117f / 0x180021200)
+ *   the second read is UNCONDITIONAL (no numFATs gate; on a 1-FAT volume
+ *   the probe reads the first data sector); a failed read assigns
+ *   nothing.
+ * The refinement runs only on string-derived flavors (the og bails at
+ * the 0xE flavor before the media-word legs when no string assigned
+ * one). When no shape matches the incoming flavor stands - the core's
+ * M-015 whole-table validation stays the final gate with the re-flavored
+ * flavor (the og's caller-side no-assignment decline + backup-boot
+ * retry at :26519-26535 is a deeper seam, registered in the finding's
+ * Resolution). When the refinement changes the flavor, the
+ * flavor-dependent BPB fields (spf field, root model, first-data,
+ * cluster count) are re-derived coherently - the og's FAT constructor
+ * consumes the flavor's own field family, never a mix. The re-flavor is
+ * ADOPTED only when the indicated flavor's own spf field is usable
+ * (nonzero - a torn conversion remnant carries the new format's real
+ * FAT size): the og mis-flips plain FAT16 volumes whose first two data
+ * clusters are EOC-terminated (the packed entries read as F1 ==
+ * 0xFFFFFFFF and fire the F8-family mask) and then consumes the string
+ * flavor's spf anyway (its constructor call at :26546-26554 selects
+ * spf16/spf32 by the re-derived STRING flavor, not the refined one) -
+ * that og defect class is registered (the I-045 family) and NOT
+ * adopted; consistent volumes scan byte-identically.
+ * Returns OK (the incoming flavor when the re-flavor is declined). */
+u32 refine_flavor_by_media_words(IStorageDevice* slice, const u8* sector512, u64 device_bytes,
+                                 FatParams& p);
 
 /* Lost-scan boot gates (N-034, diff-to-fix): the og PartitionRecoveryD
  * deep-scan ladder FUN_180004610 :2516-2606 - bps must be a 512 multiple
@@ -208,12 +265,21 @@ bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
                                   u8& out_checksum);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
-std::u16string short_name_to_u16(const u8 name[11]);
+/* N-175: nt_reserved drives the og's four-way 8.3 display-case fold
+ * (FATSearchDLL :44191-44216; exact-value switch: 0x00/0x08/0x10/0x18
+ * fold, anything else raw). */
+std::u16string short_name_to_u16(const u8 name[11], u8 nt_reserved = 0x00);
 
 /* ---- scan engine ---- */
 /* progress-compatible callback type (same shape as ntfs WalkProgress) */
 using WalkProgressLike = bool (*)(u64 done, u64 total, void* user);
 struct FatScanStats {
+    u64 overflow_chains = 0; /* N-165/S46 convergence: chains with extents past
+                              * the device end - additive observability for the
+                              * D-136 deferred-failure class (the og destroys
+                              * these runlists at scan time; the core emits and
+                              * fails per-read). No behavioral surface: neither
+                              * pin grades on it. */
     u64 dirs = 0;
     u64 files = 0;
     u64 deleted_entries = 0;
@@ -221,6 +287,11 @@ struct FatScanStats {
     u64 chains_broken = 0;
     u64 cycles_cut = 0;
     u64 date_rejected = 0; /* N-010c: dentries dropped by date sanity */
+    /* M-130 (diff-to-fix): dentries dropped by the og's shape validator
+     * (FUN_1800365a0) - both the walk-break classes (reserved attr bits,
+     * erased-pattern quad, impure labels, the 11th-repeat histogram) and
+     * the emission-skip classes (size/chain XOR, the dir shape). */
+    u64 shape_rejected = 0;
     /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
       FAT (IRecycleBinNode2UI, fat-exfat-engine-internals.md :37-40) */
     u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */
@@ -228,6 +299,10 @@ struct FatScanStats {
     /* M-012/M-015 (diff-to-fix): damaged-FAT policy outcomes */
     u64 mirror_only_scan = 0;  /* FAT1 unreadable, scanned on the mirror */
     u64 fat_copy_rejected = 0; /* a FAT copy failed validation; another used */
+    /* S-068 (diff-to-fix): deleted FAT32 dentries re-based from the
+     * last-good hint (the og's DAT_1800728c8 machinery - the torn/stale
+     * high-word population). The assumed-flag population surfaced. */
+    u64 high16_rebased = 0;
 };
 
 struct FatScanFlags {
@@ -257,6 +332,17 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
              WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
              FatScanStats& stats, storage::FreeMap* free_out = nullptr);
+
+/* M-159 (diff-to-fix): the og's deleted-DIRECTORY high-16 retry gate,
+ * seam-exposed for the test matrix (FUN_180014530 :14826-14848, decoded
+ * first-hand: the raw walk runs first; only on its failure does the
+ * re-based retry fire, and only under the big-volume gate
+ * `0x310000 < DAT_1800728c8`). Returns 0 = no retry (the hint is below
+ * the og's big-volume threshold); otherwise the re-based candidate
+ * `(hint & 0xFFFF0000) | raw` the caller must FAT-validate before
+ * adopting. No fixture can carry a >0x310000-cluster FAT at CI scale,
+ * so the gate's positive arm is pinned here rather than end-to-end. */
+u32 dir_retry_rebase_cluster(u32 raw_first, u64 last_good_hint);
 
 } // namespace fat
 } // namespace cr

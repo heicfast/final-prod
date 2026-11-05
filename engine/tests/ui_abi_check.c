@@ -267,6 +267,17 @@ static int snap_find(cr_ui_snapshot* snap, const char* want) {
 
 int main(int argc, char** argv) {
     const char* img = argc > 1 ? argv[1] : "cr_ui_abi_check.img";
+    /* N-128's pin needs the SAVE's basename (the default-path invocation
+     * saves the CWD-relative "cr_ui_abi_check.img.crsf"; an explicit-path
+     * invocation saves elsewhere - the "." listing only asserts the bare
+     * form, not the name) */
+    const char* img_base = img;
+    {
+        size_t si;
+        for (si = 0; img[si]; ++si)
+            if (img[si] == '/' || img[si] == '\\')
+                img_base = img + si + 1;
+    }
     char crsf_path[512], dest_dir[512];
     cr_ui_device* dev = NULL;
     cr_ui_scan* scan = NULL;
@@ -524,8 +535,107 @@ int main(int argc, char** argv) {
     cr_ui_scan_close(scan);
     scan = NULL;
 
+    /* ---- session list (W1a/R-56): the C-consumer contract smoke ---- */
+    {
+        char dir[CR_UI_SESSION_ROW_PATH];
+        cr_ui_session_row* sl_rows;
+        uint32_t ncount = 0, cap, sk;
+        size_t cut = (size_t)-1, si;
+        int sl_found = 0;
+        snprintf(dir, sizeof(dir), "%s", crsf_path);
+        for (si = 0; dir[si]; ++si)
+            if (dir[si] == '/' || dir[si] == '\\')
+                cut = si;
+        if (cut == (size_t)-1)
+            snprintf(dir, sizeof(dir), ".");
+        else if (cut == 0)
+            snprintf(dir, sizeof(dir), "/");
+        else
+            dir[cut] = 0;
+        /* two-call size pattern */
+        CHECK_EQ_U64(cr_ui_session_list(dir, NULL, &ncount), CR_UI_OK);
+        CHECK(ncount >= 1);
+        sl_rows = (cr_ui_session_row*)malloc(ncount * sizeof(cr_ui_session_row));
+        CHECK(sl_rows != NULL);
+        cap = ncount;
+        CHECK_EQ_U64(cr_ui_session_list(dir, sl_rows, &cap), CR_UI_OK);
+        CHECK_EQ_U64(cap, ncount);
+        /* OUR row: the summary agrees with the loaded session (valid row,
+         * v5 save stamp, FAT family, quick done). Other rows are other
+         * tests' temp files - not asserted (the suite shares the temp
+         * dir; concurrent tests may be mid-save). */
+        for (sk = 0; sk < cap; ++sk) {
+            if (strcmp(sl_rows[sk].path, crsf_path) == 0) {
+                sl_found = 1;
+                CHECK_EQ_U64(sl_rows[sk].valid, 1u);
+                CHECK_EQ_U64(sl_rows[sk].error, CR_UI_OK);
+                CHECK(sl_rows[sk].save_unix > 0);
+                CHECK_EQ_U64(sl_rows[sk].fs_family, 2u); /* FsFamily::Fat */
+                CHECK(sl_rows[sk].stage_done_mask & 1u); /* quick completed */
+            }
+        }
+        CHECK(sl_found);
+        free(sl_rows);
+        /* the refusal contract: bad args + bad dir fail loud */
+        CHECK_EQ_U64(cr_ui_session_list(NULL, NULL, NULL), 0x50030003u);
+        /* M-154: the pointed resume - the last-autosave path reads the
+         * pointer sidecar, not the directory enumeration. This dir holds
+         * no auto sessions (the file above was an explicit manual save),
+         * so the surface must report absence (the host falls back to the
+         * list); a NULL/zero-cap call is the bad-parameter contract. */
+        {
+            char last_path[1024];
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(NULL, last_path, sizeof(last_path)),
+                         0x50030003u); /* ERR_BAD_PARAMETER */
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(dir, NULL, 0), 0x50030003u);
+            /* no auto session was ever written to this dir: absence */
+            CHECK_EQ_U64(cr_ui_session_last_autosave_path(dir, last_path, sizeof(last_path)),
+                         0x50020004u); /* ERR_RANGE_OUT_OF_BOUNDS */
+        }
+        CHECK_EQ_U64(cr_ui_session_list("no-such-dir-cgate", NULL, &ncount), 0x50020001u);
+        /* N-128: the CWD dir lists BARE names - the caller's own CWD-relative
+         * save path string-matches its row (the default-path invocation of
+         * this gate pinned the hole: "./name" never matched "name") */
+        {
+            uint32_t dot_n = 0;
+            cr_ui_session_row* dot_rows;
+            CHECK_EQ_U64(cr_ui_session_list(".", NULL, &dot_n), CR_UI_OK);
+            dot_rows = (cr_ui_session_row*)malloc(dot_n ? dot_n * sizeof(cr_ui_session_row)
+                                                        : sizeof(cr_ui_session_row));
+            CHECK(dot_rows != NULL);
+            uint32_t dot_cap = dot_n;
+            CHECK_EQ_U64(cr_ui_session_list(".", dot_rows, &dot_cap), CR_UI_OK);
+            CHECK(dot_cap == dot_n);
+            int dot_found = 0;
+            for (sk = 0; sk < dot_cap; ++sk) {
+                if (strchr(dot_rows[sk].path, '/') != NULL ||
+                    strchr(dot_rows[sk].path, '\\') != NULL) {
+                    /* direct report (the progress_cb convention, lines above):
+                     * CHECK(0 && "...") is a constant conditional - MSVC /W4
+                     * C4127 - while the failure contract is identical (message
+                     * + g_failed -> exit 1) */
+                    printf("FAIL %s:%d: N-128: the CWD dir lists bare names\n", __FILE__, __LINE__);
+                    g_failed = 1;
+                }
+                if (dot_cap && strcmp(dot_rows[sk].path, "cr_ui_abi_check.img.crsf") == 0)
+                    dot_found = 1;
+            }
+            if (dot_n > 0 && *img_base && strcmp(img_base, "cr_ui_abi_check.img") == 0)
+                CHECK(dot_found); /* the gate's own default-path save */
+            free(dot_rows);
+        }
+    }
+
     /* ---- snapshot (fresh, from a session) + enumeration ---- */
     CHECK_EQ_U64(cr_ui_session_load(crsf_path, &sess), CR_UI_OK);
+    /* W1b/R-54: the NULL/NULL event variant IS the plain load (the
+     * contract; progress/cancel behavior is exercised by the C++ suite) */
+    {
+        cr_ui_session* sl = NULL;
+        CHECK_EQ_U64(cr_ui_session_load_with_events(crsf_path, NULL, NULL, NULL, &sl), CR_UI_OK);
+        CHECK(sl != NULL);
+        cr_ui_session_close(sl);
+    }
     CHECK_EQ_U64(cr_ui_session_stats(sess, &st), CR_UI_OK);
     CHECK(st.files_found >= 1);
     {
@@ -570,6 +680,12 @@ int main(int argc, char** argv) {
         /* truncated name buffer -> CR_UI_ERR_TRUNCATED with the full length */
         CHECK(cr_ui_snapshot_node(snap, (uint32_t)doc_idx, &info, name, 3) == CR_UI_ERR_TRUNCATED);
         CHECK_EQ_U64(info.name_len, 7u);
+        /* M-101 (plain-C visibility of the appended branch fields): the
+         * zero-init defaults read back as 0 on this FAT session (the
+         * seat stamps only structured NTFS nodes; no preview tag read
+         * has run). */
+        CHECK_EQ_U64(info.version_group, 0u);
+        CHECK_EQ_U64(info.tags_extracted, 0u);
     }
 
     /* ---- query (zero-init = match-all; then filters) ---- */
@@ -671,6 +787,21 @@ int main(int argc, char** argv) {
         CHECK(regraded <= 1); /* at most the single grade-1 node ran */
     }
 
+    /* ---- M-101: the two branch axes map through the plain-C ABI ---- */
+    {
+        cr_ui_query q;
+        memset(&q, 0, sizeof(q));
+        q.version_group = 0x1234; /* a nonzero group filter: no members on a FAT session */
+        q.count_only = 1;
+        CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+        CHECK_EQ_U64(total, 0u);
+        memset(&q, 0, sizeof(q));
+        q.tags_only = 1; /* nothing read yet -> empty branch */
+        q.count_only = 1;
+        CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+        CHECK_EQ_U64(total, 0u);
+    }
+
     /* ---- disk map (GAP-S6-11 data producer: session path, auto geometry) ---- */
     {
         cr_ui_disk_map_geometry want, got;
@@ -739,6 +870,23 @@ int main(int argc, char** argv) {
         memset(&meta, 0, sizeof(meta));
         CHECK_EQ_U64(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
         CHECK(strlen(meta.kind) > 0);
+        /* M-116: the archive-inventory two-call pattern at the plain-C
+         * surface. DOC.TXT is not an archive: count 0, never an error,
+         * every index out of range - the empty browse view. (The full
+         * inventory proof - names/sizes/CRC, the damaged-zip salvage,
+         * the 512 bound - lives in the cr_ui suite; this block pins the
+         * C-compilability and the empty contract under /W4 /WX.) */
+        {
+            uint32_t acount = 99;
+            cr_ui_archive_entry ae;
+            CHECK_EQ_U64(cr_ui_archive_entry_count(pv, &acount), CR_UI_OK);
+            CHECK_EQ_U64(acount, 0u);
+            memset(&ae, 0xCD, sizeof(ae));
+            CHECK(cr_ui_archive_entry_at(pv, 0, &ae) != CR_UI_OK);
+            CHECK_EQ_U64(cr_ui_archive_entry_count(NULL, &acount), CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_archive_entry_at(NULL, 0, &ae), CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_archive_entry_at(pv, 0, NULL), CR_UI_ERR_BAD_PARAMETER);
+        }
         cr_ui_preview_close(pv);
         pv = NULL;
     }
@@ -751,6 +899,34 @@ int main(int argc, char** argv) {
             CHECK(strcmp(buf, "DOCDATA") == 0);
             cr_ui_preview_close(pv);
             pv = NULL;
+        }
+    }
+
+    /* ---- thumbnail (M-102: the engine's ABI half) ---- */
+    {
+        /* the format probe: the v1 matrix true, the deferred false */
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("jpeg"), 1u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("png"), 1u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("webp"), 0u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported(NULL), CR_UI_ERR_BAD_PARAMETER);
+        /* N-144 re-pin: the text node takes the TXT-SNAPSHOT path (the
+         * og's TxtViewFiles dispatch, DRWUI :422447-455) - the fixture's
+         * DOC.TXT carries printable content ("DOCDATA"), so the snapshot
+         * succeeds with the "txt" family on the full canvas; the null
+         * dev/sess refusals keep their contract */
+        {
+            cr_ui_thumbnail_info ti;
+            memset(&ti, 0, sizeof(ti));
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, sess, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_OK);
+            CHECK_EQ_U64(ti.width, 256u);
+            CHECK_EQ_U64(ti.height, 256u);
+            CHECK_EQ_U64(ti.bytes_needed, 256u * 256u * 4u);
+            CHECK_EQ_U64(strcmp(ti.source_format, "txt"), 0u);
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(NULL, sess, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, NULL, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_ERR_BAD_PARAMETER);
         }
     }
 
@@ -990,6 +1166,13 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_enumerate_disks(&di, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_enumerate_volumes(NULL, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_health_read(0, &hr, NULL, 0, &ac), CR_UI_ERR_UNSUPPORTED);
+        /* S-040: the image-create producer is class (a) win-backed - the
+         * honest unsupported answer on this lane; the argument gate is
+         * platform-independent (checked first so the last-error text
+         * below reflects the unsupported call) */
+        CHECK_EQ_U64(cr_ui_image_create(0, NULL, NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create(0, "", NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create(0, "out.img", NULL, NULL), CR_UI_ERR_UNSUPPORTED);
         CHECK(strstr(cr_ui_last_error(), "Windows platform layer") != NULL);
     }
 #endif

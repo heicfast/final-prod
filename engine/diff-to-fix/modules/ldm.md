@@ -1,4 +1,4 @@
-# modules/ldm.md — partition table + LDM module audit verdicts (table.md covers MBR/GPT/EBR)
+# modules/ldm.md — partition table + LDM module audit verdicts (MBR/GPT/EBR covered in this file's own table rows; the former `table.md` reference was dangling — N-104)
 
 Reference: Partition.mo / LdmManager.mo / PartitionRecoveryD per corpus artifacts
 `PartitionRecovery/mo-module-map.md`, `PartitionRecovery/rawfixer-v2--method-inventory.md`,
@@ -50,7 +50,14 @@ fixtures) + 3 new guards; real GPT dynamic disks parse end-to-end again.
   disks parse end-to-end again (Ldm.GptDynamicDiskCanonicalGuidsParse with
   hard-coded Microsoft bytes; fabricated values rejected — see B1/C19).
 - **B6 damaged-volume** — **M-002 FIXED (s10)** (torn chain keeps the walked prefix + ebr_status/ebr_break_lba honesty — findings/FIXED/M-002);
-  `M` on two-step GPT salvage + backup-at-end.
+  `M` on two-step GPT salvage + backup-at-end (with D-116's registered
+  strictness: entry_size==128 refusal + the 1 MiB entries cap + the salvage
+  entries_lba bounds check — N-164's registration);
+  **N-161 FIXED (session-47: the entry-span underflow gate — last_lba < first_lba
+  or the 2^64-boundary wrap is named invalid and counted
+  (DiskTable::gpt_invalid_entries, surfaced in ScanStats) instead of emitting a
+  wrapped giant volume — findings/FIXED/N-161; core-side honesty doctrine, the
+  og's span consumption still OQ)**.
 
 ## Constants and formats
 
@@ -156,3 +163,48 @@ hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: 
   (`cr_table_parse.cpp:19-22`). On 4Kn GPT disks the LDM metadata partition is looked up
   at wrong offsets → dynamic-disk recovery fails through this path. Fix: thread
   `geometry().logical_sector` through the three sites.
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **I-030**: this file's line-1 cross-reference to a nonexistent `modules/table.md` —
+  plus the absent reghive.md/apply.md rows.
+
+## SA-10 addendum (session 10 — the recovery-side half of B8/A27 finally scored: S-052)
+
+The standing B8 ("spanned/mirrored/stripped/RAID-5 layouts resolved") and A27
+("spanned/mirror/stripe reads MATCH") verdicts cover the SCAN side — the
+LdmVolumeDevice's reads through the cross-disk resolver. The RECOVERY side was
+never scored: **S-052** (filed this session) — dynamic-volume nodes keep
+layout-relative extents (cr_node.h:405-406; the F-1 rebase explicitly skips
+them, "multi-disk bases are not expressible"), the LdmVolumeDevice dies at scan
+end (cr_scan.cpp:1500), and the SafeWriter reads a single physical device with
+no LDM guard (cr_safewriter.cpp) — span/stripe/mirror/RAID-5 recovery serves
+silently wrong bytes, and the R7.2/F12 destination-overlap check computes on
+the wrong basis. GAP-S6-15 (CORE-GAP-LIST.md:139, PARTIAL) is the product-side
+registration; S-052 is its audit-board owner. The og contrast: the
+LdmManager.mo volume-storage family (SpanVolumeStorage et al., cr_ldm.h:17-24)
+serves these reads for the product's whole lifetime.
+
+### Session-11-lead row (2026-10-29)
+
+- **N-148 item 1** (MINOR): cr_ldm.h:30-32 still claims the RAID-5 rotation is UNDECODED — OQ-T7 resolved it as a hardwired left-symmetric MATCH (evidence/decompiled-quotes/ldm-raid5-and-scoring.md:8-34); the header's hedge is now false.
+## Session-11 fix lane addendum (2026-10-29 — S-052 FIXED: the recovery-side half of B8/A27 closes)
+
+The S-052 landing closes the recovery-side half the SA-10 addendum scored as
+absent: **B8 and A27 now carry `M` on BOTH sides** — the scan reads through
+the virtual device (the standing verdict) AND the recovery/preview/thumbnail
+read through the RETAINED devices (basis-aware, byte-exact by test). The
+architecture: the scan controller owns a heap registry of the LdmVolumeDevices
+(surviving run()'s return), the dynamic-volume roots carry per-root basis ids
+(`ResultTree::set_root_basis`), the SafeWriter resolves per-item sources
+through the `LdmBasisTable` (recovery enqueues arm the session's lazily
+rebuilt devices from the persisted `REC_LDM_LAYOUTS` record + the root stamps
+that ride the tree record), and the R7.2/F12 overlap refusal maps
+layout-relative extents to PHYSICAL member spans before comparing. Proof set:
+`tests/unit/test_ldm_recovery.cpp` (span/stripe/RAID-5-with-missing-member/
+simple round-trips, the overlap true-positive + the false-positive fix,
+preview==recovery, the layouts+basis session round-trip) and
+`Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips` (the scan-side
+stamping + the save/load chain). GAP-S6-15 is CLOSED in CORE-GAP-LIST.md.
+The two registered divergences of the landing live in PARITY-DELTAS
+(D-138 missing-member policy [renumbered from the collided D-106 at N-207], D-139 conservative overlap families [renumbered from the collided D-107]).

@@ -50,6 +50,22 @@ constexpr u32 INCOMPAT_META_BG = 0x0010;
 constexpr u32 MAX_META_DESC_READS = 4096; /* lazy meta-group block-read budget
                                            * (bounded; one read per
                                            * meta-group, cached) */
+/* OQ-S52-1 (resolved): the og's ext-family classification constants -
+ * ExtFileSystemAnalyser's verdict function (:3616-3680, decoded
+ * first-hand + the S47 probe): the strict ext4 gate is incompat carrying
+ * ALL THREE of EXTENTS|64BIT|FLEX_BG (0x2c0) with the desc_size==0x40
+ * companion; the pre-ext4 family masks are incompat within {FILETYPE,
+ * HAS_JOURNAL, META_BG/EXT_ATTR} and ro_compat within {SPARSE_SUPER,
+ * LARGE_FILE, DIR_INDEX}; HAS_JOURNAL set (with the journal inode
+ * companion) splits ext3 from ext2 INSIDE the analyser's verdict space
+ * {5, 6} - the ENGINE kind space collapses both to the family code 4
+ * (M-133's shift member; DRWUI's factory creates the EXT2 searcher for
+ * 4 AND 5). */
+constexpr u32 INCOMPAT_HAS_JOURNAL = 0x0004;
+constexpr u32 INCOMPAT_FLEX_BG = 0x0200;
+constexpr u32 FAMILY_INCOMPAT_MASK = INCOMPAT_FILETYPE | INCOMPAT_HAS_JOURNAL | INCOMPAT_META_BG;
+constexpr u32 RO_SPARSE_SUPER = 0x0001, RO_LARGE_FILE = 0x0002, RO_DIR_INDEX = 0x0004;
+constexpr u32 FAMILY_RO_MASK = RO_SPARSE_SUPER | RO_LARGE_FILE | RO_DIR_INDEX;
 
 /* S-027 backup-SB rescue bounds. Canonical ext4 group byte-size is
  * 8 * block_size^2 (bpg = 8*bs blocks): 8 MiB (1KiB blocks), 32 MiB (2KiB),
@@ -80,9 +96,18 @@ constexpr u32 EXTENTS_FL = 0x80000;
 constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
-constexpr u64 MAX_GROUPS = 1ull << 20;  /* 1M groups = 128 TiB @ 128 MiB/group
-                                         * (4K blocks); GDT read is bounded
-                                         * by groups*desc_size */
+constexpr u64 MAX_GROUPS = 1ull << 26;  /* M-144: 64M groups = ~1 PiB @ 128 MiB/group
+                                         * (4K blocks, 64-B desc). The og is
+                                         * unbounded (FUN_1800047c0 :3404-3408
+                                         * allocates round_up(groups*desc_size,
+                                         * block_size) with no test); we keep a
+                                         * generous corrupt-SB guard that no real
+                                         * volume hits while the og's unbounded
+                                         * stance is documented as a deliberate
+                                         * hardening divergence in PARITY-DELTAS.
+                                         * GDT read is now chunked (8 MiB pieces)
+                                         * so the per-read length stays u32-safe
+                                         * for any legitimate volume. */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -203,6 +228,24 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     return true;
 }
 
+/* OQ-S52-1 (resolved): the family stamp per the og's decoded analyser
+ * rule. The 0x2c0 shape is ext4 (kind 9); the pre-ext4 family shapes
+ * (the og's compat-mask gates) stamp the family code 4 - which the og's
+ * twin-key set SHIFTS (M-133's {1, 4}); shapes the og's analyser would
+ * refuse (neither the family masks nor the 0x2c0 gate) keep the ext4
+ * stamp - no og behavior exists for them (the analyser refuses before
+ * any searcher runs), so the conservative unshifted pre-fix stamp stays.
+ */
+FsKindCode ext_family_kind(const SuperBlock& sb) {
+    if ((sb.feature_incompat & (INCOMPAT_EXTENTS | INCOMPAT_64BIT | INCOMPAT_FLEX_BG)) ==
+        (INCOMPAT_EXTENTS | INCOMPAT_64BIT | INCOMPAT_FLEX_BG))
+        return FsKindCode::Ext4; /* the strict modern-mkfs shape */
+    if ((sb.feature_incompat & ~FAMILY_INCOMPAT_MASK) == 0 &&
+        (sb.feature_ro_compat & ~FAMILY_RO_MASK) == 0)
+        return FsKindCode::Ext2; /* the EXT2/3 family code (the og's kind 4) */
+    return FsKindCode::Ext4;     /* og-analyser-refused shape: unshifted */
+}
+
 namespace {
 
 /* ---------------------------------------------------------------------------
@@ -211,6 +254,10 @@ namespace {
 struct Volume {
     IStorageDevice* dev = nullptr;
     SuperBlock sb;
+    /* S-065: the cooperative-cancel handle for every volume-bound walk
+     * (the indirect-block ladder consults it per indirection block; set
+     * by scan_ext4, testable directly on a hand-built Volume). */
+    CancelToken* cancel = nullptr;
 
     /* S-027: when the volume was adopted from a BACKUP superblock found
      * at slice byte X, all volume-relative block numbers must be offset
@@ -405,6 +452,9 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     if (ifmt(iv.mode) == 0x8000) /* regular: 64-bit size */
         size |= u64(le32(raw + I_SIZE_HIGH)) << 32;
     iv.size = size;
+    /* N-177: the raw block-coverage word (512-byte units, the og's
+     * comparison input at +0x1C - FUN_180007510 :5455-5467). */
+    iv.blocks_512 = le32(raw + I_BLOCKS_LO);
     /* extended fields present when the inode is larger than the 128-byte
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
@@ -432,35 +482,81 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         if (!walk_extent_node(v, node.data(), depth, budget, iv.extents, 0))
             iv.extents_ok = false;
     } else if (ifmt(iv.mode) == 0x8000 || ifmt(iv.mode) == 0x4000) {
-        /* ext2/3 indirect blocks: single + double indirection (files < 64KiB
-         * are fully direct; larger get the classic ladder) */
+        /* ext2/3 indirect blocks. S-065: the og's ladder is bounded by the
+         * FILE'S LOGICAL SIZE (EXT4SearchDLL FUN_180005490 :3952-3954 - the
+         * `param_4 <= lVar9` break; the loop advances lVar9 by block_size
+         * and never translates a logical block at/after EOF, whatever the
+         * stale pointer blocks hold; the content loop FUN_1800068b0
+         * :5021-5024 carries the same `lVar16 < size` bound) and merges
+         * physically-contiguous blocks into extents as it goes (the
+         * :3986-3996 merge branch - the vector grows by physical-run
+         * count, not by pointer count). The pre-fix ladder recursed over
+         * EVERY nonzero pointer with no size bound, no budget, and no
+         * cancel consultation - a single stale triple-indirect pointer at
+         * a self-referential block drove per_block^3 block reads and
+         * extents (freeze/OOM at 4 KiB blocks: ~1.07e9 reads, ~17 GB of
+         * extents). */
         const u32 per_block = v.sb.block_size / 4;
         const u32 direct = 12;
-        for (u32 i = 0; i < direct; ++i) {
-            const u32 b = le32(raw + I_BLOCK + u32(i) * 4);
-            if (b == 0)
-                continue;
-            const u64 off = u64(b) * v.sb.block_size;
-            if (off + v.sb.block_size <= v.total_bytes())
+        /* the logical-block ceiling for the whole walk: ceil(size / bs).
+         * A zero-size stale inode walks nothing (the og's param_4 == 0
+         * breaks the translation loop immediately). */
+        const u64 size_blocks = iv.size == 0 ? 0 : (iv.size - 1) / v.sb.block_size + 1;
+        /* per-inode extent budget: the :426 P1-11 budget's ladder analog -
+         * defense-in-depth on the merged-extent vector beyond the og's
+         * size bound (registered as hardening, not og-parity). */
+        constexpr size_t kLadderExtentBudget = 65536;
+        /* emit one block, merging with the previous extent when
+         * physically contiguous (the og's observable output shape).
+         * Returns false when the budget is exhausted. */
+        auto emit_block = [&](u32 block_no) -> bool {
+            const u64 off = u64(block_no) * v.sb.block_size;
+            if (off + v.sb.block_size > v.total_bytes())
+                return true; /* out of volume: not emitted (the pre-fix
+                                behavior preserved) */
+            if (!iv.extents.empty() && iv.extents.back().offset + iv.extents.back().length == off) {
+                iv.extents.back().length += v.sb.block_size;
+            } else if (iv.extents.size() < kLadderExtentBudget) {
                 iv.extents.push_back({off, v.sb.block_size});
+            } else {
+                return false;
+            }
+            return true;
+        };
+        /* direct blocks: logical 0..min(direct, size_blocks) */
+        for (u32 i = 0; i < direct && u64(i) < size_blocks; ++i) {
+            const u32 b = le32(raw + I_BLOCK + u32(i) * 4);
+            if (b != 0 && !emit_block(b))
+                break;
         }
-        std::function<bool(u32, u32, std::vector<Extent>&)> read_ladder =
-            [&](u32 indirection_block, u32 levels, std::vector<Extent>& out) -> bool {
-            if (levels == 0 || indirection_block == 0)
-                return true;
+        /* the indirect ladder: logical-order walk, subtree-pruned at EOF.
+         * logical_start = the first logical block the subtree covers; one
+         * child pointer at `levels` covers per_block^(levels-1) blocks. */
+        std::function<bool(u32, u32, u64)> read_ladder = [&](u32 indirection_block, u32 levels,
+                                                             u64 logical_start) -> bool {
+            if (levels == 0 || indirection_block == 0 || logical_start >= size_blocks)
+                return true; /* the whole subtree is at/after EOF - the
+                                og's `param_4 <= lVar9` break */
+            if (v.cancel && v.cancel->cancelled())
+                return false; /* S-065: cancel honored inside the walk */
             std::vector<u8> blk(size_t(v.sb.block_size));
             if (v.dev->read_at(v.base + u64(indirection_block) * v.sb.block_size, blk.data(),
                                u32(blk.size())) != OK)
                 return false;
+            const u64 child_width =
+                levels == 1 ? 1 : (levels == 2 ? u64(per_block) : u64(per_block) * per_block);
             for (u32 i = 0; i < per_block; ++i) {
+                const u64 logical = logical_start + u64(i) * child_width;
+                if (logical >= size_blocks)
+                    break; /* this and every later pointer is past EOF
+                              (the og's linear-order stop) */
                 const u32 b = le32(blk.data() + u64(i) * 4);
                 if (b == 0)
                     continue;
                 if (levels == 1) {
-                    const u64 off = u64(b) * v.sb.block_size;
-                    if (off + v.sb.block_size <= v.total_bytes())
-                        out.push_back({off, v.sb.block_size});
-                } else if (!read_ladder(b, levels - 1, out)) {
+                    if (!emit_block(b))
+                        return false; /* budget exhausted */
+                } else if (!read_ladder(b, levels - 1, logical)) {
                     return false;
                 }
             }
@@ -470,8 +566,18 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         (void)direct;
         for (u32 lvl = 1; lvl <= 3; ++lvl) {
             const u32 b = le32(raw + I_BLOCK + (11 + lvl) * 4);
-            if (b != 0)
-                (void)read_ladder(b, lvl, iv.extents);
+            if (b == 0)
+                continue;
+            /* the ladder levels cover logical blocks from `direct` up:
+             * lvl 1 at 12, lvl 2 at 12+per_block, lvl 3 after that. */
+            const u64 start =
+                lvl == 1 ? u64(direct)
+                         : (lvl == 2 ? u64(direct) + per_block
+                                     : u64(direct) + per_block + u64(per_block) * per_block);
+            if (start >= size_blocks)
+                continue; /* past EOF: nothing to walk at this level */
+            if (!read_ladder(b, lvl, start))
+                break;
         }
     }
     return true;
@@ -658,6 +764,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     u8 sb[1024];
     const bool primary_read_ok = slice->read_at(1024, sb, sizeof(sb)) == OK;
     Volume v;
+    v.cancel = cancel; /* S-065: every volume-bound walk can honor it */
     bool primary_valid = primary_read_ok && validate_superblock(sb, v.sb);
     if (!primary_valid) {
         /* S-027: a destroyed/damaged primary superblock is exactly the og's
@@ -686,6 +793,11 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         stats.backup_sb_block = v.backup_sb_block;
     }
     v.dev = slice;
+    /* N-133: surface the engine's own s_volume_name decode (the og's
+     * volume-init label read - was dead code with no consumer) */
+    for (size_t k = 0; k + 1 < sizeof(stats.volume_label) && v.sb.volume_name[k]; ++k)
+        stats.volume_label[k] = char(v.sb.volume_name[k]);
+    stats.volume_label[sizeof(stats.volume_label) - 1] = 0;
     if ((v.sb.feature_incompat & INCOMPAT_BIGALLOC) != 0)
         return ERR_UNSUPPORTED; /* cluster-granular bitmaps/extents: emitting
                                  * block-granular extents would be WRONG -
@@ -713,11 +825,29 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         front_gdt_dead = v.group(0).inode_table == 0;
     } else {
         const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
-        if (gdt_bytes == 0 || gdt_bytes > (8ull << 20))
+        if (gdt_bytes == 0)
             return ERR_BAD_PARAMETER;
+        /* M-144: the og allocates the rounded-up GDT unbounded and reads it
+         * in one shot (FUN_1800047c0 :3404-3408). We allocate the same buffer
+         * (still bounded by the MAX_GROUPS corrupt-SB guard at the SB
+         * validator), but read it in 8 MiB chunks so the per-call length is
+         * u32-safe and so a transport that caps a single read still succeeds.
+         * The chunked reader tolerates partial failure: a dead chunk zeroes
+         * its span (the dead-front behavior the prior single-shot read
+         * applied to the whole table). */
         v.gdt.resize(size_t(gdt_bytes));
-        if (slice->read_at(v.base + v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) !=
-            OK) {
+        constexpr u64 GDT_CHUNK = 8ull << 20; /* 8 MiB per read */
+        bool any_read_ok = false;
+        for (u64 off = 0; off < gdt_bytes; off += GDT_CHUNK) {
+            const u32 take = u32(std::min(GDT_CHUNK, gdt_bytes - off));
+            const u64 at = v.base + v.gdt_block * v.sb.block_size + off;
+            if (slice->read_at(at, v.gdt.data() + size_t(off), take) == OK) {
+                any_read_ok = true;
+            } else {
+                std::memset(v.gdt.data() + size_t(off), 0, take);
+            }
+        }
+        if (!any_read_ok) {
             if (v.backup_sb_block == 0)
                 return ERR_READ_FAILED;         /* primary scan, no ladder to walk */
             v.gdt.assign(size_t(gdt_bytes), 0); /* dead front: ladder below */
@@ -735,8 +865,17 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         if (!v.meta_bg) {
             const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
             std::vector<u8> alt(size_t(gdt_bytes), 0);
-            if (slice->read_at(v.base + v.alt_gdt_block * v.sb.block_size, alt.data(),
-                               u32(gdt_bytes)) == OK)
+            /* M-144: chunked alt-table read matches the primary's chunking so
+             * the alt path tolerates the same multi-GiB GDT sizes. */
+            constexpr u64 GDT_CHUNK = 8ull << 20;
+            bool alt_ok = false;
+            for (u64 off = 0; off < gdt_bytes; off += GDT_CHUNK) {
+                const u32 take = u32(std::min(GDT_CHUNK, gdt_bytes - off));
+                const u64 at = v.base + v.alt_gdt_block * v.sb.block_size + off;
+                if (slice->read_at(at, alt.data() + size_t(off), take) == OK)
+                    alt_ok = true;
+            }
+            if (alt_ok)
                 v.gdt.swap(alt);
         } else {
             v.meta_cache.clear(); /* re-resolve m == 0 through the alt block */
@@ -772,6 +911,77 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     };
     std::map<u32, JournalDirInfo> journal_dirs; /* owning dir inode -> info */
     std::vector<DirEntry> journal_orphans;      /* "."-less blocks' entries */
+    /* M-143: the og's jbd2 inode-image harvest surface — every journal block
+     * the dir parser rejected is walked at inode_size stride; records with
+     * i_size_lo!=0 && (i_flags & EXTENTS_FL) && extent magic 0xF30A &&
+     * eh_entries!=0 are emitted as orphan "Inode%N" records under root_lost
+     * (FUN_180005e50 :4414-4573, re-read first-hand this session; the
+     * orphan-finalize consumer FUN_1800041e0 :2982-2993 "iNode%I64d" naming
+     * — the core's existing "Inode%u" convention is preserved for
+     * consistency with the deleted-inode surface). The synthetic inode#
+     * is a journal-positional value (jb<<10|slot) offset above MAX_INODES
+     * so it cannot collide with real inode numbers; the og's exact inode#
+     * derivation is the finding's open question, preserved. */
+    struct JournalInodeImage {
+        u32 synthetic_inum = 0; /* journal-positional, never a real inode# */
+        u16 mode = 0;           /* 0x4000 dir or 0x8000 regular */
+        u64 size = 0;
+        u32 flags = 0;
+        u32 blocks_512 = 0;
+        i64 atime = 0, ctime = 0, mtime = 0;
+        u32 atime_nsec = 0, ctime_nsec = 0, mtime_nsec = 0;
+        std::vector<Extent> extents; /* decoded from the inline extent root */
+        bool extents_ok = true;
+    };
+    std::vector<JournalInodeImage> journal_inode_images;
+    auto parse_inode_image_block = [&](const u8* blk, u64 jb) {
+        const u32 isz = v.sb.inode_size;
+        if (isz == 0 || isz > v.sb.block_size)
+            return;
+        const u64 per_block = v.sb.block_size / isz;
+        for (u64 slot = 0; slot < per_block; ++slot) {
+            const u8* p = blk + slot * isz;
+            /* M-143 gate set (FUN_180005e50 :4419-4420, re-read first-hand):
+             *   i_size_lo (+0x04) != 0
+             *   i_flags  (+0x20) & 0x80000 (EXTENTS_FL)
+             *   extent magic (+0x28) == 0xF30A
+             *   eh_entries   (+0x2A) != 0
+             * skip silently on any failure (the og's `goto LAB_180006289`
+             * stride advance). */
+            const u32 size_lo = le32(p + I_SIZE_LO);
+            const u32 iflags = le32(p + I_FLAGS);
+            const u16 ext_magic = le16(p + I_BLOCK);
+            const u16 eh_entries = le16(p + I_BLOCK + 2);
+            if (size_lo == 0 || (iflags & EXTENTS_FL) == 0 || ext_magic != EXT4_EXT_MAGIC ||
+                eh_entries == 0)
+                continue;
+            JournalInodeImage img;
+            img.synthetic_inum = u32(0x10000000u + (jb << 10) + slot);
+            img.mode = le16(p + I_MODE);
+            img.size = size_lo;
+            if (ifmt(img.mode) == 0x8000)
+                img.size |= u64(le32(p + I_SIZE_HIGH)) << 32;
+            img.flags = iflags;
+            img.blocks_512 = le32(p + I_BLOCKS_LO);
+            img.atime = i64(le32(p + I_ATIME));
+            img.ctime = i64(le32(p + I_CTIME));
+            img.mtime = i64(le32(p + I_MTIME));
+            /* decode the inline extent root (i_block[15], 60 bytes) —
+             * the engine's existing extent walker applies. A scratch
+             * block-sized buffer carries the inline header so the walker
+             * sees the same shape a real extent-root block would (the
+             * inline root has no leading 4 bytes; the walker reads from
+             * node+0). */
+            std::vector<u8> node(size_t(v.sb.block_size), 0);
+            if (node.size() >= 60)
+                std::memcpy(node.data(), p + I_BLOCK, 60);
+            u64 budget = 65536; /* P1-11 per-inode node-read budget */
+            const u16 depth = le16(node.data() + 6);
+            if (!walk_extent_node(v, node.data(), depth, budget, img.extents, 0))
+                img.extents_ok = false;
+            journal_inode_images.push_back(std::move(img));
+        }
+    };
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
@@ -859,7 +1069,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                     }
                 }
 
-                auto parse_one = [&](const u8* blk) {
+                auto parse_one = [&](const u8* blk, u64 jb) {
                     std::vector<DirEntry> entries;
                     /* M-037: the inode#<=inodes_count gate belongs to the
                      * og's LIVE dir walk (FUN_180005820 :4168); the
@@ -869,8 +1079,16 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                      * truncated/rebuilt superblock no longer counts (the
                      * S-004 fixtures model exactly that: ghost inode 50 on
                      * an 8-inode volume). Gate OFF here, ON in walk_dir. */
-                    if (!parse_dir_block(blk, bs, true, 0, entries))
+                    if (!parse_dir_block(blk, bs, true, 0, entries)) {
+                        /* M-143: dir parser rejected — try the inode-image
+                         * scan. The og's two-branch classifier
+                         * (FUN_180005e50 :4388-4424): a block passing the
+                         * '.'/'..' test is a directory image; otherwise the
+                         * inode-image scan runs. The directory model takes
+                         * precedence per the og's branch order. */
+                        parse_inode_image_block(blk, jb);
                         return;
+                    }
                     u32 dir_ino = 0, parent_ino = 0;
                     for (const auto& de : entries) {
                         if (de.name == u".")
@@ -905,7 +1123,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                     if (cancel && cancel->checkpoint())
                         break;
                     const u8* raw = jdata.data() + jb * bs;
-                    parse_one(raw);
+                    parse_one(raw, jb);
                     auto et = escape_tags.find(jb);
                     if (et != escape_tags.end() && et->second) {
                         restored.assign(raw, raw + bs);
@@ -913,7 +1131,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                         restored[1] = 0x3B;
                         restored[2] = 0x39;
                         restored[3] = 0x98;
-                        parse_one(restored.data());
+                        parse_one(restored.data(), jb);
                     }
                 }
             }
@@ -972,9 +1190,17 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return ERR_NO_MEMORY;
             props->name = de.name;
-            props->name_raw = de.name_raw;          /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->logical_size = child.size;
+            /* N-177 (diff-to-fix): the og's truncation-damage marker
+             * (EXT4SearchDLL :6300-6303 - FUN_180007510's
+             * i_blocks < size>>9 verdict sets node FLAGS 0x200 for
+             * FILES). Clean 64-bit form: no sign-extension on
+             * i_size_high (the og's +0x1F quirk is the I-040/D-123
+             * defect family), no 32-bit truncation of either side. */
+            if (!is_dir && u64(child.blocks_512) * 512 < child.size)
+                props->flags = u16(props->flags | tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS);
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created =
                 unix_to_filetime_ns(child.crtime ? child.crtime : child.ctime,
@@ -1013,7 +1239,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     tree::FileProperties* root_props = new (std::nothrow) tree::FileProperties();
     if (root_props) {
         root_props->name = u"/";
-        root_props->fs_kind = u32(FsKindCode::Ext4);
+        root_props->fs_kind = u32(ext_family_kind(v.sb)); /* OQ-S52-1 */
         root_props->attributes = 0x10;
         root_props->record_ref = ROOT_INODE; /* S-025: the record index
                                               * answers the root chain */
@@ -1028,8 +1254,21 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     if (progress)
         (void)progress(v.sb.groups, v.sb.groups, progress_user);
 
-    /* 4. deleted-inode sweep: every table entry with dtime set that the
-     * live walk did not emit (graded via group block bitmaps). */
+    /* 4. inode-table sweep: the deleted population (dtime set) AND the
+     * orphan-active population (M-152: dtime==0 && links!=0, unreachable
+     * from any directory - torn parents, unlinks without link decrements).
+     * The og's harvest filter is four CONTENT gates only - size_lo != 0,
+     * EXTENTS_FL, the 0xF30A extent magic, eh_entries != 0
+     * (FUN_180005e50, raw-asm 0x180005f5d-0x180005f87: NO dtime test, NO
+     * links test anywhere in the sweep path) - the harvested set resolved
+     * against the live tree so unclaimed orphans surface (the
+     * orphan-finalize pattern the journal pass below ports). The core's
+     * old `dtime==0 && links!=0` skip dropped exactly the orphan-active
+     * population; it is gone. The visited_inodes guard stays (the live
+     * tree's claim wins - the dedup the og resolves the same way), and
+     * the regular/dir mode gate stays as the REGISTERED hardening (the
+     * og's shape-only filter would admit a FIFO/socket with a forged
+     * extent header; PARITY-DELTAS carries the row). */
     if (flags.scan_deleted_inodes && flags.keep_deleted && root_deleted) {
         /* group block-bitmap cache (one read per group) */
         std::map<u64, std::vector<u8>> bitmaps;
@@ -1061,16 +1300,34 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if ((ino & 0xFFF) == 0 && progress)
                 (void)progress(ino, sweep, progress_user);
             if (ctx.visited_inodes.count(ino))
-                continue; /* emitted in the live tree */
+                continue; /* emitted in the live tree: the live claim wins */
+            if (flags.salvage_journal && ino == v.sb.journal_inum)
+                continue; /* M-152's registered divergence: the journal
+                           * machinery claims the journal inode (the
+                           * orphan admission would otherwise surface the
+                           * filesystem's own journal as a lost "InodeN"
+                           * entry - FS-internal circular metadata, not
+                           * user content). The og's finalize disposition
+                           * of its own journal inode is undecoded (the
+                           * filter provably ADMITS it; the claim path was
+                           * never traced end-to-end); PARITY-DELTAS
+                           * carries the row. */
             InodeView iv;
             if (!read_inode(v, ino, iv) || iv.mode == 0)
                 continue;
-            if (iv.dtime == 0 && iv.links != 0)
-                continue; /* live but unreferenced (orphan-reserved) - skip */
             if (ifmt(iv.mode) != 0x8000 && ifmt(iv.mode) != 0x4000)
-                continue;
+                continue; /* the registered mode-gate hardening (M-152) */
 
-            ++stats.deleted_inodes;
+            /* M-152: the population split - dtime set (or links 0) is the
+             * deleted population the sweep always harvested; dtime==0 with
+             * links!=0 is the ORPHAN-ACTIVE population the og's predicate-
+             * free filter admits and the old skip dropped. Both surface
+             * under the deleted root with the same grading. */
+            const bool orphan_active = (iv.dtime == 0 && iv.links != 0);
+            if (orphan_active)
+                ++stats.orphan_inodes;
+            else
+                ++stats.deleted_inodes;
             const bool is_dir = ifmt(iv.mode) == 0x4000;
             auto* props = new (std::nothrow) tree::FileProperties();
             if (!props)
@@ -1084,8 +1341,11 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             for (const char* p = buf; *p; ++p)
                 nm.push_back(u16(u8(*p)));
             props->name = nm;
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->logical_size = iv.size;
+            /* N-177: same damaged-marker compute on the deleted path. */
+            if (!is_dir && u64(iv.blocks_512) * 512 < iv.size)
+                props->flags = u16(props->flags | tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS);
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created = unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
                                                        iv.crtime ? iv.crtime_nsec : iv.ctime_nsec);
@@ -1099,7 +1359,12 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->release();
             if (!n)
                 return ERR_NO_MEMORY;
-            n->set_deleted_state(tree::DeletedState::Deleted);
+            /* M-152: the orphan-active population carries no deletion
+             * evidence (dtime==0) - the state stays honest to the inode;
+             * the emission shape (branch, origin, grading) is the
+             * sweep's own. */
+            n->set_deleted_state(orphan_active ? tree::DeletedState::Active
+                                               : tree::DeletedState::Deleted);
             n->set_origin(tree::Origin::Structured);
             /* bitmap grading: extents still free = likely intact */
             bool all_free = !iv.extents.empty();
@@ -1170,8 +1435,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return;
             props->name = de.name;
-            props->name_raw = de.name_raw; /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;
             tree::FileNode* n = tree.add_file(attach, props);
@@ -1223,8 +1488,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 break;
             props->name = de.name;
-            props->name_raw = de.name_raw; /* N-016b */
-            props->fs_kind = u32(FsKindCode::Ext4);
+            props->name_raw = de.name_raw;                    /* N-016b */
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;
             tree::FileNode* n = tree.add_file(root_lost, props);
@@ -1234,6 +1499,48 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                 n->set_deleted_state(tree::DeletedState::Deleted);
                 n->set_confidence(tree::Confidence::PartialRisk);
                 salvaged_nodes[de.inode] = n;
+                ++stats.journal_salvaged;
+            }
+        }
+        /* M-143: the journal inode-image harvest emission. Each image
+         * surfaces as an orphan "Inode%N" record under root_lost, with
+         * the inode's extents as content (the og's orphan-finalize
+         * consumer FUN_1800041e0 :2982-2993 + FUN_180005e50 :4514-4573's
+         * +0x4b8 list emission). The synthetic inode# is journal-positional
+         * (the og's exact inode# derivation is the finding's open question);
+         * the "Inode%u" naming follows the engine's existing deleted-inode
+         * convention for consistency (the og's "iNode%I64d" form is the
+         * same name with a Windows-style format spec — the textual prefix
+         * differs in case but the name class is identical). */
+        for (const auto& img : journal_inode_images) {
+            if (salvaged_nodes.count(img.synthetic_inum))
+                continue; /* de-dup: a prior image with the same synthetic# won */
+            auto* props = new (std::nothrow) tree::FileProperties();
+            if (!props)
+                break;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Inode%u", img.synthetic_inum);
+            std::u16string nm;
+            for (const char* p = buf; *p; ++p)
+                nm.push_back(u16(u8(*p)));
+            props->name = nm;
+            props->fs_kind = u32(ext_family_kind(ctx.v->sb)); /* OQ-S52-1 */
+            props->record_ref = img.synthetic_inum;
+            props->logical_size = img.size;
+            props->attributes = ifmt(img.mode) == 0x4000 ? 0x10 : 0;
+            props->times.created = unix_to_filetime_ns(img.ctime ? img.ctime : 0, img.ctime_nsec);
+            props->times.modified = unix_to_filetime_ns(img.mtime, img.mtime_nsec);
+            props->times.changed = unix_to_filetime_ns(img.ctime, img.ctime_nsec);
+            props->times.accessed = unix_to_filetime_ns(img.atime, img.atime_nsec);
+            for (const auto& e : img.extents)
+                props->extents.push_back({v.base + e.offset, e.length});
+            tree::FileNode* n = tree.add_file(root_lost, props);
+            props->release();
+            if (n) {
+                n->set_origin(tree::Origin::Lost);
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                n->set_confidence(tree::Confidence::PartialRisk);
+                salvaged_nodes[img.synthetic_inum] = n;
                 ++stats.journal_salvaged;
             }
         }

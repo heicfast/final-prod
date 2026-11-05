@@ -30,43 +30,53 @@
 #include "cr/carve/cr_usersigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
+#include "cr/preview/cr_thumbnail.h"
 #include "cr/query/cr_query.h"
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/session/cr_lastscan.h"
 #include "cr/session/cr_records.h"
 #include "cr/table/cr_table_wire.h"
 #include "cr/tree/cr_snapshot.h"
 
 #ifdef _WIN32
 #include "cr/win/cr_bitlocker.h"
+#include "cr/health/cr_fve_policy.h" /* M-105: the FVE denial diagnosis text */
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_winenv.h" /* win::ENUMERATE_DISK_BOUND: M-030's 200-disk space; MSVC include hygiene */
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
-#include "cr/win/cr_winenv.h" /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
+#include "cr/win/cr_image_create.h" /* S-040 */
+#include "cr/win/cr_fsck.h"         /* M-075: the chkdsk escalation endpoint */
+#include "cr/win/cr_winenv.h"       /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
 #include <psapi.h> /* N-062: PROCESS_MEMORY_COUNTERS/GetProcessMemoryInfo */
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
+#include <fcntl.h> /* S-060: AT_FDCWD for utimensat */
 #include <sys/types.h>
 #include <unistd.h>
+#include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <cerrno>
 #include <chrono>
 #include <thread>
+#include <cctype>
 #include <cstdarg>
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cwctype>
 #include <functional>
 #include <map>
 #include <condition_variable>
@@ -373,6 +383,105 @@ u32 ck_commit_cb(void* user) {
     s->f = open_file(s->tmp_path.c_str(), true);
     return s->f ? OK : ERR_SESSION_IO;
 }
+
+/* ---- W1a (R-56): *.crsf directory enumeration (the list input) -------
+ * Cross-platform, UTF-8 in/out, byte-sorted by full path (the row order
+ * is deterministic - the CLI golden depends on it). FALSE only when the
+ * directory itself cannot be read; individual files are never filtered
+ * here (the row's error field is the honest per-file report). */
+#ifdef _WIN32
+bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
+    std::wstring pattern = u8_to_ws(utf8_dir);
+    /* accept both "C:\x\y" and "C:\x\y\" - exactly one separator */
+    if (!pattern.empty() && pattern.back() == L'\\')
+        pattern += L"*.crsf";
+    else
+        pattern += L"\\*.crsf";
+    WIN32_FIND_DATAW fd;
+    HANDLE h =
+        FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-vs-missing discriminator (runs 40694592245 + 40700058960):
+         * the ERROR CODE is NOT the reliable axis - the observed windows-2022
+         * matrix came back INVERTED from the documented one (a nonexistent
+         * dir reports ERROR_FILE_NOT_FOUND, an existing EMPTY dir reports a
+         * different code), so keying on any single code breaks one class or
+         * the other. The version-proof truth is the DIRECTORY-EXISTS probe:
+         * an existing directory with zero matches is the empty-list SUCCESS
+         * (POSIX opendir succeeds on the same dir; the W1c contract pins
+         * OK + n==0), while a missing path - or a plain FILE handed as a
+         * dir, POSIX ENOTDIR - is the genuine failure (the no-such-dir-*
+         * rows in SessionListTwoCallPattern and the abi C-gate pin
+         * ERR_OPEN_FAILED). Known divergence, accepted: a directory whose
+         * LIST permission is denied but whose attributes read (a rare ACL
+         * shape) reports the empty list, where POSIX opendir would fail -
+         * the existence probe is the only axis that is right on every
+         * version for the two pinned classes. */
+        const DWORD attr = GetFileAttributesW(u8_to_ws(utf8_dir).c_str());
+        return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+    const std::wstring dir_w = u8_to_ws(utf8_dir);
+    /* join with the CALLER's separator convention (run 40689196858): a
+     * forward-slash dir (the CMake/ctest path style) must stay
+     * forward-slash - a backslash join produced mixed-separator row
+     * paths that never strcmp-matched the caller's own path (green on
+     * POSIX, red on Windows). Both separators LOAD fine on Windows;
+     * comparability is the contract the abi-check pins. */
+    std::wstring sep;
+    const bool cwd = dir_w == L"."; /* N-128: bare names for the CWD dir */
+    if (cwd || (!dir_w.empty() && (dir_w.back() == L'/' || dir_w.back() == L'\\')))
+        sep = L"";
+    else if (dir_w.find(L'/') != std::wstring::npos && dir_w.find(L'\\') == std::wstring::npos)
+        sep = L"/";
+    else
+        sep = L"\\";
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        /* the 8.3 short-name quirk: the pattern can match on the SHORT
+         * name - verify the LONG name's tail too (case-insensitive) */
+        const std::wstring name(fd.cFileName);
+        if (name.size() < 5)
+            continue;
+        const wchar_t* t = name.c_str() + name.size() - 5;
+        if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+            towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+            continue;
+        out.push_back(cwd ? ws_to_u8(name) : ws_to_u8(dir_w + sep + name));
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(out.begin(), out.end());
+    return true;
+}
+#else
+bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
+    DIR* d = opendir(utf8_dir);
+    if (!d)
+        return false;
+    const std::string dir(utf8_dir);
+    /* N-128: the CWD dir "." composes BARE names - a caller who saved
+     * "name.crsf" (CWD-relative) and lists "." must get "name.crsf"
+     * back, never "./name.crsf" (the same file, a string that never
+     * strcmp-matches the caller's own save path - the abi C-gate's
+     * default-path invocation pinned the hole). */
+    const bool cwd = dir == ".";
+    const std::string sep = cwd || (!dir.empty() && dir.back() == '/') ? "" : "/";
+    while (dirent* e = readdir(d)) {
+        const char* n = e->d_name;
+        const size_t len = std::strlen(n);
+        if (len < 5)
+            continue;
+        const char* t = n + len - 5;
+        if (t[0] != '.' || tolower(u8(t[1])) != 'c' || tolower(u8(t[2])) != 'r' ||
+            tolower(u8(t[3])) != 's' || tolower(u8(t[4])) != 'f')
+            continue;
+        out.push_back(cwd ? std::string(n) : dir + sep + n);
+    }
+    closedir(d);
+    std::sort(out.begin(), out.end());
+    return true;
+}
+#endif
 u32 f_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
     return std::fread(buf, 1, len, f) == len ? OK : ERR_SESSION_IO;
@@ -401,7 +510,9 @@ struct CrDevice {
                                                    decrypting device */
     u32 disk = 0;
     bool disk_known = false;
-    u64 volume_len = 0; /* nonzero = a volume slice (not whole-disk) */
+    u64 volume_len = 0;     /* nonzero = a volume slice (not whole-disk) */
+    char volume_letter = 0; /* S-048: the open-volume letter (0 = absent) -
+                               the carve tree's volume-group naming input */
     const char* transport = "image";
     /* S-008 pre-scan repair: image devices remember their source so the
      * shim can reopen the SAME bytes read-write for the consented repair. */
@@ -659,6 +770,60 @@ private:
         struct stat st;
         return ::stat(to_path(path).c_str(), &st) == 0;
     }
+    /* S-060: the og's per-item restoration tail, POSIX translation
+     * (the deliberate cross-platform mapping registered in
+     * PARITY-DELTAS): SetFileTime(created/access/write) ->
+     * utimensat (atime + mtime; a birth time is not portable - the
+     * created slot maps to nothing on hosts without a birth-time API
+     * and is skipped, never guessed); SetFileAttributesW(word & ~0x2)
+     * -> chmod with the READONLY bit (0x1) translated to the owner
+     * write bit (the one DOS attribute POSIX can carry truthfully).
+     * Non-fatal by the writer's contract. */
+    u32 set_metadata(u64 item_id, const std::u16string& final_path, const FileMeta& meta) override {
+        (void)item_id;
+        const std::string path = to_path(final_path);
+        u32 rc = OK;
+        if (meta.set_attributes) {
+            struct stat st;
+            if (::stat(path.c_str(), &st) == 0) {
+                mode_t mode = st.st_mode & 07777;
+                if (meta.attributes & 0x1) /* FILE_ATTRIBUTE_READONLY */
+                    mode &= ~mode_t(0200); /* owner write off */
+                else
+                    mode |= 0200;
+                if (::chmod(path.c_str(), mode) != 0)
+                    rc = ERR_WRITE_FAILED;
+            } else {
+                rc = ERR_WRITE_FAILED;
+            }
+        }
+        if (meta.set_accessed || meta.set_modified) {
+            struct timespec ts[2];
+            /* slot 0 = atime, slot 1 = mtime; 100ns-since-1601 ->
+             * unix seconds + nanoseconds */
+            const auto to_ts = [](u64 ft, bool set) {
+                struct timespec out;
+                if (!set) {
+                    out.tv_sec = 0;
+                    out.tv_nsec = UTIME_OMIT;
+                    return out;
+                }
+                const i64 unix100 = i64(ft) - 116444736000000000LL;
+                out.tv_sec = time_t(unix100 / 10000000LL);
+                out.tv_nsec = long((unix100 % 10000000LL) * 100);
+                if (out.tv_nsec < 0) { /* negative-div guard */
+                    out.tv_sec -= 1;
+                    out.tv_nsec += 1000000000L;
+                }
+                return out;
+            };
+            ts[0] = to_ts(meta.accessed, meta.set_accessed);
+            ts[1] = to_ts(meta.modified, meta.set_modified);
+            if (::utimensat(AT_FDCWD, path.c_str(), ts, 0) != 0)
+                rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+        }
+        return rc;
+    }
 };
 #endif
 
@@ -691,6 +856,10 @@ struct CrScan {
     bool started = false;  /* run() entered at least once (one-shot) */
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
     bool is_resumed = false;
+    bool autosaved = false;  /* W1c (R-52): the completion auto-save landed */
+    bool user_saved = false; /* S-044: the og's +0x388 not-already-saved gate - an
+                              * explicit cr_ui_scan_save_session suppresses the
+                              * completion auto-save (2 of the og's 3 trigger sites) */
     /* S-008 pre-scan repair: the C-ABI consent callback + the lazily
      * opened write view (image: same file r+b; Windows disk/volume: the
      * RW transport mapped through the device slice). */
@@ -739,7 +908,30 @@ struct CrScan {
     bool saw_progress = false;
 #ifdef _WIN32
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-148: the per-member retry+cache pipes for the SCAN-side resolver
+     * (arm_ldm_resolver's guid_map values borrow these chains' pipe
+     * pointers; destroyed with the scan handle, always after run()). The
+     * og's engines read CStorageDeviceWithCache devices for every volume
+     * they scan - multi-disk LDM members must not be the one bare path. */
+    std::vector<orchestrator::ReadPipe> ldm_member_pipes;
 #endif
+};
+
+struct CrSession; /* M-101: PreviewTagWatch's target (defined below) */
+
+/* M-101: the Tags Extracted liveness watch. Declared at namespace scope
+ * (before CrSession): the session creates it at construction, invalidates
+ * it in its destructor (BEFORE the tree member destroys - the explicit
+ * ~CrSession below), and every session-path preview handle holds a
+ * shared_ptr. preview_metadata_impl re-finds the live node by id and
+ * stamps the tag mark only while the watch is alive; a closed session's
+ * previews see alive == false and touch nothing. The close-vs-in-flight
+ * race stays under the ABI's documented caller contract (calls serialize
+ * against close); the watch removes the USE-AFTER-FREE class for the
+ * accepted close-then-call sequence. */
+struct PreviewTagWatch {
+    CrSession* sess = nullptr; /* valid only while alive */
+    bool alive = true;
 };
 
 struct CrSession {
@@ -747,6 +939,32 @@ struct CrSession {
     tree::ResultTree tree;
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
+    /* M-101: the tag-mark liveness watch (see PreviewTagWatch above).
+     * The ctor binds sess; ~CrSession invalidates BEFORE the tree member
+     * destroys (members destroy after the body runs). */
+    std::shared_ptr<PreviewTagWatch> tag_watch;
+    CrSession() : tag_watch(new PreviewTagWatch()) { tag_watch->sess = this; }
+    ~CrSession() {
+        if (tag_watch)
+            tag_watch->alive = false;
+    }
+    /* S-052: the LDM dynamic-volume basis state - the layouts from the
+     * session record, armed lazily into virtual devices at the first
+     * basis-aware consumer (recovery enqueue / preview / thumbnail).
+     * `ldm_basis` is the non-owning table the SafeWriter/PreviewReader
+     * read through; the devices borrow `ldm_members` (Windows) or the
+     * caller's scan device (local-self) through their resolvers. */
+    std::vector<table::LdmVolumeLayout> ldm_layouts;
+    bool ldm_armed = false;
+#ifdef _WIN32
+    std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    /* M-136: the per-member retry+cache pipes (the guid_map's values
+     * borrow these chains' pipe pointers; destroyed with the session,
+     * always after the last basis read). */
+    std::vector<orchestrator::ReadPipe> ldm_pipes;
+#endif
+    std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices;
+    std::unique_ptr<recovery::LdmBasisTable> ldm_basis;
 };
 
 struct CrSnapshot {
@@ -760,6 +978,16 @@ struct CrSnapshot {
     u64 slice_start = 0;
     u64 slice_bytes = 0;
     bool have_view = false;
+    /* S-052: the snapshot's basis source. A SESSION snapshot lazily
+     * arms its session's LDM basis at the first basis-aware consumer
+     * (src_session borrowed - the session must outlive recoveries that
+     * enqueue from this snapshot, the same borrowed-nodes contract the
+     * writer's QueueItem.node already carries). A SCAN snapshot points
+     * at the scan controller's LIVE device registry (src_scan borrowed
+     * likewise; its table is built once here, non-owning). */
+    CrSession* src_session = nullptr;
+    CrScan* src_scan = nullptr;
+    std::unique_ptr<recovery::LdmBasisTable> ldm_basis; /* scan-path table */
 };
 
 struct PropReleaser {
@@ -772,10 +1000,42 @@ struct PropReleaser {
 struct CrPreview {
     std::unique_ptr<tree::FileProperties, PropReleaser> owned;
     std::unique_ptr<preview::PreviewReader> reader;
+    /* M-101: the Tags Extracted mark path. The preview handle must stay
+     * independent of the session's lifetime (the private props copy is
+     * the whole point - "the session may close independently"), so the
+     * mark never holds the node directly: the handle carries a liveness
+     * watch the session invalidates at destruction, plus the node_id to
+     * re-find the live node. preview_metadata_impl stamps the mark only
+     * when the watch is alive (post-close: nothing to mark, the tree is
+     * gone - the og's model-build mark is equally session-bound). The
+     * close-vs-in-flight race is the ABI's documented caller contract
+     * (every handle call serializes against close; the watch removes the
+     * USE-AFTER-FREE class for the accepted close-then-call sequence). */
+    std::shared_ptr<PreviewTagWatch> watch;
+    uint64_t watch_node_id = 0;
+    /* M-083: the thumbnail success path promotes the generating node's
+     * grade to 2 - but it addresses the node through
+     * cr_ui_thumbnail_generate's own session/node_id arguments, never
+     * through this handle (ABI-CONTRACT §7i). The preview-handle variant
+     * of that promotion (stashed origin fields) was dropped at the
+     * session-10/11 rebase; N-142 removed the surviving dead pair. */
+    /* M-116: the archive-inventory cache - the two-call ABI pattern
+     * (count + per-index fill) must not re-walk the central directory
+     * per entry. Extracted at the FIRST archive call, stable for the
+     * handle's lifetime (the og's ArchivePreviewModel serves one model
+     * per browse view); a fresh handle re-extracts. */
+    bool archive_cached = false;
+    preview::Metadata archive_cache;
 };
 
 struct CrRecovery {
     PausableToken token;
+    /* M-136: the recovery read chain (SliceShim identity -> RetryingDevice
+     * x3 Skip-mode -> 8 MiB / 256 KiB CachedReader - build_read_pipe, the
+     * M-058 seam the scan itself reads through). Declared BEFORE the
+     * writer so the chain outlives it (members destroy in reverse order);
+     * the og's export reads are stream-mediated, never a bare device. */
+    std::unique_ptr<orchestrator::ReadPipe> read_pipe;
     std::unique_ptr<recovery::DestIo> io;
     std::unique_ptr<recovery::SafeWriter> writer;
     CrDevice* dev = nullptr;  /* borrowed */
@@ -1082,6 +1342,7 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     if (in)
         out.threads = in->threads;
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
+    copy_card(out.autosave_dir, sizeof(out.autosave_dir), in ? in->autosave_dir_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
     copy_card(out.volume_firmware, sizeof(out.volume_firmware),
@@ -1093,6 +1354,17 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
      * "filter_generalraw" surface); empty = the default role */
     copy_card(out.raw_category_name, sizeof(out.raw_category_name),
               in ? in->raw_category_name_utf8 : nullptr);
+    /* M-073: the scan-time folder filter (the og's PushFolderFilter
+     * surface). Zero-init safe: NULL array / 0 count = OFF. Empty-string
+     * entries are dropped (the prune's own normalize skips them). */
+    if (in && in->filter_folders_utf8 != nullptr && in->filter_folder_count != 0) {
+        out.filter_folders.reserve(in->filter_folder_count);
+        for (uint32_t k = 0; k < in->filter_folder_count; ++k) {
+            const char* p = in->filter_folders_utf8[k];
+            if (p != nullptr && *p != '\0')
+                out.filter_folders.emplace_back(p);
+        }
+    }
     return OK;
 }
 
@@ -1104,24 +1376,6 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
 
 extern "C" CR_UI_API uint32_t cr_ui_abi_version(void) {
     return CR_UI_ABI_VERSION;
-}
-
-/* NG-15: the host log sink (see cr_ui.h). The host fn/user pair is kept in
- * file-scope statics because cr::log::set_sink takes a plain fn+user and
- * the user slot carries the trampoline's context. */
-namespace {
-cr_ui_log_fn g_host_log_fn = nullptr;
-void* g_host_log_user = nullptr;
-void host_log_trampoline(cr::log::Level level, const char* line, void* /*user*/) {
-    if (g_host_log_fn != nullptr)
-        g_host_log_fn(u32(level), line, g_host_log_user);
-}
-} // namespace
-
-extern "C" CR_UI_API void cr_ui_set_log_sink(cr_ui_log_fn fn, void* user) {
-    g_host_log_fn = fn;
-    g_host_log_user = user;
-    cr::log::set_sink(fn != nullptr ? host_log_trampoline : nullptr, user);
 }
 
 extern "C" CR_UI_API const char* cr_ui_last_error(void) {
@@ -1170,35 +1424,33 @@ void set_last_transport_error_(uint32_t e) {
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
-    u32 err = 0, gle = 0;
-    /* Mandatory-driver session (2026-10-27): the RDA grammar is the ONLY
-     * raw-disk transport - the direct \\.\PhysicalDriveN leg is
-     * removed (docs/PARITY-DELTAS.md D-FALL). An absent driver is the
-     * distinct ERR_DRIVER_REQUIRED refusal; cr_ui_last_transport_error()
-     * surfaces the probe's CreateFile error either way. */
-    if (!win::rda_available(L"RDA", &gle)) {
-        set_last_transport_error_(u32(ERR_DRIVER_REQUIRED));
-        return ret_(ERR_DRIVER_REQUIRED,
-                    "cannot open disk %u: the RDA raw-disk driver is required and not "
-                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
-                    "driver and retry",
-                    disk, gle);
+    /* Direct raw I/O (session-96: the driver replacement). The single
+     * precondition is the process token: a non-elevated token is the
+     * classified refusal - ERR_ELEVATION_REQUIRED is the return value,
+     * the diagnostic channel (cr_ui_last_transport_error) and the UI
+     * presentation contract; the host triggers its own elevation flow
+     * (the standard OS UAC prompt) and retries. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
     }
-    if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
+    u32 err = 0;
+    if (auto dev = win::open_disk(disk, &err)) {
         auto* d = new CrDevice();
         d->dev = std::move(dev);
         d->disk = disk;
         d->disk_known = true;
-        d->transport = "rda";
+        d->transport = "direct";
         *out = reinterpret_cast<cr_ui_device*>(d);
         set_last_transport_error_(0);
         return ret_ok();
     }
+    /* elevated but the TARGET would not open: a target error (absent disk
+     * number, protected or busy device), never a silent transport switch. */
     set_last_transport_error_(err);
-    return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                "cannot open disk %u through the RDA driver (the driver is present; the "
-                "grammar open failed)",
-                disk);
+    return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u (direct raw access)", disk);
 }
 
 u32 open_volume_impl(char letter, cr_ui_device** out) {
@@ -1211,29 +1463,52 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
                     "(typical for a locked volume); unlock and re-try",
                     letter);
     if (bst == win::bitlocker::Status::Locked) {
-        if (win::bitlocker::try_auto_unlock(wchar_t(letter)) != OK)
+        const u32 au = win::bitlocker::try_auto_unlock(wchar_t(letter));
+        if (au != OK) {
+            /* M-105 option (a): the ACL diagnosis - "keys exist but this
+             * token cannot read them" is ERR_FVE_ELEVATION_REQUIRED (the
+             * og bridges this ACL with its transient LocalSystem service;
+             * the core's registered no-service posture surfaces the
+             * elevation claim instead). */
+            if (au == ERR_FVE_ELEVATION_REQUIRED)
+                return ret_(ERR_FVE_ELEVATION_REQUIRED, "%c: locked - %s", letter,
+                            health::fve_denial_guidance(au));
             return ret_(ERR_FVE_LOCKED,
                         "%c: locked - unlock (Unlock-BitLocker -MountPoint %c: "
                         "-RecoveryPassword <key>) and re-try",
                         letter, letter);
+        }
     }
     u32 disk = 0;
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    u32 err = 0, gle = 0;
-    std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "rda";
-    if (!win::rda_available(L"RDA", &gle))
-        return ret_(ERR_DRIVER_REQUIRED,
-                    "cannot open volume %c: the RDA raw-disk driver is required and not "
-                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
-                    "driver and retry",
-                    letter, gle);
-    if (!(whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-        return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
-                    letter);
+    /* Direct raw I/O (session-96): the privilege gate, then the direct
+     * whole-disk open - the volume is its slice on the parent disk. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
+    }
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> whole = win::open_disk(disk, &err);
+    if (!whole) {
+        set_last_transport_error_(err);
+        return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                    "cannot open disk %u for volume %c: (direct raw access)", disk, letter);
+    }
+    const char* transport = "direct";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -1243,6 +1518,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     d->disk = disk;
     d->disk_known = true;
     d->volume_len = len;
+    d->volume_letter = char(letter >= 'a' && letter <= 'z' ? letter - 32 : letter); /* S-048 */
     d->transport = transport;
     *out = reinterpret_cast<cr_ui_device*>(d);
     return ret_ok();
@@ -1294,19 +1570,32 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    u32 err = 0, gle = 0;
-    std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "rda";
-    if (!win::rda_available(L"RDA", &gle))
-        return ret_(ERR_DRIVER_REQUIRED,
-                    "cannot open volume %c: the RDA raw-disk driver is required and not "
-                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
-                    "driver and retry",
-                    letter, gle);
-    if (!(whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-        return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
-                    letter);
+    /* Direct raw I/O (session-96): the privilege gate, then the direct
+     * whole-disk open - the volume is its slice on the parent disk. */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry (image targets need no elevation)");
+    }
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> whole = win::open_disk(disk, &err);
+    if (!whole) {
+        set_last_transport_error_(err);
+        return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                    "cannot open disk %u for volume %c: (direct raw access)", disk, letter);
+    }
+    const char* transport = "direct";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -1409,6 +1698,62 @@ u32 device_geometry_impl(cr_ui_device* dev, cr_ui_geometry* out) {
     return ret_ok();
 }
 
+/* S-040: the image-create producer at the ABI. Class (a): the privilege
+ * prerequisite is checked first, exactly like open_disk_impl - the
+ * elevation refusal is ERR_ELEVATION_REQUIRED. Progress is the
+ * recovery-style cumulative-bytes bridge. */
+#ifdef _WIN32
+struct ImageCreateProgressBridge {
+    cr_ui_recovery_progress_fn progress = nullptr;
+    void* user = nullptr;
+};
+
+void image_create_progress_bridge(void* user, u64 done, u64 total) {
+    auto* b = static_cast<ImageCreateProgressBridge*>(user);
+    if (b && b->progress)
+        b->progress(b->user, done, total);
+}
+#endif
+
+u32 image_create_impl(uint32_t disk, const char* utf8_path, cr_ui_recovery_progress_fn progress,
+                      void* user) {
+    if (!utf8_path || !*utf8_path)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path");
+#ifdef _WIN32
+    /* the class-(a) gate: a non-elevated token is a classified refusal
+     * (the same gate as open_disk_impl) */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry");
+    }
+    const std::u16string path = u8_to_u16(utf8_path);
+    if (path.empty())
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path (empty after decode)");
+    ImageCreateProgressBridge bridge{progress, user};
+    storage::ImageCreateStats stats{};
+    const u32 rc =
+        win::create_disk_image(disk, path, nullptr, image_create_progress_bridge, &bridge, &stats);
+    if (rc == OK)
+        return ret_ok();
+    if (rc == ERR_CANCELLED)
+        return ret_(rc,
+                    "image create cancelled: %llu bytes committed (partial kept as "
+                    "'%s.partial')",
+                    static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+    return ret_(rc,
+                "image create failed at %llu bytes (partial kept as '%s.partial' when "
+                "any bytes committed)",
+                static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+#else
+    (void)disk;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_image_create requires the Windows platform layer");
+#endif
+}
+
 u32 device_transport_impl(cr_ui_device* dev, char* buf, uint32_t cap, uint32_t* needed) {
     if (!dev || !needed)
         return ret_(ERR_BAD_PARAMETER, "bad argument: dev/needed");
@@ -1476,7 +1821,7 @@ namespace {
 
 #ifdef _WIN32
 
-u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
+u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count, uint32_t flags) {
     if (!count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: count");
     win::PhysicalDiskList list;
@@ -1488,6 +1833,17 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         *count = needed;
         return ret_ok();
     }
+    /* M-076: the opt-in TRIM datum - one fresh query per invocation (the
+     * datum is OS-global: fsutil behavior query disabledeletenotify, the
+     * same primitive the og's home page and our health facet read; a
+     * per-disk re-query would run the identical process N times for the
+     * same answer). No cache, no retained state - calling again IS the
+     * refresh (N-098). A failed query leaves trim_known == 0 everywhere:
+     * unknown, never a guessed value. */
+    bool trim_on = false;
+    bool trim_known = false;
+    if (flags & CR_ENUM_FLAG_TRIM)
+        trim_known = (win::health::query_trim_state(trim_on) == OK);
     const u32 cap = *count;
     const u32 n = needed < cap ? needed : cap;
     for (u32 i = 0; i < n; ++i) {
@@ -1499,7 +1855,6 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         o.logical_sector = d.logical_sector;
         o.physical_sector = d.physical_sector;
         o.removable = d.removable ? 1u : 0u;
-        o.bus_type = d.bus_type; /* G-9/NG-14: the raw STORAGE_BUS_TYPE */
         o.table_ok = d.table_ok ? 1u : 0u;
         if (d.table_ok) {
             if (d.table.layout == table::TableLayout::Gpt)
@@ -1514,6 +1869,10 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         }
         copy_bstr(o.model, sizeof(o.model), ws_to_u8(d.model));
         copy_bstr(o.serial, sizeof(o.serial), ws_to_u8(d.serial));
+        if (trim_known) {
+            o.trim_known = 1;
+            o.trim_on = trim_on ? 1u : 0u;
+        }
     }
     *count = n;
     return ret_(n == needed ? OK : u32(ERR_TRUNCATED), "%s", "");
@@ -1551,9 +1910,10 @@ u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
 
 #else
 
-u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
+u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count, uint32_t flags) {
     (void)out;
     (void)count;
+    (void)flags;
     return ret_(ERR_UNSUPPORTED, "cr_ui_enumerate_disks requires the Windows platform layer");
 }
 u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
@@ -1567,7 +1927,20 @@ u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
 } // namespace
 
 extern "C" CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count) {
-    return guarded(enumerate_disks_impl, out, count);
+    return guarded(enumerate_disks_impl, out, count, uint32_t(0));
+}
+extern "C" CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count,
+                                                       uint32_t flags) {
+    /* M-076: unknown flag bits are refused BEFORE the platform check, so
+     * every lane observes the same grammar (a host must not learn about an
+     * ignored flag from a platform-dependent success). */
+    if (flags & ~CR_ENUM_FLAG_TRIM)
+        return guarded(
+            [](cr_ui_disk_info*, uint32_t*, uint32_t bad) {
+                return ret_(ERR_BAD_PARAMETER, "unknown enumeration flag bits: 0x%x", bad);
+            },
+            out, count, flags);
+    return guarded(enumerate_disks_impl, out, count, flags);
 }
 extern "C" CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count) {
     return guarded(enumerate_volumes_impl, out, count);
@@ -1622,9 +1995,10 @@ repair::IWriteDevice* ui_repair_open_writer(void* user) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        auto w = win::open_disk_rw(d->disk, L"RDA", &err);
+        /* driver-only (PLAN-DRIVER-ONLY R9): the direct RW retry is gone */
+        auto w = win::open_disk_rw(d->disk, &err);
         if (!w)
-            return nullptr; /* mandatory driver: ERR_DRIVER_REQUIRED - no write fallback */
+            return nullptr;
         s->repair_writer = std::move(w);
         return s->repair_writer.get();
     }
@@ -1709,14 +2083,22 @@ void arm_ldm_resolver(CrScan* s) {
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     for (const auto& pd : list) {
         u32 oerr = 0;
-        auto dev = win::open_disk(pd.number, L"RDA", &oerr);
+        /* driver-only (PLAN-DRIVER-ONLY R8): the direct retry is gone - a
+         * member that will not open through RDA simply does not resolve */
+        auto dev = win::open_disk(pd.number, &oerr);
         if (!dev)
-            continue; /* mandatory driver: a member without it is unresolvable */
+            continue;
         u8 sec[512];
         if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK && std::memcmp(sec, "PRIVHEAD", 8) == 0) {
             table::LdmGuid g{};
             std::memcpy(g.b, sec + 0x30, 16);
-            (*guid_map)[g] = dev.get();
+            /* M-148: the member reads through its own pipe - the scan's
+             * own substrate (the og's engines read CStorageDeviceWithCache
+             * devices; the recovery side's session_arm_ldm_basis wraps
+             * members identically). The pipes live beside the members. */
+            s->ldm_member_pipes.push_back(
+                orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024));
+            (*guid_map)[g] = s->ldm_member_pipes.back().pipe;
         }
         s->ldm_members.push_back(std::move(dev));
     }
@@ -1727,6 +2109,116 @@ void arm_ldm_resolver(CrScan* s) {
         };
 }
 #endif
+
+/* ---- S-052: the session-side LDM basis arm + the basis pickers ---- */
+
+/* the node's root basis id (roots carry the stamp; descendants read it
+ * through the parent chain - the same walk rel_dir_of makes) */
+static u32 node_basis_id(const tree::FileNode* n) {
+    const tree::FileNode* r = n;
+    while (r != nullptr && r->parent() != nullptr)
+        r = r->parent();
+    return r != nullptr ? r->basis() : 0;
+}
+
+/* (re)build the session's LDM virtual devices from its persisted
+ * layouts. `src` = the caller's scan device (the local-self member on
+ * non-Windows hosts; the Windows arm enumerates every disk itself).
+ * Idempotent; a no-op without layouts. The devices borrow their member
+ * disks through the resolver: on Windows the session-owned ldm_members;
+ * elsewhere `src` (the caller keeps it alive - the same borrowed-device
+ * contract every preview/recovery already carries). */
+static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
+    (void)src; /* the Windows arm borrows through the session's own members;
+                * src is the non-Windows resolver's source (MSVC C4100) */
+    if (!s || s->ldm_armed || s->ldm_layouts.empty())
+        return;
+    s->ldm_armed = true;
+    table::LdmDiskResolver resolver;
+#ifdef _WIN32
+    /* the scan-side arm_ldm_resolver enumeration, session-owned: every
+     * disk's PRIVHEAD GUID -> its open device. M-136: each member rides
+     * its own retry+cache pipe (build_read_pipe) - basis reads (recovery
+     * AND preview) get the same transient-error substrate the scan and
+     * the writer's source already have; the pipe chains live in the
+     * session (ldm_pipes) and outlive the devices' borrowers. */
+    auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
+    win::PhysicalDiskList list;
+    if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
+        for (const auto& pd : list) {
+            u32 oerr = 0;
+            auto dev = win::open_disk(pd.number, &oerr);
+            if (!dev)
+                continue;
+            u8 sec[512];
+            if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK &&
+                std::memcmp(sec, "PRIVHEAD", 8) == 0) {
+                table::LdmGuid g{};
+                std::memcpy(g.b, sec + 0x30, 16);
+                orchestrator::ReadPipe mp =
+                    orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024);
+                if (mp.pipe != nullptr) {
+                    (*guid_map)[g] = mp.pipe;
+                    s->ldm_pipes.push_back(std::move(mp));
+                }
+            }
+            s->ldm_members.push_back(std::move(dev));
+        }
+    }
+    if (!guid_map->empty())
+        resolver = [guid_map](const table::LdmGuid& g) -> IStorageDevice* {
+            auto it = guid_map->find(g);
+            return it != guid_map->end() ? it->second : nullptr;
+        };
+#else
+    /* local-self only: the session's own disk resolves by its PRIVHEAD
+     * GUID; cross-disk members stay unresolved (their reads fail loudly
+     * per-extent - the honest missing-member semantics, never wrong
+     * bytes from a wrong disk). */
+    table::LdmGuid self{};
+    bool have_self = false;
+    if (src != nullptr) {
+        u8 sec[512];
+        if (src->read_at(6 * 512, sec, sizeof(sec)) == OK && std::memcmp(sec, "PRIVHEAD", 8) == 0) {
+            std::memcpy(self.b, sec + 0x30, 16);
+            have_self = true;
+        }
+    }
+    if (have_self)
+        resolver = [self, src](const table::LdmGuid& g) -> IStorageDevice* {
+            return g == self ? src : nullptr;
+        };
+#endif
+    if (!resolver)
+        return; /* nothing resolvable: the basis stays empty and basis
+                 * reads fail honestly through the absolute source */
+    s->ldm_basis.reset(new recovery::LdmBasisTable());
+    for (const auto& lay : s->ldm_layouts) {
+        try {
+            s->ldm_devices.push_back(
+                std::unique_ptr<table::LdmVolumeDevice>(new table::LdmVolumeDevice(lay, resolver)));
+        } catch (...) {
+            break; /* allocation failure: keep what armed; remaining
+                    * bases resolve to nothing (honest failures) */
+        }
+        s->ldm_basis->add(s->ldm_devices.back().get());
+    }
+}
+
+/* the device a basis-aware consumer reads a SESSION node through
+ * (null = the absolute default). Arms the session on first use. */
+static IStorageDevice* session_node_device(CrSession* s, const tree::FileNode* node,
+                                           IStorageDevice* absolute_src) {
+    const u32 basis = node_basis_id(node);
+    if (basis == 0 || s == nullptr)
+        return absolute_src;
+    session_arm_ldm_basis(s, absolute_src);
+    if (!s->ldm_basis)
+        return absolute_src;
+    recovery::LdmBasisTable* table = s->ldm_basis.get();
+    IStorageDevice* dev = table->at(basis);
+    return dev != nullptr ? dev : absolute_src;
+}
 
 u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     if (!scan || !dev)
@@ -1742,7 +2234,83 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     if (d->disk_known && s->cfg.volume_model[0] == 0)
         fill_identity_card(d->disk, s->cfg);
 #endif
+    /* S-048: the open volume's letter rides the config (the carve tree's
+     * volume-group naming input - "<label> (<L>:" + ")"). A volume slice
+     * with a letter names its group child; disk/image targets leave it 0
+     * (whole-disk scans name their groups through the M-104 tiers). */
+    if (d->volume_letter != 0 && s->cfg.volume_letter == 0)
+        s->cfg.volume_letter = d->volume_letter;
     return ret_ok();
+}
+
+/* W1c (R-52): defined below (after the N-060 adapter block); the
+ * completion auto-save in scan_run_impl calls it. */
+u32 write_session_atomic(CrScan* s, const std::string& final_path,
+                         session::SerializeProgress progress, void* progress_user);
+
+/* S-057/W1c: the shared auto-save routine - called from BOTH the
+ * completion path and the user-stop (cancel) path. The og's stop path
+ * runs its own organize into the SAME completion handler
+ * (FUN_140395e50) whose auto-save gates carry no stopped-check
+ * (DRWUI :612571-587: not-import, results-found, SD/NAS only), so a
+ * stopped scan's partial results land in SaveScan exactly like a
+ * finished run's. The S-044 gate set is identical for both windows. */
+static void autosave_if_due_(CrScan* s) {
+    if (s->cfg.autosave_dir[0] != 0 && !s->is_resumed && !s->user_saved &&
+        (s->stats.files_found != 0 || s->stats.lost_partitions != 0)) {
+        const std::string dir(s->cfg.autosave_dir);
+        const std::string sep = (!dir.empty() && (dir.back() == '/' || dir.back() == '\\')) ? "" :
+#ifdef _WIN32
+                                                                                            "\\";
+#else
+                                                                                            "/";
+#endif
+        /* N-133: the engine-decoded on-disk label fills an EMPTY label
+         * (the UI layer has no stem fallback - an ABI-supplied label is
+         * the caller's explicit choice and is never replaced) */
+        char label[33] = {0};
+        if (s->cfg.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->cfg.volume_label[k]; ++k)
+                label[k] = s->cfg.volume_label[k];
+        } else if (s->stats.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->stats.volume_label[k]; ++k)
+                label[k] = s->stats.volume_label[k];
+        }
+        const std::string name = session::auto_session_name(u8_to_u16(label)) + ".crsf";
+        const std::string full_path = dir + sep + name;
+        /* M-154 (diff-to-fix): the og's retention loop (DRWUI:442815-
+         * 442833) - before writing the new auto session, read the
+         * last-scan pointer and DELETE the previous auto .rsf, keeping
+         * exactly one live auto session (the og's bounded SaveScan
+         * lifecycle; the core previously accumulated every auto session
+         * forever). Manual saves are never touched (the auto_ name gate
+         * is the safety hardening); a dead/absent pointer is a no-op
+         * (the og's PathFileExistsA flag class, :443209-443214). */
+        (void)session::last_scan_retention_delete_previous(dir);
+        const u32 arc = write_session_atomic(s, full_path, nullptr, nullptr);
+        s->autosaved = (arc == OK);
+        if (arc == OK) {
+            /* the pointer write (the og's [Info] SavePath/Name/Count/
+             * Time, DRWUI:443060-443086 - the HKLM mirror is the
+             * Windows-host convention, deliberately dropped,
+             * PARITY-DELTAS). Best-effort: the og's
+             * WritePrivateProfileStringA failure never fails the save. */
+            session::LastScanInfo info;
+            info.save_path = full_path;
+            info.name = name;
+            info.count = s->stats.files_found + s->stats.deleted_found + s->stats.carved_found;
+            info.time = u64(std::time(nullptr));
+            (void)session::last_scan_info_write(dir, info);
+        }
+        if (s->event_fn) {
+            cr_ui_event out;
+            std::memset(&out, 0, sizeof(out));
+            out.type = CR_EVT_AUTOSAVED;
+            out.stage = 0xFFFFFFFFu;
+            out.autosave_rc = arc;
+            s->event_fn(s->event_user, &out);
+        }
+    }
 }
 
 u32 scan_run_impl(cr_ui_scan* scan) {
@@ -1827,8 +2395,40 @@ u32 scan_run_impl(cr_ui_scan* scan) {
         s->ck_sink.reset();
         s->cfg.checkpoint = orchestrator::ScanConfig::CheckpointSink{};
     }
+    if (rc == ERR_CANCELLED) {
+        /* S-057: the og's stop window auto-saves. Pressing Stop does not
+         * discard the scan - the stop path runs its own organize phase
+         * ("Organizing Found Files" / "Scan stopped and found %1 files.",
+         * DRWUI case 3 :1549399-1549421), feeds the same build-tree/
+         * completion handler (:339076-79 -> FUN_140395e50), and that
+         * handler's auto-save gates (:612571-587) carry NO stopped-check
+         * - not-import, results-found, SD/NAS only. A user who stops a
+         * 2-hour scan at 500 K files keeps them in the og; the core now
+         * matches (the pre-fix early return here was the divergence,
+         * and the old comment mis-stated the og). Other failures
+         * (device loss, read refusal, bad parameters) still return
+         * without auto-save - the og's completion handler does not run
+         * for them either. */
+        autosave_if_due_(s);
+        return ret_(rc, "scan %s", err_text(rc));
+    }
     if (rc != OK)
         return ret_(rc, "scan %s", err_text(rc));
+    /* W1c (R-52): the completion auto-save - the og's SaveScan window
+     * (rsf-format section 5.5 + UIUX/30:64-67). A COMPLETED run
+     * auto-saves, and since S-057 so does a user-STOPPED run with
+     * results (the og's stop-organize feeds the same completion
+     * handler - see the cancel branch above; the decoded og truth, not
+     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome
+     * event (never silent failure), the stats flag. The name is the N-061 corpus convention:
+     * auto_<label>_<M>_<D>_<H>_<m>_<s> with the name-forbidden-char sanitizer. S-044: the og's
+     * THREE trigger-site gates, decoded at FUN_1402857c0's call sites (:612583/:615166/:616764,
+     * evidence s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed session never
+     * re-auto-saves), results-found (FUN_1403964b0 != 0 - an empty scan never auto-saves; no
+     * session file for a nothing-found run), and not-already-saved (+0x388==0, 2 of 3 sites - an
+     * explicit save suppresses the auto save). An empty scan writes no file, fires no event, and
+     * stats.autosaved stays 0 - the og's W1a session list never sees nothing-found runs. */
+    autosave_if_due_(s);
     return ret_ok();
 }
 
@@ -1958,6 +2558,13 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->check_ran = st.check_ran ? 1u : 0u;
     out->check_errors = u32(st.check_report.errors.size());
     out->check_detected = st.check_detected ? 1u : 0u;
+    /* read-truth accounting (the fake-scan fix): the coverage + probe
+     * blindness flags - the host's "these regions were NOT scanned"
+     * presentation surface */
+    out->bytes_unreadable = st.bytes_unreadable;
+    out->probe_unreadable = st.probe_unreadable ? 1u : 0u;
+    out->autosaved = s->autosaved ? 1u : 0u; /* W1c (R-52): the completion
+                                              * auto-save landed (live runs) */
     return ret_ok();
 }
 
@@ -2050,7 +2657,10 @@ std::unique_ptr<apply::IApplyDevice> ui_apply_open_writer(CrDevice* d) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        return win::open_disk_apply_rw(d->disk, L"RDA", &err); /* mandatory driver - no fallback */
+        /* driver-only (PLAN-DRIVER-ONLY R9): the direct apply-view retry is
+         * gone; the S-029 device-control chain issues through the RDA bound
+         * handle (the driver passes non-session IOCTLs through) */
+        return win::open_disk_apply_rw(d->disk, &err);
     }
 #endif
     return nullptr;
@@ -2244,6 +2854,41 @@ bool save_progress_adapter_(u64 done, u64 total, void* user) {
     return true;
 }
 
+/* W1c (R-52): the shared atomic session write - tmp + finalize + rename
+ * (the N-014 discipline), used by the explicit N-060 save (progress
+ * adapter wired) and the completion auto-save (silent). A cancel or
+ * failure leaves the previous good final file and removes the staging
+ * .tmp (never trust a torn emit). */
+u32 write_session_atomic(CrScan* s, const std::string& final_path,
+                         session::SerializeProgress progress, void* progress_user) {
+    const std::string tmp_path = final_path + ".tmp";
+    FILE* f = open_file(tmp_path.c_str(), true);
+    if (!f)
+        return ERR_SESSION_IO;
+    session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
+    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
+    u32 rc = w.open(0x52434F56);
+    if (rc == OK)
+        rc = s->ctrl->save_session(w, s->stats, progress, progress_user);
+    if (rc == OK)
+        rc = w.finalize();
+    std::fclose(f);
+    if (rc == OK) {
+        std::error_code ec;
+        std::filesystem::rename(tmp_path, final_path, ec);
+        if (ec)
+            rc = ERR_SESSION_IO;
+    }
+    if (rc != OK) {
+#ifdef _WIN32
+        DeleteFileW(u8_to_ws(tmp_path.c_str()).c_str());
+#else
+        std::remove(tmp_path.c_str());
+#endif
+    }
+    return rc;
+}
+
 u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
     if (!scan || !utf8_path || !*utf8_path)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/path");
@@ -2256,39 +2901,14 @@ u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
      * by a fully finalized container; a cancel or failure leaves the
      * previous good file and removes the staging .tmp. */
     s->save_cancel.store(false, std::memory_order_relaxed); /* fresh save */
-    const std::string final_path(utf8_path);
-    const std::string tmp_path = final_path + ".tmp";
-    FILE* f = open_file(tmp_path.c_str(), true);
-    if (!f)
-        return ret_(ERR_SESSION_IO, "cannot create session file %s", tmp_path.c_str());
-    session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
-    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
     SaveProgressState spst;
     spst.s = s;
-    u32 rc = w.open(0x52434F56);
-    if (rc == OK)
-        rc = s->ctrl->save_session(w, s->stats, save_progress_adapter_, &spst);
-    if (rc == OK)
-        rc = w.finalize();
-    std::fclose(f);
+    const u32 rc = write_session_atomic(s, std::string(utf8_path), save_progress_adapter_, &spst);
     if (rc == OK) {
-        std::error_code ec;
-        std::filesystem::rename(tmp_path, final_path, ec);
-        if (ec)
-            rc = ERR_SESSION_IO;
+        s->user_saved = true; /* S-044: suppress the completion auto-save */
+        return ret_ok();
     }
-    if (rc != OK) {
-        /* cancel or failure: the staging file is a torn never-committed
-         * save - remove it, never trust it (the final path keeps the
-         * previous good session, exactly as before the attempt) */
-#ifdef _WIN32
-        DeleteFileW(u8_to_ws(tmp_path.c_str()).c_str());
-#else
-        std::remove(tmp_path.c_str());
-#endif
-        return ret_(rc, "session save failed (%s)", err_text(rc));
-    }
-    return ret_ok();
+    return ret_(rc, "session save failed (%s)", err_text(rc));
 }
 
 u32 scan_save_cancel_impl(cr_ui_scan* scan) {
@@ -2307,6 +2927,14 @@ u32 scan_snapshot_impl(cr_ui_scan* scan, cr_ui_snapshot** out) {
     if (!snap)
         return ret_(ERR_NO_MEMORY, "snapshot allocation failed");
     auto* w = new CrSnapshot();
+    w->src_scan = s; /* S-052: the live registry source (borrowed) */
+    if (s->ctrl) {
+        /* build the non-owning table over the controller's LIVE devices
+         * (basis ids match the scan's root stamps by construction) */
+        w->ldm_basis.reset(new recovery::LdmBasisTable());
+        for (const auto& dev : s->ctrl->ldm_devices())
+            w->ldm_basis->add(dev.get());
+    }
     w->snap = std::move(snap);
     /* S-009: the mid-scan snapshot carries the LIVE error map (the og's
      * AnalysisGridWidget primary use - UIUX/04:110 - paints bad cells
@@ -2418,6 +3046,36 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, cr_ui_telem
 extern "C" CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     return guarded(scan_stats_impl, scan, out);
 }
+
+namespace {
+u32 scan_carve_tally_count_impl(cr_ui_scan* scan) {
+    /* the count-style ABI (cr_ui_carve_format_count's shape): the value
+     * IS the return; a null scan reads as 0 (no carve stage ran) */
+    if (!scan)
+        return 0;
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    return s->stats.carve_per_format_slots;
+}
+u32 scan_carve_tally_impl(cr_ui_scan* scan, u32 index, u64* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    if (index >= s->stats.carve_per_format_slots ||
+        index >= carve::CarveStats::kFormatTallyCapacity)
+        return ret_(ERR_BAD_PARAMETER, "carve tally index %u out of range (%u)", index,
+                    s->stats.carve_per_format_slots);
+    *out = s->stats.carve_per_format[index];
+    return ret_ok();
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_scan_carve_tally_count(cr_ui_scan* scan) {
+    return guarded(scan_carve_tally_count_impl, scan);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_carve_tally(cr_ui_scan* scan, uint32_t index,
+                                                     uint64_t* out) {
+    return guarded(scan_carve_tally_impl, scan, index, out);
+}
 extern "C" CR_UI_API uint32_t cr_ui_scan_assistant(cr_ui_scan* scan, cr_ui_assistant_stats* out) {
     return guarded(scan_assistant_impl, scan, out);
 }
@@ -2476,8 +3134,146 @@ u32 session_load_impl(const char* utf8_path, cr_ui_session** out) {
         delete sess;
         return ret_(rc, "session load failed (%s)", err_text(rc));
     }
+    sess->ldm_layouts = sess->info.ldm_layouts; /* S-052: the re-arm input */
     *out = reinterpret_cast<cr_ui_session*>(sess);
     return ret_ok();
+}
+
+/* W1b (R-54): the load-path progress/cancel adapter - the N-060
+ * save_progress_adapter_ mirror. The og's restore reports progress inside
+ * the load window and polls IsCancelled after EVERY child
+ * (rsf-format--scan-session.md flow section). (a) the cancel check rides
+ * the CALLER-OWNED flag - polled on every node, events or not (a silent
+ * host can still cancel, same rule as the save side); (b) events coalesce
+ * (first tick, permille steps, terminal - the save event cadence). */
+struct LoadProgressState {
+    cr_ui_event_fn fn = nullptr;
+    void* user = nullptr;
+    volatile uint32_t* cancel = nullptr;
+    u32 last_pm = 0xFFFFFFFFu;
+    bool first = true;
+};
+bool load_progress_adapter_(u64 done, u64 total, void* user) {
+    auto* st = static_cast<LoadProgressState*>(user);
+    /* per-child IsCancelled equivalent: the caller-owned flag, polled on
+     * EVERY node (any thread may set it; zero-init safe by contract) */
+    if (st->cancel && *st->cancel != 0)
+        return false;
+    if (!st->fn)
+        return true;
+    const u32 pm = total ? u32(done * 1000 / total) : 1000;
+    if (st->first || pm != st->last_pm || done == total) {
+        st->first = false;
+        st->last_pm = pm;
+        cr_ui_event out;
+        std::memset(&out, 0, sizeof(out));
+        out.type = CR_EVT_SESSION_LOAD_PROGRESS;
+        out.stage = 0xFFFFFFFFu;
+        out.stage_permille = pm;            /* the load's own 0..1000 */
+        out.overall_permille = 0xFFFFFFFFu; /* no scan context */
+        out.bytes_done = done;              /* nodes deserialized */
+        out.bytes_total = total;            /* persisted node count */
+        st->fn(st->user, &out);
+    }
+    return true;
+}
+
+u32 session_load_with_events_impl(const char* utf8_path, cr_ui_event_fn fn, void* user,
+                                  volatile uint32_t* cancel_flag, cr_ui_session** out) {
+    if (!utf8_path || !*utf8_path || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: path/out");
+    FILE* f = open_file(utf8_path, false);
+    if (!f)
+        return ret_(ERR_OPEN_FAILED, "cannot open session %s", utf8_path);
+    auto* sess = new CrSession();
+    sess->path = utf8_path;
+    session::Reader r(f_read_cb, f_seek_cb, f_size_cb, f);
+    LoadProgressState lp;
+    lp.fn = fn;
+    lp.user = user;
+    lp.cancel = cancel_flag;
+    const u32 rc = orchestrator::ScanController::load_session_summary(
+        r, sess->tree, sess->stats, sess->info, nullptr, load_progress_adapter_, &lp);
+    std::fclose(f);
+    if (rc != OK) {
+        delete sess; /* the partial tree is discarded - a torn load never
+                      * half-claims state (W1b contract) */
+        return ret_(rc, "session load failed (%s)", err_text(rc));
+    }
+    *out = reinterpret_cast<cr_ui_session*>(sess);
+    return ret_ok();
+}
+
+u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count) {
+    if (!utf8_dir || !*utf8_dir || !count)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/count");
+    std::vector<std::string> files;
+    if (!list_crsf_files(utf8_dir, files))
+        return ret_(ERR_OPEN_FAILED, "cannot enumerate session dir %s", utf8_dir);
+    const u32 needed = u32(files.size());
+    if (!rows) {
+        *count = needed;
+        return ret_ok();
+    }
+    const u32 cap = *count;
+    const u32 n = needed < cap ? needed : cap;
+    /* N-116: decode EVERY candidate's light summary first (the og reads
+     * every record-2), then order the whole set by the og's key, then
+     * hand the host the newest n - so even the TRUNCATED answer is the
+     * time-ordered prefix, not an arbitrary path prefix. */
+    std::vector<cr_ui_session_row> all(needed);
+    for (u32 i = 0; i < needed; ++i) {
+        cr_ui_session_row& row = all[i];
+        std::memset(&row, 0, sizeof(row));
+        /* the path itself may need truncation (a 1024-byte row field is a
+         * display convenience, not a limit on what loads - callers hand
+         * the full path they enumerated themselves to session_load) */
+        const bool path_truncated = files[i].size() >= sizeof(row.path);
+        copy_cstr(row.path, sizeof(row.path), files[i].c_str());
+        FILE* f = open_file(files[i].c_str(), false);
+        if (!f) {
+            row.valid = 0;
+            row.error = u32(ERR_OPEN_FAILED);
+            continue;
+        }
+        session::Reader r(f_read_cb, f_seek_cb, f_size_cb, f);
+        session::SessionSummary s;
+        const u32 rc = orchestrator::ScanController::read_summary(r, s);
+        std::fclose(f);
+        if (rc != OK) {
+            row.valid = 0;
+            row.error = rc;
+            continue;
+        }
+        row.valid = 1;
+        row.error = path_truncated ? u32(ERR_TRUNCATED) : u32(OK);
+        row.fs_family = s.have_volume ? s.volume.fs_kind : 0;
+        row.stage_done_mask = s.state.stage_done_mask;
+        row.configured_mask = s.configured_mask;
+        row.files_found = s.state.files_found;
+        row.deleted_found = s.state.deleted_found;
+        row.carved_found = s.state.carved_found;
+        row.bytes_scanned = s.state.bytes_scanned;
+        row.elapsed_ms = s.volume.elapsed_ms;
+        row.save_unix = s.volume.save_unix;
+        copy_cstr(row.label, sizeof(row.label), s.volume.label);
+        copy_cstr(row.label_full, sizeof(row.label_full), s.volume.label_full);
+    }
+    /* the og's LastScanRecordView order: the record-2 SYSTEMTIME
+     * comparator (FUN_140273550: SystemTimeToFileTime over row+0x20,
+     * !(ftA < ftB) = newest first) - the ordering that makes "Continue
+     * last scanning" pick the right file. save_unix DESC; equal stamps
+     * (and zero-stamp rows - pre-v5 sessions, unreadable files) break
+     * ties by path bytes ASC so the row order is always deterministic. */
+    std::sort(all.begin(), all.end(), [](const cr_ui_session_row& a, const cr_ui_session_row& b) {
+        if (a.save_unix != b.save_unix)
+            return a.save_unix > b.save_unix;
+        return std::strcmp(a.path, b.path) < 0;
+    });
+    for (u32 i = 0; i < n; ++i)
+        rows[i] = all[i];
+    *count = n;
+    return ret_(n == needed ? OK : u32(ERR_TRUNCATED), "%s", "");
 }
 
 u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
@@ -2497,6 +3293,7 @@ u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
     out->elapsed_ms = i.elapsed_ms;
     out->boot_hash = i.boot_hash;
     copy_cstr(out->label, sizeof(out->label), i.label);
+    copy_cstr(out->label_full, sizeof(out->label_full), i.label_full); /* N-090 */
     copy_cstr(out->model, sizeof(out->model), i.model);
     copy_cstr(out->serial, sizeof(out->serial), i.serial);
     return ret_ok();
@@ -2515,6 +3312,13 @@ u32 session_stats_impl(cr_ui_session* sess, cr_ui_scan_stats* out) {
     out->bytes_scanned = st.bytes_scanned;
     out->elapsed_ms = st.elapsed_ms;
     out->error_ranges = u32(st.errors.ranges().size());
+    /* read-truth (the fake-scan fix): the session record persists the error
+     * map (not the derived fields) - recompute the coverage from the
+     * restored map so a loaded session tells the same truth a live run
+     * would. probe_unreadable is 0 for loaded sessions (the flag is
+     * live-probe metadata, honestly absent - the map's coverage at offset 0
+     * remains visible through error_ranges/bytes_unreadable). */
+    out->bytes_unreadable = st.errors.total_bytes();
     return ret_ok();
 }
 
@@ -2547,7 +3351,12 @@ u32 session_regrade_impl(cr_ui_session* sess, const uint64_t* node_ids, uint32_t
             continue;
         for (uint32_t i = 0; i < count; ++i) {
             if (nd->node_id() == node_ids[i]) {
-                if (tree::grading::regrade_node(nd, gctx))
+                /* M-134: the full-tree re-grade (twin lookup included -
+                 * the og's FUN_14038ac90 can set ANOTHER node's grade);
+                 * the session is device-decoupled by design, so the deep
+                 * read's reader is absent here - the content half runs at
+                 * the completion pass, the registered seam */
+                if (tree::grading::regrade_node(nd, gctx, &s->tree))
                     ++n;
                 break;
             }
@@ -2572,6 +3381,7 @@ u32 session_snapshot_impl(cr_ui_session* sess, cr_ui_snapshot** out) {
     w->slice_start = s->info.slice_offset;
     w->slice_bytes = s->info.slice_bytes;
     w->have_view = s->info.slice_bytes != 0;
+    w->src_session = s; /* S-052: the lazily-armed basis source (borrowed) */
     *out = reinterpret_cast<cr_ui_snapshot*>(w);
     return ret_ok();
 }
@@ -2733,6 +3543,12 @@ u32 session_resume_impl(cr_ui_session* sess, const cr_ui_scan_config* original_c
 extern "C" CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out) {
     return guarded(session_load_impl, utf8_path, out);
 }
+extern "C" CR_UI_API uint32_t cr_ui_session_load_with_events(const char* utf8_path,
+                                                             cr_ui_event_fn fn, void* user,
+                                                             volatile uint32_t* cancel_flag,
+                                                             cr_ui_session** out) {
+    return guarded(session_load_with_events_impl, utf8_path, fn, user, cancel_flag, out);
+}
 extern "C" CR_UI_API uint32_t cr_ui_disk_map(cr_ui_session* sess, cr_ui_snapshot* snap,
                                              const cr_ui_disk_map_geometry* want,
                                              cr_ui_disk_map_geometry* got, uint8_t** allocation,
@@ -2772,6 +3588,75 @@ extern "C" CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess,
                                                    const cr_ui_scan_config* original_cfg,
                                                    cr_ui_scan** out) {
     return guarded(session_resume_impl, sess, original_cfg, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
+                                                 uint32_t* count) {
+    return guarded(session_list_impl, utf8_dir, rows, count);
+}
+
+namespace {
+/* M-154: the pointed resume - the og's continue-last flow reads the
+ * pointer (SavePath, PathFileExistsA-validated) instead of enumerating
+ * (FUN_140286390's SavePath-restore, DRWUI:443092-443127). */
+u32 session_last_autosave_path_impl(const char* utf8_dir, char* out_path, uint32_t cap) {
+    if (!utf8_dir || !*utf8_dir || !out_path || cap == 0)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/out_path/cap");
+    session::LastScanInfo info;
+    if (!session::last_scan_info_read(utf8_dir, info) || !info.exists)
+        return ret_(ERR_RANGE_OUT_OF_BOUNDS, "no live last-scan pointer in %s", utf8_dir);
+    if (info.save_path.size() + 1 > cap)
+        return ret_(ERR_TRUNCATED, "path %zu bytes exceeds cap %u", info.save_path.size(), cap);
+    copy_cstr(out_path, cap, info.save_path.c_str());
+    return ret_ok();
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir, char* out_path,
+                                                               uint32_t cap) {
+    return guarded(session_last_autosave_path_impl, utf8_dir, out_path, cap);
+}
+
+namespace {
+/* M-154 (the pointed-resume ABI half): the og's continue-last flow reads
+ * the pointer (SavePath, PathFileExistsA-validated, FUN_140286390's
+ * SavePath-restore, DRWUI:443092-443127) and restores through the shared
+ * load path instead of enumerating - no directory scan, no sort
+ * (cr_ui.h:917-927 contract). The dead-pointer class is ERR_OPEN_FAILED
+ * per that contract: no sidecar, a pointed file that does not exist, or
+ * a pointer that does not name an auto session. The auto-name gate
+ * mirrors cr_lastscan.cpp's own retention gate (name_is_auto + the S82
+ * rider's two-field agreement - save_path must END WITH the gated name):
+ * a tampered sidecar is refused, never followed, exactly as the
+ * retention path refuses what it is asked to remove. */
+bool resume_last_name_is_auto_(const std::string& name) {
+    if (name.size() <= 5 || name.compare(0, 5, "auto_") != 0)
+        return false;
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
+        return false;
+    if (name.find("..") != std::string::npos)
+        return false;
+    return name.size() >= 5 + 5 && name.compare(name.size() - 5, 5, ".crsf") == 0;
+}
+u32 session_resume_last_impl(const char* utf8_dir, cr_ui_session** out) {
+    if (!utf8_dir || !*utf8_dir || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/out");
+    session::LastScanInfo info;
+    if (!session::last_scan_info_read(utf8_dir, info) || !info.exists)
+        return ret_(ERR_OPEN_FAILED, "no live last-scan pointer in %s", utf8_dir);
+    if (!resume_last_name_is_auto_(info.name))
+        return ret_(ERR_OPEN_FAILED, "pointer does not name an auto session (%s)",
+                    info.name.c_str());
+    if (info.save_path.size() < info.name.size() ||
+        info.save_path.compare(info.save_path.size() - info.name.size(), info.name.size(),
+                               info.name) != 0)
+        return ret_(ERR_OPEN_FAILED, "pointer fields disagree (save_path does not name %s)",
+                    info.name.c_str());
+    return session_load_impl(info.save_path.c_str(), out);
+}
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_session_resume_last(const char* utf8_dir, cr_ui_session** out) {
+    return guarded(session_resume_last_impl, utf8_dir, out);
 }
 
 /* =========================================================================
@@ -2831,6 +3716,8 @@ u32 snapshot_node_impl(cr_ui_snapshot* snap, uint32_t index, cr_ui_node_info* ou
     out->carve_confidence = n.carve_confidence;
     out->hash_valid = n.hash_valid ? 1u : 0u;
     std::memcpy(out->sha128, n.sha128, 16);
+    out->version_group = n.version_group;             /* M-101 (the seat's u64 hash) */
+    out->tags_extracted = n.tags_extracted ? 1u : 0u; /* M-101 */
     const std::string name = u16_to_u8(n.name);
     out->name_len = u32(name.size());
     if (!name_buf)
@@ -2898,7 +3785,9 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         return ret_(ERR_BAD_PARAMETER, "bad argument: sess/q/rows/row_count/total_matched");
     auto* s = reinterpret_cast<CrSession*>(sess);
     query::Query cq;
-    cq.filter.category_mask = q->category_mask ? q->category_mask : 0x1FFu;
+    cq.filter.category_mask = q->category_mask
+                                  ? q->category_mask
+                                  : 0x3FFu; /* N-126: Unsaved widens the default (9 -> 10 bits) */
     cq.filter.size_min = q->size_min;
     cq.filter.size_max = q->size_max ? q->size_max : ~u64(0);
     cq.filter.modified_from = q->modified_from;
@@ -2910,8 +3799,13 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         cq.filter.name_substring = q->name_substring;
     if (q->path_prefix) /* ABI-since core-api: the og path filter group */
         cq.filter.path_prefix = q->path_prefix;
+    if (q->path_substring) /* M-072 (ABI-appended): the path group's substring form */
+        cq.filter.path_substring = q->path_substring;
+    cq.filter.state_mask = q->state_mask ? q->state_mask : 0xFu; /* M-072 */
     cq.filter.deleted_only = q->deleted_only != 0;
     cq.filter.origin_mask = q->origin_mask ? q->origin_mask : 0xFu;
+    cq.filter.version_group = q->version_group; /* M-101 (the seat's axis) */
+    cq.filter.tags_only = q->tags_only != 0;    /* M-101 */
     switch (q->sort) {
     case 1:
         cq.sort = query::SortKey::Name;
@@ -2967,6 +3861,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         arr[i].confidence = r.confidence;
         arr[i].category = r.category;
         arr[i].grade = r.node ? u32(r.node->grade()) : 1u;
+        arr[i].version_group = r.version_group;   /* M-101 (the seat's u64) */
+        arr[i].tags_extracted = r.tags_extracted; /* M-101 (the seat's row field) */
         if (!arr[i].name || !arr[i].path) {
             for (u32 k = 0; k <= i; ++k) {
                 std::free(arr[k].name);
@@ -3142,10 +4038,37 @@ u32 preview_open_snapshot_impl(cr_ui_device* dev, cr_ui_snapshot* snap, uint32_t
     auto* p = new CrPreview();
     p->owned.reset(props);
     /* F-1: extents are absolute - preview through the PARENT disk when the
-     * scan device is a volume slice (same basis rule as the recovery writer) */
+     * scan device is a volume slice (same basis rule as the recovery writer).
+     * S-052: basis rows preview through the snapshot's source table (the
+     * session's lazy arm or the scan's live registry - same contract as
+     * the snapshot recovery path). */
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
+    {
+        /* walk the row to its root row's basis (the snapshot twin of
+         * node_basis_id) */
+        u32 i = index;
+        u32 guard = 0;
+        while (w->snap->node(i).parent != tree::SNAP_NONE) {
+            i = w->snap->node(i).parent;
+            if (++guard > w->snap->node_count())
+                break;
+        }
+        const u32 basis = w->snap->node(i).basis;
+        if (basis != 0) {
+            IStorageDevice* bdev = nullptr;
+            if (w->src_session != nullptr) {
+                session_arm_ldm_basis(w->src_session, src);
+                if (w->src_session->ldm_basis)
+                    bdev = w->src_session->ldm_basis->at(basis);
+            } else if (w->src_scan != nullptr && w->ldm_basis) {
+                bdev = w->ldm_basis->at(basis);
+            }
+            if (bdev != nullptr)
+                src = bdev;
+        }
+    }
     p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
@@ -3171,11 +4094,19 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
         return ret_(ERR_NO_MEMORY, "props clone failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
+    p->watch = s->tag_watch;    /* M-101: the tag-mark liveness watch */
+    p->watch_node_id = node_id; /* M-101: re-find target (node_id is the
+                                 * ABI's own addressing key; the private
+                                 * props copy stays the content source) */
     /* F-1: extents are absolute - preview through the PARENT disk when the
-     * scan device is a volume slice (same basis rule as the recovery writer) */
+     * scan device is a volume slice (same basis rule as the recovery writer).
+     * S-052: LDM-basis nodes preview through the session's (lazily armed)
+     * virtual volume device - the same multi-disk mapping the scan read
+     * through (preview bytes == recovery bytes, the finding's contract). */
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
+    src = session_node_device(s, node, src);
     p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
@@ -3203,6 +4134,25 @@ u32 preview_metadata_impl(cr_ui_preview* pv, cr_ui_metadata* out) {
         return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
     auto* p = reinterpret_cast<CrPreview*>(pv);
     const preview::Metadata m = preview::extract_metadata(*p->reader, preview::Caps{});
+    /* M-101 (this lane's rider over the seat's carrier): the Tags
+     * Extracted PRODUCER - the seat's props flag had no stamping path
+     * ("stamped by the host's preview/metadata pass" with no stamping
+     * code anywhere - a dead flag, the no-disabled-surface class). This
+     * is that pass, at the seat's own documented semantics (cr_node.h:
+     * "when extract_metadata() produced tag data (EXIF orientation/
+     * datetime, media duration/codec, dimensions)"): fires when the
+     * extraction yielded any tag-family datum, stamped on the live
+     * node's PROPS (the seat's carrier - the query axis, the snapshot
+     * rows, and the ABI node_info all read it from there). The watch
+     * gates the session's lifetime: post-close, nothing is marked; the
+     * handle's private props copy still serves metadata either way. */
+    if (p->watch && p->watch->alive &&
+        (!m.orientation.empty() || !m.datetime.empty() || m.duration_ms != 0 || !m.codec.empty() ||
+         m.width != 0 || m.height != 0)) {
+        tree::FileNode* n = find_node(p->watch->sess->tree, p->watch_node_id);
+        if (n != nullptr && n->props() != nullptr)
+            n->props()->tags_extracted = true;
+    }
     std::memset(out, 0, sizeof(*out));
     bool fit = true;
     fit &= copy_bstr(out->kind, sizeof(out->kind), m.kind);
@@ -3224,6 +4174,43 @@ u32 preview_unreadable_impl(cr_ui_preview* pv, uint64_t* total_bytes, uint32_t* 
     auto* p = reinterpret_cast<CrPreview*>(pv);
     *total_bytes = p->reader->unreadable_spans().total_bytes();
     *range_count = u32(p->reader->unreadable_spans().ranges().size());
+    return ret_ok();
+}
+
+/* M-116: the archive-inventory ABI half. The two-call pattern over the
+ * handle-cached extraction (see CrPreview). Non-archive nodes report
+ * count 0 - never an error (the browse view renders an empty listing,
+ * the og's model behavior for non-archives). */
+u32 archive_entry_count_impl(cr_ui_preview* pv, uint32_t* out) {
+    if (!pv || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
+    auto* p = reinterpret_cast<CrPreview*>(pv);
+    if (!p->archive_cached) {
+        p->archive_cache = preview::extract_metadata(*p->reader, preview::Caps{});
+        p->archive_cached = true;
+    }
+    *out = u32(p->archive_cache.entries.size());
+    return ret_ok();
+}
+
+u32 archive_entry_impl(cr_ui_preview* pv, uint32_t index, cr_ui_archive_entry* out) {
+    if (!pv || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
+    auto* p = reinterpret_cast<CrPreview*>(pv);
+    if (!p->archive_cached) {
+        p->archive_cache = preview::extract_metadata(*p->reader, preview::Caps{});
+        p->archive_cached = true;
+    }
+    if (u64(index) >= p->archive_cache.entries.size())
+        return ret_(ERR_RANGE_OUT_OF_BOUNDS, "archive entry index %u of %llu", index,
+                    static_cast<unsigned long long>(p->archive_cache.entries.size()));
+    const preview::ArchiveEntry& e = p->archive_cache.entries[index];
+    std::memset(out, 0, sizeof(*out));
+    bool fit = copy_bstr(out->name, sizeof(out->name), e.name);
+    out->size = e.size;
+    out->compressed = e.compressed;
+    out->crc_present = e.crc_present ? 1u : 0u;
+    out->name_truncated = fit ? 0u : 1u;
     return ret_ok();
 }
 
@@ -3258,6 +4245,185 @@ extern "C" CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_me
 extern "C" CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
                                                        uint32_t* range_count) {
     return guarded(preview_unreadable_impl, pv, total_bytes, range_count);
+}
+extern "C" CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint32_t* out) {
+    return guarded(archive_entry_count_impl, pv, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
+                                                     cr_ui_archive_entry* out) {
+    return guarded(archive_entry_impl, pv, index, out);
+}
+/* =========================================================================
+ * thumbnail (M-102: the engine's ABI half; M-083: the grade promotion)
+ * ========================================================================= */
+
+namespace {
+
+/* the engine status -> the ABI error space (the engine's own names map
+ * 1:1 onto the shared numeric space; truncation is DATA, not an error -
+ * it crosses via cr_ui_thumbnail_info.truncated on Ok) */
+u32 thumb_status_to_abi(preview::ThumbStatus st) {
+    switch (st) {
+    case preview::ThumbStatus::Ok:
+        return 0;
+    case preview::ThumbStatus::BadParameter:
+        return ERR_BAD_PARAMETER;
+    case preview::ThumbStatus::Unsupported:
+        return ERR_UNSUPPORTED;
+    case preview::ThumbStatus::Oversized:
+    case preview::ThumbStatus::BudgetExceeded:
+        return ERR_UNSUPPORTED; /* named refusal: the caps refused the input */
+    case preview::ThumbStatus::DecodeFailed:
+        return ERR_TRUNCATED; /* damaged stream (truncated set by engine) */
+    case preview::ThumbStatus::UnreadableSpan:
+        return ERR_READ_FAILED;
+    }
+    return ERR_INTERNAL;
+}
+
+u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t node_id,
+                            const cr_ui_thumbnail_caps* caps, uint8_t* rgba, uint32_t rgba_cap,
+                            cr_ui_thumbnail_info* info) {
+    if (!dev || !sess || !info)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/sess/info");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    auto* s = reinterpret_cast<CrSession*>(sess);
+    tree::FileNode* node = find_node(s->tree, node_id);
+    if (!node)
+        return ret_(ERR_BAD_PARAMETER, "node id %llu not found in the session tree",
+                    static_cast<unsigned long long>(node_id));
+    if (!node->props())
+        return ret_(ERR_BAD_PARAMETER, "node has no content properties");
+    if (node->is_full())
+        return ret_(ERR_BAD_PARAMETER, "root/virtual nodes have no thumbnailable content");
+    /* M-115: the og's dispatcher creates thumbnail work items only for
+     * files with size > 0x14 (DRWUI :421391-421403, the <=20-byte skip)
+     * - such files never promote through the thumbnail path in the og,
+     * and the core must not promote them either (the pre-fix core
+     * promoted any decodable image, however small). */
+    if (node->props()->logical_size <= 0x14)
+        return ret_(ERR_UNSUPPORTED,
+                    "thumbnail: %llu-byte file under the og's 20-byte work-item floor",
+                    static_cast<unsigned long long>(node->props()->logical_size));
+
+    /* caps: every zero field = the engine default (the header contract);
+     * nonzero values ride the engine's own validation (BadParameter) */
+    preview::ThumbnailCaps ecaps;
+    if (caps) {
+        if (caps->max_edge != 0)
+            ecaps.max_edge = caps->max_edge;
+        if (caps->max_pixels != 0)
+            ecaps.max_pixels = caps->max_pixels;
+        if (caps->max_read != 0)
+            ecaps.max_read = caps->max_read;
+        if (caps->max_work != 0)
+            ecaps.max_work = caps->max_work;
+        /* N-137: the header's "validated 0/1" claim is now enforced -
+         * the knob has no off position (og parity: the embedded fast
+         * path is always preferred), so 0 = default-ON, 1 = explicit-
+         * ON, anything above 1 is a contract violation (BadParameter) */
+        if (caps->allow_embedded > 1)
+            return ret_(ERR_BAD_PARAMETER, "caps->allow_embedded must be 0 or 1 (got %u)",
+                        caps->allow_embedded);
+        if (caps->allow_embedded != 0)
+            ecaps.allow_embedded = caps->allow_embedded != 0;
+    }
+
+    /* the reader mirrors the preview surface (F-1: extents are absolute
+     * - reads through the PARENT disk when the scan device is a volume
+     * slice, the same basis rule as the preview reader and the recovery
+     * writer). S-052: LDM-basis nodes thumbnail through the session's
+     * armed virtual device (thumbnail bytes == preview == recovery). */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    src = session_node_device(s, node, src);
+    preview::PreviewReader reader(src, node->props());
+
+    /* N-144: the og's TxtViewFiles dispatch (DRWUI :422447-455) - a file
+     * whose EXTENSION is in the [Filter] TxtViewFiles list takes the
+     * text-snapshot render (the first <=100 bytes as a content-preview
+     * image, FUN_1403d88e0), never the image decode path; the same
+     * eligibility table M-108 landed for the preview panel (one shared
+     * table, two consumers - the finding's own plan). Extension-less
+     * names are not text-viewable (the consumers' empty-needle rule). */
+    const std::string nm = node->name_utf8();
+    const size_t dot = nm.rfind('.');
+    bool is_text_view = false;
+    if (dot != std::string::npos && dot + 1 < nm.size()) {
+        std::string ext = nm.substr(dot);
+        for (char& c : ext)
+            if (c >= 'A' && c <= 'Z')
+                c = char(c - 'A' + 'a'); /* the og's toupper fold, folded here */
+        is_text_view = preview::textexts::eligible(ext);
+    }
+
+    preview::Thumbnail thumb;
+    const preview::ThumbStatus st = is_text_view ? preview::make_text_snapshot(reader, ecaps, thumb)
+                                                 : preview::make_thumbnail(reader, ecaps, thumb);
+    std::memset(info, 0, sizeof(*info));
+
+    /* M-115: the og's promotion is READ-gated, not decode-gated
+     * (DRWUI :422507-514, binary-verified at VA 0x140263b2c-b9a:
+     * grade != 2 && (textSnapshot || (!TxtView && readVerdict==0 &&
+     * (payload || category != 3))) -> FUN_140089630(node, 2)). The
+     * recovery READ (FUN_1403eba50, :422442) is the promotion input;
+     * the decode runs later in the og and its failure NEVER retracts
+     * the promotion. The engine now discloses the read verdict
+     * (Thumbnail::read_ok): a file whose extents read cleanly promotes
+     * even when the decoder refuses the damaged stream - the
+     * damaged-but-readable population the og grades 2 and the pre-fix
+     * core left ungraded. The preview-pane (category-3) exclusion is
+     * structural: this ABI is the list-tier surface by doctrine (the
+     * preview surface never promotes - its reader paths carry no
+     * promotion). The node setter's monotonic-max + sticky-2
+     * semantics ARE the og's, so a no-op for already-high nodes. */
+    if (thumb.read_ok && node->grade() != tree::Grade::High)
+        node->set_grade(tree::Grade::High);
+
+    if (st != preview::ThumbStatus::Ok) {
+        /* the named refusals carry the family for diagnostics */
+        std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                      thumb.source_format.c_str());
+        info->truncated = thumb.truncated ? 1 : 0;
+        return ret_(thumb_status_to_abi(st), "thumbnail %s", preview::thumbnail_status_name(st));
+    }
+
+    info->width = thumb.width;
+    info->height = thumb.height;
+    info->bytes_needed = thumb.width * thumb.height * 4u;
+    std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                  thumb.source_format.c_str());
+    info->from_embedded = thumb.from_embedded ? 1 : 0;
+    info->truncated = thumb.truncated ? 1 : 0;
+    if (rgba == nullptr)
+        return ret_ok(); /* the size probe: pixels discarded by design */
+    if (rgba_cap < info->bytes_needed) {
+        info->bytes_needed = thumb.width * thumb.height * 4u; /* keep the answer */
+        return ret_(ERR_NO_MEMORY, "rgba buffer %u < %u needed", rgba_cap, info->bytes_needed);
+    }
+    std::memcpy(rgba, thumb.rgba.data(), size_t(info->bytes_needed));
+    return ret_ok();
+}
+
+u32 thumbnail_format_supported_impl(const char* utf8_format) {
+    if (!utf8_format)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_format");
+    return preview::thumbnail_format_supported(utf8_format) ? 1u : 0u;
+}
+
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
+                                                       uint64_t node_id,
+                                                       const cr_ui_thumbnail_caps* caps,
+                                                       uint8_t* rgba, uint32_t rgba_cap,
+                                                       cr_ui_thumbnail_info* info) {
+    return guarded(thumbnail_generate_impl, dev, sess, node_id, caps, rgba, rgba_cap, info);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format) {
+    return guarded(thumbnail_format_supported_impl, utf8_format);
 }
 
 /* =========================================================================
@@ -3310,7 +4476,19 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
-    r->writer.reset(new recovery::SafeWriter(*r->io, src, wcfg));
+    /* M-136: the writer's source reads go through the scan's own chain
+     * (build_read_pipe over the resolved ABSOLUTE source - the parent
+     * disk for volume scans, the device itself otherwise; the og's
+     * export reads ride the engine/scan-session stream, never a raw
+     * handle). The chain is owned by the handle and outlives the writer. */
+    r->read_pipe.reset(
+        new orchestrator::ReadPipe(orchestrator::build_read_pipe(src, 8ull << 20, 256 * 1024)));
+    r->writer.reset(new recovery::SafeWriter(*r->io, r->read_pipe->pipe, wcfg));
+    /* M-135 + M-136: the pipe's live error map is the post-retry
+     * hard-failure signal (Skip-mode reads return OK with zero-filled
+     * bad sectors) - the S71 convergence seam's name kept */
+    if (r->read_pipe->retry != nullptr)
+        r->writer->set_read_error_source(r->read_pipe->retry);
     *out = reinterpret_cast<cr_ui_recovery*>(r);
     return ret_ok();
 }
@@ -3325,27 +4503,52 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
     r->dest_root = root;
     r->have_dest = true;
 #ifdef _WIN32
-    /* [F12] arming: the destination volume's disk extent feeds the
-     * writer's overlap refusal (image-file sources have file-internal
-     * extents and cannot be evaluated - documented platform truth) */
-    if (utf8_path[0] && utf8_path[1] == ':' && r->dev->disk_known &&
-        std::strcmp(r->dev->transport, "image") != 0) {
-        u32 ddisk = 0;
-        u64 dstart = 0, dlen = 0;
-        if (win::volume_extent(wchar_t(utf8_path[0]), &ddisk, &dstart, &dlen))
-            r->writer->set_destination(dstart, dlen);
+    /* [F12]+N-013 arming (restored per S-054 after the 1ebd1bcc clobber):
+     * the destination volume's FULL disk placement feeds the writer's
+     * overlap refusal. Any path that resolves to a volume is armed (the
+     * og opens \\.\X: for every local destination - a drive-letter gate
+     * misses UNC/relative/junction destinations). Junctions resolve to
+     * the TARGET's volume. ALL extents arm the writer (spanned/RAID
+     * destinations have more than one span - first-extent-only arming
+     * silently defeated the F12 refusal for later spans).
+     *
+     * Image-file sources are NEVER writer-armed (platform truth, kept):
+     * their node extents are image-internal, so comparing them against
+     * physical destination spans would be false-positive refusals.
+     *
+     * Session-97 recall-0 fix: the same false-positive class existed for
+     * DIFFERENT-disk destinations - the pre-fix code armed unconditionally
+     * and the writer then compared absolute offsets from two different
+     * disks numerically (runs 41042267586 + 41140212296: 10,248/10,405
+     * scenario items refused ERR_DEST_OVERLAP cross-disk, recall 0.0 in
+     * BOTH eras). Arming now requires an extent ON the source disk. */
+    if (std::strcmp(r->dev->transport, "image") != 0) {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(u8_to_ws(utf8_path), &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                std::vector<std::pair<u64, u64>> spans;
+                if (win::dest_overlap_spans(ve, r->dev->disk_known, r->dev->disk, &spans))
+                    r->writer->set_destination_spans(spans);
+            }
+        }
     }
 #endif
     return ret_ok();
 }
 
 /* the CLI's recursive plan(): dirs enqueue as structure items, files as
- * content items; empty leaves survive because every dir is enqueued */
+ * content items; empty leaves survive because every dir is enqueued.
+ * M-018/M-071: bulk walks skip junk-flagged nodes — the og's
+ * FilterFolder hidden set never reaches the recovery queue through a
+ * result-set surface (explicit single-node selection stays allowed). */
 u32 plan_enqueue_session(CrRecovery* r, tree::FileNode* node, const std::u16string& path,
                          u64* queued) {
     for (auto* c = node->first_child(); c; c = c->next_sibling()) {
         if (!c->props())
             continue;
+        if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+            continue; /* M-018/M-071: the hidden junk set */
         const bool is_dir = (c->props()->attributes & 0x10) != 0;
         const u32 eq = r->writer->enqueue(c, path);
         if (eq == OK)
@@ -3390,6 +4593,10 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
         r->analysis.matched = a.matched;
         r->analysis.total = a.total;
         r->analysis.small_result = a.small_result;
+        r->analysis.gauge_matched = a.gauge_matched;                   /* N-183 */
+        r->analysis.gauge_total = a.gauge_total;                       /* N-183 */
+        r->analysis.score = a.score;                                   /* N-183 */
+        r->analysis.ntfs_device_index_high = a.ntfs_device_index_high; /* N-183 */
         r->have_analysis = true;
     }
     /* (merge-storm residue removed here: a byte-identical duplicate of the
@@ -3399,6 +4606,14 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
      * deleted with zero behavior change; the live block keeps the
      * finding's full contract.) */
     const std::u16string dir = r->dest_root + rel_dir_of(node);
+    /* S-052: basis-aware reads - arm the session's LDM devices (first
+     * use) and route the writer through them. The table follows THIS
+     * session (a recovery mixing sessions routes by the last enqueue's
+     * source - the borrowed-nodes contract class). M-136: the arm's
+     * fallback source is the recovery's read pipe (basis-0 and
+     * unresolved-basis items read through retry+cache too). */
+    session_arm_ldm_basis(s, r->read_pipe->pipe);
+    r->writer->set_basis_table(s->ldm_basis.get());
     const u32 eq = r->writer->enqueue(node, dir);
     return ret_(eq, "enqueue %s", err_text(eq)); /* overlap callers count by code */
 }
@@ -3415,6 +4630,10 @@ u32 recovery_enqueue_subtree_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint
         return ret_(ERR_BAD_PARAMETER, "node id %llu not found in the session tree",
                     static_cast<unsigned long long>(node_id));
     const std::u16string dir = r->dest_root + rel_dir_of(node);
+    /* S-052: the session's LDM basis (see enqueue_node; M-136: the arm's
+     * fallback source is the recovery read pipe) */
+    session_arm_ldm_basis(s, r->read_pipe->pipe);
+    r->writer->set_basis_table(s->ldm_basis.get());
     /* self-enqueue files AND real directories (the writer turns dir nodes
      * into mkdir items); roots/virtuals are walked only - the CLI's
      * plan() starts at roots and never enqueues them */
@@ -3448,6 +4667,14 @@ u32 recovery_enqueue_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* snap, ui
     if (n.full)
         return ret_(ERR_BAD_PARAMETER, "root/virtual nodes are not enqueueable");
     const std::u16string dir = r->dest_root + rel_dir_of_snap(*w->snap, index);
+    /* S-052: the snapshot's basis source - the session (lazy arm) or the
+     * scan's live registry (the table built at capture) */
+    if (w->src_session != nullptr) {
+        session_arm_ldm_basis(w->src_session, r->read_pipe->pipe);
+        r->writer->set_basis_table(w->src_session->ldm_basis.get());
+    } else if (w->src_scan != nullptr) {
+        r->writer->set_basis_table(w->ldm_basis.get());
+    }
     const u32 eq = r->writer->enqueue(*w->snap, index, dir);
     return ret_(eq, "enqueue %s", err_text(eq));
 }
@@ -3466,6 +4693,13 @@ u32 recovery_enqueue_subtree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* 
     const tree::SnapNode& n = s.node(index);
     const std::u16string dir = r->dest_root + rel_dir_of_snap(s, index);
     u64 queued = 0;
+    /* S-052: the snapshot's basis source (see enqueue_snapshot) */
+    if (w->src_session != nullptr) {
+        session_arm_ldm_basis(w->src_session, r->read_pipe->pipe);
+        r->writer->set_basis_table(w->src_session->ldm_basis.get());
+    } else if (w->src_scan != nullptr) {
+        r->writer->set_basis_table(w->ldm_basis.get());
+    }
     /* self-enqueue files AND real directories; roots/virtuals are walked
      * only (CLI plan() parity - it never enqueues the roots) */
     if (!n.full) {
@@ -3485,6 +4719,9 @@ u32 recovery_enqueue_subtree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* 
             if (!cn.full && cn.name.empty() && cn.logical_size == 0 && cn.extents.empty() &&
                 (cn.attributes & 0x10) == 0)
                 continue; /* defensive: the CLI's !props() skip */
+            if ((cn.flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                continue; /* M-018/M-071: the hidden junk set (snapshot rows
+                           * carry the flag the same way live nodes do) */
             const bool cdir = (cn.attributes & 0x10) != 0;
             const u32 eq = r->writer->enqueue(s, c, path);
             if (eq == OK)
@@ -3639,22 +4876,8 @@ namespace {
 
 #ifdef _WIN32
 
-/* Template over the attribute row: cr_ui_smart_attr (base ABI) and
- * cr_ui_smart_attr_ex (NG-9: carries the vendor threshold). The fill is
- * identical except the threshold tail, selected at compile time. */
-static void fill_smart_attr_base(cr_ui_smart_attr& dst, const win::health::SmartAttribute& a) {
-    dst.id = a.id;
-    dst.value = a.value;
-    dst.worst = a.worst;
-    dst.raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) | (u64(a.raw[3]) << 24) |
-              (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
-    dst.failing = a.failing ? 1u : 0u;
-    copy_bstr(dst.name, sizeof(dst.name), a.name);
-}
-
-template <typename TAttr>
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint32_t attr_cap,
-                     uint32_t* attr_count) {
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
+                     uint32_t attr_cap, uint32_t* attr_count) {
     if (!rep || !attr_count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: rep/attr_count");
     std::memset(rep, 0, sizeof(*rep));
@@ -3689,12 +4912,13 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint3
         const u32 n = rep->attribute_count < attr_cap ? rep->attribute_count : attr_cap;
         for (u32 i = 0; i < n; ++i) {
             const win::health::SmartAttribute& a = sm.attributes[i];
-            if constexpr (std::is_same_v<TAttr, cr_ui_smart_attr_ex>) {
-                fill_smart_attr_base(attrs[i].base, a);
-                attrs[i].threshold = a.vendor_threshold; /* 0 = not reported */
-            } else {
-                fill_smart_attr_base(attrs[i], a);
-            }
+            attrs[i].id = a.id;
+            attrs[i].value = a.value;
+            attrs[i].worst = a.worst;
+            attrs[i].raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) |
+                           (u64(a.raw[3]) << 24) | (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
+            attrs[i].failing = a.failing ? 1u : 0u;
+            copy_bstr(attrs[i].name, sizeof(attrs[i].name), a.name);
         }
         *attr_count = rep->attribute_count; /* needed size either way */
     }
@@ -3721,7 +4945,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint3
     }
     rep->ssd_like = win::health::looks_like_ssd(h) ? 1u : 0u;
     bool trim = false;
-    if (win::health::query_trim_state(h, trim) == OK) {
+    if (win::health::query_trim_state(trim) == OK) {
         rep->trim_known = 1;
         rep->trim_enabled = trim ? 1u : 0u;
     }
@@ -3735,9 +4959,8 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint3
 
 #else
 
-template <typename TAttr>
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint32_t attr_cap,
-                     uint32_t* attr_count) {
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
+                     uint32_t attr_cap, uint32_t* attr_count) {
     (void)disk;
     (void)rep;
     (void)attrs;
@@ -3753,13 +4976,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint3
 extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
-    return guarded(health_read_impl<cr_ui_smart_attr>, disk, rep, attrs, attr_cap, attr_count);
-}
-
-extern "C" CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
-                                                    cr_ui_smart_attr_ex* attrs, uint32_t attr_cap,
-                                                    uint32_t* attr_count) {
-    return guarded(health_read_impl<cr_ui_smart_attr_ex>, disk, rep, attrs, attr_cap, attr_count);
+    return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
 }
 
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */
@@ -3800,4 +5017,70 @@ extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_si
     out->sign_len = s.len;
     std::memcpy(out->bytes, s.bytes, sizeof(out->bytes));
     return OK;
+}
+
+/* S-040 (R-93): the image-create producer at the ABI (class (a)). */
+extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
+                                                 cr_ui_recovery_progress_fn progress, void* user) {
+    return guarded(image_create_impl, disk, utf8_path, progress, user);
+}
+
+/* ---- M-075: the chkdsk escalation endpoint (the ladder's fix rung) ----
+ * The narrow-ASCII letter form; the win layer's wide seam carries the
+ * spawn. The internal synchronous bound is 15 minutes (900,000 ms) — a
+ * documented engineering default, not a corpus-decoded constant (the
+ * og's WinChkdsk monitoring loop has no decoded bound); on timeout the
+ * process is left running and exit_code reports STILL_ACTIVE (259). */
+static u32 fsck_volume_impl(char letter, uint32_t flags, int32_t* exit_code) {
+#ifdef _WIN32
+    if (exit_code)
+        *exit_code = -1;
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    return win::fsck::fsck_volume(wchar_t(lc), flags, 900000u, exit_code);
+#else
+    (void)letter;
+    (void)flags;
+    (void)exit_code;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_fsck_volume requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code) {
+    return guarded(fsck_volume_impl, letter, flags, exit_code);
+}
+
+/* ---- M-078: the CBitlockerTurnOffOperation endpoint (the consented
+ * destructive twin of the unlock surface). The progress callback marks
+ * the REQUEST phases (start + the settled command) - the OS decrypt
+ * percentage is not observable through this surface (the honest
+ * contract; the og's pending-op queue is UI-layer chrome over the same
+ * verbs). Nothing in the scan/open path calls this - explicit host
+ * opt-in only. */
+static u32 turn_off_bitlocker_impl(char letter, cr_ui_progress_fn progress, void* user) {
+#ifdef _WIN32
+    const char lc = char(letter & 0xFF);
+    if ((lc < 'A' || lc > 'Z') && (lc < 'a' || lc > 'z'))
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter must be 'A'..'Z'");
+    if (progress)
+        progress(user, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0, 0, 0); /* request start */
+    const u32 rc = win::bitlocker::turn_off(wchar_t(lc));
+    if (progress)
+        progress(user, 0xFFFFFFFFu, rc == OK ? 1000u : 0u, 0xFFFFFFFFu, 0, 0, 0); /* settled */
+    if (rc != OK)
+        return ret_(rc, "turn-off refused: both command forms failed (the volume stays "
+                        "locked/encrypted - never a silent success)");
+    return OK;
+#else
+    (void)letter;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_turn_off_bitlocker requires the Windows platform layer");
+#endif
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_turn_off_bitlocker(char letter, cr_ui_progress_fn progress,
+                                                       void* user) {
+    return guarded(turn_off_bitlocker_impl, letter, progress, user);
 }

@@ -10,7 +10,13 @@
 #include <gtest/gtest.h>
 #include "cr/preview/cr_preview.h"
 #include "cr/compress/cr_decomp.h"
+#include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
+#include <set>
+#include <string>
+#include <vector>
 #include <zlib.h>
 #include <thread>
 
@@ -400,6 +406,171 @@ TEST(PreviewMeta, WavDurationAndMp4Brand) {
     }
 }
 
+TEST(PreviewMeta, AviMetadataExtracted) {
+    /* N-184: RIFF/AVI with a LIST hdrl carrying avih (40ms frames, 100
+     * frames -> 4000 ms) + 2 strh streams; the movi payload follows. */
+    std::vector<u8> avi(256, 0);
+    std::memcpy(avi.data(), "RIFF", 4);
+    putle32(avi, 4, u32(avi.size() - 8));
+    std::memcpy(avi.data() + 8, "AVI ", 4);
+    std::memcpy(avi.data() + 12, "LIST", 4);
+    putle32(avi, 16, 4 + (8 + 64) + (8 + 56) * 2); /* hdrl size */
+    std::memcpy(avi.data() + 20, "hdrl", 4);
+    /* avih at 24: size 64 */
+    std::memcpy(avi.data() + 24, "avih", 4);
+    putle32(avi, 28, 64);
+    putle32(avi, 32, 40000); /* dwMicroSecPerFrame @ avih+8 = 40 ms */
+    putle32(avi, 44, 100);   /* dwLength @ avih+20 = 100 frames */
+    /* strh x2 */
+    u32 at = 24 + 8 + 64;
+    for (int i = 0; i < 2; ++i) {
+        std::memcpy(avi.data() + at, "strh", 4);
+        putle32(avi, at + 4, 56);
+        at += 8 + 56;
+    }
+    std::memcpy(avi.data() + at, "LIST", 4);
+    putle32(avi, at + 4, 4);
+    std::memcpy(avi.data() + at + 8, "movi", 4);
+    MemDevice dev(std::move(avi));
+    tree::FileProperties::Extent a{0, 256, 0, 0};
+    tree::FileProperties* pr = props_with("c.avi", 256, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("avi", m.format);
+    EXPECT_EQ(u64(40000) * 100 / 1000, m.duration_ms) << "40ms x 100 frames";
+    EXPECT_NE(std::string::npos, m.codec.find("2str")) << "the stream count rides the codec";
+}
+
+TEST(PreviewMeta, MkvMetadataExtracted) {
+    /* N-184: EBML header + Segment > Info (TimecodeScale 1ms, Duration
+     * 2500 units) + Tracks (2 TrackEntry). Every size is a proper vint:
+     *   EBML hdr: id 1A45DFA3, size 86 (6), body 42 86 81 01 00 00  -> 11 B
+     *   Segment:  id 18538067, size 40 24 (= 36)                    -> 6 B, data@17
+     *   Info:     id 1549A966, size 8E (= 14)                        -> 5 B, data@22
+     *     TimecodeScale: id 2AD7B1, size 83, 0F4240 (= 1e6 ns = 1ms) -> 7 B
+     *     Duration:      id 4489,   size 84, float 2500.0f           -> 7 B
+     *   Tracks:   id 1654AE6B, size 8A (= 10)                        -> 5 B, data@41
+     *     TrackEntry x2:  id AE, size 82, body E0 00                 -> 4 B each
+     */
+    std::vector<u8> mk(128, 0);
+    size_t at = 0;
+    auto put = [&](const u8* d, size_t n) {
+        std::memcpy(mk.data() + at, d, n);
+        at += n;
+    };
+    const u8 ebml[] = {0x1A, 0x45, 0xDF, 0xA3, 0x86, 0x42, 0x86, 0x81, 0x01, 0x00, 0x00};
+    put(ebml, sizeof(ebml));
+    const u8 seg[] = {0x18, 0x53, 0x80, 0x67, 0x40, 0x24};
+    put(seg, sizeof(seg));
+    const u8 info[] = {0x15, 0x49, 0xA9, 0x66, 0x8E};
+    put(info, sizeof(info));
+    const u8 tcs[] = {0x2A, 0xD7, 0xB1, 0x83, 0x0F, 0x42, 0x40};
+    put(tcs, sizeof(tcs));
+    const u8 dur[] = {0x44, 0x89, 0x84, 0x45, 0x1C, 0x40, 0x00};
+    put(dur, sizeof(dur));
+    const u8 trk[] = {0x16, 0x54, 0xAE, 0x6B, 0x8A};
+    put(trk, sizeof(trk));
+    const u8 te[] = {0xAE, 0x82, 0xE0, 0x00};
+    put(te, sizeof(te));
+    put(te, sizeof(te));
+    const u64 len = at;
+    MemDevice dev(std::move(mk));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("v.mkv", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("mkv", m.format);
+    /* TimecodeScale 1000000ns = 1ms; Duration 2500 units -> 2500 ms */
+    EXPECT_EQ(u64(2500), m.duration_ms);
+    EXPECT_NE(std::string::npos, m.codec.find("2trk")) << "the track count rides the codec";
+}
+
+TEST(PreviewMeta, FlacMetadataExtracted) {
+    /* N-184: fLaC + STREAMINFO (rate 44100, channels 2, 441000 samples
+     * -> 10000 ms). */
+    std::vector<u8> fl(4 + 4 + 34, 0);
+    std::memcpy(fl.data(), "fLaC", 4);
+    fl[4] = 0x00; /* last+type STREAMINFO */
+    fl[5] = 0;    /* block size 34 */
+    fl[6] = 0;
+    fl[7] = 34;
+    const u32 rate = 44100;
+    const u32 chans = 2;
+    const u64 samples = 441000;
+    /* packed field at si+10..si+17: 20 bits rate | 3 bits ch-1 | 5 bits
+     * bps-1 | 36 bits samples (si = fl+8) */
+    u64 bits = (u64(rate) << 44) | (u64(chans - 1) << 41) | (u64(16 - 1) << 36) | samples;
+    for (int i = 0; i < 8; ++i)
+        fl[8 + 10 + i] = u8(bits >> (8 * (7 - i)));
+    const u64 len = fl.size();
+    MemDevice dev(std::move(fl));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.flac", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("audio", m.kind);
+    EXPECT_EQ("flac", m.format);
+    EXPECT_EQ(u64(10000), m.duration_ms) << "441000 samples at 44100 Hz";
+    EXPECT_EQ(44100u, m.width);
+    EXPECT_EQ(2u, m.height);
+}
+
+TEST(PreviewMeta, Mp3DurationEstimated) {
+    /* N-184: an ID3v2.3 tag (10-byte header + 100-byte body) then an
+     * MPEG1 Layer III 128kbps frame sync; total payload 8210 bytes ->
+     * (8210*8)/128 = 513 ms. */
+    std::vector<u8> mp3(10 + 100 + 8100, 0);
+    std::memcpy(mp3.data(), "ID3", 3);
+    mp3[3] = 3; /* v2.3 */
+    mp3[4] = 0;
+    mp3[5] = 0; /* flags */
+    mp3[6] = 0;
+    mp3[7] = 0; /* syncsafe size = 100 */
+    mp3[8] = 0;
+    mp3[9] = 100;
+    const size_t frame = 10 + 100;
+    mp3[frame] = 0xFF;
+    mp3[frame + 1] = 0xFB; /* MPEG1 Layer III, no CRC */
+    mp3[frame + 2] = 0x90; /* bitrate index 9 = 128k, rate index 0 = 44100 */
+    const u64 len = mp3.size();
+    MemDevice dev(std::move(mp3));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.mp3", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("audio", m.kind);
+    EXPECT_EQ("mp3", m.format);
+    EXPECT_EQ(44100u, m.width);
+    EXPECT_EQ(u64(len - frame) * 8 / 128, m.duration_ms) << "the bitrate estimate";
+}
+
+TEST(PreviewMeta, M4aTypedAsMp4Family) {
+    /* N-184: the M4A brand rides the ftyp branch (it IS an ISO-BMFF
+     * container): kind=video, format=mp4, codec="M4A ". */
+    std::vector<u8> m4a(64, 0);
+    putbe32(m4a, 0, 16);
+    std::memcpy(m4a.data() + 4, "ftyp", 4);
+    std::memcpy(m4a.data() + 8, "M4A ", 4);
+    putbe32(m4a, 12, 0);
+    std::memcpy(m4a.data() + 16, "mp42", 4);
+    const u64 len = m4a.size();
+    MemDevice dev(std::move(m4a));
+    tree::FileProperties::Extent a{0, len, 0, 0};
+    tree::FileProperties* pr = props_with("a.m4a", len, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("video", m.kind);
+    EXPECT_EQ("mp4", m.format) << "M4A is MP4-family (the og's naming contract, S-049)";
+    EXPECT_EQ("M4A ", m.codec);
+}
+
 TEST(PreviewMeta, PdfTextAndPlainAndUnsupported) {
     /* PDF header + text */
     {
@@ -502,9 +673,12 @@ TEST(PreviewMeta, TruncatedMagicsAreSafeAndHonest) {
         cases.push_back({{'G', 'I', 'F', '8'}, "image", "gif"}); /* 4-byte GIF */
         cases.push_back({{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'},
                          "image",
-                         "webp"});                          /* 12-byte RIFF/WEBP */
-        cases.push_back({{'P', 'K'}, "archive", "zip"});    /* 2-byte PK */
-        cases.push_back({{'%'}, "text", "txt"});            /* 1-byte printable: text */
+                         "webp"});                       /* 12-byte RIFF/WEBP */
+        cases.push_back({{'P', 'K'}, "archive", "zip"}); /* 2-byte PK */
+        /* M-108: eligibility is extension-gated (the og's TxtViewFiles
+         * whitelist) - a printable head in a non-whitelisted .bin is NOT
+         * text (the old content-sniff false-positive class) */
+        cases.push_back({{'%'}, "unsupported", ""}); /* printable head, non-whitelisted ext */
         cases.push_back({{0x00, 0xFF}, "unsupported", ""}); /* binary */
         for (auto& c : cases) {
             const u64 n = c.bytes.size();
@@ -854,7 +1028,7 @@ TEST(PreviewMeta, CompressedExtentReportsTruncatedUnderBudget) {
     ASSERT_GT(comp.size(), 4096u); /* the block alone busts the budget */
     MemDevice dev(comp);
     tree::FileProperties* pr =
-        props_with("c.bin", plain.size(), 0,
+        props_with("c.txt", plain.size(), 0,
                    {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
@@ -887,7 +1061,7 @@ TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
     }
     MemDevice dev(comp);
     tree::FileProperties* pr =
-        props_with("c.bin", plain.size(), 0,
+        props_with("c.txt", plain.size(), 0,
                    {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
@@ -901,6 +1075,303 @@ TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
     EXPECT_GE(r.device_bytes(), comp.size());
     EXPECT_EQ(0u, r.device_bytes() % comp.size());
     EXPECT_FALSE(m.truncated);
+}
+
+/* ---- M-066: the archive-content inventory (ArchivePreviewModel) ---- */
+
+namespace {
+
+/* build a minimal multi-entry zip: N members with the given names, a
+ * stored (method-0) body of the given size, the CD + EOCD. crc != 0 for
+ * the entries whose index is in has_crc. */
+std::vector<u8> build_multi_zip(const std::vector<std::string>& names, u32 body_len,
+                                const std::set<u32>& has_crc = {}) {
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    std::vector<u32> lho(names.size(), 0);
+    std::vector<std::vector<u8>> cds;
+    for (u32 i = 0; i < names.size(); ++i) {
+        lho[i] = u32(zip.size());
+        zip.insert(zip.end(), {'P', 'K', 3, 4});
+        put16(20);
+        put16(0);
+        put16(0); /* method = stored */
+        put16(0);
+        put16(0);
+        put32(has_crc.count(i) ? 0xA1B2C3D4u : 0u);
+        put32(body_len);
+        put32(body_len);
+        put16(u16(names[i].size()));
+        put16(0);
+        zip.insert(zip.end(), names[i].begin(), names[i].end());
+        zip.insert(zip.end(), size_t(body_len), u8('z' + i));
+        /* the CD record (built later, offsets need lho first) */
+        std::vector<u8> cd;
+        const auto p16 = [&cd](u16 v) {
+            cd.push_back(u8(v));
+            cd.push_back(u8(v >> 8));
+        };
+        const auto p32 = [&cd](u32 v) {
+            cd.push_back(u8(v));
+            cd.push_back(u8(v >> 8));
+            cd.push_back(u8(v >> 16));
+            cd.push_back(u8(v >> 24));
+        };
+        cd.insert(cd.end(), {'P', 'K', 1, 2});
+        p16(20);
+        p16(20);
+        p16(0);
+        p16(0);
+        p16(0);
+        p16(0);
+        p32(has_crc.count(i) ? 0xA1B2C3D4u : 0u);
+        p32(body_len);
+        p32(body_len);
+        p16(u16(names[i].size()));
+        p16(0);
+        p16(0);
+        p16(0);
+        p16(0);
+        p32(0);
+        p32(lho[i]);
+        cd.insert(cd.end(), names[i].begin(), names[i].end());
+        cds.push_back(std::move(cd));
+    }
+    const size_t cd_at = zip.size();
+    size_t cd_len = 0;
+    for (const auto& cd : cds) {
+        zip.insert(zip.end(), cd.begin(), cd.end());
+        cd_len += cd.size();
+    }
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(u16(names.size()));
+    put16(u16(names.size()));
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+    return zip;
+}
+
+} // namespace
+
+TEST(PreviewMeta, ArchiveEnumeratesEntries) {
+    /* M-066: a plain multi-entry zip (the FS-origin case - not a carve
+     * child) previews with the full content inventory: names, sizes,
+     * compressed sizes, per-entry CRC presence. */
+    const std::vector<u8> zip =
+        build_multi_zip({"readme.txt", "dir/photo.jpg", "data.bin"}, 100, {0, 2});
+    MemDevice dev{std::vector<u8>(zip)};
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("ar.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    EXPECT_EQ("zip", m.format);
+    ASSERT_EQ(3u, m.entries.size()) << "the ArchivePreviewModel inventory";
+    EXPECT_EQ("readme.txt", m.entries[0].name);
+    EXPECT_EQ(100u, m.entries[0].size);
+    EXPECT_EQ(100u, m.entries[0].compressed);
+    EXPECT_TRUE(m.entries[0].crc_present);
+    EXPECT_EQ("dir/photo.jpg", m.entries[1].name);
+    EXPECT_FALSE(m.entries[1].crc_present) << "the damaged-entry marker (CRC 0)";
+    EXPECT_EQ("data.bin", m.entries[2].name);
+    EXPECT_TRUE(m.entries[2].crc_present);
+    EXPECT_FALSE(m.truncated);
+}
+
+TEST(PreviewMeta, ArchiveDamagedLocalHeaderStillEnumerates) {
+    /* the og's family exists to browse DAMAGED zips: the CD is intact
+     * but a member's local header is destroyed - the inventory still
+     * enumerates (the CD is self-contained); the start magic stays
+     * recognizable so the content sniff still routes to the zip path
+     * (the real-world damaged-zip shape: the archive opens, a member's
+     * body is gone). */
+    std::vector<u8> zip = build_multi_zip({"a.txt", "b.txt", "c.txt"}, 50, {});
+    /* destroy the SECOND member's local header magic (mid-file) */
+    const size_t second_lfh = 30 + 5 /* name */ + 50 /* body */;
+    ASSERT_LT(second_lfh + 4, zip.size());
+    zip[second_lfh] = 0xDE;
+    zip[second_lfh + 1] = 0xAD;
+    zip[second_lfh + 2] = 0xBE;
+    zip[second_lfh + 3] = 0xEF;
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("damaged.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    ASSERT_EQ(3u, m.entries.size()) << "the CD walk does not need the local headers";
+    EXPECT_EQ("a.txt", m.entries[0].name);
+    EXPECT_EQ("b.txt", m.entries[1].name);
+    EXPECT_EQ("c.txt", m.entries[2].name);
+}
+
+TEST(PreviewMeta, ArchiveDocxUpgradeCoexistsWithEnumeration) {
+    /* the docx hunt and the inventory share the CD walk - a docx both
+     * upgrades to document/docx AND carries its entry list */
+    const std::string name = "word/document.xml";
+    const std::string plain = "<w>hello preview world</w>";
+    std::vector<u8> comp;
+    {
+        uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+        comp.resize(cl);
+        z_stream zs{};
+        ASSERT_EQ(Z_OK, deflateInit2(&zs, 6, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY));
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    const size_t lfh_at = 0;
+    zip.insert(zip.end(), {'P', 'K', 3, 4});
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), comp.begin(), comp.end());
+    const size_t cd_at = zip.size();
+    const size_t cd_len = 46 + name.size();
+    zip.insert(zip.end(), {'P', 'K', 1, 2});
+    put16(20);
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    put16(0);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(lfh_at));
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(1);
+    put16(1);
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("d.docx", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("document", m.kind) << "the upgrade still fires";
+    EXPECT_EQ("docx", m.format);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("hello preview world"));
+    ASSERT_EQ(1u, m.entries.size()) << "AND the inventory rides along";
+    EXPECT_EQ("word/document.xml", m.entries[0].name);
+    EXPECT_EQ(plain.size(), m.entries[0].size);
+}
+
+TEST(PreviewMeta, ArchiveEntryCapAndTruncatedFlag) {
+    /* the hostile-archive bound: kMaxPreviewArchiveEntries + the
+     * truncated flag (never a silent loss) */
+    std::vector<std::string> names;
+    for (u32 i = 0; i < kMaxPreviewArchiveEntries + 40; ++i) {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "f%06u.bin", i);
+        names.emplace_back(buf);
+    }
+    const std::vector<u8> zip = build_multi_zip(names, 4);
+    MemDevice dev{std::vector<u8>(zip)};
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("big.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    EXPECT_EQ(kMaxPreviewArchiveEntries, m.entries.size()) << "the hostile bound";
+    EXPECT_TRUE(m.truncated) << "the partial inventory is disclosed";
+}
+
+TEST(PreviewDocs, NoIInWindowStreamDriftAndNoMovGhost) {
+    /* N-088: M-028's correction must hold at every outward-facing site -
+     * the only permitted mentions of IInWindowStream are the correction
+     * notes themselves (they name the 7-Zip/LZMA SDK); the preview
+     * format comment must not advertise an unproduced mov. */
+    /* the CONTRACT sites (headers + the audit row that rates our
+     * surface); REFERENCE-API-GAP's og-architecture rows (R-42's export
+     * loop) legitimately name the interface where the og actually uses
+     * it - not drift. */
+    const char* const files[] = {
+        "include/cr/preview/cr_preview.h",
+        "include/cr/cr_ui.h",
+        "docs/API-SURFACE-AUDIT.md",
+    };
+    for (const char* f : files) {
+        std::ifstream in(std::string(CR_SOURCE_DIR) + "/" + f, std::ios::binary);
+        ASSERT_TRUE(in.good()) << f;
+        std::string txt((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        size_t pos = 0;
+        while ((pos = txt.find("IInWindowStream", pos)) != std::string::npos) {
+            const std::string around = txt.substr(pos > 40 ? pos - 40 : 0, 80);
+            EXPECT_NE(std::string::npos, around.find("7-Zip"))
+                << f << ": an IInWindowStream mention outside a correction note";
+            EXPECT_NE(std::string::npos, around.find("LZMA"))
+                << f << ": the correction context must name the SDK";
+            pos += 16;
+        }
+    }
+    /* the mov ghost: the Metadata format comment must not list mov (no
+     * producer - N-088's third site) */
+    {
+        std::ifstream in(std::string(CR_SOURCE_DIR) + "/include/cr/preview/cr_preview.h",
+                         std::ios::binary);
+        ASSERT_TRUE(in.good());
+        std::string txt((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        const size_t fmt = txt.find("std::string format;");
+        ASSERT_NE(std::string::npos, fmt);
+        const std::string comment = txt.substr(fmt, 200);
+        EXPECT_EQ(std::string::npos, comment.find("|mov"))
+            << "the format comment must not advertise a never-produced mov";
+    }
 }
 
 TEST(PreviewMeta, MetadataTruncatedFlagTruthfulAllPaths) {
@@ -972,4 +1443,227 @@ TEST(PreviewMeta, RandomSmallInputsAreSafe) {
         const Metadata m = extract_metadata(r); /* must never read OOB */
         (void)m;
     }
+}
+
+/* M-077: the og's shipped preview PRODUCT caps as config-overridable
+ * defaults (UIUX/10 §3, QM-verified copy): files over 100 MiB are "not
+ * available for preview" (the eligibility gate refuses BEFORE any read,
+ * disclosed via truncated - never silent) and decode work is bounded by
+ * the 15 s time guard. Pre-fix: neither cap existed - an oversized
+ * request proceeded to the budget. */
+TEST(Preview, M077SizeGate100MiB) {
+    /* a logical 101 MiB node over a 1 MiB resident prefix: refused at
+     * the gate (never any read past the resident head), disclosed via
+     * truncated - never silent. Built on the suite's own props helper. */
+    tree::FileProperties::Extent sparse{0, 0, 0, 0}; /* placeholder; the gate runs first */
+    (void)sparse;
+    tree::FileProperties* pr = props_with("huge.bin", (100u << 20) + 1, 2, {});
+    PropsGuard g(pr);
+    pr->resident_data.assign(64, 0x41);
+    MemDevice dev(std::vector<u8>(4096, 0)); /* the gate must never touch it */
+    PreviewReader r(&dev, pr);
+    Caps c;
+    const Metadata m = extract_metadata(r, c);
+    EXPECT_TRUE(m.truncated) << "the gate discloses via truncated, never silent";
+    /* the override: a host raises its own line (the same input passes) */
+    Caps raised;
+    raised.max_file_bytes = 200u << 20;
+    const Metadata m2 = extract_metadata(r, raised);
+    EXPECT_FALSE(m2.truncated) << "the override is honored";
+}
+
+TEST(Preview, M077TimeGuardDefaultsOnAndOverridable) {
+    /* the defaults pin: 100 MiB + 15 s, ON at zero-init */
+    Caps c;
+    EXPECT_EQ(100u << 20, c.max_file_bytes) << "the og's 100 MB line";
+    EXPECT_EQ(15000u, c.max_decode_ms) << "the og's 15 s line";
+    /* the disable: UINT32_MAX turns the time gate off */
+    Caps off;
+    off.max_decode_ms = 0xFFFFFFFFu;
+    EXPECT_EQ(0xFFFFFFFFu, off.max_decode_ms);
+}
+
+/* ---- M-108: the TxtViewFiles text-preview eligibility model ----
+ * The og gates text preview by EXTENSION MEMBERSHIP in
+ * config/FilterFolder.ini [Filter] TxtViewFiles (DRWUI:535858/:535937,
+ * the toupper-folded membership search FUN_140310aa0; the ".txt;"
+ * ini-absent default). Content is never sniffed for eligibility. */
+
+TEST(PreviewMeta, Utf8BomTextIsText) {
+    /* the og renders a .txt whatever its bytes; the old 16-byte
+     * printable-ASCII head gate refused the BOM byte (EF >= 0x7F) */
+    std::vector<u8> txt(64, ' ');
+    txt[0] = 0xEF;
+    txt[1] = 0xBB;
+    txt[2] = 0xBF;
+    std::memcpy(txt.data() + 3, "hello bom text", 14);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_EQ("txt", m.format);
+    /* the BOM is skipped, the body passes through */
+    EXPECT_EQ(std::string::npos, m.text_snippet.find("\xEF\xBB\xBF"));
+    EXPECT_NE(std::string::npos, m.text_snippet.find("hello bom text"));
+}
+
+TEST(PreviewMeta, Utf16BomTextIsText) {
+    /* UTF-16LE BOM text: decoded to UTF-8 for the snippet (a raw byte
+     * pass-through would truncate at the first ASCII char's NUL) */
+    const char16_t body[] = u"utf16 body";
+    std::vector<u8> txt;
+    txt.push_back(0xFF);
+    txt.push_back(0xFE);
+    for (char16_t c : body)
+        for (int b = 0; b < 2; ++b)
+            txt.push_back(u8(c >> (8 * b)));
+    txt.resize(64, 0);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("utf16 body"));
+}
+
+TEST(PreviewMeta, Utf16SurrogatePairDecodes) {
+    /* an astral char (U+1F600) as a surrogate pair: the snippet carries
+     * its UTF-8 encoding (F0 9F 98 80), not a replacement pair */
+    const char16_t body[] = u"\x83\x83"; /* placeholder, real pair below */
+    (void)body;
+    std::vector<u8> txt;
+    txt.push_back(0xFF);
+    txt.push_back(0xFE);
+    const char16_t pair[2] = {0xD83D, 0xDE00}; /* U+1F600 */
+    for (char16_t c : pair)
+        for (int b = 0; b < 2; ++b)
+            txt.push_back(u8(c >> (8 * b)));
+    txt.push_back(' ');
+    txt.push_back(0);
+    txt.push_back('!');
+    txt.push_back(0);
+    txt.resize(64, 0);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("\xF0\x9F\x98\x80"));
+}
+
+TEST(PreviewMeta, Latin1TextIsText) {
+    /* Latin-1 accented text (0xE9 >= 0x7F): the og renders it (the
+     * extension gates); the snippet passes the high byte through raw */
+    std::vector<u8> txt(64, ' ');
+    std::memcpy(txt.data(), "caf\xE9 menu", 9);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("caf\xE9"));
+}
+
+TEST(PreviewMeta, PrintableHeadBinaryNotText) {
+    /* the false-positive class: a non-whitelisted extension with 16
+     * printable head bytes was classified text with a garbage snippet;
+     * the og's whitelist membership for .xyz is false */
+    std::vector<u8> bin(64, 0);
+    std::memcpy(bin.data(), "MJFZ-0123456789AB", 17); /* printable head */
+    for (size_t i = 17; i < 64; ++i)
+        bin[i] = u8(i * 7);
+    MemDevice dev(std::move(bin));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("data.xyz", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("unsupported", m.kind);
+    EXPECT_TRUE(m.text_snippet.empty());
+}
+
+TEST(PreviewMeta, ExtensionlessNameIsNotText) {
+    /* the og's empty-needle early return: an extensionless name is
+     * never text-viewable, whatever its bytes */
+    std::vector<u8> txt(64, ' ');
+    std::memcpy(txt.data(), "plain readme body", 17);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("README", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("unsupported", m.kind);
+}
+
+TEST(PreviewMeta, WhitelistMembershipCaseInsensitive) {
+    /* FUN_140310aa0 folds with toupper: .TXT (the shipped list's own
+     * casing) and .txt/.Txt are the same extension; the shipped list's
+     * lowercase families (.md/.json) match their uppercase forms too */
+    EXPECT_TRUE(preview::textexts::eligible(".TXT"));
+    EXPECT_TRUE(preview::textexts::eligible(".txt"));
+    EXPECT_TRUE(preview::textexts::eligible(".Txt"));
+    EXPECT_TRUE(preview::textexts::eligible(".MD"));
+    EXPECT_TRUE(preview::textexts::eligible(".md"));
+    EXPECT_TRUE(preview::textexts::eligible(".JSON"));
+    EXPECT_TRUE(preview::textexts::eligible(".log"));
+    EXPECT_TRUE(preview::textexts::eligible(".XML"));
+    EXPECT_TRUE(preview::textexts::eligible(".ini"));
+    EXPECT_TRUE(preview::textexts::eligible(".cfg"));
+    EXPECT_TRUE(preview::textexts::eligible(".bat"));
+    EXPECT_TRUE(preview::textexts::eligible(".msbak"));
+    EXPECT_TRUE(preview::textexts::eligible(".database_uuid"));
+    /* non-members: the og's list has no .xyz/.dat/.bin/.exe/.docx */
+    EXPECT_FALSE(preview::textexts::eligible(".xyz"));
+    EXPECT_FALSE(preview::textexts::eligible(".dat"));
+    EXPECT_FALSE(preview::textexts::eligible(".bin"));
+    EXPECT_FALSE(preview::textexts::eligible(".exe"));
+    EXPECT_FALSE(preview::textexts::eligible(".docx"));
+    EXPECT_FALSE(preview::textexts::eligible(".pdf"));
+    /* the empty needle and the non-dot forms never match */
+    EXPECT_FALSE(preview::textexts::eligible(""));
+    EXPECT_FALSE(preview::textexts::eligible("txt"));
+    /* no partial-token match: ".t" must not hit ".TXT;" */
+    EXPECT_FALSE(preview::textexts::eligible(".t"));
+    /* no delimiter injection: ".txt;.exe" is one (absurd) extension,
+     * not two - it is not in the pool as a whole token */
+    EXPECT_FALSE(preview::textexts::eligible(".txt;.exe"));
+}
+
+TEST(PreviewTextWhitelist, ByteExactAgainstCorpus) {
+    /* the generated pool is the og's TxtViewFiles value VERBATIM: the
+     * 97 shipped tokens (92 unique case-folded), the og's entry order,
+     * the trailing delimiter, NUL-terminated (regenerate via
+     * scripts/gen_preview_text_exts.py - the gen_filterfolder pattern) */
+    const std::string_view pool(
+        reinterpret_cast<const char*>(preview::textexts::data::kTxtViewPool),
+        preview::textexts::data::kTxtViewPoolLen);
+    /* the shipped list's head and tail, verbatim */
+    EXPECT_EQ(0u, pool.find(".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;"));
+    EXPECT_NE(std::string_view::npos, pool.find(";.XSL;.bak;.msbak;\0", 0));
+    /* the exact shipped token set (re-derived independently here from
+     * the corpus value - any drift in generation fails this) */
+    const char* kCorpusValue = ".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;.INFO;.INI;.JS;.LOG;.XML;"
+                               ".aae;.database_uuid;.srt;.bat;.md;.json;.1ST;.A;.A8S;.ANS;.ARENA;"
+                               ".AS;.ASA;.ASM;.ATH;.ATT;.AVS;.BBZ;.BCS;.BMK;.BOOK;.BPW;.BSD;.BSDL;"
+                               ".BSH;.CAMP;.CEL;.CELX;.CFG;.CFG;.CGI;.CHART;.CMD;.CONF;.CS;.CSH;"
+                               ".CU;.CUS;.DBA;.DIF;.FOUNTAIN;.GM;.GSC;.GSD;.HAML;.HPS;.HTM;.JAV;"
+                               ".JAVA;.JRTF;.M;.M;.MAP;.MARKDOWN;.MCMETA;.MDBACKUP;.MDINFO;.MDL;"
+                               ".MDOWN;.ML;.MXML;.OSU;.OUT;.P6;.PAS;.PHP;.PL;.PNPROJ;.PNPT;"
+                               ".PROPERTIES;.PROPERTIES;.PY;.QC;.QC;.RTX;.S;.SRC;.URL;.WTX;.XQL;"
+                               ".XQY;.XSD;.XSL;.bak;.msbak;";
+    EXPECT_EQ(std::string_view(kCorpusValue), pool.substr(0, pool.find('\0')));
+    EXPECT_EQ(97u, preview::textexts::data::kTxtViewTokenCount);
+    /* the pool NUL-terminates within its own bytes */
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(preview::textexts::data::kTxtViewPool)),
+              preview::textexts::data::kTxtViewPoolLen);
 }

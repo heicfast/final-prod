@@ -1,0 +1,155 @@
+﻿2026-10-29T17:14:19.5005760Z Current runner version: '2.338.0'
+2026-10-29T17:14:19.5032171Z ##[group]Runner Image Provisioner
+2026-10-29T17:14:19.5033216Z Hosted Compute Agent
+2026-10-29T17:14:19.5034104Z Version: 20261021.618
+2026-10-29T17:14:19.5035006Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-29T17:14:19.5036099Z Build Date: 2026-10-21T00:45:21Z
+2026-10-29T17:14:19.5037093Z Worker ID: {184a488c-bbab-4887-977f-a370d61a9bc0}
+2026-10-29T17:14:19.5038135Z Region: eastus2
+2026-10-29T17:14:19.5038960Z Cloud: Azure
+2026-10-29T17:14:19.5039740Z ##[endgroup]
+2026-10-29T17:14:19.5041809Z ##[group]Operating System
+2026-10-29T17:14:19.5042802Z Microsoft Windows Server 2022
+2026-10-29T17:14:19.5043748Z 10.0.20348
+2026-10-29T17:14:19.5044547Z Datacenter
+2026-10-29T17:14:19.5045197Z ##[endgroup]
+2026-10-29T17:14:19.5045760Z ##[group]Runner Image
+2026-10-29T17:14:19.5046342Z Image: windows-2022
+2026-10-29T17:14:19.5046879Z Version: 20261025.346.1
+2026-10-29T17:14:19.5048298Z Included Software: https://github.com/actions/runner-images/blob/win22/20261025.346/images/windows/Windows2022-Readme.md
+2026-10-29T17:14:19.5049793Z Image Release: https://github.com/actions/runner-images/releases/tag/win22%2F20261025.346
+2026-10-29T17:14:19.5050698Z ##[endgroup]
+2026-10-29T17:14:19.5051734Z ##[group]GITHUB_TOKEN Permissions
+2026-10-29T17:14:19.5053665Z Contents: read
+2026-10-29T17:14:19.5054224Z Metadata: read
+2026-10-29T17:14:19.5054766Z ##[endgroup]
+2026-10-29T17:14:19.5056938Z Secret source: Actions
+2026-10-29T17:14:19.5057781Z Cache mode: write
+2026-10-29T17:14:19.5058407Z Prepare workflow directory
+2026-10-29T17:14:19.5445138Z Prepare all required actions
+2026-10-29T17:14:19.5492315Z Getting action download info
+2026-10-29T17:14:19.7402986Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-29T17:14:19.8817516Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-10-29T17:14:20.2037115Z Complete job name: Lint + parse gates
+2026-10-29T17:14:20.4167286Z ##[group]Run actions/checkout@v4
+2026-10-29T17:14:20.4168496Z with:
+2026-10-29T17:14:20.4168997Z   repository: heicfast/core_recovery
+2026-10-29T17:14:20.4173600Z   token: ***
+2026-10-29T17:14:20.4173991Z   ssh-strict: true
+2026-10-29T17:14:20.4174386Z   ssh-user: git
+2026-10-29T17:14:20.4174782Z   persist-credentials: true
+2026-10-29T17:14:20.4175232Z   clean: true
+2026-10-29T17:14:20.4175639Z   sparse-checkout-cone-mode: true
+2026-10-29T17:14:20.4176123Z   fetch-depth: 1
+2026-10-29T17:14:20.4176526Z   fetch-tags: false
+2026-10-29T17:14:20.4176930Z   show-progress: true
+2026-10-29T17:14:20.4177330Z   lfs: false
+2026-10-29T17:14:20.4177698Z   submodules: false
+2026-10-29T17:14:20.4178105Z   set-safe-directory: true
+2026-10-29T17:14:20.4178575Z   allow-unsafe-pr-checkout: false
+2026-10-29T17:14:20.4179260Z ##[endgroup]
+2026-10-29T17:14:20.5800818Z Syncing repository: heicfast/core_recovery
+2026-10-29T17:14:20.5803710Z ##[group]Getting Git version info
+2026-10-29T17:14:20.5805180Z Working directory is 'D:\a\core_recovery\core_recovery'
+2026-10-29T17:14:20.7034214Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T17:14:21.2596581Z git version 2.56.0.windows.3
+2026-10-29T17:14:21.2636139Z ##[endgroup]
+2026-10-29T17:14:21.2655454Z Temporarily overriding HOME='D:\a\_temp\1d4d2b81-9b63-476a-b224-bd7824fe9d79' before making global git config changes
+2026-10-29T17:14:21.2657380Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T17:14:21.2666690Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-29T17:14:21.3556524Z Deleting the contents of 'D:\a\core_recovery\core_recovery'
+2026-10-29T17:14:21.3561902Z ##[group]Initializing the repository
+2026-10-29T17:14:21.3571117Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\core_recovery\core_recovery
+2026-10-29T17:14:21.4708043Z Initialized empty Git repository in D:/a/core_recovery/core_recovery/.git/
+2026-10-29T17:14:21.4752185Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/heicfast/core_recovery
+2026-10-29T17:14:21.6347309Z ##[endgroup]
+2026-10-29T17:14:21.6348017Z ##[group]Disabling automatic garbage collection
+2026-10-29T17:14:21.6356422Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-29T17:14:21.6664009Z ##[endgroup]
+2026-10-29T17:14:21.6664705Z ##[group]Setting up auth
+2026-10-29T17:14:21.6676877Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T17:14:21.7005128Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T17:14:23.8573371Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T17:14:23.8911257Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T17:14:24.3959107Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T17:14:24.4287055Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T17:14:25.0482116Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-29T17:14:25.0795994Z ##[endgroup]
+2026-10-29T17:14:25.0796914Z ##[group]Fetching the repository
+2026-10-29T17:14:25.0812757Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +8fe3542f1a9e0658a190938a33e63f83b9f8c157:refs/remotes/origin/main
+2026-10-29T17:14:27.5191166Z From https://github.com/heicfast/core_recovery
+2026-10-29T17:14:27.5192176Z  * [new ref]         8fe3542f1a9e0658a190938a33e63f83b9f8c157 -> origin/main
+2026-10-29T17:14:27.5234997Z ##[endgroup]
+2026-10-29T17:14:27.5235419Z ##[group]Determining the checkout info
+2026-10-29T17:14:27.5238550Z ##[endgroup]
+2026-10-29T17:14:27.5253998Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-29T17:14:27.5769034Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-29T17:14:27.6090707Z ##[group]Checking out the ref
+2026-10-29T17:14:27.6100300Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+2026-10-29T17:14:28.1029014Z Switched to a new branch 'main'
+2026-10-29T17:14:28.1120574Z branch 'main' set up to track 'origin/main'.
+2026-10-29T17:14:28.1179747Z ##[endgroup]
+2026-10-29T17:14:28.1856642Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-29T17:14:28.2143735Z 8fe3542f1a9e0658a190938a33e63f83b9f8c157
+2026-10-29T17:14:28.2583176Z ##[group]Run actions/cache@v4
+2026-10-29T17:14:28.2583569Z with:
+2026-10-29T17:14:28.2583825Z   path: ~\AppData\Local\pip\Cache
+2026-10-29T17:14:28.2584180Z   key: pip-clangformat-win2022
+2026-10-29T17:14:28.2584509Z   restore-keys: pip-clangformat-win2022
+2026-10-29T17:14:28.2584863Z   enableCrossOsArchive: false
+2026-10-29T17:14:28.2585183Z   fail-on-cache-miss: false
+2026-10-29T17:14:28.2585465Z   lookup-only: false
+2026-10-29T17:14:28.2585713Z   save-always: false
+2026-10-29T17:14:28.2585954Z ##[endgroup]
+2026-10-29T17:14:28.3919347Z (node:7968) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T17:14:28.3920248Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T17:14:28.6924144Z Cache hit for: pip-clangformat-win2022
+2026-10-29T17:14:28.7042618Z (node:7968) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-29T17:14:28.8258746Z Received 1872823 of 1872823 (100.0%), 23.5 MBs/sec
+2026-10-29T17:14:28.8260820Z Cache Size: ~2 MB (1872823 B)
+2026-10-29T17:14:28.8288562Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/17aca9db-53ea-4cb1-9cab-de85a920dfbf/cache.tzst -P -C D:/a/core_recovery/core_recovery --force-local --use-compress-program "zstd -d"
+2026-10-29T17:14:29.1068923Z Cache restored successfully
+2026-10-29T17:14:29.1180045Z Cache restored from key: pip-clangformat-win2022
+2026-10-29T17:14:29.1564184Z ##[group]Run pip install --quiet --disable-pip-version-check clang-format==18.1.8
+2026-10-29T17:14:29.1565160Z [36;1mpip install --quiet --disable-pip-version-check clang-format==18.1.8[0m
+2026-10-29T17:14:29.1565916Z [36;1mif ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install clang-format failed'; exit 1 }[0m
+2026-10-29T17:14:29.1566871Z [36;1m$files = Get-ChildItem -Recurse -Include *.h,*.hpp,*.cpp,*.c -Path src,include,tests | ForEach-Object FullName[0m
+2026-10-29T17:14:29.1567839Z [36;1mif (-not $files -or $files.Count -eq 0) { Write-Host '::error::no sources found to format-check'; exit 1 }[0m
+2026-10-29T17:14:29.1568715Z [36;1m$bad = $files | ForEach-Object { & clang-format --dry-run -Werror $_ 2>&1 } |[0m
+2026-10-29T17:14:29.1569328Z [36;1m  Select-String 'error:' | Select-Object -First 20[0m
+2026-10-29T17:14:29.1569728Z [36;1mif ($bad) {[0m
+2026-10-29T17:14:29.1570038Z [36;1m  $bad | ForEach-Object { Write-Host "  $_" }[0m
+2026-10-29T17:14:29.1570780Z [36;1m  Write-Host '::error::files need formatting - fix: clang-format -i (all files under src/ include/ tests/)'[0m
+2026-10-29T17:14:29.1571424Z [36;1m  exit 1[0m
+2026-10-29T17:14:29.1571653Z [36;1m}[0m
+2026-10-29T17:14:29.1571981Z [36;1mWrite-Host "clang-format clean ($($files.Count) files)"[0m
+2026-10-29T17:14:29.1693735Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T17:14:29.1694169Z ##[endgroup]
+2026-10-29T17:15:00.4312173Z   D:\a\core_recovery\core_recovery\src\ui\cr_ui.cpp:2427:40: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4319125Z   D:\a\core_recovery\core_recovery\src\ui\cr_ui.cpp:2428:72: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4325044Z   D:\a\core_recovery\core_recovery\src\ui\cr_ui.cpp:2429:75: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4330658Z   D:\a\core_recovery\core_recovery\src\ui\cr_ui.cpp:3035:44: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4335972Z   D:\a\core_recovery\core_recovery\src\ui\cr_ui.cpp:3036:76: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4341280Z   D:\a\core_recovery\core_recovery\src\win\cr_health.cpp:267:34: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4346619Z   D:\a\core_recovery\core_recovery\src\win\cr_health.cpp:269:74: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4352013Z   D:\a\core_recovery\core_recovery\src\win\cr_health.cpp:270:71: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4357523Z   D:\a\core_recovery\core_recovery\tests\win-stub\windows.h:308:28: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4362735Z   D:\a\core_recovery\core_recovery\tests\win-stub\windows.h:308:29: error: code should be clang-formatted [-Wclang-format-violations]
+2026-10-29T17:15:00.4386528Z ##[error]files need formatting - fix: clang-format -i (all files under src/ include/ tests/)
+2026-10-29T17:15:00.4618182Z ##[error]Process completed with exit code 1.
+2026-10-29T17:15:00.4895395Z Post job cleanup.
+2026-10-29T17:15:00.6942755Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T17:15:00.7259246Z git version 2.56.0.windows.3
+2026-10-29T17:15:00.7337655Z Temporarily overriding HOME='D:\a\_temp\a844d8fd-c320-45b2-bba2-0698b454369c' before making global git config changes
+2026-10-29T17:15:00.7339039Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T17:15:00.7350957Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\core_recovery\core_recovery
+2026-10-29T17:15:00.7725989Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T17:15:00.8123293Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T17:15:01.2848305Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T17:15:01.3117334Z http.https://github.com/.extraheader
+2026-10-29T17:15:01.3163784Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-29T17:15:01.3474511Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T17:15:01.8333092Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T17:15:01.8633627Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T17:15:02.4386799Z Cleaning up orphan processes
+2026-10-29T17:15:02.4978910Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

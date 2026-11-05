@@ -1,5 +1,13 @@
 # modules/ntfs.md — NTFS engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-163** (runlist malformed-input tolerance:
+the og truncates-and-keeps, the core rejects the whole fragment; sparse-first is a
+core superset to register). Verified-MATCH this session: runlist nibble order,
+sign-extension points, u64 LCN accumulation, $MFT bootstrap math, attr flags.
+
+
 Reference: NTFSSearchDLL (+ NTFSLib mirror handling) per corpus artifacts
 `SearchDLL/ntfs-engine--deep-dive.md`, `ntfs-engine-internals.md`,
 `ntfs-engine-algorithms-v2--deleted-viability.md`, `zfs-vdev--mftmirr--calcpartition.md` §2,
@@ -39,7 +47,20 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 - **B6 post-format/remnant** — `M` 4 MiB remnant blocks, 'FILE' prefilter,
   shifted-header salvage at +0x58/+0x60 (og FUN_18002a780 parity), dedup vs
   structured results, skip-forward on unreadable blocks. Note (no finding):
-  prefilter stride hardcoded 512 (`cr_mftwalk.cpp:1113`) — harmless for
+- **B9 $SI/$FN time precedence — OQ-S42-1 RESOLVED-MATCH (this session,
+  first-hand decode + pin):** the og serializes $SI times when the attribute
+  exists and fits (NTFSSearchDLL :5338-5353 — the $FN defaults at :5338-5340
+  [FUN_1800437f0 obj+0x20 → props+0x25, FUN_1800437b0 obj+0x28 → +0x2d,
+  FUN_180043770 obj+0x38 → +0x35] overwritten by the $SI getters at
+  :5350-5352 once FUN_1800430b0 finds type 0x10 and the FUN_180044fb0 fit
+  gate [content_offset@attr+0x14 + 0x28 <= attr_length] passes), else falls
+  back to $FN — the core's `has_si ? si_times : best->times` verbatim. The
+  og's third slot (props+0x35) carries the $SI's FOURTH FILETIME
+  (MFT-modified, FUN_180044ff0 attr+0x30); the true A time is never
+  surfaced; parse_standard_information maps exactly this (changed ← d+16
+  [A], accessed ← d+24 [MFT-mod]) — pinned by
+  `NtfsVolume.SiTimeSlotsMatchOgSurfacedSet` so no cleanup swaps the slots.
+- **B9 stride note (history):** prefilter stride hardcoded 512 (`cr_mftwalk.cpp:1113`) — harmless for
   detection on 4Kn (4096 ⊂ 512-multiples), wasted probes only.
 - **B7 hard-link/ADS/sparse** — hard-link emission `MATCH` as of M-007
   (default single_link_per_record: ONE node per record, the namespace-best
@@ -468,3 +489,243 @@ RecycleBinScopeOutOfBinDollarFilesStayRaw (fail-before EXECUTED) +
 RecycleBinMapping (regression pin). B1/B4 verdict: MATCH (residual: a
 valid-$I-format file OUTSIDE the bin is still skipped — needs a tree
 node-removal API; documented in the finding).
+## Session-8 wave-2 (audited `ff879f9`, corpus `be0cfe9`)
+
+- **N-100 (MINOR)** — the origin-LCN landing's chain corrected: the
+  :5126-27 stamps are +0x53/+0x4f on the internal struct, mapped to
+  CNTFSFileProperties +0x64/+0x60 one hop later (FUN_180003020
+  :1987-88); the GUID-dump twin is FUN_18001c660 :22470-71 (both
+  fields); the serializer twin is FUN_180003250 :2264-65 (the landing's
+  "FUN_180033250" is a typo). The og PERSISTS +0x60 (total $DATA
+  clusters, sparse-anywhere-zeroed :41096-98) — the core carries +0x64
+  only. Resident semantics decode-confirmed: the og stamps the
+  synthetic-run value, the core stamps 0 (documented deviation).
+
+
+## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
+
+- **M-103 — FIXED (session-42 main lane)** — the og groups orphaned MFT records into `LostDir<record>`
+  synthetic folders under the "File Path Lost" root (NTFSSearchDLL:42041
+  `LostDir%d`; the H session's real payload: 398 LostDirs holding 938,582 files
+  = 62.6% of the session). The core's phase-B reparent (cr_mftwalk.cpp:1091)
+  puts orphans flat on "Lost Files": the per-parent sibling grouping — the
+  surviving deleted-directory structure — is destroyed. The branch name also
+  diverges ("Lost Files" vs the og's "File Path Lost"). Fix wave: group by
+  parent record + rename the root default.
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-163 FIXED — the runlist malformed-input tolerance.** The og's decoder
+re-read first-hand (FUN_1800347d0 :41853-41970: every malformed branch a
+`return 1` SUCCESS — buffer end, entry-span cut, len_width>8 break,
+off_width>8) + the pre-validator (FUN_18001d5f0 :23175-23210: the
+FIRST-byte nibble gate at the five $DATA parse sites). Landed: the
+torn_keep tolerance (width violations + mid-entry truncation + the
+zero-length tail AFTER >=1 valid run -> OK with the prefix + `torn`),
+the flag OR-merged at every parse_data_runs site, the PartialRisk
+grading downgrade (Excellent never silently survives a torn list), the
+clean-buffer-end/tear distinction (the old TerminatesAndRejectsTruncated
+pin re-truthed to the og's clean stop), and the sparse-first acceptance
+REGISTERED as PARITY-DELTAS D-135 (the deliberate superset — the all-hole
+file is real content shape). The zero-valid-runs class still rejects.
+Tests: TornAfterValidRunsKeepsPrefix / AllGarbageYieldsNothing /
+SparseFirstAcceptedAndRegistered / the end-to-end
+TornRunlistKeepsPrefixAndGradesPartialRisk (2 RED pre-fix). Suite 1280.
+
+## S50 convergence note (2026-10-29 — the continuation audit lane)
+
+The lane's independent OQ-S42-1 probe CONVERGED with the winning a75d8198
+decode (SI-PREFERRED, FN-FALLBACK, FUN_180006db0 :5338-5351 + the
+FUN_180044fb0 40-byte size gate; the core's has_si-else-FN at
+cr_mftwalk.cpp:868 identical). This lane's additional nuance, registered
+in the B9 note: the og's SI size-validity gate is valueOffset+0x28 (>= 40
+bytes of SI value) where the core's parse_standard_information requires
+72 — on corrupt 40-71-byte SI records the og emits SI times, the core
+falls back to FN; the stricter gate is the benign hardening (no finding,
+no code change owed). Evidence: `evidence/decompiled-quotes/
+s50-ntfs-btrfs-time-precedence-decodes.md` §1.
+
+---
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-063** **FIXED** (the S56 ACUTE-first lane: the mirror bootstrap fallback landed — findings/FIXED/S-063, 3 RED->GREEN + the refusal control; the RawFixer pin re-truthed to the boot-source axis) — the torn-$MFT bootstrap
+fallback to the $MFTMirr LCN the og has and the core refuses, with the core's own
+"nothing to mirror FROM" comment premise refuted), **M-138** (cpr/cib zero: the og's
+four scan-path default sites 0x400/0x1000 vs the core's rejection + the D-52
+premise correction), **M-145** (the core-only 55AA open gate), **M-146** (probe_family's
+gate family ≠ the analyser's — spc-POW2 core-only, zero sweeps + record-shape gates
+missing, the getter misattribution in the comment), **M-141** (the core-only
+mft_lcn/mftmirr_lcn bounds), **N-196** (the walk-entry record-geometry gate — core
+superset, register), **N-197** (the spc shift-threshold og-internal inconsistency —
+register the chosen side). Verified-MATCH this session: the +0x30/+0x38 kernel-layout
+getter pair, the runlist decode family (re-walked), the MFT record-size decode forms
+(three og variants mapped), the analyser's zero-sweep offsets, and the remnant-scan
+512-byte stride. Quote pack: `evidence/decompiled-quotes/s54-finding-quote-pack.md`.
+
+---
+
+## S60 addendum (2026-10-29 — the MAJOR-first fix lane)
+
+**Three open-ladder findings FIXED this lane (all corpus re-verified
+first-hand before the fix):**
+
+- **M-147 FIXED** (was M-138's seat, renumbered per SA-9): cpr == 0 and
+  cib == 0 now take the og's four-site scan-path defaults (1024-byte
+  records / 4096-byte index blocks — FUN_180004830 :3427-3440,
+  FUN_180004870 :3443-3456, FUN_18003f630, FUN_180011a10/a90, each
+  re-read at the exact lines). A single zeroed +0x40/+0x44 byte no longer
+  refuses the volume. D-52's "0 rejects" premise corrected (the NTFSLib
+  store-guard misread). Pins: `BootRecordSizeZeroDefaultsTo1024` (the
+  re-pinned seat), `BootCibZeroDefaultsTo4096IndexBlocks`,
+  `BootCprZeroWithValidPrimaryDoesNotConsultBackup` — all RED pre-fix.
+- **M-141 FIXED**: the mft_lcn bound is the og's product form
+  (`spc × mft_lcn < total_sectors`, NTFSLib :19294-19301) evaluated
+  overflow-free as `mft_lcn > (total-1)/spc` — floor-tolerant at
+  non-integral totals, wrap-passing refused (registered hardening); the
+  mftmirr bound is GONE (no og layer has one) — a torn mirror LCN sets the
+  report-only `mirror_invalid` flag, skips both mirror reads, logs the
+  Info diagnostic. The M-043 backup fallback gains an MFT-load-failure
+  retry rung (the torn-geometry class). Pins:
+  `TornMftmirrLcnScansWithMirrorSkipped`,
+  `MftLcnProductFormBoundaryAndHardening` — RED pre-fix.
+- **M-145 FIXED**: no 0x55AA gate anywhere on the NTFS open ladder (the
+  og's NTFS path never reads +0x1FE — analyser :3568-3577 and
+  LoadNtfsVolume :19292-19310 re-read in full; the FAT/exFAT paths keep
+  theirs). The D-99 backup fallback's signature requirement is dropped
+  too (its BPB content gates are the proof); the fallback now triggers on
+  content failure only. Pins: `TornPrimaryBackupBootScans` (re-pinned —
+  opens from the primary, no backup consulted),
+  `TornSignatureWithIntactBackupStillFallsBack`,
+  `BackupBadFallsBackToRefusal` (re-pinned to an OEM tear) — RED pre-fix.
+
+Suite after the three landings: 1465/1465. The remaining module rows:
+**M-146** (probe_family gate family) and **N-196/N-197** stay active.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-151 (MAJOR, NEW):** the truncated-$MFT run-growth probe — FUN_180007670 :5617-5700
+  (first-hand): after loading the $DATA runlist, the og reads 4 KiB windows at each run's
+  declared end and extends the run by the count of fixup-valid records
+  (`FUN_180041bb0` at the 0x400 stride, first-invalid termination). The core's walk is
+  hard-bounded by `max_record_no()` (`cr_mftwalk.cpp:422`) — records beyond a
+  stale/truncated runlist (the recently-created files at the MFT tail) are invisible.
+  Distinct from S-063 (the cannot-load mirror bootstrap) and the M-043/M-141 load-failure
+  ladder — this is the loads-but-short case.
+- **N-213 (MINOR, NEW; renumbered from the born-collided N-210 seat per SA-9 — the remote
+  S71 repair lane's marker-recurrence finding keeps N-210):** the record-header pre-gate
+  band — FUN_180046160 :55187-55220: `usa_offset ∈ [0x2A, 0x100]`, `alloc_size ∈ {1024,
+  2048, 3072, 4096}` (0x400-aligned), `usa_count ≤ 16`; `cr_fixup.cpp:28-54` checks only
+  nonzero/even offset + the fit arithmetic. The unregistered half of the record-validation
+  family — the >4 KiB/odd-stride half is D-143 (N-196's deliberate superset).
+- **OQ-S79-1 (tracked-open, NEW):** the $LogFile transaction-journal machinery — the loader
+  FUN_18001cf20 (:22856+), the walk driver FUN_18001d460 (:23100+, the RCDR check at
+  :23132), the record walker FUN_180029dd0 (:33577+), wired at BOTH volume-open sites
+  (:753-755, :31653-655) — has zero core counterpart (grep-verified). The structural
+  absence is first-hand; the walk's result-set contribution is the OQ's decode list
+  (`tracked-open/OQ-S79-1-ntfs-logfile-replay-result-contribution.md`).
+- **Dropped after coverage check (the s77 sheet §B):** the viability probe granularity and
+  the claim-map provenance (S-012's landed pass-2), the USN same-name content (the phase E
+  merge exists at `cr_mftwalk.cpp` — FUN_18001d690's call sites are the MFT-emission path,
+  not the USN path), the USN harvest bounds (N-039), the INDX first-class walk (the
+  documented scope refusal).
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+**M-151's addendum** landed: the truncated-$MFT family's INITIAL-bound site
+decoded first-hand — FUN_18000ecb0 (NTFSSearchDLL:11274-11277) derives
+record_count = (device_end − start)/record_size when no declared size
+exists (the registration-list site, type-3 object, +0x9c=0x100 flags); the
+core's max_record_no (cr_bootstrap.h:77-91) remains runlist-derived only.
+Both sites of the family (the initial device-end floor + the growth loop)
+belong to the finding's fix plan. Evidence:
+`evidence/s69-lane-sheets/S69-C-sectormath.md` §4.b.
+
+## Session-81 addendum — N-213: the record-header pre-gate band, family-keyed (2026-10-29)
+
+**The garbage-filter band landed, with a decode-scope correction.** The
+og gates every record BEFORE the fixup chain, keyed on family: FILE
+records require usa_offset ∈ [0x2A, 0x100] and usa_count ≤ 0x10
+(FUN_180046160 :55187-55220 — the finding's site, confirmed); INDX
+blocks require usa_offset ∈ [0x28, 0x100] with the same count cap
+(FUN_180045510 :54704-54745 — discovered during the fix when the
+blanket 0x2A floor broke the INDX harvest fixtures: real INDX blocks
+carry 0x28). `fixup_validate` derives the floor from the record's magic.
+The remnant path additionally gates the declared alloc size in the og's
+own form: 0x400-aligned + the declared-fit (`declared/0x200 ≥
+usa_count − 1`) — no stride-equality (FUN_180046160 carries none; the
+fix plan's paraphrase corrected), no upper cap (the >4 KiB half stays
+the registered D-143 superset, pinned by the 6144-stride emit test).
+Tests: Fixup.OffsetBandRejectsLowAndHigh (RED) /
+OffsetBandAcceptsRealVolumeOffsets / UsaCountAboveSixteenRejects /
+IndxFloorIsTwoBytesLower + NtfsVolume.RemnantMisalignedDeclaredAllocSizeRejects
+(RED) / RemnantAllocSizeFitCoversUsaRejects (RED) /
+RemnantAllocSizeAboveFourKStillEmits (the D-143 pin). Suite 1585/1585.
+The B3 row: MATCH (the false-positive admission band on garbage records).
+
+## S80 addendum — M-151 FIXED: the truncated-$MFT run-growth probe (2026-10-29)
+
+**The torn-runlist salvage landed.** FUN_180007670's growth loop,
+decoded first-hand (:5617-5700): per run node, 4 KiB windows probed at
+the run's declared end; consecutive records validated through
+FUN_180041bb0's chain (FILE magic + the N-213 pre-gate band + the fixup
+tails — the core reuses fixup_validate, one validator one truth); each
+run's length grows by the validated count; a fully-valid window
+advances, a partial one stops after counting its prefix (the
+uVar10 < uVar12 break), a failed read stops. NtfsVolume::
+grow_mft_runs_to_valid_records runs at volume-open on the primary
+bootstrap's runs — a runlist that LOADS but under-declares (the torn/
+stale shape) has its tail annexed: the recently-written records at the
+MFT tail become walkable. Registered differences (the Resolution): the
+next-run's-physical-start guard (the og's map tolerates middle-run
+overlap; the core's vector vcn mapping needs it) and the
+cluster-granular floor on the extension (fractional record-worths stay
+unannexed — conservative). The mirror-fallback population is
+unaffected: the S-063 fixtures' holes are now PHYSICAL (the holed bytes
+zeroed) so the growth finds nothing annexable and the mirror stays the
+service — MirrorCoversRunlistSize / MirrorResidentDataRejected re-pinned
+on the physical-hole fixtures. The og's open-path loop carries no
+cancellation (no checkpoint in FUN_180007670) — the pass is bounded by
+the first-invalid termination and the device end, the og-equal posture.
+Tests: TruncatedRunlistGrowsToValidRecords (records 20..22 annexed past
+a 40-cluster declaration — RED first-hand) / RunGrowthStopsAtFirst
+InvalidRecord (zero growth past non-record bytes) / RunGrowthPartial
+WindowCountsValidPrefix (the 2048-byte prefix of a mixed window) /
+MirrorFallbackUnaffectedByGrowthPass. NTFS suite 95/95; full suite
+1634/1634.
+
+---
+
+---
+
+## Session-82 addendum — M-151 FIXED: the torn-tail run-growth probe (2026-10-29)
+
+**The truncated-$MFT salvage landed.** At volume-open, after the $MFT
+load (and the mirror load), each non-sparse run of the $DATA runlist is
+probed at its declared end: 4 KiB windows, the record-stride counting of
+FILE-magic + fixup-valid records (the walk's own validator — the N-213
+pre-gate band inherited), and the run-length extension by each window's
+valid prefix (a partially-valid window grows by the prefix and stops; a
+failed read or the first invalid record ends the run's growth). The
+og's loop: FUN_180007670 :5617-5700 (re-verified first-hand). The
+walk's max_record_no grows with the runs — the records beyond a
+truncated/stale runlist (the recently-created files at the MFT tail)
+become reachable. **B2/B6/A26: MATCH.** Tests:
+TruncatedRunlistGrowsToValidRecords / RunGrowthStopsAtFirstInvalidRecord /
+IntactRunlistUnchangedByGrowthPass (RED->GREEN); the three adjacent
+re-pins documented in the Resolution; NTFS family 95/95.
+
+
+## Session-86 update — OQ-S79-1 RESOLVED (the $LogFile dead-machinery register; 2026-10-30)
+
+The follow-the-data decode completed (this session, every probe
+first-hand): the og's $LogFile walk is DEAD in the scan path — the
+driver FUN_18001d460 discards its own out-params, frees the staged
+buffer, and its success flag is written (:756) and cloned (:40405) but
+never read; the per-record handler's chkdntfs recovery tables (the
+transaction table, the 0x16/0x15-pair table, the page table with the
+(sector_size²>>10)·*(int*)(rec+0x48) computation, the client-id maps)
+have no post-open querier. No emission site exists anywhere (candidates
+1/3 REFUTED; 2 CONFIRMED-stronger). The register filed as I-049
+(ACKNOWLEDGED — the core's zero counterpart is the correct deliberate
+non-adoption); the OQ retired to findings/FIXED/.

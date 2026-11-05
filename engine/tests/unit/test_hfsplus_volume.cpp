@@ -234,9 +234,80 @@ TEST(HfsPlus, VolumeHeaderValidation) {
     EXPECT_FALSE(validate_volume_header(vh, h));
     be32(vh + 0x28, 4096);
 
-    /* fork block-count clamp: allocation fork > total blocks */
+    /* M-142: the og never gates the fork fields at the VH gate
+     * (FUN_18000c6e0 swaps freeBlocks/journalInfoBlock, never the forks;
+     * FUN_18000cf90 - the next stage - is the fork byte-swapper, no
+     * compares). A torn allocation fork is ACCEPTED. */
     write_fork(vh + 0x70, 999 * BS, 0, 200);
-    EXPECT_FALSE(validate_volume_header(vh, h));
+    EXPECT_TRUE(validate_volume_header(vh, h));
+    write_fork(vh + 0x70, 0, 0, 0);
+}
+
+TEST(HfsPlus, VhFreeBlocksAboveTotalRejected) {
+    /* M-142 fixture A (the FP direction): the og rejects freeBlocks >
+     * totalBlocks (FUN_18000c6e0 :10005-10006, local_1e8 <= uStack_1ec)
+     * even with valid forks/sig/version/blockSize - the old core accepted
+     * this header because its fork clamps passed. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 0xFFFFFFFF); /* freeBlocks > totalBlocks */
+    VolumeHeader h;
+    EXPECT_FALSE(validate_volume_header(vh, h))
+        << "freeBlocks above totalBlocks is the og's rejection (M-142 A)";
+}
+
+TEST(HfsPlus, VhJournalInfoBlockAboveTotalRejected) {
+    /* M-142: journalInfoBlock > totalBlocks is the og's second clamp
+     * (uStack_20c <= uStack_1ec) - the only u32s it swaps besides
+     * blockSize. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x0C, 0x10001); /* journalInfoBlock > totalBlocks */
+    VolumeHeader h;
+    EXPECT_FALSE(validate_volume_header(vh, h))
+        << "journalInfoBlock above totalBlocks is the og's rejection";
+}
+
+TEST(HfsPlus, VhTornAllocForkStillValidates) {
+    /* M-142 fixture B (the FN direction): allocationFile.total_blocks
+     * torn to 0xFFFFFFFF with everything else valid - the og scans this
+     * volume (forks are swapped by FUN_18000d030's fork walker but never
+     * gated); the old core refused the whole volume. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x482B);
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 8);                             /* freeBlocks sane */
+    write_fork(vh + 0x70, 999 * BS, 0, 0xFFFFFFFF); /* torn alloc fork */
+    write_fork(vh + 0xC0, 0, 0, 0x7FFFFFFF);        /* torn extents fork */
+    VolumeHeader h;
+    EXPECT_TRUE(validate_volume_header(vh, h))
+        << "torn fork block counts never gate the VH (M-142 B)";
+}
+
+TEST(HfsPlus, VhFreeBlocksEqualTotalAccepted) {
+    /* boundary: freeBlocks == totalBlocks (a completely full volume) is
+     * the og's <= edge - accepted. */
+    std::vector<u8> d(2 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be16(vh + 0x00, 0x4858); /* HX */
+    be16(vh + 0x02, 4);
+    be32(vh + 0x28, 4096);
+    be32(vh + 0x2C, 0x10000);
+    be32(vh + 0x30, 0x10000); /* == totalBlocks */
+    be32(vh + 0x0C, 0x10000); /* journalInfoBlock == totalBlocks */
+    VolumeHeader h;
+    EXPECT_TRUE(validate_volume_header(vh, h)) << "both ==-edges accepted (the <= forms)";
 }
 
 TEST(HfsPlus, EndToEndWalk) {
@@ -1417,6 +1488,77 @@ TEST(HfsPlus, JournalFallbackRequiresNodeShapedStart) {
     ASSERT_EQ(OK, rc) << err_text(rc);
     EXPECT_EQ(0u, st.journal_salvage);
     EXPECT_EQ(0u, st.journal_emitted);
+}
+
+TEST(HfsPlus, ZeroLogicalSizeFallsBackToTotalBlocks) {
+    /* N-155: the og's zero-logical-size fallback (FUN_180009940
+     * :7666-7671) - a data-fork record with logicalSize == 0 and
+     * totalBlocks > 0 sizes as totalBlocks << 12. The og HARDCODES 4096
+     * (the volume's real block size is not consulted - an og quirk; the
+     * observable is the parity target, so a 4096-blocksize fixture pins
+     * it exactly). Data-fork path only: the rsrc path has no fallback
+     * (evidence s42-hfs-forkfield-resolution.md §2). */
+    auto d = build_volume();
+    /* (a) the fallback fires: 0 logical, 16 blocks -> 65536 */
+    auto rec_a = make_record(2, u"zeroblocks.dat", 2, 60, 0, B_FILE_DATA, 16, 0, 0, 0);
+    /* (b) genuinely empty: 0 logical, 0 blocks -> 0 (unchanged) */
+    auto rec_b = make_record(2, u"empty.dat", 2, 61, 0, 0, 0, 0, 0, 0);
+    /* (c) logical wins: 0x1000 logical, 1 block -> 0x1000 */
+    auto rec_c = make_record(2, u"logical.dat", 2, 62, 0x1000, B_FILE_DATA, 1, 0, 0, 0);
+    /* (d) rsrc-marked: rsrc 0 logical / 16 blocks -> 0 (NO fallback on
+     * the rsrc path - the og's rsrc branch skips both the size store and
+     * the resolver) */
+    auto rec_d = make_record(2, u"rsrc-zero.rsrc", 2, 63, 0, 0, 0, 0, B_RSRC_DATA, 16);
+    patch_file_record(rec_d.data(), u"rsrc-zero.rsrc", 0x20, nullptr);
+    constexpr u32 B_CAT_LEAF3 = 9;
+    constexpr u32 NODE3 = 7;
+    auto leaf3 = make_leaf_node({rec_a, rec_b, rec_c, rec_d}, 0);
+    memcpy(d.data() + u64(B_CAT_LEAF3) * BS, leaf3.data(), NODE_SIZE);
+    {
+        u8* vh = d.data() + 1024;
+        write_fork(vh + 0x110, 8 * NODE_SIZE, B_CAT_HDR, 8);
+        u8* hdr = d.data() + u64(B_CAT_HDR) * BS;
+        be32(hdr + 14 + 0x06, 5);
+        be32(hdr + 14 + 0x0E, NODE3);
+        be32(hdr + 14 + 0x16, 8);
+        be32(hdr + 14 + 0x1A, 5);
+        u8* leaf1 = d.data() + u64(B_CAT_LEAF1) * BS;
+        be32(leaf1 + 0, NODE3);
+    }
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    ASSERT_EQ(scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), OK);
+    tree::FileNode *a = nullptr, *b = nullptr, *c = nullptr, *dd = nullptr;
+    std::function<void(tree::FileNode*)> scan = [&](tree::FileNode* p) {
+        for (tree::FileNode* ch = p->first_child(); ch; ch = ch->next_sibling()) {
+            const std::string nm = ch->name_utf8();
+            if (nm == "zeroblocks.dat")
+                a = ch;
+            else if (nm == "empty.dat")
+                b = ch;
+            else if (nm == "logical.dat")
+                c = ch;
+            else if (nm == "rsrc-zero.rsrc")
+                dd = ch;
+            scan(ch);
+        }
+    };
+    scan(ra);
+    scan(rd);
+    scan(rl);
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(b, nullptr);
+    ASSERT_NE(c, nullptr);
+    ASSERT_NE(dd, nullptr);
+    EXPECT_EQ(a->props()->logical_size, u64(16) << 12) << "(a) totalBlocks x 4096 fallback";
+    EXPECT_EQ(b->props()->logical_size, 0u) << "(b) zero/zero stays zero (empty file)";
+    EXPECT_EQ(c->props()->logical_size, 0x1000u) << "(c) a nonzero logicalSize always wins";
+    EXPECT_EQ(dd->props()->logical_size, 0u) << "(d) the rsrc path has NO fallback";
 }
 
 } // namespace

@@ -22,19 +22,36 @@
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
 #include "cr/table/cr_table_wire.h" /* M-051: crc32 for the analyser checksum */
+#include "cr/cr_log.h"              /* N-139: the OOM diagnostic seam (the og's 5-line
+                          PUBLOG memory dump is the reference shape; one
+                          line sized to this seam) */
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <map>
+#include <mutex>
 #include <ctime>
 #include <set>
 
 namespace cr {
 namespace carve {
 
+namespace detail {
+bool (*oom_test_hook)(size_t bytes) = nullptr; /* N-139: the test seam */
+} // namespace detail
+
 namespace {
 constexpr u64 WINDOW = 1ull << 20; /* 1 MiB */
 constexpr u64 OVERLAP = 4096;      /* magic search continuity */
 constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
+/* S-055: the grammar-rejection tracking bound (no-reclaim set). A
+ * garbage-saturated 2 TiB image can produce millions of full-magic
+ * matches that fail validation; past this bound tracking stops and the
+ * supplementary user-sign suppression degrades gracefully (the primary
+ * contracts - emitted_at, extent dedup - are unaffected). 1 Mi entries
+ * x ~48 B = ~48 MiB worst case, the same order as the window buffers. */
+constexpr size_t kMaxTrackedRejections = 1ull << 20;
 
 /* trial order: most specific grammar first when magics coincide */
 /* specificity-first: same-magic families order their most specific
@@ -44,16 +61,91 @@ constexpr u32 kTrialOrder[] = {
     FMT_PNG, /* N-052: HEIC heic-proper first; HEIF siblings follow */
     FMT_WEBP, FMT_WAV, FMT_PDF, FMT_7Z, FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST,
     FMT_ORF, FMT_RAF, FMT_TIFF_EP, FMT_RW2, FMT_PSD,
-    /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV,
-    FMT_CAB, FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_3GP,
+    /* S-007 niche: 3GP joins the ftyp family (brand-gated, like the
+     * MP4/MOV/M4A siblings above) */
+    FMT_ASF, FMT_FLV, FMT_CAB, FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
     FMT_CAB_LC, /* N-069: lowercase CAB key follows its uppercase sibling (distinct magic) */
     /* S-007: the og's common formats - distinct magics (no overlap with
      * the entries above), so the placement after the specific set is
-     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family. */
-    FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
+     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family.
+     * M-098: FMT_HIK shares the 00 00 01 BA key with FMT_MPEGPS and
+     * rides BEFORE it - the private-stream discriminator claims the
+     * vendor layout first; a HIK reject falls through to the generic
+     * stream row. */
+    FMT_HIK, FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
     FMT_MPGA_E2, FMT_MPGA_E3, FMT_MPGA_E4, FMT_MPGA_E5, FMT_MPGA_E6, FMT_MPGA_E7, FMT_MPGA_F2,
     FMT_MPGA_F3, FMT_MPGA_F4, FMT_MPGA_F5, FMT_MPGA_F6, FMT_MPGA_F7, FMT_MPGA_FA, FMT_MPGA_FB,
     FMT_MPGA_FC, FMT_MPGA_FD, FMT_MPGA_FE, FMT_MPGA_FF,
+    /* S-037: the og's FH11 + CPT7/8/9 rows (distinct magics; the three
+     * CPT keys share one validator, first-key-first is deterministic) */
+    FMT_FH11, FMT_CPT7, FMT_CPT8, FMT_CPT9,
+    /* S-007 niche batch 1 (SCAN-2f): the og-only keyed formats - each
+     * key re-read at its registration site. Distinct magics except the
+     * shared 00 01 00 00 key: TTF (table-directory gate) tries before
+     * MDB (Jet signature) - the sfnt directory is the more specific
+     * grammar. The multi-key rows mirror the og's one-row-per-key
+     * policy. SCAN-4 relabeled the misattributed rows per M-081 (CRW
+     * II/MM 1A 00; LowDoc DBA5/94A6; HLP 3F 5F 03 00) - same key order,
+     * corrected attributions. */
+    FMT_MID, FMT_OGG, FMT_RM, FMT_MXF, FMT_DMG, FMT_X3F, FMT_CRW, FMT_CRW_MM, FMT_MRW, FMT_WPG,
+    FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_LOWDOC, FMT_LOWDOC2, FMT_HLP,
+    FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB,
+    /* M-084: the og branch order - Jet first, then the ACE generation */
+    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF, FMT_DXF_C999,
+    /* S-041 niche batch 2, school 1 (SCAN-4): og-verified grammars;
+     * FMT_3DS rides the 2-byte MM key AFTER the TIFF family (TIFF-BE's
+     * 4-byte MM 00 2A key is the more specific magic at the same
+     * position - its grammar rejects 3DS content and falls through). */
+    FMT_CHM, FMT_ONE, FMT_MNY, FMT_EMF, FMT_SWF, FMT_SWF_CWS, FMT_3DS, FMT_3DS_NCSD,
+    /* S-047: the TS sync scanners - M2TS before TS (the og's auto-detect
+     * checks the +4 sync first, FUN_18002e430 :35592-35607); the two
+     * families' grammars reject each other's streams within two packets,
+     * so the order only breaks true ties. */
+    FMT_M2TS, FMT_TS,
+    /* M-092: the HTML keys (distinct 2-byte magics; one shared
+     * validator - first-key-first is deterministic) */
+    FMT_HTML, FMT_HTML_H, FMT_HTML_BANG, FMT_HTML_UTF16,
+    /* M-093: the XML/SVG keys (distinct 4-byte magics, one shared
+     * validator; FMT_SVG first so a direct svg-start document wins the
+     * tie against the <?xm row's interior <svg re-match) */
+    FMT_SVG, FMT_SVG_CD01, FMT_XML, FMT_XML_BOM,
+    /* M-096: MOBI (the 8-byte magic at +0x3C - distinct position) */
+    FMT_MOBI,
+    /* N-111: the JP2 family - FMT_JP2 first (the og's own analyser key,
+     * the jP signature box); the brand rows follow (a jpx/jpm file ties
+     * at the same start; the earlier trial order wins and the validator's
+     * override stamps the brand id) */
+    FMT_JP2, FMT_JPX, FMT_JPM,
+    /* N-112: the LZH method keys (distinct 5-byte magics at +2, one
+     * shared validator - the og stamps one id regardless of key) */
+    FMT_LZH, FMT_LZH5, FMT_LZHD, FMT_LZH7,
+    /* N-113: the text school (distinct magics except the "<?xm" GPX/CHFP
+     * forms, which the M-093 XML rows also key - the grammars reject each
+     * other's content) */
+    FMT_VCF, FMT_GPX, FMT_GPX_BOM, FMT_OSP, FMT_POS, FMT_CHFP,
+    /* N-115: the OfficeTagFromXML typing set - override targets sharing
+     * the LFH key; the FMT_DOCX row (earliest of the family) wins the
+     * registry-order tie and the typing walk's override carries the
+     * true id; these slots make the trial table exhaustive */
+    FMT_XLSX, FMT_PPTX, FMT_ODT, FMT_ODS, FMT_ODP, FMT_EPUB, FMT_IWORK, FMT_HWP, FMT_CDR,
+    /* M-121 (the renumber chain M-117->M-118->M-121 per SA-9): the Outlook Express Dbx keys
+     * (distinct 4-byte magics, one shared validator - the og stamps id 0x15 regardless of key) */
+    FMT_DBX_JMF6, FMT_DBX, FMT_DBX_MARKED,
+    /* M-099: AEP (bare RIFX - the og's own weak grammar; distinct
+     * magic from the little-endian RIFF family) */
+    FMT_AEP,
+    /* N-158: the og's five-branch typing tail - override targets
+     * sharing the LFH key (the typing walk stamps the id; the
+     * FMT_DOCX row wins the shared-hit tie and the override carries
+     * the true id); these slots make the trial table exhaustive and
+     * give the M-024 disable surface its per-row token */
+    FMT_XMIND, FMT_MMAP, FMT_EDDX, FMT_WFP, FMT_DRP,
+    /* M-107 member 6's S91 sub-format rider: the SHW slot - an
+     * override target (the FMT_WPD row wins the shared \xFFWPC tie and
+     * the validator's override carries the og's id 0x3d); rides AFTER
+     * the family row, keeping the exhaustive-table static_assert true */
+    FMT_SHW,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -67,9 +159,11 @@ struct ScanCtx {
     /* M-024: per-trial-slot and per-raw-sign-format disable maps, built
      * once in carve_slice from flags->disabled_formats (null list ->
      * all-zero = every format enabled). */
-    /* sized by the trial table; the static_assert keeps the fixed array
-     * honest when formats are added */
-    static constexpr u32 kMaxTrialSlots = 96;
+    /* sized by the trial table; the static_asserts keep the fixed array
+     * honest AND the trial order exhaustive when formats are added (a
+     * FormatId missing from kTrialOrder is silently never scanned -
+     * the S-007 niche batch added that second gate) */
+    static constexpr u32 kMaxTrialSlots = 160;
     bool trial_disabled[kMaxTrialSlots] = {};
     std::vector<bool> rawsign_disabled;
     const CarveFlags* flags;
@@ -87,6 +181,23 @@ struct ScanCtx {
     std::atomic<u64> bytes_scanned{0};
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
+    /* N-140: the per-format tally (the og's GetRawUserInfoMap
+     * map<ext,count> — bounded projection over the unified format-id
+     * space; see CarveStats::per_format). Atomic: the parallel worker
+     * fan-out shares the ctx. Slots >= tally_slots tick the overflow
+     * counter (never a silent drop). */
+    std::atomic<u64> per_format[CarveStats::kFormatTallyCapacity] = {};
+    std::atomic<u64> per_format_overflow{0};
+    u32 tally_slots = 0;         /* the live counting-space bound (set by carve_slice) */
+    u32 tally_raw_base = 0;      /* registry_size(): raw-sign rows start here */
+    u32 tally_usersign_slot = 0; /* the aggregate user-sign slot */
+
+    void tally(u32 slot) {
+        if (slot < tally_slots && slot < CarveStats::kFormatTallyCapacity)
+            per_format[slot].fetch_add(1, std::memory_order_relaxed);
+        else
+            per_format_overflow.fetch_add(1, std::memory_order_relaxed);
+    }
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
     /* N-031: all-zero sign-window strides skipped at the raw-sign layer
      * (the og's zero-sector fast-skip analog) */
@@ -101,8 +212,69 @@ struct ScanCtx {
      * the same worker that scans the window, and read within the same
      * window scan - cross-window overlap re-checks by re-walking). */
     std::vector<std::pair<u64, u64>> overlap_covered;
-    std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
+    /* S-049 (the S42 arbitration refinement): the naming counters - the
+     * og's map-keyed counter (DRWUI_decompiled.c:1877584-90, the node+8
+     * increment). TWO key classes, real-session-pinned first-hand by the
+     * G/H CSV census (this session): the branch-1 PER-FORMAT key (the
+     * format's UPPERCASE extension) shared by the plain rows AND every
+     * derived composition (JPEG dims, MP4/MOV duration, the date-alone
+     * forms - the JPG plain+dims union 1..952 at 96.7% density; the MP4
+     * families interleave one 1..8 counter; the date-alone DOCX rows
+     * 1..19 across three dates), and the branch-2 PER-STRING key (the
+     * analyser string: ZIP entry names - every family 1-based dense;
+     * PDF producer strings - TeX 1..453; DOCX creators - jacko 1..6
+     * across six dates; EXIF strings - Adobe Photoshop 7.0 1..45).
+     * The MAP is SESSION-WIDE: flags->name_counters (the orchestrator's
+     * per-scan instance, the DRWUI map's own lifetime) when bound, else
+     * this per-call local (the single-slice embed case). Guarded: the
+     * map is touched on the worker emission path (parallel mode fans
+     * out windows; add_file is tree-serialized but the name composes
+     * before it). */
+    CarveNameCounters local_counters;
+
+    /* the counter acquisition: ++ then read (the DRWUI callers). */
+    u32 next_name_counter(const std::u16string& key) {
+        CarveNameCounters& c = flags->name_counters ? *flags->name_counters : local_counters;
+        std::lock_guard<std::mutex> g(c.lock);
+        return ++c.per_prefix[key];
+    }
+
+    /* the branch rule: the analyser string keys branch 2; the derived
+     * and plain rows key branch 1 (the format). */
+    std::u16string carve_counter_key(const char* ext, const std::string& analyser_key) {
+        std::u16string key;
+        for (const char* p = analyser_key.c_str(); *p; ++p)
+            key.push_back(u16(u8(*p)));
+        if (!key.empty())
+            key.push_back(u'|');
+        for (const char* p = ext; *p; ++p)
+            key.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 32 : *p)));
+        return key;
+    }
+    /* S-048: the volume-group child cache - the lazily created per-volume
+     * FullNodes under carve_root (role = the group's display name) with
+     * their per-extension skeleton folders (role = the lowercase ext).
+     * Resume-safe: the lazy lookup searches carve_root's existing children
+     * for a matching role FIRST (a re-run never spawns a duplicate group
+     * child), then creates. Files attach to the GROUP node; the ext
+     * folders stay empty (the og's persisted shape - the real sessions
+     * carry one empty ext folder per present extension with every file
+     * directly under the volume node). */
+    /* S-048: the volume groups + the default (whole-slice) group name.
+     * groups empty + default non-empty = one group over the whole slice
+     * (the single-volume scan); both empty = no grouping (standalone
+     * callers). Borrowed pointers: carve_slice assigns its OWN copies
+     * that outlive the scan (the flags object is const& - a copy is
+     * mandatory, never a pointer into the caller's flags). */
+    std::vector<VolumeGroup> groups;
+    std::u16string default_group_name;
+    std::mutex group_mtx;
+    struct GroupNodes {
+        tree::FullNode* node = nullptr;
+        std::map<std::string, tree::FullNode*> ext_nodes;
+    };
+    std::map<size_t, GroupNodes> group_cache; /* key: the group index */
     /* S-031 residual: the wall-clock scan time stamped onto every carved
      * node's times.modified (the og persists a per-carved-file timestamp
      * string written by FUN_140c41aa0 via "%d-%d-%d %d-%d-%d" from the
@@ -196,6 +368,80 @@ struct ScanCtx {
     }
 };
 
+/* N-158: is THIS typed-id row disabled through the M-024 surface?
+ * Scoped to the five og [Filter]-keyed typed ids (XMIND/MMAP/EDDX/
+ * WFP/DRP - RawConfig.ini :12/:15/:17/:18/:22): every other override
+ * target is either carve_format_always_on (the N-115 nine, N-149's
+ * exempt set) or a content-decided discriminator (FMT_SVG/FMT_XML)
+ * whose disable surface stays the trial slot itself. The og's [Filter]
+ * load builds a key->flag map consumed per-key; the core's row-level
+ * gate is the conservative equivalent (PARITY-DELTAS D-134). */
+static bool typed_row_disabled(const ScanCtx& ctx, u32 fmt) {
+    switch (fmt) {
+    case FMT_XMIND:
+    case FMT_MMAP:
+    case FMT_EDDX:
+    case FMT_WFP:
+    case FMT_DRP:
+        break; /* the five gateable typed ids */
+    default:
+        return false; /* every other override target stays exempt */
+    }
+    for (u32 ti = 0; ti < kTrialCount; ++ti)
+        if (u32(kTrialOrder[ti]) == fmt)
+            return ctx.trial_disabled[ti];
+    return false; /* unreachable: kTrialCount == FMT_COUNT is static-asserted */
+}
+
+/* S-049: the og-contract name composition (FUN_140c44770 + the
+ * extension append). The COUNTER is acquired by the emit site through
+ * ctx.next_name_counter (the two-class key rule - see ScanCtx).
+ * prefix.empty() -> the bare %06d form (the og's empty-prefix branch,
+ * :1878334-37 - unreachable through the emit sites, which default the
+ * prefix to the uppercase ext, but implemented for contract parity). */
+static std::u16string og_carve_name(const char* ext, const std::u16string& prefix, u32 counter) {
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), counter <= 99999u ? "%06u" : "%u", counter);
+    if (n <= 0)
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    /* the default prefix: the format's own UPPERCASE extension when the
+     * analyser supplied no content-derived prefix (the real sessions:
+     * every format's plain form is EXT_NNNNNN.EXT - GZ_000001.GZ,
+     * PNG_000001.PNG; the og's caller always supplies a prefix and the
+     * bare %06d branch is its dead path, kept below for contract parity
+     * only through an explicit empty-ext signature) */
+    std::u16string use_prefix;
+    if (!prefix.empty())
+        use_prefix = prefix;
+    else if (ext_up[0] != 0) {
+        for (const char* p = ext_up; *p; ++p)
+            use_prefix.push_back(u16(u8(*p)));
+    }
+    std::u16string out;
+    out.reserve(use_prefix.size() + size_t(n) + el + 2);
+    /* the prefix_counter part, capped at 254 (the og's 0xff snprintf) */
+    size_t cap = 254;
+    if (!use_prefix.empty()) {
+        size_t take =
+            use_prefix.size() < cap - size_t(n) - 1 ? use_prefix.size() : cap - size_t(n) - 1;
+        out.append(use_prefix, 0, take);
+        out.push_back(u'_');
+    }
+    for (const char* p = cnt; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    if (out.size() > cap)
+        out.resize(cap);
+    out.push_back(u'.');
+    for (const char* p = ext_up; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    return out;
+}
+
 /* M-025: window-serving read context - the og's already-in-buffer model
  * (RAWSearchDLL :9195-9209 the 8 MiB ping-pong buffer; :9434-9438 chunk
  * fills; candidates validated from the buffer :9496). Wraps the slice
@@ -253,9 +499,97 @@ private:
     u64 len_;
 };
 
+/* S-048: the attach parent for a carved file at slice-relative pos —
+ * the volume-group child (lazily created under carve_root, resume-safe
+ * by role) with the per-extension skeleton folder created beside it.
+ * Returns carve_root when no grouping is configured or the position is
+ * outside every group (the unattributable position: never mis-attributed
+ * to a wrong volume). Called on worker threads in parallel mode: the
+ * cache and the folder creation are guarded by group_mtx; the tree's own
+ * add_folder/add_file serialize on the tree mutex. */
+static tree::FileNode* carve_attach_parent(ScanCtx& ctx, u64 pos, const char* ext) {
+    const bool has_groups = !ctx.groups.empty();
+    const bool has_default = !ctx.default_group_name.empty();
+    if (!has_groups && !has_default)
+        return ctx.carve_root; /* no grouping: the standalone-caller shape */
+    size_t gi = SIZE_MAX;
+    if (has_groups) {
+        for (size_t i = 0; i < ctx.groups.size(); ++i) {
+            const VolumeGroup& g = ctx.groups[i];
+            if (g.end > g.start && pos >= g.start && pos < g.end) {
+                gi = i;
+                break;
+            }
+        }
+        if (gi == SIZE_MAX)
+            return ctx.carve_root; /* outside every volume: unattributable */
+    } else {
+        gi = 0; /* the single whole-slice default group */
+    }
+    const std::u16string& want = has_groups ? ctx.groups[gi].name : ctx.default_group_name;
+    const std::lock_guard<std::mutex> lk(ctx.group_mtx);
+    ScanCtx::GroupNodes& gn = ctx.group_cache[gi];
+    /* the group child: lazily created, resume-safe by role (a re-run
+     * never spawns a duplicate volume child) */
+    if (gn.node == nullptr) {
+        tree::FullNode* node = nullptr;
+        for (tree::FileNode* c = ctx.carve_root->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == want) {
+                node = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (node == nullptr) {
+            node = ctx.tree->add_folder(ctx.carve_root, want);
+            if (node == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ctx.carve_root;
+            }
+        }
+        gn.node = node;
+    }
+    /* the per-extension skeleton folder (one per present extension,
+     * lowercase - the og's persisted shape; the FILES stay on the group
+     * node, the folder is the empty presentation skeleton) */
+    std::string ex(ext ? ext : "");
+    for (char& c : ex)
+        if (c >= 'A' && c <= 'Z')
+            c = char(c + 32);
+    if (gn.ext_nodes.find(ex) == gn.ext_nodes.end()) {
+        std::u16string uex;
+        for (char c : ex)
+            uex.push_back(u16(u8(c)));
+        tree::FullNode* fnode = nullptr;
+        for (tree::FileNode* c = gn.node->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == uex) {
+                fnode = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (fnode == nullptr) {
+            fnode = ctx.tree->add_folder(gn.node, uex);
+            if (fnode == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return gn.node;
+            }
+        }
+        gn.ext_nodes.emplace(ex, fnode);
+    }
+    return gn.node;
+}
+
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
- * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
-u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at) {
+ * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way.
+ *
+ * S-055: `rejected_at` records the start positions where a grammar
+ * analyser MATCHED the magic but validation failed - the strongest
+ * layer's negative verdict. The user-sign arm does not reclaim those
+ * positions (no-reclaim); the built-in raw-sign table still probes
+ * them (the og's layers claim by EMISSION - a rejected position is
+ * unclaimed for the compiled tables). Memory-bounded: tracking stops
+ * past kMaxTrackedRejections (the supplementary suppression degrades
+ * gracefully on garbage-saturated media; the emitted_at / extent-dedup
+ * contracts are unaffected). */
+u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at,
+                    std::set<u64>& rejected_at) {
     /* M-025: validators, checksums, hashes and tail scans read through
      * the window-serving device for this window (per-candidate device
      * re-reads eliminated - see WindowDevice above). */
@@ -321,23 +655,25 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 continue;
             ctx.hits.fetch_add(1, std::memory_order_relaxed);
 
-            /* try THIS format's grammar; accepting candidates accumulate
-             * into best_sig (N-070) - the winner is emitted after the
-             * loop. Position-resolution breaks (already-emitted here, F9
-             * dedup) still exit the trial loop immediately. */
-            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
-            if (!cr.ok) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
-            u64 file_len = cr.end - cand_abs;
-            if (file_len < sig.min_size || file_len > sig.max_size) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
+            /* M-117 (the trial-loop ordering repair; renumbered from the
+             * draft M-116 at the push per the ID-collision rule): the covered check
+             * runs BEFORE the validator. The walk's result was never used
+             * for covered candidates (the post-validator check simply
+             * `continue`d), but the walk itself ran to the row's FULL cap
+             * - on a contiguous suppress_overlap stream (TS/M2TS/MPEG
+             * audio: 1-byte sync keys, one hit per packet) that is the
+             * quadratic blow-up this fix removes: every mid-stream sync
+             * re-walked up to 200 MB only to be discarded as a duplicate
+             * (the executed S-054 fixture: a 220 MB stream = ~1.06M hits
+             * x ~200 MB walks - the scan stage never finishes; post-fix
+             * the whole stream scans in milliseconds). The terminal state
+             * is identical (duplicates++ + continue); the one counter
+             * refinement: a covered position whose walk would have FAILED
+             * now counts as a duplicate (what it is - the same stream)
+             * instead of a rejection. */
             if (emitted_at.count(cand_abs)) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                break;
+                break; /* position already resolved (F9 dedup) */
             }
             if (sig.suppress_overlap) {
                 bool inside = false;
@@ -350,6 +686,43 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
                     continue; /* a mid-stream sync of an emitted stream */
                 }
+            }
+
+            /* try THIS format's grammar; accepting candidates accumulate
+             * into best_sig (N-070) - the winner is emitted after the
+             * loop. */
+            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
+            if (!cr.ok) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                if (rejected_at.size() < kMaxTrackedRejections)
+                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
+                continue;
+            }
+            /* N-158: the typed-id disable gate. The og ships [Filter]
+             * keys for exactly the five N-158 typed ids (XMIND/MMAP/
+             * EDDX/WFP/DRP, RawConfig.ini :12/:15/:17/:18/:22); when
+             * the host disables the token the typing must not surface:
+             * a candidate whose override targets a disabled row is
+             * dropped HERE (not at the override resolution - the
+             * claiming office row would otherwise emit a non-office
+             * archive as DOCX). The suppression is row-level, the
+             * finding's conservative landing (the og's exact
+             * callback coupling is undecoded - the IAnalyserFilter
+             * method at vtable+8 takes no id parameter,
+             * RAWSearchDLL :4414-4418); the N-115 nine stay exempt
+             * via carve_format_always_on (N-149), so the gate only
+             * ever fires for the five new ids. */
+            if (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT &&
+                typed_row_disabled(ctx, cr.format_override)) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+            u64 file_len = cr.end - cand_abs;
+            if (file_len < sig.min_size || file_len > sig.max_size) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                if (rejected_at.size() < kMaxTrackedRejections)
+                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
+                continue;
             }
 
             /* F9 dedup vs structured results + prior carved nodes (the
@@ -397,21 +770,59 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return ERR_NO_MEMORY;
             }
-            const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
-            /* N-063: the og's per-analyser name first (the analyser's
-             * own SetName - e.g. MP4/MOV's "Lost Name File (...)_EaseUS"
-             * template), then the caller's namer callback, then the
-             * documented File%06u deliberate default (PARITY-DELTAS:
-             * formats with no decoded og naming rule). */
-            props->name = !cr.embedded_name.empty()
-                              ? cr.embedded_name
-                              : (ctx.namer ? ctx.namer(sig, file_len, idx)
-                                           : default_namer(sig, file_len, idx));
+            /* M-093: the og stamps the FORMAT ID at the probe (the SVG
+             * chain's 0x5b-vs-0x13 split is content-decided, not
+             * key-decided). The override resolves the EFFECTIVE
+             * Signature (ext/name/base-confidence) from the overridden
+             * row; the dispatch row's bounds already gated the
+             * candidate. Registry rows are FormatId-indexed (one per
+             * id), so ctx.reg[id] is the effective row. */
+            const Signature& eff =
+                (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT)
+                    ? ctx.reg[cr.format_override]
+                    : sig;
+            /* S-049: the og's naming contract - the DRWUI
+             * "<prefix>_<%06d>.<UPPEREXT>" name with the analyser's
+             * content-derived prefix (CarveResult::name_prefix) over the
+             * two-class counter (the analyser string keys branch 2; the
+             * plain/dims/duration rows key the format - the G/H census).
+             * The caller's namer callback (host policy) still rides for
+             * rule-less formats, now receiving the og-faithful counter.
+             * The N-063 embedded_name full-name chain is superseded: the
+             * real og sessions prove the tree-naming layer names every
+             * unnamed carve record this way and the engine's "Lost Name
+             * File" template never survives it (57/57 real MP4/MOV
+             * carve rows). */
+            {
+                const u32 n =
+                    ctx.next_name_counter(ctx.carve_counter_key(eff.ext, cr.name_counter_key));
+                props->name = ctx.namer ? ctx.namer(eff, file_len, n)
+                                        : og_carve_name(eff.ext, cr.name_prefix, n);
+            }
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
-            props->carve_format = sig.id;
-            props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
+            props->carve_format = eff.id;
+            props->carve_confidence = u16((eff.base_confidence + cr.confidence) / 2);
+            /* M-101 (the S84 convergence rider over the landed
+             * implementation): the carve analyser's EXIF walk already
+             * extracts the tag family (Model, else Software — the S-049
+             * naming source); a file whose tags were extracted AT SCAN
+             * stamps the branch flag here, composing with the landed
+             * host-preview-pass stamping (either path ORs the flag — a
+             * carved JPEG with an EXIF Model is in the branch without
+             * waiting for the host's pass). Runtime-only by design (the
+             * og does not persist tag state; the corpus shows the branch
+             * as runtime grouping). */
+            props->tags_extracted = !cr.tag_group.empty();
+            /* N-089: the analyser's evidence note rides the node (the og's
+             * CRAW second-string field +0x5A): the per-family evidence
+             * ("page-math", "RIFF+AVI+hdrl", ...) and the FCP-event-database
+             * subtype relabel ("page-math+fcpevent" - the og's id 0x73 ->
+             * 0x75, FUN_18002de40's "tableactiveactive" marker). */
+            if (cr.note[0] != 0)
+                for (const char* np = cr.note; *np; ++np)
+                    props->carve_note.push_back(u16(u8(*np)));
             props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
             /* M-051: the analyser checksum — CRC32 over the carved
              * extent's first 512 bytes (the re-verification value the
@@ -450,14 +861,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * DLL-absent degrade). */
             if (ctx.flags->post_processor) {
                 CarveCandidateInfo ci;
-                ci.format_tag = sig.id;
-                ci.format_ext = sig.ext;
+                ci.format_tag = eff.id;
+                ci.format_ext = eff.ext;
                 ci.offset = cand_abs;
                 ci.length = file_len;
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            /* S-048: the file attaches to its volume's group child (the
+             * og's persisted shape: Reconstructed/<volume>/<files>, the
+             * per-ext skeleton folders empty beside them) */
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, cand_abs, eff.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -510,9 +925,21 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                    : tree::Confidence::MetadataOnly);
             }
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
+            ctx.tally(u32(sig.id));      /* N-140: the per-format breakdown */
             emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
                                               winner's start; the raw-sign layer must
                                               not re-probe it) */
+            /* M-117 design note: NO post-emission scan jump. A jump past
+             * the emitted extent would suppress every candidate STARTING
+             * inside the extent - but overlapping candidates are real
+             * (the og ranks them by accumulated confidence, N-070's
+             * decode; the core's F9/extent-index dedup is the only
+             * correct suppression). The quadratic walk is removed by the
+             * pre-validator covered check ALONE: it preserves the exact
+             * terminal state for covered candidates while skipping their
+             * discarded walk work. (The jump variant broke
+             * S007CommonFormatsCarve - an AAC ADTS start inside another
+             * format's walked extent - caught by the full-suite gate.) */
         }
     }
 
@@ -549,20 +976,74 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
-            /* M-048: the user-extensible signature layer (the og's
-             * EUUserData consumer) - probed at the same stride, after
-             * the grammar layer's claims, before the built-in raw-sign
-             * table (a user sign for an already-probed position is a
-             * duplicate by construction; a user sign colliding with a
-             * BUILT-IN fires only when the built-ins did not match -
-             * built-in-first, the collision rule the finding specifies).
-             * A user-sign hit emits directly: no tail walk (user signs
-             * carry no tail semantics), the user's extension and MIME in
-             * the record, extent to the device end (the og's user signs
-             * are header-only markers - no size grammar). */
-            if (usersigns::active_count() != 0) {
+            /* N-031: the og's all-zero-sector fast-skip, core shape: no
+             * BUILT-IN header sign can live outside the first 47 bytes of
+             * the stride (probe_header's whole offset span), so a stride
+             * whose sign window is all zero skips the 47-lookup
+             * sign-table walk entirely (the og skips the whole sector:
+             * its leading/trailing zero-dword metrics, :9490-9520). The
+             * grammar layer keeps its first-byte dispatch on zeros - it
+             * is near-free there (the finding's own profile rule). S-055
+             * note: the skip guards the BUILT-IN arm only - user signs
+             * anchor up to kMaxOffset+48 bytes out (the og's zip sign
+             * sits at +526), so the user-sign arm below still probes
+             * zero-head strides. */
+            bool head_zero = true;
+            for (u32 zi = 0; zi < 47; ++zi)
+                if (win[off + zi]) {
+                    head_zero = false;
+                    break;
+                }
+            if (head_zero)
+                ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
+            /* S-055: the built-in raw-sign table probes FIRST and claims
+             * the position on any surviving hit - built-in-first, the
+             * M-048 collision rule the code's own comments have stated
+             * since the channel landed (the pre-fix code probed the user
+             * signs first, flipping the 8 overlap formats - amr/cap/
+             * class/cpl/flac/msf/pdb/wpl in the shipped default set - to
+             * device-end user-sign records). The user-sign arm runs only
+             * when no built-in survived the disabled-format filter. */
+            bool builtin_matched = false;
+            if (!head_zero) {
+                idx.probe_header(win + off, want - off, matches);
+                if (!matches.empty()) {
+                    /* M-024: drop disabled formats before the best-pick (the og's
+                     * filter removes the analyser from the working registry -
+                     * FUN_180006b30's removal loop - so its signs never fire) */
+                    if (!ctx.rawsign_disabled.empty()) {
+                        size_t w = 0;
+                        for (size_t r = 0; r < matches.size(); ++r)
+                            if (!ctx.rawsign_disabled[matches[r]->fmt])
+                                matches[w++] = matches[r];
+                        matches.resize(w);
+                    }
+                    builtin_matched = !matches.empty();
+                }
+            }
+            /* S-055/S-056: the user-extensible signature layer (M-048,
+             * the og's EUUserData consumer shape) - probed at the same
+             * stride AFTER the grammar layer's claims (emitted_at) and
+             * AFTER the built-in raw-sign table (built-in-first, the
+             * collision rule this block's comment has stated since the
+             * channel landed - now true in code). A grammar-REJECTED
+             * start is not reclaimed here either: the strongest layer
+             * examined the position and produced nothing, and a
+             * header-only match is strictly weaker evidence (the
+             * no-reclaim rule the S-055 fix lane pinned). A user-sign
+             * hit emits directly: no tail walk (user signs carry no
+             * tail semantics), the user's extension and MIME in the
+             * record, extent to the device end (the og's user signs are
+             * header-only markers - no size grammar). S-056: the host's
+             * disabled-formats list gates this layer like every other
+             * carve source (D-104's registered contract - the same
+             * removal-loop semantics the built-in filter above uses). */
+            if (!builtin_matched && usersigns::active_count() != 0 &&
+                rejected_at.count(start_abs) == 0) {
+                const char* const us_disabled =
+                    ctx.flags->disabled_formats ? ctx.flags->disabled_formats : "";
                 if (const carve::usersigns::UserSign* us =
-                        usersigns::match_at(win + off, want - off)) {
+                        usersigns::match_at(win + off, want - off, us_disabled)) {
                     const u64 len = ctx.total - start_abs;
                     /* F9 dedup (extent class) - the same shape as the
                      * grammar/raw-sign layers */
@@ -589,12 +1070,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                             ctx.aborted.store(true, std::memory_order_relaxed);
                             return ERR_NO_MEMORY;
                         }
-                        const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+                        const u32 fi =
+                            ctx.next_name_counter(ctx.carve_counter_key(us->ext, std::string()));
                         Signature rsig{};
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
                         props->name =
-                            ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+                            ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(rsig.ext, {}, fi);
                         props->fs_kind = u32(FsKindCode::Raw);
                         props->logical_size = len;
                         props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
@@ -616,7 +1098,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         if (us->mime[0] != 0)
                             for (const char* mp = us->mime; *mp; ++mp)
                                 props->carve_note.push_back(u16(u8(*mp)));
-                        tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+                        tree::FileNode* n =
+                            ctx.tree->add_file(carve_attach_parent(ctx, start_abs, us->ext), props);
                         props->release();
                         if (n == nullptr) {
                             ctx.aborted.store(true, std::memory_order_relaxed);
@@ -625,48 +1108,39 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         n->set_origin(tree::Origin::Carved);
                         n->set_deleted_state(tree::DeletedState::Deleted);
                         n->set_confidence(tree::Confidence::PartialRisk);
+                        /* N-171 (CONVERGENT across four lanes - session-44,
+                         * session-55, and two S-055-window re-landings; this
+                         * block is the single canonical form - the two
+                         * repair lanes converged: one
+                         * sign_hits + one validated tick - the repeated
+                         * hot-window re-duplications of the F-A3-6 class
+                         * [the 994e0bb0 merge kept both lanes' increments;
+                         * every user-sign file double-counted in
+                         * `validated`, CarveStats.UserSignFilesCountIn
+                         * CarvedFound red] closed at the THIRD merge): the
+                         * emission ticks BOTH counters - sign_hits (the
+                         * channel's own count) and validated (the counter
+                         * the orchestrator's carved_found headline reads,
+                         * cr_scan.cpp: stats.carved_found = cs.validated);
+                         * pre-N-171 the entire default-on user-sign
+                         * channel was invisible in the carved count. The
+                         * og's own counting surface counts analyser
+                         * detections the same way (GetRawUserInfoMap,
+                         * FUN_18000ed00 insert-or-increment). */
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
+                        ctx.tally(ctx.tally_usersign_slot); /* N-140: the user-sign aggregate */
+
                         emitted_at.insert(start_abs);
                         continue;
                     }
                 }
             }
-            /* N-031: the og's all-zero-sector fast-skip, core shape: no
-             * header sign can live outside the first 47 bytes of the
-             * stride (probe_header's whole offset span), so a stride
-             * whose sign window is all zero skips the 47-lookup
-             * sign-table walk entirely (the og skips the whole sector:
-             * its leading/trailing zero-dword metrics, :9490-9520). The
-             * grammar layer keeps its first-byte dispatch on zeros - it
-             * is near-free there (the finding's own profile rule). */
-            {
-                const u8* zw = win + off;
-                bool all_zero = true;
-                for (u32 zi = 0; zi < 47; ++zi)
-                    if (zw[zi]) {
-                        all_zero = false;
-                        break;
-                    }
-                if (all_zero) {
-                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
-                    continue;
-                }
-            }
-            idx.probe_header(win + off, want - off, matches);
-            if (matches.empty())
-                continue;
-            /* M-024: drop disabled formats before the best-pick (the og's
-             * filter removes the analyser from the working registry -
-             * FUN_180006b30's removal loop - so its signs never fire) */
-            if (!ctx.rawsign_disabled.empty()) {
-                size_t w = 0;
-                for (size_t r = 0; r < matches.size(); ++r)
-                    if (!ctx.rawsign_disabled[matches[r]->fmt])
-                        matches[w++] = matches[r];
-                matches.resize(w);
-                if (matches.empty())
-                    continue;
-            }
+            if (!builtin_matched)
+                continue; /* S-055: no built-in survivor and no user-sign
+                           * claim at this stride - nothing further to do
+                           * (the best-pick below requires a survivor;
+                           * matches may be empty or all-filtered here) */
             /* highest-confidence hit drives the candidate */
             const rawsigns::RawSign* best = matches[0];
             for (const auto* m : matches)
@@ -696,7 +1170,26 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     const u64 window = hi - lo;
                     const u64 scan_len =
                         window < idx.tail_scan_limit() ? window : idx.tail_scan_limit();
-                    std::vector<u8> tail_buf(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes);
+                    /* N-139: the tail-scan buffer is one of the two
+                     * OOM-realistic allocations (1 MiB + max sign); the
+                     * engine's error-code contract holds - bad_alloc
+                     * converts to ERR_NO_MEMORY with the og-shaped
+                     * diagnostic (the failed size), never an exception
+                     * escaping the engine. */
+                    std::vector<u8> tail_buf;
+                    try {
+                        if (detail::oom_test_hook != nullptr &&
+                            detail::oom_test_hook(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes))
+                            throw std::bad_alloc(); /* the N-139 seam */
+                        tail_buf.resize(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes);
+                    } catch (const std::bad_alloc&) {
+                        ctx.aborted.store(true, std::memory_order_relaxed);
+                        if (cr::log::enabled())
+                            cr::log::write(
+                                cr::log::Level::Error, "carve oom: tail buffer %llu bytes",
+                                (unsigned long long)(kTailScanChunk + rawsigns::kMaxSignBytes));
+                        return ERR_NO_MEMORY;
+                    }
                     u64 scanned = 0;
                     rawsigns::SignIndex::TailHit th;
                     while (scanned < scan_len) {
@@ -770,7 +1263,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return ERR_NO_MEMORY;
             }
-            const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+            const u32 fi = ctx.next_name_counter(ctx.carve_counter_key(fmt.ext, std::string()));
             /* N-014b: ONE naming family per scan - the raw-sign layer
              * rides the SAME chain as the grammar layer (the caller's
              * namer, then the registered File%06u default) instead of
@@ -782,7 +1275,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             Signature rsig{};
             rsig.ext = fmt.ext;
             rsig.name = fmt.ext;
-            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(rsig.ext, {}, fi);
             props->fs_kind = u32(FsKindCode::Raw);
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
@@ -827,7 +1320,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, start_abs, fmt.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -839,6 +1333,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
                                           : tree::Confidence::MetadataOnly);
+            /* N-188: the emitted record counts in `validated` — the
+             * counter carved_found is assigned from (cr_scan.cpp),
+             * matching the grammar and user-sign layers' emission-time
+             * counting. Ticked HERE (post-dedup, on emission), not at the
+             * candidate site — sign_hits keeps its candidate semantics. */
+            ctx.validated.fetch_add(1, std::memory_order_relaxed);
+            ctx.tally(ctx.tally_raw_base + best->fmt); /* N-140: the raw-sign row */
             emitted_at.insert(start_abs);
         }
     }
@@ -846,7 +1347,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
 }
 
 /* Read + scan the window with index wi (base = wi * WINDOW). */
-u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
+u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at, std::set<u64>& rejected_at) {
     const u64 base = wi * WINDOW;
     const u64 avail = ctx.total - base;
     u64 want = avail < WINDOW + OVERLAP ? avail : WINDOW + OVERLAP;
@@ -858,7 +1359,24 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
      * The last window's avail is always <= WINDOW (window_count =
      * ceil(total/WINDOW)), so the sum of attributed ranges == total. */
     const u64 counted = want < WINDOW ? want : WINDOW;
-    std::vector<u8> win(static_cast<size_t>(want), 0);
+    /* N-139: the window buffer (up to WINDOW + OVERLAP) is the other
+     * OOM-realistic allocation; same contract - the code, the abort
+     * flag, and the one-line diagnostic with the failed size and the
+     * window index (the og's 5-line PUBLOG dump sized to the core's
+     * logging seam; the og then RaiseExceptions - the graceful code is
+     * the registered deliberate divergence, PARITY-DELTAS D-115). */
+    std::vector<u8> win;
+    try {
+        if (detail::oom_test_hook != nullptr && detail::oom_test_hook(static_cast<size_t>(want)))
+            throw std::bad_alloc(); /* the N-139 seam */
+        win.resize(static_cast<size_t>(want));
+    } catch (const std::bad_alloc&) {
+        ctx.aborted.store(true, std::memory_order_relaxed);
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Error, "carve oom: window %llu buffer %llu bytes",
+                           (unsigned long long)wi, (unsigned long long)want);
+        return ERR_NO_MEMORY;
+    }
     if (ctx.slice->read_at(base, win.data(), u32(want)) != OK) {
         /* Unreadable window: skipped, NOT counted as scanned - the honest
          * fill-rate contract (G-05) forbids claiming coverage of bytes
@@ -868,24 +1386,46 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
         return OK;
     }
     ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
-    return scan_one_window(ctx, base, win.data(), want, emitted_at);
+    return scan_one_window(ctx, base, win.data(), want, emitted_at, rejected_at);
 }
 
 } // namespace
 
 std::u16string default_namer(const Signature& sig, u64 size, u32 index) {
     (void)size;
-    char buf[32];
-    /* N-063 comment repair: the og has NO FileNNNN scheme anywhere (the
-     * deep-dive artifact's "File0001.jpg lives in the UI" claim was a
-     * corpus erratum, corrected with OQ-S4-2's decode). This is OUR
-     * deliberate default for formats whose og naming rule is not
-     * decoded (registered in docs/PARITY-DELTAS.md) - zero-padded for
-     * stable ordering; formats WITH a decoded og rule name via
-     * CarveResult::embedded_name before this fallback. */
-    int n = snprintf(buf, sizeof(buf), "File%06u.%s", index, sig.ext);
+    /* S-049: the og's universal naming contract replaces the invented
+     * File%06u default (the deliberate default registered in
+     * PARITY-DELTAS D-76 - its premise "formats whose og naming rule is
+     * not decoded" is falsified: the rule IS decoded, universally, from
+     * the three real og sessions + the DRWUI naming function
+     * FUN_140c44770 :1878330-81):
+     *   name = <PREFIX>_<%06d counter>.<UPPERCASE-EXT>
+     *   - the counter is PER-FORMAT (this function receives the
+     *     caller's per-format counter through `index` - the ScanCtx
+     *     counter map owns the state; a stateless caller passes its own)
+     *   - past 99999 the og switches to unpadded %d (:1878336/:1878346)
+     *   - the default PREFIX is the format's own UPPERCASE extension
+     *     (GZ_000001.GZ, PNG_000001.PNG - every observed format)
+     *   - the prefix part is capped at 254 chars (the og's
+     *     snprintf(buf, 0xff) on the prefix_counter string), the
+     *     ".EXT" tail appends after it
+     * Content-derived prefixes (JPEG dims/EXIF, MP4/MOV duration, MP3
+     * title, PDF Title/Creator+date, DOCX date, ZIP first entry, WAV
+     * INAM) arrive through CarveResult::name_prefix at the emit site -
+     * this default fires when the analyser supplied none. */
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), index <= 99999u ? "%06u" : "%u", index);
     if (n <= 0)
-        buf[0] = 0;
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = sig.ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    char buf[40];
+    const int m = snprintf(buf, sizeof(buf), "%s_%s.%s", ext_up, cnt, ext_up);
+    if (m <= 0)
+        return {};
     std::u16string out;
     for (const char* p = buf; *p; ++p)
         out.push_back(u16(u8(*p)));
@@ -901,121 +1441,195 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     if (validate_registry(nullptr) != 0)
         return ERR_BAD_PARAMETER; /* F8 gate */
 
-    ScanCtx ctx;
-    ctx.slice = slice;
-    ctx.reg = registry();
-    ctx.flags = &flags;
-    ctx.tree = &tree;
-    ctx.carve_root = carve_root;
-    ctx.dedup_tree = dedup_tree;
-    ctx.namer = namer;
-    ctx.total = slice->size();
-    ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
-    /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
-     * the orchestrator rebases stats.free_map before the call) */
-    ctx.free_map = flags.free_map;
-    ctx.occupied = flags.occupied_ranges;
-    /* M-024: build the per-format disable maps from the host list (one
-     * pass; the hot loops then test a single bool). The grammar layer
-     * gates by trial slot; the raw-sign layer gates by format index. */
-    if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
-        static_assert(kTrialCount <= 96, "grow trial_disabled with the trial table");
-        for (u32 ti = 0; ti < kTrialCount; ++ti)
-            ctx.trial_disabled[ti] =
-                carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
-        const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
-        ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
-        for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
-            ctx.rawsign_disabled[fi] =
-                carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
-    }
-    /* S-031 residual: stamp the scan time once per run — every carved
-     * record carries it (the og's per-record formatted timestamp). */
-    ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
+    /* N-139: the engine's error-code contract holds on EVERY allocation
+     * path - no bad_alloc escapes carve_slice (the two OOM-realistic
+     * buffers carry their own size/window diagnostics above; this guard
+     * converts any remaining allocation failure the same way, with the
+     * diagnostic naming the stage rather than a size it cannot know).
+     * The og's policy is log-then-die (RaiseException 0xe0000001,
+     * RAWSearchDLL :958-983 + DRWUI's twin at :94179 - no handler
+     * exists product-wide); the graceful code + one-line diagnostic is
+     * the registered deliberate divergence (PARITY-DELTAS D-115) - a
+     * library must not kill the host process. */
+    try {
 
-    const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
-    const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;
-
-    if (!multi) {
-        /* single-threaded path: identical semantics to the original scan */
-        std::set<u64> emitted_at;
-        for (u64 wi = 0; wi < window_count; ++wi) {
-            if (cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
-                return ERR_CANCELLED;
-            if (u32 rc = scan_window_index(ctx, wi, emitted_at))
-                return rc;
+        ScanCtx ctx;
+        ctx.slice = slice;
+        ctx.reg = registry();
+        ctx.flags = &flags;
+        ctx.tree = &tree;
+        ctx.carve_root = carve_root;
+        ctx.dedup_tree = dedup_tree;
+        ctx.namer = namer;
+        /* S-048: the volume grouping (copies - the flags object is const&
+         * and the caller's stack frame may not outlive the parallel scan) */
+        ctx.groups = flags.volume_groups;
+        ctx.default_group_name = flags.volume_group_name;
+        ctx.total = slice->size();
+        ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
+        /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
+         * the orchestrator rebases stats.free_map before the call) */
+        ctx.free_map = flags.free_map;
+        ctx.occupied = flags.occupied_ranges;
+        /* M-024: build the per-format disable maps from the host list (one
+         * pass; the hot loops then test a single bool). The grammar layer
+         * gates by trial slot; the raw-sign layer gates by format index. */
+        if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
+            static_assert(kTrialCount <= sizeof(((ScanCtx*)0)->trial_disabled),
+                          "grow trial_disabled with the trial table");
+            static_assert(kTrialCount == FMT_COUNT,
+                          "every FormatId must appear in kTrialOrder exactly once - "
+                          "a missing id is silently never scanned");
+            for (u32 ti = 0; ti < kTrialCount; ++ti)
+                /* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the
+                 * working analyser list (the removal loop's mask 0x1000801
+                 * over id-0x30, RAWSearchDLL :4412-4418; the ids re-pinned at
+                 * the registry builders :2337/:2304-2310/:2243). The disable
+                 * surface refuses to switch those families off; every other
+                 * format disables as before. */
+                ctx.trial_disabled[ti] =
+                    !carve_format_always_on(ctx.reg[kTrialOrder[ti]].id) &&
+                    carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
+            const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
+            ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
+            for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
+                ctx.rawsign_disabled[fi] =
+                    carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
         }
-        if (progress)
-            (void)progress(ctx.total, ctx.total, progress_user);
-    } else {
-        /* parallel path: fan window indices out over a bounded pool */
-        ThreadPool pool(flags.threads);
-        PoolCancelToken pool_cancel(&pool);
-        std::atomic<u64> windows_done{0};
-        const u64 total = ctx.total;
+        /* S-031 residual: stamp the scan time once per run — every carved
+         * record carries it (the og's per-record formatted timestamp). */
+        ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
 
-        auto worker_job = [&](u64 wi) -> u32 {
-            /* pause-aware gate (G-07): a PausableToken freezes carve workers
-             * here; plain tokens behave exactly like the old poll. */
-            if (cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            if (pool.aborted())
-                return ERR_CANCELLED;
-            std::set<u64> emitted_at; /* per-worker overlap set */
-            u32 rc = scan_window_index(ctx, wi, emitted_at);
-            const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (progress &&
-                !progress(done * WINDOW > total ? total : done * WINDOW, total, progress_user)) {
-                pool.abort();
-                return ERR_CANCELLED;
+        /* N-140: the per-format tally's counting-space bounds — grammar
+         * rows [0, registry_size()), raw-sign rows
+         * [registry_size(), +kFormatCount), the user-sign aggregate at
+         * registry_size()+kFormatCount; capped at the fixed capacity (a
+         * future registry beyond capacity ticks per_format_overflow —
+         * never a silent drop). The og's map is cleared at every
+         * searcher init (per-scan lifetime) — the fresh ctx gives the
+         * same per-scan semantics. */
+        ctx.tally_raw_base = u32(registry_size());
+        ctx.tally_usersign_slot = ctx.tally_raw_base + rawsigns::kFormatCount;
+        ctx.tally_slots = ctx.tally_usersign_slot + 1;
+        if (ctx.tally_slots > CarveStats::kFormatTallyCapacity) {
+            ctx.tally_slots = CarveStats::kFormatTallyCapacity;
+            /* the user-sign slot is the first casualty when the space
+             * overflows the capacity: the aggregate ticks overflow (the
+             * honest bound), grammar/raw rows below capacity keep their
+             * per-format counts */
+            ctx.tally_usersign_slot = CarveStats::kFormatTallyCapacity;
+        }
+
+        const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
+        const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;
+
+        if (!multi) {
+            /* single-threaded path: identical semantics to the original scan */
+            std::set<u64> emitted_at;
+            std::set<u64> rejected_at; /* S-055: grammar-rejection set (serial path) */
+            for (u64 wi = 0; wi < window_count; ++wi) {
+                if (cancel && cancel->checkpoint())
+                    return ERR_CANCELLED;
+                if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
+                    return ERR_CANCELLED;
+                if (u32 rc = scan_window_index(ctx, wi, emitted_at, rejected_at))
+                    return rc;
             }
-            return rc;
-        };
-
-        /* main-thread watch loop: submit all windows, watch external cancel */
-        u32 first_err = OK;
-        if (cancel) {
-            /* poll cancel while submitting/running (N-017: the factored
-             * CancelPoolWatcher - identical 50 ms abort semantics) */
-            CancelPoolWatcher watcher(pool, cancel);
-            first_err = parallel_for(pool, window_count, worker_job);
-            watcher.done();
-            if (cancel->cancelled() && first_err == OK)
-                first_err = ERR_CANCELLED;
+            if (progress)
+                (void)progress(ctx.total, ctx.total, progress_user);
         } else {
-            first_err = parallel_for(pool, window_count, worker_job);
-        }
-        if (first_err != OK)
-            return first_err;
-        if (progress)
-            (void)progress(total, total, progress_user);
-    }
+            /* parallel path: fan window indices out over a bounded pool */
+            ThreadPool pool(flags.threads);
+            PoolCancelToken pool_cancel(&pool);
+            std::atomic<u64> windows_done{0};
+            const u64 total = ctx.total;
 
-    stats.hits += ctx.hits.load();
-    stats.validated += ctx.validated.load();
-    stats.rejected += ctx.rejected.load();
-    stats.duplicates += ctx.duplicates.load();
-    stats.hashed += ctx.hashed.load();
-    stats.bytes_scanned += ctx.bytes_scanned.load();
-    /* PARITY-AUDIT F-A3-6: sign_hits/sign_validated were each added TWICE
-     * (copy-paste duplicate lines) — every raw-sign statistic reported
-     * double its true value. */
-    stats.sign_hits += ctx.sign_hits.load();
-    stats.sign_validated += ctx.sign_validated.load();
-    stats.windows_skipped += ctx.windows_skipped.load();
-    /* N-031: the zero-skip telemetry */
-    stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
-    /* M-005: gate telemetry */
-    stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
-    /* M-039: occupancy-gate telemetry */
-    stats.occupancy_skipped += ctx.occupancy_skipped.load();
-    stats.bitmap_skipped_bytes =
-        (flags.free_map && flags.free_map->valid())
-            ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
-            : 0;
-    return OK;
+            auto worker_job = [&](u64 wi) -> u32 {
+                /* pause-aware gate (G-07): a PausableToken freezes carve workers
+                 * here; plain tokens behave exactly like the old poll. */
+                if (cancel && cancel->checkpoint())
+                    return ERR_CANCELLED;
+                if (pool.aborted())
+                    return ERR_CANCELLED;
+                /* N-139: same contract on the worker threads - a worker's
+                 * allocation failure returns the code, never an exception
+                 * through the pool */
+                try {
+                    std::set<u64> emitted_at;  /* per-worker overlap set */
+                    std::set<u64> rejected_at; /* S-055: per-worker grammar-rejection set */
+                    u32 rc = scan_window_index(ctx, wi, emitted_at, rejected_at);
+                    const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
+                    if (progress && !progress(done * WINDOW > total ? total : done * WINDOW, total,
+                                              progress_user)) {
+                        pool.abort();
+                        return ERR_CANCELLED;
+                    }
+                    return rc;
+                } catch (const std::bad_alloc&) {
+                    if (cr::log::enabled())
+                        cr::log::write(cr::log::Level::Error,
+                                       "carve oom: window %llu worker allocation failed",
+                                       (unsigned long long)wi);
+                    return ERR_NO_MEMORY;
+                }
+            };
+
+            /* main-thread watch loop: submit all windows, watch external cancel */
+            u32 first_err = OK;
+            if (cancel) {
+                /* poll cancel while submitting/running (N-017: the factored
+                 * CancelPoolWatcher - identical 50 ms abort semantics) */
+                CancelPoolWatcher watcher(pool, cancel);
+                first_err = parallel_for(pool, window_count, worker_job);
+                watcher.done();
+                if (cancel->cancelled() && first_err == OK)
+                    first_err = ERR_CANCELLED;
+            } else {
+                first_err = parallel_for(pool, window_count, worker_job);
+            }
+            if (first_err != OK)
+                return first_err;
+            if (progress)
+                (void)progress(total, total, progress_user);
+        }
+
+        stats.hits += ctx.hits.load();
+        stats.validated += ctx.validated.load();
+        stats.rejected += ctx.rejected.load();
+        stats.duplicates += ctx.duplicates.load();
+        stats.hashed += ctx.hashed.load();
+        stats.bytes_scanned += ctx.bytes_scanned.load();
+        /* PARITY-AUDIT F-A3-6: sign_hits/sign_validated were each added TWICE
+         * (copy-paste duplicate lines) — every raw-sign statistic reported
+         * double its true value. */
+        stats.sign_hits += ctx.sign_hits.load();
+        stats.sign_validated += ctx.sign_validated.load();
+        stats.windows_skipped += ctx.windows_skipped.load();
+        /* N-140: the per-format tally rides (the og's map outlives the
+         * scan into the report; slots/overflow copied first so a
+         * mid-aggregation reader cannot see counts without a bound) */
+        stats.per_format_overflow += ctx.per_format_overflow.load();
+        for (u32 i = 0; i < ctx.tally_slots && i < CarveStats::kFormatTallyCapacity; ++i)
+            stats.per_format[i] += ctx.per_format[i].load();
+        if (ctx.tally_slots > stats.per_format_slots)
+            stats.per_format_slots = ctx.tally_slots;
+        /* N-031: the zero-skip telemetry */
+        stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
+        /* M-005: gate telemetry */
+        stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
+        /* M-039: occupancy-gate telemetry */
+        stats.occupancy_skipped += ctx.occupancy_skipped.load();
+        stats.bitmap_skipped_bytes =
+            (flags.free_map && flags.free_map->valid())
+                ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
+                : 0;
+        return OK;
+
+    } catch (const std::bad_alloc&) {
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Error, "carve oom: engine allocation failed");
+        return ERR_NO_MEMORY;
+    }
 }
 
 } // namespace carve

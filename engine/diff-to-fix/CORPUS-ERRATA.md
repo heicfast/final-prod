@@ -242,3 +242,407 @@ per-key analyser attributions.*
 - **Correction:** the RC4 half is a capa FALSE POSITIVE on function 0x180012190 (the only match for the RC4 rule in this binary). First-hand disassembly of the full 469-byte function: it is a chunked checksum-verified copy pump — per-chunk dispatch at stream+0x2c: type 1 → FUN_180014c00 = adler-32 (0xFFF1 modulus, 5552-blocking), type 2 → FUN_180014ee0 = slicing-by-4 table CRC (DAT_18001a680/1aa80/1ae80/1b280); the rule-matched loops are u16 length-table maintenance (`movzwl -0x2(%rdx); sub; cmovb; mov %ax,(%rdx)`). No `and $0xff` exists anywhere in the function (RC4 index arithmetic is impossible), no 256-entry state/KSA exists anywhere in the decompile (zero `% 0x100` expressions), no keystream XOR, no key material, no rc4/arc4/crypt/cipher strings in the binary. BtrfsSearchDLL has NO RC4 and NO encrypted-dataset support.
 - **Evidence:** first-hand disassembly (objdump 0x180012190-0x18001236d) + decompile read (:15861-15992 adler, :15997-16024 CRC) + whole-binary pattern/string scans; `diff-to-fix/evidence/decompiled-quotes/s25-oq-s6-2-btrfs-rc4-false-positive.md`; OQ-S6-2 RESOLVED on it.
 - **Convergence (DFX30, same day):** independently decoded with the same conclusion; one additional identification recorded in the OQ-S6-2 convergence addendum — the pump serves the zlib-inflate cluster (FUN_180012370's 0x106 DEFLATE lookahead bound + FUN_1800143a0's DAT_180019cc0 length-symbol tables), matching capa's other hit (0x180011550, "ZLIB inflate or deflate").
+
+## Scan-engine session (Agent 2, 2026-10-28) — 2 new errata candidates
+
+**E-A. `re-workspace/artifacts/config-files/userdata-remoteconfig--signature-and-flags.md` §1**
+- **Claim:** EUUserData is "the user-extensible signature database (custom RAW
+  signatures / user-extensible **carving**)" — i.e. the file behind the
+  "add custom file type" feature as a CARVING feed.
+- **Correction:** EUUserData never reaches the RAW carving engine. Its sole
+  consumer is DRWUI's `CHKRepairFileSign` (RTTI: `.?AVCHKRepairFileSign@@`):
+  read at `%s/EUUserData` (DRWUI :1005387), JSON-parsed (:1005497+,
+  `_stricmp "signs"` :1005818), stored in the by-offset/by-ext maps, and
+  consulted by the MatchedFile/NotMatchedFile file-signature checker
+  (:721520-721680) — the CHK repair chain. RAWSearchDLL has zero EUUserData
+  references; the engine's runtime-loaded signature data is raw_signs.json
+  (read-only, :23836) + config/RawConfig.ini (:13133) only.
+- **Evidence:** first-hand decompile chain (RAWSearchDLL_decompiled.c rg =
+  0 EUUserData hits over 80,614 lines; DRWUI_decompiled.c:1005387, :1005497+,
+  :1005818, :1002677, :721520-721680; DRWUI.exe RTTI strings CHKRepair*).
+
+**E-B. `re-workspace/artifacts/SearchDLL/rawsearch-carving--deep-dive.md` :61 area**
+- **Claim:** the user-info-map/"consulted-alongside" phrasing implying
+  EUUserData's signs are consulted by the RAW engine at scan setup (also
+  repeated by the M-065 finding's corpus references and the FIX-6 probe note).
+- **Correction:** `GetRawUserInfoMap` returns the singleton's +0x90 member = a
+  `std::map<std::wstring, count>` of per-extension carve hits, populated
+  insert-or-increment by every analyser detection (FUN_18000ed00 :11376-11525;
+  first hit creates value 1, repeats increment `plVar10[8]+1`), CLEARED at
+  every searcher init (FUN_18000beb0 :9044-9051), and read one-way post-scan
+  by DRWUI's report builder into the "Trigger_Raw"/"FileSystem" report tree
+  (:227538-:227625). It is scan OUTPUT (statistics), never scan INPUT.
+- **Evidence:** first-hand insert-side + consumer-side decode (both directions
+  of the same map); the FIX-6 reading had the data flow inverted.
+## SA-6 probe-lane rows (2026-10-28 — the OQ-SA-2 resolution's corrections; same evidence bar: decompile cite or mechanical recount)
+
+- **E47** (rawsearchdll--analyser-registry-census.md, the SQLite row): the `SQLi` key (0x694C5153) is NOT a "multimap collision w/ DB chain" — the registry initializer (:1962-1971) constructs CFCPEvtAnalyser (id 0x73) and binds it DIRECTLY to the key; CFCPEvtAnalyser IS the og's SQLite analyser (the class is named for its target: FCP event bundles are SQLite databases). The deep walk additionally relabels the id to 0x75 on the 17-byte "tableactiveactive" schema marker (FUN_18002dfc1) — the FCP-event-database subtype (filed as the core's N-089).
+- **E48** (rawsearchdll--family-special.md, the WPG row): "re-validates `*param_2 == 0x677077` → stamps canonical size 0x45" — 0x45 is the FORMAT-ID stamp (FileInfo+0x18, the same slot RAR stamps 0x3A), NOT a size; the WPG size bounds live on the FileInfo: min 0x14 (20 B) at +0x110, max 100,000,000 (100 MB) at +0x118 (FUN_180014030 + the WPGRawFileInfo ctor).
+
+## SCAN-2f niche-batch rows (2026-10-28 — the S-007 batch-1 first-hand registration reads; same evidence bar)
+
+- **E49** (rawsearchdll--analyser-registry-census.md, the HLP cluster row): the key `3F 5F 03 00` (0x00035F3F, retdec :6077) is the CANONICAL WINDOWS HELP magic (the FileHLP cluster, node idx 32) — the census's "Nikon NEF/other" label there is wrong; NEF is TIFF-based and rides the II*/MM* multimap. Consequence: the core implements the key as HLP (FMT_HLP3, shared validate_hlp).
+- **E50** (rawsearchdll--analyser-registry-census.md + raw-dual-registry--u16-magic-keys.md, the DXF row): DXF is a KEYED u32 format — key `0x0D302020` (bytes "  0\r") at retdec :5555, node idx 25, a TWO-analyser chain (g146 + g144). The census/u16 artifacts' "list-layer" label is wrong (the ID-conflict note that paired 0x19 with "MPEG-audio" was mis-attributed: 25 = 0x19 = DXF). Consequence: the core keys DXF on the 4-byte magic + the "  0\r\nSECTION" covenant (FMT_DXF).
+- **E51** (rawsearchdll--analyser-registry-census.md, the MDB row): the MDB analyser is reached through the U16 registry, key 0x0100 (bytes `00 01`, the first two Jet header bytes) — NOT a u32-keyed format. The full gate is the 20-byte "Standard Jet DB\0" signature (FUN_180015260: key re-check + "dard" u64 @+8 + " DB\0" u32 @+0x10), type-id 39, FileInfo bounds {0x1000, 0xBEBC200} (ctor :21316-21318). The census's "key 0x100 (00 01 00 00)" conflates the u16 key with the full first-dword.
+- **E52** (rawsearchdll--analyser-registry-census.md, the TTF row): FileTTFAnalyser rides the SAME u16 0x0100 chain as MDB (a genuine two-analyser multimap on one key — the sfnt version word 00 01 00 00 and the Jet header 00 01 00 00 share their first two bytes). The census's "0x10000/0x100 key space" phrasing mixed the ICO u32 key (0x00010000, bytes 00 00 01 00) with this u16 0x0100 chain.
+
+## SCAN-4 rows (2026-10-28 — the A2 context-recovery re-run's first-hand registration reads; same evidence bar)
+
+- **E53** (rawsearchdll--analyser-registry-census.md, the !BDN row): the key `!BDN` (u32 0x4e444221, file bytes 21 42 44 4E) is NOT a "Bentley/BDN document" — it binds **FilePSTAnalyser, id 0x38** (the Outlook PST magic; registration :2324-2330 first-hand). The validator (FUN_180041eb0 :50000-50017) reads byte@+0xa: ==0x0e → size=u32@0xa8; ==0x17 → size=u32@0xb8; else size=0x100000. Consequence: the core's FMT_PST (keyed 21 42 44 4E) was correct; only the census label was wrong.
+- **E54** (raw-dual-registry--u16-magic-keys.md, the 0x4449 row): the u16 key 0x4449 (`ID`) is NOT "AIFF/IANA-family 'ID'-led formats" — it chains **BruteForce::MP3Analyzer → FileMP3Analyser, id 0x2b** (the ID3 lead-in; binding verified :2556-2563, ctor FUN_1800304f0 :37067-37090 first-hand). AIFF keys u32 `FORM` (0x4d524f46) → CFileAIFAnalyzer id 0x50 (verified :2409-2415). The artifact's own :95 "AIFF/'ID'" cross-reference sentence inherits the correction.
+
+
+## Session-8 wave-2 rows (2026-10-28 — the continuation lane's batch-2 decode + the batch-1 citation truth pass; same evidence bar: decompile cite or mechanical recount)
+
+- **E55** (registry geometry; supersedes the S-007 batch-1 landing's region cites): the u32 keyed registry's bindings live at **:1728-2509 (59 entries)** and the u16 registry's at **:2536-2911 (35 entries)** — total **94 keyed bindings**; the list layer is :2919-4214 (unconditional ~2930-3350 + config-gated 3356-4110). The landing's cited regions ":5450-6600"/":6205-6590" are INI-parsing and std::streambuf code (N-099; evidence/decompiled-quotes/s8-autosave-and-stamps.md §7).
+- **E56** (rawsearchdll--analyser-registry-census.md, the `E4 52 5C 7B` row): that key (0x7B5C52E4, :2175-77) is **OneNote** (RawSpeed::OneAnalyser + FileONEAnalyser, GUID-suffix gates :17177-78) — the census's "LZH arc" label is wrong (LZH is list-layer with the u32@+2 `-lhX` probe, :46962-65).
+- **E57** (census, the `II\x1A`/`MM\x1A` rows): keys 0x1a4949/0x1a4d4d (:1751/:1759) bind the **CRW (CIFF)** chain (Brance::CRWAnalyser, "HEAPCCDR" grammar :46148-80) — corroborates M-081's misattribution finding from the registration side.
+- **E58** (census, the New3DS row): `RawSpeed::New3DSAnalyser` + `File3DSAnalyser` (both ID 1, gates u16@0=='MM' AND u16@+0x10==0x3D3D, :14535-45) is the **Autodesk 3D Studio .3ds** format — "New" = new-generation analyser, not the Nintendo console.
+- **E59** (census, the XML/SVG rows): there is no dedicated CXMLAnalyser; the four u32 keys (`<?xm`, UTF8-BOM'<', 0x1cd, `<svg`, :1811-1835) all route into **Brance::SVGAnalyser**, whose string probes discriminate SVG (0x5b) from GPX-class XML (0x13) (:49642-702) — a multi-format router on one analyser.
+- **E60** (the WMF placeable convention; the S-007 batch-1 claim): the og's checksum gate is `word[10]@+20 == XOR(words 0..9)` with a zero dword at bytes 16-19 and the standard header at +22 (FUN_1800264d0 :29826-37) — NOT "stored word = XOR of words 0..8". Filed as **S-042** (the core implements the wrong grammar).
+- **E61** (FUN_180015260 decode): the u16 0x0100 chain's validator accepts a SECOND signature — `"Standard ACE DB"` → type **0x4C (ACCDB)** (:16515-17), beside "Standard Jet DB" → 0x27. The census's MDB row carries only the Jet signature. Filed as **M-084**.
+- **E62** (rsf-format--scan-session.md §5.5 area + DRWUI decode): the auto-save trigger carries **results-found and not-already-saved gates** (call sites :612583/:615166/:616764) and the entry gate is a **byte flag** on a config singleton (:442822-24, FUN_1400b5270 :165951-5) — not an unconditional completion write. Filed as **S-044**.
+- **E63** (the WPG ctor cite, correcting also N-093's inherited cite): the WPG bounds {20, 100,000,000} are stamped in the `RawSpeed::WpgAnalyser::WPGRawFileInfo` ctor at **:15700-15701** — the ":20542-20548" cite (batch-1 landing + N-093) points at `FUN_18001a850` (the FCPEvt content extractor). Verified first-hand both regions this session.
+- **E64** (the W1a session-list phrasing): the og's list reads **record 1 (session state) THEN record 2** — record-1 also has a WinPE variant layout (:432753) and size-progressive field gates; the "record 2 only" phrasing under-reported record 1's role. The core's read_summary matches the og's actual behavior — phrasing-only correction.
+
+
+## Session-8 third-lane rows (2026-10-28 — the driver lane + the CHM/FH11 decode convergence; same evidence bar)
+
+- **E65** (rawsearchdll--analyser-registry-census.md, the 0x11c/284 gloss at :99): the numeric key 284 (0x11C, magic bytes `1C 01 00 00`) is **FreeHand 11** — the registration site maps it to `BruteForce::CFH11Analyser`, format id 0x1D (retdec :5654-5665 / ghidra :1951-1962 / asm `0x1800035a1-0x1800035ea`; grammar u64@+4 == 0x02001401_1C040002, u32@+0xC == 0x011C1400, u16@+0x22 == "11"). The census's "(ICO sizes, MTS/ADTS sync)" gloss is a misattribution — MPEG-TS has NO magic key: CMTS/CM2TS are list-only brute-force scanners (constructed at `0x1800053ae-0x180005488`, no map entry). Corroborated convergently by two session-8 lanes and folded into S-041's addendum.
+- **E66** (retdec_decompiled.c, the :22635 region — a tooling caveat for future reads): retdec prints 64-bit constants in this function **truncated to their sign-extended low dwords** (`0x7c01fd10`, `-0x5ffff362`), while the binary's actual compares are genuine `mov rax,[mem]; cmp rax,[stack-const]` u64 pairs (asm `0x180016b40-0x180016c14`). The batch-2 CHM blocker ("u64-widened GUID compares conflict with the canonical ITSF v3 layout") was an artifact of this printing behavior, not a real conflict — the compared GUIDs are the canonical ITSF v3 pair {7C01FD10-7BAA-11D0-9E0C-00A0C922E6EC}/{7C01FD11-…E6EC} at +0x18/+0x28. **Lesson: never adjudicate compare-width from retdec's constant rendering alone — read the asm or ghidra's full-constant rendering.**
+
+
+## Session-8 lead-lane rows (2026-10-28 — the final push-window reconciliation)
+
+Convergence note: the lead lane's five read legs independently decoded the same census
+corrections as the remote E53-E66 set (the ONE/LZH key flip, the CRW/MRW flip, the New3DS
+row, the XML/SVG router, the WMF convention, the 284=FH11 gloss, the CHM compare-width
+artifact) and the same DBF/EPS + dispatch-order corrections already carried by rows 19/23
+of the older errata table — the lead lane's duplicates are dropped in the merge; the
+remote rows stand. **One distinct row the remote set does not carry:**
+
+- **E67** (the S-007 batch-1 addendum's DMG row, audit-side — filed as **M-090**): "cap
+  mirrors the og's own 0xBEBC200" is wrong — 0xBEBC200 is the GLOBAL singleton carve cap
+  (RAWSearchDLL :9049); **DMGRawFileInfo's own bound is 0xC800000 (209,715,200)**
+  (:49436-49440, read first-hand), and the og's FileDMGAnalyser extent walk targets the
+  **"koly" UDIF trailer** (needle 0x796c6f6b at :63806, an 8-zero pre-gate :63843-63844,
+  **size = hit + 0x200** :63847 — the standard 512-byte UDIF footer), not the bzip2 EOS
+  +10 that core walks. The "koly" constant cross-checks in the shipped binary
+  (og-codebase/RAWSearchDLL.dll, file offset 0x53222). Consequence: core's DMG carves are
+  truncated before the mandatory footer (typically unmountable) and candidates in the
+  200-209.7 MB window are dropped.
+## SA-9 lane rows (2026-10-28 — the push-time-reconciled third lane; same evidence bar)
+
+- **E68** (SaveScan/ifileproperties-part1--ntfs-fat-exfat.md:85): the
+  "+0x64 | 4 | secondary ID [CENSUS: 35..199,008,480]" label is refuted by
+  the SCAN-2f/SCAN-3 instruction-decisive decode (both lanes, convergent;
+  the SA-9 lane re-verified the DRWUI persistence side first-hand):
+  +0x64 = the low u32 of the FIRST $DATA run's start LCN (the
+  location-anchor family; DRWUI_decompiled.c:853462-853464 persists it
+  immediately before the type id). This row was queued by the SCAN-2f
+  lane's worklog ("corpus erratum row queued (part1:85 'secondary ID')")
+  and is recorded here per that queue — the parallel lanes' E53-E67 range
+  did not carry it. (Companion context, already on the record elsewhere:
+  +0x60 = total $DATA clusters; the census multiplicity is
+  allocated-clusters behavior.)
+- (Convergence note, no new row: the SA-9 lane's instruction-level CHM
+  disassembly — capstone on `og-codebase/RAWSearchDLL.dll` at
+  0x180016b40, the u64 GUID compares at 0x180016b9d-0x180016bc3 against
+  the stack-materialized constants — independently reaches E66's
+  conclusion and its lesson; its evidence file
+  `evidence/decompiled-quotes/s9-chm-gate-asm.md` carries the full
+  instruction listing. The lane's census MRW/CRW correction is E57's
+  content, reached convergently.)
+
+## Session-10 lane-B row (2026-10-29 — the field-parity deep-dive lane)
+
+- **E69** (SaveScan/ifileproperties-part2--ext4-hfs-refs.md — internal
+  contradiction + a doubtful [INFERRED] label): part2 §4's family synthesis
+  (:114-116) claims the persistent field set is "invariant" across the six classes
+  **including FLAGS(u16)** — but part2's own ReFS grammar table (:97-106,
+  [CODE]-backed) has **no FLAGS row**. The synthesis over-generalizes beyond its own
+  table. Additionally, the lane-B first-hand read of the ReFS population site
+  (ReFSSearchDLL_decompiled.c:2105-2135, quoted in full at
+  `evidence/decompiled-quotes/s10-refs-population-site.md`) shows the in-memory +0x39
+  u32 is **flag-bundle-derived** — `uVar7 = (uint)local_90 | 0x10`, where the SAME
+  local_90 bundle feeds the marker at +0x3d (stored as a **u16**, `local_90._4_2_`,
+  not the byte part2's table claims), +0x3f and +0x40 — which weakens the table's
+  "[INFERRED] objectId / parent anchor" reading of +0x39 (an objectId comes from the
+  parse result, not a flags local OR'ed with the has-children bit 0x10). **Not
+  settled by this read:** whether the SERIALIZED ReFS grammar includes a FLAGS u16 —
+  the deciding probe is the vtable+0x98 serializer trace (part2's cited reader
+  FUN_1405f52e0 is the DRWUI-side consumer, not the engine serializer). **Core
+  impact: none either way** — the core persists `flags` unconditionally
+  (cr_records.cpp:192; a superset under either reading) and carries the ReFS object
+  id in `record_ref` (cr_records.cpp:183, refs_engine.cpp:1111). The erratum exists
+  so future sessions do not lean on the contradictory synthesis or the unqualified
+  [INFERRED] label.
+- (Session-10 lane-B verification note, no new row: the three real SaveScan .rsf
+  files were parsed first-hand (`evidence/executions/s10-rsf-ground-truth.md`) — the
+  documented container grammar (magic, 0x8C header, 0x24 record header, 2-byte chunk
+  header, 4 KiB chunked zlib) is byte-confirmed against all three real files; the
+  corpus's rsf-format artifact needs NO correction.)
+
+- **E-S11 batch (session-11 S11 lane, 2026-10-29 — the RAWSearchDLL infra walk's
+  five precision corrections + the ZFS/ReFS walk's two refinements; every cite
+  first-hand):**
+  1. **s3-rawsearch-inventory §5.7's "external virtual" chunk driver** — imprecise:
+     the chunk-loop driver is `FUN_18000c650` at **vtable slot +0x118** (an in-DLL
+     method of the controller, `:9337-9380` — the loop `vt+0x98(chunk)` over
+     `range_sectors / sectors_per_chunk` at `:9361-9376`), not an external virtual
+     the host installs.
+  2. **s3 §5.5's "array of 0x1000 maps"** — the 0x10048-byte result queue
+     (`FUN_18000c430 :9304-9324`) is precisely: **4096 × 0x10 per-format
+     {list-head,count} buckets** (`_eh_vector_constructor_iterator_(ptr, 0x10,
+     0x1000, …)`) + the all-results list @+0x10000 + an
+     `IIterator<ListIterator<CRawFileInfo*>>` wrapper @+0x10010 + **two**
+     offset-keyed std::maps @+0x10028/+0x10038.
+  3. **The format-name mechanism pinned for S-049** — `FUN_18000b7a0 :8594-8621`
+     reads `&DAT_18008f070 + id*9`: a **9-byte-stride id→name table** in .data
+     (the naming contract's supporting mechanism, previously uncited).
+  4. **The user-info singleton's full layout** (extends SCAN-ENGINE-DELTA A4):
+     `FUN_180001350 :65-100` — {+0x60: 1, +0x68: 0 (both write-only resets at
+     `:9048/:9050` with NO in-DLL reader — semantics unverified), +0x70:
+     200000000 (the 200 MB cap, 12+ readers), +0x78: vector of format ids
+     1..169, +0x90: the stats map, +0xa0: byte, +0xb0: string, +0xc0: 0xff}.
+  5. **DRWUI shares the carve engine's OOM policy** — `DRWUI_decompiled.c:94179`
+     carries the identical `RaiseException(0xe0000001, 0xc0000025)` operator-new
+     (log-then-die is product-wide; no handler anywhere) — context for N-139's
+     product-contract reading.
+  6. **N-056/N-072's "backoff" wording refined** — the og's device poll is a
+     fixed **1000 ms unbounded** loop (ZfsSearchDLL `:5671-5673`), not a backoff;
+     the core's bounded 3×250/500/1000 stays the safer subset (the registered
+     direction is unchanged).
+  7. **The og's DVA translate is a fixed +4 MiB** (ZfsSearchDLL `:17996`) — the
+     core's nvlist-driven vdev offset is identical on whole-disk pools (the
+     registered superset; the note pins the og's constant for future
+     multi-vdev fixtures).
+
+## S11-lead additions (2026-10-29 — the deep-lanes wave; session-11-lead)
+
+1. **rawsearchdll--analyser-registry-census.md :20-23 ("all three exports …
+   expose three projections of the same data") is wrong in one half** — the
+   exports (EUGetAnalyserList/Map/Multimap, `RAWSearchDLL_decompiled.c:72170-72208`)
+   project the **STATIC** triplet only (+0x30/+0x40/+0x50); the **WORKING**
+   triplet (+0x00/+0x10/+0x20) is rebuilt and IAnalyserFilter-filtered per search
+   (`FUN_180006b30`, :4386-4434). The census's M-024-era refinement (the module
+   map carries it) supersedes the artifact's sentence.
+2. **The census's undecoded ":82" row ("Windows thumbnail/repair variant") is
+   resolved** — the key `F7 89 34 2C` registers the SAME dual-vtable
+   FileZIPAnalyser (id 0x48) as `PK\x03\x04` (`:2231-2247`). If real-world files
+   carry this magic the og carves them as ZIP; core has no such signature row
+   (flagged to the carve board — no fixture evidence either way this session).
+3. **rawsearch-carving--deep-dive.md §1's ZIP gate table conflated the probe and
+   walk tiers** — the PROBE gate (`FUN_1800176b0`, `:18294-18302`) admits version
+   `u16@+8 ≤ 0x13 or == 0x62`; the WALK gate (`FUN_1800176e0`, `:18385-18386`)
+   requires `≤ 10`. Core implements the walk gate (`cr_analysers.cpp:839-845`) —
+   the og's NET admission (probe AND walk) is ≤10, matching core; the artifact's
+   single-gate table misled N-008-era analysis.
+4. **ghidra-repair/REPORT.md lists three phantom binaries** — `EUZipRepairFile.exe`,
+   `EURarRepairFile.exe`, `EUVideoRepairFile.exe` ("NO OUTPUT") do not exist
+   anywhere in og-codebase (find: zero); the shipped EUFileRepair bundle is 5
+   exes (EUAdobeRepair, EUArchiveRepair, EUImgRepairFile, EuOfficeRepairFile,
+   EuPDFRepairFile — all register-dispositioned). The REPORT rows are decompile-
+   batch phantoms, not a corpus blind spot.
+5. **ghidra-local/NTFSSearchDLL is a byte-identical duplicate** of
+   ghidra-searchdll/NTFSSearchDLL (md5 `4d6ac40b…` both decompiles) — the S10-F
+   function-level sweep's coverage extends to it for free; censuses should count
+   it once. Likewise ghidra-misc/EUVideoRepair ≡ ghidra-repair/EUVideoRepair
+   (md5 `613ad879…`).
+6. **MainModule's System-Restore purge is absent from every corpus artifact** —
+   the srclient/SRRemoveRestorePoint chain (`MainModule_decompiled.c:138378-138420`,
+   the WQL enumerate-all at `:138773`, the both-drives caller at `:71496/:71511`)
+   is not even string-listed in per-binary/MainModule.md; filed core-side as
+   M-114 (the corpus-side gap recorded here for the maintainers).
+7. **The genuefisystemfile.cpp boot-surgery family is absent from every corpus
+   artifact** — the TempSystem/TmpBCD/TmpSoftWare chains
+   (`RecoveryModule_decompiled.c:73731-73786`, `:74837-74887`, `:73610-73621`) —
+   the READ side appears in MOM-modules/DeviceManager.md:55's string list only;
+   filed core-side as M-113 (the corpus-side gap recorded here).
+
+## Session-42-C rows (2026-10-29 — the S42-C continuation lane; re-landed at the third reconciliation — the drafts rode two unpushed lanes and lost two races) (2026-10-29 — the S42-C continuation lane: the corpus-worklog cross-check + the diskhealth walk; same evidence bar: on-disk recount or decompile cite; re-landed at the post-window reconciliation — the drafts' Session-42 block rode the lane's unpushed commits and lost the race)
+
+1. **The Languages census count defect** — the corpus's language-family census
+   claims **8 qtbase** .qm files (and UIUX/02-string-inventory.md:16 claims the
+   qtbase coverage is "13 languages"); the on-disk tree has **11 qtbase** files.
+   The "25+4+8=37" arithmetic holds only by coincidence: the actual census is
+   **22 product + 4 Mainland OEM + 11 qtbase = 37** (with English.qm a 16-byte
+   header-only file, counted in the 22). Recounted first-hand (find + per-file
+   header check, the S42-C/W3b pass).
+2. **The retention-nag period drift** — corpus worklog :785 records the
+   nag/retry band as "~10-60 s"; the decoded CChronoSnap retry band the trail
+   registered (docs/PARITY-DELTAS.md, the P02e/P40 family) is "30-60 s".
+   Cosmetic; both records should converge on the decoded value.
+3. **The diskhealth copy of AliyunConfig.ini has its own consumer** — the
+   trail-side PARITY-OG-CORE-INVENTORY row :51 says the crash-report chain is
+   the consumer; DiskHealth.exe itself reads AND writes
+   `diskhealth/AliyunConfig.ini` (GetPrivateProfileIntW `Config\bAllowSendInfo`
+   at DiskHealth_decompiled.c:39732; WritePrivateProfileStringW at :39762) with
+   its own in-process Aliyun client (the event taxonomy at :32311/:32331/:35114/
+   :35161/:35261/:37214/:38453). Corpus-side: no correction owed; the trail-side
+   docs row gets the one-clause repair (queued on I-038's fix-plan doc-side
+   list).
+4. **The corpus worklog's own RE-surface claims are complete against the
+   trail** — the first full cross-check (S42-C/W3b: ~45 claimed surfaces, each
+   greped against diff-to-fix/): zero missing dispositions, zero material
+   contradictions (the DRWService pipe-direction, RegLib hbin-writer phrasing,
+   and EUinApp role near-misses all cleared; the two numeric drifts above are
+   the only residue). Recorded so future lanes can trust the corpus worklog as
+   a secondary index without re-running the cross-check.
+5. **The RawFixer method-count drift (the trail-side instance)** —
+   docs/PARITY-OG-CORE-INVENTORY.md:157 says "31-method inventory"; the truth
+   is **33** (modules/rawfixer.md:4,108 — `rawfixer-v2--method-inventory.md`
+   "33 methods"; the corpus itself drifted 31→33 across worklog :163→:699).
+   A docs/ row — queued for the next doc lane (outside this lane's writable
+   surface; registered on I-039).
+8. **remote_config_data is a verbatim cached HTTP payload, not a serialized
+   map** (session-42 decode): `firebaseonlineconfig.dll` `FUN_180003010`
+   reads the response via WinHttpReadData, checks the first 7 bytes are
+   `"fetched"` (`firebaseonlineconfig_decompiled.c:1703`), and `fwrite`s
+   the whole buffer to the file. The framing is the server's own
+   `key\0 [len] value\0` scheme with 1-byte lengths (`\x05false`),
+   2-byte-LE lengths (`\x83\x02` = the 643-byte `filter_generalraw`
+   array; `\x1a\x05` = the 1,306-byte `json_gift`), and `\x00`-escaped
+   u16 lengths (`\x00\x3d\x01` = the 317-byte `json_pe`) plus a binary
+   bookkeeping tail. Worth one line in
+   `artifacts/config-files/userdata-remoteconfig--signature-and-flags.md`
+   so the framing is never re-derived. (Core-side impact: none — the
+   core consumes none of it; registered I-027 #2/#5 + OQ-S4-2.)
+
+## Session-48 rows (2026-10-29 — the S48 INFO-first lane; I-044's citation-correction leg)
+
+1. **The arch/04 §3.3 + D-36 searcher-creation citation** — the corpus doc
+   `architecture/04-*.md` §3.3 (and the trail's PARITY-DELTAS D-36 quoting it)
+   cites `FUN_140580720` as building the advanced-phase complete searcher set.
+   First-hand re-read (S48, I-044 verification): the **creation** site is
+   `FUN_140581500` (DRWUI_decompiled.c:917015-917040 — the function whose body
+   constructs `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` +
+   `EUCreateRAWSearcher` in order and installs the RAW naming callback at
+   vt+0x48 = FUN_140161fb0); `FUN_140580720` (DRWUI:916443+) is the **run**
+   phase that consumes the already-created set. The corpus doc carries the
+   same number and owes the same one-word correction; recorded here so no
+   future lane re-derives the creation site from the run site. The
+   settings+0x60/+0x6c "gates" cited alongside are hardwired init constants
+   (1/0 at DRWUI:947721-947722, no runtime writer in the shipped binary —
+   they never gate anything).
+
+## Session-54 rows (2026-10-29 — the S54 continuation audit lane's deep-dive legs; each first-hand re-read against the decompiles at corpus `be0cfe9`)
+
+1. **HFS+ `hfsplus-engine--deep-dive.md` §1 + `AUDIT-LINUX-FS.md` §2.1 — the VH
+   validator's gate fields are misread.** Both docs claim the og gates
+   `allocFileBlockCount ≤ totalBlocks && extentsFileBlockCount ≤ totalBlocks`
+   (the fork clamps). First-hand frame-offset derivation of the validator
+   (HFSPlusSearchDLL FUN_18000c6e0 :9900-10020, the S54 M-142 evidence): the
+   copy loop lands journalInfoBlock@copy+0x0C, blockSize@+0x28, totalBlocks@+0x2C,
+   freeBlocks@+0x30 as the ONLY swapped u32s, and the gate conjunction compares
+   exactly `freeBlocks ≤ totalBlocks && journalInfoBlock ≤ totalBlocks`. The fork
+   fields (+0x70/+0xC0) are never swapped — big-endian garbage could never satisfy
+   a ≤ test, proving the fork reading wrong. Filed as **M-142** (the core ported
+   the misread); both corpus docs owe the correction.
+
+2. **Btrfs `btrfs-engine--deep-dive.md` — the second superblock mirror offset is
+   a typo.** The doc lists the mirror set with a `0x40000` second entry; the
+   binary's .rdata table (`DAT_180018d60` at BtrfsSearchDLL FUN_18000d540
+   :10296) is `{0x10000, 0x4000000, 0x4000000000, 0x4000000000000, 0}` — 64 MiB
+   (0x4000000), not 256 KiB. The core carries the correct table (verified
+   `cr_btrfs*.cpp:494-495`); the doc alone is wrong.
+
+3. **ZFS `zfs-engine--deep-dive.md` — vdev_phys offset/size swapped.** The doc's
+   uberblock-ring layout swaps the vdev_phys offset and size fields relative to
+   the decode (the S54 evidence sheet's Axis-1 ZFS table carries the corrected
+   pair); the core's decode matches the decompile, not the doc.
+
+4. **ZFS uberblock ring stride — the doc's "0x80-byte" claim.** The ring's
+   per-slot stride is the uberblock size (512 bytes at ashift 9), not a flat
+   0x80; the doc's figure is the slot COUNT field's size class, not the stride.
+   (The S54 evidence sheet's ZFS section carries the derivation; core parity
+   verified on the stride itself.)
+## Session-56 row (2026-10-29 — the S56 ACUTE-first lane; S-058's evidence-erratum leg)
+
+1. **The s5 grading-table dump's §5 item 4 polarity line is inverted** — the
+   core's own evidence tree (`evidence/decompiled-quotes/
+   s5-grading-extension-table-dump.md`), not the corpus repo, carries the
+   defect: item 4 read "**In-table (find != end)** → deep-validation
+   branch". First-hand comparator re-read (S-058 verification): the gate
+   test `FUN_1401bebe0` (DRWUI:324923-324930) is the INEQUALITY over
+   `FUN_1401bec20`'s node-pointer equality, so `if (cVar1 == '\0')` at
+   :605743 enters when **find == end** — the deep-validation branch runs
+   for **not-in-table** keys; in-table keys take the string-cleanup else
+   at :605804-605807 (nothing; grade stays 1). Calibrated by the control
+   case at :585885-585905 (the direct-equality whitelist idiom). §6.2's
+   `""` consequence corrected in the same edit (dot-less files SKIP, not
+   enter). The erratum note is now in the s5 file itself; the code fix
+   landed as S-058.
+## Session-65 row (2026-10-29 — the S65 diff-to-fix lane [renamed from S64 at the push-rebase: the racing window took the S64 seat]; M-142's corpus-doc misreading recorded)
+
+1. **HFS+ `hfsplus-engine--deep-dive.md` §1 — the VH gate's fork clamps are a
+   misreading of FUN_18000c6e0.** The artifact's accepted-volume conjunction
+   (`:20-26`) gates `allocFileBlockCount <= totalBlocks` and
+   `extentsFileBlockCount <= totalBlocks`. First-hand re-read of the decompile
+   (HFSPlusSearchDLL_decompiled.c:9900-10020): the validator byte-swaps exactly
+   sig/version and the four u32s at VH+0x0C (journalInfoBlock), +0x28
+   (blockSize), +0x2C (totalBlocks), +0x30 (freeBlocks) — the CONCAT13/CONCAT12
+   swap band at :9978-9998 — and gates `local_1e8 <= uStack_1ec` (freeBlocks)
+   and `uStack_20c <= uStack_1ec` (journalInfoBlock). The fork fields at
+   +0x70/+0xC0 are never swapped in the validator and never compared: the
+   next stage FUN_18000cf90 is the 16-byte fork byte-swapper (+ FUN_18000cd50
+   on the extents), driven by FUN_18000d030 over all five forks — no compares
+   in that family. The core carried the same misreading until M-142 (fixed
+   this session); AUDIT-LINUX-FS.md §2.1 row 1 corrected in the same push.
+
+---
+
+## Session-68 rows (2026-10-29 — the registry-initializer first-hand decode; core pin `f3da99f1` + the S68 lane's filings, corpus `be0cfe9`)
+
+The S68 lane decoded the RAWSearchDLL static registry initializer end-to-end
+(`RAWSearchDLL_decompiled.c` :1440–:2520, construct-then-insert pairing; evidence:
+`evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`). Five census-doc labels
+corrected — the CORE matches the BINARY in all five (verified row-by-row):
+
+10. **`rawsearchdll--analyser-registry-census.md` §3, key 0xd302020** — labeled
+    "MPEG audio frame sync variant"; actually the **DXF header key `"  0\r"`**
+    (bytes 20 20 30 0D) binding `BruteForce::CDXFAnalyser` (id 0x19). The MPEG
+    audio sync keys are the separate MPGA_F*/E* inserts.
+11. **§3, key 0x90001** — labeled "Windows thumbnail cache"; actually the
+    **standard WMF header** (01 00 09 00 = type 1, header size 9) binding
+    `FileWMFAnalyser` (id 0x46). The core's FMT_WMF row is correct.
+12. **§3, key 0x4e444221** — labeled "Bentley/BDN document"; actually the
+    **Outlook PST magic `!BDN`** binding `FilePSTAnalyser` (id 0x38).
+13. **§3, key 0x100 row ("ICO/CUR 01/02 + count")** — conflated; **0x100
+    (00 01 00 00) is the TrueType sfnt key** binding `FileTTFAnalyser`
+    (id 0x41); ICO is 0x10000, CUR is 0x20000 (both `FileICOAnalyser`,
+    id 0x22).
+14. **§3, key 0x694c5153 "SQLite → DB chain"** — the bound analyser is
+    `BruteForce::CFCPEvtAnalyser` (id 0x73): FCPX event files ARE SQLite
+    databases ("SQLite format 3" + "FCPEVENT" strings both in the binary).
+    The core's FMT_SQLITE + N-089 FCP-event relabel is the faithful port.
+
+Also resolved first-hand: the raw_signs.json min/max **KiB→byte ×1024 at og scan
+time** (`FUN_1800205b0` :25020+ `max << 10`, `min << 10`, the `0x7d000` KiB
+absent-max default) — the core's generated table and its documented 500 MiB
+default are the exact og behavior. No divergence.
+
+## E-9 — MainModule's silent System-Restore purge (never documented in the corpus's own per-binary artifacts; surfaced by M-114)
+
+**Corpus site:** `re-workspace/reversed/ghidra-partition/MainModule_decompiled.c`
+:138378-138415 (srclient.dll load + SRRemoveRestorePoint resolve +
+CoInitializeSecurity + WMI connect), :138773 (the WQL "Select * from
+SystemRestore"), :138610-138634 (the per-point removal), :138415/:138418-420
+(the 510-index fallback sweep), the caller :71496/:71511 (both device
+objects' drive letters, 'b'..'y').
+
+**The gap:** `re-workspace/artifacts/per-binary/MainModule.md` carries no
+srclient/SystemRestore/restore-point row — the behavior was never
+documented by the corpus's own inventory (verified by grep at M-114's
+filing). The capability surface (LoadLibrary srclient.dll; COM/WMI
+SystemRestore class; the 510-index fallback) belongs in the per-binary
+capability table and the destructive-host-ops family in the module's
+architecture notes.
+
+**Suggested row for the maintainers:** MainModule — around
+copy/repartition pending-op pairs, silently removes ALL restore points
+on BOTH involved drives (SRRemoveRestorePoint per WMI-enumerated
+sequence number, the 0x1fe index fallback); MainModule-only (grep over
+ToolsModule/CloneModule/RecoveryModule/PartitionRecovery: zero). The
+core-side disposition is the D-159 PARITY-DELTAS decline (the
+consent-gated posture).

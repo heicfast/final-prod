@@ -1,12 +1,12 @@
 /* windows.h - DECLARATION-ONLY stub of the Win32 SDK surface the
  * src/win platform layer consumes.
  *
- * Purpose (M-055 gate): the Windows-only layer (src/win/*.cpp) has no
- * MSVC lane executing in this environment, and a build-breaking edit
- * there is otherwise invisible until a Windows CI run executes. This
- * header re-declares the exact SDK surface those files consume so the
- * Linux lane can run `g++ -fsyntax-only` over the whole win layer as
- * a parse gate (tests/win_syntax_check).
+ * Purpose (M-055 gate): the Windows-only layer (the .cpp files under
+ * src/win) has no MSVC lane executing in this environment, and a
+ * build-breaking edit there is otherwise invisible until a Windows CI
+ * run executes. This header re-declares the exact SDK surface those
+ * files consume so the Linux lane can run `g++ -fsyntax-only` over the
+ * whole win layer as a parse gate (tests/win_syntax_check).
  *
  * These are DECLARATIONS ONLY - inline bodies exist solely so the
  * translation units parse; the gate never links or runs them.
@@ -25,11 +25,17 @@
 #include <cstdio>
 
 typedef unsigned long DWORD;
+typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
 typedef unsigned long ULONG;
 typedef unsigned long long ULONG_PTR;
 typedef long LONG;
+typedef LONG LSTATUS; /* M-105's FVE diagnosis: RegOpenKeyExW's return type
+                         (the SDK's LONG status; the APE/SIT windows are
+                         the parse gate's own charter - a new SDK symbol in
+                         src/win grows the stub here) */
 typedef int BOOL;
 typedef unsigned char BOOLEAN;
+typedef unsigned char BYTE; /* N-228: the bitlocker battery's REG_BINARY payloads */
 typedef unsigned int UINT;
 typedef void* HANDLE;
 typedef void* HKEY;
@@ -97,6 +103,22 @@ struct FILETIME {
 #define INVALID_HANDLE_VALUE ((HANDLE)(long long)-1)
 #define INVALID_FILE_ATTRIBUTES ((DWORD)0xFFFFFFFF)
 
+/* W1a (R-56): the cr_ui session-list enumeration (FindFirstFileExW family;
+ * fields the production code actually reads - the parse gate needs no
+ * more, and the SDK names/values match). */
+struct WIN32_FIND_DATAW {
+    DWORD dwFileAttributes;
+    FILETIME ftCreationTime;
+    FILETIME ftLastAccessTime;
+    FILETIME ftLastWriteTime;
+    DWORD nFileSizeHigh;
+    DWORD nFileSizeLow;
+    wchar_t cFileName[MAX_PATH];
+    wchar_t cAlternateFileName[14];
+};
+#define FindExInfoBasic 1
+#define FindExSearchNameMatch 1
+
 /* calling convention + console control (app layer: rrecov's Ctrl-C).
  * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
  * definition is ABI-faithful for the parse gate. (__declspec is neutral-
@@ -133,6 +155,13 @@ struct FILETIME {
 #define ERROR_INVALID_FUNCTION 1UL
 #define ERROR_FILE_NOT_FOUND 2UL
 #define ERROR_INVALID_HANDLE 6UL
+/* M-074's destination-validation classification (cr_destio.cpp's
+ * classify_dest_error) - the real winerror values, declaration-only
+ * for the parse gate (the M-074 landing grew src/win's SDK surface;
+ * the stub grows with it per the gate's own protocol) */
+#define ERROR_INVALID_NAME 123UL
+#define ERROR_BAD_PATHNAME 161UL
+#define ERROR_FILENAME_EXCED_RANGE 206UL
 #define ERROR_CANCELLED 1223UL
 #define ERROR_MORE_DATA 234UL
 #define ERROR_ALREADY_EXISTS 183UL
@@ -140,6 +169,11 @@ struct FILETIME {
 #define ERROR_HANDLE_DISK_FULL 39UL
 #define ERROR_IO_PENDING 998UL
 #define ERROR_INSUFFICIENT_BUFFER 122UL
+/* M-074's destination-validation codes (winerror.h values, SDK-faithful):
+ * 206 = filename/exceed-range, 123 = invalid name syntax, 161 = bad pathname */
+#define ERROR_FILENAME_EXCED_RANGE 206UL
+#define ERROR_INVALID_NAME 123UL
+#define ERROR_BAD_PATHNAME 161UL
 
 /* wait codes */
 #define WAIT_OBJECT_0 0UL
@@ -157,6 +191,9 @@ struct TOKEN_ELEVATION {
 #define HKEY_LOCAL_MACHINE ((HKEY)(long long)0x80000002)
 #define HKEY_CURRENT_USER ((HKEY)(long long)0x80000001)
 #define KEY_READ 0x20019UL
+#define KEY_ALL_ACCESS 0xF003FUL /* N-228: the bitlocker battery's create access */
+#define REG_OPTION_VOLATILE 1UL  /* N-228: the battery's RAM-only staging keys */
+#define REG_OPTION_NON_VOLATILE 0UL
 #define REG_SZ 1UL
 #define REG_BINARY 3UL
 #define REG_EXPAND_SZ 2UL
@@ -198,13 +235,39 @@ inline BOOL FlushFileBuffers(HANDLE) {
 inline BOOL DeleteFileW(const wchar_t*) {
     return 1;
 }
+/* N-228 gate extension (test_destio_win.cpp's CWD probe): the SDK shape
+ * returns the copied length; the parse stub returns 0 (never linked). */
+inline DWORD GetCurrentDirectoryW(DWORD, wchar_t*) {
+    return 0;
+}
 inline DWORD GetFileAttributesW(const wchar_t*) {
     return 0;
+}
+/* S-060 (the recovered-file metadata restore tail): the writer's
+ * attribute/timestamp setters - declaration-only stubs per the gate's
+ * contract (a new SDK symbol in src/win grows the stub). */
+inline BOOL SetFileAttributesW(const wchar_t*, DWORD) {
+    return 1;
+}
+inline BOOL SetFileTime(HANDLE, const FILETIME*, const FILETIME*, const FILETIME*) {
+    return 1;
 }
 inline BOOL CreateDirectoryW(const wchar_t*, SECURITY_ATTRIBUTES*) {
     return 1;
 }
 inline BOOL MoveFileExW(const wchar_t*, const wchar_t*, DWORD) {
+    return 1;
+}
+/* W1a (R-56): FindFirstFileExW/FindNextFileW/FindClose (the session-list
+ * directory walk; invalid-handle semantics preserved for the parse gate) */
+inline HANDLE FindFirstFileExW(const wchar_t*, int /*FINDEX_INFO_LEVELS*/, WIN32_FIND_DATAW*,
+                               int /*FINDEX_SEARCH_OPS*/, void* /*LPVOID filter*/, DWORD) {
+    return INVALID_HANDLE_VALUE;
+}
+inline BOOL FindNextFileW(HANDLE, WIN32_FIND_DATAW*) {
+    return 0;
+}
+inline BOOL FindClose(HANDLE) {
     return 1;
 }
 inline BOOL GetFileSizeEx(HANDLE, LARGE_INTEGER*) {
@@ -225,6 +288,13 @@ inline HMODULE GetModuleHandleW(const wchar_t*) {
 inline FARPROC GetProcAddress(HMODULE, const char*) {
     return (FARPROC)0;
 }
+/* M-065 (diff-to-fix): the executable-path lookup for the shipped default
+ * user-signature set (userdata-defaults.json beside rrecov.exe). */
+inline DWORD GetModuleFileNameW(HINSTANCE, wchar_t* path, DWORD cap) {
+    if (cap > 0)
+        path[0] = 0;
+    return 0;
+}
 inline BOOL GetDiskFreeSpaceExW(const wchar_t*, ULARGE_INTEGER*, ULARGE_INTEGER*, ULARGE_INTEGER*) {
     return 1;
 }
@@ -237,6 +307,17 @@ inline DWORD GetCurrentProcessId() {
 inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() {
     return 0;
+}
+/* M-075's chkdsk launcher (cr_fsck.cpp): the WoW64 file-system
+ * redirection pair - BOOL-returning no-ops on the stub lane (the native
+ * signatures take PVOID* / PVOID). */
+inline BOOL Wow64DisableWow64FsRedirection(void** old_value) {
+    (void)old_value;
+    return TRUE;
+}
+inline BOOL Wow64RevertWow64FsRedirection(void* old_value) {
+    (void)old_value;
+    return TRUE;
 }
 inline DWORD GetTickCount() {
     return 0;
@@ -390,6 +471,35 @@ inline LONG RegCloseKey(HKEY) {
 inline LONG RegGetValueW(HKEY, const wchar_t*, const wchar_t*, DWORD, DWORD*, void*, DWORD*) {
     return 0;
 }
+/* N-228 gate extension (test_bitlocker_win.cpp's live-hive staging):
+ * the create/delete-tree pair the battery pokes the real registry with. */
+inline LONG RegCreateKeyExW(HKEY, const wchar_t*, DWORD, wchar_t*, DWORD, DWORD,
+                            SECURITY_ATTRIBUTES*, HKEY*, DWORD*) {
+    return 0;
+}
+inline LONG RegDeleteTreeW(HKEY, const wchar_t*) {
+    return 0;
+}
+inline LONG RegSetValueExW(HKEY, const wchar_t*, DWORD, DWORD, const BYTE*, DWORD) {
+    return 0;
+}
+/* M-118: the og's narrow registry surface (PartitionRecoveryD's
+ * RegOpenKeyA/RegEnumKeyA/RegQueryValueExA walk). The parse-gate stub
+ * fails the open (ERROR_FILE_NOT_FOUND semantics): the Linux build's
+ * mountpoints2 walk yields zero placements - the absent-key path, the
+ * same degradation the og's failed RegOpenKeyA produces. */
+inline LONG RegOpenKeyA(HKEY, const char*, HKEY*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
+inline LONG RegOpenKeyExA(HKEY, const char*, DWORD, DWORD, HKEY*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
+inline LONG RegEnumKeyA(HKEY, DWORD, char*, DWORD) {
+    return 259; /* ERROR_NO_MORE_ITEMS */
+}
+inline LONG RegQueryValueExA(HKEY, const char*, DWORD*, DWORD*, unsigned char*, DWORD*) {
+    return 2; /* ERROR_FILE_NOT_FOUND */
+}
 
 /* ---- ntstatus mapping -------------------------------------------------- */
 inline ULONG RtlNtStatusToDosError(long) {
@@ -400,6 +510,16 @@ inline ULONG RtlNtStatusToDosError(long) {
 typedef int errno_t;
 typedef long long __int64; /* MSVC builtin type; width-faithful, cast-capable */
 inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) {
+    return 0;
+}
+/* W1a (R-56): MSVC CRT localtime_s - src/app's sessions verb uses the
+ * cr_query.cpp platform-seam pattern (localtime_s on MSVC, localtime_r
+ * elsewhere); the gate's -D_WIN32 selects the MSVC branch and glibc has
+ * no localtime_s, so the CRT stub grows it here (the gate's own rule). */
+#include <ctime>
+inline errno_t localtime_s(std::tm* out, const std::time_t* src) {
+    if (!out || !src)
+        return 22; /* EINVAL shape, parse-only */
     return 0;
 }
 inline int _fseeki64(FILE*, __int64, int) {
@@ -443,4 +563,53 @@ inline int _pclose(FILE*) {
 #define CP_UTF8 65001U
 inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) {
     return 0;
+}
+
+/* S-040 (cr_image_create.cpp): the UTF-16 -> UTF-8 sidecar-name path */
+inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int, const char*, BOOL*) {
+    return 0;
+}
+
+/* ---- N-178 (rrecov.cpp's --pause-stdin): the console-input surface ----
+ * (WORD/WCHAR are stub-local: the real SDK defines them in minwindef/;
+ * this stub keeps its dependency set minimal)
+ * Declaration-only stubs per the gate's contract (a new SDK symbol in
+ * src/app grows the stub). The reader polls the console input buffer;
+ * the shapes mirror the real SDK (INPUT_RECORD/KEY_EVENT_RECORD with
+ * UnicodeChar at the SDK position, the bKeyDown flag, the event-type
+ * discriminator). */
+typedef unsigned short WORD;
+typedef wchar_t WCHAR;
+
+#define STD_INPUT_HANDLE ((DWORD) - 10)
+#define STD_OUTPUT_HANDLE ((DWORD) - 11)
+#define KEY_EVENT 0x0001
+typedef struct _KEY_EVENT_RECORD {
+    BOOL bKeyDown;
+    WORD wRepeatCount;
+    WORD wVirtualKeyCode;
+    WORD wVirtualScanCode;
+    union {
+        WCHAR UnicodeChar;
+        char AsciiChar;
+    } uChar;
+    DWORD dwControlKeyState;
+} KEY_EVENT_RECORD;
+typedef struct _INPUT_RECORD {
+    WORD EventType;
+    union {
+        KEY_EVENT_RECORD KeyEvent;
+    } Event;
+} INPUT_RECORD;
+inline HANDLE GetStdHandle(DWORD) {
+    return (HANDLE)0;
+}
+inline BOOL GetConsoleMode(HANDLE, DWORD*) {
+    return 0;
+}
+inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
+    return 0;
+}
+inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
+    return (HANDLE)0;
 }

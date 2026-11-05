@@ -1,5 +1,18 @@
 # modules/session.md — session module audit verdicts (CRSF vs .rsf)
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **A-013** (ACUTE — the CLI resume-truncate:
+"wb" checkpoint sink opens on the resume target before the "rb" read);
+**M-131** (the in-run checkpoint is truncate-in-place — the N-014 shape cr_ui fixed);
+**S-057** (FIXED session-51 — the og auto-saves stopped scans into the shared
+completion handler; the core never auto-saved a cancelled run. The auto-save now
+runs from BOTH the completion and the ERR_CANCELLED branch — the factored
+autosave_if_due_ helper, the S-044 gates identical, the CLI parity leg taken). Verified-MATCH: auto-save
+gates/naming/sanitizer, load identity re-check, save/load progress, the LDM basis
+re-arm (S-052), no-engine-state-persisted parity, the og's import path read-only.
+
+
 Reference: the .rsf grammar per `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md`
 (+ `ifileproperties-part1/2/3`), auto-save naming/sanitizer, CORRECTIONS folded.
 
@@ -201,3 +214,327 @@ restore semantics, DRWUI :264664-694/:357529) — FFFD-substituted names
 on disk, lossless D-53 display in the tree/report. ZFS untouched (FFFD
 baked at scan = the pinned engine asymmetry). 6 tests, fail-before
 4/6 RED. B10/D12 verdicts → MATCH for the N-029 surface.
+
+---
+
+## Dev-sign session wave (2026-10-28, audited `dd82db9` — ifileproperties-part1's first full read)
+
+The part1 artifact (the NTFS/FAT/exFAT field schemas + the 23-slot
+IFileProperties interface) was cited once (N-024) vs parts 2/3 (×6/×8); the
+field-level comparison this session:
+
+- Interface: 23 slots — 16 MATCH/equivalent, 1 MISSING (+0x20 type-registry
+  id getter — the registered N-050/N-059 residual), 1 UNDETERMINED, 5 N/A
+  both sides.
+- Fields: NTFS 12→10 matched, FAT 10→9, exFAT 10→8 — the core's carriers are
+  in places richer than the og (4-state deleted model, 4th timestamp,
+  allocated_size, codec/psize extents, resident_data, record_ref).
+- **N-087 (MINOR)** — FAT 8.3 names: the og persists raw OEM-codepage bytes
+  (part1:121); the core identity-maps each byte to U+00XX (`cr_lfn.cpp:113-129`)
+  — non-ASCII 8.3 names display/restore with different glyphs. B10/D11 → MINOR.
+- The anchor-datum slots (FAT +0x3e first-cluster — lost for chainless files
+  where the og keeps the origin; exFAT +0x50, NTFS +0x64 — semantics
+  undecoded in part1) → `tracked-open/OQ-SA-1-anchor-datum-fields.md` with
+  the resolution probes (rsf_field_census.py correlation; og-on-exFAT run;
+  FUN_14058c870 decompile).
+- Test debt noted: no end-to-end FAT/exFAT persisted-field round-trip test
+  exists to pin the MATCH columns (fix-plan item in OQ-SA-1).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+W1a/W1b/W1c verified at the load-bearing points (cancel-per-node;
+ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; light-record
+summary; atomic write; the v5 tail round-trip). New findings: **N-090** (list
+scope/row shape — no `auto_` filter vs the og's home-list enumeration; 1 s
+save time; label[32]; no device-type), **M-079 FIXED** (`0b76757` by the parallel fix-lane: fill_volume_label at scan setup — --label override > the --volume target's GetVolumeInformationW > the image filename stem; this lane's convergence complement: the Windows-CI behavioral assertions over the committed fixture + the exFAT fixture label-entry spec-repair + the resume label adoption in adopt_resume_state_) (was: the CLI never fills
+`volume_label`: no fill site exists, `fill_identity_card` covers every identity
+field but the label; CLI auto-saves are always `auto_<ts>`), **N-091** (the
+load-progress model + auto-save posture + thumbnail superset unregistered in
+PARITY-DELTAS).
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's N-090/M-079 rows)
+
+- **S-044 (FIXED this session)** — the W1c auto-save diverged from the og's
+  trigger contract: the og's three call sites gate on results-found
+  (FUN_1403964b0), not-already-saved (+0x388, 2 of 3 sites), and
+  not-import (+0x1c8); the entry gate is a byte flag on a config
+  singleton (FUN_1400b5270 :165951-5), not a directory field. **FIXED:
+  all three trigger-site gates landed (results-found / not-import via
+  the resume flag / not-already-saved via the explicit-save flag), on
+  both the ABI completion window and the CLI twin; the byte-flag config
+  shape is the registered deliberate delta D-105; the Folder suffix is
+  D-106/N-105's deferral. Tests: CrUi.AutoSaveSkipsEmptyResults /
+  AutoSaveSkipsAfterExplicitSave / AutoSaveSkipsResumedRun; TSan clean
+  on the pause-window save. findings/FIXED/S-044.** Evidence:
+  `../evidence/decompiled-quotes/s8-autosave-and-stamps.md` §1-§3.
+- **N-105 (MINOR)** — the og's folder-scan "Folder" name suffix
+  (:442883-86) has no core equivalent (deferred until a folder-scan
+  mode exists; cross-ref M-079's volume-label gap).
+- **N-100 (MINOR)** — the og persists the NTFS +0x60 twin (total $DATA
+  clusters, sparse-zeroed) beside +0x64 in record-4 (rsf-format :398);
+  the core carries +0x64 only (nflags bit-8). Register or carry as
+  bit-9 with the sparse-zeroing rule.
+- Verified MATCH this wave: the crsf reader's per-chunk raw fallback
+  (F10) mirrors the og's raw-memcpy-on-inflate-failure (md :98);
+  read_summary's SESSION_STATE+VOLUME_INFO light read matches the og's
+  actual list behavior (record 1 THEN record 2 — the W1a phrasing
+  corrected, erratum E64; the og's WinPE variant and size gates are
+  .rsf-format internals, not core divergences).
+
+
+## N-090 landed (the S56 lane, 2026-10-29) — the session-list scope + row shape
+
+- **The scope rule REGISTERED (D-129a — the row renumbered from its born-collided D-135 seat at the N-207 repair):** the every-`*.crsf` listing is the deliberate
+  superset over the og's `auto_`+`.rsf` home-list filter (DRWUI:432326-432333 —
+  substring pair, re-read first-hand). A manual save is a resumable session; hosts
+  wanting the og's exact home view filter client-side. Pinned:
+  `SessionListScopeSupersetPinsAutoAndManual`.
+- **The label width CLOSED (not registered — fixed):** the og's record-2
+  `volumeName[100]`/strncpy(…,99) width end-to-end — `ScanConfig.volume_label[100]`
+  (the host channel), the v6 record tail `label_full[100]` (len-gated; zeros on
+  v1..v5 = the legacy card is the whole truth), the ABI tail appends on
+  `cr_ui_session_row` + `cr_ui_session_info` (no version bump; `label[32]` = the
+  legacy prefix view). Pinned: `SessionListVolumeLabelFullWidthRoundTrips` (RED as
+  the ABI-append compile failure, the house precedent).
+- **The save-time seconds contract (D-129b) + deviceType not-carried (D-129c):**
+  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-129 (the og's ms + its 2→Desktop/
+  3→Recycle-Bin table recorded for the host that eventually asks).
+
+## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
+
+The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
+the partial-tree discard; the completion trigger + the byte-exact naming). Filed:
+**N-116** (the row-ORDERING divergence — the og's FILETIME time-sort :432112-432142 vs
+the path-byte sort; a distinct axis from N-090's scope/row-shape finding — **FIXED in
+session 38: rows now newest-first by save_unix with a path-ascending tie-break; the
+comparator's direction settled first-hand (!(ftA < ftB) = newest-first); the TRUNCATED
+answer is the time-ordered prefix; the CLI verb re-sorts by the same key; contract
+re-worded in cr_ui.h + ABI-CONTRACT §7f; `SessionListOgTimeOrdering` RED→GREEN**),
+**N-117**
+(the plan's un-landed W1b shape + the ABI-CONTRACT line-cite drift), **N-118** (the stale
+R-52/54/56 gap rows). The registration-class deltas ride the parallel N-091 + the lead
+addendum (the sanitizer superset).
+
+---
+
+## Session-10 lane-B addendum (2026-10-29, audited `84a1832`)
+
+**N-131 (MINOR, NEW):** the FS-native parent anchors are not persisted (NTFS
+parent-reference qword +0x40 / FAT parent-directory u32 +0x42 / exFAT +0x54 twin per
+ifileproperties-part1 :84/:129/:148) — the core persists the structural `parent_id`
+index only (cr_records.cpp:175; `rg parent_anchor|parent_reference|parent_frn` → 0
+hits). The hierarchy round-trips; the FS-native lineage datum (reload-time orphan
+cross-validation, forensic parentage) does not. The N-100 precedent class; the full
+per-field table — every load-bearing family MATCH-with-re-encoding, 13 SUPERSET
+fields, the complete ABSENT enumeration — is `evidence/s10-field-parity-table.md`
+(also the M-050 completeness record + the ReFS FLAGS caveat, erratum E69).
+**Executed ground-truth:** the three real SaveScan .rsf files parsed first-hand this
+session — the corpus container grammar byte-confirmed (magic, 0x8C header, 0x24
+record header, 4 KiB chunked zlib), the strongest-evidence-class backing for the
+session-format MATCH verdict (`evidence/executions/s10-rsf-ground-truth.md`).
+
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**N-186 (MINOR — NEW; renumbered from N-142 at the N-160 doc-truth repair):** the og's variant-save device-descriptor record (the 5th
+GUID `76a672b048058b46ba9e91093a63b517`, FUN_1403f1180 = [552-B struct] + [5400-B
+volumeDevice blob]; rsf-format--scan-session.md:70-75 + :225-233) persists the full
+device identity: bus type, model, serial, **firmware revision, WWN, interface
+string, and the complete 512-byte boot-sector snapshot**. The core's identity card
+(`VolumeSessionInfo` v2 tail, cr_records.h:190-210) carries model/serial/boot_hash
+only — firmware/WWN/interface and the boot-sector content have no equivalent
+(D12 field-parity gap on a variant path not seen in the shipped samples). Evidence:
+`evidence/decompiled-quotes/s12-rsf-fifth-record.md`.
+
+## S50 addendum (2026-10-29 — the continuation audit lane; audited core `34d6cf10`)
+
+- **N-186 RETIRED (FIXED-ALREADY — the battery's one falsely-active finding):**
+  the field set this finding asked for (firmware/WWN/interface_desc/
+  boot_snapshot[512]) landed with N-066's `4d3f0409` three days BEFORE the
+  filing — present at the finding's own audited tree c7fa527c (the "grep-
+  verified zero hits" claim was false at its own pin). Retired to
+  findings/FIXED/N-186 with the false-grep note + the VolumeSessionInfo
+  exposure sliver (optional follow-up, not a gap). The N-066 row above
+  remains the owner of record.
+- **N-192 (MINOR — tree/session axis — FIXED in the S60 lane)** — `FileProperties::clone()`
+  dropped `short_name` on the hard-link fan-out (cr_node.cpp vs the
+  og's whole-block clone contract); the one-line carrier landed (the
+  name block of clone()), the fan-out clone and the session roundtrip
+  pinned RED->GREEN by NtfsVolume.HardLinkFanOutClonesKeepShortName —
+  `findings/FIXED/N-192-clone-drops-short-name-on-fanout.md`. The
+  part1-census sibling register I-047 (the +0x80 format/icon-ID constant
+  family, acknowledged-at-filing) landed in findings/FIXED/.
+- **The ifileproperties-part1 under-cited flag discharged:** the full
+  census (51 MATCH / 13 DIVERGENT (15 of 17 non-MATCH trail-owned) /
+  4 ABSENT / 7 N-A) at `evidence/s50-ifileproperties-part1-census.md` —
+  the four module rows' "under-cited (x1)" note is closed by disposition.
+
+---
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+Addenda filed on existing findings: **M-126 +S54** (the ETA budget seed decoded:
+`total_bytes/60 MiB + 60 s` at DRWUI:315150 — the fix plan gains the seed step),
+**N-178 +S54** (the og's engine-pause type gate: +0xD8 != 1 skips engine pause —
+the core's all-stage pause is a superset to register or align), **N-186 +S54**
+(the scope correction: the persistence half landed as the N-066 v4 tail BEFORE the
+finding's pin — the live remainder is the VolumeSessionInfo mirror gap; the
+parity-table row here owes the narrowed-scope correction). Verified-MATCH this
+session: the .rsf field families re-walked against the persistence layer (the
+state/persistence surface corroborated — no NEW divergence beyond the filed set:
+the I-041/42/43 registers, S-057, N-090, the D-122 family all stand), the
+checkpoint/save-trigger set, and the load path's v1..v5 tolerance ladder.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the persistence deep dive)
+
+New on this module: **N-203** (the resume round-trip drops the candidate
+data-area extent — the save/load pair never carries
+data_start_lba/data_sector_count; the fix plan proposes the PartitionContext
+v4 tail + the revalidate scratch-enrichment for pre-v4 sessions). The .dat
+lifecycle register **I-046** records the og's persistence-owner truth for the
+parity tables (per-process-generation cache, not a knowledge base). The
+battery re-confirmed the standing session-family findings (N-090, N-131, the
+I-041/42/43 registers) at the `1fccb0a4` pin — all convergent with the S54
+lane's own battery.
+
+
+## S66 lane (2026-10-29): N-203 landed
+
+**N-203 FIXED** — the partition-context record's v4 tail: `data_start_lba` /
+`data_sector_count` ride the session round-trip (77-byte record; v1..v3
+sessions deserialize zeroed per the skip-unknown rule). The load path restores
+both; `revalidate_candidate` drops its const — a successful probe of a
+zero-extent record copies the scratch's re-derived data area back into the
+candidate (the og's 0x448 CSearchedPartitionInfo image replays with the full
+extent identity — the {start,end,disk} dedup key re-verified first-hand at
+PRD:20825-20831; the copy-back is the core's first-resume repair, idempotent
+once re-saved). Pins: RoundTripKeepsDataAreaExtent / V3SessionResumeReDerivesDataArea
+/ RestoredWindowMatchesFreshDiscovery / EnrichedExtentIsIdempotentAcrossReSave
+(RED: load-fill + enrichment surgically disabled, 3×FAILED → GREEN 11/11).
+
+## S76 addendum (2026-10-29 — the MINOR-first fix lane; N-131 landed)
+
+**N-131 FIXED** — both FS-native parent-anchor carriers landed as nflags-gated
+append-only blocks (bits 12/13, fires-only-when-nonzero — pre-N-131 session
+records stay shape-identical): `ntfs_parent_ref` u64 (the og's CNTFS
++0x40 — the $FILE_NAME parent reference masked to the 48-bit record number,
+FUN_18002a340's local_41 mask decoded first-hand; stamped per-link at the
+hard-link fan-out so each link keeps its own parent, plus the GUID-dump and
+INDX second-source emissions; the USN journal pass stays unstamped — its
+parent comes from the USN_RECORD_V2 header, not a $FILE_NAME, and the og's
+USN emission builds name-only props) and `fat_parent_cluster` u32 (the og's
+CFAT +0x42 — the containing directory node's own +0x3e origin cluster, the
+walk-stamp decoded first-hand at FATSearchDLL :11654/:11500-04; the volume
+root anchors 0 on every flavor by construction [engine init FUN_18000e130,
+FAT32 included], a walked subdirectory anchors at its own first cluster).
+**The exFAT +0x54 open question is RESOLVED first-hand — NO CARRIER:** the
+exFAT engine never stamps +0x54 for children (exFATSearchDLL :45155's child
+emission stamps vt+0x28 only; the sole +0x54 writes are root/lost-dir
+0xFFFFFFFF initializations at :3895/:5026/:11461 and clone copies; the DRWUI
+class exposes no +0x50/+0x54 accessor at all) — the anchor-twin hypothesis
+and the part1 census's "type-registry ID" label are both refuted; carrying
+nothing IS the parity. Tests: Session.NtfsParentRefRoundTrip /
+Session.FatParentClusterRoundTrip (the round-trip + the zero-carrier gate) +
+FatEngine.ParentAnchorCarriesContainingDirCluster /
+NtfsVolume.ParentAnchorIsMaskedFileNameParentRecord (the walk-level stamps +
+session survival); suite 1526/1526. The s10 field-parity table's rows 1-2
+(now-carried) and the exFAT row (resolved dead-slot) are superseded by this
+landing.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-150 (MAJOR, NEW):** the load-path count pre-allocation — `cr_records.cpp:372`
+  (re-verified pin; the N-131 parent-anchor landing shifted the file) pre-allocates
+  8×count from the uncapped hostile u32 (up to 34.4 GB of touched memory) before any node
+  parse; the og's record-4 reader is per-node-factory (bounded by buffer exhaustion,
+  rsf-record4 :16/:26). The container's 64 MiB record cap and the P1-7 amplification
+  budget do not reach the in-record count field. The torn-session READ-side freeze/OOM
+  complement to M-131's write-side repair. Evidence: `s79-lead-verification.md` §A.
+
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New active finding on this module: **M-154** (MAJOR — the auto-session
+lifecycle: the og reads the LastScanInfo.ini pointer and DELETES the previous
+auto .rsf before writing the new one [DRWUI:442815-442833, first-hand], keeps
+exactly one live auto session, writes the 4-field pointer `[Info]
+SavePath/Name/Count/Time` + an HKLM `SOFTWARE\EASEUS\DRW`
+LastScanConfig/LastScanFile mirror [:443060-443086], resumes pointed
+[:443092-443127], and its auto-list surface shows only `auto_*.rsf`
+[:432256-432341]; the core's autosave_if_due_ [cr_ui.cpp:2287-2323] never
+prunes — unbounded auto-session accumulation — and has no pointer/pointed
+resume). Verified-MATCH this lane: the auto-session naming (N-061 byte-parity
+against all three shipped samples), the trigger gates incl. the stop window
+(S-044/S-057), the name sanitizer (D-110 superset). Evidence:
+`evidence/s69-lane-sheets/S69-A-localdb.md` §B.6.
+
+## S80 addendum — M-150 FIXED: the count pre-allocation bomb gate (2026-10-29)
+
+**The load-path memory spike closed.** deserialize_tree's count field
+is now bounded by the wire length: each node consumes ≥ 10 wire bytes
+by the grammar (parent 4 + nflags 2 + marker 1 + origin 1 + deleted 1 +
+confidence 1), so a count beyond (len-4)/10 is refused instantly with
+ERR_SESSION_FORMAT — the container's resync layer recovers as it does
+for other record-level corruption. The old code value-initialized
+by_id(count) straight from the hostile u32 (up to 34.4 GB of touched
+pages at the u32 max: minutes of pagefile thrash on Windows before
+bad_alloc, an uncatchable OOM-kill on Linux overcommit). The og's
+record-4 reader allocates node-by-node through per-FS factories
+(rsf-record4--tree-node-grammar.md:16,26) — its allocation bounded by
+the bytes actually present; the gate restores that bound at the count
+field. Tests: Session.HostileCountBombRefused (count = 0xF4240000 over
+3 real nodes — RED first-hand: the pre-fix allocation threw) /
+CountAtWireBoundFailsCleanlyBeyondIt (the exact bound passes the gate
+and fails cleanly at the truncated tail; one beyond it: instant
+refusal) / TornTailGarbageCountStillFailsCleanly (the M-131-class
+producer: garbage count over real bytes, process survives). Session
+suite 29/29; full suite 1627/1627.
+
+## S80 addendum — M-154 FIXED: the auto-session lifecycle (2026-10-29)
+
+**Retention-one + the pointer landed.** The og's lifecycle (all six
+DRWUI bands verified at the finding): before every auto-save, the
+previous auto session named by the pointer is DELETED (:442815-442833) —
+exactly one live auto session; the pointer carries [Info]'s four fields
+(SavePath/Name/Count/Time, :443060-443086); the pointed resume
+(FUN_140286390) restores SavePath; PathFileExistsA validates
+(:443209-443214). The core: session::LastScanInfo (the new
+cr_lastscan.cpp module — the last_scan.info sidecar in the autosave
+dir, PARITY-DELTAS D-164's registered location difference; the HKLM
+mirror dropped); the retention loop in BOTH autosave bands (cr_ui.cpp +
+rrecov.cpp); cr_ui_session_last_autosave_path as the pointed-resume ABI
+(ERR_RANGE_OUT_OF_BOUNDS on no-live-pointer — the honest absence the
+host's list fallback consumes). The auto_-name retention guard (a
+corrupted pointer naming a manual save is never deleted) is the
+registered safety superset. Tests: AutosaveRetentionDeletesPrevious
+AndPointerNamesIt (two rounds -> one file + the four fields; RED:
+BUILD-absent) / AutosaveManualSaveSurvivesRetention /
+AutosaveDeadPointerDoesNotBlock (the kill-out-of-band shape: the save
+proceeds, the resume reports absence) + the C consumer check; the
+S-044/S-057 trigger pins and the W1c/W1a surfaces stay green. Suite
+1651/1651.
+
+---
+
+---
+
+## Session-82 addendum — M-154 FIXED: the auto-session lifecycle (2026-10-29)
+
+**Retention-one + the pointer.** The og's three-site lifecycle landed:
+the `session::LastScanInfo` pair (the four fields verbatim - SavePath/
+Name/Count/Time - as the `lastscan.info` sidecar beside the auto
+sessions; the og's APPDATA-ini+HKLM-mirror form is a Windows-host
+convention, deliberately dropped with the pointer's semantic preserved),
+`autosave_retire_previous` (delete the pointed prior AUTO session - the
+og's auto_/extension name filter is the safety gate, so manual saves and
+hostile pointers never delete), the wiring in both consumers (the ABI
+twin's `autosave_if_due_` and the CLI twin: retire before the write, the
+pointer after a SUCCESSFUL save), and the `cr_ui_session_resume_last`
+ABI entry (the pointed load - the og's continue-last without
+enumeration; the dead-pointer refusal mirrors its PathFileExistsA
+validation). N auto-saving runs now leave exactly one live auto session
+and a pointer naming it. **#36/#12/#31/#52: MATCH.** Tests:
+LastScanPointerFourFieldRoundTrip / AutosaveRetentionDeletesPreviousAutoOnly /
+AutoSessionNameGate; the win syntax gate 12/12; suite 1524/0.

@@ -83,6 +83,12 @@ public:
     u64 device_reads() const { return device_reads_; }
     u64 device_bytes() const { return device_bytes_; }
 
+    /* M-108: the previewed node's properties (the name the text-preview
+     * eligibility gate reads the extension from - the og's
+     * FUN_140089050 cached-extension consumer). Null only for the
+     * synthetic test readers that bypass the node. */
+    const tree::FileProperties* props() const { return props_; }
+
     /* M-028: the device-byte cost of a read_at(logical_offset, len)
      * BEFORE issuing it. Plain extents cost their overlapped length;
      * COMPRESSED extents cost the whole packed block (psize — any window
@@ -109,11 +115,66 @@ struct Caps {
     u32 max_read = 4u << 20; /* total bytes pulled from the reader */
     u32 max_work = 1u << 22; /* work-unit guard (parser loop steps) */
     u32 text_snippet = 256;  /* extracted text bytes */
+    /* M-077: the og's shipped preview PRODUCT caps (UIUX/10 §3,
+     * QM-verified copy) as config-overridable defaults: files larger
+     * than 100 MiB are "not available for preview" (the eligibility
+     * gate) and decode-heavy extraction is bounded by a time guard.
+     * Zero-init = the defaults ON (the og's caps are product policy,
+     * not user opt-in); a host overrides by setting its own values
+     * (UINT32_MAX disables a gate). */
+    u32 max_file_bytes = 100u << 20; /* eligibility gate (the 100 MB line) */
+    u32 max_decode_ms = 15000;       /* decode-work time guard (the 15 s line) */
 };
+
+/* M-066: one previewed archive entry (the ArchivePreviewModel row):
+ * name, sizes, and per-entry CRC presence (the damaged-zip browsing
+ * contract - a zero CRC marks the entries the repair chain cares
+ * about). Same shape as the carve path's S-032 CarveEntry plus the
+ * CRC flag the preview surface reports. */
+struct ArchiveEntry {
+    std::string name;         /* entry name (archive-native bytes, UTF-8 pass-through) */
+    u64 size = 0;             /* uncompressed size */
+    u64 compressed = 0;       /* compressed size */
+    bool crc_present = false; /* CD CRC-32 != 0 (the damaged-entry marker) */
+};
+
+/* M-066: the hostile-archive bound on the preview inventory (512 entries
+ * = the preview budget model's scale, not a decoded og constant - the
+ * og's model is unbounded because the UI streams lazily; our extractor
+ * is eager, so we cap + flag). */
+constexpr u32 kMaxPreviewArchiveEntries = 512;
+
+/* M-108: the text-preview eligibility gate (the og's TxtViewFiles
+ * whitelist). The og decides which files preview as text by EXTENSION
+ * MEMBERSHIP in config/FilterFolder.ini [Filter] TxtViewFiles -
+ * decompile-verified (DRWUI_decompiled.c:535858/:535937): the ini loads
+ * once (the ini-absent default is ".txt;"), the node's cached extension
+ * is tested with the toupper-folded delimited search
+ * (FUN_140310aa0 - ASCII case-insensitive), and content is NEVER
+ * sniffed for eligibility. Consequences ported exactly: a whitelisted
+ * extension (.txt/.log/.xml/... - 97 shipped tokens, 92 unique
+ * case-folded; the generated pool is byte-exact from the corpus ini)
+ * previews as text whatever its bytes (UTF-8 BOM, UTF-16, Latin-1 all
+ * render); a non-whitelisted extension never previews as text (a
+ * printable-head binary is NOT text); an extensionless name fails the
+ * consumers' empty-needle early return (not viewable). The generated
+ * pool: src/core/preview/cr_preview_text_exts_data.cpp (regenerate via
+ * scripts/gen_preview_text_exts.py after corpus updates). */
+namespace textexts {
+/* Is this dot-prefixed ASCII extension (e.g. ".txt") a text-preview
+ * format per the og's TxtViewFiles whitelist? Case-insensitive. */
+bool eligible(std::string_view dot_ext);
+namespace data {
+extern const u8 kTxtViewPool[];
+extern const u32 kTxtViewPoolLen;
+extern const u32 kTxtViewTokenCount;
+} // namespace data
+} // namespace textexts
 
 struct Metadata {
     std::string kind;   /* image|video|audio|document|archive|text|unsupported */
-    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|mov|wav|pdf|docx|txt */
+    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|wav|pdf|docx|zip|txt (N-088: no mov - no
+                           producer) */
     u32 width = 0, height = 0;
     std::string orientation;  /* EXIF orientation as "N" (1..8), "" when absent */
     std::string datetime;     /* EXIF DateTimeOriginal (YYYY:MM:DD HH:MM:SS) */
@@ -122,6 +183,12 @@ struct Metadata {
     std::string text_snippet; /* bounded printable text (documents) */
     bool truncated = false;   /* extraction hit a cap (caller may re-run
                                * with higher caps - never a silent loss) */
+    /* M-066: the archive-content inventory (the og's ArchivePreviewModel
+     * browse-inside-archive contract, UIUX/10:17) - emitted for ANY
+     * archive whose central directory is walkable at preview time,
+     * carved or FS-origin alike. Bounded: kMaxPreviewArchiveEntries +
+     * the truncated flag (the preview budget model). */
+    std::vector<ArchiveEntry> entries;
 };
 
 /* Sniff + extract within the caps. `pr` supplies the bytes; the extractor

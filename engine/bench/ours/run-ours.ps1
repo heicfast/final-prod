@@ -68,7 +68,16 @@ function Invoke-SampledProcess {
         } catch { }
     }
     $samples | Set-Content -Path $SamplesPath -Encoding utf8
+    # session-97 (the perf gate's first live catch): the wall is the PROCESS's
+    # own span (ExitTime - StartTime), never the sampling loop's exit time -
+    # the 500 ms poll quantum overstated sub-second walls by up to a full
+    # quantum (quick scans measured 512 ms vs the true ~27 ms; run 42012118585
+    # tripped scan-quick-wall 512 <= 165 on exactly this).
     $wall = [math]::Round(((Get-Date) - $t0).TotalSeconds, 2)
+    try {
+        $p.Refresh()
+        if ($p.ExitTime -and $p.StartTime) { $wall = [math]::Round(($p.ExitTime - $p.StartTime).TotalSeconds, 2) }
+    } catch { }
     return @{ pid = $p.Id; exit = $p.ExitCode; wall_seconds = $wall; capped = $capped }
 }
 
@@ -118,7 +127,27 @@ foreach ($mode in $ScanModes) {
             ForEach-Object { $_.Line.Trim() })
     }
     if (-not $modeInfo.session_exists -and -not $sr.capped) {
-        throw "scan $mode produced NO session and was not capped - refusing to continue (no silent skip)"
+        # session-97 (run 41140212296's S-PART-DELETE lesson): the no-silent-skip
+        # throw must CARRY its own diagnosis - exit code, transport lines, and the
+        # tail of both streams - so the runner log alone answers "why" even before
+        # Run-Benchmark's catch-path evidence archive lands.
+        $diag = @("scan $mode produced NO session and was not capped (exit=$($sr.exit), wall=$($sr.wall_seconds)s, capped=$($sr.capped)) - refusing to continue (no silent skip)")
+        $diag += "command: $RrecovExe $($scanArgs -join ' ')"
+        if ($modeInfo.transport_lines.Count -gt 0) {
+            $diag += "transport: $($modeInfo.transport_lines -join ' ; ')"
+        } else {
+            $diag += 'transport: (no [transport] line ever printed - the process died before the open completed)'
+        }
+        foreach ($f in @("scan-$mode.stderr", "scan-$mode.stdout")) {
+            $pp = Join-Path $OutDir $f
+            if (Test-Path -LiteralPath $pp) {
+                $diag += "--- $f (tail) ---"
+                $diag += @(Get-Content -LiteralPath $pp -Tail 8 | ForEach-Object { "  $_" })
+            } else {
+                $diag += "--- $($f): NOT CREATED ---"
+            }
+        }
+        throw ($diag -join "`n")
     }
 
     if ($modeInfo.session_exists) {
@@ -139,13 +168,15 @@ foreach ($mode in $ScanModes) {
             report = (Test-Path (Join-Path $OutDir "report-$mode.json"))
             dest = $dest
         }
-        # transport assertion (GAP-BENCH-5): with the rda service present the scan must
-        # actually have used \\.\RDA - a silent direct fallback would measure the wrong transport
-        if ($DriverInfo -match 'service=rda' -and $DriverInfo -match 'running') {
-            $rdaLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'RDA driver path' } | Measure-Object).Count
-            $modeInfo.rda_transport_assertion = @{ expected = $true; hits = $rdaLine }
-            if ($rdaLine -lt 1) {
-                Write-Host "TRANSPORT ASSERTION FAILED for $mode - scan never used the RDA driver path"
+        # transport assertion (GAP-BENCH-5): the scan must actually have used the
+        # direct transport - a silent fallback would measure the wrong transport
+        # (session-97: the field name tells the truth now - it asserts DIRECT,
+        # the only transport since v0.7.0; the old rda_* name was a stale label)
+        if ($DriverInfo -match 'transport=direct') {
+            $directLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'direct raw I/O' } | Measure-Object).Count
+            $modeInfo.direct_transport_assertion = @{ expected = $true; hits = $directLine }
+            if ($directLine -lt 1) {
+                Write-Host "TRANSPORT ASSERTION FAILED for $mode - scan never used the direct transport"
             }
         }
     }

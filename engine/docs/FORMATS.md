@@ -47,10 +47,30 @@ Two layers over every readable byte range:
    N-068), 7z, PST, OFFICE family, TIFF (family size basis, M-056),
    WAV, MP3, PDF, GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG, headerless MP3/AAC
    (10-frame walkers), CAB (`mscf` case key, N-069)…
+   The ZIP typing walk (the og's OfficeTagFromXML, N-115 + N-158)
+   discriminates the OOXML trio (rels paths), the ODF trio + EPUB/HWP
+   (mimetype content), iWork/CDR (name tags), and the five
+   document-tool layouts: XMIND (`content.xml` carrying
+   `xmlns="urn:xmind` in its first 300 bytes), MindManager MMAP
+   (`xsd/MindManagerApplication.xsd`), Edraw EDDX (`rels/_rels.xml` /
+   `rels/page1_rels.xml`), Filmora WFP (`ProjectFolder/…`), DaVinci
+   DRP (`MediaPool/Master/MpFolder.xml`) — all disableable via the
+   ext-token list (the og's RawConfig `[Filter]` keys).
 2. **The 139-format raw-signature table** (raw_signs.json converted per
    the generated-data precedent) + **user-taught signatures**
    (`--user-signs`, the og's EUUserData JSON shape, M-048: extension →
    `signs["offset,HEX"]` + mime; built-in wins at the same position).
+
+ZIP-content typing (the og's OfficeTagFromXML walk, N-115 + N-158):
+archives are re-typed by their inner entries — the OOXML rels-path map
+(DOCX/XLSX/PPTX), the mimetype/content tags (ODF trio, EPUB, HWP), the
+name tags (iWork, CDR), and the five-branch document-tool tail (N-158:
+XMind workbooks by the content.xml/meta.xml namespace/prolog probe,
+MindManager `xsd/MindManagerApplication.xsd`, Edraw `rels/_rels.xml`
+forms, Filmora `ProjectFolder/` forms, DaVinci `MediaPool/Master/
+MpFolder.xml` — typed ids gate through the ABI's
+`CarveFlags::disabled_formats` like the og's RawConfig [Filter] keys,
+PARITY-DELTAS D-134).
 
 Cross-cutting behaviors: the window-aware read view (each scan window's
 reads served from memory — measured 9.9× fewer device reads, M-025),

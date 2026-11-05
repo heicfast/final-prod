@@ -1,5 +1,7 @@
 # PARITY-DELTAS — Deliberate-Deviations Registry (DRAFT v0.1)
 
+<!-- session-96: the driver era ended - the kernel driver was replaced by direct raw I/O; the driver-era rows below are historical records. -->
+
 > **Status: FIRST DRAFT** — produced by parity sub-agent 2-e (deltas registry) for
 > cross-checking against the other parity sub-agents' findings before being
 > finalized as `docs/PARITY-DELTAS.md` in core_recovery and rda-wizard.

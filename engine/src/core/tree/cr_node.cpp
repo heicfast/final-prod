@@ -6,6 +6,8 @@
 #include "cr/tree/cr_node.h"
 #include <algorithm>
 #include <cstring>
+#include <functional>
+#include <unordered_set>
 
 namespace cr {
 namespace tree {
@@ -59,6 +61,12 @@ FileProperties* FileProperties::clone() const {
     p->flags = flags;
     p->name = name;
     p->name_raw = name_raw; /* N-016b: hard links keep the raw bytes too */
+    /* The 8.3 short name rides the clone too: the og's clone copies the
+     * whole props block (ifileproperties-part1's slot +0x08 SetShortName
+     * travels with every cloned hard link), and the field is a persisted
+     * axis (nflags bit 2) — dropping it here loses it from the cloned
+     * link's session record as well. */
+    p->short_name = short_name;
     p->resident_data = resident_data;
     p->extents = extents;
     p->carve_format = carve_format;
@@ -67,6 +75,19 @@ FileProperties* FileProperties::clone() const {
     p->carve_note = carve_note;
     p->carve_anchor_b = carve_anchor_b;
     p->carve_flag = carve_flag;
+    /* OQ-SA-1 NTFS half: the location anchor survives the hard-link fan-out
+     * clone (clone() is the NTFS walk's own fan-out path — the per-FS
+     * carriers of the non-cloning engines need no line here by
+     * construction). */
+    p->ntfs_origin_lcn = ntfs_origin_lcn;
+    /* N-100: the +0x60 total-clusters twin rides the same clone (the og's
+     * clone copies the whole props block; the fan-out keeps both anchors). */
+    p->ntfs_total_clusters = ntfs_total_clusters;
+    /* M-101: the version-group id rides the clone — the og's clone
+     * copies the whole props block, and a fan-out link of a
+     * multi-version family record is part of the family. */
+    p->version_group = version_group;
+    p->tags_extracted = tags_extracted;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;
@@ -106,6 +127,13 @@ void* ResultTree::arena_alloc(size_t bytes) {
     return p;
 }
 
+void ResultTree::set_root_basis(FileNode* root, u32 basis_id) {
+    if (!root)
+        return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    root->basis_ = basis_id;
+}
+
 FullNode* ResultTree::add_root(const std::u16string& role) {
     std::lock_guard<std::mutex> lock(mutex_);
     void* mem = arena_alloc(sizeof(FullNode));
@@ -123,6 +151,37 @@ FullNode* ResultTree::add_root(const std::u16string& role) {
     n->full_ = true;
     nodes_.push_back(n);
     roots_.push_back(n);
+    return n;
+}
+
+FullNode* ResultTree::add_folder(FileNode* parent, const std::u16string& role) {
+    if (parent == nullptr)
+        return nullptr;
+    std::lock_guard<std::mutex> lock(mutex_);
+    void* mem = arena_alloc(sizeof(FullNode));
+    if (!mem)
+        return nullptr;
+    FullNode* n = new (mem) FullNode();
+    n->role = role;
+    FileProperties* p = new (std::nothrow) FileProperties();
+    if (!p)
+        return nullptr;
+    p->name = role;
+    n->set_props(p);
+    p->release(); /* set_props took the ref */
+    n->node_id_ = nodes_.size();
+    n->full_ = true;
+    nodes_.push_back(n);
+    n->parent_ = parent;
+    if (parent->first_child_ == nullptr) {
+        parent->first_child_ = n;
+        parent->last_child_ = n;
+    } else {
+        FileNode* t = parent->last_child_;
+        t->next_sibling_ = n;
+        n->prev_sibling_ = t;
+        parent->last_child_ = n;
+    }
     return n;
 }
 
@@ -150,6 +209,17 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     }
     n->node_id_ = nodes_.size();
     nodes_.push_back(n);
+    /* N-166: the live telemetry counters — every attached file counts
+     * once (the 1f9b2849 keep-both merge left the bump doubled; this
+     * repair restores the single increment), the raw/carved subset
+     * separately (carve stamps fs_kind=Raw before the attach; the
+     * structured engines stamp their own kinds). Relaxed atomics under
+     * the tree's own lock — the telemetry reader never takes the lock,
+     * so a mid-stage progress event can refresh its counters without
+     * contending the attach path. */
+    live_files_.fetch_add(1, std::memory_order_relaxed);
+    if (n->props() && n->props()->fs_kind == u32(FsKindCode::Raw))
+        live_raw_.fetch_add(1, std::memory_order_relaxed);
     index_node_locked(n);
     return n;
 }
@@ -386,6 +456,17 @@ void ResultTree::detach_subtree(FileNode* root) {
     nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
                                 [&dead](FileNode* n) { return dead.count(n) != 0; }),
                  nodes_.end());
+    /* N-166: the live counter follows the removal. N-218 correction:
+     * only NON-FULL nodes subtract - live_files_ is ticked by add_file
+     * alone (add_folder/add_root never tick), so a subtree holding
+     * FullNode intermediates (the carve skeleton, the session-loaded
+     * marker=2 folders) over-subtracted and WRAPPED the unsigned
+     * counter. */
+    u64 live_dropped_sub = 0;
+    for (FileNode* n : sub)
+        if (!n->full_)
+            ++live_dropped_sub;
+    live_files_.fetch_sub(live_dropped_sub, std::memory_order_relaxed);
     /* roots_: remove the root itself (a detached root always is one; the
      * loop guards against a future non-root call shape). */
     roots_.erase(std::remove(roots_.begin(), roots_.end(), root), roots_.end());
@@ -398,6 +479,78 @@ void ResultTree::detach_subtree(FileNode* root) {
     /* run the destructors (props references released once per node; the
      * FullNode's u16string freed) - the arena bytes stay reserved until
      * reset(), mirroring reset()'s own per-node destruction discipline. */
+    for (FileNode* n : sub) {
+        if (n->full_)
+            static_cast<FullNode*>(n)->~FullNode();
+        else
+            n->~FileNode();
+    }
+}
+
+void ResultTree::detach_child(FileNode* parent, FileNode* child) {
+    /* M-073: the scan-time folder filter's prune primitive. The shared
+     * destruction discipline is detach_subtree's (indexes/nodes_/live
+     * counters/destructors); the difference is the parent-side splice -
+     * a child sits in a sibling chain, so the unlink must fix the
+     * parent's first/last pointers AND the neighbors' prev/next links,
+     * or every later walk would dereference freed nodes. */
+    if (parent == nullptr || child == nullptr || child->parent_ != parent)
+        return; /* not a direct child: refuse (never a silent wrong-tree kill) */
+    std::lock_guard<std::mutex> lock(mutex_);
+    /* splice out of the sibling chain first (before any collection, so
+     * the walk below never re-enters the detached subtree through the
+     * parent's chain) */
+    if (child->prev_sibling_ != nullptr)
+        child->prev_sibling_->next_sibling_ = child->next_sibling_;
+    else
+        parent->first_child_ = child->next_sibling_;
+    if (child->next_sibling_ != nullptr)
+        child->next_sibling_->prev_sibling_ = child->prev_sibling_;
+    else
+        parent->last_child_ = child->prev_sibling_;
+    child->parent_ = nullptr;
+    child->prev_sibling_ = nullptr;
+    child->next_sibling_ = nullptr;
+    /* collect + destroy (detach_subtree's discipline, verbatim) */
+    std::vector<FileNode*> sub;
+    sub.push_back(child);
+    for (size_t i = 0; i < sub.size(); ++i) {
+        for (FileNode* c = sub[i]->first_child_; c != nullptr; c = c->next_sibling_)
+            sub.push_back(c);
+    }
+    std::unordered_set<FileNode*> dead(sub.begin(), sub.end());
+    for (FileNode* n : sub) {
+        const FileProperties* p = n->props();
+        if (p == nullptr)
+            continue;
+        if (p->record_ref != 0) {
+            const auto it = by_record_.find(p->record_ref);
+            if (it != by_record_.end() && dead.count(it->second) != 0)
+                by_record_.erase(it);
+        }
+        if (!p->extents.empty()) {
+            const u64 first = p->extents.front().offset;
+            const u64 len_class = extent_len_class_(p);
+            const auto it = by_extent_.find({first, len_class});
+            if (it != by_extent_.end() && dead.count(it->second) != 0)
+                by_extent_.erase(it);
+        }
+    }
+    nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
+                                [&dead](FileNode* n) { return dead.count(n) != 0; }),
+                 nodes_.end());
+    /* N-218: subtract only NON-FULL nodes - live_files_ is ticked by
+     * add_file alone (add_folder/add_root never tick, N-166's own
+     * contract), so a subtree holding FullNode intermediates (the
+     * session-loaded marker=2 folders) over-subtracted and WRAPPED the
+     * unsigned counter, corrupting the mid-stage telemetry samples. */
+    u64 live_dropped = 0;
+    for (FileNode* n : sub)
+        if (!n->full_)
+            ++live_dropped;
+    live_files_.fetch_sub(live_dropped, std::memory_order_relaxed);
+    child->first_child_ = nullptr;
+    child->last_child_ = nullptr;
     for (FileNode* n : sub) {
         if (n->full_)
             static_cast<FullNode*>(n)->~FullNode();
@@ -419,6 +572,7 @@ void ResultTree::reset() {
     roots_.clear();
     by_record_.clear();
     by_extent_.clear();
+    live_files_.store(0, std::memory_order_relaxed); /* N-166 */
     for (auto& a : arenas_) {
         delete[] static_cast<unsigned char*>(a.base);
         a.base = nullptr;

@@ -76,6 +76,15 @@ REAL_KERNEL32 = [
     "FindNextFileW", "FindClose", "SetFileInformationByHandle",
     "GetFinalPathNameByHandleW", "AreFileApisANSI", "GetLocaleInfoEx",
     "FormatMessageA", "LocalFree", "GetProcAddress",
+    # third gate iteration (2026-10-30, the S-060/M-074/M-075 wave the
+    # racing windows landed without extending the baseline - runs
+    # 40977711470..40981611198): the metadata-apply tail
+    # (cr_destio.cpp:154,177 + the cr_tests.exe writer-dirs mirror,
+    # test_writer_dirs.cpp:189,203), the destination-volume resolution
+    # (cr_transport.cpp:1076) and the chkdsk-launch redirection guard
+    # (cr_fsck.cpp:40,47,54). Every member XP-/Vista-era - Win7-safe.
+    "SetFileAttributesW", "SetFileTime", "GetVolumePathNameW",
+    "Wow64DisableWow64FsRedirection", "Wow64RevertWow64FsRedirection",
 ]
 REAL_ADVAPI32 = [
     "OpenProcessToken", "GetTokenInformation", "RegOpenKeyExW",
@@ -86,6 +95,10 @@ REAL_NAME_ONLY_DLLS = [
     "msvcp140.dll", "ucrtbase.dll", "api-ms-win-crt-runtime-l1-1-0.dll",
     "api-ms-win-crt-heap-l1-1-0.dll", "api-ms-win-crt-stdio-l1-1-0.dll",
 ]
+# The M-074/N-013 network-destination classification surface
+# (cr_transport.cpp:1053) - SHLWAPI joined the strict set 2026-10-30
+# (the 3b203fe1 half-fix completion: the DLL row in ALLOWED_DLLS).
+REAL_SHLWAPI = ["PathIsNetworkPathW"]
 
 
 def align(v, a):
@@ -190,7 +203,8 @@ def main():
             failures.append(label)
             print(f"  FAIL: {label}\n{detail}")
 
-    real_imports = ([("KERNEL32.dll", REAL_KERNEL32), ("ADVAPI32.dll", REAL_ADVAPI32)]
+    real_imports = ([("KERNEL32.dll", REAL_KERNEL32), ("ADVAPI32.dll", REAL_ADVAPI32),
+                     ("SHLWAPI.dll", REAL_SHLWAPI)]
                     + [(d, ["AnyFunction"]) for d in REAL_NAME_ONLY_DLLS])
 
     with tempfile.TemporaryDirectory() as td:
@@ -237,6 +251,29 @@ def main():
         rc, out = run_gate(u32)
         expect(rc != 0 and "MessageBoxW" in out,
                "user32.dll functions are gated strictly", out)
+
+        # 6. shlwapi is strict (function list), not name-only: the
+        #    allowlisted PathIsNetworkPathW passes (proven above in the
+        #    real-surface case), a sibling SHLWAPI export the code never
+        #    chose must FAIL (the 3b203fe1 initial guess, caught here
+        #    forever)
+        sh_bad = os.path.join(td, "shlwapi_strict.dll")
+        with open(sh_bad, "wb") as f:
+            f.write(build_pe([("SHLWAPI.dll", ["PathFileExistsW"])]))
+        rc, out = run_gate(sh_bad)
+        expect(rc != 0 and "PathFileExistsW" in out,
+               "shlwapi.dll functions are gated strictly", out)
+
+        # 7. the S-060/M-075 surface in isolation (kernel32 only) -
+        #    the exact five the 2026-10-30 gate failures flagged
+        s060 = os.path.join(td, "s060_m075.dll")
+        with open(s060, "wb") as f:
+            f.write(build_pe([("KERNEL32.dll", [
+                "SetFileAttributesW", "SetFileTime", "GetVolumePathNameW",
+                "Wow64DisableWow64FsRedirection",
+                "Wow64RevertWow64FsRedirection"])]))
+        rc, out = run_gate(s060)
+        expect(rc == 0, "the S-060/M-074/M-075 import surface passes", out)
 
     print()
     if failures:

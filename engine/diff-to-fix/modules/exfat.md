@@ -1,5 +1,17 @@
 # modules/exfat.md — exFAT engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: ~~**N-174**~~ **FIXED (S46)** (the `._` AppleDouble
+sink filter landed — the gate at the entry walk post-name-assembly, the
+`apple_doubles_sunk` counter, `ExfatEngine.AppleDoublePrefixSunk` +
+`RegularDotFilesNotSunk`; corpus cites :45151/:45222 re-read first-hand); **M-127**'s exFAT twin (the
+chain-guard complexity); note: A-014 does NOT affect exFAT (the M-014 dentry gate
+rejects the invalid-time class upstream). Verified-MATCH: 64-bit cluster math (the og
+itself is 64-bit here — the FAT 32-bit sites are the inconsistency), the 0x81/0x82/
+0x83/0x85 dispatch, 10ms/tz non-use both sides.
+
+
 Reference: exFATSearchDLL per corpus artifacts `SearchDLL/exfat-engine--deep-dive.md`,
 `fat-exfat-engine-internals.md`, `fat-exfat-engine-algorithms-v2.md`,
 `PartitionRecovery/rawfixer-v2--method-inventory.md` §4; decompiled evidence in
@@ -33,7 +45,10 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   file notes; no corpus contradiction).
 - **B6 post-format** — `M` per documented corpus behavior (no exFAT remnant sweep
   documented in corpus; RAWSearch covers content).
-- **B9 timestamps** — `M` exFAT 10ms timestamps with tz-offset conversion
+- **B9 timestamps** — `M` exFAT 10ms timestamps; the tz-offset bytes are
+  parsed but NOT applied (N-180 re-truth per the module's own session-2
+  re-audit at :93: the og reads them and converts to local system time,
+  which equals the fixed local-as-UTC stamp)
   (`exfat_time_to_unix100(ts, tz)`); og conversion semantics not itemized in corpus — no
   contradiction found.
 - **B10 filename/Unicode** — `M` UTF-16 name fragments, checksum-validated glue for live
@@ -78,6 +93,7 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 | ID | Severity | One-line |
 |---|---|---|
 | N-003 | MINOR | Entry-set checksum enforced on live sets beyond og (grading-only) — **FIXED (diff-to-fix session)** |
+| N-174 | MINOR | `._` AppleDouble prefix sink — **FIXED (S46)** |
 | OQ-T5 | tracked-open | ChecksumDBR per-byte predicate (skip-set) undecoded |
 
 ## Corpus errata candidates surfaced by this wave
@@ -288,3 +304,48 @@ ExfatEngine.RecyclePairingMirrored (fail-before EXECUTED — engine
 mutation 3/4 RED; the over-matching pin green by design). B4/B5/D11
 verdict: MATCH.
 
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-066** (SEVERE — the lost-anchor base−12
+re-base ladder absent: the og probes FAT media words at base and base−12 after a
+failed backup-boot gate and corrects the volume base; the core scans 12 sectors
+off), **N-198** (the three core-only numeric bounds — register the hardening).
+Verified-MATCH this session: the og gate set (FUN_180021e80's full `!= 0` family),
+the dual ROL15 entry checksum, the boot-region checksum parity (informational on
+both sides — confirmed neither validates it at open outside RawFixer), the
+cluster→heap u64 math, and the exFAT engine's non-use of FSI 'RRaA' (both sides).
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **S-067 (SEVERE — FIXED, the S80 parity fix lane):** the chain walker's out-of-range
+  FAT-entry clamp — the og maps any entry ≥ cluster_count to EOC (the walk loop's clamp at
+  exFATSearchDLL :41315/:41348-41351, re-verified first-hand at the fix; the volume-context
+  +0x18 bound is the boot +0x5C field verbatim, RAWSearchDLL:36750). LANDED:
+  `ExfatFat::next()` clamps every entry ≥ cluster_count to EOC (the count threaded from
+  `p.cluster_count` at scan setup) + the loop's `c < 0xFFFFFFF6` belt-and-braces
+  (`follow_exfat_chain`). Tests: OutOfRangeFatEntryEndsChainCleanly /
+  ExactClusterCountEntryClampsToEoc / ReservedFFF6EntryEndsChainCleanly — RED 3/3 via the
+  stash dance, GREEN 3/3 post-fix; the EXFAT-2/3 families re-pinned; the exFAT suite
+  44/44. The damaged-FAT semantics family is now three-for-three
+  (EXFAT-2/EXFAT-3/S-067). Resolution: `findings/FIXED/S-067-...md`. Evidence:
+  `evidence/s79-lane-sheets/s79-lead-verification.md` §A.
+
+### S80 correction (2026-10-29 — the convergence arbitration)
+
+The first S-067 landing (the racing lane's) clamped at the raw boot
+cluster_count citing RAWSearchDLL:36750. That site is the
+BACKUP-REBASE constructor path; the PRIMARY path (the backup boot
+validates — the case the core's scan models) computes the bound as
+**max(boot ClusterCount, FatLength_bytes/4)** (:36793-36804). The S80
+correction commit landed the primary-path formula (saturating, computed
+at the FAT setup), unified follow_exfat_chain on the struct's bound
+(the fourth param retired), mapped BAD 0xFFFFFFF7 → EOC (the clamp
+subsumes the reserved family at BOTH og walk sites — the run-list walk
+:41346-41348 and the read loop :12905-12907), and replaced the cc+2
+FREE-boundary probe with the og's own bound applied to the FREE
+continuation. `ExactClusterCountEntryClampsToEoc` re-pinned to the
+corpus-true shape (the boot-count entry FOLLOWED — the bound is 128 on
+the fixture, not 100); `ChainClampsAtFatAddressableBoundary` and
+`BadClusterEntryEndsChainCleanly` added. Suite 1598/1598.

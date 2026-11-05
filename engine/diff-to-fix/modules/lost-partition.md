@@ -1,5 +1,31 @@
 # modules/lost-partition.md — lost-partition module audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive — the table/GPT/EBR surfaces)
+
+New active findings on this module: ~~**M-123**~~ **FIXED (S47 MAJOR-first fix
+lane, `10620f04`)** — FUN_1800078d0's full gate set landed in `load_gpt_side`
+(revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+usable-range bounds, entries outside the usable range — structural gates before
+the CRC, og order; N-164's deliberate strictness kept; salvage path unchanged by
+design; 9 tests, 8 RED pre-fix; P1 detection / P20 struct-validation → MATCH);
+~~**M-124**~~ **FIXED (S47 MAJOR-first fix lane, `dcb123dd`)** — the EBR link type
+0x85 joined the Extended arm of `mbr_type_to_kind` (Partition_decompiled.c:1006's
+`-0x7b` compare feeds the same link path as 0x05/0x0F): whole Linux-extended chains
+walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-walk →
+MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
+Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
+~~**M-132**~~ **FIXED (S47 MAJOR-first fix lane, `d746a75b`)** — the backup
+probe at device-last FIRST (FUN_180006e20:4567's fixed position; the declared
+backup_lba a registered fallback), the dead-LBA1 recovery kept + registered
+(PARITY-DELTAS D-124a/b; the pin test Gpt.DeadLba1BackupRecoveryRegistered);
+**N-161 FIXED (Session-44 minors lane — the first≤last span gate + the named-invalid
+counter, RED→GREEN proven; findings/FIXED/N-161)** (GPT entry span underflow);
+**N-164 FIXED** (the deliberate GPT strictness registered as PARITY-DELTAS D-116).
+Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math
+(post-S-052, algebraically identical to FUN_180086a90).
+
+
 Reference: PartitionRecoveryD.mo + Partition.mo + CalcPartition classes per corpus
 artifacts `PartitionRecovery/mo-module-map.md`, `SearchDLL/zfs-vdev--mftmirr--calcpartition.md`
 §3, `PartitionRecovery/pending-operation-engine.md`; og binaries (driver layer out of
@@ -246,3 +272,234 @@ CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
 (lost fan-out + LDM volume scans; the og's LDM-path wiring corpus-UNVERIFIED,
 documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
 executed; suite 808/808.
+
+
+## Session-11D fix lane (2026-10-29 — the S-051 landing's discovery reconciliation)
+
+- **The no-double-scan rule (S-051's acceptance)**: the deep stage's
+  lost-partition discovery now drops candidates whose start LBA matches a
+  table volume the primary pass ALREADY scanned as a partition-list target
+  (the orchestrator records the scanned set; `run_deep` filters before
+  materialization). A table entry that was skipped honestly (dead probe —
+  no filesystem found) is NOT recorded, so its discovery candidate
+  survives: the og's lost partitions are ADDITIONAL targets on damaged
+  volumes (architecture/04 §3.4), never duplicates of healthy ones. The
+  discovery's own unit contract is unchanged (`LostDiscovery.TableMatchBonus500`
+  and the containment-exemption tests still pin the +500 semantics — the
+  filter lives in the orchestrator, one site, above `lost::discover`).
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**M-118 (MAJOR — NEW; renumbered from this lane's M-112 filing at the post-rebase ID reconciliation — the parallel lane's M-112 landed first and keeps the number):** the candidate-SOURCE model — the og's whole-disk assembly
+consults THREE sources ("add lost partition from mbr / from filesystem / from
+register", DRWUI.log:637-643 + FUN_140588820 at DRWUI_decompiled.c:921820-921890):
+the table walk (FUN_140589070 — S-051's planned per-table-volume targets), the
+filesystem-probe scan (FUN_140588ba0 — the core's existing discovery), and the
+**register walk** (FUN_1405895d0 / PartitionRecoveryD:8930-8965 — the Explorer
+`MountPoints2\CPC\Volume` history: HKCU, ≤1000 subkeys, the REG_BINARY "Data" blob's
+'#'-delimited 32-hex-char placement field decoded in FUN_18000f5b0 with the
+sector-alignment gate). The register channel has no core counterpart (grep-verified)
+and uniquely recovers partitions whose on-disk remnants are destroyed — the exact
+lost-partition use case. B1 verdict: **DIVERGENCE-MAJOR** pending the channel seam
+(the fix plan's CandidateSource feed + the win-layer walk; S-051's fix plan gains
+the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-channel.md`.
+
+## S42 continuation lane (2026-10-29 — the partition-recovery focus battery; core `b26017a7`)
+
+- **A30/D12/D13 (the surfaced shape) — FIXED (M-137, `e7030bf2`)**: the og names
+  unnamed candidates `"Lost Partition %d(%s)"` via the per-scan counter
+  (FUN_1403b9330, DRWUI:634817-838 — **resolving M-104's deferred open question 1**),
+  relabels leftovers "Unallocated" (:525588-98), presents Disk/Basic/Dynamic/MBR/GPT/FS
+  rows (UIUX/08 §2), caps insertion at 10 targets and registers each candidate for a
+  "Quick" search (:904229-240), and falls back to 512-byte sectors on a failed
+  geometry query (:904185-87). The core: `Candidate @ <LBA>` roots
+  (cr_scan.cpp:1933-1939), no cap, always-deep candidates, ERR_BAD_PARAMETER
+  refusal on zero sector size, LBA/size/fs-only listing surfaces. **FIXED at
+  `e7030bf2`**: the template + counter + label-keep rules landed (the FAT12/16
+  boot label captured by the probe), the presentation trio
+  (disk_layout/disk_dynamic/disk_table_ok) stamped + persisted per-record
+  (PartitionContext v3 tail) + surfaced in rrecov's listing and the
+  cr_ui_apply_candidate ABI tail, the ten-target insertion cap
+  (lost_candidates_inserted), and the FallbackGeomDevice 512-byte shim
+  replacing the refusal. The "Quick" staging maps onto the core's default-on
+  single-walk stage model per the C1/I-044 decode (D-36). Worksheet:
+  `../evidence/decompiled-quotes/s42-lostpart-surface-batch.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **N-187** (the NTFS candidate acceptance is
+weaker in the core: the og requires boot-pair OR a validated 4-record MFT read
+with a mirror retry before accepting; the core scores-but-never-rejects).
+Verified-MATCH this session: the EBR/GPT partition-math families (re-walked in the
+sector-math axis — no new divergence beyond the filed M-123/M-124/N-161 set), the
+candidate scoring evidence set, and the lost-scan FAT bracket ladder.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the local-database deep dive)
+
+New active findings on this module: **N-203** (the resume round-trip drops the
+candidate's data-area extent — the og's 0x448 record replays the full
+CSearchedPartitionInfo image through the {start,end,disk} dedup key with the
+data-area-anchored EndSec; the core's PartitionContext v3 carries neither
+data_start_lba nor data_sector_count, the load restores neither, and
+revalidate_candidate discards the probe scratch that re-derives them — resumed
+candidates enter the dedup/containment/leader rules with [0,0) windows),
+**I-046** (the INFORMATIONAL lifecycle register: lostpart.dat/partinfo.dat are
+NOT a cross-session knowledge base — the first search of each process deletes
+both files and rebuilds partinfo from the live table [the generation latch];
+per-hit mid-scan appends; interrupt header-only progress-markers carrying the
+min(cur,end) scan-position LBA; the marker-restore path resumes the search at
+sector granularity across process restarts — a capability class the core's
+stage-granular session model deliberately does not replicate, per M-042's
+registered architecture). New first-hand decode evidence:
+`../evidence/s55-lane-sheets/S55-D1-localdb.md` (both record layouts with
+offset tables; the shipped samples hex-verified — the lostpart end-LBA
+validates arithmetically against the partinfo live entry).
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**I-046 FIXED (ACKNOWLEDGED)** — the lifecycle register landed as
+PARITY-DELTAS **D-142**: the og's lostpart.dat/partinfo.dat pair is
+registered as a per-process-generation cache (W1 delete latch, per-hit
+mid-scan appends, W3 header-only interrupt markers with the
+scan-position-granular marker-restore resume), and the core's M-042
+stage-granular checkpoint architecture is registered as the deliberate
+divergence. The resume-granularity delta is now on the record (D-142);
+the W3 marker shape + the :20748-20770 restore path are the preserved
+decode inputs for any future scan-position-granular resume. The module's
+persistence-semantics row above (M-042's landing) is the architecture
+D-142 registers against.
+
+
+## S66 lane (2026-10-29): N-203 landed
+
+**N-203 FIXED** (joint with modules/session.md) — the lost candidate's
+data-area extent survives the session round-trip: the v4 PartitionContext
+tail carries `data_start_lba`/`data_sector_count`, the resume re-validation
+enriches pre-v4 records from the live probe's scratch (the og's record
+replays with the extent by construction — the core's equivalent repair).
+The finding's dedup-consumer scenario is architecturally unreachable as
+literally stated (a deep-rerun resume REPLACES the restored list; the fresh
+pass self-dedups on its own anchored extents); the RestoredWindowMatchesFreshDiscovery
+pin holds the restored window to the fresh-derived equivalent.
+
+## S70 lane (2026-10-29): N-200 landed
+
+**N-200 FIXED** — the NTFS candidate acceptance now requires positive MFT
+evidence exactly as the og's classifier (PartitionRecoveryD FUN_180011150
+:9889-9906 → FUN_180011560 :10023-10075): the BPB-valid path's record-0
+probe runs primary-first, then the og-exact $MFTMirr re-read; both legs
+failing drops the candidate as noise (the og's 0xfffffff1 slot) — a forged
+OEM with a plausible BPB no longer surfaces. Mirror-only acceptance carries
+the `mft-mirror-probe` evidence label and the mirror-blind strong-probe
+bonus (fs_bonus). The A30 scoring row's model is unchanged (15/25/30 + the
+content model); what changed is the acceptance DIRECTION (score-and-keep →
+require-evidence-or-drop), which the B3 false-positive row now carries as
+MATCH. The boot-pair arm (FUN_180011260's field set) stays deferred on the
+finding's own open question (its slot writes the same 0xfffffff1 as the
+both-fail arm — backup-DBR dedup reading, getter decode pending). RED→GREEN:
+ForgedOemNoMftEvidenceRejected / TornPrimaryMftMirrorEvidenceScored /
+HealthyCandidateMftEvidenceUnchanged; suite 1425/1425.
+
+## S77 fix lane — M-118 lands (2026-10-29)
+
+**M-118 (MAJOR) — FIXED (findings/FIXED/, tests/unit/test_mountpoints2.cpp, 19
+RED→GREEN tests):** the register channel — the og's third candidate source — is
+landed end-to-end. The pure blob decoder `lost::decode_mountpoints2_placement`
+(FUN_18000f5b0's exact gates: size > 0xe7, the data[0xc4]/data[0xe6] '#'
+delimiters, the 0x20-char hex byte offset at +0xc6, bps alignment, /bps, the
+sector-0 failure sentinel); the offline-hive walk
+`reghive::mountpoints2_placements` (NTUSER.DAT through the regf parser — the
+cross-platform surface); the live-HKCU walk `win::mountpoints2_volume_history`
+(KEY_READ, the engine-side RegOpenKeyA shape; the DRWUI mirror's 0xf003f
+over-privilege not adopted; the A-variant registry stubs added to the
+parse-gate's win-stub); the discovery seam — `discover(register_starts)` probes
+each remembered placement with the same format chain as the sweep
+(FUN_14058a070's parser-chain semantics) and merges accepted placements
+upstream of the pass-2 dedup (the real-log collapse: mbr=1 + filesystem=1 +
+register=3 → one partition scanned once); the provenance model
+(Provenance::Register on the Candidate, persisted as the session
+PartitionContext's flags bit 2 — no wire bump); the wiring
+(ScanConfig.register_history_lbas, the CLI's --whole-disk arm, the
+orchestrator's discover call). The finding's fix-time probe is resolved by the
+decode: the "Data" blob carries the START only — the total is derived
+downstream from the filesystem the probe reads at the remembered start (the
+DRWUI mirror's 0xc2/0xc6 selector picks the volume-LABEL offset, never a size).
+**B1 verdict: MATCH** (the three-source assembly is complete: the table channel
+= the +500 table_match feed, the filesystem channel = the sweep, the register
+channel = this landing). Suite 1541/1541.
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-149 (MAJOR, NEW):** the ghost-score math regressed from the M-017 landing — the +500
+  table-match bonus is folded into the denominator (`cr_candidates.cpp:1091-1101` at the
+  re-verified pin: `count += 500` precedes the `max_count` accumulation) where the og's max
+  loop has no bonus walk (FUN_14050fda0 :842186-842240, first-hand); and `score_ratio`'s
+  `count > 1 ? log : 1.0` maps count==0 to 1.0 where the og's own CalcPartition.log prints
+  `0.000000` for the `files:0 folders:0` shape (row 6 of the last round; the 186-row numeric
+  fit in `evidence/executions/s79-calcpartition-score-fit/`). Git archaeology: the corrected
+  two-pass implementation (48a6c099) was dropped by the 9c36efba convergence merge per
+  FIRST-LANDING-WINS — "the two decode divergences for the next pass" never got their pass.
+  The standing "0.1/0.3 gap keeps … no core counterpart" note (M-017's known remainder)
+  stays a separate open gap — not re-filed. N-200's landing (the mirror-retry probe gates)
+  does not touch the scoring seam.
+## S69 addendum (2026-10-29 — the ninth continuation lane's deep dives; core `3799dee2`, re-verified LIVE at `271f5d06`, corpus `be0cfe9`)
+
+New active finding on this module: **N-214** (MINOR — the ext probe's
+journal-indicator XOR gate: PRD FUN_180002b90 [PRD:1273-1293, first-hand]
+rejects candidates with exactly one journal indicator set [compat&4 XOR
+journal_inum != 0 → no classification, no candidate]; core probe_ext
+[cr_candidates.cpp:380-441] has no journal check — the torn-SB false-positive
+class). **N-182's addendum** landed: the deep-range resolver FUN_14035a6d0
+fully decoded first-hand (DRWUI:575024-575170) — the <300 MB rule is a
+BACKWARD extension (start := 0, :575053-575057), the neighbor extension is
+bounded to ONE following FAT16-family entry (FS 0x0E/0x06, :575103-575113),
+the printf seam is the StartSector/TotalSector log pair (:567902-567925), and
+the device-type-6 open question is narrowed to CDiskDeviceType's +0x20 field
+(Partition.mo ctor :279-291, default 4, data-driven at enumeration).
+Registered: the og's lost-partition ext SIZE estimate is a 32-bit signed
+product (PRD:1413) while its own engine uses 64-bit (EXT4SearchDLL:3234) —
+the core's 64-bit form is the registered engine-faithful choice (I-048C).
+Evidence: `evidence/s69-lane-sheets/S69-C-sectormath.md` + `S69-B-scanstatemachine.md`.
+
+## S80/S81 fix-lane addendum (2026-10-29 — N-214 lands)
+
+**N-214 FIXED** (the S69 lane's filing): the ext probe's
+journal-indicator consistency gate landed in `probe_ext`
+(cr_candidates.cpp, after the group-count cross-check) —
+`feature_compat & 4` XOR `s_journal_inum != 0` → −100, the og's
+silent-drop convention (PRD FUN_180002b90 :1273-1293: both clear →
+ext2/type 5, both set → ext3/4/type 6, mixed → no classification, its
+−6 return). The gate reads the RAW SB bytes — the engine-side
+`validate_superblock` defaults `journal_inum` to 8 when zero, which
+would corrupt the XOR on every ext2 volume (the default is an access
+convenience, not a probe input). Tests:
+`LostDiscovery.ExtMixedJournalIndicatorsRejected` (both torn shapes —
+RED first-hand at the pre-fix tree via the stash dance) +
+`LostDiscovery.ExtJournalIndicatorsConsistentAccepted` (the both-set
+ext3/4 control); the existing ext probe family green; suite 1497 ran /
+1455 passed / 42 Win-only skipped / 0 FAILED.
+
+## S80 addendum — M-149 FIXED: the ghost-score two-pass form (2026-10-29)
+
+**The M-017 convergence debt closed.** The og's FUN_14050fda0 runs TWO
+loops: the max loop (:842210-842240) accumulates the weighted+bonus
+count with NO +500 walk; the per-entry loop (:842246-842274) adds the
++500 table-match bonus to the NUMERATOR only and stamps the raw double
+score at +0x70 — with the null-payload branch's 0.0 floor (the og's own
+CalcPartition.log 'files:0 folders:0 dSuggestted:0.000000' row). The
+9c36efba convergence merge had dropped the corrected 48a6c099
+implementation (FIRST-LANDING-WINS, "the two decode divergences
+recorded for the next pass" — the pass that never ran).
+
+Landing: pass-1 max over weighted+fs_bonus (bonus-free); pass-2
+content_count = count + (table_match ? 500 : 0); score_ratio's edge
+restored to `count > 1 ? ln : (double)count` — count==0 → 0.0. A
+table-matched leader legitimately exceeds 1000 permille (the og's raw
+double >1.0; PARITY-DELTAS D-151 registers the representation — the
+int-permille field, unclamped). Seven stale empty-candidate pins
+re-truthed to the zero floor (exFAT 244→0; HFS+/Btrfs/ZFS/ReFS/
+BitLocker ≥N→0 with the structural evidence re-pinned on
+structural_points). Tests: ScoringTableMatchBonusIsNumeratorOnly (the
+1029-permille leader + the undeflated 537 runner-up — RED first-hand),
+ScoringZeroCountScoresZero, MatchesLogRows re-pinned. Suite 1624/1624.

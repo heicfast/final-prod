@@ -4,6 +4,7 @@
  */
 
 #include "cr/ntfs/cr_bootstrap.h"
+#include "cr/cr_log.h"
 #include <algorithm>
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
@@ -29,12 +30,19 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
      *     value, non-pow2 included); >= 0x81 -> 1 << (256 - spc) sectors
      *     (:19308-19312). spc == 0 -> reject. The pow2 requirement is
      *     dropped (the og has none).
-     *   - cpr (clusters-per-record i8): 0 or a 0-result -> the volume is
-     *     REJECTED (:19322/:19331 "It is not a NTFS volume!") - the M-001
-     *     0x200-fallback/0x400-clamp ladder belongs to the WALK function
-     *     (FUN_18001acc0), not volume open; no pow2 / %bps check, no
-     *     0x400 clamp here.
-     *   - index-block byte (+0x44): 0 -> reject (:19336-19343).
+     *   - cpr (clusters-per-record i8): 0 -> the DEFAULT 1024 bytes - the
+     *     four-site og scan-path default (M-147: the analyser getter
+     *     FUN_180004830 :3427-3440, NTFSSearchDLL FUN_18003f630,
+     *     PartitionRecoveryD FUN_180011a10/FUN_180011a90; the M-001-era
+     *     "0 rejects" reading came from NTFSLib's store-guards, which
+     *     fall through to a shared exit either way). A 0-result from the
+     *     negative form still rejects (P1-4); no pow2 / %bps check, no
+     *     0x400 clamp beyond the zero-default itself.
+     *   - index-block byte (+0x44): 0 -> the DEFAULT 4096 bytes (M-147:
+     *     the index getter FUN_180004870 :3443-3456 `if (bVar1 == 0)
+     *     return 0x1000;` - the same four-site family). The decoded value
+     *     feeds no core walk (INDX extents come from $INDEX_ALLOCATION
+     *     runs), so the open no longer refuses on the zero byte.
      *   - no 0xAA55 check (the og never looks at the signature here).
      * Core hardening kept and registered: the bps-vs-device-sector match
      * (512e escape) and the P1-3 total-size sanity + P1-4 shift-UB guard
@@ -42,13 +50,14 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     if ((bs.bytes_per_sector & 0x1FF) != 0 || bs.bytes_per_sector < 512 ||
         bs.bytes_per_sector > 4096)
         return ERR_BAD_PARAMETER;
-    if (bs.clusters_per_index_block == 0)
-        return ERR_BAD_PARAMETER;
+    /* M-147: cib == 0 is the og's 4096-byte default (FUN_180004870
+     * :3443-3456), never a refusal; the decoded value feeds no core walk
+     * (INDX extents ride $INDEX_ALLOCATION runs) - the old rejection was
+     * a whole-volume false negative on a single zeroed byte. */
     const i8 spc_raw = static_cast<i8>(bs.sectors_per_cluster);
     if (spc_raw == 0)
         return ERR_BAD_PARAMETER;
-    const u64 sectors_per_cluster =
-        spc_raw > 0 ? u64(spc_raw) : (1ULL << (u64(-spc_raw) & 31)); /* og shift decode */
+    const u64 sectors_per_cluster = sectors_per_cluster_from_dbr(bs); /* N-197: the pinned decode */
     if (bs.bytes_per_sector != geom.logical_sector &&
         bs.bytes_per_sector != 512 /* 512e volumes report 512 in DBR */)
         return ERR_BAD_PARAMETER;
@@ -64,22 +73,40 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
      * multi-GiB allocations and billion-iteration walks downstream */
     if (geom.total_bytes != 0 && bs.total_sectors * u64(bs.bytes_per_sector) > geom.total_bytes * 2)
         return ERR_BAD_PARAMETER;
-    if (bs.mft_lcn >= total_clusters)
+    /* M-141 (diff-to-fix): the og's ONLY mft bound is the raw product form
+     * `spc x mft_lcn < total_sectors` (NTFSLib LoadNtfsVolume :19296-19301,
+     * re-verified first-hand) - SECTOR space, floor-tolerant: an mft_lcn in
+     * the last partial cluster (total = k*spc + r, r > 0, mft_lcn = k)
+     * passes the og and was refused here (the old cluster-form compare was
+     * one cluster stricter at every non-integral total). Evaluated
+     * overflow-free as mft_lcn > (total-1)/spc - identical truth table in
+     * the no-wrap domain, and a wrapped-huge mft_lcn the og's signed i64
+     * product would let PASS stays REFUSED (the og's own defect class;
+     * registered hardening, PARITY-DELTAS D-52). The $MFTMirr LCN is NOT
+     * bounded at all in any og layer: a torn mirror LCN demotes to
+     * mirror-invalid (the mirror reads are skipped downstream), never a
+     * volume refusal - matching both the og and this core's own
+     * best-effort load_mftmirr_stream stance one function later. */
+    const u64 mft_lcn_max = (bs.total_sectors - 1) / sectors_per_cluster;
+    if (bs.mft_lcn > mft_lcn_max)
         return ERR_BAD_PARAMETER;
-    if (bs.mftmirr_lcn >= total_clusters)
-        return ERR_BAD_PARAMETER;
+    if (bs.mftmirr_lcn > mft_lcn_max)
+        out.mirror_invalid = true; /* demoted: skip the mirror, keep the open */
 
-    /* N-011b: the og's OPEN ladder decodes cpr directly - positive ->
-     * cpr x sectors-per-cluster sectors, negative -> (2^(-cpr))/bps
-     * sectors (:19321-19330) - and REJECTS on 0/0-result. No pow2 or
-     * sector-divisibility check and no 0x400 clamp at open (the M-001
+    /* N-011b + M-147: the og's OPEN ladder decodes cpr directly - positive
+     * -> cpr x sectors-per-cluster sectors, negative -> 2^(-cpr) bytes
+     * (:19321-19330); cpr == 0 takes the four-site scan-path DEFAULT
+     * (1024 bytes - the analyser/NTFSSearchDLL/PartitionRecoveryD getters),
+     * so a zero byte never refuses the volume; only a 0-result from the
+     * negative form (P1-4 guard) or a sub-sector record still rejects. No
+     * pow2 or sector-divisibility check and no clamp at open (the M-001
      * walk-time ladder still governs buffer capacity inside the walk,
      * whose evidence FUN_18001acc0 :21134-21142 stands). The P1-4
      * shift-UB guard (exponents > 20 decode 0 -> reject) stays as core
      * hardening (the og would compute a 1-GiB record size for -30). */
     u64 record_size = record_size_from_dbr(bs, bs.bytes_per_sector);
     if (record_size == 0)
-        return ERR_BAD_PARAMETER; /* og: "It is not a NTFS volume!" */
+        return ERR_BAD_PARAMETER; /* the P1-4 0-result class */
     if (record_size < bs.bytes_per_sector)
         return ERR_BAD_PARAMETER; /* sub-sector record: the og's 0-result */
 
@@ -93,12 +120,20 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     return OK;
 }
 
-u32 NtfsVolume::load_mft_stream() {
+u32 NtfsVolume::load_mft_stream(u64 at_lcn, bool from_mirror) {
     /* read record 0 with the corpus minimum capacity, fixup, then decode the
-     * $DATA runlist of $MFT itself; $ATTRIBUTE_LIST -> fragmented path (F6) */
+     * $DATA runlist of $MFT itself; $ATTRIBUTE_LIST -> fragmented path (F6).
+     * S-063: at_lcn parameterizes the READ POSITION — the primary call passes
+     * p_.mft_lcn, the og's mirror fallback (FUN_1800272b0's LAB_180027467,
+     * NTFSSearchDLL :31595-31609, the identical chunk reader FUN_18001a3c0
+     * at the $MFTMirr LCN) passes p_.mftmirr_lcn. from_mirror only routes
+     * the geometry gates the og's fallback re-checks (the odd/>16-sector
+     * record-size class re-reads at 512-byte rounding there; our P1-4 cap
+     * already governs both positions the same way — registered N-196). */
+    (void)from_mirror;
     std::vector<u8> buf;
     buf.resize(p_.record_size);
-    if (dev_->read_at(p_.mft_lcn * p_.cluster_bytes, buf.data(), u32(buf.size())) != OK)
+    if (dev_->read_at(at_lcn * p_.cluster_bytes, buf.data(), u32(buf.size())) != OK)
         return ERR_READ_FAILED;
 
     RecordHeader rh;
@@ -381,26 +416,33 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
      * gated exactly as before. The backup location is the volume's LAST
      * sector (rawfixer's corpus-decoded `total - sector`, S-008). */
     bool from_backup = false;
-    u32 rc = OK;
-    if (!boot_signature_ok(reinterpret_cast<const u8*>(&bs)))
-        rc = ERR_BAD_MAGIC;
-    if (rc == OK)
-        rc = validate_boot_sector(bs, v->dev_->geometry(), v->p_);
-    if (rc != OK) {
-        BootSector backup{};
+    /* M-145 (diff-to-fix): NO 0x55AA gate on the NTFS open - the og's
+     * NTFS path never reads the DBR signature (the analyser's gate list
+     * FUN_180004900 :3568-3577 stops at OEM/BPB/zero-sweeps, and
+     * LoadNtfsVolume :19292-19310 stops at OEM/bps-mask/mft-product; the
+     * og's FAT and exFAT paths DO check 0x55AA - the omission is
+     * NTFS-specific). A torn 2-byte signature on an otherwise-valid DBR
+     * is scanned by the og and was refused here with ERR_BAD_MAGIC.
+     * Content is the proof at BOTH rungs: the primary's BPB gates, and
+     * the backup's own BPB gates (the D-99 fallback is core-only either
+     * way - the og has no backup-open path at all). The FAT/exFAT paths
+     * keep their signature gates (og parity there). */
+    auto read_backup = [&v](BootSector& out) -> bool {
         const u64 total = v->dev_->size();
         const u64 sec = v->dev_->geometry().logical_sector != 0
                             ? u64(v->dev_->geometry().logical_sector)
                             : u64(512);
-        if (total >= 2 * sec && v->dev_->read_at(total - sec, &backup, sizeof(backup)) == OK &&
-            boot_signature_ok(reinterpret_cast<const u8*>(&backup))) {
-            VolumeParams bp{};
-            if (validate_boot_sector(backup, v->dev_->geometry(), bp) == OK) {
-                bs = backup;
-                v->p_ = bp;
-                from_backup = true;
-                rc = OK;
-            }
+        return total >= 2 * sec && v->dev_->read_at(total - sec, &out, sizeof(out)) == OK;
+    };
+    u32 rc = validate_boot_sector(bs, v->dev_->geometry(), v->p_);
+    if (rc != OK) {
+        BootSector backup{};
+        VolumeParams bp{};
+        if (read_backup(backup) && validate_boot_sector(backup, v->dev_->geometry(), bp) == OK) {
+            bs = backup;
+            v->p_ = bp;
+            from_backup = true;
+            rc = OK;
         }
         if (rc != OK) {
             if (err)
@@ -408,22 +450,150 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
             return nullptr;
         }
     }
-    v->p_.boot_from_backup = from_backup;
-    rc = v->load_mft_stream();
+    rc = v->load_mft_stream(v->p_.mft_lcn, false);
+    if (rc != OK && !v->p_.mirror_invalid && v->p_.mftmirr_lcn != v->p_.mft_lcn) {
+        /* S-063: the og's $MFTMirr bootstrap fallback — when record 0 is
+         * unreadable at the primary $MFT LCN (or its geometry gates reject
+         * it), the walk entry retries the IDENTICAL read at the $MFTMirr
+         * LCN before refusing with 0x610016 (FUN_1800272b0, the
+         * LAB_180027467 block at NTFSSearchDLL :31595-31609; the getters
+         * FUN_18003f990/FUN_18003f970 = the boot struct's +0x30/+0x38
+         * LCN pair). The mirror's record-0 slot is a copy of $MFT's own
+         * record, whose $DATA runlist describes the entire primary MFT:
+         * there is everything to bootstrap FROM — the pre-fix comment
+         * reasoned the opposite and refused the whole volume. */
+        const u32 mrc = v->load_mft_stream(v->p_.mftmirr_lcn, true);
+        if (mrc == OK) {
+            v->p_.boot_from_mftmirr = true; /* the open diagnostic */
+            if (cr::log::enabled())
+                cr::log::write(cr::log::Level::Info,
+                               "ntfs: primary $MFT record 0 unreadable (rc=%08x); "
+                               "bootstrapped from the $MFTMirr copy (LCN %llu)",
+                               rc, static_cast<unsigned long long>(v->p_.mftmirr_lcn));
+            rc = OK;
+        }
+    }
+    if (rc != OK && !from_backup) {
+        /* M-043 extension (the M-141/M-145 landing): the primary's BPB
+         * gates PASS but the MFT bootstrap fails at the declared LCN -
+         * the torn-geometry class (e.g. total_sectors collapsed to a
+         * value that still passes the product gates while the record-0
+         * read lands off the real MFT). The volume-end backup may carry
+         * the true geometry: validate it and retry the bootstrap from
+         * ITS fields before refusing (read-only; repairing the primary
+         * stays consent-gated exactly as before). */
+        BootSector backup{};
+        VolumeParams bp{};
+        if (read_backup(backup) && validate_boot_sector(backup, v->dev_->geometry(), bp) == OK) {
+            v->p_ = bp;
+            rc = v->load_mft_stream(bp.mft_lcn, false);
+            if (rc == OK)
+                from_backup = true;
+        }
+    }
     if (rc != OK) {
-        /* corpus: $MFTMirr cross-reference as repair/verification source when
-         * primary fails. Try mirror's $MFT? The mirror holds records 0..3
-         * copies - for bootstrap we only need record 0's runlist; if primary
-         * is unreadable there is nothing to mirror FROM - surface the error. */
+        /* both the primary and the mirror failed — the og's 0x610016
+         * refusal class: surface the primary's error. */
         if (err)
             *err = rc;
         return nullptr;
     }
-    /* mirror stream is best-effort; its failure is not fatal */
-    (void)v->load_mftmirr_stream();
+    /* M-151: the growth probe runs at volume-open on the primary
+     * bootstrap's runs (the og's :5554 post-load call site) - a runlist
+     * that LOADS but under-declares is exactly the population this
+     * annexes; the S-063 mirror fallback and the M-043 backup retry
+     * land their own loads above and the growth runs on whichever run
+     * map the successful bootstrap produced. */
+    v->grow_mft_runs_to_valid_records();
+    if (!v->p_.mirror_invalid) {
+        /* mirror stream is best-effort; its failure is not fatal */
+        (void)v->load_mftmirr_stream();
+    } else if (cr::log::enabled()) {
+        /* M-141: the torn-mirror diagnostic - the open proceeds without
+         * the mirror (the og's posture: the mirror is a repair source,
+         * absence non-fatal) */
+        cr::log::write(cr::log::Level::Info,
+                       "ntfs: $MFTMirr LCN %llu out of volume bounds - mirror "
+                       "skipped (volume open continues from the primary)",
+                       static_cast<unsigned long long>(v->p_.mftmirr_lcn));
+    }
+    v->p_.boot_from_backup = from_backup;
     if (err)
         *err = OK;
     return v;
+}
+
+void NtfsVolume::grow_mft_runs_to_valid_records() {
+    /* M-151: the og's growth loop, decoded first-hand (FUN_180007670
+     * :5617-5700): per run node, probe 4 KiB windows at the run's
+     * declared end; count consecutive records that pass FUN_180041bb0's
+     * validator chain (FILE magic + the N-213 pre-gate band + the fixup
+     * tails); extend the run's length by the validated count; a fully
+     * valid window advances to the next 4 KiB, a partial one stops (the
+     * og's `uVar10 < uVar12` break), a failed read stops. The og runs
+     * this at volume-open over the loaded run map (:5554's post-load
+     * call) - the core runs it after the PRIMARY $MFT load (the mirror
+     * fallback's emergency bootstrap is S-063's surface; the growth's
+     * population is the truncated/stale PRIMARY runlist that LOADS but
+     * under-declares). */
+    if (p_.record_size == 0 || p_.record_size < 512 || mft_run_.empty())
+        return;
+    std::vector<u8> win(4096);
+    std::vector<DataRun>& runs = mft_run_.runs();
+    for (size_t ri = 0; ri < runs.size(); ++ri) {
+        DataRun& dr = runs[ri];
+        if (dr.sparse)
+            continue; /* a hole has no physical tail to probe */
+        /* the probe never crosses the next run's physical start (the
+         * core's vector-based vcn mapping must stay unambiguous under
+         * extension; the og's map tolerates the overlap - registered
+         * difference, the growth's population is the LAST run) */
+        u64 ceiling = dev_->size();
+        for (size_t nj = ri + 1; nj < runs.size(); ++nj) {
+            if (!runs[nj].sparse) {
+                ceiling = std::min<u64>(ceiling, runs[nj].lcn * p_.cluster_bytes);
+                break;
+            }
+        }
+        u64 probe = (dr.lcn + dr.length) * p_.cluster_bytes;
+        u64 grown_bytes = 0; /* validated bytes past the declared end */
+        while (probe + win.size() <= ceiling) {
+            if (dev_->read_at(probe, win.data(), u32(win.size())) != OK)
+                break; /* the og's failed-read termination */
+            u64 valid = 0;
+            while (valid + p_.record_size <= win.size()) {
+                const u8* rec = win.data() + size_t(valid);
+                RecordHeader rh;
+                std::memcpy(&rh, rec, sizeof(rh));
+                if (rh.magic != RECORD_MAGIC_FILE)
+                    break;
+                if (fixup_validate(rec, p_.record_size, rh.update_sequence_offset,
+                                   rh.update_sequence_size, p_.sector_bytes) != OK)
+                    break;
+                valid += p_.record_size;
+            }
+            if (valid == 0)
+                break; /* nothing annexable: done with this run */
+            grown_bytes += valid;
+            if (valid < win.size())
+                break; /* partial window: the og's uVar10 < uVar12 break */
+            probe += win.size();
+        }
+        /* extend by whole clusters only (the vcn mapping's granularity);
+         * a fractional trailing record-worth stays unannexed - the
+         * conservative floor, never an over-annex */
+        const u64 grown_clusters = grown_bytes / p_.cluster_bytes;
+        if (grown_clusters != 0) {
+            dr.length += grown_clusters;
+            if (cr::log::enabled())
+                cr::log::write(cr::log::Level::Info,
+                               "ntfs: M-151 run growth annexed %llu clusters past the "
+                               "declared $MFT run end (LCN %llu, length now %llu)",
+                               static_cast<unsigned long long>(grown_clusters),
+                               static_cast<unsigned long long>(dr.lcn),
+                               static_cast<unsigned long long>(dr.length));
+        }
+    }
 }
 
 u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {

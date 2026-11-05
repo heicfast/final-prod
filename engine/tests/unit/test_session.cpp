@@ -2,10 +2,15 @@
 #include <gtest/gtest.h>
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
+#include "cr/session/cr_lastscan.h"
+#include "test_tmpdir.hpp"
+#include <filesystem>
+#include "cr/orchestrator/cr_scan.h"
 #include <algorithm>
 #include <functional>
 #include "cr/storage/cr_device.h"
 #include <cstring>
+#include "cr/cr_text.h"
 #include <vector>
 
 using namespace cr;
@@ -93,6 +98,57 @@ TEST(Crsf, RoundTrip) {
             break;
         }
     EXPECT_TRUE(all_zero);
+}
+
+TEST(Crsf, ExtentLogicalRoundTrip) {
+    /* S-059: the logical position + hole mark persist through the
+     * session wire (nflags bit 2048) - a stopped scan's sparse file
+     * reloads with its holes at the right logical offsets, and the
+     * writer's positioned walk resumes from them. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    t.refresh_stats();
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"holed.dat";
+    p->logical_size = 3 << 20;
+    tree::FileProperties::Extent e1{};
+    e1.offset = 0x100000;
+    e1.length = 1 << 20;
+    e1.logical = 0;
+    p->extents.push_back(e1);
+    tree::FileProperties::Extent eh{};
+    eh.offset = 0;
+    eh.length = 1 << 20;
+    eh.logical = 1 << 20;
+    eh.hole = true;
+    p->extents.push_back(eh);
+    tree::FileProperties::Extent e2{};
+    e2.offset = 0x200000;
+    e2.length = 1 << 20;
+    e2.logical = 2 << 20;
+    p->extents.push_back(e2);
+    (void)t.add_file(root, p);
+    p->release();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    tree::FileNode* holed = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "holed.dat")
+                holed = c;
+    ASSERT_NE(holed, nullptr);
+    ASSERT_EQ(u64(3), holed->props()->extents.size());
+    EXPECT_EQ(0x100000u, holed->props()->extents[0].offset);
+    EXPECT_EQ(0u, holed->props()->extents[0].logical);
+    EXPECT_FALSE(holed->props()->extents[0].hole);
+    EXPECT_TRUE(holed->props()->extents[1].hole) << "the hole mark survives the wire";
+    EXPECT_EQ(u64(1) << 20, holed->props()->extents[1].logical)
+        << "the hole's logical position survives the wire";
+    EXPECT_EQ(u64(2) << 20, holed->props()->extents[2].logical)
+        << "the tail extent lands past the hole";
 }
 
 TEST(Crsf, CorruptionSkipsForward) {
@@ -207,6 +263,81 @@ TEST(Crsf, TinyChunkDeflatesWhenSmaller) {
 /* SESS-2 (GAP-W3-9a): the volume identity card round-trips, and v1 records
  * (52-byte payloads, pre-identity layout) deserialize with a zero card -
  * zeros mean "unverifiable", never "verified". */
+TEST(Crsf, ReconstructedCarveTreeRoundTrip) {
+    /* S-048: the carve tree's intermediate folders round-trip - the
+     * "Reconstructed" root, the 7 empty category skeleton folders, the
+     * lazy per-volume group child, and the empty per-extension folders
+     * all survive serialize/deserialize with their tree shape intact
+     * (the marker-2 child-folder record; roots stay marker-1 so old
+     * readers load old files unchanged). */
+    tree::ResultTree t;
+    auto* rec = t.add_root(u"Reconstructed");
+    static const char* const kCats[] = {"Pictures", "Documents", "Archives", "Videos",
+                                        "Audio",    "Emails",    "Others"};
+    for (const char* cat : kCats)
+        (void)t.add_folder(rec, text::utf8_to_u16(cat));
+    auto* grp = t.add_folder(rec, u" (H:)");
+    ASSERT_NE(grp, nullptr);
+    auto* jpgf = t.add_folder(grp, u"jpg");
+    ASSERT_NE(jpgf, nullptr);
+    tree::FileProperties* p1 = new tree::FileProperties();
+    p1->name = u"JPG_192x144_000001.JPG";
+    p1->logical_size = 519;
+    p1->carve_format = 0;
+    p1->carve_confidence = 900;
+    p1->extents.push_back({4096, 519});
+    auto* f1 = t.add_file(grp, p1);
+    p1->release();
+    f1->set_origin(tree::Origin::Carved);
+    f1->set_deleted_state(tree::DeletedState::Deleted);
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    EXPECT_GT(blob.size(), 100u);
+
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    EXPECT_EQ(t2.node_count(), t.node_count());
+    tree::FullNode* rec2 = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            rec2 = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(rec2, nullptr) << "the Reconstructed root reloads as a root";
+    /* the 7 skeleton folders + the group child + the ext folder + the file */
+    int folders = 0, files = 0;
+    tree::FullNode* grp2 = nullptr;
+    tree::FullNode* jpgf2 = nullptr;
+    for (tree::FileNode* c = rec2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            tree::FullNode* f = static_cast<tree::FullNode*>(c);
+            if (f->role == u" (H:)")
+                grp2 = f;
+        } else {
+            ++files;
+            ADD_FAILURE() << "no file directly under Reconstructed in this fixture";
+        }
+    }
+    EXPECT_EQ(folders, 8) << "7 skeleton folders + the volume group child";
+    ASSERT_NE(grp2, nullptr) << "the group child reloads as a CHILD (marker 2)";
+    int g_files = 0, g_folders = 0;
+    for (tree::FileNode* c = grp2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++g_folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"jpg")
+                jpgf2 = static_cast<tree::FullNode*>(c);
+        } else {
+            ++g_files;
+            EXPECT_EQ(c->name_utf8(), "JPG_192x144_000001.JPG");
+            EXPECT_EQ(c->origin(), tree::Origin::Carved);
+        }
+    }
+    EXPECT_EQ(g_files, 1) << "the carved file stays under its volume group";
+    EXPECT_EQ(g_folders, 1) << "the empty per-ext folder survives";
+    ASSERT_NE(jpgf2, nullptr);
+    EXPECT_EQ(jpgf2->first_child(), nullptr) << "the ext folder stays EMPTY";
+}
+
 TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     VolumeInfo vi;
     vi.fs_kind = 3;
@@ -214,14 +345,17 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     vi.slice_bytes = 4096;
     vi.flags = 0x7;
     std::snprintf(vi.label, sizeof(vi.label), "TESTVOL");
+    std::snprintf(vi.label_full, sizeof(vi.label_full),
+                  "012345678901234567890123456789012345678901234567890123456789"); /* N-090: 60 */
     std::snprintf(vi.model, sizeof(vi.model), "ST5000DM000-1FK178");
     std::snprintf(vi.serial, sizeof(vi.serial), "W1234567");
     vi.boot_hash = 0xDEADBEEFu;
     std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u)
-        << "v4 layout: v2 + the S-030 image tail + the N-066 axes/snapshot";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u + 8u + 100u)
+        << "v6 layout: v5 + the W1a save_unix tail (the record-2 scanTime) + "
+           "the N-090 complete-label tail (the og's volumeName[100])";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -230,6 +364,8 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_EQ(out.boot_hash, 0xDEADBEEFu);
     EXPECT_EQ(out.slice_offset, 512u * 63);
     EXPECT_STREQ(out.image, "/vm/disks/qemu.img") << "the image path round-trips";
+    EXPECT_STREQ(out.label_full, "012345678901234567890123456789012345678901234567890123456789")
+        << "N-090: the complete label round-trips (the v6 tail)";
 
     /* v2 record (pre-S-030): no image tail - empty path, not garbage */
     std::vector<u8> v2(blob.begin(), blob.begin() + 80 + 84);
@@ -1132,6 +1268,279 @@ TEST(Session, EngineExtrasAbsentWhenUnpopulated) {
     EXPECT_EQ(blob, blob2) << "no extras block: the record shape is unchanged";
 }
 
+TEST(Session, FatOriginClusterRoundTrip) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the FAT-family first-cluster
+     * origin anchor — the og's CFAT +0x3e / CExFat +0x50 slot (the
+     * SetFirstCluster vtable+0x28 contract; part1 :125-127 census) —
+     * rides its own nflags bit-7 block so a chainless deleted record
+     * keeps its dentry origin across save/load (RED pre-fix: the carrier
+     * did not exist; the datum was dropped). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"_GONE.TXT";
+    p->fs_kind = u32(FsKindCode::Fat16);
+    p->fat_origin_cluster = 4089; /* the dentry's origin cluster */
+    p->extents.push_back({8192, 512});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* a second, plain node proves the bit-7 gate: zero carrier -> the
+     * record stays the pre-OQ-SA-1 shape */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"plain.txt";
+    p2->fs_kind = u32(FsKindCode::Fat16);
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->fat_origin_cluster, 4089u);
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->fat_origin_cluster, 0u);
+}
+
+TEST(Session, NtfsOriginLcnRoundTrip) {
+    /* OQ-SA-1 NTFS half (resolved, scan-engine lane s3): the og's
+     * CNTFSFileProperties +0x64 anchor — the low u32 of the FIRST $DATA
+     * run's start LCN (FUN_1800336f0 :41028 -> FUN_1800069e0 :5126 ->
+     * FUN_180003020 :1987; persisted by FUN_180003440 :2362) — rides its
+     * own nflags bit-8 block so a fragmented/deleted record keeps its
+     * origin LCN across save/load (RED pre-fix: the carrier did not
+     * exist; the datum was dropped). The 0xFFFFFFFF sparse-first-run
+     * value is nonzero and therefore persists too. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"fragment.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->ntfs_origin_lcn = 0x000C1234u; /* the first run's start LCN */
+    p->extents.push_back({0x000C1234ull * 4096, 2 * 4096});
+    p->extents.push_back({0x000D5678ull * 4096, 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* the sparse-first-run shape: the og's stored -1 low dword */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"holes.dat";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_origin_lcn = 0xFFFFFFFFu;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* a third, plain node proves the bit-8 gate: zero carrier -> the
+     * record stays the pre-OQ-SA-1-NTFS shape */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"plain.txt";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_origin_lcn, 0x000C1234u);
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_origin_lcn, 0xFFFFFFFFu);
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
+}
+
+TEST(Session, NtfsTotalClustersRoundTrip) {
+    /* N-100: the og's +0x60 twin — the $DATA stream's TOTAL cluster
+     * count, persisted beside the origin LCN (rsf record-4 writes
+     * u32(+0x64) then u32(+0x60), rsf-format :398; the og's copier
+     * FUN_180003020 :1987-1988 stamps both). The semantics that make
+     * the field NON-DERIVABLE: sparse-anywhere zeroes the total
+     * (FUN_1800336f0 :41096-98) while allocated_size stays nonzero — a
+     * sparse file's session row carries total 0 beside a nonzero
+     * allocation, which no allocated_size/extents derivation can
+     * reproduce. RED pre-fix: the carrier did not exist (compile-error
+     * on the reverted tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    /* non-sparse: 7 clusters across two runs — the total persists */
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"contiguous.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->ntfs_origin_lcn = 0x000C1234u;
+    p->ntfs_total_clusters = 7;
+    p->allocated_size = 7 * 4096;
+    p->extents.push_back({0x000C1234ull * 4096, 5 * 4096});
+    p->extents.push_back({0x000D5678ull * 4096, 2 * 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* the sparse shape: total 0 (sparse-anywhere rule) BESIDE a nonzero
+     * allocated_size — the og's session-row truth for sparse files, and
+     * exactly the pair no derivation reproduces */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"sparseholes.dat";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_origin_lcn = 0xFFFFFFFFu; /* sparse first run */
+    p2->ntfs_total_clusters = 0;       /* sparse-anywhere => 0 */
+    p2->allocated_size = 64 * 4096;    /* ...while allocation stays */
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* the gate: a zero-total NTFS node must stay shape-identical to a
+     * pre-N-100 record (bit-9 fires only when nonzero) */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"plain.txt";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_total_clusters, 7u);
+    EXPECT_EQ(g2->props()->ntfs_origin_lcn, 0x000C1234u); /* both anchors ride */
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_total_clusters, 0u);
+    EXPECT_EQ(h2->props()->allocated_size, 64ull * 4096)
+        << "the not-derivable pair: sparse total 0 beside nonzero allocation";
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_total_clusters, 0u);
+    EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
+}
+
+TEST(Session, NtfsParentRefRoundTrip) {
+    /* N-131 NTFS half: the og's CNTFSFileProperties +0x40 parent
+     * reference — the $FILE_NAME parent-directory FILE reference masked
+     * to the 48-bit record number (FUN_18002a340's local_41 mask, the
+     * copier FUN_180003020 :1982) — rides its own nflags bit-12 block so
+     * a reloaded session answers "which MFT record was this file's
+     * parent?" (the structural parent_id is a session-file index, not an
+     * FS datum). RED pre-fix: the carrier did not exist (compile-error
+     * on the reverted tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"lineage.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->record_ref = 0x0011000000000021ull;      /* own ref: record 0x21, seq 0x11 */
+    p->ntfs_parent_ref = 0x0000000000000010ull; /* parent: record 16 (masked) */
+    p->extents.push_back({200 * 4096, 2 * 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* a root-level file carries parent 5 (the root dir record) — the
+     * mask means the sequence bits never ride (the og strips them) */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"toplevel.txt";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_parent_ref = 5;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* the gate: a zero-carrier node (orphan/pseudo emission) stays
+     * shape-identical to a pre-N-131 record (bit-12 fires only when
+     * nonzero) */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"orphan.bin";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_parent_ref, 0x10ull);
+    EXPECT_EQ(g2->props()->record_ref, 0x0011000000000021ull); /* own ref intact */
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_parent_ref, 5ull);
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_parent_ref, 0ull);
+}
+
+TEST(Session, FatParentClusterRoundTrip) {
+    /* N-131 FAT half: the og's CFATFileProperties +0x42 parent-directory
+     * anchor — the containing directory node's own +0x3e origin cluster
+     * (FATSearchDLL :11654 with local_110 from :11500/:11504) — rides its
+     * own nflags bit-13 block so a reloaded session answers "which
+     * cluster did this file's containing directory start at?" RED
+     * pre-fix: the carrier did not exist (compile-error on the reverted
+     * tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"INNER.TXT";
+    p->fs_kind = u32(FsKindCode::Fat16);
+    p->fat_origin_cluster = 15; /* own first cluster */
+    p->fat_parent_cluster = 5;  /* the SUBDIR's first cluster */
+    p->extents.push_back({8192, 512});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* root-level file: parent 0 by construction (the og's volume-root
+     * node anchors at SetFirstCluster(0), engine init FUN_18000e130) —
+     * the zero carrier stays the pre-N-131 shape */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"README.TXT";
+    p2->fs_kind = u32(FsKindCode::Fat16);
+    p2->fat_origin_cluster = 10;
+    p2->fat_parent_cluster = 0;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->fat_parent_cluster, 5u);
+    EXPECT_EQ(g2->props()->fat_origin_cluster, 15u); /* both anchors ride */
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->fat_parent_cluster, 0u);
+    EXPECT_EQ(q2->props()->fat_origin_cluster, 10u);
+}
+
 TEST(Session, IdentityCardFirmwareWwnInterface) {
     /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
      * revision (+0x206), WWN/serial-2 (+0x30A), interface description
@@ -1181,4 +1590,617 @@ TEST(Session, BootSnapshotRoundTrip) {
     EXPECT_EQ(0, v3.firmware[0]);
     EXPECT_EQ(0, v3.wwn[0]);
     EXPECT_EQ(0, v3.interface_desc[0]);
+}
+
+TEST(Session, SaveUnixVTailRoundTrip) {
+    /* W1a (R-56): the v5 tail - the embedded save time (the og's
+     * record-2 SYSTEMTIME scanTime, rsf-format section 5.2 +0x6C)
+     * round-trips; v4-era and shorter records read 0 = "not recorded"
+     * (the honest pre-v5 answer, never a fabricated time). */
+    session::VolumeInfo vi;
+    vi.save_unix = 1730123456ULL;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    ASSERT_EQ(blob.size(), size_t(80 + 84 + 256 + 32 + 32 + 32 + 512 + 8 + 100));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(vo.save_unix, 1730123456ULL);
+    EXPECT_EQ(0, vo.label_full[0]) << "N-090: no label set - the v6 tail stays zeros";
+
+    /* v5-era record (the v6 tail cut): loads, label_full = the honest
+     * zeros (the legacy 31-char card is the whole truth - N-090's
+     * degrade contract) */
+    const size_t v5_len = blob.size() - 100;
+    session::VolumeInfo v5;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v5_len, v5), u32(OK));
+    EXPECT_EQ(v5.save_unix, 1730123456ULL);
+    EXPECT_EQ(0, v5.label_full[0]);
+
+    /* v4-era record (the v5 tail cut by one field): loads, save_unix = 0 */
+    const size_t v4_len = blob.size() - 100 - 8;
+    session::VolumeInfo v4;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v4_len, v4), u32(OK));
+    EXPECT_EQ(v4.save_unix, 0ULL);
+    EXPECT_EQ(0, v4.interface_desc[0]);
+    EXPECT_EQ(0, v4.label_full[0]);
+
+    /* v1-era record (the 80-byte prefix): same honest zero */
+    session::VolumeInfo v1;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), 80, v1), u32(OK));
+    EXPECT_EQ(v1.save_unix, 0ULL);
+}
+
+TEST(Crsf, PeekRecordHeaderOnly) {
+    /* W1a (R-56): peek_record returns type + session id from the 24-byte
+     * record header WITHOUT touching the payload chain - the skip-by-type
+     * primitive the session-list path is built on. */
+    MemFile mf;
+    {
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x1122334455667788ULL), OK);
+        auto p1 = compressible_payload();
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, p1.data(), u32(p1.size())), OK);
+        auto p2 = compressible_payload();
+        p2.push_back(9); /* make the payloads differ */
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, p2.data(), u32(p2.size())), OK);
+        auto p3 = compressible_payload();
+        p3.push_back(7);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, p3.data(), u32(p3.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    u32 count = 0;
+    ASSERT_EQ(r.open(&count), OK);
+    ASSERT_EQ(count, 3u);
+
+    RecordType t = REC_SESSION_STATE;
+    u64 sid = 0;
+    ASSERT_EQ(r.peek_record(0, t, sid), OK);
+    EXPECT_EQ(t, REC_SESSION_STATE);
+    EXPECT_EQ(sid, 0x1122334455667788ULL);
+    ASSERT_EQ(r.peek_record(1, t, sid), OK);
+    EXPECT_EQ(t, REC_RESULT_TREE);
+    ASSERT_EQ(r.peek_record(2, t, sid), OK);
+    EXPECT_EQ(t, REC_VOLUME_INFO);
+    EXPECT_EQ(sid, 0x1122334455667788ULL);
+
+    /* out-of-range index refuses (same code as read_record) */
+    EXPECT_EQ(r.peek_record(3, t, sid), 0x50040001u);
+
+    /* peek does not consume: full reads still decode every record */
+    Record rec;
+    ASSERT_EQ(r.read_record(0, rec), OK);
+    EXPECT_EQ(rec.type, REC_SESSION_STATE);
+    EXPECT_EQ(rec.data.size(), compressible_payload().size());
+    ASSERT_EQ(r.read_record(2, rec), OK);
+    EXPECT_EQ(rec.type, REC_VOLUME_INFO);
+}
+
+TEST(SessionSummary, ReadSummaryLightRecordsOnly) {
+    /* W1a (R-56): read_summary decodes ONLY the light records - the
+     * heavy RESULT_TREE payload is skipped by type; every summary field
+     * matches what the full load would report for the same light data. */
+    MemFile mf;
+    session::SessionState st;
+    session::VolumeInfo vi;
+    {
+        st.stage_done_mask = 1; /* quick */
+        st.files_found = 3;
+        st.deleted_found = 1;
+        st.carved_found = 2;
+        st.bytes_scanned = 999;
+        st.error_map_ranges = 0;
+        vi.fs_kind = 3;
+        vi.flags = 1; /* quick configured */
+        vi.scanned_bytes = 999;
+        vi.elapsed_ms = 5;
+        vi.save_unix = 1730123456ULL;
+        std::memcpy(vi.label, "TESTVOL", 7);
+
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0xA1B2C3D4E5F60718ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_session_state(st, blob), OK);
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(serialize_volume_info(vi, blob), OK);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, blob.data(), u32(blob.size())), OK);
+        /* the heavy record the summary path must never pay for: a
+         * multi-chunk payload far larger than the whole summary */
+        std::vector<u8> big;
+        const std::vector<u8> chunk = compressible_payload();
+        for (int i = 0; i < 400; ++i)
+            big.insert(big.end(), chunk.begin(), chunk.end());
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, big.data(), u32(big.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    session::SessionSummary s;
+    ASSERT_EQ(orchestrator::ScanController::read_summary(r, s), u32(OK));
+    EXPECT_EQ(s.session_id, 0xA1B2C3D4E5F60718ULL);
+    EXPECT_EQ(s.record_count, 3u);
+    EXPECT_TRUE(s.have_state);
+    EXPECT_TRUE(s.have_volume);
+    EXPECT_EQ(s.state.stage_done_mask, st.stage_done_mask);
+    EXPECT_EQ(s.state.files_found, st.files_found);
+    EXPECT_EQ(s.state.deleted_found, st.deleted_found);
+    EXPECT_EQ(s.state.carved_found, st.carved_found);
+    EXPECT_EQ(s.state.bytes_scanned, st.bytes_scanned);
+    EXPECT_EQ(s.volume.fs_kind, vi.fs_kind);
+    EXPECT_EQ(s.volume.save_unix, vi.save_unix);
+    EXPECT_EQ(s.volume.elapsed_ms, vi.elapsed_ms);
+    EXPECT_EQ(0, std::strcmp(s.volume.label, "TESTVOL"));
+    /* configured_mask derives from volume.flags (the load rule) */
+    EXPECT_EQ(s.configured_mask, 1u);
+}
+
+TEST(SessionSummary, LegacySessionWithoutVolumeInfo) {
+    /* W1a (R-56): a legacy container with no VolumeInfo still summaries:
+     * have_volume=false, configured_mask = all stages (the
+     * load_session_summary legacy rule), honest empty label. */
+    MemFile mf;
+    {
+        session::SessionState st;
+        st.stage_done_mask = 1;
+        st.files_found = 2;
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x1ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_session_state(st, blob), OK);
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    session::SessionSummary s;
+    ASSERT_EQ(orchestrator::ScanController::read_summary(r, s), u32(OK));
+    EXPECT_TRUE(s.have_state);
+    EXPECT_FALSE(s.have_volume);
+    EXPECT_EQ(s.state.files_found, 2u);
+    EXPECT_EQ(s.configured_mask, 1u | 2u | 4u);
+    EXPECT_EQ(s.volume.label[0], 0);
+    EXPECT_EQ(s.volume.save_unix, 0ULL);
+}
+
+namespace {
+/* W1b (R-54): the per-node load hook's observer state. */
+struct LoadHookState {
+    u64 calls = 0;
+    u64 last_done = 0;
+    u64 total_seen = 0;
+    u64 cancel_at_done = 0; /* cancel once done >= cancel_at_done (a
+                             * threshold, not a flag - MSVC C4804/C4305
+                             * under /W4 /WX, run 40690974024) */
+};
+bool load_progress_counter(u64 done, u64 total, void* user) {
+    auto* st = static_cast<LoadHookState*>(user);
+    ++st->calls;
+    EXPECT_GE(done, st->last_done); /* monotonic */
+    st->last_done = done;
+    st->total_seen = total;
+    return st->cancel_at_done == 0 || done < st->cancel_at_done;
+}
+} // namespace
+
+TEST(Session, DeserializeProgressPerNodeAndCancel) {
+    /* W1b (R-54): the og's restore reports progress inside the load
+     * window and polls IsCancelled after EVERY child
+     * (rsf-format--scan-session.md flow section) - our per-node
+     * DeserializeProgress mirror. Progress fires per attached node with
+     * done/total NODE counts; false aborts ERR_CANCELLED and the caller
+     * discards the partial tree. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    for (int i = 0; i < 12; ++i) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = std::u16string(u"file") + char16_t('a' + i);
+        p->logical_size = 100 + i;
+        (void)t.add_file(root, p);
+        p->release();
+    }
+    t.refresh_stats();
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+
+    /* silent load: no hook, no change (the pre-W1b behavior) */
+    {
+        tree::ResultTree t2;
+        u32 reparented = 1;
+        ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2, &reparented), OK);
+        EXPECT_EQ(t2.node_count(), t.node_count());
+    }
+
+    /* progress fires per node, monotonic, with the persisted count */
+    {
+        tree::ResultTree t2;
+        LoadHookState st;
+        ASSERT_EQ(
+            deserialize_tree(blob.data(), blob.size(), t2, nullptr, load_progress_counter, &st),
+            OK);
+        const u64 nodes = t.node_count(); /* the ROOT is a node too (13) */
+        EXPECT_EQ(st.calls, nodes);
+        EXPECT_EQ(st.last_done, nodes);
+        EXPECT_EQ(st.total_seen, nodes);
+    }
+
+    /* cancel mid-tree: ERR_CANCELLED, the caller discards the partial */
+    {
+        tree::ResultTree t2;
+        LoadHookState st;
+        st.cancel_at_done = 5; /* cancel from the 5th attached node on */
+        EXPECT_EQ(
+            deserialize_tree(blob.data(), blob.size(), t2, nullptr, load_progress_counter, &st),
+            ERR_CANCELLED);
+        /* the tree object holds a PARTIAL state - by contract the caller
+         * discards it (never re-queries it as truth); we only assert the
+         * hook stopped early, never that the tree is complete */
+        EXPECT_LT(st.calls, t.node_count());
+    }
+}
+
+TEST(Session, LoadSessionSummaryPropagatesProgressAndCancel) {
+    /* W1b (R-54): the hook rides the CONTAINER path too - the REC_RESULT_
+     * TREE case threads it (ERR_CANCELLED propagates, never flattened
+     * into ERR_SESSION_FORMAT). */
+    MemFile mf;
+    {
+        tree::ResultTree t;
+        auto* root = t.add_root(u"Volume D");
+        for (int i = 0; i < 20; ++i) {
+            tree::FileProperties* p = new tree::FileProperties();
+            p->name = std::u16string(u"f") + char16_t('0' + i);
+            (void)t.add_file(root, p);
+            p->release();
+        }
+        t.refresh_stats();
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x99ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_tree(t, blob), OK);
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, blob.data(), u32(blob.size())), OK);
+        session::VolumeInfo vi;
+        ASSERT_EQ(serialize_volume_info(vi, blob), OK);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    session::VolumeSessionInfo info;
+    LoadHookState st;
+    ASSERT_EQ(orchestrator::ScanController::load_session_summary(r, tree, stats, info, nullptr,
+                                                                 load_progress_counter, &st),
+              u32(OK));
+    const u64 nodes2 = tree.node_count(); /* 20 files + the root */
+    EXPECT_EQ(st.calls, nodes2);
+    EXPECT_EQ(st.total_seen, nodes2);
+
+    /* and the cancel path propagates as ERR_CANCELLED through the
+     * container layer (the format error must not swallow it) */
+    Reader r2(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    tree::ResultTree tree2;
+    orchestrator::ScanStats stats2;
+    session::VolumeSessionInfo info2;
+    LoadHookState st2;
+    st2.cancel_at_done = 3;
+    EXPECT_EQ(orchestrator::ScanController::load_session_summary(r2, tree2, stats2, info2, nullptr,
+                                                                 load_progress_counter, &st2),
+              u32(ERR_CANCELLED));
+    EXPECT_LT(st2.calls, nodes2);
+}
+
+TEST(Crsf, LostDirFoldersRoundTrip) {
+    /* M-103: the synthetic LostDir folders persist as ordinary child
+     * nodes (the marker-2 record) and reload with the tree shape intact
+     * - the og's real sessions carry them as real nodes (398 folders in
+     * the H session), so the round-trip must preserve the grouping. */
+    tree::ResultTree t;
+    auto* lost = t.add_root(u"File Path Lost");
+    ASSERT_NE(lost, nullptr);
+    auto* d5000 = t.add_folder(lost, u"LostDir5000");
+    auto* d7000 = t.add_folder(lost, u"LostDir7000");
+    ASSERT_NE(d5000, nullptr);
+    ASSERT_NE(d7000, nullptr);
+    const char* names[] = {"orphan-a1.txt", "orphan-a2.txt", nullptr};
+    for (const char** p = names; *p; ++p) {
+        tree::FileProperties* fp = new tree::FileProperties();
+        fp->name = text::utf8_to_u16(*p);
+        fp->logical_size = 100;
+        fp->fs_kind = u32(FsKindCode::Ntfs);
+        auto* f = t.add_file(d5000, fp);
+        fp->release();
+        ASSERT_NE(f, nullptr);
+        f->set_origin(tree::Origin::Lost);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    EXPECT_EQ(t2.node_count(), t.node_count());
+    tree::FullNode* lost2 = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"File Path Lost")
+            lost2 = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(lost2, nullptr) << "the renamed root reloads";
+    int folders = 0, files = 0;
+    tree::FullNode* d5000_2 = nullptr;
+    for (tree::FileNode* c = lost2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"LostDir5000")
+                d5000_2 = static_cast<tree::FullNode*>(c);
+        }
+    }
+    EXPECT_EQ(folders, 2) << "both LostDir folders survive the round-trip";
+    ASSERT_NE(d5000_2, nullptr);
+    for (tree::FileNode* c = d5000_2->first_child(); c; c = c->next_sibling())
+        ++files;
+    EXPECT_EQ(files, 2) << "the grouped children stay under their folder";
+}
+
+/* ---- N-177: the size-exceeds-blocks damaged flag round-trips ------------ */
+
+TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
+    /* the og persists the ext4 truncation-damage bit in the node FLAGS
+     * (+0x39 bit 0x200); the core's props->flags ride the same put16
+     * record - a flagged node keeps the bit across save/load and a
+     * clean node never gains it. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume E");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"truncated.dat";
+    p->fs_kind = u32(FsKindCode::Ext4);
+    p->flags = tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
+    p->extents.push_back({4096, 1024});
+    t.add_file(root, p);
+    p->release();
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"whole.dat";
+    p2->fs_kind = u32(FsKindCode::Ext4);
+    p2->extents.push_back({8192, 1024});
+    t.add_file(root, p2);
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    EXPECT_NE(0, int(g2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the damaged bit survives the save/load";
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    EXPECT_EQ(0, int(q2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the clean node never gains the bit";
+}
+
+/* ---- M-150: the count pre-allocation bomb gate ------------------------
+ * Each node consumes at least 10 wire bytes (parent 4 + nflags 2 +
+ * marker 1 + origin 1 + deleted 1 + confidence 1), so a count beyond
+ * (len-4)/10 cannot fit the record. The old code value-initialized
+ * by_id(count) straight from the hostile u32 - up to 34.4 GB of touched
+ * pages at the u32 max (minutes of pagefile thrash on Windows, an
+ * uncatchable OOM-kill on Linux overcommit) before any node parse. The
+ * og's record-4 reader allocates node-by-node through per-FS factories
+ * - bounded by the bytes actually present. */
+
+TEST(Session, HostileCountBombRefused) {
+    /* count = 0xF4240000 (~4.06e9) with 3 real nodes' bytes behind it:
+     * the wire bound for a ~230-byte blob is ~22 nodes - the gate fires
+     * instantly with the format error, no allocation spike. Pre-fix the
+     * vector value-initialized ~32 GB. */
+    WireNode a, b, c;
+    a.name = u"one.txt";
+    b.name = u"two.txt";
+    c.name = u"three.txt";
+    std::vector<u8> blob = blob_of_nodes({a, b, c});
+    ASSERT_GT(blob.size(), 40u);
+    /* patch the count field (the first 4 bytes) to the bomb */
+    const u32 bomb = 0xF4240000u;
+    for (int i = 0; i < 4; ++i)
+        blob[size_t(i)] = u8(bomb >> (8 * i));
+    tree::ResultTree t;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t), u32(0x50040001))
+        << "the wire-impossible count is refused before any allocation";
+}
+
+TEST(Session, CountAtWireBoundFailsCleanlyBeyondIt) {
+    /* the boundary: count == (len-4)/10 passes the gate (the parse then
+     * fails cleanly at the truncated tail - the count-lies class);
+     * count == (len-4)/10 + 1 is refused instantly. Both fail cleanly,
+     * the process survives - the M-131-class torn-write producer. */
+    WireNode w;
+    w.name = u"node.txt";
+    std::vector<u8> blob = blob_of_nodes({w});
+    const size_t len = blob.size();
+    const u32 at_bound = u32((len - 4) / 10);
+    ASSERT_GT(at_bound, 1u); /* a real node stream carries slack over the 10B floor */
+    {
+        std::vector<u8> b = blob;
+        for (int i = 0; i < 4; ++i)
+            b[size_t(i)] = u8(at_bound >> (8 * i));
+        tree::ResultTree t;
+        /* the gate passes; the parse reads 1 node then hits the honest
+         * truncated-tail failure (count lies about more nodes) */
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    {
+        std::vector<u8> b = blob;
+        const u32 beyond = at_bound + 1;
+        for (int i = 0; i < 4; ++i)
+            b[size_t(i)] = u8(beyond >> (8 * i));
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001))
+            << "one node beyond the wire bound: instant refusal";
+    }
+}
+
+TEST(Session, TornTailGarbageCountStillFailsCleanly) {
+    /* the M-131-class producer: a torn write lands a garbage count over
+     * real node bytes (the write-side repair's read-side complement).
+     * The load fails with the record-level format error and the process
+     * survives - never a count-scaled zero-fill. */
+    WireNode w;
+    w.name = u"survivor.txt";
+    std::vector<u8> blob = blob_of_nodes({w});
+    const u32 garbage = 0xDEADBEEFu;
+    for (int i = 0; i < 4; ++i)
+        blob[size_t(i)] = u8(garbage >> (8 * i));
+    tree::ResultTree t;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t), u32(0x50040001));
+}
+
+/* ---- M-154 (diff-to-fix): the Linux-runnable core lifecycle tests (the
+ * S82 lane's trio, re-targeted onto the landed module API + the hardening
+ * rider's pins) ---- */
+
+namespace {
+struct M154ScratchDir {
+    std::string p;
+    explicit M154ScratchDir(const char* tag) : p(cr_test::tmp_path(tag, "")) {
+        std::filesystem::create_directories(p);
+    }
+    ~M154ScratchDir() {
+        std::error_code ec;
+        std::filesystem::remove_all(p, ec);
+    }
+    const std::string& path() const { return p; }
+};
+} // namespace
+
+TEST(Session, LastScanPointerFourFieldRoundTrip) {
+    /* the og's [Info] SavePath/Name/Count/Time set (DRWUI:443060-443086)
+     * round-trips through the sidecar */
+    M154ScratchDir dir("m154rt");
+    session::LastScanInfo in;
+    in.save_path = dir.path() + "/auto_C_Drive_20261029_120000.crsf";
+    in.name = "auto_C_Drive_20261029_120000.crsf";
+    in.count = 429;
+    in.time = 1790000000;
+    in.exists = false;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), in));
+    session::LastScanInfo out;
+    ASSERT_TRUE(session::last_scan_info_read(dir.path(), out));
+    EXPECT_EQ(out.name, in.name);
+    EXPECT_EQ(out.count, in.count);
+    EXPECT_EQ(out.time, in.time);
+    EXPECT_EQ(out.save_path, in.save_path);
+}
+
+TEST(Session, AutosaveRetentionDeletesPreviousAutoOnly) {
+    /* the og's retention (DRWUI:442815-442833): the pointed previous AUTO
+     * session is deleted; a MANUAL save named by a corrupt/hostile pointer
+     * is NEVER deleted; a dead pointer is a no-op; a tampered sidecar
+     * whose save_path disagrees with its gated name is refused (the
+     * hardening rider: the gate must govern what is actually removed). */
+    M154ScratchDir dir("m154ret");
+    const std::string auto_a = dir.path() + "/auto_C_Drive_20261028_090000.crsf";
+    const std::string manual = dir.path() + "/manual_save.crsf";
+    {
+        FILE* f = fopen(auto_a.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("auto-session-bytes", f);
+        fclose(f);
+        f = fopen(manual.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("manual-bytes", f);
+        fclose(f);
+    }
+    session::LastScanInfo info;
+    info.save_path = auto_a;
+    info.name = "auto_C_Drive_20261028_090000.crsf";
+    info.count = 1;
+    info.time = 1;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_TRUE(session::last_scan_retention_delete_previous(dir.path()))
+        << "the pointed auto session is deleted";
+    FILE* f = fopen(auto_a.c_str(), "rb");
+    EXPECT_EQ(f, nullptr) << "the previous auto session is gone";
+    if (f)
+        fclose(f);
+
+    /* a hostile sidecar: the gated name is a valid auto name but the
+     * save_path points at the MANUAL file - refused by the rider */
+    info.save_path = manual;
+    info.name = "auto_C_Drive_20261028_090000.crsf";
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()))
+        << "a save_path that disagrees with the gated name is refused";
+    f = fopen(manual.c_str(), "rb");
+    EXPECT_NE(f, nullptr) << "the manual save survives the hostile pointer";
+    if (f)
+        fclose(f);
+
+    /* a dead pointer (the pointed file already gone): a no-op */
+    info.save_path = auto_a;
+    ASSERT_TRUE(session::last_scan_info_write(dir.path(), info));
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()));
+
+    /* no pointer at all: a no-op */
+    M154ScratchDir dir2("m154dead");
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir2.path()));
+}
+
+TEST(Session, AutoPointerNameGateRefusesSmuggledPaths) {
+    /* the name field is the retention gate: separators, traversal, and a
+     * missing .crsf tail are refused - a tampered sidecar cannot smuggle
+     * a path through the name even when save_path is empty */
+    M154ScratchDir dir("m154gate");
+    const std::string foreign = dir.path() + "/victim.crsf";
+    {
+        FILE* f = fopen(foreign.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fputs("x", f);
+        fclose(f);
+    }
+    /* hand-write the hostile sidecar (the store would refuse to help) */
+    {
+        FILE* f = fopen((dir.path() + "/last_scan.info").c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fprintf(f, "save_path=%s\n", foreign.c_str());
+        fprintf(f, "name=auto_../../victim\n");
+        fprintf(f, "count=1\n");
+        fprintf(f, "time=1\n");
+        fclose(f);
+    }
+    EXPECT_FALSE(session::last_scan_retention_delete_previous(dir.path()))
+        << "a smuggled path in the name field is refused";
+    FILE* f = fopen(foreign.c_str(), "rb");
+    EXPECT_NE(f, nullptr) << "the victim survives";
+    if (f)
+        fclose(f);
+}
+
+TEST(Session, VersionsRoundTrip) {
+    /* M-101: the multi-version family id persists through the session
+     * wire (nflags bit 14) - a stopped scan's version families reload
+     * with their groupings intact, so the host's Versions node renders
+     * identically after resume. The runtime tag_group deliberately does
+     * NOT round-trip (the og's grammar carries no tag field; the branch
+     * re-derives by re-extraction). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    t.refresh_stats();
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"dupe.doc";
+    p->logical_size = 700;
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->record_ref = 32;
+    p->version_group = 32; /* M-101: a stamped family member */
+    (void)t.add_file(root, p);
+    p->release();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    tree::FileNode* dupe = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "dupe.doc")
+                dupe = c;
+    ASSERT_NE(dupe, nullptr);
+    EXPECT_EQ(u64(32), dupe->props()->version_group)
+        << "RED pre-fix: the family id was never on the wire";
 }

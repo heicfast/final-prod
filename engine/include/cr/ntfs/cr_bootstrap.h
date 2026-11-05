@@ -37,6 +37,22 @@ struct VolumeParams {
      * flag mirroring the og analyser's verified-backup state (+0x510);
      * repairing the primary stays consent-gated (rawfixer, S-008). */
     bool boot_from_backup = false;
+    /* S-063 (diff-to-fix): the MFT bootstrap READ RECORD 0 FROM THE
+     * $MFTMirr LCN (the primary $MFT's first cluster was torn/unreadable
+     * or the geometry gates rejected it — the og's walk-entry fallback,
+     * NTFSSearchDLL FUN_1800272b0's LAB_180027467 :31595-31609). The
+     * mirror's record-0 slot is a copy of $MFT's own record, whose $DATA
+     * runlist describes the whole primary MFT — everything to bootstrap
+     * FROM. Report-only flag; the primary is never written (repair stays
+     * consent-gated, rawfixer S-008). */
+    bool boot_from_mftmirr = false;
+    /* M-141 (diff-to-fix): the $MFTMirr LCN decoded OUT OF VOLUME BOUNDS
+     * (the og bounds NEITHER LCN - the mirror read simply fails and the
+     * walk continues from the primary; no og layer carries a mirror
+     * gate). The mirror reads (the S-063 bootstrap fallback AND the
+     * best-effort load_mftmirr_stream) are skipped for this open;
+     * report-only flag + an Info log line at open. */
+    bool mirror_invalid = false;
 };
 
 /* Opened NTFS volume: owns the MFT stream mapping and the geometry. */
@@ -76,7 +92,21 @@ public:
 
 private:
     NtfsVolume() = default;
-    u32 load_mft_stream();
+    u32 load_mft_stream(u64 at_lcn, bool from_mirror);
+
+    /* M-151 (diff-to-fix): the og's truncated-$MFT run-growth probe
+     * (FUN_180007670 :5617-5700). After the primary $DATA runlist loads,
+     * walk each run's declared END and read 4 KiB windows outward,
+     * counting consecutive fixup-valid FILE records at the record-size
+     * stride (the N-213 pre-gate + the fixup chain = FUN_180041bb0's
+     * validator); each run's length grows by the validated byte count
+     * (floor to clusters - the mapping granularity), so records beyond
+     * a torn/stale runlist (the recently-written MFT tail - the files
+     * the user most likely needs) become walkable. Termination: the
+     * first invalid record in a window (the partial prefix still
+     * counts), a failed device read, the next run's physical start, or
+     * the device end. */
+    void grow_mft_runs_to_valid_records();
     u32 load_mftmirr_stream();
     u32 enum_mirr_attrs(const std::vector<u8>& buf);
 

@@ -4,8 +4,15 @@
 rewrite of the recovery engine layer of the reference product (device /
 partition model, nine filesystem engines, dynamic disks, lost-partition
 recovery, grammar-aware carving, durable scan sessions, transactional
-repair, the safe recovery writer), built on the
-[`rda-driver`](https://github.com/heicfast/rda-driver) kernel transport.
+repair, the safe recovery writer). The core reads raw disks **directly
+from user mode** — `\\.\PhysicalDriveN` opens (GENERIC_READ [| GENERIC_WRITE],
+share R|W|D) through the 64 KiB read envelope, with true byte counts.
+There is **no kernel-mode driver and no service**: raw-disk verbs (scan /
+recover / tree --disk / health / fix / apply / bench / image with disk
+targets) require an **elevated (administrator) process token** — a
+non-elevated process gets the `ERR_ELEVATION_REQUIRED` refusal (CLI exit
+4); image targets and session/report/preview/dictionary verbs need no
+elevation.
 
 > Research corpus: `easeus-drw-research` (reverse-engineering workspace of
 > the reference product). Every on-disk structure, algorithm and heuristic
@@ -101,33 +108,50 @@ rrecov CLI ──────────────── cr_ui C-ABI shim (cr
 │   FAT chains, GPT/MBR/EBR/LDM tables, signature tables — unit-     │
 │   tested on Linux, sanitizer-clean (ASan/UBSan/TSan)               │
 ├────────────────────────────────────────────────────────────────────┤
-│ platform (Windows): enumeration, geometry, RDA grammar + direct    │
-│   PhysicalDrive/HarddiskVolume handles (WinPE gate), retry pipe +  │
-│   error map, BitLocker (unlock + XTS decrypt), images, quiesce     │
+│ platform (Windows): enumeration, geometry, direct raw I/O          │
+│   (\\.\PhysicalDriveN, GENERIC_READ[|WRITE], share R|W|D,          │
+│   the 64 KiB read envelope, true byte counts), retry pipe +        │
+│   error map, BitLocker (unlock + XTS decrypt), images,             │
+│   quiesce (no driver, no service)                                 │
 └────────────────────────────────────────────────────────────────────┘
                           │
                           ▼
-        rda-driver (\\.\RDA\<token>\<disk>\<part>) or direct handles
+        raw disks (\\.\PhysicalDriveN) - direct user-mode access under
+        an elevated process token (no driver, no service)
 ```
 
 ## Status
 
 Per-capability truth with evidence per row lives in
 [docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md). The honest
-remaining gaps: NTFS XPRESS/LZX compressed $DATA (GAP-P1-1 — the og is
-LZNT1-only too, no corpus surface exists), ReFS container-map
-translation (N-036), ZFS multi-vdev topologies, and the HFS+ attributes
+remaining gaps: NTFS XPRESS/LZX compressed $DATA (the registered shared
+limitation — the og is LZNT1-only too, no corpus surface exists; LZNT1
+itself landed and GAP-P1-1 is CLOSED per docs/CORE-GAP-LIST.md), ZFS
+multi-vdev topologies, and the HFS+ attributes
 UNVERIFIED-in-corpus items — every one registered with evidence, none
-hidden. The parity board (every finding fixed/invalid/superseded with
+hidden. (ReFS container-map translation, listed here for era v0.5.x,
+landed with N-036 at 6ea4179b — the container map from the
+system-directory records, cr_refs_engine.cpp:95-112, pinned by
+test_refs_volume.cpp:234.) The parity board (every finding fixed/invalid/superseded with
 proofs) is [`diff-to-fix/SUMMARY.md`](diff-to-fix/SUMMARY.md).
 
-CI runs the full matrix on every push: Ubuntu (gcc -Werror; ASan, UBSan,
-TSan lanes; fuzz smoke; the win-layer parse gate), Windows (MSVC /W4 /WX,
-the Win7 SP1 loader/import gate on every shipped PE, DLL smoke, C
-consumer, seeded integration), the libFuzzer smoke campaign (15
-structure-aware harnesses, 45 s per target, zero-crash gate), the release
-pipeline, and the driver-attached API benchmark lane. CodeQL is
-deliberately deferred (`if: false` — recorded, not silent; rationale in
+CI runs on every push (docs-path-filtered): the **Checks** lane (MSVC /W4
+/WX build, the full ctest incl. the cr_ui ABI C consumer, the Win7 SP1
+loader/import gate on every shipped PE, G-09 report-schema validation,
+the unelevated-refusal contract probes (exit 4), the CLI junk-gate
+probes), the **Release** lane (tag-driven, calls Checks, builds the core
+only — no driver component), the **Test & Benchmark** lane (dispatched
+per publish: no driver-install or verify — the elevated runner token IS
+the access model — the scenario matrix through CLI and API over staged
+VHDX disks, with the driver-parity performance regression gate from
+`bench/baseline.json`), the **Benchmark (source)** lane (session-97:
+measures the checked-out commit through the release build recipe — the
+perf discipline that every optimization is measured before release), and the
+**Installer gates** lane (the S-038 silent round-trip + version-key +
+OS-gate matrix). The pre-consolidation Ubuntu sanitizer/fuzz lanes were
+dropped by the owner's windows-only directive — that coverage stays local
+via `./ci-local.sh --san` / `--fuzz` (recorded, not silent; see
+docs/CI-CURRENT.md). CodeQL remains deliberately deferred (rationale in
 docs/testing.md).
 
 ## Documentation
@@ -136,7 +160,6 @@ docs/testing.md).
 |---|---|
 | [docs/API.md](docs/API.md) | API reference — CLI, cr_ui ABI, C++ core, events, error model |
 | [docs/CONNECTION-GUIDE.md](docs/CONNECTION-GUIDE.md) | binding, lifecycle, devices, BitLocker, threading, consent, known hosts |
-| [docs/DRIVER-UTILIZATION.md](docs/DRIVER-UTILIZATION.md) | the driver contract per interaction + release pinning |
 | [docs/FORMATS.md](docs/FORMATS.md) | formats guide — engines, carving, sessions, images, report |
 | [docs/PARAMETERS.md](docs/PARAMETERS.md) | every tunable with defaults and bounds |
 | [docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md) | per-capability status vs the reference |
@@ -144,8 +167,9 @@ docs/testing.md).
 | [docs/architecture.md](docs/architecture.md) | layering rules and module boundaries |
 | [docs/ABI-CONTRACT.md](docs/ABI-CONTRACT.md) | the ABI wire contract |
 | [docs/testing.md](docs/testing.md) · [docs/build.md](docs/build.md) | test philosophy · build details |
+| [docs/CI-CURRENT.md](docs/CI-CURRENT.md) · [docs/PREBUILT-ARTIFACTS.md](docs/PREBUILT-ARTIFACTS.md) · [docs/PACKAGING.md](docs/PACKAGING.md) | the 4-lane CI · the release-consumption convention · the app-installer milestone (S-038) |
 | [diff-to-fix/README.md](diff-to-fix/README.md) | the parity audit trail (findings → fixes → proofs) |
-| [worklog.md](worklog.md) | the chronological engineering log |
+| [worklog/](worklog/) | the session-prompt archive + the five Phase-0 sheets (build/api/cli/doc surfaces) + `worklog.md`, the live chronological session handoff (actively appended — not retired) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | build lanes, test/gate inventory, commit style, the zero-behavior-change discipline |
 | [SECURITY.md](SECURITY.md) | BitLocker legitimate-unlock-only policy, consent model, transport boundary |
 

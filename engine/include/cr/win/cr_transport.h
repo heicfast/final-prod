@@ -1,15 +1,28 @@
 /*
- * cr_transport.h - Windows transport: the RDA kernel driver, REQUIRED.
+ * cr_transport.h - the Windows transport layer: DIRECT raw I/O, user mode,
+ * administrator privilege (session-96: the kernel-driver replacement).
  *
- * Mandatory-driver session (2026-10-27, user directive): the RDA driver
- * is the ONLY raw-disk transport. The reference's duality (Device.mo:
- * driver path + direct \\.\PhysicalDriveN fallback) is DELIBERATELY NOT
- * reproduced — every read/write path rides the driver grammar, and its
- * absence is the distinct ERR_DRIVER_REQUIRED refusal (see
- * docs/PARITY-DELTAS.md D-FALL for the rationale and the divergence
- * registration). Enumeration/geometry/health METADATA IOCTLs stay on
- * the OS storage stack (cr_enumerate/cr_health) — the disk LIST is
- * stack metadata, not sector reads; the og lists disks the same way.
+ * The RDA driver era is GONE - removed, not gated, not deprecated, not left
+ * as a fallback. The data path opens \\.\PhysicalDriveN directly with the
+ * same access/share/disposition the grammar path used, reads through the
+ * unified 64 KiB envelope (io::direct_envelope - the sector-rejection and
+ * GAP-S6-13 defenses), and reports true byte counts (the driver-era F11
+ * Information=Length*512 scaling is deleted with the driver).
+ *
+ * The privilege model (the mandate's honest-elevation contract): the direct
+ * layer's single precondition is the process token. Every raw-disk open in
+ * a non-elevated process refuses with ERR_ELEVATION_REQUIRED (0x500C0001);
+ * image targets never touch raw disks and are exempt by classification.
+ * The CLI prints the refusal and exits 4; the ABI host triggers its own
+ * elevation flow and retries. Nothing elevates silently; nothing runs a
+ * helper; nothing bypasses the OS flow.
+ *
+ * Classified driver-INDEPENDENT (never used the driver; the classification
+ * predates the removal): enumeration (cr_enumerate.cpp - WMI topology),
+ * health (cr_health.cpp - direct SMART), BitLocker volume state, destination
+ * arming (volume_extent(s)/destination_volume_letter), and the post-apply
+ * layout refresh (refresh_disk_properties). Disk images are file-backed by
+ * design (S-030, cr_image.h).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -24,44 +37,62 @@
 #include "cr/apply/cr_apply.h"
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cr {
 namespace win {
 
-/* Open the RDA driver under the given service name (default RDA, matching
- * the deployed driver). open_rda_partition opens the 3-segment EPMNtDrv
- * grammar path \\.\SVC\<token>\<disk>\<part> ONLY (FB-L01: no cascade -
- * the 2-segment and Volume\<n> variants are separate grammar functions,
- * TRANSPORT-CONTRACT §2.1; the structured-open RdaClient was deleted by
- * N-041 - zero callers since introduction). Returns null + err when the
- * grammar open fails (probe rda_available first to distinguish an absent
- * driver from an open failure). */
-std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
-                                                   u32* err);
-std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
+/* ---------------------------------------------------------------------------
+ * The privilege precondition (the direct-access replacement of the
+ * driver-era status-query gate). is_elevated() (cr_elevate.h) probes the
+ * process token's TokenElevation: TRUE for an elevated token, FALSE for
+ * standard users AND non-elevated admins (raw \\.\PhysicalDriveN access
+ * needs the ELEVATED token, not mere group membership). Every data-path
+ * consumer checks this FIRST and refuses with ERR_ELEVATION_REQUIRED
+ * (0x500C0001) - the single refusal class of the direct era.
+ * ------------------------------------------------------------------------- */
 
 /* S-030 disk images: the platform-owned ImageFileIo (CreateFileW-backed)
- * used by rrecov --image; feeds cr::storage::open_image. */
+ * used by rrecov --image; feeds cr::storage::open_image. File-backed by
+ * classification (images never touch raw disks). */
 storage::ImageFileIo& image_file_io();
 
-/* Whole-disk view through the RDA grammar with probed geometry. THE
- * product transport - there is no direct-handle fallback. When the
- * driver's control device cannot be opened (not installed / not
- * started / blocked by signing policy) returns null with
- * *err = ERR_DRIVER_REQUIRED; a grammar-open failure on a live driver
- * returns the open error (ERR_OPEN_FAILED et al). */
-std::unique_ptr<IStorageDevice> open_disk(u32 disk, const wchar_t* service, u32* err);
+/* Whole-disk read view: \\.\PhysicalDriveN opened GENERIC_READ, share
+ * R|W|D (the exact open posture the grammar path used). The returned
+ * device serves every engine read through the 64 KiB envelope with true
+ * byte counts. A non-elevated token is the caller's precondition to check
+ * (require_privilege in rrecov.cpp / the cr_ui open impls); an open
+ * failure under an elevated token is a TARGET error: ERR_OPEN_FAILED
+ * (absent disk number, protected device, or a busy disk). */
+std::unique_ptr<IStorageDevice> open_disk(u32 disk, u32* err);
 
-/* Write-capable whole-disk view for the repair engine (RawFixer): an RDA
- * handle opened GENERIC_READ|GENERIC_WRITE (the driver forwards
- * IRP_MJ_WRITE with byte-offset semantics; the F11 Information=
- * Length*512 contract is honored on reads and writes). THE product
- * write transport - no direct fallback: an absent driver refuses with
- * ERR_DRIVER_REQUIRED, never a silently degraded write path. Writes
- * are staged through a sector-aligned buffer. Open the read view
- * separately with open_disk() for analyze(). */
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service, u32* err);
+/* CONTROL-PATH whole-disk open (\\.\PhysicalDriveN, read-only share) - used
+ * by ENUMERATION only (cr_enumerate.cpp; the og's own enumeration never
+ * needed more than this). Same mechanism as the data path; kept as the
+ * classified control-consumer entry point. */
+std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err);
+
+/* Write-capable whole-disk view for the repair engine (RawFixer):
+ * \\.\PhysicalDriveN opened GENERIC_READ|GENERIC_WRITE. Writes are staged
+ * through a sector-aligned buffer when the caller's is unaligned (the
+ * direct-write rule - the storage stack requires sector-aligned buffers
+ * on raw handles). The S-010 quiesce chain (LOCK -> dismount -> offline,
+ * restore on release) guards every write to a mounted disk. Open the read
+ * view separately with open_disk() for analyze(). */
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, u32* err);
+
+/* S-029 (apply): the APPLY-capable write view (lost-partition table
+ * writes). Same direct transport posture as open_disk_rw; the returned
+ * device additionally carries the corpus PartitionRecovery device-control
+ * chain (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100, IOCTL_DISK_SET_DRIVE_LAYOUT
+ * 0x7C010, the 0x7C058 0x18-byte modern record, IOCTL_DISK_UPDATE_PROPERTIES
+ * 0x70140 with the 3x Sleep(1000) retry tail - decompile cites in
+ * cr_apply.h), issued directly on the \\.\PhysicalDriveN handle (the driver
+ * merely passed these through; refresh_disk_properties is the in-tree proof
+ * the direct handle accepts them). Open the read view with open_disk() for
+ * planning. */
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, u32* err);
 
 /* S-029 (apply): IOCTL_DISK_UPDATE_PROPERTIES on \\.\PhysicalDriveN with
  * the corpus settle pattern (3 x Sleep(1000) retries, PartitionRecovery
@@ -72,16 +103,6 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* 
  * caller reports it, never fails the apply on it). */
 u32 refresh_disk_properties(u32 disk);
 
-/* S-029: the APPLY-capable write view (lost-partition table writes).
- * Same mandatory-RDA transport and handle posture as open_disk_rw; the
- * returned device additionally carries the corpus PartitionRecovery
- * device-control chain (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100,
- * IOCTL_DISK_SET_DRIVE_LAYOUT 0x7C010, the 0x7C058 0x18-byte modern
- * record, IOCTL_DISK_UPDATE_PROPERTIES 0x70140 with the 3x Sleep(1000)
- * retry tail - decompile cites in cr_apply.h). Open the read view with
- * open_disk() for planning. */
-std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, const wchar_t* service,
-                                                            u32* err);
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).
  * N-013: reports the FIRST extent only - kept for the source-disk lookup
@@ -102,6 +123,23 @@ struct VolExtent {
 };
 bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
 
+/* F12 same-disk precondition (the session-97 recall-0 defect fix): the
+ * writer's overlap refusal is armed ONLY when the destination volume
+ * actually lives on the SOURCE disk. The pre-fix callers armed the
+ * writer with the destination spans unconditionally, and the per-item
+ * check then compared ABSOLUTE offsets from two DIFFERENT disks
+ * numerically - refusing recovery whenever the ranges happened to
+ * intersect (the benchmark runner's single-volume work disk starts at
+ * ~135 MiB, so virtually every source extent above that refused with
+ * ERR_DEST_OVERLAP: runs 41042267586 + 41140212296, 10,248 of 10,405
+ * items refused, scenario hash-recall 0.0 in BOTH transport eras).
+ * Cross-disk destinations are disjoint by hardware - never armed.
+ * Image sources never arm either (their node extents are image-internal;
+ * the callers gate that class before this helper). Returns true and
+ * fills *out_spans when arming applies (an extent sits on source_disk). */
+bool dest_overlap_spans(const std::vector<VolExtent>& ve, bool source_disk_known, u32 source_disk,
+                        std::vector<std::pair<u64, u64>>* out_spans);
+
 /* N-013: resolve ANY local destination path (relative, junction, mount
  * point) to the volume that CONTAINS it. GetFinalPathNameByHandleW
  * resolves reparse points (a junction into another volume yields the
@@ -113,12 +151,36 @@ bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
  * itself without reparse resolution. */
 bool destination_volume_letter(const std::wstring& path, wchar_t* letter);
 
-/* Device existence probe - the mandatory-driver gate. When the
- * control-device open fails, *last_error (if given) receives the
- * CreateFile GetLastError code (the diagnostic for a service that is
- * registered but not started: signing policy, missing binary, driver
- * load failure - the System event log carries the kernel-side reason). */
-bool rda_available(const wchar_t* service_name, u32* last_error = nullptr);
+/* ---- N-125: the drive-disconnect classification ----
+ * The og detects target removal and offers a reconnect-then-continue
+ * flow ("Drive Disconnected - Unable to continue scanning. Reconnect
+ * your drive and try again." Retry/Cancel; UIUX/08:39-47 - the same
+ * triad for NAS/Linux/Cloud offline). The core's engine-side contract:
+ * the device-gone Win32 GLE family classifies as
+ * ERR_DEVICE_DISCONNECTED (a distinct code, not a read-failure storm),
+ * and the documented reattach flow is the session-checkpoint resume
+ * (the machinery exists; hosts detect the code, wait for reattach in
+ * their own loop, then resume). The classification is a pure predicate
+ * over the numeric GLE so BOTH CI lanes compile and test it (the
+ * M-030 cr_winenv.h pattern); the engine retry window stays a
+ * registered deliberate difference (PARITY-DELTAS D-121). */
+namespace disconnect {
+/* Win32 GLEs (numeric - no windows.h dependency): the device-gone set.
+ * ERROR_NOT_READY(21) covers not-ready removable media; ERROR_IO_
+ * DEVICE(1117)/ERROR_CRC(23) and friends stay read failures (the
+ * dying-disk storm keeps the old semantics - the classification must
+ * be precise, not a catch-all). */
+constexpr unsigned kDevNotExist = 55;     /* ERROR_DEV_NOT_EXIST */
+constexpr unsigned kNotReady = 21;        /* ERROR_NOT_READY */
+constexpr unsigned kMediaChanged = 1110;  /* ERROR_MEDIA_CHANGED */
+constexpr unsigned kNoMedia = 1112;       /* ERROR_NO_MEDIA_IN_DRIVE */
+constexpr unsigned kDeviceRemoved = 1619; /* ERROR_DEVICE_REMOVED */
+
+inline bool gle_is_disconnect(unsigned gle) {
+    return gle == kDevNotExist || gle == kNotReady || gle == kMediaChanged || gle == kNoMedia ||
+           gle == kDeviceRemoved;
+}
+} // namespace disconnect
 
 } // namespace win
 } // namespace cr

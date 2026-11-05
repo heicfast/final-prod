@@ -87,11 +87,8 @@ u32 read_smart(void* disk_handle, SmartReport& out);
  * NVMe passthrough. */
 u32 read_nvme_health(void* disk_handle, NvmeHealth& out);
 
-/* TRIM state: native per-device IOCTL_STORAGE_QUERY_PROPERTY
- * (StorageDeviceTrimProperty -> DEVICE_TRIM_DESCRIPTOR). Never spawns a
- * child process - the fsutil _popen path (a visible console window per
- * health read) is removed (NG-8). Failure = unknown, never a fallback. */
-u32 query_trim_state(void* disk_handle, bool& enabled);
+/* TRIM state via fsutil (child process, parsed). */
+u32 query_trim_state(bool& enabled);
 
 /* SSD detection: physical drive media type via IOCTL_STORAGE_QUERY_PROPERTY
  * (bus type NVMe => SSD; HDD registry + rotation rate 0 => SSD). */

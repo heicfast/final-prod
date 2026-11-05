@@ -28,7 +28,7 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
   the og — see carve module.
 - **B5 orphan** — `M` synthetic subvolume names (core's own convention; og's
   CBtrfsQuickTreeBuilder naming not decoded — no contradiction found).
-- **B9 timestamps** — `M` unix→filetime_ns.
+- **B9 timestamps** — `M` unix→filetime_ns. **OQ-S42-2 RESOLVED (S48)**: the og FOLDS nsec (FUN_180006ba0 :4429-4441 — the nsec/100 + epoch*10^7 fold, 0x2b6109100); the core's unix_to_filetime_ns is the same formula at the same offsets — precision MATCH, not superset; the sole superset is the otime/+0x94 conversion (I-007/D-59b, decode-anchored).
 - **B10 Unicode** — `M` post-S-005-fix (dir-item names decode via the shared
   `text::utf8_to_u16`; `Btrfs.NonAsciiNamesDecodedNotByteLifted`).
 
@@ -72,6 +72,13 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 
 ## Session 2 re-audit (audited commit `5d6da5f`)
 
+- **B9 nsec precision — OQ-S42-2 RESOLVED-MATCH (this session, first-hand):** the
+  og's Btrfs engine FOLDS sub-second precision — FUN_180006ba0
+  (:4435-4441) converts each timespec pair as
+  `*(uint*)(ino+nsec)/100 + (sec + 0x2b6109100)*10^7` — identical to the
+  core's `unix_to_filetime_ns`; NOT an I-006-family superset axis; pinned by
+  `Btrfs.MtimeNsecFoldsLikeTheOg` (mtime nsec 123456789 → the exact folded
+  FILETIME). The question is closed; the parity cite is on the books.
 - **B9 extra timestamps — I-007 (INFO, superset):** core reads all 4
   Btrfs inode timespecs (`INO_ATIME = 0x70`, `INO_CTIME = 0x7C`,
   `INO_MTIME = 0x88`, `INO_otime = 0x94`) via `cr_btrfs_engine.cpp:83-86,
@@ -163,3 +170,19 @@ read; no per-engine duplicate).
 | Parameter | Verdict |
 |---|---|
 | A25 label import steps | **MATCH** — the og's delay-execution import polling (:86) = the bounded label retry: live handles only (is_static_media discriminator), 250/500/1000 ms backoff, cancel-aware in 50 ms slices, label_retries counted, 3-retry bound then ERR_BAD_MAGIC |
+
+## Session-10 S10-F rows (function-level completeness pass, 2026-10-29; audited `44f043a5`)
+
+| Parameter | Verdict |
+|---|---|
+| A25/A26 descent filter — the `@eaDir` subtree suppression | **MATCH — M-110 FIXED (session 39B)** (the og's FUN_180001cd0 walk :704-711 skips the child walk for a directory named EXACTLY `@eaDir` — the compare is 7 bytes INCLUDING the literal's NUL terminator, instruction-verified against the binary: `@eaDirBackup` descends normally; the finding's prefix-match decode corrected. The core's populate() now emits the @eaDir node EMPTY and never walks its children — Synology EA directories match the og's tree shape; the M-018 boundary pinned by the not-in-pools guard test) |
+| class surface — CBtrfsQuickSearch / CBtrfsFileProerties / CBtrfsNoResidentDataRunList / CBtrfsQuickTreeBuilder | **MATCH (semantic)** — the T3b class pass: the quick controller's vtable + walk (FUN_180002120 :843-928, the only og controller per I-003), the props field set (N-059: no og field unpersisted; id_b always-0 registered), the non-resident extent adapter (chunk-map resolve + rotating mirror, M-020), the DRWUI-side tree builder (B5) — evidence s10f-product-frame-register.md §5 |
+
+## S50 convergence note (2026-10-29 — the continuation audit lane)
+
+The lane's independent OQ-S42-2 probe CONVERGED with the winning 355472c4
+decode (FOLD: nsec/100 + (sec+0x2b6109100)*10^7 at :4435-4443; the core's
+unix_to_filetime_ns identical). This lane's additional nuance: the core's
+`unix_sec <= -EPOCH_DELTA -> 0` guard refuses pre-1601 times where the og
+would wrap — benign hardening, no finding, no code change owed. Evidence:
+`evidence/decompiled-quotes/s50-ntfs-btrfs-time-precedence-decodes.md` §2.

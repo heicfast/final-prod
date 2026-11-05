@@ -70,8 +70,8 @@ TEST(Gpt, ValidTable) {
     put32(disk, 512 + 12, 92);        /* header size */
     put64(disk, 512 + 24, 1);         /* current LBA */
     put64(disk, 512 + 32, 2047);      /* backup header at last sector */
-    put64(disk, 512 + 40, 2);         /* first usable */
-    put64(disk, 512 + 48, 2046);      /* last usable */
+    put64(disk, 512 + 40, 34);        /* first usable (entries LBA2..33) */
+    put64(disk, 512 + 48, 2014);      /* last usable */
     put64(disk, 512 + 72, 2);         /* entries at LBA2 */
     put32(disk, 512 + 80, 4);         /* 4 entries */
     put32(disk, 512 + 84, 128);       /* entry size */
@@ -129,6 +129,14 @@ TEST(Gpt, BadHeaderCrcDetected) {
     std::memcpy(disk.data() + 512, "EFI PART", 8);
     put32(disk, 512 + 8, 0x00010000);
     put32(disk, 512 + 12, 92);
+    /* M-123: the fixture now carries the full og-valid position shape
+     * (current/backup mirrored, usable range 34..2014, entries at LBA2
+     * outside it) so the rejection is exercised at the ENTRIES-CRC gate,
+     * not short-circuited by the structural gates */
+    put64(disk, 512 + 24, 1);
+    put64(disk, 512 + 32, 2047);
+    put64(disk, 512 + 40, 34);
+    put64(disk, 512 + 48, 2014);
     put64(disk, 512 + 72, 2);
     put32(disk, 512 + 80, 4);
     put32(disk, 512 + 84, 128);
@@ -192,6 +200,61 @@ TEST(Mbr, PlainWithExtended) {
     EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
     EXPECT_EQ(t.partitions[2].start_lba, 3072u + 63u);
     EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+}
+
+TEST(Mbr, LinuxExtended085LinksFollowTheChain) {
+    /* M-124: the og's EBR walker treats link type 0x85 (Linux extended,
+     * the fdisk/dual-boot convention) EXACTLY like 0x05/0x0F -
+     * Partition_decompiled.c :1006 `local_128 == -0x7b` jumps to the
+     * shared LAB_180002348 link handler (`next = base + rel`). The
+     * pre-fix core mapped 0x85 to Other: the link was emitted as a
+     * bogus VOLUME on the wrong basis and the chain stopped - every
+     * later logical volume in the container vanished from the table. */
+    std::vector<u8> disk(u64(4096) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    /* primary: NTFS at 128 */
+    disk[446 + 4] = 0x07;
+    put32(disk, 446 + 8, 128);
+    put32(disk, 446 + 12, 512);
+    /* the extended CONTAINER itself typed 0x85 (Linux extended) at 2048 */
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+
+    /* EBR1 at 2048: volume at +63; the NEXT link typed 0x85 at +1024 */
+    u8* ebr1 = disk.data() + 2048 * 512;
+    ebr1[510] = 0x55;
+    ebr1[511] = 0xAA;
+    ebr1[446 + 4] = 0x07;
+    put32(disk, 2048 * 512 + 446 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 12, 500);
+    ebr1[446 + 16 + 4] = 0x85; /* the Linux-extended link */
+    put32(disk, 2048 * 512 + 446 + 16 + 8, 1024);
+    put32(disk, 2048 * 512 + 446 + 16 + 12, 900);
+
+    /* EBR2 at 3072: FAT32 volume at +63; chain ends */
+    u8* ebr2 = disk.data() + 3072 * 512;
+    ebr2[510] = 0x55;
+    ebr2[511] = 0xAA;
+    ebr2[446 + 4] = 0x0B;
+    put32(disk, 3072 * 512 + 446 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 12, 700);
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Ebr) << "the 0x85-typed chain is an EBR layout";
+    ASSERT_EQ(t.partitions.size(), 3u) << "primary + BOTH logical volumes visible";
+    EXPECT_EQ(t.partitions[0].start_lba, 128u);
+    EXPECT_EQ(t.partitions[1].start_lba, 2048u + 63u);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
+    EXPECT_EQ(t.partitions[2].start_lba, 3072u + 63u);
+    EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+    /* the link entry must NOT surface as a volume (links are base-
+     * relative pointers, never volumes) */
+    for (const auto& p : t.partitions)
+        EXPECT_NE(p.start_lba, 2048u + 1024u) << "no bogus volume at the link target";
 }
 
 TEST(Mbr, EbrLayoutAssignedAndPlainMbrStaysMbr) {
@@ -268,6 +331,145 @@ TEST(Mbr, EbrCycleGuard) {
     /* chain detected the loop: OK with salvaged entries or CYCLE - both fine;
      * the call must TERMINATE (the test would hang otherwise) */
     EXPECT_TRUE(rc == OK || rc == ERR_CYCLE_LIMIT);
+}
+
+/* ===================================================================== */
+/* M-124 (diff-to-fix): the og's EBR chain walker treats link type 0x85  */
+/* (Linux extended, the fdisk/dual-boot convention) IDENTICALLY to      */
+/* 0x05/0x0F - Partition_decompiled.c:989-1010: the -0x7b (== 0x85)     */
+/* comparison jumps to LAB_180002348, the same link path. The core's    */
+/* mbr_type_to_kind mapped only 0x05/0x0F, so a 0x85-stamped chain      */
+/* emitted a bogus Other-volume at the link target and lost every later */
+/* logical volume.                                                      */
+/* ===================================================================== */
+
+TEST(Ebr, LinkType085WalksChain) {
+    /* MBR extended container stamped 0x85 + a 3-EBR chain whose links are
+     * all 0x85: all three logical volumes must surface with correct
+     * EBR-relative bases. Fail-before: only the first volume surfaced plus
+     * one bogus Other volume; volumes 2 and 3 vanished. */
+    std::vector<u8> disk(u64(8192) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    /* primary NTFS + Linux-extended container at LBA 1024 (type 0x85) */
+    disk[446 + 4] = 0x07;
+    put32(disk, 446 + 8, 128);
+    put32(disk, 446 + 12, 512);
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 1024);
+    put32(disk, 446 + 16 + 12, 6000);
+
+    /* EBR1 at 1024: vol at +63 len 500; next EBR at base+1024=2048 (0x85) */
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 12, 500);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 4, 0x85);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 8, 1024);
+    disk[1024 * 512 + 510] = 0x55;
+    disk[1024 * 512 + 511] = 0xAA;
+
+    /* EBR2 at 2048: vol at +63 len 700; next EBR at base+2048=3072 (0x85) */
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x0B);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 700);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 4, 0x85);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 8, 2048);
+    disk[2048 * 512 + 510] = 0x55;
+    disk[2048 * 512 + 511] = 0xAA;
+
+    /* EBR3 at 3072: vol at +63 len 800; chain end */
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 4, 0x83);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 12, 800);
+    disk[3072 * 512 + 510] = 0x55;
+    disk[3072 * 512 + 511] = 0xAA;
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Ebr) << "0x85 container is an extended chain";
+    ASSERT_EQ(t.partitions.size(), 4u) << "primary + all three logical volumes";
+    EXPECT_EQ(t.partitions[0].start_lba, 128u);
+    EXPECT_EQ(t.partitions[1].start_lba, 1024u + 63u);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
+    EXPECT_EQ(t.partitions[2].start_lba, 2048u + 63u);
+    EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+    EXPECT_EQ(t.partitions[3].start_lba, 3072u + 63u);
+    EXPECT_EQ(t.partitions[3].fs, FsKind::Linux);
+}
+
+TEST(Ebr, LinkType085SameBasisAs05) {
+    /* The same physical chain stamped 0x05 vs 0x85 must yield IDENTICAL
+     * volume bases - the og feeds both through the same link path, so the
+     * basis arithmetic (links base-relative, volumes EBR-relative) cannot
+     * differ between the two stamps. */
+    auto build = [](u8 link_type) {
+        std::vector<u8> disk(u64(4096) * 512, 0);
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        disk[446 + 16 + 4] = link_type;
+        put32(disk, 446 + 16 + 8, 2048);
+        put32(disk, 446 + 16 + 12, 2040);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x07);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 500);
+        put32(disk, 2048 * 512 + 446 + 1 * 16 + 4, link_type);
+        put32(disk, 2048 * 512 + 446 + 1 * 16 + 8, 1024);
+        disk[2048 * 512 + 510] = 0x55;
+        disk[2048 * 512 + 511] = 0xAA;
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 4, 0x0B);
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 8, 63);
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 12, 700);
+        disk[3072 * 512 + 510] = 0x55;
+        disk[3072 * 512 + 511] = 0xAA;
+        return disk;
+    };
+    DiskTable t5, t85;
+    {
+        MemDevice dev(build(0x05));
+        ASSERT_EQ(parse_disk_table(&dev, t5), OK);
+    }
+    {
+        MemDevice dev(build(0x85));
+        ASSERT_EQ(parse_disk_table(&dev, t85), OK);
+    }
+    ASSERT_EQ(t5.partitions.size(), 2u);
+    ASSERT_EQ(t85.partitions.size(), 2u) << "0x85 chain must surface the same volumes";
+    for (size_t i = 0; i < 2; ++i) {
+        EXPECT_EQ(t85.partitions[i].start_lba, t5.partitions[i].start_lba)
+            << "volume " << i << " basis differs between 0x85 and 0x05 stamps";
+        EXPECT_EQ(t85.partitions[i].sector_count, t5.partitions[i].sector_count);
+        EXPECT_EQ(t85.partitions[i].fs, t5.partitions[i].fs);
+    }
+}
+
+TEST(Mbr, Extended085NotEmittedAsVolume) {
+    /* A 0x85 container in the MBR must NOT surface as one opaque Other-
+     * volume spanning the container - it is a container, and its content
+     * comes from the walked logical volumes. Fail-before: the unmapped
+     * 0x85 fell to FsKind::Other and was emitted as a bogus volume at the
+     * container LBA. */
+    std::vector<u8> disk(u64(4096) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+    /* one EBR with one volume, no link */
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 500);
+    disk[2048 * 512 + 510] = 0x55;
+    disk[2048 * 512 + 511] = 0xAA;
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    ASSERT_EQ(t.partitions.size(), 1u)
+        << "exactly the logical volume - no bogus container-volume row";
+    EXPECT_EQ(t.partitions[0].start_lba, 2048u + 63u);
+    EXPECT_NE(t.partitions[0].start_lba, 2048u)
+        << "the container LBA itself must not surface as a volume";
 }
 
 /* ===================================================================== */
@@ -394,8 +596,8 @@ GptDisk make_gpt_disk() {
     put32(gd.disk, 512 + 12, 92);
     put64(gd.disk, 512 + 24, 1);
     put64(gd.disk, 512 + 32, 2047);
-    put64(gd.disk, 512 + 40, 2);
-    put64(gd.disk, 512 + 48, 2046);
+    put64(gd.disk, 512 + 40, 34);   /* first usable (M-123: entries outside) */
+    put64(gd.disk, 512 + 48, 2014); /* last usable */
     put64(gd.disk, 512 + 72, 2);
     put32(gd.disk, 512 + 80, 4);
     put32(gd.disk, 512 + 84, 128);
@@ -459,6 +661,54 @@ TEST(Gpt, ProtectiveOnlyVolumeRecoversFromBackup) {
     EXPECT_EQ(t.partitions[0].start_lba, 100u);
     EXPECT_EQ(t.partitions[0].sector_count, 101u);
     EXPECT_EQ(t.partitions[0].fs, FsKind::Ntfs);
+}
+
+/* ---- N-161: the entry-span underflow gate ---------------------------- */
+
+namespace {
+/* Re-stamp the primary side's CRCs after mutating gd.entries (the
+ * header CRC covers the header, the entries CRC covers the array). */
+void restamp_primary(GptDisk& gd) {
+    std::memcpy(gd.disk.data() + 2 * 512, gd.entries.data(), gd.entries.size());
+    put32(gd.disk, 512 + 88, crc32(gd.entries.data(), gd.entries.size()));
+    put32(gd.disk, 512 + 16, 0);
+    put32(gd.disk, 512 + 16, crc32(gd.disk.data() + 512, 92));
+}
+} // namespace
+
+TEST(Gpt, EntryLastLbaBeforeFirstLbaSkippedAndCounted) {
+    /* N-161: a corrupt entry whose last_lba < first_lba underflows the
+     * span (last - first + 1 wraps to ~2^64) and slipped past the
+     * sector_count != 0 gate - the corrupt entry masqueraded as a giant
+     * volume whose reads all fail. The gate names it invalid instead:
+     * no emission + the gpt_invalid_entries counter. */
+    GptDisk gd = make_gpt_disk();
+    put64(gd.entries, 32, 100); /* first_lba */
+    put64(gd.entries, 40, 50);  /* last_lba < first_lba */
+    restamp_primary(gd);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_TRUE(t.partitions.empty()) << "a wrapped span must not emit a giant volume";
+    EXPECT_EQ(t.gpt_invalid_entries, 1u) << "the corrupt entry is named invalid, not silent";
+}
+
+TEST(Gpt, EntrySpanOverflowBoundary) {
+    /* N-161 boundary: first=0, last=UINT64_MAX wraps the span to exactly
+     * 0 - the same underflow family, previously dropped silently by the
+     * != 0 gate, now named invalid and counted. */
+    GptDisk gd = make_gpt_disk();
+    put64(gd.entries, 32, 0);
+    put64(gd.entries, 40, 0xFFFFFFFFFFFFFFFFull);
+    restamp_primary(gd);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_TRUE(t.partitions.empty()) << "the 2^64-wrapping span is invalid, not zero";
+    EXPECT_EQ(t.gpt_invalid_entries, 1u);
 }
 
 TEST(Gpt, HostileSalvageHeaderEntriesOutsideDiskRejected) {
@@ -591,8 +841,8 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
     put32(disk, 512 + 12, 92);
     put64(disk, 512 + 24, 1);
     put64(disk, 512 + 32, 2047);
-    put64(disk, 512 + 40, 2);
-    put64(disk, 512 + 48, 2046);
+    put64(disk, 512 + 40, 34); /* M-123: entries LBA2 outside usable */
+    put64(disk, 512 + 48, 2014);
     put64(disk, 512 + 72, 2);
     put32(disk, 512 + 80, 6);
     put32(disk, 512 + 84, 128);
@@ -626,4 +876,268 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
     EXPECT_EQ(t.partitions[3].fs, FsKind::Reserved); /* BIOS boot */
     EXPECT_EQ(t.partitions[4].fs, FsKind::Reserved); /* LDM metadata */
     EXPECT_EQ(t.partitions[5].fs, FsKind::Ldm);      /* LDM data */
+}
+
+/* ===================================================================== */
+/* M-123 (diff-to-fix): the og's GPT header verifier FUN_1800078d0      */
+/* (Partition_decompiled.c:4813-4847) gates on revision 0x10000,        */
+/* header_size EXACTLY 92, reserved==0, the position pair mirrored by   */
+/* side, usable-range bounds (first < last < sector_count), the entries */
+/* array OUTSIDE the usable range, entry_size 0x80 - ALL structural     */
+/* gates BEFORE the CRC. The core accepted headers the og routes to     */
+/* its salvage/backup ladder.                                          */
+/* ===================================================================== */
+
+namespace {
+/* A structurally VALID primary GPT on a 2048-sector disk (real-world
+ * shape: entries at LBA2, usable range 34..2014, backup at 2047 with
+ * mirrored positions and entries at 2046). Individual gates are then
+ * violated one at a time. */
+struct OgValidGpt {
+    std::vector<u8> disk;
+    void patch_header_crc() {
+        put32(disk, 512 + 16, 0);
+        put32(disk, 512 + 16, crc32(disk.data() + 512, 92));
+    }
+};
+
+OgValidGpt make_og_valid_gpt() {
+    OgValidGpt g;
+    g.disk.assign(u64(2048) * 512, 0);
+    g.disk[510] = 0x55;
+    g.disk[511] = 0xAA;
+    g.disk[446 + 4] = 0xEE;
+    put32(g.disk, 446 + 8, 1);
+    put32(g.disk, 446 + 12, 2047);
+
+    std::memcpy(g.disk.data() + 512, "EFI PART", 8);
+    put32(g.disk, 512 + 8, 0x00010000); /* revision */
+    put32(g.disk, 512 + 12, 92);        /* header size */
+    put64(g.disk, 512 + 24, 1);         /* current LBA */
+    put64(g.disk, 512 + 32, 2047);      /* backup LBA = dev last */
+    put64(g.disk, 512 + 40, 34);        /* first usable */
+    put64(g.disk, 512 + 48, 2014);      /* last usable */
+    put64(g.disk, 512 + 72, 2);         /* entries at LBA2 */
+    put32(g.disk, 512 + 80, 4);         /* 4 entries */
+    put32(g.disk, 512 + 84, 128);       /* entry size */
+
+    std::vector<u8> entries(4 * 128, 0);
+    const u8 basic[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                          0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    std::memcpy(entries.data(), basic, 16);
+    put64(entries, 32, 100);
+    put64(entries, 40, 200);
+    put32(g.disk, 512 + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(g.disk.data() + 2 * 512, entries.data(), entries.size());
+    g.patch_header_crc();
+
+    /* the mirrored backup at 2047 (entries at 2046) */
+    std::memcpy(g.disk.data() + 2046 * 512, entries.data(), entries.size());
+    std::vector<u8> bh(g.disk.begin() + 512, g.disk.begin() + 1024);
+    put32(bh, 16, 0);
+    put64(bh, 24, 2047); /* current = dev last */
+    put64(bh, 32, 1);    /* backup = 1 */
+    put64(bh, 72, 2046); /* entries at 2046 */
+    put32(bh, 16, crc32(bh.data(), 92));
+    std::memcpy(g.disk.data() + 2047 * 512, bh.data(), 512);
+    return g;
+}
+} // namespace
+
+TEST(Gpt, OgGateSetHealthyHeaderTrusted) {
+    /* the control: the structurally valid header is trusted on both
+     * sides (primary + the informational backup probe) */
+    OgValidGpt g = make_og_valid_gpt();
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_TRUE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok);
+    ASSERT_EQ(t.partitions.size(), 1u);
+}
+
+TEST(Gpt, HeaderSizeNot92Rejected) {
+    /* CRC-valid 96-byte header: the og requires exactly 0x5C - the core
+     * accepted any [92,512]. Fail-before: primary trusted. */
+    OgValidGpt g = make_og_valid_gpt();
+    /* grow the header to 96 bytes: move the CRC-cover size and patch the
+     * 4 bytes after 92 (reserved2 area) so the 96-byte CRC is valid */
+    put32(g.disk, 512 + 12, 96);
+    put32(g.disk, 512 + 92, 0x11223344); /* bytes inside the 96-byte CRC */
+    put32(g.disk, 512 + 16, 0);
+    put32(g.disk, 512 + 16, crc32(g.disk.data() + 512, 96));
+    /* keep the backup inconsistent so the ladder cannot mask the reject */
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "header_size != 92 must not be trusted";
+    /* salvage saves the entries (the og's step 1): partitions surface,
+     * header stays untrusted - exactly the og's ladder */
+    EXPECT_EQ(t.partitions.size(), 1u);
+}
+
+TEST(Gpt, ReservedNonzeroRejected) {
+    OgValidGpt g = make_og_valid_gpt();
+    put32(g.disk, 512 + 20, 0xDEADBEEF); /* reserved */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "reserved != 0 must not be trusted";
+}
+
+TEST(Gpt, WrongRevisionRejected) {
+    /* the og requires revision exactly 0x00010000 (FUN_1800078d0's
+     * (int)param_2[1] == 0x10000); the core never checked it */
+    OgValidGpt g = make_og_valid_gpt();
+    put32(g.disk, 512 + 8, 0x00010002);
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "revision != 0x10000 must not be trusted";
+}
+
+TEST(Gpt, PrimaryCurrentLbaWrongRejected) {
+    /* the primary must claim current_lba == 1 (param_2[3] == 1) */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 24, 5); /* claims to live at LBA5 */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "primary current_lba != 1 must not be trusted";
+}
+
+TEST(Gpt, BackupLbaWrongRejected) {
+    /* the primary must claim backup_lba == sector_count-1 */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 32, 2000); /* not the device's last LBA */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "backup_lba != dev-last must not be trusted";
+}
+
+TEST(Gpt, UsableRangeBeyondDeviceRejected) {
+    /* the truncated-image case: a header claiming last_usable past the
+     * device (4 TB GPT imaged to 2 TB). Fail-before: primary trusted. */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 48, 999999); /* last usable beyond the 2048-sector dev */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "usable range beyond the device must not be trusted";
+    EXPECT_EQ(t.partitions.size(), 1u) << "salvage still recovers the entries";
+}
+
+TEST(Gpt, EntriesLbaInsideUsableRangeRejected) {
+    /* the entries array must live OUTSIDE [first_usable, last_usable]
+     * (FUN_1800078d0: param_2[9] < param_2[5] || param_2[6] < param_2[9]) */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 40, 2); /* first_usable = entries_lba = 2 */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "entries array inside the usable range must not be trusted";
+}
+
+TEST(Gpt, TruncatedImageFallsToLadderNotTrustedPrimary) {
+    /* end-to-end (the finding's 4 TB -> 2 TB case): the primary claims
+     * positions for a bigger disk, so it is untrusted; the entries array
+     * at the image's start is intact, so the og's step-1 salvage recovers
+     * the volume set with gpt_primary_ok == false (the og: "Verify GPT
+     * HEADER sector failed." then the salvage path). */
+    OgValidGpt g = make_og_valid_gpt();
+    /* claim a 1,048,576-sector (512 MB) geometry on the 1 MB image */
+    put64(g.disk, 512 + 32, 1048575); /* backup LBA out of image */
+    put64(g.disk, 512 + 48, 1048542); /* last usable out of image */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512); /* no backup in image */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok) << "a header describing a bigger disk is untrusted";
+    ASSERT_EQ(t.partitions.size(), 1u) << "salvage recovers the entry array";
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
+}
+
+/* ===================================================================== */
+/* M-132 (diff-to-fix): the og's backup probe is at the FIXED device-   */
+/* last LBA (FUN_180006e20:4567: param_1[1]-1), never the primary's     */
+/* declared field; the dead-LBA1 early return (og) vs the core's       */
+/* backup recovery is a REGISTERED deliberate superset (PARITY-DELTAS  */
+/* D-124b).                                                            */
+/* ===================================================================== */
+
+TEST(Gpt, BackupProbedAtDeviceLastWhenPrimaryOk) {
+    /* A trusted primary whose declared backup_lba field disagrees with
+     * device-last (corrupt field) still finds the backup: the probe is
+     * at device-last FIRST. The M-123 position gate rejects such a
+     * primary outright (untrusted -> ladder), so the fixture routes:
+     * primary rejected at the position gate -> salvage (entries intact)
+     * -> backup probe at device-last SUCCEEDS. The og: the same ladder
+     * (its verifier rejects the field too, its backup read is at
+     * device-last). Fail-before would be: backup_ok false on this
+     * fixture. */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 32, 2000); /* corrupt backup_lba != dev-last 2047 */
+    g.patch_header_crc();
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "M-123 gate: corrupt backup_lba field is untrusted";
+    EXPECT_TRUE(t.gpt_backup_ok) << "M-132: the device-last probe finds the intact backup";
+    EXPECT_EQ(t.partitions.size(), 1u) << "salvage + backup both recover the volume set";
+}
+
+TEST(Gpt, CorruptBackupLbaFieldStillFindsBackup) {
+    /* The og-parity leg in the healthy-primary direction: primary
+     * verifying (backup_lba == dev-last), the REAL backup at device-last
+     * with mirrored positions - the probe must not depend on the field
+     * being readable through any path other than device-last. */
+    OgValidGpt g = make_og_valid_gpt();
+    /* scratch the declared field AFTER the CRC is fixed is impossible
+     * without failing the primary (M-123) - so prove the complementary
+     * shape: the backup header itself is intact at device-last while an
+     * imposter (zeroed sector) sits at the OTHER plausible position. */
+    put64(g.disk, 512 + 32, 1900); /* declared backup_lba: a zeroed area */
+    g.patch_header_crc();
+    /* the real backup at 2047 stays intact from make_og_valid_gpt */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "the field mismatch fails the primary gate";
+    EXPECT_TRUE(t.gpt_backup_ok) << "device-last first: the real backup is found";
+}
+
+TEST(Gpt, DeadLba1BackupRecoveryRegistered) {
+    /* The REGISTERED deliberate superset (PARITY-DELTAS D-124b): the og's
+     * analyzer early-returns with NO partitions when the LBA1 read fails
+     * (:4517-4524); the core keeps the recovery stance - the protective
+     * MBR routes to the device-last backup and its entries are emitted.
+     * This test pins the superset so it is never "fixed away" as a
+     * parity bug. */
+    OgValidGpt g = make_og_valid_gpt();
+    std::memset(g.disk.data() + 512, 0, 512); /* LBA1 wiped */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok);
+    ASSERT_EQ(t.partitions.size(), 1u) << "the core superset: entries recovered from backup";
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
 }

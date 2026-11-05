@@ -21,10 +21,10 @@ const char* err_text(u32 code) {
         return "range out of bounds";
     case ERR_CANCELLED:
         return "cancelled";
+    case ERR_DEVICE_DISCONNECTED:
+        return "target device disconnected (reattach and resume from the session checkpoint)";
     case ERR_RETRY_EXHAUSTED:
         return "retries exhausted";
-    case ERR_DRIVER_REQUIRED:
-        return "RDA raw-disk driver required (not installed or not started)";
     case ERR_BAD_MAGIC:
         return "bad magic";
     case ERR_BAD_CHECKSUM:
@@ -57,8 +57,18 @@ const char* err_text(u32 code) {
         return "hash mismatch after write";
     case ERR_DEST_FULL:
         return "destination full";
+    case ERR_DEST_NAME_EXHAUSTED: /* N-065 (was absent from this table) */
+        return "collision rename space exhausted";
+    case ERR_DEST_PATH_TOO_LONG: /* M-074: the og's numbered taxonomy */
+        return "the recovery path is too long";
+    case ERR_DEST_PATH_INVALID:
+        return "might be an invalid path to save";
+    case ERR_DEST_NETWORK:
+        return "network destination (the local-only destination contract)";
     case ERR_FVE_LOCKED:
         return "volume locked (FVE)";
+    case ERR_FVE_ELEVATION_REQUIRED: /* M-105 option (a) */
+        return "FVE auto-unlock keys exist but require an elevated token";
     case ERR_HEALTH_UNAVAILABLE:
         return "health data unavailable";
     case ERR_REPAIR_REFUSED:
@@ -80,6 +90,12 @@ const char* err_text(u32 code) {
         return "image container structurally corrupt";
     case ERR_INTERNAL:
         return "internal error";
+
+    /* raw-disk privilege precondition (the direct-access mandate; the
+     * CLI prints the full remediation text, err_text carries the class
+     * name) */
+    case ERR_ELEVATION_REQUIRED:
+        return "raw disk access requires an elevated process (run as administrator)";
     default:
         return "unknown error";
     }

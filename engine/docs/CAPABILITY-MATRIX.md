@@ -11,6 +11,16 @@
 > report-only" or "LDM recognition-only through v0.2" is stale history — the
 > engines are full implementations (rows below).
 
+## 0. Transport, privilege prerequisite & scan truth (direct raw-I/O era)
+
+| Capability | og (corpus evidence) | Ours | Status | Evidence / remaining gap |
+|---|---|---|---|---|
+| Privilege prerequisite | NONE - the og silently degrades (failed EPRDTDRV opens are NULL devices; the service-start result is discarded; the driver-era corpus record, worklog/reference/og-access-architecture-record.md sections 2-4) | raw-disk verbs (scan/recover/tree --disk/health/fix/apply/bench/image with disk targets) require an ELEVATED process token; a non-elevated process gets the ERR_ELEVATION_REQUIRED refusal (0x500C0001) BEFORE any other output; CLI exit 4; the host triggers its own UAC flow and retries; image targets + session/report/preview/dictionary verbs need no elevation | **DONE+ (the session-96 direct-access model)** | the unelevated-refusal probe (bench/ours/run-behavior.ps1 probe 1, exit-4) proves it on a real runner; ABI-CONTRACT §4 carries the code |
+| Driver-status surface | NONE (corpus-silent; the og exposes no driver query to its UI) | REMOVED with the kernel driver itself (session-96): the driver-era `cr_ui_driver_status` export, the `rrecov driver` verb and the ERR_DRIVER_* family are gone — the elevation gate is the single refusal class | **REMOVED (session-96; the driver-era rows D-DRV-3/D-DRV-5 are the historical record in PARITY-DELTAS §U)** | ABI v4 (cr_ui_driver_status export removed); test_driver_status.cpp retired with the surface |
+| Scan read-truth (the fake-scan fix) | the og completes blind scans (engine errors surface, the verdict stays completion) | Skip-mode zero-fill still hides single-read failures (og-parity salvage) BUT the verdict is truthful: `bytes_unreadable` + `probe_unreadable` surface in CLI/JSON/ABI; a scan whose coverage spans (essentially) the whole slice with nothing found REFUSES with ERR_READ_FAILED - never 'scan complete: 0 files' + exit 0 | **DONE+ (D-DRV-6)** | test_scan_truth.cpp (5 pins incl. the fail-before) |
+| Prebuilt-artifact CI | n/a (og CI not in corpus) | the CI-rebuild consolidation (M-088's fix) left four lanes: `checks.yml` (the consolidated correctness lane — MSVC /W4 /WX, DLL smoke, CLI contract, seeded integration, the C consumer, fuzz smoke, the Win7-inclusive import gate; no kernel-mode driver is ever installed there), `installer.yml` (the S-038 installer gate lane — builds the installer from source; the installer ships the core only — no driver component, no SCM step — and the teardown asserts NO kernel service is installed), `release.yml` (the sole source of builds, validation-gated, builds the core only, PREBUILT-ARTIFACTS.md's convention), `test-benchmark.yml` (the benchmark lane — no driver-install or verify; the elevated runner token IS the access model); the staged truth matrix (CI-SCENARIOS.md) proves deleted-file recovery end-to-end with SHA256 evidence | **DONE** (v1 matrix: NTFS/FAT32/exFAT deletion + NTFS quick-format + the refusal phases) · **FOLLOW-UP (unowned before N-128, now this row owns it):** the ext4/HFS+/Btrfs/ZFS/ReFS staging matrix — the CI-SCENARIOS.md:81-83 boundary note stays the detail record (third-party staging tooling + deterministic seeds; the next concrete step: a mkfs-class staging script per filesystem feeding the same expected-vs-observed harness) | .github/workflows/{checks,installer,release,test-benchmark}.yml |
+| Local-first validation | n/a | ci-local.sh / ci-local.ps1 + pre-commit/pre-push hooks run every CI check locally before a push; CI's first job mirrors the entry point verbatim | **DONE** | docs/CI-LOCAL.md (the audit table); docs/CONTRIBUTING.md; the local-mirror job caught the C4477 warning on its first runner execution |
+
 ## 1. Filesystem engines
 
 | Capability | og (corpus evidence) | Ours | Status | Evidence / remaining gap |
@@ -20,9 +30,9 @@
 | NTFS remnant scan | stride salvage (corpus §5) | 4 MiB block-buffered stride + threads, meta-only nodes under Lost | **DONE** | scan_mft_remnants; test RemnantScan* |
 | NTFS $MFTMirr bootstrap | mirror cross-check (Dec 52032/52102) | read_record mirror fallback for records 0..3 | **DONE** | cr_bootstrap read_record; test_ntfs_volume mirror cases |
 | NTFS compressed $DATA (LZNT1) | RtlDecompressBuffer-family semantics | full LZNT1 ladder (MS-XCA tagged-group; `cr_decomp.cpp` `lznt1_payload_decode`) + MFT-walk inflation (`expand_compressed_data`, cr_mftwalk.cpp) + codec-tagged extents the writer inflates | **DONE** | N-074 doc-truth fix (was stale MISSING); `NtfsVolume.Lznt1MsXcaDocumentedVector` + the compressed-$DATA recovery tests |
-| NTFS compressed $DATA (XPRESS/LZX) | RtlDecompressBuffer-family semantics | not implemented | **MISSING (GAP-P1-1, SHARED limitation — the og is LZNT1-only too; no XPRESS/LZX surface in any corpus artifact)** | CORE-GAP-LIST GAP-P1-1; tracked, not claimed |
+| NTFS compressed $DATA (XPRESS/LZX) | RtlDecompressBuffer-family semantics | XPRESS/LZX not implemented (LZNT1 landed) | **SHARED limitation — the og is LZNT1-only too; no XPRESS/LZX surface in any corpus artifact (LZNT1 itself landed: GAP-P1-1 CLOSED per CORE-GAP-LIST; the XPRESS/LZX half is out-of-scope-as-shared, tracked here, not claimed)** | CORE-GAP-LIST GAP-P1-1 (closed for LZNT1); tracked, not claimed |
 | NTFS USN journal harvest | USN census (UNVERIFIED specifics) | $J run materialization + V2/V3 parse, DELETE-filtered, re-sync | **DONE (delta D-11)** | test USN harvest cases; UNVERIFIED-1 carried |
-| Damage-audit check phase | FileSystemCheck.mo (chkdsk-grade audit) | read-only FAT/NTFS pass, og taxonomy 0x1001-0x100e, never aborts (M-041) | **DONE (M-041)** | cr/check/cr_fscheck.*; tests FatCheck.* / NtfsCheck.* / CheckPhaseNeverAbortsScan |
+| Damage-audit check phase + chkdsk escalation | FileSystemCheck.mo (chkdsk-grade audit) + WinChkdsk.exe (the launch endpoint) | read-only FAT/NTFS pass, og taxonomy 0x1001-0x100e, never aborts (M-041) + the escalation rung: `cr_ui_fsck_volume` launches chkdsk `/f` elevated/synchronous/timeout-bounded, WoW64-native, loud refusal (M-075) | **DONE (M-041 + M-075)** | cr/check/cr_fscheck.* + cr/check/cr_fsck_launch.* + src/win/cr_fsck.cpp; tests FatCheck.* / NtfsCheck.* / CheckPhaseNeverAbortsScan / FsckVolume.* / FsckWin.* |
 | Recycle Bin $I/$R remap | original names (bench 26/26) | token pairing (dot-stripped) + post-walk remap, both record orders; shared model (cr_recycle.h) across NTFS + FAT + exFAT with bin-root scoping (four-name _stricmp set incl. Recycled/Recycler/$RECYCLE.BI0) | **DONE (all three engines; M-052)** | 632edc4; M-052: test RecyclePairing*/RecycleLegacyRoots/RecycleBinScope* |
 | FAT12/16/32 live+deleted | FATSearchDLL | flavors, LFN (deleted-slot reversal), chain guards, mirrored-FAT salvage | **DONE+** | D-39; test_fat_volume.cpp; FAT-1..10 fixes W2 |
 | FAT backup-boot fallback | none in-engine (RawFixer pre-scan) | FAT32-gated sector-6 fallback, 4Kn stride | **DONE (delta D-44/FAT-8)** | test Fat32BackupBootFallback + Fat16HasNoBackupBootFallback |
@@ -30,13 +40,13 @@
 | ext4 live+deleted | EXT4SearchDLL | SB/GDT/inodes/extent trees, deleted inodes, orphan sweep | **DONE** | test_ext4_volume.cpp |
 | ext4 journal salvage | walk-all (E-2 decompile pin) | every block in [s_first, s_maxlen) feeds the dir parser | **DONE** | D-07 CLOSED; JournalSalvage test |
 | HFS+ | HFSSearchDLL | volume header, catalog+extents B-trees, fork model, orphan sweep | **DONE** | test_hfsplus_volume.cpp; F-A2-17/18 verified W-audit |
-| HFS+ attributes B-tree / journal replay | not evidenced engine-side | absent | **MISSING (registered gap, D-L)** | CAPABILITY note; og extent itself UNVERIFIED |
+| HFS+ attributes B-tree / journal replay | HFSSearchDLL (decmpfs attribute harvest + the journal's deleted-record differential) | landed: the attributes-tree walk incl. decmpfs (S-002), full journal replay (S-003) + the journal-deleted differential harvest (S-021 — `cr_hfsplus_engine.cpp:514-602`; semantics registered D-46/D-53/D-91/D-93) | **DONE** | modules/hfsplus.md; the S-002/S-003/S-021 resolutions |
 | Btrfs | BtrfsSearchDLL | mirror SB select, chunk mapping, tree walk, subvolume roots, inline extents, compressed extents (zlib/lz4/zstd) | **DONE** | BTR-2/3/4 W2; test_btrfs_volume.cpp incl. compressed fixtures |
 | Btrfs old-generation trees | none (max-gen only) | same (parity) | **DONE (parity)** | D-06 header note |
 | ZFS | ZfsSearchDLL | label nvlist, uberblock ring (every valid state walked — per-txg history, S-034 FIXED: newest state live, older states feed the deleted tree with identity dedup), MOS/ZPL, dnode walk, embedded blocks, gang blocks, compressed extents | **DONE** | test_zfs_volume.cpp incl. Zfs.Ring* (S-034); D-05 corrected to the fixed stance |
 | ZFS multi-vdev topology | UNVERIFIED in corpus | single-vdev only | **PARTIAL (gap, D-L)** | D-09 remains open — honest gap |
 | **ReFS (FIRST-CLASS)** | ReFSSearchDLL (full MSB chain) | full MSB chain: page signatures, dual-checkpoint max-clock, versioned pointer lists (minor>=14), next-chains, ObjectID/directory tables, $DATA runs, deleted/ID2 harvest, allocator grading | **DONE** | W2 REFS-1/2/3 (next-chain + versioned checkpoint + stale pins); test_refs_ldm.cpp (11 tests); DBR gate 3.4+ (major==3 && minor>3, FUN_180012390) |
-| ReFS containers / security / ADS | attribute layer decoded (S-020/M-022: resident inline + all attribute rows + paged tables + granularity guard; container map N-036 open) | resident materialization, dual grammar, indirect chase, granularity discard | **DONE (attribute layer)** — container-map translation tracked (N-036) | findings/FIXED/S-020 + M-022; test_refs_volume.cpp (6 S-020 tests) |
+| ReFS containers / security / ADS | attribute layer decoded (S-020/M-022: resident inline + all attribute rows + paged tables + granularity guard; container-map translation landed with N-036 at 6ea4179b — the og formula, cr_refs_engine.cpp:95-112) | resident materialization, dual grammar, indirect chase, granularity discard | **DONE (attribute layer + container map)** | findings/FIXED/S-020 + M-022; test_refs_volume.cpp (6 S-020 tests + the N-036 container-span fixtures :234) |
 | **LDM (FIRST-CLASS)** | LdmManager | full decode: TOCAB01 databases, VBLKs, component/partition/volume assembly, RAID-0/1 concatenation, cross-disk resolver; GPT-dynamic discovery (real Microsoft type GUIDs — restored by A-002 after the A-001 fix's regression; og-verified + de-self-referenced guards) | **DONE** | test_ldm.cpp (incl. GptDynamicDiskCanonicalGuidsParse / RealCanonicalGuidsParse / FabricatedGuidsRejected); LDM-1 honesty note (RAID-5 rotation og-side dormant per I-008 — left-symmetric on both sides, RESOLVED) |
 
 ## 2. Pipeline
@@ -51,7 +61,7 @@
 | GPT two-step salvage | IsGPTDisk + backup (FUN_180006e20) | primary-entry salvage + device-derived backup LBA + protective-only entry | **DONE** | 3267d26 (W2-19); 3 new tests |
 | MBR/EBR chains | Partition.mo | EBR chain walk with cycle guards | **DONE** | test_crc32_gpt.cpp EBR cases |
 | Carving registry | raw_signs.json 139 ext + the hardcoded dual-registry common set (S-007) | signature registry + load-time validator gate (F8), BE-TIFF/ORF wired, +27 S-007 entries (GIF/BMP/audio family/AAC/RTF/OLE/MPEG/DWG) | **DONE+** | W2 CARVE-3; D-95 (S-007); test_carve.cpp |
-| Carving validators | grammar+sign + BruteForce frame walkers | grammar validators (JPEG/PNG/ZIP/7z/PST/OFFICE/TIFF/WAV/MP3/PDF...), ZIP 3-anchor + CD ownership + padding, PST floor, SOF0 gate; S-007: GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG + 10-frame headerless MP3/AAC walkers | **DONE** (niche ~25-format tail scoped in S-007) | W2 CARVE-2/4/6/11; D-95 (S-007); test_carve.cpp fixtures |
+| Carving validators | grammar+sign + BruteForce frame walkers | grammar validators (JPEG/PNG/ZIP/7z/PST/OFFICE/TIFF/WAV/MP3/PDF...), ZIP 3-anchor + CD ownership + padding, PST floor, SOF0 gate; S-007: GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG + 10-frame headerless MP3/AAC walkers; A-010: ASF structural walk (BruteForce family parity) | **DONE** (niche ~25-format tail scoped in S-007) | W2 CARVE-2/4/6/11; D-95 (S-007); A-010 FIXED; test_carve.cpp fixtures |
 | Merge/dedup | UI attach points | (first-cluster, size-class, hash) dedup pre-attach | **DONE+** | F9; "pass 2 adds zero nodes" test |
 | Session (CRSF) | .rsf | own format: per-record CRC32, skip-forward, versioned records, five roles | **DONE (delta D-01)** | test_session.cpp round-trip + F10 |
 | Checkpoint/resume | none located (UNVERIFIED-4) | stage-boundary CheckpointSink, crash-resume, --resume CLI | **DONE+** | G-13/G-07; test_pause_resume.cpp |
@@ -61,10 +71,44 @@
 | RawFixer | FATFixer/CheckBackupDBR; NTFSFixer CheckMFT; FATFixer CheckFatTable/CheckRootDir; shared FixByScanSector; pre-scan position | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated; CheckMFT ($MFT record 0 from $MFTMirr), CheckFatTable (sector-granular mirror restore), CheckRootDir/IsValidRootDir/CheckRoot advisories, FixByScanSector (bounded 64 MiB probe); wired pre-scan (CLI --repair/--repair-apply, cr_ui consent ABI, Repair events, undo-log persistence); volume quiesce S7 (lock before first write, refuse-not-race, corpus LOCK/DISMOUNT sequence) | **DONE (S-008+S-010)** | FIX-2/3 W3; test_rawfixer.cpp + PreScan* orchestrator/ABI tests |
 | Boot-chain repair (Fixup.mo + EFIBoot.mo) | BCD device-element offset rewrite (new_lba<<9, cells by MBR signature + old LBA); BCD hive force-unload (SeBackup/SeRestore + ZwUnloadKey \\Registry\\Machine\\BCD00000000); UEFI NVRAM Boot#### renumber (PartitionNumber patched in matched load options, state-4 path; create/delete out of v1); boot.ini + post-op chkdsk REGISTERED (D-90) | full family: cr/bcdfix (plan/execute/undo + P62 consent, s34) + cr/nvramfix (the matcher + state-4 update over an injected firmware-variable store) + src/win/cr_bootfix.cpp (FwVarStore dynamic resolution + privilege, bcd_rewrite_file with flush tail, unload_bcd_hive) + `rrecov apply --boot-fix <old-lba>` post-apply wiring (advisory failures) | **DONE (M-040 stages a+b, delta D-90)** | test_bcdfix.cpp (5) + test_nvramfix.cpp (9, incl. NvramPatchUpdatesLoadOption); findings/FIXED/M-040 |
 | Damage-audit check phase (FileSystemCheck) | CCheckFAT (DBR ceilings, FAT hole/dup scans, pairwise copy compare, dir-tree audit, orphan sweep) + CCheckNTFSVolume ($MFT/$MFTMirr proofs, version gate, $Bitmap structural, MFT×$Bitmap cross-check), error taxonomy 0x1001..0x100e, 8-event host callbacks; never aborts the scan | full parity module: cr/check (both passes, og phase order + terminal semantics, the taxonomy, the callbacks incl. the orphan host-decision); wired pre-scan after repair (ScanConfig::pre_scan_check, cr_ui ABI pre_scan_check + check_* stats + CR_EVT_FS_CHECK 10, CLI scan --check); REC_FS_CHECK session record | **DONE (M-041, delta D-87)** | test_fscheck.cpp (15 tests incl. CheckNeverAbortsScan + the session round-trip); findings/FIXED/M-041 |
-| Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, retry/bisection + ReadErrorMap (the structured-open RdaClient was deleted by N-041 - zero callers since introduction; wire structs stay documented in cr_rda.h) | **DONE** | D-37/D-38; test_retry.cpp |
+| Transport | EPRDTDRV grammar (environment-gated direct in WinPE; failed opens = silent NULL devices) | **DIRECT USER-MODE RAW I/O** (session-96, the driver-era D-DRV-1/2 rows are the historical record): `\\.\PhysicalDriveN` opens (GENERIC_READ [\| GENERIC_WRITE], share R\|W\|D) under an elevated token, through the 64 KiB read envelope, with true byte counts — no kernel driver, no service; non-elevated opens refuse with ERR_ELEVATION_REQUIRED (0x500C0001, CLI exit 4); retry/bisection + ReadErrorMap unchanged; `rrecov bench` reports transport "direct" (or "image") | **DONE+ (truthfulness superset)** | test_transport_logic.cpp; test_retry.cpp; the unelevated-refusal probe (run-behavior.ps1 probe 1) |
 | Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map with per-range module attribution (M-049: the engine-side error-context subset — CR_ERRMOD_* on the ErrorRange event) | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
 
 ## 3. Explicit exclusions (standing)
+
+**The file-repair product line (S-050's formal disposition, registered
+2026-10-29):** the og's Fixo-provenance repair line — photo (JPEG/GIF/BMP/
+SVG/TIFF grammar walks + state machines), video (the weighted ISO-BMFF atom
+grammar, the two-scan architecture, sample-file moov substitution, per-format
+regroup for MP4/MOV/AVI/MTS/MXF — `architecture/06-repair-chain.md`, the
+corpus's deepest-decoded engine), office/PDF, HWP, X3F raw, the from-scratch
+7z next-header engine (password-aware, paired with the shipped Dict), and
+post-repair image enhancement (9 product binaries: EUImgRepair.exe /
+EUVideoRepair.dll / EUArchiveRepair.exe / EUAdobeRepair.exe / EURawImg.exe /
+EuOfficeRepairWin32.exe / EuOfficeTools.exe / EUHwpViewer.exe +
+EUHwpFilePathCheckerModule.dll; remote-config-flagged via enable_imgrepair /
+enable_docrepair) — is REGISTERED OUT OF SCOPE for the core engine as a
+SEPARATE PRODUCT LINE, not a recovery-engine capability. Rationale: (a) the
+corpus's own artifacts document it as the Fixo source tree bundled by the og
+installer (`D:\Fixo\01_Project\...` provenance), a distinct product beside
+the recovery engine; (b) its UI spine (the three row-controller families, the
+serialized FileRepairDataMgr queue, the TimeCritical thread fleet — UIUX/32)
+is a product surface, not an engine seam; (c) the core's adjacent surfaces
+are already truthful: the recovered-file repair ELIGIBILITY classification
+(the og's CHK/CHKRepairFileSign chain over EUUserData) is served by the
+user-signature channel's superset (D-104: the same EUUserData file feeds
+carve records + per-scan statistics via GetRawUserInfoMap's shape), and the
+engine-side per-candidate post-processor (M-021) plus the per-chunk feed
+decision are registered in D-104's landing notes. The UI-layer handoff: a
+host embedding the core's ABI composes repair as its own product feature
+consuming core recovery output — the engine exposes no repair verb, session
+record, or event for it (a future in-engine implementation would enter
+through cr/repair beside rawfixer with the video engine's datarun-selection
+seam — tree::FileNode::extents — as the decoded integration point; tracked
+in PARITY-DELTAS D-137 with the full amendment set). The repaired-file
+output-location contract (distinct from the recovery destination) and the
+Advanced Repair sample-file consent model are documented in D-137 for any
+future implementer.
 
 Cloud/NAS/remote recovery; BitLocker FVE-key DERIVATION from a recovery
 password or .BEK inside our stack (tracked-open OQ-S20-1: the FVE metadata

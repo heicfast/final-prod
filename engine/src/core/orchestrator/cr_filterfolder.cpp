@@ -5,6 +5,7 @@
 
 #include "cr/orchestrator/cr_filterfolder.h"
 #include "cr/cr_text.h"
+#include <atomic>
 #include <cstring>
 #include <functional>
 #include <set>
@@ -87,6 +88,30 @@ bool in_set(const std::set<std::u16string>& set, const std::u16string& name) {
 
 } // namespace
 
+/* N-216: the og's MaxFileSize cap state. The og's shipped posture is the
+ * compiled-in default (version.ini carries no key -> 0x400 GiB = 1 TiB);
+ * the core mirrors that as the constant default with a host-side setter
+ * for the tunable surface. Relaxed-atomic: apply() runs on the pipeline
+ * thread; the setter runs at host config time before the scan (the same
+ * ordering the og's ctor-time ini read has). */
+namespace {
+constexpr u64 kDefaultMaxFileSize = u64(0x400) << 30; /* the og's 1024 GiB default */
+std::atomic<u64> g_max_file_size{kDefaultMaxFileSize};
+} // namespace
+
+u64 max_file_size() {
+    return g_max_file_size.load(std::memory_order_relaxed);
+}
+
+void set_max_file_size(u64 bytes) {
+    g_max_file_size.store(bytes, std::memory_order_relaxed);
+}
+
+bool size_exceeds_cap(u64 logical_size) {
+    const u64 cap = max_file_size();
+    return cap != 0 && logical_size > cap;
+}
+
 bool is_junk_name(const std::u16string& name, bool is_dir) {
     if (name.empty())
         return false;
@@ -106,7 +131,13 @@ u64 apply(tree::ResultTree& tree) {
             tree::FileProperties* pr = c->props();
             if (pr != nullptr && (pr->flags & tree::NODE_FLAG_JUNK_FILTERED) == 0) {
                 const bool is_dir = (pr->attributes & 0x10) != 0;
-                if (is_junk_name(pr->name, is_dir)) {
+                if (is_junk_name(pr->name, is_dir) ||
+                    /* N-216: the size cap hides oversize nodes exactly as
+                     * the og's tree-builder does (DRWUI:750172-175 - the
+                     * cap < size compare clears the node's visibility;
+                     * files and folders both pass through the check in
+                     * the og, folders simply carry size 0) */
+                    size_exceeds_cap(pr->logical_size)) {
                     pr->flags = u16(pr->flags | tree::NODE_FLAG_JUNK_FILTERED);
                     ++flagged;
                 }

@@ -1,5 +1,13 @@
 # modules/ext4.md — ext4 engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: ~~**N-177**~~ **FIXED (S46)** (the size-exceeds-blocks damaged
+flag landed — NODE_FLAG 0x0200 = the og's own bit, the clean 64-bit compute, D-128 registered (renumbered from the collided D-135 at N-207),
+SizeExceedsBlocksSetsDamagedFlag + CleanFilesCarryNoBit + SessionRoundTrip); **I-040 (ACKNOWLEDGED — PARITY-DELTAS D-123 + the two anti-down-fix pins landed)** registers the og's i_size_high legacy-ACL
+pollution non-adoption). Verified-MATCH: block-group math, groups math, blocks_hi.
+
+
 Reference: EXT4SearchDLL (covers ext2/3/4 — DRWUI codes 4/5/9) per corpus artifacts
 `SearchDLL/ext4-engine--deep-dive.md`, `ext4-hfs-engine-algorithms-v2.md` §1–2,
 `remaining-engines--ext4-hfs-refs-btrfs-zfs.md`, `CORRECTIONS.md` rows 4/6.
@@ -186,3 +194,161 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 | ID | Severity | One-line |
 |---|---|---|
 | N-057→N-073 | MINOR | (renumbered at integration — the table's original N-057 ID was a pre-coordination session-6 local number) CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries — **FIXED-ALREADY (session 14: N-004's transport landing covers it; 3 engine-path pin tests in test_ext4_volume.cpp)** |
+
+## Session-10 S10-F rows (function-level completeness pass, 2026-10-29; audited `44f043a5`)
+
+| Parameter | Verdict |
+|---|---|
+| volume-label decode — s_volume_name surface | **DIVERGENCE-MINOR — N-133** (the og strncpy's s_volume_name for the UI, algorithms-v2 §2 step 5; the core decodes it at cr_ext4_engine.cpp:200-201 into `Volume::volume_name` with ZERO consumers — dead code; the engine-side label is the image-scan source M-079's addendum now points at) |
+| class surface — CEXT4FileProperties / CEXT4QuickSearch / EXT4CatchBufferObj / Ext4Volume / CExt4DataRunList | **MATCH (semantic)** — the T3b class pass: props field set full-parity (I-006/I-007 + superset registered), quick/complete one-entry flags (I-016), the catch-buffer surface fully dispositioned (backtrack N-004/N-073; spawn S-027/D-59; buffering I-014-3/X51 — the og's 20 MiB window size is uncited but perf-only), the volume context and extent adapter mapped — evidence s10f-product-frame-register.md §5 |
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-065** **FIXED** (the S56 ACUTE-first
+lane: the ladder bounded by ceil(i_size/bs) + the contiguous merge + the
+65536-extent hardening budget + the cancel token inside the walk —
+findings/FIXED/S-065, 4 RED->GREEN read-count/cancel/merge pins), **M-143** (the journal inode-image
+harvest branch absent — the S-004 sibling surface), **M-144** (the 8 MiB GDT cap
+refusing >16 TiB 64BIT volumes + MAX_GROUPS >128 TiB; the og unbounded),
+**N-193** (four SB acceptance-band deltas consolidated — register; RENUMBERED **N-202** at the S56 lane's collision repair, seat 202), **I-045** (the
+unwritten ee_len og-defect non-adoption register, batch #3) **— I-045 ACKNOWLEDGED-RETIRED (the S58 diff-to-fix execution lane: PARITY-DELTAS D-141 registered + the `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect` anti-down-fix pin RED-proven — findings/FIXED/I-045)**. Verified-MATCH this
+session: the size-bounded indirect walk's og form (FUN_180005490), the journal
+dir-block classifier's '.'/'..' test, the GDT allocation math, and the
+extents-path budget (the S-065 gap is the non-extents path only — now closed).
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**I-045 FIXED (ACKNOWLEDGED)** — the unwritten ee_len register landed as
+PARITY-DELTAS **D-141** (batch #3 of the I-026/I-040/D-123 family) with the
+anti-down-fix pin `Ext4Engine.UnwrittenExtentLenDecodedKernelCorrect`: an
+unwritten extent (ee_len 0x8005) surfaces a 5-block content extent, never
+the og's raw product — the core's kernel-correct decode
+(walk_extent_node :346-350) stays; the divergence is deliberate and must
+be preserved in future work. The module's B7 row (unwritten-extent
+semantics) is now backed by both the D-141 register and the pin.
+
+## S72 fix-lane addendum (2026-10-29 — the MAJOR-first continuation lane)
+
+**M-144 FIXED (MAJOR)** — the 8 MiB single-shot GDT read cap at
+`cr_ext4_engine.cpp:785` is removed and replaced with an 8 MiB chunked
+reader that tolerates partial chunk failure (the dead-front behavior the
+prior single-shot read applied to the whole table now applies per-chunk);
+`MAX_GROUPS` at `:83` is raised from `1<<20` (~128 TiB at 4 KiB blocks)
+to `1<<26` (~1 PiB) — still a corrupt-SB guard that no real volume hits,
+but no longer a capability cliff that legitimate NAS arrays cross. The
+alt-GDT ladder path is chunked identically. The og's unbounded allocation
+(FUN_1800047c0 :3404-3408, re-read first-hand) is its own defect class (a
+corrupt SB could request an arbitrary buffer); the core's deliberate
+divergence is registered in PARITY-DELTAS **D-148**.
+`Ext4EngineM144.Large64BitVolumeAbove8MiBGdtOpens` RED pre-fix
+(`0x50030003 ERR_BAD_PARAMETER`) → GREEN post-fix (`block_groups == 200000`);
+`Ext4EngineM144.CorruptHugeGroupCountStillRefused` guards the raised
+bound. The module's X49/X52/B1 capacity-edges rows are now MATCH
+(parallel to the og's unbounded scan, with the corrupt-SB guard
+deliberately kept and registered).
+
+## S73 fix-lane addendum #2 (2026-10-29 — M-143 the journal inode-image
+harvest)
+
+**M-143 FIXED (MAJOR)** — the journal pass's `parse_one` lambda is
+extended to call `parse_inode_image_block` after `parse_dir_block`
+rejects a block. The new function walks the block at `inode_size`
+stride and applies the og's exact gate set (FUN_180005e50 :4419-4420,
+re-read first-hand): `i_size_lo (+0x04) != 0 && (i_flags (+0x20) &
+0x80000 [EXTENTS_FL]) && extent magic (+0x28) == 0xF30A && eh_entries
+(+0x2A) != 0`. Records that pass the gate are decoded via the engine's
+existing extent walker over the inline extent root (i_block, 60 bytes),
+and emitted in pass 2 as orphan "Inode%N" records under root_lost with
+the inode's extents as content. The synthetic inode# is
+journal-positional (`0x10000000 + (jb << 10) + slot`) — above
+MAX_INODES so it never collides with real inode numbers. The og's
+exact inode# derivation is the finding's open question, preserved per
+the finding's "does not gate the fix" note. The "Inode%u" naming
+follows the engine's existing deleted-inode convention for consistency.
+The directory-model-takes-precedence order matches the og's branch
+order. 6 RED→GREEN tests in
+`tests/unit/test_ext4_m143_journal_inode_image.cpp`. The module's
+B2/A26/A25 journal-salvage rows are now MATCH (the inode-image surface
+joins the directory-block surface as the og's two-branch journal
+classifier).
+
+## Session-71 addendum — OQ-S52-1 resolved (2026-10-29)
+
+**The ext-family kind classification (the tracked-open item closed).** The
+analyser's verdict rule decoded first-hand (ExtFileSystemAnalyser :3616-3680,
+confirming and extending the S47 probe): the strict ext4 gate is
+feature_incompat == EXTENTS|64BIT|FLEX_BG (0x2c0, all three) with the
+desc_size==0x40 companion; the pre-ext4 family requires incompat within
+{FILETYPE, HAS_JOURNAL, META_BG} and ro_compat within {SPARSE_SUPER,
+LARGE_FILE, DIR_INDEX}, HAS_JOURNAL splitting ext3/ext2 inside the analyser's
+verdict space — which the ENGINE space collapses to the single family code 4
+(M-133's twin-key shift member; the DRWUI factory creates the EXT2 searcher
+for cases 4 AND 5 — the collapse is proven, the verdict→engine renumbering
+site itself is cross-DLL and not load-bearing). The display layer's verdict
+table decoded at DRWUI:1432740-1432815 (5=(EXT2), 6=(EXT3), 0x18=(EXT4),
+4=(NTFS), 9=(SWAP), 0xd=(REFS)...). Landing: `FsKindCode::Ext2 = 4`; the
+engine stamps `ext_family_kind(sb)` at every node/root site; twin_key_of's
+shift set extends to {Fat16, Ext2} = the og's {1, 4}; og-analyser-refused
+shapes keep the unshifted Ext4 stamp (no og behavior exists for them). Proof:
+`Ext4Engine.FamilyKindStampsPerDecodedAnalyserRule` (the four shapes) +
+`Grading.TwinKeyExt2FamilyShifts` (the previously-unexpressible shift leg) +
+the 5 prior M-133 pins. Suite 1541/1541.
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **M-152 (MAJOR, NEW):** the sweep's orphan-reserved skip — the og's inode-table harvest
+  filter (FUN_180005e50 :4415-21, first-hand, corrected decode: skip iff `i_size_lo==0 ∨
+  ¬EXTENTS_FL ∨ magic≠0xF30A ∨ eh_entries==0` — the +0x2A word is eh_entries, NOT the
+  depth) applies NO dtime/links predicate; the core's `dtime==0 && links!=0` skip
+  (`cr_ext4_engine.cpp:1260-61` at the re-verified pin) drops the orphan-active population
+  (links>0, dtime==0, unreachable from the dir tree — the lost-file population a deep scan
+  exists for), unregistered. The og-side emission chain for unclaimed harvest was traced to
+  the filter, the +0x4a8 map, and the finalize pattern — the fix plan's first test
+  falsifies it end-to-end. Distinct from M-143's journal-inode harvest (the image branch).
+  Evidence: `s79-lead-verification.md` §A.
+---
+
+## Session-82 addendum — M-152 FIXED: the orphan-active population surfaces (2026-10-29)
+
+**The sweep's orphan-reserved skip is gone.** The og's per-inode harvest
+filter (EXT4SearchDLL :4415-4421, re-verified first-hand) gates on the
+content shape alone — i_size_lo, EXTENTS_FL, the 0xF30A magic,
+eh_entries — with NO deleted-state predicate; the harvested set resolves
+against the live tree (the claim resolution), so orphan-actives (dtime
+0, links != 0, referenced by no directory — the lost-file population the
+deep scan exists for) surface as recoverable entries. The core's sweep
+now harvests the same population: the `dtime == 0 && links != 0` skip is
+removed, the visited-inodes guard is the claim resolution, the journal
+inode is claimed before the sweep (engine state, not a result), and the
+regular/dir mode gate stays as the registered D-153 hardening (renumbered from the born-collided D-150 seat at the S84 repair).
+**B1/B5: MATCH.** Tests: OrphanActiveInodeSurfacesInSweep /
+OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds (RED->GREEN);
+the new orphan_admitted counter surfaces the population; ext4 family
+56/56.
+
+---
+
+## Session-83 addendum — M-152 FIXED: the orphan-active population surfaces (2026-10-29)
+
+**The skip is gone.** The core's `dtime==0 && links!=0` "orphan-reserved"
+skip dropped exactly the population the og's predicate-free filter
+admits. Corpus re-verified FIRST-HAND from the raw asm this session
+(objdump over EXT4SearchDLL.dll; the filter at FUN_180005e50's sweep loop
+0x180005f5d-0x180005f87: `cmp [r14+0x4],0` / `test [r14+0x20],0x80000` /
+`cmp [r14+0x28],0xF30A` / `cmp [r14+0x2a],0` — the four content gates,
+byte-exact, NO dtime (+0x14) or links (+0x1A) read anywhere in the loop).
+
+The landing: the population split (dtime-set-or-links-0 → deleted_inodes,
+unchanged; dtime==0 && links!=0 → the new orphan_inodes counter); both
+surface under the deleted root with Origin::Structured and the existing
+extent/bitmap confidence grading; the orphan-actives carry the honest
+DeletedState::Active (no deletion evidence on the inode). The live-claim
+dedup holds (visited_inodes — the og resolves claims the same way); the
+mode gate stays as the registered hardening; the journal inode is claimed
+by the journal machinery (PARITY-DELTAS D-163's claim row; the mode-gate half of the old D-152 combined section is D-153). RED→GREEN
+first-hand: the old skip line reintroduced alone fails
+OrphanActiveInodeSurfacesInSweep (:2500/:2506) and
+SweepStatsCountOrphanAdmissions (:2576); the fix lands all 49 Ext4Engine
+tests green. Tests: OrphanActiveInodeSurfacesInSweep /
+OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds /
+SweepStatsCountOrphanAdmissions.

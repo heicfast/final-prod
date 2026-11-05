@@ -5,6 +5,8 @@
 
 #include "cr/win/cr_bitlocker.h"
 #include "cr/cr_error.h"
+#include "cr/health/cr_fve_policy.h" /* M-105 option (a): the denial diagnosis */
+#include "cr/win/cr_elevate.h"       /* M-105 option (a): the TokenElevation probe */
 #include "cr/reghive/cr_reghive.h"
 #include <windows.h>
 #include <vector>
@@ -148,6 +150,21 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     return OK;
 }
 
+/* M-078: the CBitlockerTurnOffOperation endpoint - the consented
+ * destructive op (decrypt, never bypass). The same dual-command shape as
+ * unlock(): PowerShell primary, manage-bde legacy fallback. The 10-minute
+ * bound is generous for the REQUEST (both verbs schedule the decrypt and
+ * return; the OS continues in the background - manage-bde's own
+ * documented shape, noted in the header contract). */
+u32 turn_off(wchar_t letter) {
+    int rc = run_command(detail::build_turn_off_command(letter, false), 600000);
+    if (rc != 0)
+        rc = run_command(detail::build_turn_off_command(letter, true), 600000);
+    if (rc != 0)
+        return ERR_FVE_LOCKED; /* the loud refusal - never a silent success */
+    return OK;
+}
+
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow. The EXPLICIT CONSENT ACTION: callers are the host's user-initiated
  * unlock surfaces only (CLI --bitlocker-dict / the cr_ui action); the
@@ -274,11 +291,21 @@ bool read_file_bytes(const wchar_t* path, std::vector<u8>& out) {
 /* Harvest the FVEAutoUnlock family from an offline hive file (the og's
  * bitlockerhelp flow). Returns false when the file is missing/unreadable
  * or the hive does not validate (the og's RegAPI::OpenHive rejects
- * bad-magic/bad-checksum hives - RegLib_decompiled.c:2376-2377). */
-bool harvest_offline_keys(const wchar_t* hive_path, std::vector<reghive::AutoUnlockKey>& out) {
+ * bad-magic/bad-checksum hives - RegLib_decompiled.c:2376-2377).
+ * M-105 option (a): `open_err` (optional) carries the file open's error
+ * code so the caller can distinguish an ACL denial (ERROR_ACCESS_DENIED:
+ * the hive file EXISTS but this token cannot read it) from an absent or
+ * invalid hive - the input side of health::fve_denial_diagnosis. */
+bool harvest_offline_keys(const wchar_t* hive_path, std::vector<reghive::AutoUnlockKey>& out,
+                          DWORD* open_err = nullptr) {
+    if (open_err != nullptr)
+        *open_err = 0;
     std::vector<u8> bytes;
-    if (!read_file_bytes(hive_path, bytes))
+    if (!read_file_bytes(hive_path, bytes)) {
+        if (open_err != nullptr)
+            *open_err = GetLastError(); /* the CreateFileW failure code */
         return false;
+    }
     reghive::RegistryHive hive;
     if (!hive.open(bytes.data(), bytes.size()))
         return false; /* not a valid regf hive - the og rejects it too */
@@ -317,6 +344,22 @@ namespace detail {
 /* The unlock command builder (N-064 test seam; the command grammar is
  * unchanged from the S-014 landing - PowerShell primary, manage-bde legacy
  * fallback, key material quoted). */
+std::wstring build_turn_off_command(wchar_t letter, bool legacy_manage_bde) {
+    std::wstring mount;
+    mount.push_back(letter);
+    mount += L":";
+    /* the unlock form's own shape (build_unlock_command below): the
+     * literal ends at the argument boundary and quote() supplies BOTH
+     * quotes - a manual quote before it doubled them into a PowerShell
+     * arg breakage (-MountPoint ""X:"") the release-27 validation's
+     * TurnOffCommandConstruction pin caught (the test battery had never
+     * completed a Windows run - every prior lane's push cancelled it) */
+    if (!legacy_manage_bde)
+        return L"powershell -NoProfile -NonInteractive -Command \"Disable-BitLocker -MountPoint " +
+               quote(mount) + L"\"";
+    return L"manage-bde -off " + mount;
+}
+
 std::wstring build_unlock_command(wchar_t letter, int key_type, const std::wstring& key_or_path,
                                   bool legacy_manage_bde) {
     std::wstring mount;
@@ -442,12 +485,22 @@ u32 apply_auto_unlock_keys(wchar_t letter, const std::vector<reghive::AutoUnlock
 #endif // _WIN32
 
 u32 try_auto_unlock(wchar_t letter) {
+    /* M-105 option (a): the harvest's denial evidence, gathered for the
+     * diagnosis (health::fve_denial_diagnosis) - "the store exists but
+     * this token cannot read it" vs "no keys configured". The live
+     * open returns ERROR_FILE_NOT_FOUND for an ABSENT store; an existing
+     * SYSTEM-ACL'd store returns ERROR_ACCESS_DENIED to a non-elevated
+     * token - the exact population the og's transient LocalSystem service
+     * existed to serve, surfaced here as the elevation claim instead. */
+    bool live_denied = false;
+    bool offline_denied = false;
     /* Live registry first: the og's DRWService path
      * (SYSTEM\CurrentControlSet\Control\FVEAutoUnlock; S-014 fixed the
      * pre-fix Services\... path). Per-volume-GUID subkeys, "Data" blobs. */
     {
         HKEY k = nullptr;
-        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, kFveLivePath, 0, KEY_READ, &k) == ERROR_SUCCESS) {
+        const LSTATUS live_rc = RegOpenKeyExW(HKEY_LOCAL_MACHINE, kFveLivePath, 0, KEY_READ, &k);
+        if (live_rc == ERROR_SUCCESS) {
             std::vector<reghive::AutoUnlockKey> keys;
             detail::enum_auto_unlock_keys(k, keys);
             RegCloseKey(k);
@@ -455,6 +508,8 @@ u32 try_auto_unlock(wchar_t letter) {
             const u32 rc = apply_keys(letter, keys, guid, nullptr, nullptr);
             if (rc == OK)
                 return OK;
+        } else if (live_rc == ERROR_ACCESS_DENIED) {
+            live_denied = true; /* the store is present, the token cannot read it */
         }
     }
     /* Offline probe (the og's bitlockerhelp flow): every OTHER mounted
@@ -478,10 +533,14 @@ u32 try_auto_unlock(wchar_t letter) {
                 _snwprintf_s(hive, MAX_PATH, _TRUNCATE, L"%c:%s", c, kOfflineHiveRel);
                 if (GetFileAttributesW(hive) != INVALID_FILE_ATTRIBUTES) {
                     std::vector<reghive::AutoUnlockKey> keys;
-                    if (harvest_offline_keys(hive, keys)) {
+                    DWORD open_err = 0;
+                    if (harvest_offline_keys(hive, keys, &open_err)) {
                         const u32 rc = apply_keys(letter, keys, guid, nullptr, nullptr);
                         if (rc == OK)
                             return OK;
+                    } else if (open_err == ERROR_ACCESS_DENIED) {
+                        offline_denied = true; /* the hive file is present,
+                                                * the token cannot read it */
                     }
                 }
             }
@@ -490,15 +549,23 @@ u32 try_auto_unlock(wchar_t letter) {
             ++i; /* skip the NUL separator */
         }
     }
-    return ERR_FVE_LOCKED;
+    /* the M-105 diagnosis: distinguish "no keys configured" (the loud
+     * ERR_FVE_LOCKED refusal, unchanged) from "keys exist but unreadable
+     * by this token" (ERR_FVE_ELEVATION_REQUIRED) */
+    return health::fve_denial_diagnosis(live_denied, offline_denied, win::is_elevated());
 }
 
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path) {
     if (hive_path == nullptr || hive_path[0] == L'\0')
         return ERR_FVE_LOCKED;
     std::vector<reghive::AutoUnlockKey> keys;
-    if (!harvest_offline_keys(hive_path, keys))
-        return ERR_FVE_LOCKED; /* unreadable or invalid hive (og rejects too) */
+    DWORD open_err = 0;
+    if (!harvest_offline_keys(hive_path, keys, &open_err)) {
+        /* unreadable or invalid hive (og rejects too); the M-105 seam:
+         * an ACL denial on a PRESENT hive file is the elevation claim */
+        return health::fve_denial_diagnosis(false, open_err == ERROR_ACCESS_DENIED,
+                                            win::is_elevated());
+    }
     const std::string guid = target_volume_guid(letter);
     return apply_keys(letter, keys, guid, nullptr, nullptr);
 }

@@ -21,6 +21,7 @@
 #include "../tree/cr_node.h"
 #include "../session/cr_crsf.h"
 #include "../session/cr_records.h"
+#include "cr/carve/cr_carve.h"
 #include "cr/lost/cr_lostpart.h"
 #include "cr/check/cr_fscheck.h"
 #include "cr/repair/cr_rawfixer.h"
@@ -114,8 +115,19 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *  - Stage transitions fire in scan order, exactly once each. Progress
  *    samples fire when the overall permille advances (coalesced, <= 1000
  *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
- *    samples (the engines do not publish per-file increments); the
+ *    samples (the engines do not publish per-file increments) - but the
+ *    ScanProgress samples carry LIVE-refreshed counters (N-166: the
+ *    attach-time tree counter's delta over the boundary total is
+ *    attributed to the active stage's counter, so mid-stage counts MOVE
+ *    like the og's ~2 s grid cadence; the boundary stamps stay the
+ *    authoritative close-of-stage sample); the
  *    error-map delta carries the newest appended range plus the
+ *    per scan plus stage flips). Files/carved counters on events are
+ *    LIVE-REFRESHED from the tree's atomic attach counters (N-166: they
+ *    move mid-stage, monotonically; the og's "Files Found" parity) —
+ *    deleted_found stays a STAGE-BOUNDARY sample (the engines assign
+ *    the deleted-state after the attach); the error-map delta carries
+ *    the newest appended range plus the
  *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
  *    events fire per discovered candidate (deep stage, whole-disk scans).
  *  - Unknown `type` values MUST be ignored by consumers (forward compat). */
@@ -191,6 +203,36 @@ struct ScanConfig {
     StageWeights weights;
     u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
 
+    /* M-118 (diff-to-fix): the register channel's remembered volume
+     * placements (Explorer MountPoints2\\CPC\\Volume history, sector
+     * LBAs). Host-fed: the Windows CLI fills it from the live HKCU walk
+     * (win::mountpoints2_volume_history) when --whole-disk targets a
+     * disk; other hosts/tests feed the offline-hive walk
+     * (reghive::mountpoints2_placements on a saved NTUSER.DAT) or leave
+     * it empty. The orchestrator passes the set into lost::discover's
+     * third-source merge - the og's three-wave assembly
+     * (DRWUI FUN_140588820, real-run DRWUI.log:637-643). */
+    std::vector<u64> register_history_lbas;
+
+    /* M-073 (diff-to-fix): the scan-time folder filter - the og's
+     * PushFolderFilter (UIUX/31:142, runtime-verified: the filter
+     * condition is pushed INTO the scan controller at scan start, so
+     * pre-set filters constrain incremental tree insertion, not just the
+     * post-hoc results view). UTF-8 path prefixes, volume-root relative,
+     * '/' or '\\' separated, ASCII case-insensitive; empty = OFF. The
+     * orchestrator prunes out-of-prefix subtrees at every stage boundary
+     * BEFORE the checkpoint emit (cr_folderfilter.h): sessions,
+     * checkpoints, snapshots, queries and recovery never carry
+     * out-of-scope folders, and the stage counters are decremented to
+     * match the pruned tree (the presented tree is the truth). The
+     * carve root and the pathless "File Path Lost" root are exempt
+     * (pathless content has no folder to filter - the scoping decision
+     * registered with the finding). Ordering with M-018's FilterFolder:
+     * this prune runs first (stage boundaries); the junk hidden-set pass
+     * stays post-walk, pre-grading - the two compose without
+     * double-counting. */
+    std::vector<std::string> filter_folders;
+
     /* ---- pre-scan repair (S-008; corpus RawFixer pre-scan position:
      * repair, then scan) ----
      * OFF by default (CLI default; the reference UI flow enables it with
@@ -234,9 +276,41 @@ struct ScanConfig {
     bool pre_scan_check = false;
 
     /* Volume label for the session VolumeInfo (G-14). Supplied by the
-     * caller (the CLI/win layer reads it from the volume entry; engines
-     * never own it). UTF-8, NUL-padded into the session record. */
-    char volume_label[32] = {0};
+     * caller; engines never own it. The CLI fills it at scan setup
+     * (M-079): the explicit `--label S` override wins, else the --volume
+     * target's GetVolumeInformationW label, else the --image filename
+     * stem; whole-disk scans leave it empty (the timestamp-only
+     * auto_<ts> shape - the og has no whole-disk scan to mirror). ABI
+     * hosts supply it via cr_ui_open_volume's identity card. UTF-8,
+     * NUL-padded into the session record.
+     *
+     * N-133 (the M-079 premise correction): the og's ENGINES decode the
+     * on-disk label (NTFS $Volume / ext4 s_volume_name / the FAT boot
+     * field / the exFAT root dentry) - image scans included. The derived
+     * marker is set by the CLI's image-stem fallback leg; the
+     * orchestrator's engine pass REPLACES a derived label with the
+     * engine-decoded one (the corrected precedence: --label > engine
+     * on-disk label > image stem). An explicit --label or a live-volume
+     * GetVolumeInformationW label is NOT derived (the OS label IS the
+     * on-disk label for mounted volumes) and is never replaced. */
+    /* N-090: the host label channel at the og's record-2
+     * volumeName[100] width (strncpy(...,99)) - a host-supplied label
+     * up to 99 UTF-8 bytes persists complete (the v6 record tail); the
+     * engine-decoded on-disk labels are inherently <= 32 bytes (the
+     * per-family decoders' own caps - FAT/exFAT 11, ext4 16, NTFS 32
+     * ASCII-substituted), so this width serves the host channel. */
+    char volume_label[100] = {0};
+
+    /* S-048 (diff-to-fix): the scan target volume's drive letter
+     * (UPPERCASE, 0 = absent) - the og's carve-tree volume grouping names
+     * each volume child "<label> (<L>:" + ")" (the real-session forms:
+     * " (H:)" for an empty label with a letter, "System Reserved" for a
+     * label without one). The CLI fills it from the --volume target's
+     * letter; ABI hosts through cr_ui_open_volume's letter. Absent for
+     * --disk/--image targets (whole-disk scans name their per-volume
+     * children through the M-104 tier machinery instead). */
+    char volume_letter = 0;
+    bool volume_label_derived = false; /* the stem fallback: replaceable */
 
     /* Device identity card (SESS-2/GAP-W3-9a): model/serial from the disk
      * enumeration, UTF-8 NUL-padded. Informational - the volume identity
@@ -268,6 +342,23 @@ struct ScanConfig {
      * the resume path recognizes BOTH the default and the configured name
      * so a re-run never spawns a duplicate raw root. */
     char raw_category_name[64] = {0};
+
+    /* W1c (R-52): the completion auto-save DIRECTORY (the og's
+     * auto_<vol>_<M>_<D>_<H>_<m>_<s> SaveScan flow, rsf-format section
+     * 5.5 + UIUX/30:64-67). UTF-8; empty = OFF (zero-init safe).
+     * The WRITE is host-side file I/O by architecture (pure core owns
+     * no file API): cr_ui + the CLI honor this field on run()
+     * COMPLETION (rc == OK) AND on the STOP WINDOW (N-211 re-truth: the
+     * og's own stop path runs its organize into the shared completion
+     * handler - DRWUI :1549399-421 -> :339076-79 -> FUN_140395e50, the
+     * gates at :612571-587 carry no stopped-check, so the stopped
+     * scan's partial results land in the auto session exactly like a
+     * finished run's; S-057's landing, rrecov.cpp autosave_if_due(true))
+     * by saving the standard record
+     * set through their existing save paths under
+     * session::auto_session_name (the N-061 corpus naming + the
+     * name-forbidden-char sanitizer). */
+    char autosave_dir[512] = {0};
 
     /* ---- auto-checkpoint (G-13, issue #9) ----
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
@@ -319,6 +410,11 @@ struct ScanStats {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
+    /* N-133: the engine-decoded on-disk volume label (empty when the
+     * volume is label-less or the family is unknown) - the post-scan
+     * consumers (the CLI/UI auto-save naming) read it to apply the
+     * engine-label > image-stem precedence the finding corrected. */
+    char volume_label[33] = {0};
     u64 bytes_scanned = 0;
     u64 elapsed_ms = 0;
     u64 cached_hits = 0; /* R1.6 pipe counters (diagnostics) */
@@ -337,6 +433,12 @@ struct ScanStats {
      * PushFolderFilter hidden set - OS droppings, metadata noise,
      * localized "New Folder" names, SVI, BitLocker artifacts). */
     u64 junk_filtered = 0;
+    /* M-073: file nodes the scan-time folder filter pruned at the stage
+     * boundaries (the og's AdvanceFilterCondition pushed into the scan
+     * controller - out-of-prefix folders never reach the session; the
+     * counter is the pruned-file total, junk_filtered stays the
+     * hidden-flag total - the two filters compose). */
+    u64 folder_filtered = 0;
 
     /* M-035: lost candidates the engine-side content-consistency scorer
      * rejected (the og's exFAT-only FUN_180025390 rule - majority
@@ -345,8 +447,54 @@ struct ScanStats {
      * (the og's per-hit persistence keeps the find; M-042) but its walked
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
+
+    /* M-137 (diff-to-fix): the og's lost-partition insertion cap
+     * (DRWUI:904229-234 - the scan-target insertion loop breaks after the
+     * 10th candidate, `if (9 < n) break`). lost_candidates stays the FULL
+     * surfaced set (the apply-listing input); inserted counts the ones
+     * that became scan targets this run. The og caps at 10; candidates
+     * beyond the cap remain in the surfaced list (recoverable by the
+     * partition-write path, never scanned). */
+    u64 lost_candidates_inserted = 0;
+
+    /* N-140: the per-format carve tally — the og's GetRawUserInfoMap
+     * per-scan map<extension,count> served pre-computed to the host (the
+     * post-scan "found N .jpg / M .png" breakdown; DRWUI :227538-227625).
+     * Bounded projection over the unified format-id space (grammar rows
+     * [0, carve::registry_size()), raw-sign rows
+     * [registry_size(), +carve::rawsigns::kFormatCount), one aggregate
+     * user-sign slot at the end — the og's map keys user signs by their
+     * dynamic extension strings, unbounded; the aggregate is the honest
+     * fixed-table projection). per_format_slots = the live bound (0 = no
+     * carve stage ran); copied from the carve stage's CarveStats at the
+     * same seam as carved_found; persisted (REC_CARVE_TALLY) so a reloaded
+     * session answers the breakdown without a tree walk. */
+    u64 carve_per_format[carve::CarveStats::kFormatTallyCapacity] = {};
+    u32 carve_per_format_slots = 0;
+    u64 carve_per_format_overflow = 0;
+
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
+
+    /* ---- read-truth accounting (the fake-scan fix; docs/DRIVER-REQUIRED.md
+     * section 7, PARITY-DELTAS D-DRV-6) ----
+     *
+     * bytes_unreadable: total bytes the retry pipe recorded as hard read
+     * failures (the error map's coverage). Skip-mode zero-fill makes those
+     * reads LOOK successful downstream (engines see zeros); this field is
+     * the truth the scan must never hide: coverage is surfaced in the CLI
+     * summary, the JSON output and the log, and a scan whose coverage is
+     * (essentially) the whole slice REFUSES with ERR_READ_FAILED instead
+     * of fake-completing with "0 files found" and exit 0.
+     *
+     * probe_unreadable: sector 0 of the slice could not be read - the
+     * family is Unknown BECAUSE the probe was blind, not because a
+     * filesystem was absent (probe_family cannot distinguish the two by
+     * itself: the retry pipe returns OK with a zeroed buffer). Surfaced
+     * so the host/CLI can say "volume header unreadable - raw/deep
+     * recovery mode" instead of silently implying "no filesystem". */
+    u64 bytes_unreadable = 0;
+    bool probe_unreadable = false;
 
     /* ---- S-009: the engine allocation bitmap (the og's shared
      * IBuildVolumeBitmap truth - "which clusters are free/used",
@@ -404,6 +552,38 @@ struct ScanStats {
     u64 revalidated_candidates = 0;
     u64 dropped_stale_candidates = 0;
     std::vector<session::DiskLayoutEntry> persisted_layout;
+
+    /* ---- S-051: whole-disk target-set accounting ----
+     * The plain whole-disk flow (cr_ui_open_disk + default config, the CLI
+     * `scan --disk N` / `scan --image <whole-disk image>`) reads the
+     * partition list at scan setup and makes every used, non-container
+     * partition a scan target - the og's CDoScanPartition /
+     * CGenericRecoveryController flow (architecture/04-recovery-workflow.md
+     * section 3.4: "reads the partition list, inserts lost partitions as
+     * additional scan targets"). table_volumes: targets built from the
+     * table. table_volumes_scanned: targets whose per-volume probe
+     * identified a family and an engine pass ran. table_volumes_skipped:
+     * targets the probe could not identify (damaged/unformatted) -
+     * skipped HONESTLY (counted here, logged, never fatal, never silent);
+     * the --whole-disk discovery stays the ADDITIONAL lost-partition
+     * flow (a table volume is a primary target, not a lost partition). */
+    u64 table_volumes = 0;
+    u64 table_volumes_scanned = 0;
+    u64 table_volumes_skipped = 0;
+    /* N-161: GPT entries the span gate named invalid (last_lba <
+     * first_lba, or the 2^64-boundary wrap) at whole-disk table parse -
+     * the corrupt-entry population that previously masqueraded as giant
+     * volumes. Diagnostic only; the table's own field carries the same
+     * count for the parse that fed this scan. */
+    u32 gpt_invalid_entries = 0;
+    /* N-167: the found-size truth - the total logical size of every file
+     * the scan attached to the tree (stamped from ResultTree::total_logical
+     * at every stage-boundary count refresh and at completion; distinct
+     * from bytes_scanned, which is I/O truth - carve-true bytes read -
+     * never claimed coverage). The og's completion headline renders
+     * "Files Found: N (X GB)" from exactly this aggregate
+     * (dynamic-ground-truth--scan-phase-captured.md:125). */
+    u64 bytes_found = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -434,6 +614,14 @@ struct ScanTelemetrySnapshot {
     u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
+    /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
+     * from (overall_permille, elapsed_ms) through the whole-run leg
+     * with the EMA-smoothed rate carried between snapshots; -1 = no
+     * estimate yet (the parameter-error or eta<=0 class). Hosts render
+     * og-faithful labels with query::eta_format_m_s + the countdown
+     * pair, no state of their own. */
+    long long eta_seconds = -1;
+    u64 eta_smoothed_rate = 0;
     bool paused = false;
     bool running = false;
     bool cancelled = false;
@@ -488,7 +676,9 @@ public:
      * the drop is a search-start behavior, not a listing one). */
     static u32 load_session(session::Reader& r, tree::ResultTree& tree,
                             ScanStats& stats /*summary only*/,
-                            IStorageDevice* revalidate_disk = nullptr);
+                            IStorageDevice* revalidate_disk = nullptr,
+                            session::DeserializeProgress progress = nullptr,
+                            void* progress_user = nullptr);
 
     /* ---- resume support (G-07) ----
      * Full flow: load the session (tree + stats + summary), validate the
@@ -504,7 +694,9 @@ public:
     static u32 resume(session::Reader& r, tree::ResultTree& tree, const ScanConfig& original_cfg,
                       ScanStats& stats, session::VolumeSessionInfo& info,
                       std::unique_ptr<ScanController>& out,
-                      IStorageDevice* revalidate_disk = nullptr);
+                      IStorageDevice* revalidate_disk = nullptr,
+                      session::DeserializeProgress progress = nullptr,
+                      void* progress_user = nullptr);
 
     /* Load with the full restored summary (G-14/G-23): tree + stats +
      * volume info + lost candidates + completion masks, with the same
@@ -515,7 +707,23 @@ public:
      * the og's at-search-start drop of stale records. */
     static u32 load_session_summary(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
                                     session::VolumeSessionInfo& info,
-                                    IStorageDevice* revalidate_disk = nullptr);
+                                    IStorageDevice* revalidate_disk = nullptr,
+                                    session::DeserializeProgress progress = nullptr,
+                                    void* progress_user = nullptr);
+
+    /* ---- W1a (R-56): the light summary read --------------------------------
+     * Decodes ONLY the container's light records (SESSION_STATE +
+     * VOLUME_INFO); the heavy payloads (RESULT_TREE, ALLOC_MAP,
+     * ERROR_MAP) are skipped BY TYPE via Reader::peek_record - a
+     * directory listing never pays the tree decode (our tree record can
+     * dwarf the whole summary). This is the og's record-2 read
+     * (rsf-format--scan-session.md section 5.2: volumeName + SYSTEMTIME
+     * scanTime + stats) that its LastScanRecordView list runs per file
+     * (UIUX/07-home-phase-deep-dive.md:21). configured_mask follows the
+     * load_session_summary legacy rule (all stages configured when no
+     * VolumeInfo rides the file); honest emptiness flags mirror the
+     * have_* booleans there. */
+    static u32 read_summary(session::Reader& r, session::SessionSummary& out);
 
     /* ---- live telemetry (G-04/G-05/G-06) ----
      * Thread-safe snapshot of the running scan's state; callable from any
@@ -536,11 +744,33 @@ public:
 
     const ScanConfig& config() const { return cfg_; }
 
+    /* ---- S-052: the LDM basis registry --------------------------------
+     * The dynamic-volume devices the scan built (one per reconstructed
+     * layout), heap-owned so they SURVIVE run()'s return (the scan
+     * loop's old stack devices died with the loop - the finding's root
+     * cause). Basis ids are the registry index+1 - the same ids the
+     * scan stamps on the volume roots (ResultTree::set_root_basis).
+     * Consumers: save_session (persists the LAYOUTS), the UI layer
+     * (moves the devices into the session's basis table while the
+     * scan handle lives). The devices borrow their member disks
+     * through cfg.ldm_resolver - whoever owns those devices must
+     * outlive the registry (the UI's ldm_members). */
+    const std::vector<std::unique_ptr<table::LdmVolumeDevice>>& ldm_devices() const {
+        return ldm_devices_;
+    }
+    const std::vector<table::LdmVolumeLayout>& ldm_layouts() const { return ldm_layouts_; }
+
 private:
     /* M-029: the raw/carve category root's role string - the configured
      * display name (cfg_.raw_category_name, the og's "filter_generalraw"
      * surface) when set, the default role otherwise. */
     std::u16string raw_root_name_() const;
+    /* S-048: the carve tree's volume-group display name (the og's
+     * composition - see the ScanConfig::volume_letter note) and the 7
+     * category skeleton folders under the Reconstructed root (the real
+     * sessions' persisted shape; idempotent - existing folders reused). */
+    std::u16string carve_volume_display_name_(FsFamily fam) const;
+    void add_carve_skeleton_();
     u32 run_quick(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*),
                   void* pu, ScanStats& stats);
     u32 run_deep(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*), void* pu,
@@ -567,6 +797,7 @@ private:
         std::chrono::steady_clock::time_point run_t0{};
         std::chrono::steady_clock::time_point stage_t0{};
         u64 stage_pause_base = 0; /* run-wide paused_ms() at stage start */
+        u64 eta_prev_rate = 0;    /* M-126: the EMA state between snapshots */
     };
     /* Engine->stage progress bridge context (raw fn-pointer trampoline). */
     struct StageBridge {
@@ -581,7 +812,11 @@ private:
     void tel_stage_begin_(u32 stage, const CancelToken* cancel);
     void tel_stage_end_(u32 stage, const CancelToken* cancel);
     void tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units, const CancelToken* cancel);
+    void tel_counts_(ScanStats& stats, const CancelToken* cancel);
     void tel_counts_(const ScanStats& stats, const CancelToken* cancel);
+    /* N-166: live-refresh the files/carved counters from the tree's
+     * attach atomics (monotonic; boundary stamps stay authoritative) */
+    void refresh_live_counts_() const;
     /* Post-stamp overall permille (monotonic truth) for the boundary
      * progress calls - NEVER a hardcoded weighted() guess, which could
      * regress below what the bridge already forwarded mid-stage. */
@@ -590,6 +825,11 @@ private:
      * record set). Returns the sink's error on failure (the caller aborts
      * the scan - no silent checkpoint gaps). */
     u32 emit_checkpoint_() const;
+
+    /* M-073: the scan-time folder filter's boundary application (the
+     * prune + the counter/telemetry re-truth; see cr_folderfilter.h).
+     * Runs between stages, before emit_checkpoint_. */
+    void apply_folder_filter_(ScanStats& stats);
 
     /* ---- typed event stream (GAP-S6-10) ----
      * emit_event_ fills the common fields (stage/timestamp) and calls the
@@ -618,10 +858,17 @@ private:
 
     tree::ResultTree& tree_;
     ScanConfig cfg_;
+    /* S-052: the dynamic-volume registry (see ldm_devices()) */
+    std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices_;
+    std::vector<table::LdmVolumeLayout> ldm_layouts_;
     tree::FullNode* root_found_ = nullptr;
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
     tree::FullNode* root_carved_ = nullptr;
+    /* S-049: the scan-wide per-prefix name counters - one instance per
+     * ScanController, bound into every slice's CarveFlags (the og's
+     * session-wide DRWUI counter map). */
+    carve::CarveNameCounters name_counters_;
     bool quick_done_ = false; /* quick stage completed its engine pass (ARCH-7) */
     /* actual stage completion for stage_done_mask truth (G-07 resume) */
     bool deep_extras_done_ = false; /* remnant sweep + lost discovery done */
@@ -665,6 +912,34 @@ private:
      * disk-relative; a volume-basis re-read would be the wrong arbiter). */
     std::vector<session::DiskLayoutEntry> disk_layout_;
     bool resumed_whole_disk_ = false;
+    /* S-051: whether the HOST asserted a family (cfg_.fs_hint != Unknown
+     * at run() entry, BEFORE the LBA-0 probe mutates it). A host-forced
+     * family keeps the single dispatch (the explicit slice assertion -
+     * the RUN 3 control's honest ERR_OPEN_FAILED); a probe result (or a
+     * probe ALIAS - the FAT heuristic can fire on MBR boot-code bytes at
+     * +0x0B on a table-bearing LBA 0, which by definition is not a
+     * volume) routes to the whole-disk table-target flow. */
+    bool host_fs_hint_ = false;
+    /* S-051: the start LBAs of table volumes the whole-disk flow ALREADY
+     * SCANNED as primary partition-list targets (the og's CDoScanPartition
+     * flow - architecture/04 §3.4). The deep stage's lost-partition
+     * discovery re-finds in-table boot sectors as +500 table-match
+     * candidates (cr_candidates.cpp's "Found once partition" bonus); a
+     * candidate whose start matches a scanned target is dropped BEFORE
+     * materializing it - each volume is scanned exactly once (the
+     * no-double-scan acceptance). MERGE NOTE (this lane's semantics kept):
+     * a target skipped honestly (probe found no FS) is NOT recorded here,
+     * so discovery still gets its chance on the damaged volume (the og's
+     * lost partitions are ADDITIONAL targets, never replacements). */
+    std::vector<u64> table_target_lbas_;
+    /* M-137: the og's per-scan unnamed-partition counter (DRWUI:634817-838
+     * - the "Lost Partition %d(%s)" template's counter at +0x400 on the
+     * scan object, incremented per UNNAMED candidate) + the scan-target
+     * context the presentation rows carry (the table parse + LDM probe
+     * results, stamped onto every candidate at discovery time). */
+    u32 lost_name_counter_ = 0;
+    u32 seen_table_layout_ = 0; /* table::TableLayout (0 = none parsed) */
+    bool seen_ldm_ = false;
 };
 
 } // namespace orchestrator

@@ -10,7 +10,10 @@
  */
 #include <gtest/gtest.h>
 #include "cr/exfat/cr_exfat_engine.h"
+#include "cr/orchestrator/cr_scan.h"
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_slice.h"
+#include "test_fixtures.hpp"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -59,327 +62,16 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
 
 /* published algorithm (spec): 16-bit rotate-add */
 
+/* S-051 extraction: SetBuilder / exfat_test_upcase_table_checksum /
+ * build_exfat_image now live in test_fixtures.hpp (shared with the
+ * whole-disk orchestrator fixtures); the local copies were removed -
+ * the using-declarations keep every call site below unchanged. */
+using cr::testfixture::build_exfat_image;
+using cr::testfixture::exfat_test_upcase_table_checksum;
+using cr::testfixture::SetBuilder;
 constexpr u32 EXFAT_TEST_TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00:
     every field in range - M-014's timestamp gates reject zero-day/garbage
     stamps, so planted sets carry a realistic stamp like real media */
-
-struct SetBuilder {
-    std::vector<u8> entries;
-    size_t name_entry_first_ = 0; /* S-013: first name-entry offset (multi-chunk flip) */
-
-    void file_entry(u16 attribute, u32 ts, u8 tz = 0) {
-        u8* e = add();
-        e[0] = 0x85;
-        e[1] = 2;                         /* secondary count: stream + 1 name */
-        put16(entries, cur_off() + 2, 0); /* checksum filled later */
-        put16(entries, cur_off() + 4, attribute);
-        put32v(entries, cur_off() + 8, ts);  /* create */
-        put32v(entries, cur_off() + 12, ts); /* modify */
-        put32v(entries, cur_off() + 16, ts); /* access */
-        e[20] = 0;
-        e[21] = 0; /* 10ms */
-        /* tz bytes at +0x16/+0x17/+0x18 (create/modify/access). S-011
-         * fixtures set them to prove the engine does NOT apply them (og
-         * parity: the bytes are parsed but ignored). */
-        e[22] = tz;
-        e[23] = tz;
-        e[24] = tz;
-    }
-    void file_entry_deleted(u16 attribute, u32 ts) {
-        file_entry(attribute, ts);
-        entries[cur_off()] = 0x05;
-    }
-    void stream_entry(u8 flags, u8 name_len, u32 first_cluster, u64 data_len) {
-        u8* e = add();
-        e[0] = 0xC0;
-        e[1] = flags;
-        e[3] = name_len;
-        put64(entries, cur_off() + 8, data_len); /* valid data len */
-        put32v(entries, cur_off() + 20, first_cluster);
-        put64(entries, cur_off() + 24, data_len);
-    }
-    void stream_entry_deleted(u8 flags, u8 name_len, u32 first_cluster, u64 data_len) {
-        stream_entry(flags, name_len, first_cluster, data_len);
-        entries[cur_off()] = 0x40;
-    }
-    void name_entry(const char16_t* nm) {
-        std::u16string n = nm;
-        /* S-013 fixture: names longer than 15 chars span ceil(len/15)
-         * name entries (spec 7.6.3 chunked UTF-16), 15 chars each */
-        const size_t chunks = (n.size() + 14) / 15;
-        name_entry_first_ = entries.size();
-        for (size_t c = 0; c < chunks; ++c) {
-            u8* e = add();
-            e[0] = 0xC1;
-            for (size_t i = 0; i < 15; ++i) {
-                const size_t idx = c * 15 + i;
-                put16(entries, cur_off() + 2 + i * 2, idx < n.size() ? n[idx] : 0);
-            }
-        }
-    }
-    void name_entry_deleted(const char16_t* nm) {
-        name_entry(nm);
-        /* flip EVERY name entry of this name (multi-chunk sets) */
-        for (size_t o = name_entry_first_; o < entries.size(); o += 32)
-            entries[o] = 0x41;
-    }
-    /* fill SetCheckSum over the built set (excluding the +2 field) */
-    void finish_set(std::vector<u8>& root, size_t set_at) {
-        /* normalize the secondary-count byte to the real entry count
-         * (S-013: multi-name sets change the count; single-name callers
-         * are unaffected: 2 == 3 entries - 1) */
-        entries[1] = u8(entries.size() / 32 - 1);
-        /* compute over the set bytes, skipping the +2 checksum field */
-        u16 sum = 0;
-        for (size_t b = 0; b < entries.size() * 32; ++b) {
-            if (b >= 2 && b < 4)
-                continue;
-            sum = static_cast<u16>(((sum & 1) ? 0x8000u : 0u) + (sum >> 1) +
-                                   *(root.data() + set_at + b));
-        }
-        put16(root, set_at + 2, sum);
-    }
-
-    size_t set_off = 0; /* offset within entries where the SET starts */
-
-private:
-    u8* add() {
-        entries.resize(entries.size() + 32, 0);
-        return entries.data() + entries.size() - 32;
-    }
-    size_t cur_off() const { return entries.size() - 32; }
-};
-
-/* N-067 helper: the fixture's 64-entry upcase table (a-z folded) and its
- * exact checksum32 stamp - the dentry and the stream stay consistent by
- * construction. Mirrors the bytes build_exfat_image plants at cluster 60. */
-u32 exfat_test_upcase_table_checksum() {
-    std::vector<u8> tbl(128, 0);
-    for (u32 i = 0; i < 64; ++i) {
-        const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
-        tbl[i * 2] = u8(ch);
-        tbl[i * 2 + 1] = u8(ch >> 8);
-    }
-    return checksum32(tbl.data(), u32(tbl.size()), 0);
-}
-
-std::vector<u8> build_exfat_image(u8 tz = 0) {
-    /* 2048 sectors (1MB) - spec minimum volume size; layout keeps the
-     * small fixture geometry inside (heap 25..124, rest unused) */
-    std::vector<u8> img(u64(2048) * 512, 0);
-
-    /* ---- boot sector (main at 0, backup at 12) ---- */
-    u8* b = img.data();
-    b[0] = 0xEB;
-    b[1] = 0x76;
-    b[2] = 0x90;
-    std::memcpy(b + 3, "EXFAT   ", 8);
-    /* MustBeZero 11..63 stays zero */
-    put64(img, 64, 0);    /* partition offset */
-    put64(img, 72, 2048); /* volume length (spec min 1MB) */
-    put32v(img, 80, 24);  /* fat offset */
-    put32v(img, 84, 1);   /* fat length */
-    put32v(img, 88, 25);  /* cluster heap offset */
-    put32v(img, 92, 100); /* cluster count */
-    put32v(img, 96, 2);   /* root first cluster */
-    put32v(img, 100, 0x12345678);
-    put16(img, 104, 0x0100); /* fs revision 1.00 */
-    put16(img, 106, 0);      /* volume flags */
-    b[108] = 9;              /* 512B sectors */
-    b[109] = 0;              /* 1 sector per cluster */
-    b[110] = 1;              /* 1 FAT */
-    b[111] = 0x80;
-    b[112] = 0xFF; /* percent in use: n/a */
-    b[510] = 0x55;
-    b[511] = 0xAA;
-    std::memcpy(img.data() + 12 * 512, b, 512); /* backup copy */
-
-    /* extended boot sectors 1..8 / 13..20: 0xAA550000 at +508 */
-    for (u32 s = 1; s <= 8; ++s) {
-        img[s * 512 + 508] = 0x00;
-        img[s * 512 + 509] = 0x00;
-        img[s * 512 + 510] = 0x55;
-        img[s * 512 + 511] = 0xAA;
-        img[(12 + s) * 512 + 508] = 0x00;
-        img[(12 + s) * 512 + 509] = 0x00;
-        img[(12 + s) * 512 + 510] = 0x55;
-        img[(12 + s) * 512 + 511] = 0xAA;
-    }
-    /* boot-region checksum: over sectors 0..10, bytes 106/107/112 of
-     * sector 0 skipped entirely (spec 3.1.14.1); FILL-REPEATED at 11/23 */
-    u32 chk = 0;
-    for (u32 s = 0; s <= 10; ++s) {
-        for (u32 i = 0; i < 512; ++i) {
-            if (s == 0 && ((i >= 106 && i < 108) || i == 112))
-                continue;
-            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + img[s * 512 + i];
-        }
-    }
-    for (u32 k = 0; k < 128; ++k) {
-        put32v(img, 11 * 512 + k * 4, chk);
-        put32v(img, 23 * 512 + k * 4, chk);
-    }
-
-    /* ---- FAT (sector 24) ---- */
-    const size_t FAT = 24 * 512;
-    put32v(img, FAT + 2 * 4, 3);          /* root chain: 2 -> 3 */
-    put32v(img, FAT + 3 * 4, 0xFFFFFFFF); /* root EOC */
-    put32v(img, FAT + 20 * 4, 21);
-    put32v(img, FAT + 21 * 4, 22);
-    put32v(img, FAT + 22 * 4, 0xFFFFFFFF); /* doc.txt 20-22 */
-    put32v(img, FAT + 50 * 4, 0xFFFFFFFF); /* bitmap */
-    put32v(img, FAT + 60 * 4, 0xFFFFFFFF); /* upcase table */
-    put32v(img, FAT + 70 * 4, 0xFFFFFFFF); /* subdir */
-
-    /* ---- allocation bitmap at cluster 50 (sector 75) ----
-     * M-054: the on-disk bitmap's bit i describes cluster i+2 (MS exFAT
-     * spec section 7.1) - setbit(c) writes the bit FOR cluster c. */
-    {
-        const size_t BM = 25 * 512 + (50 - 2) * 512;
-        auto setbit = [&](u32 c) {
-            const u32 bit = c - 2; /* cluster c -> bit c-2 (spec) */
-            img[BM + bit / 8] |= u8(1u << (bit % 8));
-        };
-        setbit(2);
-        setbit(3); /* root (2-cluster chain) */
-        setbit(10);
-        setbit(11); /* photo.jpg */
-        setbit(20);
-        setbit(21);
-        setbit(22); /* doc.txt */
-        setbit(50); /* bitmap itself */
-        setbit(60); /* upcase table */
-        setbit(70); /* subdir */
-        setbit(80); /* inner.txt */
-        setbit(40); /* over.dat's cluster: REUSED */
-        /* 30 (gone.dat) NOT set */
-    }
-
-    /* ---- root dir at cluster 2 (sector 25) ---- */
-    const size_t ROOT = 25 * 512;
-    size_t at = 0;
-    const u32 TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00 local */
-
-    /* 0x81 bitmap dentry */
-    {
-        u8* e = img.data() + ROOT;
-        std::memset(e, 0, 32);
-        e[0] = 0x81;
-        e[1] = 0;
-        put32v(img, ROOT + 20, 50);
-        put64(img, ROOT + 24, 13); /* (100+7)/8 */
-        at += 32;
-    }
-    /* 0x82 upcase: a REAL 64-entry table at cluster 60 with its exact
-     * checksum32 stamp (N-067: the volume-integrity pass validates this
-     * stream; corrupt-checksum variants mutate the dentry/bytes). */
-    {
-        u8* e = img.data() + ROOT + at;
-        std::memset(e, 0, 32);
-        e[0] = 0x82;
-        put32v(img, ROOT + at + 4, exfat_test_upcase_table_checksum());
-        put32v(img, ROOT + at + 20, 60);
-        put64(img, ROOT + at + 24, 128);
-        /* the table bytes at cluster 60 = sector 83: 64 u16 upcase
-         * entries, ASCII a-z folded (identical bytes to the checksum
-         * helper above) */
-        for (u32 i = 0; i < 64; ++i) {
-            const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
-            put16(img, 83 * 512 + i * 2, char16_t(ch));
-        }
-        at += 32;
-    }
-    /* 0x83 volume label */
-    {
-        u8* e = img.data() + ROOT + at;
-        std::memset(e, 0, 32);
-        e[0] = 0x83;
-        e[1] = 7;
-        const char16_t* lbl = u"TESTVOL";
-        for (int i = 0; i < 7; ++i)
-            put16(img, ROOT + at + 2 + i * 2, lbl[i]);
-        at += 32;
-    }
-    /* photo.jpg: live NoFatChain (clusters 10-11, 1024B). Carries the
-     * caller's tz bytes (S-011: non-zero values prove the engine leaves
-     * them unapplied). */
-    {
-        SetBuilder sb;
-        size_t set_at = ROOT + at;
-        sb.file_entry(0x20, TS, tz);
-        sb.stream_entry(0x03 /*AllocPossible|NoFatChain*/, 9, 10, 1024);
-        sb.name_entry(u"photo.jpg");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-        at += u32(sb.entries.size());
-    }
-    /* doc.txt: live FAT chain 20-22 (1536B) */
-    {
-        SetBuilder sb;
-        size_t set_at = ROOT + at;
-        sb.file_entry(0x20, TS);
-        sb.stream_entry(0x01 /*AllocPossible, FAT chain*/, 7, 20, 1536);
-        sb.name_entry(u"doc.txt");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-        at += u32(sb.entries.size());
-    }
-    /* gone.dat: DELETED NoFatChain (cluster 30, 512B; bitmap free).
-     * M-013: the checksum IS stamped (finish_set) - a real deleted set
-     * keeps its original SetChecksum field (deletion only clears the
-     * InUse bits; the og's dual-form gate expects the restored form to
-     * match it). The old "no checksum validation" comment encoded
-     * N-003's refuted premise. */
-    {
-        SetBuilder sb;
-        size_t set_at = ROOT + at;
-        sb.file_entry_deleted(0x20, TS);
-        sb.stream_entry_deleted(0x03, 8, 30, 512);
-        sb.name_entry_deleted(u"gone.dat");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-        at += u32(sb.entries.size());
-    }
-    /* over.dat: DELETED NoFatChain (cluster 40; bitmap SET -> Overwritten) */
-    {
-        SetBuilder sb;
-        size_t set_at = ROOT + at;
-        sb.file_entry_deleted(0x20, TS);
-        sb.stream_entry_deleted(0x03, 8, 40, 512);
-        sb.name_entry_deleted(u"over.dat");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-        at += u32(sb.entries.size());
-    }
-    /* subdir: live dir (FAT chain, cluster 70, 512B) */
-    {
-        SetBuilder sb;
-        size_t set_at = ROOT + at;
-        sb.file_entry(0x10 /*Directory*/, TS);
-        sb.stream_entry(0x01, 6, 70, 512);
-        sb.name_entry(u"subdir");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-        at += u32(sb.entries.size());
-    }
-    /* end of directory: a zero entry follows (image is zero-filled) */
-
-    /* ---- subdir content at cluster 70 (sector 93) ---- */
-    {
-        const size_t SUB = 25 * 512 + (70 - 2) * 512;
-        SetBuilder sb;
-        size_t set_at = SUB;
-        sb.file_entry(0x20, TS);
-        sb.stream_entry(0x03, 9, 80, 256);
-        sb.name_entry(u"inner.txt");
-        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, set_at);
-    }
-    /* content markers */
-    std::memcpy(img.data() + 25 * 512 + (10 - 2) * 512, "PHOTODATA", 9);
-    std::memcpy(img.data() + 25 * 512 + (80 - 2) * 512, "INNERDATA", 9);
-    return img;
-}
 
 std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
     std::vector<tree::FileNode*> all;
@@ -395,6 +87,199 @@ std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
 }
 
 } // namespace
+
+/* ---- S-066: the recognition re-base off the surviving backup boot ------ */
+
+TEST(ExfatEngine, LostAnchorBackupBootRebasedToTrueStart) {
+    /* The og's ladder (FUN_180001630 :341-420): a scan anchor whose +12
+     * backup FAILS the full structural gates is presumed to BE the
+     * backup boot (exFAT places it exactly 12 sectors after the
+     * primary); the FAT media words {FAT[0],FAT[1]} =
+     * {0xFFFFFFF8,0xFFFFFFFF} at (base-12)+fat_offset confirm the true
+     * base and the volume re-bases (base -= 12, :377-378). Fixture: the
+     * primary boot destroyed, the slice opens at LBA 12 - the pre-fix
+     * core read the FAT and heap 12 sectors off (garbage chains). */
+    auto img = build_exfat_image();
+    /* spec-correct FAT media words at the TRUE FAT (sector 24) */
+    testfixture::fx_put32v(img, 24 * 512 + 0, 0xFFFFFFF8u);
+    testfixture::fx_put32v(img, 24 * 512 + 4, 0xFFFFFFFFu);
+    /* destroy the primary boot (sector 0) - the damage class */
+    std::memset(img.data(), 0xFF, 512);
+
+    /* the lost-partition slice at the surviving backup boot (LBA 12) */
+    MemDevice disk(std::move(img));
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&disk, 12 * 512, disk.size() - 12 * 512, &err);
+    ASSERT_NE(nullptr, slice);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK,
+              scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+        << "the re-based volume opens and scans";
+    EXPECT_EQ(1u, stats.base_shifted) << "the shift is surfaced, never silent";
+    /* the full tree: the re-based offsets (fat 24-12, heap 25-12,
+     * slice-relative) land on the TRUE FAT/heap - the fixture's files
+     * all surface (the pre-fix 12-off read produced garbage chains) */
+    tree::FileNode* doc = nullptr;
+    for (auto* n : collect_all(tree))
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    ASSERT_NE(doc, nullptr) << "the re-based chain walk finds the fixture's files";
+    /* doc.txt spans clusters 20-22 (contiguous): the extent anchors at
+     * the TRUE heap position (slice-relative (25-12) + (20-2) sectors,
+     * i.e. disk sector 25+18 = 43) */
+    ASSERT_EQ(1u, doc->props()->extents.size());
+    EXPECT_EQ(doc->props()->extents[0].offset, u64(43 * 512 - 12 * 512))
+        << "slice-relative extent = the true position minus the slice base";
+}
+
+/* ---- N-198: the three core-only boot-gate bounds, pinned deliberate -- */
+
+TEST(ExfatEngine, HardeningBoundsPinned) {
+    /* N-198 (PARITY-DELTAS D-144): the og's exFAT boot gates (FUN_180021e80
+     * :28180-28210, re-read first-hand) require the four size fields to be
+     * merely NONZERO (plus ordering/fit) - no numeric floors. The core adds
+     * three bounds the og does not have, all FP-suppression on garbage
+     * boot sectors; no real formatter emits a population in the refused
+     * windows (the boot region is 24 sectors by spec; the spec minimum
+     * volume is 2048 sectors; cluster_count's spec max is 0xFFFFFFF5).
+     * This pin asserts the three refusal edges as DELIBERATE - if a bound
+     * is ever dropped, this test forces the register to be re-truthed. */
+
+    /* edge 1: volume_length in (0, 2048) - ordering-consistent garbage
+     * (fat 24, fat_len 1, heap 25, cc 50: the og's full conjunction
+     * PASSES this boot; the core refuses at the 2048 floor) */
+    {
+        auto img = build_exfat_image();
+        /* patch BOTH boots (main at 0, backup at 12*512) identically so
+         * the S-066 re-base ladder stays inert */
+        for (u64 base : {0u, 12u * 512u}) {
+            testfixture::fx_put64(img, base + 72, 100); /* volume_length */
+            testfixture::fx_put32v(img, base + 92, 50); /* cluster_count */
+        }
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+            << "volume_length < 2048 refuses (the og accepts this boot into its engine)";
+    }
+
+    /* edge 2: fat_offset in [1, 23] - nonzero and ordering-consistent
+     * (fat_len 1 + 10 = 11 <= heap 25): the og accepts; the core refuses
+     * below the 24-sector boot region */
+    {
+        auto img = build_exfat_image();
+        for (u64 base : {0u, 12u * 512u})
+            testfixture::fx_put32v(img, base + 80, 10); /* fat_offset */
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+            << "fat_offset < BOOT_REGION_SECTORS refuses (the og accepts)";
+    }
+
+    /* edge 3: cluster_count > 0xFFFFFFF5 (the spec max, 2^32-11). The
+     * og-acceptance window for this count exists only on devices past
+     * 2 TiB at 512 B clusters (its ordering conjunction needs
+     * (cc-1)<<spcs + heap <= volume_length <= device/512); on every
+     * smaller geometry the og's own ordering rejects the same boot, so
+     * the core's bound is the spec-truth reject of a corrupt field the
+     * og would only honor by accident of geometry. Pinned at the
+     * boundary value: the bound is a deliberate spec gate, not drift. */
+    {
+        auto img = build_exfat_image();
+        for (u64 base : {0u, 12u * 512u})
+            testfixture::fx_put32v(img, base + 92, 0xFFFFFFF6u); /* cluster_count */
+        MemDevice disk(std::move(img));
+        u32 err = 0;
+        auto slice = PartitionSlice::create(&disk, 0, disk.size(), &err);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"F");
+        auto* rd = tree.add_root(u"D");
+        auto* rl = tree.add_root(u"L");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+            << "cluster_count > 0xFFFFFFF5 refuses at the structural gate";
+    }
+}
+
+TEST(ExfatEngine, IntactPrimaryNotShifted) {
+    /* control: the backup at +12 validates -> no probe, no shift (the
+     * anchor is the primary; a damaged-backup volume keeps its base) */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted);
+}
+
+TEST(ExfatEngine, MediaWordsAbsentNoShift) {
+    /* both probes mismatch (no media words anywhere - the fixture's FAT
+     * [0]/[1] are zero) and the backup at +12 is damaged -> the base is
+     * kept, current behavior preserved (the og returns the same
+     * keep-base verdict: :366 mismatch, :377-381 mismatch) */
+    auto img = build_exfat_image();
+    std::memset(img.data() + 12 * 512, 0xFF, 512); /* destroy the backup */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    /* the gates passed on the main boot: the scan proceeds in place */
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted) << "no media-word confirmation: no shift";
+}
+
+TEST(ExfatEngine, ShiftedBaseBelowZeroRefused) {
+    /* the og's base >= 0xc gate (:371-373): a whole-device open (base 0)
+     * cannot re-base below the device start even when the probes would
+     * match. The anchor is the device start; the backup at +12 damaged;
+     * the in-place FAT mismatch would send the ladder to the shifted
+     * probe - which the base gate refuses. */
+    auto img = build_exfat_image();
+    testfixture::fx_put32v(img, 24 * 512 + 0, 0xFFFFFFF8u);
+    testfixture::fx_put32v(img, 24 * 512 + 4, 0xFFFFFFFFu);
+    std::memset(img.data() + 12 * 512, 0xFF, 512); /* destroy the backup */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(OK, scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.base_shifted) << "base 0: the re-base is refused (og :371-373)";
+}
 
 /* ---- S-011: exFAT timestamps match the og's tz-ignored semantics ------- */
 
@@ -485,6 +370,58 @@ TEST(ExfatEngine, TimestampsWestOffsetAlsoIgnored) {
     EXPECT_EQ(photo->props()->times.created, want);
     EXPECT_EQ(photo->props()->times.modified, want);
     EXPECT_EQ(photo->props()->times.accessed, want);
+}
+
+TEST(ExfatEngine, OriginClusterCarriedFromStreamDentry) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the og's CExFatFileProperties
+     * +0x50 slot is the first-cluster anchor of the SAME virtual
+     * SetFirstCluster contract as FAT's +0x3e (vtable+0x28) — the
+     * orphan/LostDir path stamps it unconditionally from the entry's
+     * first cluster (exFATSearchDLL_decompiled.c:5246-5252) and the
+     * emitted node carries the cluster's absolute byte offset (:5290-
+     * 5298). The core now stamps the stream dentry's FirstCluster at
+     * emission, independent of chain resolution (RED pre-fix: 0).
+     * Fixture truth: gone.dat = deleted NoFatChain at cluster 30 (bitmap
+     * free - the chainless-deleted shape); over.dat = deleted NoFatChain
+     * at cluster 40 (bitmap SET); photo.jpg = live NoFatChain at 10;
+     * doc.txt = live FAT-chain at 20. */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode* gone = nullptr;
+    tree::FileNode* over = nullptr;
+    tree::FileNode* photo = nullptr;
+    tree::FileNode* doc = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "gone.dat")
+            gone = n;
+        if (n->name_utf8() == "over.dat")
+            over = n;
+        if (n->name_utf8() == "photo.jpg")
+            photo = n;
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    }
+    ASSERT_NE(gone, nullptr) << "deleted chainless gone.dat not emitted";
+    ASSERT_NE(over, nullptr) << "deleted over.dat not emitted";
+    ASSERT_NE(photo, nullptr);
+    ASSERT_NE(doc, nullptr);
+
+    /* every stream dentry's FirstCluster survives as the passive anchor,
+     * resolved chain or not */
+    EXPECT_EQ(gone->props()->fat_origin_cluster, 30u);
+    EXPECT_EQ(over->props()->fat_origin_cluster, 40u);
+    EXPECT_EQ(photo->props()->fat_origin_cluster, 10u);
+    EXPECT_EQ(doc->props()->fat_origin_cluster, 20u);
 }
 
 TEST(ExfatEngine, FreeMapExcludesVirtualClustersAndMatchesBitmap) {
@@ -975,6 +912,223 @@ TEST(ExfatEngine, FreeEntryContiguousSalvage) {
     EXPECT_EQ(z->props()->extents[0].length, 1024u);
     /* assumed chain never grades above PartialRisk */
     EXPECT_EQ(z->confidence(), tree::Confidence::PartialRisk);
+}
+
+/* ---- S-067: the out-of-range FAT-entry clamp (the damaged-FAT family's
+ * third leg - og exFATSearchDLL:41348-41351: `if (*(uint *)(param_2 + 0x18)
+ * <= uVar15) uVar15 = 0xffffffff;` - an entry at or above the volume's
+ * cluster count is EOC, the chain ends cleanly; the walk loop's own bound
+ * is `uVar30 < 0xfffffff6` at :41315) ------------------------------------ */
+
+TEST(ExfatEngine, OutOfRangeFatEntryEndsChainCleanly) {
+    /* S-067: a garbage/stale FAT entry in [cluster_count, 0xFFFFFFF7] is
+     * clamped to EOC (the og's walk loop at exFATSearchDLL:41348-41351) -
+     * the chain ends cleanly at the previous cluster: no wild
+     * out-of-volume extent member, no broken flag, no assumed-contiguous
+     * downgrade. The fixture (the finding's own shape): cluster_count is
+     * 100; a 3-cluster file's MID-CHAIN entry (cluster 91's) carries
+     * cluster_count + 0x1000. Before the clamp: the garbage value was
+     * followed as a raw cluster number (a wild member ~2 MiB past the
+     * 1 MiB volume - the walk's expect-bound caps the chain at 3 members,
+     * so the wild member IS the third). */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 100u + 0x1000u); /* stale garbage, not EOC-family */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 7, 90, 1536); /* 3 clusters expected */
+    sb.name_entry(u"oor.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* oor = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "oor.dat")
+            oor = n;
+    ASSERT_NE(oor, nullptr);
+    /* exactly the valid prefix [90,91]: ONE contiguous extent, nothing wild */
+    ASSERT_EQ(oor->props()->extents.size(), 1u)
+        << "the clamped entry must not become a chain member";
+    EXPECT_EQ(oor->props()->extents[0].offset, u64(25 + 88) * 512); /* cluster 90 */
+    EXPECT_EQ(oor->props()->extents[0].length, 1024u);              /* 2 valid clusters */
+    /* the clean end is neither the FREE-continuation salvage nor a break */
+    EXPECT_EQ(stats.assumed_contiguous, 0u);
+    EXPECT_EQ(stats.chains_broken, 0u);
+}
+
+TEST(ExfatEngine, ExactClusterCountEntryClampsToEoc) {
+    /* S-067 boundary, CORRECTED against the corpus (the S80 correction
+     * addendum): the og's primary-path volume constructor computes the
+     * clamp bound as max(boot ClusterCount, FatLength_bytes/4)
+     * (RAWSearchDLL :36793-36804) - on this fixture cc=100 but the FAT
+     * holds 1 sector = 128 entries, so the bound is 128. An entry of
+     * exactly 100 (the boot count) is BELOW the bound - an ordinary
+     * cluster the og FOLLOWS (100 is a legal in-FAT address); the
+     * boundary clamp fires at 128. The original landing pinned the
+     * verbatim-cc boundary - the BACKUP-REBASE path's formula
+     * (:36750), not the primary's. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 100u); /* == boot cc: BELOW the og's bound */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 9, 90, 1536);
+    sb.name_entry(u"bound.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* b = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "bound.dat")
+            b = n;
+    ASSERT_NE(b, nullptr);
+    /* cluster 100 is FOLLOWED as an ordinary cluster: the chain runs
+     * [90,91,100] (the walk's expect-bound caps at 3 members) - TWO
+     * extents, the second at cluster 100, never a clamp at the boot
+     * count. The walk never reads FAT[100] (the size bound fires
+     * first), so no FREE salvage is involved. */
+    ASSERT_EQ(b->props()->extents.size(), 2u)
+        << "the boot-count entry is FOLLOWED (below the og's bound)";
+    EXPECT_EQ(b->props()->extents[0].offset, u64(25 + 88) * 512); /* cluster 90 */
+    EXPECT_EQ(b->props()->extents[0].length, 1024u);
+    EXPECT_EQ(b->props()->extents[1].offset, u64(25 + 98) * 512); /* cluster 100 */
+    EXPECT_EQ(b->props()->extents[1].length, 512u);
+    EXPECT_EQ(stats.assumed_contiguous, 0u); /* the size bound caps first */
+}
+
+TEST(ExfatEngine, ChainClampsAtFatAddressableBoundary) {
+    /* S-067 boundary (the corpus-true one): an entry exactly at the
+     * FAT-addressable count (128 on this fixture = fat_bytes/4, the
+     * primary-path formula's max operand that dominates the boot count)
+     * ends the chain cleanly - the og's `<=` comparison. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 128u); /* == the FAT's entry count */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 1536);
+    sb.name_entry(u"fbound.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* fb = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "fbound.dat")
+            fb = n;
+    ASSERT_NE(fb, nullptr);
+    ASSERT_EQ(fb->props()->extents.size(), 1u);
+    EXPECT_EQ(fb->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(fb->props()->extents[0].length, 1024u);
+    EXPECT_EQ(fb->props()->logical_size, 1536u); /* the clean partial file */
+}
+
+TEST(ExfatEngine, ReservedFFF6EntryEndsChainCleanly) {
+    /* S-067: 0xFFFFFFF6 sits BELOW the spec EOC family (0xFFFFFFF8+) and
+     * above BAD (0xFFFFFFF7 is the BAD marker itself) - the og's loop
+     * bound `uVar30 < 0xfffffff6` (:41315) never walks it, and the clamp
+     * folds it to EOC. Before the fix the raw value was followed as a
+     * cluster number -> a wild extent + the broken downgrade. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 0xFFFFFFF6u);
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 8, 90, 1536);
+    sb.name_entry(u"fff6.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* f = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "fff6.dat")
+            f = n;
+    ASSERT_NE(f, nullptr);
+    ASSERT_EQ(f->props()->extents.size(), 1u);
+    EXPECT_EQ(f->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(f->props()->extents[0].length, 1024u);
+    EXPECT_EQ(stats.assumed_contiguous, 0u);
+    EXPECT_EQ(stats.chains_broken, 0u);
+}
+
+TEST(ExfatEngine, BadClusterEntryEndsChainCleanly) {
+    /* S-067 correction (BAD): the og's clamp subsumes the reserved
+     * family (the bound <= 0xFFFFFFF5 by the boot gate, so BAD
+     * 0xFFFFFFF7 >= the bound at BOTH og walk sites) - BAD is chain
+     * END, cleanly. The original landing kept the old BAD -> 0 mapping:
+     * BAD routed into the EXFAT-2 FREE salvage (an assumed continuation
+     * at c+1 past a marked-bad cluster, under the PartialRisk assumed
+     * downgrade) - a chain the og ends was instead extended. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 0xFFFFFFF7u); /* BAD */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 9, 90, 1536);
+    sb.name_entry(u"badcl.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(stats.assumed_contiguous, 0u) << "BAD is chain END, never FREE salvage";
+    auto all = collect_all(tree);
+    tree::FileNode* badcl = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "badcl.dat")
+            badcl = n;
+    ASSERT_NE(badcl, nullptr);
+    ASSERT_EQ(badcl->props()->extents.size(), 1u);
+    EXPECT_EQ(badcl->props()->extents[0].offset, u64(25 + 88) * 512);
+    EXPECT_EQ(badcl->props()->extents[0].length, 1024u);
+    EXPECT_EQ(badcl->props()->logical_size, 1536u); /* the clean partial file */
+    EXPECT_EQ(badcl->confidence(), tree::Confidence::Excellent);
 }
 
 TEST(ExfatEngine, BootGatesMatchOg) {
@@ -1500,6 +1654,83 @@ std::vector<std::string> m014_scan_names(std::vector<u8> img, ExfatScanStats* st
 }
 
 } // namespace
+
+TEST(ExfatEngine, AppleDoublePrefixSunk) {
+    /* N-174 (diff-to-fix): the og's exFAT props builder refuses names
+     * starting "._" (exFATSearchDLL :45151, strncmp vs "._"; the return-0
+     * at :45222 - the entry never surfaces). macOS Finder writes an
+     * AppleDouble "._foo" sidecar beside every file on exFAT media; the
+     * og suppresses them as metadata-only noise. Fail-before: the pre-fix
+     * core emitted "._photo.jpg" as a recoverable entry. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 11, 50, 4096); /* the real content twin's shape */
+        sb.name_entry(u"._photo.jpg");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        /* the plain file the sidecar describes still surfaces */
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 9, 51, 4096);
+        sb.name_entry(u"photo.jpg");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.apple_doubles_sunk, 1u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "._photo.jpg")
+            << "AppleDouble sidecar must be sunk (og parity, :45151/:45222)";
+    }
+    bool photo_present = false;
+    for (const auto& n : names)
+        photo_present = photo_present || n == "photo.jpg";
+    EXPECT_TRUE(photo_present) << "the described file itself must survive the sink";
+}
+
+TEST(ExfatEngine, RegularDotFilesNotSunk) {
+    /* N-174 over-blocking pin: the og's gate is prefix-specific ("._"),
+     * not a general dotfile sink - ".hidden", "_notes.txt" and "."
+     * -prefixed directories all surface. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 7, 52, 512);
+        sb.name_entry(u".hidden");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 10, 53, 512);
+        sb.name_entry(u"_notes.txt");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.apple_doubles_sunk, 0u);
+    bool hidden = false, notes = false;
+    for (const auto& n : names) {
+        hidden = hidden || n == ".hidden";
+        notes = notes || n == "_notes.txt";
+    }
+    EXPECT_TRUE(hidden) << "plain dotfiles are NOT the og's sink class";
+    EXPECT_TRUE(notes) << "underscore-prefixed names are NOT the og's sink class";
+}
 
 TEST(ExfatEngine, EmptyFileSuppressedLikeOg) {
     /* M-014 falsifiable claim (a): the og's stream emission gate

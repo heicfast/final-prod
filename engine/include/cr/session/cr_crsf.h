@@ -73,6 +73,32 @@ enum RecordType : u32 {
      * check stage simply lack it and the report reads as empty.
      * Payload: check::serialize_fs_check. */
     REC_FS_CHECK = 9,
+    /* S-052 (diff-to-fix): the LDM dynamic-volume layouts the scan
+     * reconstructed (one per scanned volume root; the tree's root
+     * records carry the matching basis ids). OPTIONAL with the same
+     * skip-unknown-types rule - sessions saved without a dynamic-disk
+     * scan simply lack it and the tree's LDM roots (if any) read with
+     * basis ids that resolve to nothing (recovery then fails the reads
+     * honestly per-extent). Payload: serialize_ldm_layouts. */
+    REC_LDM_LAYOUTS = 10,
+    /* N-140 (diff-to-fix): the per-format carve tally - the og's
+     * GetRawUserInfoMap per-scan statistics (map<extension,count> served
+     * pre-computed to the host; DRWUI renders the post-scan per-extension
+     * breakdown). OPTIONAL with the same skip-unknown-types rule: sessions
+     * saved before the tally (or by a build without a carve stage) simply
+     * lack it and the breakdown reads as zeros on load. Payload:
+     * serialize_carve_tally (u32 slots, u64 overflow, then slots u64
+     * counts in unified format-id order). */
+    REC_CARVE_TALLY = 11,
+    /* M-073 (diff-to-fix): the scan-time folder filter's prefixes (the
+     * og's PushFolderFilter state - the active AdvanceFilterCondition
+     * pushed into the scan controller, persisted so a resumed scan keeps
+     * the original run's scope). OPTIONAL with the same skip-unknown-types
+     * rule: sessions saved without a filter simply lack it and the resume
+     * path leaves the host config untouched. Payload:
+     * serialize_scan_filter (u32 count, then per prefix u32 len + UTF-8
+     * bytes, raw as configured - normalization happens at use time). */
+    REC_SCAN_FILTER = 12,
 };
 
 /* In-memory record. */
@@ -120,6 +146,13 @@ public:
     /* Reads record #index (0-based, in file order). */
     u32 read_record(u32 index, Record& out);
     u32 record_count() const { return count_; }
+    /* W1a (R-56): header-only peek - the record's type + session id at
+     * index, WITHOUT reading the payload chain. The session-list /
+     * summary path skips the heavy records (RESULT_TREE / ALLOC_MAP /
+     * ERROR_MAP) BY TYPE before any payload I/O: our tree record can
+     * dwarf the whole summary, exactly the reason the og's list reads
+     * only record 2 per file (rsf-format--scan-session.md section 5.2). */
+    u32 peek_record(u32 index, RecordType& type, u64& session_id);
     /* F-1: container flags from the header (0 = pre-F-1 slice-relative
      * basis; loaders normalize with the session's VolumeInfo). */
     u32 flags() const { return flags_; }

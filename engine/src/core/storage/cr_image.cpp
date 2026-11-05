@@ -14,6 +14,8 @@
 
 #include "cr/storage/cr_image.h"
 
+#include "cr/crypto/cr_sha256.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -162,12 +164,27 @@ public:
         geom_.logical_sector = logical_sector;
         geom_.physical_sector = logical_sector;
         geom_.total_bytes = file_.bytes;
-        geom_.sector_count = logical_sector ? file_.bytes / logical_sector : 0;
+        /* N-206: the og's geometry-EX CEIL (Device_decompiled.c:56536-
+         * 56538: (L-1+ss)/ss) - a truncated image's final partial sector
+         * is addressable, driver-padded; the pre-fix floor made the tail
+         * structurally invisible (a signature at the tail was unreachable). */
+        geom_.sector_count =
+            logical_sector ? (file_.bytes + logical_sector - 1) / logical_sector : 0;
     }
     u32 read_at(u64 off, void* buf, u32 len) override {
-        if (off > file_.bytes || len > file_.bytes - off)
+        /* N-206: reads inside the padded tail ([file_.bytes,
+         * sector_count*ss)) succeed with a zero-filled tail - the og's
+         * driver-padded final-sector semantics; the bound past the padded
+         * sector still refuses honestly. */
+        const u64 readable = geom_.sector_count * geom_.logical_sector;
+        if (off > readable || len > readable - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        return io_read_exact(*file_.io, file_.handle, off, buf, len);
+        const u64 file_part = off >= file_.bytes ? 0 : std::min<u64>(file_.bytes - off, len);
+        if (len - file_part)
+            std::memset(static_cast<u8*>(buf) + file_part, 0, size_t(len - file_part));
+        if (file_part == 0)
+            return OK;
+        return io_read_exact(*file_.io, file_.handle, off, buf, u32(file_part));
     }
     const Geometry& geometry() const override { return geom_; }
 
@@ -1512,6 +1529,84 @@ std::unique_ptr<IStorageDevice> open_image_impl(ImageFileIo& io, const std::u16s
 std::unique_ptr<IStorageDevice> open_image(ImageFileIo& io, const std::u16string& path_utf16,
                                            u32* err) {
     return open_image_impl(io, path_utf16, 0, err);
+}
+
+/* ---- S-040: the image-CREATE producer ----
+ *
+ * Corpus: the og's home page ships a "Create Image" flow (DiskBackupDialog
+ * -> DiskBackupSaveDlg -> DiskBackProgressPage, UIUX/07:36-37 + UIUX/06:27)
+ * whose imaging capability lives in ToolsModule.dll (mom-module-system
+ * :87), and the product then recommends scanning the produced image
+ * instead of the live disk on damaged disks (UIUX/11:17). The reader half
+ * is S-030 (this module, flat/VMDK/VHD/VHDX); this producer writes the
+ * FLAT form only - the og's own reader accepts flat, and the corpus does
+ * not decode the og's writer format beyond the libvmdk link (VHD/VHDX
+ * writers are out of scope, a registered divergence; see
+ * docs/PARITY-DELTAS.md D-147).
+ *
+ * Clean-room: a plain ascending copy loop, 64 KiB at a time (the
+ * transport's direct-I/O envelope - cr_transport.cpp's aligned_read_at
+ * aligns internally on the win-layer devices, so the loop issues plain
+ * sequential reads), SHA-256 over the emitted stream (cr_sha256), cancel
+ * at chunk heads, progress after every chunk. Nothing is padded: the tail
+ * chunk is short and the stats always carry the committed prefix. */
+u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken* cancel,
+                        ImageCreateProgressFn progress, void* progress_user,
+                        ImageCreateStats* stats) {
+    ImageCreateStats local{};
+    crypto::Sha256 hash;
+    std::vector<u8> buf;
+    const u64 total = src.size();
+    constexpr u32 kChunk = 64 * 1024;
+    if (total == 0) {
+        /* an empty device produces an empty image (the reader side's
+         * ERR_TRUNCATED on empty files keeps scans honest; creating one
+         * is still a legal no-op stream - the digest is the well-known
+         * empty-stream SHA-256) */
+        hash.final(local.sha256);
+        if (stats)
+            *stats = local;
+        return OK;
+    }
+    buf.resize(kChunk);
+    u64 off = 0;
+    while (off < total) {
+        if (cancel && cancel->cancelled()) {
+            local.cancelled = true;
+            hash.final(local.sha256);
+            if (stats)
+                *stats = local;
+            return ERR_CANCELLED;
+        }
+        u32 want = kChunk;
+        if (want > total - off)
+            want = u32(total - off);
+        const u32 rc = src.read_at(off, buf.data(), want);
+        if (rc != OK) {
+            /* the failed chunk is not emitted: the committed prefix is
+             * everything before it, reported truthfully */
+            hash.final(local.sha256);
+            if (stats)
+                *stats = local;
+            return rc;
+        }
+        const u32 wrc = sink.write(buf.data(), want);
+        if (wrc != OK) {
+            hash.final(local.sha256);
+            if (stats)
+                *stats = local;
+            return wrc;
+        }
+        hash.update(buf.data(), want);
+        local.bytes_written = off + want;
+        off += want;
+        if (progress)
+            progress(progress_user, local.bytes_written, total);
+    }
+    hash.final(local.sha256);
+    if (stats)
+        *stats = local;
+    return OK;
 }
 
 } // namespace storage

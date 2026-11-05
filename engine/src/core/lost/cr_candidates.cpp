@@ -4,6 +4,7 @@
  */
 
 #include "cr/lost/cr_lostpart.h"
+#include "cr/cr_log.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
@@ -41,8 +42,15 @@ public:
     bool fetch(u64 byte_off) {
         const u64 win = buf_.size();
         win_base_ = byte_off / win * win;
-        u64 avail = dev_->size() - win_base_;
+        /* N-206: the addressable bound is the CEILED sector_count*ss (the
+         * og's driver-padded final partial sector) - clipping to the raw
+         * byte size shrank the tail window below one probeable sector,
+         * so a signature anchored in the partial tail was never probed. */
+        const u64 bound = geom_.sector_count * geom_.logical_sector;
+        u64 avail = bound > win_base_ ? bound - win_base_ : 0;
         u64 take = avail < win ? avail : win;
+        if (take == 0)
+            return false;
         if (dev_->read_at(win_base_, buf_.data(), u32(take)) != OK)
             return false;
         win_len_ = take;
@@ -86,20 +94,53 @@ int probe_ntfs(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     ntfs::VolumeParams vp;
     if (ntfs::validate_boot_sector(*bs, disk->geometry(), vp) == OK) {
         pts += 25;
-        /* $MFT probe (volume-relative -> absolute on the disk) */
+        /* N-200 (diff-to-fix): the og's lost-scan NTFS acceptance requires
+         * POSITIVE MFT evidence — the classifier FUN_180011150
+         * (PartitionRecoveryD :9889-9906) rejects into the 0xfffffff1 slot
+         * when FUN_180011560's record read validates NEITHER at the
+         * primary $MFT LCN NOR at the $MFTMirr retry (:10023-10075: the
+         * primary 4-record read, FUN_180011440 validation, then the
+         * identical read re-issued at FUN_180011b30's +0x38 mirror LCN).
+         * The record-0 probe is now a soft requirement: primary first,
+         * mirror retry, reject only when BOTH fail. The mirror acceptance
+         * is evidence-labeled (mft-mirror-probe) and scores identically —
+         * the og's FUN_180011560 return does not distinguish the leg. */
+        bool mft_evidence = false;
+        bool from_mirror = false;
         std::vector<u8> rec;
         rec.resize(size_t(vp.record_size));
-        u64 off = boot_lba * disk->geometry().logical_sector + vp.mft_lcn * vp.cluster_bytes;
+        const u64 vol_base = boot_lba * disk->geometry().logical_sector;
+        /* primary $MFT probe (volume-relative -> absolute on the disk) */
+        u64 off = vol_base + vp.mft_lcn * vp.cluster_bytes;
         if (disk->read_at(off, rec.data(), u32(rec.size())) == OK) {
             ntfs::RecordHeader rh;
             std::memcpy(&rh, rec.data(), sizeof(rh));
             if (rh.magic == ntfs::RECORD_MAGIC_FILE &&
                 ntfs::fixup_apply(rec.data(), u32(rec.size()), rh.update_sequence_offset,
                                   rh.update_sequence_size, vp.sector_bytes) == OK) {
-                pts += 30; /* $MFT alive: very strong */
-                c.evidence.push_back({"mft-probe", 30});
+                mft_evidence = true;
             }
         }
+        if (!mft_evidence) {
+            /* the og's mirror retry: the same record-0 shape at the
+             * $MFTMirr LCN (the og bounds neither LCN — a failed read
+             * simply fails; read_at enforces the device bound) */
+            const u64 mirr_off = vol_base + vp.mftmirr_lcn * vp.cluster_bytes;
+            if (disk->read_at(mirr_off, rec.data(), u32(rec.size())) == OK) {
+                ntfs::RecordHeader rh;
+                std::memcpy(&rh, rec.data(), sizeof(rh));
+                if (rh.magic == ntfs::RECORD_MAGIC_FILE &&
+                    ntfs::fixup_apply(rec.data(), u32(rec.size()), rh.update_sequence_offset,
+                                      rh.update_sequence_size, vp.sector_bytes) == OK) {
+                    mft_evidence = true;
+                    from_mirror = true;
+                }
+            }
+        }
+        if (!mft_evidence)
+            return -100; /* the og's reject slot: no positive MFT evidence */
+        pts += 30;       /* $MFT alive (primary or mirror): very strong */
+        c.evidence.push_back({from_mirror ? "mft-mirror-probe" : "mft-probe", 30});
         /* length from DBR, bounded by the device */
         u64 sectors = vp.total_clusters * vp.cluster_bytes / vp.sector_bytes;
         c.sector_count = sectors;
@@ -148,6 +189,36 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     if (flavor == 0)
         return -100;
     int pts = 20; /* valid FAT BPB (og gate passed) */
+    /* M-137: the FAT12/16 boot-sector volume label (+0x2B, 11 bytes,
+     * space-padded - the old-style label only the 12/16 flavors carry;
+     * FAT32 zeroes the slot). Captured here so the naming template's
+     * volume-label-keep rule ("%s (%s)" with the label, the ":)"-bearing
+     * labels kept verbatim - DRWUI:634817-838) has its on-disk source;
+     * validation: at least one printable non-space byte. */
+    if (flavor == 1 || flavor == 2) {
+        bool printable = false;
+        for (int k = 0; k < 11; ++k) {
+            const u8 ch = sec[0x2B + k];
+            if (ch == 0)
+                break;
+            if (ch >= 0x20 && ch < 0x7F) {
+                if (ch != 0x20)
+                    printable = true;
+            } else {
+                printable = false;
+                break;
+            }
+        }
+        if (printable) {
+            int k = 0;
+            for (; k < 11 && sec[0x2B + k]; ++k)
+                c.volume_label[k] = char(sec[0x2B + k]);
+            /* right-trim spaces (the padding) */
+            while (k > 0 && c.volume_label[k - 1] == ' ')
+                --k;
+            c.volume_label[k] = 0;
+        }
+    }
     c.sector_count = p.total_bytes / p.bytes_per_sector;
     /* N-035: FAT is the metadata-gap family - the data area begins at
      * first_data_sector (reserved + two FATs [+ root dir on FAT12/16]
@@ -349,6 +420,23 @@ int probe_ext(IStorageDevice* disk, u64 lba, WindowScanner& scan, Candidate& c) 
             return -100;
     }
 
+    /* N-214: the og's journal-indicator consistency gate (PRD
+     * FUN_180002b90 :1273-1293, read first-hand): feature_compat
+     * HAS_JOURNAL (SB+0x5C bit 2) and s_journal_inum (SB+0xE0) must
+     * AGREE — both clear → ext2 (type 5), both set → ext3/4 (type 6);
+     * exactly one set is the torn-SB class the og drops with NO
+     * classification at all (its -6 return; the core's not-ok
+     * convention is -100). Read from the RAW SB bytes —
+     * validate_superblock defaults journal_inum to 8 when zero, which
+     * would corrupt the XOR (the engine-side default is an access
+     * convenience, not a probe input). */
+    {
+        const u32 compat = sb_le32(sb + 0x5C);
+        const u32 journal_inum = sb_le32(sb + 0xE0);
+        if (((compat & 4) != 0) != (journal_inum != 0))
+            return -100;
+    }
+
     int pts = 40; /* magic + full og validation */
     c.evidence.push_back({"ext-sb-magic", 15});
     c.evidence.push_back({"ext-sb-valid", 25});
@@ -500,7 +588,7 @@ std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidat
     return PartitionSlice::create(disk, c.start_lba * ls, bytes, &err);
 }
 
-bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
+bool revalidate_candidate(IStorageDevice* disk, Candidate& c) {
     /* M-042: the og's resume re-validation (PRD:20748-20842) — at search
      * start, every persisted lostpart record is re-read at its start LBA
      * through the device and re-validated through the scan-loop classifier
@@ -511,7 +599,16 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
      * check rides the device size — a shrunken/re-grown disk re-derives
      * sizes from the live probes). Unknown-family records cannot be
      * re-probed (no classifier to contradict them): kept, matching the
-     * og's applied-flag skip for unprobeable records. */
+     * og's applied-flag skip for unprobeable records.
+     *
+     * N-203: the candidate is MUTABLE — on a successful probe of a record
+     * that carried no data-area extent (a v1..v3 session, or a probe
+     * family that never sets one), the scratch's re-derived data-area
+     * fields copy back into the candidate. The og's record replays with
+     * the full extent identity by construction (the 0x448 image is
+     * flattened and re-applied whole); the copy-back is the core's
+     * equivalent repair for records saved before the v4 tail existed —
+     * once enriched, a re-save persists the extent (idempotent). */
     if (disk == nullptr || disk->geometry().logical_sector == 0)
         return true; /* no arbiter: never drop on our own absence */
     const u64 ls = disk->geometry().logical_sector;
@@ -567,6 +664,14 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
                          payload check — a re-formatted region with the
                          same OEM at the same LBA is still a different
                          volume) */
+    if (c.data_sector_count == 0 && scratch.data_sector_count != 0) {
+        /* N-203: the record predates the v4 tail (or its probe family
+         * never anchored a data area) — the live probe re-derived one;
+         * adopt it so the dedup/containment/leader consumers see the
+         * same window a fresh run would have produced. */
+        c.data_start_lba = scratch.data_start_lba;
+        c.data_sector_count = scratch.data_sector_count;
+    }
     return true;
 }
 /* ---------------------------------------------------------------- */
@@ -598,14 +703,19 @@ u64 weighted_count(int og_fs_code, u64 files, u64 folders) {
 }
 
 double score_ratio(u64 count, u64 max_count) {
-    /* FUN_14050fda0 :842226-274: num = count > 1 ? ln(count) : 1.0
-     * (the count<=1 identity quirk - a 1-file candidate outranks every
-     * 2..6-file candidate when max > e^2); denom = max > 1 ? ln(max)
-     * : 1.0; score = num/denom */
-    const double num = count > 1 ? std::log(double(count)) : 1.0;
+    /* FUN_14050fda0 :842226-274, re-read first-hand at the M-149 fix:
+     * num = count > 1 ? ln(count) : (double)count — the per-entry loop's
+     * null-payload branch stamps dVar13 = 0.0 (the count==0 shape scores
+     * ZERO, the og's own CalcPartition.log row 'files:0 folders:0
+     * dSuggestted:0.000000'), and count==1 is the identity quirk (a
+     * 1-file candidate outranks every 2..6-file candidate when max >
+     * e^2). The old `: 1.0` edge scored count==0 as 1.0 — empty
+     * candidates tied genuine 1-file candidates; the M-149 fix restores
+     * the og's 0.0 floor. denom = max > 1 ? ln(max) : 1.0. */
+    const double num = count > 1 ? std::log(double(count)) : double(count);
     const double den = max_count > 1 ? std::log(double(max_count)) : 1.0;
     if (den <= 0.0)
-        return 1.0;
+        return num;
     return num / den;
 }
 
@@ -726,9 +836,12 @@ void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cance
 u64 fs_bonus(const Candidate& c) {
     switch (c.fs) {
     case CandidateFs::Ntfs:
-        /* observed 60 (all probes strong) / 30 (partial) */
+        /* observed 60 (all probes strong) / 30 (partial). N-200: the
+         * mirror-validated leg counts strong — the og's FUN_180011560
+         * return does not distinguish primary from mirror acceptance. */
         for (const auto& e : c.evidence)
-            if (c.evidence.size() >= 3 && std::string_view(e.tag) == "mft-probe")
+            if (c.evidence.size() >= 3 && (std::string_view(e.tag) == "mft-probe" ||
+                                           std::string_view(e.tag) == "mft-mirror-probe"))
                 return 60;
         return 30;
     case CandidateFs::Fat:
@@ -751,19 +864,107 @@ bool table_match(const Candidate& c, const std::vector<table::PartitionInfo>& kn
     return false;
 }
 
+/* M-137: the geometry-fallback device shim - wraps a device whose
+ * sector-size query failed (logical_sector 0) with the 512-byte view
+ * (DRWUI:904185-187: `if (sector_size == 0) sector_size = 0x200;`).
+ * Every probe reads geometry() directly for its LBA math, so the
+ * fallback must present the corrected geometry, not patch one local. */
+class FallbackGeomDevice final : public IStorageDevice {
+public:
+    FallbackGeomDevice(IStorageDevice* inner) : inner_(inner) {
+        geom_ = inner->geometry();
+        geom_.logical_sector = 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override { return inner_->read_at(off, buf, len); }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    IStorageDevice* inner_;
+    Geometry geom_;
+};
+
 } // namespace
+
+/* M-118: the og's per-subkey "Data" blob decode (FUN_18000f5b0,
+ * PartitionRecoveryD_decompiled.c:8841-8929, re-verified first-hand this
+ * session against the corpus decompile AND the DRWUI-side mirror
+ * FUN_1405895d0 :922335+). The blob is the Explorer shell's volume
+ * mount-point cache; the og reads exactly one placement field from it:
+ * the 0x20-char ASCII-hex byte offset at data+0xc6, delimited by '#'
+ * markers at data[0xc4] and data[0xe6]. Gates, in the og's order:
+ * REG_BINARY (type checked by the callers), size > 0xe7, the two '#'
+ * delimiters, the %I64X parse (case-insensitive hex, stops at the first
+ * non-hex char), byte_start % bps == 0, then the /bps conversion. */
+bool decode_mountpoints2_placement(const u8* data, size_t size, u32 bytes_per_sector,
+                                   u64& start_lba_out) {
+    start_lba_out = 0;
+    if (data == nullptr || size <= 0xe7)
+        return false; /* the og's 0xe7 < size gate (231) */
+    if (data[0xc4] != '#' || data[0xe6] != '#')
+        return false; /* the field delimiters */
+    if (bytes_per_sector == 0)
+        return false; /* the og divides by the device's bps unchecked;
+                       * the core refuses instead of trapping */
+    /* the 0x20-char hex field at +0xc6, %I64X semantics: case-
+     * insensitive, leading whitespace/hex digits consumed, stops at the
+     * first non-hex character; overflow saturates like the og's
+     * 64-bit accumulate (sscanf %I64X wraps at 2^64 in MSVC) */
+    u64 val = 0;
+    size_t consumed = 0;
+    for (size_t i = 0; i < 0x20 && i + 0xc6 < size; ++i) {
+        const char ch = char(data[0xc6 + i]);
+        int nibble = -1;
+        if (ch >= '0' && ch <= '9')
+            nibble = ch - '0';
+        else if (ch >= 'a' && ch <= 'f')
+            nibble = ch - 'a' + 10;
+        else if (ch >= 'A' && ch <= 'F')
+            nibble = ch - 'A' + 10;
+        if (nibble < 0)
+            break; /* %X stops at the first non-hex char */
+        val = (val << 4) | u64(nibble);
+        ++consumed;
+    }
+    if (consumed == 0)
+        return false; /* %I64X matched nothing -> the og's local stays 0
+                       * and the bps gate below rejects it for any
+                       * non-zero-aligned... a 0 parse also fails the
+                       * caller's nonzero-return check; same outcome */
+    if (val % bytes_per_sector != 0)
+        return false; /* the og's alignment gate */
+    start_lba_out = val / bytes_per_sector;
+    return start_lba_out != 0; /* FUN_18000f840's caller checks the
+                                * return != 0: sector 0 (the MBR area) is
+                                * the og's failure sentinel, never a
+                                * proposal */
+}
 
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
              u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
-             void* progress_user, DiscoveryResult& out) {
-    if (disk == nullptr || disk->geometry().logical_sector == 0)
+             void* progress_user, DiscoveryResult& out, const std::vector<u64>& register_starts) {
+    /* M-137 (diff-to-fix): the og's geometry fallback (DRWUI:904185-187:
+     * `if (sector_size == 0) sector_size = 0x200;` - a failed device
+     * sector-size query proceeds at 512 rather than refusing). The old
+     * core refused the whole discovery with ERR_BAD_PARAMETER; the
+     * honest shape is the Warn log + the 512-byte shim (the discovery
+     * is LBA-math driven and 512 is the universal floor). */
+    if (disk == nullptr)
         return ERR_BAD_PARAMETER;
+    FallbackGeomDevice fallback_disk(disk);
+    IStorageDevice* effective = disk;
+    if (disk->geometry().logical_sector == 0) {
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Warn,
+                           "lost discovery: device sector size unreadable (0) - "
+                           "proceeding at the 512-byte fallback");
+        effective = &fallback_disk;
+    }
     if (stride_sectors == 0)
         stride_sectors = 1;
-    const u32 ls = disk->geometry().logical_sector;
-    const u64 total = disk->size();
+    const u32 ls = effective->geometry().logical_sector;
+    const u64 total = effective->size();
 
-    WindowScanner scan(disk);
+    WindowScanner scan(effective);
     std::vector<Candidate> found;
     u64 sectors_scanned = 0;
     u64 read_errors = 0;
@@ -800,31 +1001,34 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 std::memcpy(oem, sec + 3, 8);
                 if (std::strncmp(oem, "NTFS    ", 8) == 0) {
                     c.fs = CandidateFs::Ntfs;
-                    pts = probe_ntfs(disk, lba, c);
+                    pts = probe_ntfs(effective, lba, c);
                 } else if (std::strncmp(oem, "EXFAT   ", 8) == 0) {
                     c.fs = CandidateFs::Exfat;
-                    pts = probe_exfat(disk, lba, c);
+                    pts = probe_exfat(effective, lba, c);
                 } else if (std::memcmp(sec, "EFI PART", 8) == 0) {
                     c.fs = CandidateFs::GptTable;
-                    pts = probe_gpt_header(disk, lba, c);
+                    pts = probe_gpt_header(effective, lba, c);
                 } else if (std::memcmp(oem, "ReFS", 4) == 0) {
-                    /* S-006: the ReFS DBR (OEM "ReFS", probe_family's gate)
-                     * fell into the FAT catch-all and was dropped as noise
+                    /* S-006: the ReFS DBR (the classifier's "ReFS" OEM;
+                     * probe_family now carries the og's second signature
+                     * "FSRS"@+0x10 - the lost-side probe's own content proof
+                     * is the page-signature window, deeper than both) fell
+                     * into the FAT catch-all and was dropped as noise
                      * before. Detected via the page-signature window probe. */
                     c.fs = CandidateFs::Refs;
-                    pts = probe_refs(disk, lba, c);
+                    pts = probe_refs(effective, lba, c);
                 } else if (std::memcmp(oem, "-FVE-FS-", 8) == 0) {
                     /* S-019: BitLocker VBR (the og's type-0xB classifier
                      * gate, PartitionRecoveryD_decompiled.c:2778-2785) -
                      * must run BEFORE the FAT catch-all or the FVE BPB-less
                      * boot sector dies in fat::validate_boot. */
                     c.fs = CandidateFs::BitLocker;
-                    pts = probe_bitlocker(disk, lba, c);
+                    pts = probe_bitlocker(effective, lba, c);
                 } else {
                     /* FAT family: validate via the BPB parser (the catch-all
                      * stays LAST - it is the noisiest family) */
                     c.fs = CandidateFs::Fat;
-                    pts = probe_fat(disk, lba, c);
+                    pts = probe_fat(effective, lba, c);
                 }
             }
 
@@ -838,19 +1042,19 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
              * documented in PARITY-DELTAS D-50. */
             if (pts < 0) {
                 c.fs = CandidateFs::Ext2;
-                pts = probe_ext(disk, lba, scan, c);
+                pts = probe_ext(effective, lba, scan, c);
             }
             if (pts < 0) {
                 c.fs = CandidateFs::HfsPlus;
-                pts = probe_hfsplus(disk, lba, scan, c);
+                pts = probe_hfsplus(effective, lba, scan, c);
             }
             if (pts < 0 && lba % mib_lbas == 0) {
                 c.fs = CandidateFs::Btrfs;
-                pts = probe_btrfs(disk, lba, c);
+                pts = probe_btrfs(effective, lba, c);
             }
             if (pts < 0 && lba % mib_lbas == 0) {
                 c.fs = CandidateFs::Zfs;
-                pts = probe_zfs(disk, lba, c);
+                pts = probe_zfs(effective, lba, c);
             }
             if (pts < 0)
                 continue; /* no family accepted: noise */
@@ -858,14 +1062,20 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 /* no probe set a size: bound by the device tail (audit row
                  * 31b - the old fabricated 2048 hid real geometry).
                  * GAP-S6-6: tail fallback - marked, never containment
-                 * evidence */
-                c.sector_count =
-                    disk->size() / ls > c.start_lba ? disk->size() / ls - c.start_lba : 1;
+                 * evidence. N-206: the tail bound rides the CEILED sector
+                 * count (the og's geometry-EX form) so a candidate anchored
+                 * in the final partial sector keeps its size. */
+                const u64 dev_sectors = disk->geometry().sector_count
+                                            ? disk->geometry().sector_count
+                                            : disk->size() / ls;
+                c.sector_count = dev_sectors > c.start_lba ? u32(dev_sectors - c.start_lba) : 1;
                 c.size_from_device_end = true;
             }
-            /* bound by device tail */
-            if (c.start_lba + c.sector_count > disk->size() / ls)
-                c.sector_count = disk->size() / ls - c.start_lba;
+            /* bound by device tail (N-206: the ceiled count) */
+            const u64 dev_tail =
+                disk->geometry().sector_count ? disk->geometry().sector_count : disk->size() / ls;
+            if (c.start_lba + c.sector_count > dev_tail)
+                c.sector_count = u32(dev_tail > c.start_lba ? dev_tail - c.start_lba : 0);
             /* N-035: probes that do not set a data-area extent are the
              * DataAreaStart == StartSec shape (NTFS/exFAT/others per the
              * corpus log); the tail fallback inherits the same
@@ -882,6 +1092,134 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             }
             c.structural_points = pts; /* M-017: the primary score is the
                                         * content model; points tie-break */
+            found.push_back(c);
+        }
+    }
+
+    /* pass 1r (M-118): the register channel - the og's third candidate
+     * source. Each remembered placement (Explorer MountPoints2\\CPC\\Volume
+     * history, host-fed as sector LBAs) is probed with the SAME format
+     * chain as the sweep: the og's DRWUI-side FUN_140589e80 reads 0x800
+     * sectors at the remembered start and runs its registered parser
+     * chain over the buffer (FUN_14058a070 - any parser accepting the
+     * content admits the placement); the core's probe dispatch is that
+     * same chain. Placements whose probe accepts merge into `found`
+     * upstream of the pass-2 dedup - the og's real-run shape (mbr=1 +
+     * filesystem=1 + register=3 -> ONE partition scanned once, the
+     * three-source overlap collapsing in the container insertion
+     * FUN_1800108f0 exactly like our dedup). A placement the sweep
+     * already found at the same start is the same-fs/same-start dup and
+     * drops here; a placement the sweep MISSED (stride-skipped anchor,
+     * destroyed table entry with intact boot sector) survives as the
+     * register-provenance candidate - the channel's unique value. */
+    if (!register_starts.empty()) {
+        /* dedupe the history itself first: the real log shows THREE
+         * register records for ONE placement (multiple mount records per
+         * volume GUID) - the og's container dedup collapses them; the
+         * core collapses before probing (one probe per placement) */
+        std::vector<u64> unique_starts;
+        unique_starts.reserve(register_starts.size());
+        for (u64 lba : register_starts) {
+            if (std::find(unique_starts.begin(), unique_starts.end(), lba) == unique_starts.end())
+                unique_starts.push_back(lba);
+        }
+        for (u64 lba : unique_starts) {
+            if (cancel && cancel->checkpoint())
+                return ERR_CANCELLED;
+            const u64 dev_sectors = effective->geometry().sector_count
+                                        ? effective->geometry().sector_count
+                                        : effective->size() / ls;
+            if (lba == 0 || lba + 1 > dev_sectors)
+                continue; /* the og's bounds: FUN_140589e80 drops a
+                           * placement outside the current disk's extent
+                           * (its start+len vs placement LBA compare);
+                           * sector 0 is the MBR area, never a proposal */
+            /* the probe chain, sweep-shaped: 55AA families first, then
+             * the superblock families */
+            u8 sec[512];
+            if (effective->read_at(lba * ls, sec, 512) != OK)
+                continue; /* unreadable start: the og's 0x800-sector read
+                           * failing skips the record the same way */
+            Candidate c;
+            c.start_lba = lba;
+            c.provenance = u8(Provenance::Register);
+            int pts = -1;
+            if (sec[510] == 0x55 && sec[511] == 0xAA) {
+                char oem[9] = {0};
+                std::memcpy(oem, sec + 3, 8);
+                if (std::strncmp(oem, "NTFS    ", 8) == 0) {
+                    c.fs = CandidateFs::Ntfs;
+                    pts = probe_ntfs(effective, lba, c);
+                } else if (std::strncmp(oem, "EXFAT   ", 8) == 0) {
+                    c.fs = CandidateFs::Exfat;
+                    pts = probe_exfat(effective, lba, c);
+                } else if (std::memcmp(sec, "EFI PART", 8) == 0) {
+                    c.fs = CandidateFs::GptTable;
+                    pts = probe_gpt_header(effective, lba, c);
+                } else if (std::memcmp(oem, "ReFS", 4) == 0) {
+                    c.fs = CandidateFs::Refs;
+                    pts = probe_refs(effective, lba, c);
+                } else if (std::memcmp(oem, "-FVE-FS-", 8) == 0) {
+                    c.fs = CandidateFs::BitLocker;
+                    pts = probe_bitlocker(effective, lba, c);
+                } else {
+                    c.fs = CandidateFs::Fat;
+                    pts = probe_fat(effective, lba, c);
+                }
+            }
+            if (pts < 0) {
+                /* the in-window superblock anchors: one shared window
+                 * fetch at the placement (the probes only read in-window
+                 * via scan.at() and fall back to direct reads - a fresh
+                 * scanner never disturbs the sweep's own window); a
+                 * failed fetch falls through to the out-of-window
+                 * families below */
+                WindowScanner rscan(effective);
+                const bool win_ok = rscan.fetch(lba * ls);
+                if (win_ok) {
+                    c.fs = CandidateFs::Ext2;
+                    pts = probe_ext(effective, lba, rscan, c);
+                }
+                if (pts < 0 && win_ok) {
+                    c.fs = CandidateFs::HfsPlus;
+                    pts = probe_hfsplus(effective, lba, rscan, c);
+                }
+            }
+            if (pts < 0) {
+                c.fs = CandidateFs::Btrfs;
+                pts = probe_btrfs(effective, lba, c);
+            }
+            if (pts < 0) {
+                c.fs = CandidateFs::Zfs;
+                pts = probe_zfs(effective, lba, c);
+            }
+            if (pts < 0)
+                continue; /* no parser admits the placement's content:
+                           * FUN_14058a070's all-parsers-reject drop */
+            /* the same normalization the sweep applies: tail-bound the
+             * size, anchor the data area */
+            if (c.sector_count == 0) {
+                const u64 dev_tail = effective->geometry().sector_count
+                                         ? effective->geometry().sector_count
+                                         : effective->size() / ls;
+                c.sector_count = dev_tail > c.start_lba ? u32(dev_tail - c.start_lba) : 1;
+                c.size_from_device_end = true;
+            }
+            const u64 dev_tail = effective->geometry().sector_count
+                                     ? effective->geometry().sector_count
+                                     : effective->size() / ls;
+            if (c.start_lba + c.sector_count > dev_tail)
+                c.sector_count = u32(dev_tail > c.start_lba ? dev_tail - c.start_lba : 0);
+            if (c.data_sector_count == 0) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            if (c.data_start_lba + c.data_sector_count > c.start_lba + c.sector_count) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            c.structural_points = pts;
+            c.evidence.push_back({"register-placement", 10});
             found.push_back(c);
         }
     }
@@ -951,23 +1289,30 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
     }
 
     /* (b) the content probe + the og's weighted count: per-FS weights,
-     *     the per-FS bonus (info+0x68, observed values), and the +500
-     *     table-match bonus ("Found once partition:%I64d") */
+     *     the per-FS bonus (info+0x68, observed values). M-149: the og's
+     *     TWO passes — the max loop (:842210-842240) accumulates the
+     *     weighted+bonus count with NO +500 walk (the bonus is NEVER in
+     *     the denominator); the per-entry loop (:842246-842274) adds the
+     *     +500 table-match bonus ("Found once partition:%I64d") to the
+     *     NUMERATOR only. The old single pass folded the bonus into the
+     *     max: a table-matched leader scored exactly 1000 permille
+     *     (the og's is >1.0 — the raw double at +0x70) and every
+     *     runner-up was deflated by ln(max)/ln(max+500). */
     u64 max_count = 1;
     for (auto& c : adjusted) {
         u64 files = 0, folders = 0;
-        content_counts(disk, c, cancel, files, folders);
+        content_counts(effective, c, cancel, files, folders);
         u64 count = weighted_count(og_fs_code(c.fs), files, folders);
         count += fs_bonus(c);
         c.table_match = table_match(c, known);
-        if (c.table_match)
-            count += 500;
-        c.content_count = count;
+        c.content_count = count + (c.table_match ? 500 : 0);
         if (count > max_count)
             max_count = count;
     }
     /* (c) score = ln(count)/ln(max) in permille, the og's exact edge
-     *     cases; structural points stay as the tie-break key */
+     *     cases (count==0 -> 0; a matched leader legitimately exceeds
+     *     1000 — the og's raw double >1.0, represented in permille);
+     *     structural points stay as the tie-break key */
     for (auto& c : adjusted)
         c.score = int(score_ratio(c.content_count, max_count) * 1000.0);
 

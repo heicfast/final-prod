@@ -75,6 +75,22 @@ u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
  * loaded dictionary file ride the same consent loop). */
 u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
 
+/* M-078 (diff-to-fix): the CBitlockerTurnOffOperation endpoint - turn
+ * BitLocker OFF on a volume (decrypt, not bypass). The EXPLICIT CONSENT
+ * ACTION, one step further than the dictionary: a DESTRUCTIVE operation
+ * the host must surface as opt-in only (nothing in the scan/open path
+ * calls it - the same contract as unlock_with_dictionary, with the
+ * destructive-op rider: refusal is loud, never silent). The dual command
+ * chain (PowerShell Disable-BitLocker primary, manage-bde -off legacy
+ * fallback) mirrors unlock()'s own duality - the corpus's exact verb for
+ * the turn-off is undecoded (M-078's open question), the duality class is
+ * the evidence (DRWService:83-88; the operation's transactional framing:
+ * mom-module-system:78, pending-operation-engine:62-63). The OS decrypt
+ * continues in the background after the command returns (manage-bde's
+ * own documented shape) - the returned OK means the request was
+ * accepted, not that the volume is plaintext. */
+u32 turn_off(wchar_t letter);
+
 #ifdef _WIN32
 namespace detail {
 /* ---- test seams (Windows lane only; see test_bitlocker_win.cpp) ---- */
@@ -83,6 +99,11 @@ namespace detail {
  * exposed for shape tests without spawning PowerShell. */
 std::wstring build_unlock_command(wchar_t letter, int key_type, const std::wstring& key_or_path,
                                   bool legacy_manage_bde);
+
+/* The command builder for the M-078 turn-off (the dual forms: the
+ * PowerShell Disable-BitLocker primary, the manage-bde -off legacy
+ * fallback - unlock()'s own duality). */
+std::wstring build_turn_off_command(wchar_t letter, bool legacy_manage_bde);
 
 /* The dictionary loop with the attempt seam (the recorder surface for the
  * N-064 contract tests). Candidates are converted to wide and fed to

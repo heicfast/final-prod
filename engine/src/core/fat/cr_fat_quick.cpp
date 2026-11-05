@@ -87,6 +87,18 @@ struct EmitCtx {
         std::u16string token;
     };
     std::vector<PendingRecycleR> pending_recycle_r;
+    /* S-068 (diff-to-fix): the og's last-good first-cluster hint
+     * (DAT_1800728c8) - the first cluster of the most recently
+     * successfully-walked non-directory file (FATSearchDLL :13753-13758:
+     * the non-directory gate `attr & 0x10 == 0`, the value = the walked
+     * file's first cluster after any adoption). The deleted-dentry
+     * low-16 re-base consults it (:14753-14755): a deleted FAT32 dentry
+     * whose first-cluster field looks LOW-16-ONLY (below 0x10000 and
+     * below the hint - the torn/stale high-word shape some deleters,
+     * sanitizers, and torn writes produce) is re-based by borrowing the
+     * hint's high 16 bits before the chain walk. Scan-global state like
+     * the og's global. */
+    u32 last_good_first_cluster = 0;
 };
 
 tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_clusters) {
@@ -102,13 +114,14 @@ tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_cluste
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin);
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin,
+                u32 dir_anchor_cluster);
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host, bool in_bin);
+                      tree::FullNode* deleted_host, bool in_bin, u32 dir_anchor_cluster);
 
 void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, bool deleted,
-                 bool in_bin) {
+                 bool in_bin, u32 dir_anchor_cluster) {
     if (ctx.depth >= EmitCtx::MAX_DEPTH)
         return;
     /* visited-dir cycle guard: use first cluster as identity */
@@ -122,13 +135,14 @@ void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, boo
     DirBuffer d = read_dir_chain(ctx.dev, ctx.p, *ctx.table, first_cluster, 4u << 20, ctx.cancel);
     if (d.valid) {
         /* '.' self-entry check (corpus): confirms real directory content */
-        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr, in_bin);
+        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr, in_bin,
+                         dir_anchor_cluster);
     }
     --ctx.depth;
 }
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host, bool in_bin) {
+                      tree::FullNode* deleted_host, bool in_bin, u32 dir_anchor_cluster) {
     if (!buf.valid || buf.data.empty())
         return;
     /* pause-aware gate + cancel poll per directory (G-07) */
@@ -152,16 +166,28 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         const u8 first = e->name[0];
         if (first == DENTRY_END)
             break; /* end of directory (corpus DENTRY_END) */
+        /* M-130 (diff-to-fix): the og's per-slot shape validator
+         * (FUN_1800365a0 :44263-44375) runs BEFORE the LFN/deleted
+         * dispatch at the main walk sites; a failing gate BREAKS the
+         * walk (:8792-93 in FUN_18000bfa0, :53647-48 in FUN_1800411d0 -
+         * end-of-directory semantics, the og loses everything after the
+         * corrupt slot; parity means matching the loss). The LFN slots
+         * pass inside the validator itself (the 0x0F + zero-cluster
+         * gate), so the walk-stop only fires on the corrupt classes:
+         * reserved attribute bits, the erased/repeated-pattern quad,
+         * impure volume-label shapes, and the 11th-repeat histogram. */
+        if (!fat_dentry_walk_ok(e)) {
+            ++ctx.stats->shape_rejected;
+            pending_lfn.clear();
+            break;
+        }
         if (e->attributes == ATTR_LFN) {
             const LfnEntry* l = reinterpret_cast<const LfnEntry*>(raw);
-            /* FAT-10 (AUDIT-FAT): og requires an LFN slot's first_cluster
-             * (+0x1A) to be ZERO before treating an 0x0F entry as an LFN
-             * slot (FUN_1800365a0:44287) - junk 0x0F-attr entries with
-             * stray +0x1A bytes are otherwise absorbed into the name. */
-            if (l->first_cluster != 0) {
-                pending_lfn.clear();
-                continue;
-            }
+            /* FAT-10 (AUDIT-FAT): an 0x0F slot's first_cluster (+0x1A)
+             * must be ZERO (FUN_1800365a0:44287). The M-130 walk gate
+             * above now REJECTS the stray-cluster 0x0F shape outright
+             * (the og's impure-label class - the walk stops); this arm
+             * only sees the clean slots. */
             pending_lfn.push_back(l);
             continue;
         }
@@ -196,7 +222,13 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
                 chk = recovered_chk;
                 short_name[0] = recovered;
             } else {
-                short_name[0] = '_'; /* undelete convention (no oracle) */
+                /* N-172: the og's placeholder is '#' (FATSearchDLL
+                 * FUN_180036350 :44166-44172, re-read first-hand: the
+                 * 0xE5 first byte (-0x1b signed) renders as 0x23) - the
+                 * no-oracle branch aligns for bench comparability; the
+                 * oracle branch above stays the registered superset
+                 * (PARITY-DELTAS D-120). */
+                short_name[0] = '#';
             }
         }
         if (short_name[0] == 0x05)
@@ -212,7 +244,7 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
         if (!lfn_ok)
-            name = short_name_to_u16(short_name);
+            name = short_name_to_u16(short_name, e->nt_reserved);
         pending_lfn.clear();
         if (name.empty())
             continue;
@@ -244,24 +276,80 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
 
-        emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin);
+        /* M-130 (diff-to-fix): the emission-walk shape gates
+         * (FUN_1800365a0 at the param_2 = 1 site :42948,
+         * FUN_180034db0's walk): the size/chain XOR consistency for
+         * files and the size+high-cluster shape for dirs. A failure
+         * SKIPS the entry - the og's emission walk continues past it
+         * (this is NOT a walk-stop class; only the walk gates above
+         * break). */
+        if (!fat_dentry_shape_ok(e)) {
+            ++ctx.stats->shape_rejected;
+            pending_lfn.clear();
+            continue;
+        }
+
+        emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin, dir_anchor_cluster);
     }
     if (ctx.progress && count)
         (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin) {
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin,
+                u32 dir_anchor_cluster) {
     const u32 first_cluster = (u32(e.first_cluster_high) << 16) | e.first_cluster_low;
     const bool is_dir = (e.attributes & ATTR_DIRECTORY) != 0;
     const u32 expect_clusters = u32((e.file_size + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
+    /* S-068: the effective first cluster - the dentry's value, or the
+     * re-based value when the deleted high-16 re-base adopts (the og's
+     * in-memory dentry repair writes the corrected pair back at
+     * +0x14/+0x1a, FATSearchDLL :14840-14842; the core's equivalent is
+     * emitting the corrected cluster). */
+    u32 effective_first = first_cluster;
 
     /* chain resolution (F-A1-11: the walkers poll the token per step) */
     ChainResult chain;
     bool inferred_chain = false;
+    /* S-068/M-159: the og's deleted high-16 re-base (FAT32 only - the high
+     * word exists only there). M-159's dispatcher decode, first-hand
+     * (FATSearchDLL FUN_180012e60 :13744-13749): dentries route by the
+     * ATTR_DIRECTORY bit - FILE dentries (attr & 0x10 == 0) to
+     * FUN_1800140d0, whose re-base (Site A, :14753-14755) is EAGER
+     * under the three-gate conjunction with NO big-volume gate;
+     * DIRECTORY dentries to FUN_180014530, whose raw-first retry leg
+     * (Site B, :14826-14848) carries the 0x310000 < hint gate - the
+     * M-159 Site-B block below models it. The pre-walk position matches
+     * the og's Site A: the value is re-based BEFORE the walk, the walk
+     * at the re-based cluster decides adoption, and a failed re-based
+     * walk falls back to the raw dentry value (the og's first-leg
+     * behavior). The re-based emission carries the assumed/inferred
+     * provenance (the og's `*param_8 = 1` flag - the same assumed
+     * family as the EXFAT-2 salvage) and never grades Excellent. */
+    bool high16_rebased = false;
+    if (deleted && !is_dir && ctx.p.flavor == Flavor::Fat32 &&
+        ctx.flags.reconstruct_deleted_chains && first_cluster >= 2 && first_cluster < 0x10000 &&
+        first_cluster < ctx.last_good_first_cluster) {
+        const u32 rebased = (ctx.last_good_first_cluster & 0xFFFF0000u) | u32(e.first_cluster_low);
+        ChainResult rb = reconstruct_deleted_chain(*ctx.table, rebased,
+                                                   is_dir ? 0 : expect_clusters, ctx.cancel);
+        /* the og's confirm semantics (FUN_180014530's `*param_8` gate):
+         * the walk CONFIRMS only when the re-based cluster's own FAT
+         * entry is live (a link or EOC - the chain is FAT-backed); a
+         * FREE entry at the re-based cluster is the unlinked shape -
+         * no confirmation, the raw dentry value's walk decides (the
+         * og's first-leg fallback). */
+        if (!rb.cancelled && !rb.clusters.empty() && ctx.table->raw(rebased) != 0) {
+            chain = std::move(rb);
+            effective_first = rebased;
+            high16_rebased = true;
+            inferred_chain = true; /* the assumed flag: never Excellent */
+            ++ctx.stats->high16_rebased;
+        }
+    }
     if (!deleted) {
         chain = follow_chain(*ctx.table, first_cluster, 0x10000, ctx.cancel);
-    } else if (ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
+    } else if (!high16_rebased && ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
         chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters,
                                           ctx.cancel);
         /* GAP-S6-2 (bench 40079065019: 46/10143 hash-true): an UNLINKED
@@ -283,8 +371,58 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
             }
         }
     }
+    /* M-159 Site B: the deleted-DIRECTORY retry leg
+     * (FUN_180014530 :14826-14848, decoded first-hand): the raw walk
+     * above ran FIRST (the og's first leg, the 7th walk arg carrying
+     * the low-16 flag); on its failure the og retries at the re-based
+     * cluster ONLY when the big-volume gate holds (0x310000 <
+     * DAT_1800728c8, :14834). Adoption stamps the write-back pair
+     * and moves the hint to the ADOPTED cluster itself (:14847) -
+     * the one hint update that is not the walked END. The firing
+     * condition maps the og's failed first walk onto the core's
+     * broken/cycle/empty class; free-start shapes keep the
+     * registered GAP-S6-2 semantics (a clean 1-cluster run is the
+     * core's intended emission there, not a retry trigger). The
+     * gate is seam-exposed as dir_retry_rebase_cluster() for the
+     * test matrix (no CI-scale fixture can carry a >0x310000-cluster
+     * FAT). */
+    if (is_dir && !high16_rebased && ctx.p.flavor == Flavor::Fat32 && !chain.cancelled &&
+        (chain.broken || chain.cycle || chain.clusters.empty())) {
+        const u32 rb = dir_retry_rebase_cluster(first_cluster, ctx.last_good_first_cluster);
+        if (rb >= 2 && rb <= ctx.table->max_cluster() && ctx.table->raw(rb) != 0) {
+            ChainResult retry = reconstruct_deleted_chain(*ctx.table, rb, 0, ctx.cancel);
+            if (!retry.cancelled && !retry.broken && !retry.cycle && !retry.clusters.empty()) {
+                chain = std::move(retry);
+                effective_first = rb;
+                high16_rebased = true;
+                inferred_chain = true; /* the assumed flag: never Excellent */
+                ++ctx.stats->high16_rebased;
+                /* :14847 - the adopted cluster itself, not the END */
+                ctx.last_good_first_cluster = rb;
+            }
+        }
+    }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
+
+    /* S-068/M-159: the og's last-good hint update, the walked END - the
+     * decode their own landing left open ("param_5 is undecoded"), read
+     * first-hand this session (FATSearchDLL :13722-13727 + :13754-13756):
+     * uVar6 = ceil(size/cluster_bytes) is computed from the DENTRY's
+     * size BEFORE the walk, and the update stamps local_res8 + uVar6 -
+     * the final first cluster PLUS the size-derived cluster count,
+     * never the bare first cluster and never the walked length. The
+     * gate is non-directory && (success || final_first > 0x10000):
+     * param_5's first byte is the walk-success flag (FUN_180012c00 sets
+     * it - the Site B quote's `if (*param_8 == '\0')` proves the
+     * semantics), and the `0x10000 < local_res8` arm keeps the
+     * high-water mark even when the walk BROKE - any recently-seen
+     * high cluster is high-word evidence for the next torn dentry.
+     * Directories and volume labels never move it (:13755, the
+     * attr & 0x10 == 0 gate); the M-159 Site-B adoption above is the
+     * one exception (the adopted cluster itself, :14847). */
+    if (!is_dir && (!chain.clusters.empty() || effective_first > 0x10000))
+        ctx.last_good_first_cluster = effective_first + expect_clusters;
 
     /* M-052: recycle-bin pairing inside the recognized bin roots (the
      * og's four-name _stricmp set, FATSearchDLL :1668-1677). $I<token>
@@ -336,6 +474,13 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     props->name = name;
     props->fs_kind = u32(ctx.p.flavor); /* 0=FAT12 1=FAT16 2=FAT32 (corpus codes) */
     props->logical_size = is_dir ? u64(chain.length()) * ctx.p.cluster_bytes : e.file_size;
+    /* N-131: the FS-native parent anchor — the containing directory's own
+     * origin cluster (the og's CFATFileProperties +0x42 = the parent node's
+     * +0x3e, FATSearchDLL :11654 with local_110 from :11500/:11504). The
+     * walk plumbs the value in: the volume root anchors at 0 (engine init
+     * FUN_18000e130 creates the root node with SetFirstCluster(0) on every
+     * flavor), a walked subdirectory anchors at its own first cluster. */
+    props->fat_parent_cluster = dir_anchor_cluster;
     /* N-021 og parity: an invalid/zero FAT date (DosDateTimeToFileTime
      * failure class - month 0/13, day 0/32) yields the ZERO FileTime
      * (1601-01-01 UTC), not 1970-01-01. The og zeroes the props slot on
@@ -345,14 +490,26 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * 0 here maps 1:1 onto the og's failure branch. The exFAT sibling has
      * carried the same early-exit since S-011 (exfat_time_to_unix100). */
     const auto fat_to_filetime = [](u16 date, u16 time, u8 tenths) -> u64 {
-        const u32 secs = fat_date_to_unix(date, time, tenths);
-        return secs ? u64(secs) * 10000000ULL + 116444736000000000ULL : 0;
+        /* N-173: u64 seconds - 2106/2107 FAT dates convert fully (the
+         * og's converter has no cutoff); 0 remains exactly the invalid-
+         * date class (the N-021 zero-FileTime mapping unchanged) */
+        const u64 secs = fat_date_to_unix(date, time, tenths);
+        return secs ? secs * 10000000ULL + 116444736000000000ULL : 0;
     };
     props->times.created = fat_to_filetime(e.creation_date, e.creation_time, e.creation_tenths);
     props->times.modified = fat_to_filetime(e.write_date, e.write_time, 0);
     props->times.changed = props->times.modified;
     props->times.accessed = fat_to_filetime(e.access_date, 0, 0);
     props->attributes = e.attributes;
+    /* OQ-SA-1 (resolved): the og stamps the props' first-cluster anchor
+     * from the dentry pair (dentry +0x14/+0x1A) independent of chain
+     * resolution — for deleted entries the reconstruction helper
+     * FUN_180012e60 ALWAYS stamps, with the DENTRY's own first-cluster
+     * when reconstruction produced nothing (FATSearchDLL :13702-13738).
+     * Passive datum; 0 stays 0 (empty file). S-068: a re-based emission
+     * stamps the REPAIRED pair (the og's write-back at :14840-14842
+     * corrects the dentry in memory before the stamp). */
+    props->fat_origin_cluster = effective_first;
     if (deleted)
         props->flags &= ~u16(0x10);
     else
@@ -378,6 +535,14 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
         i = j + 1;
     }
 
+    /* N-165/S46 convergence: count the D-136 class (any extent past the
+     * device end) - additive observability only; grades are the chain's
+     * own per the winning stance. */
+    for (const auto& ex : props->extents)
+        if (ex.offset + ex.length > ctx.dev->size()) {
+            ++ctx.stats->overflow_chains;
+            break;
+        }
     tree::FullNode* default_root =
         deleted ? (deleted_root ? deleted_root : ctx.root_deleted) : ctx.root_active;
     tree::FileNode* n = ctx.tree->add_file(parent_host ? parent_host : default_root, props);
@@ -416,7 +581,9 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
             g == tree::Confidence::Excellent)
             g = tree::Confidence::PartialRisk;
         /* GAP-S6-2: an inferred (contiguous-candidate) run is NEVER
-         * Excellent - it is a reconstruction, not FAT-verified truth */
+         * Excellent - it is a reconstruction, not FAT-verified truth.
+         * S-068: a high-16 re-based chain carries the same assumed flag
+         * (the og's `*param_8 = 1`) - inferred_chain covers both. */
         if (inferred_chain && g == tree::Confidence::Excellent)
             g = tree::Confidence::PartialRisk;
         n->set_confidence(g);
@@ -440,11 +607,27 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * root turns the recycle context on for the whole subtree (M-052) */
     if (is_dir && first_cluster >= 2) {
         const bool child_in_bin = in_bin || recycle::is_bin_root(name);
-        recurse_dir(ctx, first_cluster, n, deleted, child_in_bin);
+        recurse_dir(ctx, first_cluster, n, deleted, child_in_bin, first_cluster);
     }
 }
 
 } // namespace
+
+u32 dir_retry_rebase_cluster(u32 raw_first, u64 last_good_hint) {
+    /* M-159 Site B's gate set, LITERAL (FUN_180014530 :14826-14848,
+     * decoded first-hand): the only gate is the big-volume check
+     * `0x310000 < DAT_1800728c8` (:14834) - the raw walk has already
+     * failed at this point (the first leg, *param_8 == 0), and the
+     * re-based candidate is the og's `(DAT_1800728c8 & ~0xFFFF) +
+     * uVar2` form (:14834-14836) where uVar2 is the failed first walk's
+     * start. No low-16-only gate and no below-hint gate exist at THIS
+     * site (they belong to Site A) - recorded literally; the CALLER's
+     * bounds + FAT-linked validation refuse the degenerate candidates
+     * (0/1/out-of-range/free). */
+    if (last_good_hint <= 0x310000)
+        return 0;
+    return u32((last_good_hint & 0xFFFF0000u) | (raw_first & 0xFFFFu));
+}
 
 u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* cancel,
              WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
@@ -495,6 +678,30 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         u16(slice->geometry().logical_sector ? slice->geometry().logical_sector : 512), p);
     if (rc != OK)
         return rc;
+
+    /* N-201 (diff-to-fix): the og's media-word re-flavor - the
+     * FUN_180021000 two-leg probe (FAT1 then FAT2 first sectors, last
+     * read wins, og-exact) that runs AFTER the string-first validator
+     * and BEFORE the FAT tables load. An internally inconsistent volume
+     * (string/bracket say one flavor, the FAT media words carry the
+     * other's canonical shape - real after interrupted format
+     * conversions) is re-flavored by the og and scanned; the refinement
+     * adopts the shape-indicated flavor and re-derives the flavor's own
+     * BPB field family coherently. When no canonical shape matches, the
+     * string-first flavor stands (M-015's whole-table validation stays
+     * the final gate).
+     * Reachability is the og's own: FUN_180021000 bails at the 0xE
+     * flavor BEFORE the media-word legs when the string-first validator
+     * (FUN_18002f970) did not assign 1/2 by string - so the refinement
+     * only ever runs on string-derived flavors. The core's Fat12
+     * bracket superset (the D-94/I-002 family: string-less volumes the
+     * og declines outright) never reaches the og's probe and is left
+     * untouched by it here. */
+    if (p.flavor != Flavor::Fat12) {
+        rc = refine_flavor_by_media_words(slice, gating_sector, slice->size(), p);
+        if (rc != OK)
+            return rc;
+    }
 
     FatTable table;
     table.set_mirror_bad_salvage(flags.mirror_bad_salvage); /* N-022 */
@@ -552,13 +759,13 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         if (slice->read_at(p.root_dir_offset, root.data.data(), u32(len)) != OK)
             return ERR_READ_FAILED;
         root.valid = true;
-        walk_dir_entries(ctx, root, root_active, root_deleted, false);
+        walk_dir_entries(ctx, root, root_active, root_deleted, false, 0);
         if (ctx.cancel && ctx.cancel->checkpoint())
             return ERR_CANCELLED;
     } else {
         if (p.root_cluster < 2 || p.root_cluster > table.max_cluster())
             return ERR_BAD_PARAMETER;
-        recurse_dir(ctx, p.root_cluster, nullptr, false, false);
+        recurse_dir(ctx, p.root_cluster, nullptr, false, false, 0);
         /* recurse_dir inserted the root cluster into visited_dirs; children
          * of the volume root attach under root_active directly */
         if (ctx.cancel && ctx.cancel->checkpoint())

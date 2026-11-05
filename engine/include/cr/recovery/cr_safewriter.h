@@ -19,10 +19,20 @@
 #include "../recovery/cr_report.h"
 #include "../crypto/cr_sha256.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_retry.h" /* M-136/M-135: RetryingDevice (the error-map source) */
 #include "../tree/cr_node.h"
 #include <set>
 #include <string>
 #include <vector>
+
+/* S-052 fwd: the LDM virtual device lives in the table layer
+ * (cr/table/cr_ldm.h); the basis adapter below is implemented in
+ * cr_safewriter.cpp where both layers meet. */
+namespace cr {
+namespace table {
+class LdmVolumeDevice;
+} // namespace table
+} // namespace cr
 
 namespace cr {
 namespace recovery {
@@ -51,6 +61,36 @@ public:
     virtual u64 free_bytes(const std::u16string&) const { return 0; }
     /* check existing final path (resume detection) */
     virtual bool exists(const std::u16string& path_utf16) = 0;
+
+    /* S-060: post-commit metadata restoration - the og's per-item
+     * tail (DRWUI :874686-718, the only SetFileTime/SetFileAttributesW
+     * pair in the export body): SetFileAttributesW(path, attrs &
+     * 0xfffd) then a CreateFileW handle and the mask-gated SetFileTime
+     * trio, both failures NON-FATAL (ReleaseTrace + continue). The
+     * writer calls this AFTER a successful commit; a non-OK return
+     * never fails the item - the report row records it. Backends
+     * without a metadata surface keep the default (the writer reports
+     * "not restored" truthfully). */
+    struct FileMeta {
+        u64 created = 0; /* 100ns since 1601 (the FileTimes wire unit) */
+        u64 accessed = 0;
+        u64 modified = 0;
+        u32 attributes = 0; /* the DOS attribute word (the og clears 0x2) */
+        /* per-field enables - the og's mask gates (bit 0x8 creation,
+         * 0x10 access, 0x20 write) translated to "the engine emitted
+         * this field" (a zero slot is the og's no-date and stays unset) */
+        bool set_created = false;
+        bool set_accessed = false;
+        bool set_modified = false;
+        bool set_attributes = false;
+    };
+    virtual u32 set_metadata(u64 item_id, const std::u16string& final_path_utf16,
+                             const FileMeta& meta) {
+        (void)item_id;
+        (void)final_path_utf16;
+        (void)meta;
+        return ERR_UNSUPPORTED;
+    }
 };
 
 enum class ItemState : u8 { Pending = 0, Reading, Writing, Verifying, Done, Error, Refused };
@@ -71,6 +111,12 @@ struct QueueItem {
      * instead of node->props() (exactly one of the two is non-null for
      * content items). */
     const tree::FileProperties* value_props = nullptr;
+    /* S-052: the device this item's extents read through - the node's
+     * root basis resolved at enqueue (basis 0 / unresolvable = the
+     * writer's absolute source_). Recover_item reads HERE, never
+     * source_ directly. */
+    IStorageDevice* read_src = nullptr;
+    u32 basis = 0;              /* the stamped basis id (diagnostics + re-lookup) */
     std::u16string dest_dir;    /* utf16 directory (with trailing sep) */
     std::u16string final_name;  /* collision-resolved */
     std::u16string temp_suffix; /* ".part-" + id */
@@ -93,6 +139,19 @@ struct QueueItem {
     report::HashStatus hash_status = report::HashStatus::NotComputed;
     bool had_unreadable = false; /* FB-R02: a device/decompress failure
                                   * zero-filled a span (Outcome::Salvaged) */
+    /* ---- M-135: the og's per-file failure record ---- */
+    u32 cause_id = 0;            /* the numbered cause (cr_report.h's table);
+                                  * 0 = no failure */
+    u64 first_failed_offset = 0; /* logical offset of the first unreadable
+                                  * byte (valid when cause_id != 0) */
+    u64 bytes_written = 0;       /* the committed byte count (the og's
+                                  * std::filesystem size probe) */
+    /* S-060: the post-commit metadata restoration outcome (the og's
+     * SetFileAttributesW + mask-gated SetFileTime tail). 0 = restored;
+     * a code = the backend's refusal (non-fatal - the item stays Done);
+     * the default-constructed value marks "never attempted" (metadata-
+     * less backends, directory items, refused items). */
+    u32 metadata_rc = 0xFFFFFFFFu;
 };
 
 struct WriterConfig {
@@ -108,6 +167,13 @@ struct WriterConfig {
      * and directory nodes are enqueueable so empty leaves materialize. */
     bool reconstruct_dirs = true;
     ConflictPolicy conflict = ConflictPolicy::Rename;
+    /* M-135 (the S71 rider): the og's settings-gated error-9 accounting
+     * skip (the recorder's FUN_1400b3c60()+0x10 probe at DRWUI
+     * :874072-874076: when the setting byte is set, error-9 items skip
+     * the failed-list accounting entirely). Default FALSE = account
+     * truthfully (the library posture; the og's gate is a host
+     * setting). */
+    bool suppress_read_error_accounting = false;
 };
 
 struct WriterStats {
@@ -121,14 +187,70 @@ struct WriterStats {
     u64 dirs = 0;               /* G-08: directory nodes materialized */
     u64 nothing_to_recover = 0; /* GAP-S6-7: no-extent/no-resident items
                                  * skipped before any write */
+    /* M-135: committed-but-truncated items (the og's error-9 family -
+     * the partial IS on disk and the file IS in the failed list; a
+     * separate bucket from done and from hard errors). */
+    u64 read_error = 0;
     /* N-015: the pass aborted (or refused upfront) because the
      * destination ran out of space - remaining items stayed Pending. */
     bool dest_full = false;
 };
 
+/* S-052: the multi-basis source table - the LDM virtual devices a
+ * scan/session owns, indexed by the tree roots' basis ids (basis id N
+ * == index N-1; 0 is always the writer's absolute `source`). The table
+ * is NON-OWNING: whoever constructs the LdmVolumeDevices (the scan
+ * controller while the scan handle lives, the session's re-arm after a
+ * load) keeps them alive for the writer's lifetime. */
+class LdmBasisTable {
+public:
+    /* register a device (basis ids are assigned in call order: the
+     * first add() is basis 1) */
+    void add(::cr::table::LdmVolumeDevice* dev);
+    ::cr::table::LdmVolumeDevice* at(u32 basis) const; /* null when absent */
+    size_t size() const { return devs_.size(); }
+
+    /* the physical spans a basis-relative extent touches on its member
+     * disks - the destination-overlap check's input (R7.2/F12 compares
+     * PHYSICAL placements). Empty for an absent basis / out-of-range. */
+    struct Span {
+        IStorageDevice* dev = nullptr;
+        u64 offset = 0;
+        u64 length = 0;
+    };
+    std::vector<Span> spans(u32 basis, u64 offset, u64 length) const;
+
+private:
+    std::vector<::cr::table::LdmVolumeDevice*> devs_;
+};
+
 class SafeWriter {
 public:
-    SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg);
+    /* `bases` (nullable, attachable later via set_basis_table): the LDM
+     * basis devices - S-052. Nodes whose root carries basis N>0 read
+     * through bases->at(N); basis-0 nodes read through `source`
+     * unchanged. The pointer is BORROWED and may be null when no
+     * dynamic volume was scanned. */
+    SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg,
+               const LdmBasisTable* bases = nullptr);
+
+    /* S-052: late-attach/retract the basis table (the UI arms the
+     * session's lazily-rebuilt devices at the first basis-aware
+     * enqueue). Read at enqueue time; null = every basis resolves to
+     * the absolute source. */
+    void set_basis_table(const LdmBasisTable* bases) { bases_ = bases; }
+
+    /* M-136 + M-135: the retry layer under the writer's source pipe
+     * (nullable - the degraded bare-slice path has none). The M-135
+     * read-failure policy consults its live error map per read (a
+     * Skip-mode read that zero-filled bad sectors returns OK - the map
+     * is the ONLY post-retry hard-failure signal; an intersecting range
+     * truncates the item, the og's error-9 family). The M-136
+     * commit-time Salvaged check rides the same pointer for the
+     * compressed path (a valid decode of zero-filled packed bytes must
+     * never surface as a clean Done). The pointer is BORROWED and must
+     * outlive the writer (the ReadPipe that owns it does). */
+    void set_read_error_source(const RetryingDevice* retry) { retry_src_ = retry; }
 
     /*
      * set_destination - records the destination volume's disk extent.
@@ -182,14 +304,35 @@ public:
 
 private:
     u32 enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
-                       const tree::FileProperties* value_props, const std::u16string& dest_dir);
+                       const tree::FileProperties* value_props, const std::u16string& dest_dir,
+                       u32 basis /* S-052: the item's root basis id */);
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* timed body: recover_item stamps duration_ms on every exit path */
     u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
+    /* M-135: the og's error-9 truncation tail - commit the partial,
+     * record the numbered cause + the boundary. `hard_offset` is the
+     * logical offset the file ends at (bytes before it are already
+     * written); `hash` (nullable) finalizes over the committed prefix;
+     * returns the commit's rc (OK = partial committed). */
+    u32 commit_partial_(QueueItem& it, const tree::FileProperties* pr, crypto::Sha256* hash,
+                        u32 cause_id, u64 first_failed_offset, u64 hard_offset, WriterStats& stats);
+    /* M-135: the og's three-line read-failure log family
+     * (DRWUI :875686-875691, format strings verbatim; the values are
+     * the core's byte-granular analogs - documented in the .cpp). */
+    static void log_read_failure_(const tree::FileProperties* pr, size_t ext_i, u64 in_ext,
+                                  u64 read_len, const IStorageDevice* dev);
     /* G-08: create `dir` (recursive) once per unique directory per run */
     u32 ensure_dir_(const std::u16string& dir);
     DestIo& io_;
     IStorageDevice* source_;
+    /* S-052: the multi-basis table (borrowed; may be null/empty) */
+    const LdmBasisTable* bases_ = nullptr;
+    /* M-136/M-135: the pipe's retry layer (borrowed; null on the
+     * degraded bare-slice path and for legacy bare-device
+     * constructions). The M-135 read-failure policy reads its live
+     * error map (the post-retry hard-failure signal); the M-136
+     * commit-time Salvaged check rides the same pointer. */
+    const RetryingDevice* retry_src_ = nullptr;
     WriterConfig cfg_;
     /* N-013: every armed destination span (multi-extent volumes). The
      * legacy single-extent pair is span[0] of this vector. */
@@ -205,6 +348,15 @@ private:
      * collision source of truth, independent of destination state */
     mutable std::set<std::u16string> claimed_names_;
 };
+
+/* M-135: the og's numbered user-facing failure causes - the
+ * COMPILED-IN defaults (DRWUI.exe strings_ascii.txt :30580-30596,
+ * RecoveryFailedInfo1..7), corrected first-hand this session: the
+ * finding's six-string qm citation missed cause 7 and misread cause 4
+ * (the qm's "4.The file name is most likely lost" is a search-help
+ * string; the runtime list's 4 is the sector-location cause). Returns
+ * null for id 0 and out-of-range ids. */
+const char* failure_cause_text(u32 cause_id);
 
 } // namespace recovery
 } // namespace cr

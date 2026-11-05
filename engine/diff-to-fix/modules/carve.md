@@ -1,5 +1,44 @@
 # modules/carve.md — carve module audit verdicts
 
+
+## Session-93 fix row (2026-10-30 — the APE member: the SA-9 concession; the finding is FIXED on the racing seat)
+
+- **APE — CONCEDED (the racing window's landing holds)**: this lane
+  landed the member concurrently (RED-proven at the stand-in) but the
+  racing push won the window; their decode is the better one on the
+  <3801 point (the raw :39134 reassignment: the SCAN BOUND first-aux,
+  not the table position) and their terminal carries the torn-salvage
+  epilogue. This lane's implementation + battery withdrawn at the
+  merge; the racing 8-test battery covers the member (8/8 at the
+  merged tree). **The rider kept:** the two stale pre-M-106 headers
+  retired (validate_one/validate_3ds — their bodies landed the walks in
+  M-106; the file-level headers still said "stands in"). The finding is
+  FIXED with the three registered remainders (the DWG gen-3 R2007
+  chain, the SIT ' '-form epilogue, the CWS compressed-body RECT).
+
+## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
+
+New active findings on this module: **S-055** (FIXED session-51 — the user-sign layer
+probed before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap
+formats flipped to device-end extents; built-in-first restored, the no-reclaim rule
+pinned); **S-056** (FIXED session-51 — disabled_formats did not gate the user-sign
+layer; match_at's disabled_exts predicate now carries the removal-loop semantics);
+**M-128** (hex-case semantics — 12
+og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
+skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
+merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171 FIXED
+(Session-44 — the user-sign emission ticks `validated`; RED→GREEN on both the carve
+and session legs; findings/FIXED/N-171)** (user-sign files never tick carved_found);
+**N-188 FIXED (Session-44 §8 discovery — the stock raw-sign layer's twin, filed+fixed
+the same session; findings/FIXED/N-186)** (sign-table-only formats never tick
+`validated`); **I-035 (ACKNOWLEDGED — folded into S-050 as the dated addendum)** (the CHK-chain decode addendum for S-050);
+**I-036** (the default-on posture is CLI-app-level only). Key architecture decode
+(this session, lane C): EUUserData's sole og consumer = DRWUI's CHK repair chain
+(renames identified .chk fragments by hex-prefix adapters); GetRawUserInfoMap = the
+per-scan carve-statistics OUTPUT map (cleared per searcher init, read post-scan) —
+never an engine input; NO writer exists for EUUserData in any og binary.
+
+
 Reference: RAWSearchDLL per corpus artifacts `SearchDLL/rawsearch-carving--deep-dive.md`,
 `rawsearchdll--analyser-registry-census.md`, `raw-dual-registry--u16-magic-keys.md`,
 `rawsearchdll--family-{brance,bruteforce,rawspeed,filegen,special,xjq}.md`,
@@ -81,6 +120,9 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
 | M-005 | MAJOR | Whole-slice carving vs og's bitmap-gated free-space pass — **FIXED (s14: gate in both dispatch layers + telemetry; bench 1.88x/1.89x on 50% used; suite 575/575)** |
 | N-008 | MINOR | ZIP padding cap off-by-one + alignment; v0x62/ZIP64 chain semantics |
 | OQ-T8 | tracked-open | Dispatch order (u16→u32→signs); JPEG full grammar; no-bitmap og behavior |
+| N-139 | MINOR | **(session-11 infra walk)** Carve OOM policy: og logs 5-line memory diagnostic then non-continuable SEH; core silent — and the core's own two paths disagree (nothrow→ERR_NO_MEMORY vs the two throwing buffers' uncaught bad_alloc) |
+| N-140 | MINOR | **(session-11 infra walk)** Per-extension carve-result aggregation surface (og GetRawUserInfoMap + DRWUI report breakdown) absent — CarveStats scalar-only, no API tallies carve_format |
+| I-031 | INFO | **(session-11 infra walk)** The RAWSearchDLL infrastructure register: pending-16 cap/oldest-first eviction, Stop() flushes partials, engine emits no progress, 512-sector refusal, the full 36-slot controller vtable, the singleton layout |
 
 ## Corpus errata candidate
 
@@ -253,6 +295,13 @@ loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
   `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
   emission-path change required for parity; the fix narrows to the
   category-bucket naming surface.
+- **I-027 register note (the filter_generalraw VALUE, session-8 sweep)**:
+  the concrete junk list behind the display-name mapping — the 65-extension
+  `filter_generalraw` value from `remote_config_data`
+  (`loggz, crash, evtx, lrprev, tmb, peak, default, sqm, pf, icns, …,
+  sqlite, m3u, amr, moff`) — on-file here as the ground truth for any
+  host-side general-raw display bucket. The semantic (display-name mapping)
+  is the OQ-S4-2 decode above; the value is the session-8 datum.
 
 ## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
 
@@ -297,9 +346,11 @@ byte-granular grid); the headerless audio gate is 10 consecutive frames
 (S007CommonFormatsCarve / S007ValidatorsRejectNoise /
 S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
 ASan smoke clean. **Remainder (precisely scoped in the finding):** the
-~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
-session-2/3-corrected table in the finding file is the implementation
-list) + the bench seed-matrix extension (Windows runner).
+~25 niche og-only formats (**landed since: school 1 `b92ebef` CHM/ONE/MNY/
+EMF/SWF/3DS + M-081 `9e5dedc` CRW/MRW/LowDoc/HLP + M-090 `9daa787b` DMG (S11 repair: 771e2ec phantom) +
+M-084/M-091 `16475b8` MDB/ACCDB — repaired SA-10; the remainder is the
+school-2/3 set, each with its own finding) + the bench seed-matrix extension
+(Windows runner).
 ## Session-6 rows (deep continuation, 2026-10-26 — the never-read family layer)
 
 The six `rawsearchdll--family-*.md` artifacts + the registry census/dual-registry decode were
@@ -407,7 +458,7 @@ B1/A28 verdicts: MATCH.
   gate's break/continue semantics preserved exactly (already-emitted
   break, suppress_overlap mid-stream skip, F9 dedup resolution). The
   two-generation `File*Analyser` fallback chain is REGISTERED as
-  PARITY-DELTAS **D-75** (legacy bodies undecoded in the corpus; the two
+  PARITY-DELTAS **D-140** (renumbered from the collided D-75 at N-207; legacy bodies undecoded in the corpus; the two
   fully-decoded legacy grammars — MKV vint walk, RAR4 fast validator —
   are already the core's validators). Tests:
   `CarveEngine.OverlapScorePrefersHigherConfidence` (fail-before: trial
@@ -489,3 +540,1125 @@ never feed the gate; the dedup tree stays the safety net.
 target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
 verdicts: MATCH (the interval shape is the finding's own sanctioned
 first step; the og's sparse-file mmap stays profiling-gated).
+
+---
+
+## Dev-sign session wave (2026-10-28, audited `dd82db9` — the never-cited family artifacts' first read)
+
+The session's corpus inventory found the six RAWSearchDLL family artifacts
+(bruteforce/filegen/rawspeed/xjq/special/brance — 131 analyser classes)
+NEVER-CITED by any prior finding; S-007's format additions were evidenced from
+the registry census, not the family semantics. The class-by-class comparison
+(evidence in this wave's findings):
+
+- **A-010 (ACUTE, FIXED)** — `validate_asf` ended the carve extent at the ASF
+  **Header Object's** size field; the og's CAsfAnalyser is a BruteForce walker ("keeps
+  consuming until the grammar breaks, then reports the last valid position as
+  the file size" — rawsearch-carving--deep-dive.md:87-91). Every ASF/WMV/WMA
+  carve was a header-only fragment. FIXED: the object walker (5 known
+  top-level GUIDs + size gates + device-bound torn-tail salvage); A28/B2 cells
+  → MATCH (4 fail-before tests in test_carve.cpp).
+- **S-037 (SEVERE)** — two formats escaped every format list: FreeHand 11
+  (CFH11Analyser, key 0x11C = bytes `1C 01 00 00`, registry id 0x1d,
+  decompile:1952-1961) and Corel PhotoPaint 3 generations (CPT7/8/9 =
+  0x37545043/38545043/39545043, census:93/:128). Core: FH11 exists only in
+  grading/filter tables; CPT absent entirely. A28/C19 cells → SEVERE.
+- **N-086 (MINOR)** — the base signature table is compiled-in generated code
+  where the og loads install-tree raw_signs.json at engine init
+  (deep-dive:54-59); unregistered posture divergence. R56/Q68 cells → MINOR.
+- Class disposition: 131 classes — 34 MATCH, 3 DIVERGENT (all registered
+  deliberate deltas: ADTS/MP3 D-57, DWG D-80), 67 NOT-IMPLEMENTED (64 covered
+  by S-007's open remainder), 1 UNDETERMINED (CFCPEvt attribution →
+  tracked-open OQ-SA-2), 26 N/A (infrastructure/harness). No new semantic
+  divergence among the implemented validators — every evidenced difference
+  maps to an existing finding.
+- Residual decode questions (AAC/M1V/RIFF tier roles, WPG size stamp,
+  CNeedRawMgr gating, CFCPEvt) → `tracked-open/OQ-SA-2-carve-family-decode-candidates.md`.
+- CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
+  (M-024 addendum; matrix/SUMMARY/evidence notes updated).
+
+## Fix-session delta (N-086 closed — 2026-10-28)
+
+- **N-086 → FIXED (registered)**: the compiled-in raw-signs posture
+  registered as PARITY-DELTAS D-103 (option (a): reproducibility over
+  field mutability; the usersigns surface — the shipped default set +
+  --user-signs + the cr_ui ABI — covers the runtime-extension story;
+  option (b) is the tracked design with its conditional test pair).
+  No code change: a registration fix.
+
+## Fix-session delta (M-065 closed — 2026-10-28)
+
+- **M-065 → FIXED** — the shipped default set: data/userdata-defaults.json
+  (the og's own 111-entry/190-sign EUUserData, canonicalized; parses clean
+  under the S-039 caps), the rrecov engine-init load (exe-adjacent file,
+  explicit --user-signs replaces, corrupt = degrade-empty, absent = one
+  log line), the release.yml staging (beside rrecov.exe + data/), 2 tests
+  (DefaultSetShipsAndLoads 111/190 + OgAbsentFromStockExtensionsCarried).
+  OQ-SA-3 resolved en route: GetRawUserInfoMap is consumed by DRWUI at
+  scan setup (Trigger_Raw/FileSystem config tree) - capability-
+  configuring, MAJOR stands.
+  **[D-104 supersession note (N-095 item 3): the be0cfe9 corpus decode
+  REFUTED the "capability-configuring" reading — GetRawUserInfoMap is the
+  per-scan carve-statistics map (FUN_18000ed00 insert-or-increment +
+  searcher-init clear; the DRWUI post-scan report reader). The "MAJOR
+  stands" verdict above is SUPERSEDED; OQ-SA-3's consumer question is
+  closed by CORPUS-ERRATA E-A/E-B + PARITY-DELTAS D-104.]**
+
+## Fix-session delta (S-037 closed — 2026-10-28)
+
+- **S-037 → FIXED** — FH11 (key 0x11C, the og's FUN_180029f30 constant
+  predicate: u64@+4 0x020014011C040002, u32@+0xC 0x011C1400, u16@+0x22
+  "11") + CPT7/8/9 (keys CPT7/CPT8/CPT9 -> the shared FUN_180043630 gate
+  "FILE"@+4 + 0x13C@+0x34 + the FUN_1800436e0 pointer-chase) implemented
+  from the decompile; ids APPENDED (FMT_FH11/FMT_CPT7/FMT_CPT8/FMT_CPT9);
+  trial order extended; 4 fail-before-proven tests; suite 914/4/0.
+
+## Fix-session delta (S-039 closed — 2026-10-28)
+
+- **S-039 → FIXED** — the user-sign caps raised to the og's measured EUUserData
+  maxima (48/12/1024/80 vs the og's 44/11/526/73), the four false justification
+  comments replaced with the measured values, atomicity kept. The og's own
+  111-entry DB now parses, installs, and the CLI proceeds to the scan (the
+  pre-fix exit-1 abort happened only on the over-cap atomic reject). Three
+  fail-before-proven tests (`ParseOgShippedExtremes` RED on the pre-fix build,
+  `HostileBlobStillAtomic`, `RegistrationRoundTripProceedsToScan` — the
+  offset-526 sign fires at the stride). M-065 (the default set) is unblocked.
+
+## Dev-sign session waves 3+5 additions (2026-10-28, audited `dd82db9`)
+
+- **S-039 (SEVERE)** — the user-signature caps reject the og's own EUUserData
+  (15/111 violate: 44-byte signs vs 16, 11 signs vs 8, offset 526 vs 512,
+  mime 73 vs 63 — measured first-hand); the atomic parse loads 0 entries and
+  the CLI aborts the scan (`rrecov.cpp:922-931`), in an error message naming
+  "the og's EUUserData JSON shape". The header's "og's longest" comments are
+  factually false.
+- **M-065 (MAJOR)** — no default user-sign set ships (the og consults 111
+  install-tree defaults; 79 extensions stock-absent from every core source);
+  severity calibrates on OQ-SA-3 (consumption mode).
+- **M-064 (MAJOR)** — the driver deployer's versioned/verified contract
+  absent (see modules/driver-install.md).
+- Wave 6 (WinPE payload census): the PE capability boundary (zero .mo = no
+  lost-partition search in the bootable edition; FREE-by-construction) is
+  DISPOSITIONED as the boot-media builder's design input — no carve defect.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+Findings touching this module (currency pass SA-10): **S-041** (FIXED-as-umbrella
+— retired to history this session; every still-open school-2/3 format child-filed:
+S-047/M-092/M-093/M-096/M-098/M-099/N-111/N-112/N-113/N-115), **M-081** (FIXED
+`9e5dedc` — the CRW re-attribution with the og HEAP grammar landed; repaired
+SA-10: the open "fix = re-attribute" phrasing above predated the landing),
+**N-093** (batch-1
+bounds — MID max 64 MiB vs og 10 MB, GZ 512 MiB/18 vs og 400 MB/20,
+undocumented supersets; PSP/SIT under the recorded heuristic but their og
+bounds were present at the ctors). Verification: batch-1's 27 magics
+re-checked byte-exact at 12 representative registration sites. The
+`modules/carve.md:546-548` stale OQ-SA-3 text → **N-095** item 3.
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; IDs reconciled past the parallel deep-audit lane)
+
+- **S-041 addendum (SEVERE)** — this lane completed the batch-2 decode the
+  deep-audit lane's owner finding pinned: the seven text-school grammars
+  (VCF/GPX/HIK/OSP/POS/AEP/CHFP), the 18-site config-gated registration
+  zone, registry geometry (59 u32 + 35 u16 bindings), the u16 BOM battery,
+  FCPEvt end-to-end. Evidence:
+  `../evidence/decompiled-quotes/s8-batch2-formats.md`.
+- **S-042 (FIXED this session)** — WMF placeable grammar contradicts the og
+  (checksum word@+20 == XOR(words 0..9), reserved dword@16-19, tail word, exact
+  size std_words*2+22 vs the core's inch-gate/checksum@18/XOR 0..8/probe-extent)
+  — disjoint accept-sets; the batch-1 landing's checksum claim refuted. **FIXED:
+  both WMF validators re-derived from FUN_1800264d0 (the placeable gate set
+  above; the std branch's invented version/objects/maxrec gates removed — the
+  og gates key+params only); fixtures regenerated from the canonical layout;
+  WmfPlaceableOgGrammarCarves / OldCoreGrammarRejected / TwentyByteVariantRejected
+  / WmfStdOgGatesAcceptNonCanonicalHeaders prove it. findings/FIXED/S-042.**
+- **M-084 (MAJOR)** — the MDB family's second signature "Standard ACE DB"
+  (ACCDB, type 0x4C) missing.
+- **N-099 (MINOR)** — batch-1 citation truth pass (registry regions
+  :1728-2509/:2536-2911 with 59+35 bindings; WPG ctor at :15700-01 — also
+  correcting N-093's inherited cite, erratum E63; the WPG constant is
+  0x00677077 LE).
+- Progressive carve-tree growth (UIUX/30:14) dispositioned MATCH this
+  session: the core's carve stage attaches nodes live during carve_slice
+  (cr_scan.cpp:1877-88) and counters refresh at progress ticks — same
+  live-growth behavior as the og's advanced pass.
+
+
+## Session-8 lead-lane wave (2026-10-28, audited `ff879f9`, corpus `be0cfe9` — the final
+push-window numbering, reconciled over the deep-audit/fix/third lanes)
+
+**Batch-1 verification failures the parallel waves did not cover:**
+- **M-090** — the DMG extent-walk/cap divergence: the og walks the "koly" UDIF trailer
+  (+0x200) with DMG's own 0xC800000 bound (:49436-49440/:63806) — core walks the bzip2 EOS
+  (+10) with the global 0xBEBC200 cap, truncating real DMGs before the mandatory footer
+  (erratum E67). NOT covered by the parallel lanes' batch-1 truth passes.
+- **M-091** — the MDB page-chain size walk DECODED (0x1000 strides, page-type word <=
+  0x901, cap 0x6400000, :52001-52039): the landed row's "page-chain walk is undecoded"
+  comment is falsifiable now; the 64 MiB bounded-extent stand-in sizes nearly every real
+  Jet DB wrong. (Complements M-084 — the ACCDB second signature.)
+- S-042's lead addendum — the WMF convergent decode + the two fix-criteria additions:
+  the exact Size x 2 + 22 formula; the invented inch-range gate; the fixture-regeneration
+  requirement (fixtures from spec, never from the implementation).
+
+**School-2/3 fix units** (children of S-041 per its addendum #2, grammars decoded):
+**S-047 FIXED this session** (FMT_TS/FMT_M2TS: the 0x47 sync scanners — 188/192-byte
+auto-detect by anchor offset, per-packet verify, null-packet tolerance, 0x5000 min,
+x10 cap, m2ts extension stamp; tests Carve.MpegTs188*/M2Ts192*/Ts*; findings/FIXED/S-047) ·
+**M-092 FIXED this session** (the four u16-key rows <h/<H/<!/FF FE + the
+case-insensitive <HTML/<!DOCTYPE HTML/wide probes + the ASCII-only </html>
+end-tag walk with sector round-up, 1 MiB cap; the vocabulary-consistency
+surface updated — HTML is checkable now, the OQ-FLT-1 registry-derived
+design; findings/FIXED/M-092) · **M-093** XML+SVG · **M-096** MOBI ·
+**M-098 FIXED (S42 fix lane)** HIK (the private_stream_1 discriminator: the BB->BD skip + the direct-BD form, the 0x1A+gated-BE16 pack walk, the 1 GiB cap-exact, L"HIK" from DAT_18006b428 dumped from the binary, base 700 for the N-070 score contest; tests Carve.Hik*; N-156 discovered+fixed in the same landing — the generic MPEG-PS lengths now read BE; findings/FIXED/M-098 + N-156) · **M-099 FIXED (S42 fix lane)** AEP (the bare-RIFX weak grammar ported as-is, the BE-length + "<?xpacket end" scan with the +6 extent, the zero-run trim, the 30 MiB cap exact, L"AEP" from DAT_180067008; tests Carve.Aep*; findings/FIXED/M-099) ·
+**N-111 FIXED session-39** (FMT_JP2/FMT_JPX/FMT_JPM: the "jP  " box key at +4 with the
+payload/ftyp/brand gates, the exact-match brand map via format_override (the M-093
+pattern), the fully-decoded size machinery — the BE u32 box walk with the len==1
+extended form, the len==0 FF D9 EOC scan with the 16-zero back-off (guard
+0x1F3FFFFF), and the jp2c-consecutive end rule; ids appended, cap 500 MB; tests
+Carve.Jp2BrandMap/SignaturePayloadGate/UncheckedBoxLength/UnknownBrandRejected/
+BoxWalkExtent/EocScan/Jp2cFinalAtSliceEdgeFallsBackBounded; findings/FIXED/N-111) ·
+**N-112 FIXED session-39** (FMT_LZH/LZH5/LZHD/LZH7: the four
+method-key rows, the "-lh?-" gate at +2, the entry-chain walk fully decoded — the
+per-method strides from the .data constant dump (the binary read that settled the
+DAT_ labels), the ext-flag CRC suppression, the -2/+2 step-back dance, size = pos+1,
+cap 200 MiB; the -lh5 hdr-only quirk PINNED as decoded; tests Carve.Lzh*;
+findings/FIXED/N-112) ·
+**N-113 FIXED session-39** (the six-row text school: VCF's END:VCARD walk with the
+multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 MiB),
+OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
+from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
+the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-121 FIXED — CONVERGENT (the renumber chain M-117 → M-118 [never landed] → M-121
+per SA-9: M-117 was triple-consumed — session-40 suppress-overlap row 442 keeps it;
+the parallel fix lane's 1d4c96b6 landing + this lane's correction push)** — the Outlook Express Dbx
+analyser LANDED: FMT_DBX_JMF6 ("JMF6") / FMT_DBX (CF AD 12 FE) / FMT_DBX_MARKED
+(F7 89 34 2C), one shared validator; the identity probe ported exactly (the
+JMF6+`03 00 10 00` u64 0x0010000336464D4A — disasm-settled at 0x180016766/0x18001676f,
+the parallel lane's reading confirmed over my first landing's 03 00 01 00 expansion
+error; the four OE store GUIDs; the marked 16-byte pattern with byte 6 = 0xEE — the
+parallel lane's 0xDE corrected, disasm 0x18001698b `movl $0x6deef0f7`); the plain-form
+size u32@+0x7C (clamped per the PST family precedent, rejected below the 0x80 read
+bound); the marked-form FUN_180042b30 zero-walk (0 on an all-zero window, else the
+non-zero prefix ROUNDED UP TO EVEN — disasm 0x180042bb0-0x180042c07, the `sar $1`
+bisection + `lea 0x1(%rsi),%eax` return; the pending-object recompute adapted to the
+one-shot validator per D-101); the og's embedded name provably EMPTY (both lanes
+converged); tests Carve.Dbx* (9, RED pre-fix — the formats did not exist); the s3
+"MISSING (N-026)" markers re-pointed at M-121; findings/FIXED/M-121) · **M-112 FIXED (S42)** — the CSL size branch landed: the CD 01 00 00 key leg's own
+size field (dword@0x44c + 0x480, gated by the ctor-pinned 1 MiB cap
+[SVGRawFileInfo +0x118 = 0x100000]); the finding's premise corrected (the branch is
+the CD01 key's, DAT_180093918 = 0x1CD — binary-dumped; the probe stamps that key
+0x5b, DAT_180093940 = the same dword; the "csl"-content leg never fires the walker's
+latch); declination falls to the end-tag walk; tests Carve.Csl* + SvgLeg (4, the RED
+case stashed-validator-proven); findings/FIXED/M-112) ·
+**N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
+the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
+renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
+remote's CrPreview finding, the local N-151 lost to the remote's nested-declaration
+re-finding)
+The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
+as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
+remote errata E56-E66.
+## Session-9 addendum (2026-10-28, SA-9 lane — audited product code `35adcb9`, corpus `be0cfe9`; reconciled into the session-8 board at push time)
+
+This lane's carve decodes converged with the parallel session-8 lanes; the
+unique artifacts kept (all cited by the reconciled findings):
+- The **instruction-level CHM verification** (capstone on
+  `og-codebase/RAWSearchDLL.dll` at 0x180016b40 — the u64 GUID compares,
+  the stack-constant table; evidence/decompiled-quotes/s9-chm-gate-asm.md)
+  — corroborates erratum E66 and the b92ebef school-1 landing's gate.
+- The **canonical-layout evidence table + the plant-mirrors-the-bug
+  analysis** for WMF placeable (s9-wmf-placeable-gate.md — cited by the
+  S-042 SA-9 addendum; the std-WMF stricter-gates observation there).
+- The **CRW/MRW registration quotes** (s9-crw-mrw-registrations.md — cited
+  by the M-081 FIXED convergence addendum; the MMOR/IIRS/FUJI →
+  BruteForce::TiffAnalyzer attribution correction for future key work).
+- The **consolidated batch-2 decode table** (s9-batch2-registrations.md —
+  cited by the S-041 SA-9 addendum).
+- The **MID/GZ ctor quotes** (s9-mid-gz-bounds.md — corroborate N-093).
+- The **registry inventory** (evidence/executions/s9-carve-registry-inventory.md
+  — the 101-row product inventory + the absence greps, taken at `35adcb9`,
+  i.e. immediately pre-b92ebef; school-1 formats are present post-landing).
+
+
+## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
+
+Two new findings + one executed MATCH, all from the first mining of the
+corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-mining.md):
+
+- **S-048 (SEVERE) — FIXED (session-40 severe lane)** — the og's carve branch landed in full:
+  the `Reconstructed` root (the og's own name; the M-029 config override retained; the legacy
+  name stays a recognized resume role) + the 7 EMPTY category skeleton folders
+  (Pictures/Documents/Archives/Videos/Audio/Emails/Others - every real session's persisted
+  shape, a newly-decoded surface) + the LAZY per-volume group children (the
+  "<label> (<L>:" + ")" / " (H:)" / "System Reserved" forms; a carves-free volume gets NO
+  child - the G session's shape) + the empty per-ext folders (lowercase) with every carved
+  file attached DIRECTLY to the volume child. The volume attribution is the tree position
+  (the og's architecture); the query axis is the path-prefix filter. VolumeGroup ranges +
+  names through CarveFlags (the M-104 tier names for whole-disk scans; the composed
+  label+letter for volume scans - ScanConfig::volume_letter plumbed through the CLI and the
+  ABI); ResultTree::add_folder + the marker-2 session record carry the intermediate folders.
+  8-test proof set (Orchestrator.CarveVolumeGroup* + CarveEngine.Reconstructed* +
+  Crsf.ReconstructedCarveTreeRoundTrip + Query.CarvedVolumeFilterAxis).
+- **S-049 (SEVERE) — FIXED (session-40 severe lane)** — the og's universal naming contract
+  `<PREFIX>_<%06d>.<UPPEREXT>` (DRWUI FUN_140c44770:1878330-81; prefix = the UPPERCASE EXT by
+  default, PER-FORMAT counters — JPG 1..3938 continuous across prefix variants, GZ 1..27,694,
+  PNG 1..17,580; overridden by SOF-dims `JPG_<W>x<H>`/EXIF-Model/EXIF-Software (JPEG),
+  mvhd-duration `MP4_08m07s` (MP4/MOV), ID3-title (MP3), Title(25-char cap)/Creator-Producer+
+  CreationDate (PDF), docProps-created (DOCX), first-CD-entry-with-/-mapping (ZIP), INAM (WAV)).
+  The core's File%06u default fires for every format except MP4/MOV — **RETIRED**: default_namer
+  emits the og contract; CarveResult::embedded_name -> name_prefix; N-063's MP4/MOV template
+  superseded on the carve-tree application (57/57 real rows are MP4_%06d.MP4 / duration forms;
+  the engine-side SetName decode stays documented in PARITY-DELTAS D-76). 13 pin tests
+  (OgNaming* + duration + FileNnnnFallbackRemoved); PARITY-DELTAS D-76 rewritten;
+  B10/A28/D12 cells → MATCH.
+- **Executed MATCH**: the raw_signs.json regen sync — scripts/gen_rawsigns.py
+  regenerated the compiled table from the og's shipped JSON: 139 formats / 199
+  header / 62 tail signs byte-identical (layout-only clang-format packing diff).
+  The layer-1 table is in sync with the og's shipped data at the audited tree.
+- Corroborations: S-031 (all real carved rows deleted-flagged), S-041 school-2/3
+  real-world weight (GZ/SVG/PNG = the og's top-3 carve volumes).
+
+
+## SA-10 addendum (session 10 — the walk follow-ups owned: M-106 + M-107; S-041 closed)
+
+The carve surface's size-walk residue now has owners:
+- **M-106 FIXED (S42 fix lane)** — the school-1 walks landed from the
+  first-hand re-read (ONE: the GUID-recheck chunk chain, size u64@+0xC4
+  fallback +0x64, 0<size<=2x-device, the break-point size, the 500,000,000
+  clamp; 3DS: the MM branch's section walk — the 0x58 shortcut on the
+  u16@+0x58 MM marker, the stride u16@+2, the 5x-device cap; the NCSD/CCI
+  branch KEEPS its bounded stand-in — the MM-marked walk would reject every
+  CCI file, the deviation documented in the Resolution): the M-090/M-091
+  truncation class closed on both formats (tests Carve.OneChunkChain* /
+  ThreeDsSectionWalk*; findings/FIXED/M-106).
+- **M-107** — the batch-1 undecoded-walk residue (ten sites: X3F/CRW/WPG/WPD/
+  PSP/SIT/APE/EPS/DXF/DWG + the SWF RECT validation walk), S-007's promised
+  follow-ups never previously owned; the X3F grammar corroborated by the
+  never-cited FileRepair artifact (x3f-repair--section-checkers-walk.md:9-33).
+- **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
+  carries the closure record).
+
+## S94 fix-lane addendum (2026-10-30 — renumbered from the born-collided S86→S93 seats; both window rebases conceded per SA-9; the N-231 coverage restoration the unique carry)
+
+- **The concessions:** this lane's independent DWG decode (gen-1 + gen-2,
+  both raw-asm first-hand), its eight-test battery, and its census
+  correction (the TEN-pair tier-1 truth — the same asm evidence the
+  window's S86 rider landed: `0x39303031`@0x18002feae + the
+  `cmp edx,0xa` bound) all converged with the racing window's landings
+  and conceded at the rebases. The seat's forms hold
+  (`DwgVersionGateIsTheOgsTenPairs` + the gen-3 explicit-'21' repair);
+  the current per-member state (the window's S87/S89/S90 sections) is
+  authoritative.
+- **N-235 (the unique carry, filed+fixed; renumbered N-231→N-234→N-235 at the window rebases):** the WPD zero-size-decline
+  coverage lost in the window's final merge state — N-230's Resolution
+  claims the S87 seat's test kept (count 1); the shipped tip carried
+  count 0. The S87 seat's `WpdZeroSizeFieldDeclines` restored verbatim
+  against the landed validator's `end <= hit` decline; the
+  record-vs-tree disagreement class recorded in the finding: arbitration
+  records are not tree state.
+
+## Session-11D fix lane (2026-10-29 — A-012, DISCOVERED during S-051's verification: the registry row restore)
+
+- **A-012 (ACUTE)** — the 81ee9775 rebase-window conflict sweep (the
+  M-093/M-096 push window) dropped M-093's FMT_SVG row from kTable: 119
+  rows against FMT_COUNT's 120, the mobi row displaced (id 119 at index
+  118), and the F8 gate (`validate_registry != 0` at carve_slice's head)
+  rejected EVERY call with ERR_BAD_PARAMETER — the whole carve stage was
+  hard-down on main (the pre-existing `CarveEngine.RegistryF8Gate` pin RED
+  at `bcf31316`, executed first-hand this session as the fail-before).
+  The row is restored verbatim from M-093's landing `ca701711` (the
+  direct "<svg" magic, validate_xmlsvg, 1 MiB cap) with an in-table
+  provenance comment; the registry is 120/120 clean, `RegistryF8Gate`
+  GREEN, and the parallel lanes' 9 residual clang-format violations
+  (cr_signatures.h / cr_analysers.cpp / test_carve.cpp /
+  test_thumbnail.cpp — their M-093/M-096/thumbnail-ABI landings) swept in
+  the same commit so the pinned-version format gate is green. Process
+  lesson recorded in the finding: a rebase-window conflict between two
+  DIFFERENT table rows must keep both sides.
+### Session-11-lead rows (2026-10-29)
+
+- **S-054** (SEVERE): the TS/M2TS cap at 2e9 is 10x the og's 200 MB clamp (the S-047 landing's refuted "x 10" provenance; unpinned).
+- **N-149** (MINOR): the filter's always-on set — the og exempts OLE/RIFF/ZIP from every filter (mask 0x1000801); the disable surface can switch them off.
+- **N-143** (MINOR): the ISpecial two-step dispatch with the id-8 generic continuation (the D-140 sibling).
+- **N-146** (MINOR): the FH11 zero-end stand-in unowned (S-037's purge residue; 32 MiB).
+- **M-112** (MAJOR, the S11B lane's convergent filing — this lane's draft N-147 dropped per extend-don't-refile): the CSL 0x44c size formula decoded-but-unported (FUN_180041950 :49749-49828, the span gate + the +0x118 cap check).
+- **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
+- The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
+- Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).
+
+## Session-42-B addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane B's carve filings; renumbered at the S42-B merge: N-154→N-158; the M-118 renumber REVERTED per SA-9 [the parallel window fixed the DBX finding under M-117 first])
+
+**N-158 FIXED (session-53: the five branches landed in the N-115 `zip_common` walk —
+XMIND (the FUN_180045110 predicate decoded first-hand: `content.xml` + the 300-byte
+`xmlns="urn:xmind` window), MMAP, EDDX (both forms), WFP (both forms), DRP; five
+appended enum ids + registry rows with the og's own label constants; the
+`disabled_formats` toggle gated at WINNER SELECTION — a disabled typed candidate
+loses the position to the undisableable generic row, keeping the interior covered
+[the emission-time alternative was implemented and rejected on executed evidence:
+the raw-sign DOTX claim]; findings/FIXED/N-158 — the original filing text below):**
+the og's ZIP
+per-entry typing walk carries five further branches N-115's landing did not port —
+XMIND 0x86 (the `FUN_180045110` content branch), MMAP 0x87
+(`xsd/MindManagerApplication.xsd`), EDDX 0x8c (both rels entry-name forms), WFP
+0x8d (both ProjectFolder forms; the label binary-resolved "WFP" at .rdata RVA
+0x6d940), DRP 0x91 (`MediaPool/Master/MpFolder.xml`; "DRP" at RVA 0x67c88) —
+`RAWSearchDLL_decompiled.c:53025-53100`, first-hand. The core's nine override rows
+cover none of them; RawConfig.ini's `[Filter]` keys couple to exactly these ids
+(the core's `disabled_formats` surface has no ids to gate). The entry-name half is
+a mechanical landing on N-115's existing walk; the XMIND content branch's exact
+predicate (FUN_180045110) needs a first-hand re-read before landing.
+
+**Liveness at `869da779`:** every active carve-scope finding re-verified STILL
+(M-098 HIK / M-099 AEP grep-zero; M-106's ONE 64-MiB stand-in at
+cr_analysers.cpp:5530 read; M-107's 12 `64 << 20` sites counted; M-112's
+"decoded only partially and stays unported" comment read at :3631-3632; M-117-dbx (now FIXED by the parallel window, `1d4c96b6`)'s pre-fix grep-zero; N-146's `32ull << 20` at :4379; N-149/N-139/N-140/N-152 grep-zero).
+Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` §1.
+
+## Session-43 minors lane (2026-10-29 — the N-152 landing; audited `b00118b5`, corpus `be0cfe9`)
+
+- **N-152 FIXED** (MINOR — the DXF 999-comment entry key): the u16 "99"
+  0x3939 second key lands as `FMT_DXF_C999` (the SWF/CWS dual-key
+  precedent — the og's :2722-2733 binding stamps the SAME CDXFAnalyser
+  idx 0x19 under the u16 magic map), and `validate_dxf` gains the probe's
+  comment branch (FUN_1800376f0 :42240-42290, re-read first-hand):
+  "999\n" → the 14-byte LF section form "  0\nSECTION\n  ", "999\r\n" →
+  the 16-byte CRLF form "  0\r\nSECTION\r\n  ", a forward NUL-guarded
+  scan (the og's byte-by-byte memcmp loop; the core's window bounded at
+  4 KiB — the comment-to-SECTION span in real exports is tens of bytes,
+  the bound registered in the Resolution). Both DXF rows carry
+  `suppress_overlap` (the N-151/N-153 repeating-key rule: a comment-led
+  document re-matches "  0\r" strictly inside itself; a canonical
+  document's interior "99" bytes never re-carve). Tests:
+  `Carve.Dxf999CommentHeaderLfCarves` / `Dxf999CommentHeaderCrLfCarves`
+  / `Dxf999RejectsNonCommentContinuation` (re-pinned to the og-faithful
+  headless-canonical salvage — the interior u32 key claims the position,
+  exactly the og's dispatch) / `Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve`.
+  Fail-before: 3 of 4 RED (stashed-validator rebuild; the near-miss
+  re-pin documented in the Resolution). Suite 1215/1215 (linux-release).
+
+- **N-149 FIXED** (MINOR — the filter's always-on set): the mask 0x1000801
+  over id−0x30 (RAWSearchDLL :4412-4418, re-read first-hand — set bits 0/11/24
+  → ids 0x30 FileOLEAnalyser / 0x3b FileRIFFAnalyser / 0x48 FileZIPAnalyser,
+  the ids re-pinned at the registry builders :2337/:2304-2310/:2243) lands as
+  `carve_format_always_on()`: the disable surface refuses to switch the three
+  families off (FMT_OLE; FMT_AVI/FMT_WAV/FMT_WEBP — the RIFF key's per-form
+  rows; FMT_ZIP/FMT_ZIP_CD + the typed office/ODF rows — the ZIP analyser's
+  in-analyser typing, the N-115 decode). The raw-sign LIST layer stays
+  disableable (its formats sit outside the og's mask range — the shipped
+  [Filter] targets exactly that layer; no raw-sign row exists for the three
+  families). The token-split pin: "doc" addresses both the exempt OLE row
+  and the non-exempt legacy LOWDOC rows — the exemption is row-level, the
+  legacy family stays disableable (the mask protects the OLE analyser only).
+  Tests: `CarveEngine.FilterExemptSetAlwaysOn` (RED pre-fix: zip/wav/ole all
+  dropped under a naming list; the jpg control still disabled),
+  `CarveEngine.FilterExemptSetCoversTypedRows` (the 16-row family mapping +
+  the exhaustive complement + the LOWDOC split). Suite 1223/1223.
+
+- **N-146 FIXED** (MINOR — the FH11 zero-end stand-in re-homed + pinned):
+  FUN_180029f30 re-read first-hand (:32612-32633 — the constant predicate
+  stamps CZeroEndRawFileInfo id 0x1d with NO size walk). The site joins
+  M-107's enumeration as its twelfth member (the zero-end family's 32 MiB
+  salvage posture — a different class than the batch-1 64 MiB DWG pattern;
+  the D-101 decline covers the og's pending-object zero-end metric).
+  `Carve.Fh11BoundedExtentPinned` holds the exact constant (fail-before
+  proven by mutation: 32→16 MiB RED). The registration gap — the finding's
+  actual defect — closed.
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **N-157 corroboration** (MINOR, retired): this lane's independent T0 discovery of
+  the red main — reproduced by the second method (a clean `git worktree` build of
+  the landing commit `67de3276` itself: `Carve.OoxmlRelsPathSplit` FAILED with the
+  identical -32 delta, pinning the N-115 Resolution's 0-fail claim false at the
+  pushed tree) — folds as the corroboration addendum on the S42 lane's N-157
+  (extend-don't-refile; evidence/executions/s42c-red-main-reproduction.md).
+- The landing-parity sweep of the freshest carve landings (S-049 naming, S-054's
+  successor state, N-112 LZH, N-113 text school, N-115+N-153 OOXML/ZIP, N-151
+  nested-declaration, A-012 registry): **all VERIFIED-PARITY at the pin** — the
+  S-054-precedent hunt found no code divergence (evidence/s42c-landing-parity.md).
+- The window's S-048/M-117/N-152 landings (verified LIVE at this lane's pin,
+  landed by the parallel lanes mid-window) acknowledged: the pin-time liveness
+  rows are historical; the reconciled tree carries their Resolutions.
+
+- **N-179 FIXED** (MINOR — the S-039 cap-annotation set's false data claim):
+  the EUUserData length distribution re-measured first-hand (111 keys / 190
+  signs; the >4 set = {"class","manifest"} exactly; max = 8). The
+  cr_usersigns.h comment re-truthed with the measured provenance (the exact
+  wording: the longest is 8 "manifest", "class" is 5 — 8 = exact fit, NO
+  headroom, the boundary fact stated); kMaxExtLen = 8 unchanged (zero
+  behavioral divergence — the finding's own verdict).
+  UserSigns.ManifestEightCharExtParses pins the boundary from both sides
+  (manifest@8 parses; a 9-char ext rejects) so a future caps-tightening
+  pass cannot silently break og-stock-DB compatibility.
+
+- **N-168 FIXED** (MINOR — the user-sign bounds-guard superset registered):
+  both og guard sites re-read first-hand (DRWUI :1003371/:1003545 — the guard
+  demands offset + hex-STRING length while the matcher reads hexstrlen >> 1).
+  The core's decoded-byte bound is the deliberate SUPERSET, registered as
+  PARITY-DELTAS D-117 (the og's 2× guard is an og defect — adopting it would
+  lose the CHK-repair short-fragment matches). No code change;
+  UserSigns.ShortFragmentMatchesInCore pins the stance (the 5-byte fragment
+  matched, the below-byte-bound reject held, the prevailing state restored).
+
+- **N-143 FIXED** (MINOR — the ISpecial two-step dispatch posture): all three
+  cites re-read first-hand (:9877-9883 the two-step, :10020-10039 the id-8
+  stamp + chain-continue, :2235-2238 the dual vtables). The DECLINE branch:
+  the generic id-8 fallback class stays absent (the honest-refusal doctrine),
+  registered as PARITY-DELTAS D-118 (the D-140 family). The pin:
+  Carve.SpecialRejectPlainAcceptRefusedByName — the corrupt-RIFF form (the
+  grammar-only family; no raw-sign key fires on RIFF — the layer-1 signs
+  enumerated this session) is refused by name while the valid WAV control
+  carves. The corrupt-ZIP half of the class fires the apk raw-sign row
+  (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
+  both layers' interplay recorded in the Resolution.
+
+**N-189 FIXED** (session-59, discovered during this lane's baseline run; the parallel lane's f8f01513 convergent repair is the fix of record per SA-9): the
+S-054 registry pin test and its companion fixture-builder walked `kTable` with
+a null-ext sentinel loop (`for (s = reg; s->ext; ++s)`) — the table contract is
+COUNT-based (`registry_size()`, cr_signatures.h:512-513) and carries no
+terminator row, so the walker read one element past the global (an ASan
+global-buffer-overflow that aborted the whole Linux sanitizer lane at
+`Carve.TsM2TsCapIsTheOg200MB`). Both walks converted to count-bounded index
+loops; no production code changed (every engine walk was already count-based).
+The S-054 pins (the og's 200 MB TS/M2TS clamp) assert identically after the
+fix — `Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB` green.
+## Session-46 addendum (2026-10-29, audited `659f0f6c`/`fa654673`, corpus `be0cfe9` — the MINOR-first fix lane)
+
+**N-158 FIXED — the OfficeTagFromXML five-branch typing tail** (the S42-B filing
+above, resolved): the five typed ids land — FMT_XMIND/FMT_MMAP/FMT_EDDX/
+FMT_WFP/FMT_DRP (og 0x86/0x87/0x8c/0x8d/0x91, ids appended; override-target
+rows with the og's own display labels; kTrialOrder slots). The XMIND content
+probe decoded from disassembly before landing (FUN_180045110: the 300-byte RAW
+window at record+30+strlen(name); the 16-byte `xmlns="urn:xmind` needle + the
+14-byte .data prolog constant at RVA 0x93980; the already-0x86 return-1
+re-stamp at 0x18004516d). The chain walk's stop semantics corrected to the
+og's truth: NO stop, last-match-wins within the 32-entry/256 KiB bounds
+(:18411-18450 — the N-115-era "map stop" comment was an erratum). The
+[Filter] coupling: the conservative row-level gate through disabled_formats
+(PARITY-DELTAS D-134; the N-115 nine stay always-on per N-149). Tests:
+ZipTypingXmindContentBranch / ZipTypingXmindNeedleMissStaysGeneric /
+ZipTypingDocumentToolEntryNames / ZipTypingLaterEntryOverwritesEarlierStamp /
+ZipTypingUnrelatedEntriesStayGeneric / ZipTypedIdDisableGateSuppressesTyping
+(3 groups RED pre-fix; suite 1209 green). P1/P11/P19/P25/P65 → MATCH.
+
+## S50 addendum (2026-10-29 — the continuation audit lane: the landing-parity sweep's carve filings; audited core `34d6cf10`, corpus `be0cfe9`)
+
+New active findings on this module (all first-hand verified both sides; the
+sweep: `evidence/executions/s50-landing-parity-sweep.md`, the divergence
+quotes: `evidence/decompiled-quotes/s50-landing-divergences.md`):
+
+- **S-062 (SEVERE — NEW)** — the ONE chunk-chain walk's size-gate exits:
+  the og publishes 2x-device FLAT on both size-gate breaks (FUN_180044e30
+  :52316-52358, the uVar5=uVar1 comma decode, Ghidra+retdec agree); the
+  core keeps the last-valid-chunk end — **0 on a first-chunk decline**: the
+  og recovers min(2x-device,500M) where the core carves nothing. The
+  M-106 landing's own regression.
+- **M-139** **FIXED** (the S56 ACUTE-first lane: both probes flipped to
+  BC — findings/FIXED/M-139, 4 RED->GREEN incl. the re-truthed M-098
+  fixtures) — the HIK discriminator: the og probes
+  **00 00 01 BC** (private_stream_2, -0x43ff0000 at both sites of
+  FUN_1800272a0 :30438/:30452); the core probed **0xBD** (private_stream_1)
+  — the M-098 landing's transcription error (the finding title itself
+  wrong). Genuine HIK files lost the HIK id/name/extent (generic MPEG-PS
+  grammar catches most content); BD-led streams falsely HIK-stamped.
+- **M-140 (MAJOR — FIXED, the S65 lane)** — the CSL/CD01 latch: the og's
+  per-candidate +0x120 latch permanently binds CD01-key candidates to the
+  0x44c sizing and a declined read drops them (FUN_180041950 :49766-49798,
+  re-read first-hand at the fix); the core's decline fall-through REMOVED —
+  declined CD01 candidates return not-ok (no end-tag walk, no bounded
+  fallback; those serve the non-CD01 legs only). The M-112 "retries other
+  sizing" claim refuted by the decompile and corrected by erratum in the
+  M-112 Resolution + the re-truthed in-code comment. Tests:
+  CslCd01OutOfCapDeclinedIsDropped / CslShortCd01DeclinedIsDropped (both
+  RED pre-fix) with the success path + plain-SVG legs guarded green.
+- **N-189 (MINOR — NEW)** — the DXF canonical gate is 8 bytes
+  ("  0\r\nSECTION") where the og requires the full 16-byte
+  "  0\r\nSECTION\r\n  " two-qword pattern (:42258-42275); the N-152
+  999-leg is parity.
+- **N-190 (MINOR — NEW)** — the S-094/S-049 JPEG EXIF prefix path accepts
+  Model/Software up to 256 chars; the og strncpy's at 39 (0x27,
+  :40382-40510) — naming divergence on >39-char tags only.
+
+Convergence notes (no new rows): the landing sweep verified the rest of the
+window's carve landings PARITY (S-048's 7-folder skeleton exact incl. the
+5..11 id order; S-049's naming contract; M-121 Dbx; M-099 AEP; N-146 FH11;
+N-149 exempt set; N-152's 999 branch; N-139's OOM policy; N-172/N-173's
+FAT presentations — the sweep table rows 1-25).
+
+**N-169 FIXED (session-46 lane addendum)** — the EUUserData duplicate-key
+semantics: the raw-file census re-measured (112 members, the duplicate asf
+at offsets 4770/16766 — same sign, mimes "application/vnd.ms-asf" then
+"asf"); the finding's decisive cite FUN_140077dca0 recorded as a citation
+erratum (absent from both decompiles); the core's MERGE registered as
+PARITY-DELTAS D-131 (renumbered from the collided D-137 at N-207; every member parses; each block's mime backfills its
+own signs; the og's parse-side append stays the recorded OQ); the shipped
+default's dedup documented (111/190, the LAST asf block's mime). Tests:
+UserSigns.DuplicateKeySemantics + ShippedCensusDedupTruth.
+
+## S55 addendum (2026-10-29 — the sixth continuation lane: the scan-math deep dive)
+
+New on this module: **N-204** (the og's engine-layer carve buffer geometry
+decoded for the first time — 4 MiB read blocks inside an 8 MiB double buffer,
+half-buffer look-back, sector-stride first-u32 probes, 8192-sector analyser
+base at 512 bps; SCAN-ENGINE-DELTA F6's og-side cell was empty of constants,
+leaving the registered core constants (1 MiB + 4 KiB) without a cited og
+baseline at the layer — **FIXED (session-60): the F6 og-side cell now carries
+the full decoded constant set with all five RAWSearchDLL cites, the
+engine-layer-vs-device-layer 4 MiB separation drawn explicitly, and the
+OQ-S4-3 acceptance-criterion cross-link; findings/FIXED/N-204** where carving reads — and the engine-layer 4 MiB
+conflated with the device-layer 4 MiB of M-030/OQ-S4-3). Verified-MATCH with
+new first-hand cites: the raw-sign layer's 512-stride probe grid
+(cr_carve.cpp:918 ≡ RAWSearchDLL:9494-9502's sector-stride u32 probe); the
+byte-granular grammar superset re-confirmed as ALREADY registered (D-59c —
+the lane's candidate verified covered by the lead, not re-filed); the
+no-stuck-or-freeze walk-bound matrix (every core walker carries explicit
+caps; the og's own Btrfs B-tree recursion has no visited set — the core's
+hardening is the D-14 family). Evidence:
+`../evidence/s55-lane-sheets/S55-D2-scanmath.md`.
+
+## S68 addendum (2026-10-29 — the eighth continuation lane: the registry-initializer + tier-1 decode)
+
+**New on this module:**
+
+- **M-107 X3F leg (S78 lane) — SUPERSEDED-BY-S71 for X3F (the M-155
+  resolution)**: this lane's count-walk decode read FUN_1800404a0, the
+  Brance::X3FAnalyser streaming chunk callback — the wrong authority.
+  The S71 lane's FileX3FAnalyser walk (FUN_1800535b0, the M-090 DMG
+  precedent's established size-walk authority of the dual registration)
+  is the corpus truth: SECd + 0x4C, count never read, no-directory =
+  the loop-exit salvage (not a decline). The S78 X3F tests were replaced
+  by corpus-true pins at the M-155 repair. The remaining ten stand-in
+  sites (CRW next) tracked in the finding's per-format record.
+
+- **N-212 — FIXED (S77 lane → MATCH)** — the ASF validator's acceptance
+  band and extent source now match the decoded og family: tier-1 is the
+  16-byte GUID compare alone (the count gate and the header-size floor
+  are gone — a torn/zero size emits the og's 30-byte salvage candidate at
+  salvage-class confidence; a garbage-huge size is a 2 GiB walk cap, the
+  core-scale stand-in for the og's 100 GB product clamp); the phase-1
+  header-children walk captures the File Properties child's declared
+  size at +0x28 (the ctor's +0x174 GUID pair, the AVX extraction site
+  :42057); the extent finalization is max(declared, walked) clamped by
+  the row max and device end (:42076-42086's decode). 4 tests RED→GREEN
+  (torn count / zero-size salvage / declared-size extent / the intact
+  coincidence pin); Carve+RawSigns 246/246.
+
+**Verified-MATCH this lane (no findings — the near-divergences disproven
+first-hand):**
+
+- **The full og registry initializer** (66 keys, the construct-then-insert
+  pairing): every u32 key maps to the correct core row — including the
+  census doc's four previously-ambiguous "—" chains, now resolved (0x1cd =
+  the CD01-compressed-SVG key → FMT_SVG_CD01; 0xd302020 = the DXF "  0\r"
+  key → FMT_DXF; 0x4e444221 = the PST !BDN key → FMT_PST; 0x694c5153 =
+  the FCPEvt/SQLite chain → FMT_SQLITE + the N-089 relabel).
+- **The 15 long-magic rows** (PNG 8B / PDF 5B / ASF 16B / RAR4 7B /
+  SQLITE 12+4B / 7Z 6B / TAR 5B@+257 / MOBI 8B@+0x3C / LZH family / VCF
+  11B): every og tier-1 completes exactly the core's longer magic — the
+  ASF tier-1 compares all 16 GUID bytes (raw asm), the FCPEvt tier-1 is
+  `memcmp("SQLite format 3", 15)` with the core's validator tail re-gating
+  `"t 3\0"` at +12..+15 (16 bytes total, identical acceptance).
+- **raw_signs.json content**: all 199 header + 62 tail signs byte-exact
+  (offsets, bytes, confidences ×1000, format indices); the min/max KiB →
+  byte ×1024 resolved as the og's own scan-time `<<10` (FUN_1800205b0) —
+  the core's generated table is exact; the 0x7d000 KiB absent-max default
+  documented in cr_rawsigns.h matches.
+- **RawConfig [Filter]** (34 toggles, STL/VPJ shipped OFF): the M-024
+  surface + the row-level gates cover it; no core row for STL/VPJ is the
+  correct absence.
+
+Evidence: `../evidence/s68-lane-sheets/S68-L1-registry-initializer-decode.md`
+(L1: the initializer decode; L2: the tier-1 audit; L3: the raw-signs
+verification). Five census-doc label corrections recorded in
+CORPUS-ERRATA (session-68 rows 10-14).
+
+## S76 addendum (2026-10-29 — the MINOR-first fix lane; N-140 landed)
+
+**N-140 FIXED** — the per-extension carve-result aggregation surface landed
+at every layer: the fixed 512-slot tally in CarveStats over the unified
+format-id space (grammar rows [0, registry_size()), raw-sign rows
+[registry_size(), +kFormatCount), one aggregate user-sign slot — the og's
+map keys user signs by their dynamic extension strings, unbounded, so the
+aggregate is the honest fixed-table projection), ticked at the same three
+emission sites `validated` ticks (grammar/raw-sign/user-sign), atomic for
+the parallel fan-out, with a per_format_overflow counter (future registry
+growth surfaces, never silently drops). Surfaces: the ScanStats seam copy
+(carved_found's seam), the report's scan_analysis "carve_formats"
+[{id,count}] nonzero rows in registry order + carve_format_overflow, the
+ABI pair cr_ui_scan_carve_tally_count / cr_ui_scan_carve_tally (hosts
+render the og's post-scan breakdown without a tree walk; the format
+identity rides cr_ui_carve_format_info), and the optional REC_CARVE_TALLY
+session record (the og's GetRawUserInfoMap outlives the scan into the
+report — a reloaded session answers the breakdown). Tests:
+Carve.StatsPerFormatTally (the tally partitions `validated`; tree-walk
+cross-check) / Report.ScanAnalysisCarriesPerFormat /
+Orchestrator.CarveTallySessionRoundTrip / CrUi.ScanCarveTallyPerFormat;
+suite 1536/1536.
+
+## Session-71 addendum — the X3F size walk (M-107 member 1) (2026-10-29)
+
+**The X3F stand-in replaced.** The og's walk decoded first-hand
+(FileX3FAnalyser FUN_1800535b0, RAWSearchDLL :63457-63560): a forward scan
+for the "SECd" section-directory marker (0x64434553), sector-stepped with
+overlapping windows, extent = SECd_position + 0x4C (all three found-branch
+shapes carry the identical +0x4C — the directory's fixed 76-byte tail; the
+directory is the file's last section by construction, corroborated by the
+FileRepair artifact's directory-first repair model). Landing: validate_x3f
+scans 256 KiB windows (3-byte straddle overlap) to the probe limit; found →
+SECd + 0x4C (row-clamped); torn → the walked prefix at the row cap, reduced
+confidence (the og's loop-exit salvage). The 64 MiB stand-in + its
+"recorded follow-up" comment gone for X3F. Tests:
+Carve.X3fSectionDirectoryWalkCarvesTrueEnd (the 1 MiB true end on a
+100 MiB device — the stand-in carved 64 MiB) + Carve.X3fTornSalvages
+TheWalkedPrefix. Suite 1570/1570. The row: A25/A27 (X3F slice) MATCH;
+the finding stays active for the remaining ten members (CRW next).
+
+## S80 addendum — the M-155 red-main repair (2026-10-29)
+
+**The committed conflict markers resolved (corpus-first).** The ed501caa
+push landed the S71 X3F walk INSIDE unresolved merge conflict markers —
+main did not compile (GCC's conflict-marker diagnostic), the M-107
+finding file carried the same markers, and the push message claimed
+"suite 1570/1570" (impossible on a non-compiling tree; the N-210 gate
+would have caught it — not run). The resolution, decided against the
+corpus: FUN_1800535b0 (FileX3FAnalyser) re-read in full — SECd + 0x4C in
+all three found-branches, loop-exit salvage, format stamp unconditional
+— and the M-090 DMG precedent (the File*Analyser secondary is the
+size-walk authority). The S71 implementation stays, PLUS its own
+coordinate bug fixed: the committed walk mixed the absolute probe limit
+with relative offsets (reads past the device end on small volumes fell
+to the torn path even with SECd in range — the new
+X3fExtentIsSecdPlusFixedTail pin was RED against the ed501caa body and
+GREEN after the rel_limit repair). Tests: the S78 count-walk trio
+replaced by Carve.X3fExtentIsSecdPlusFixedTail /
+X3fNoSectionDirectorySalvagesWalkedPrefix /
+X3fGarbageCountIsIrrelevantToExtent; the S71 pair stands; suite
+1578/1578 at the repair commit. Filed as **M-155** (the M-120/N-210
+class recurrence — the finding carries the full evidence).
+
+## Session-83 addendum — the X3F CHAIN ROUTER (M-156; the member's fourth landing) (2026-10-29)
+
+**The ASCII gate's live bug + the dispatcher-mechanism refutation.** The
+four-lane arbitration (S71 → S78 → M-155/S81 → S82) landed the legacy
+FileX3FAnalyser walk (SECd + 0x4C + the torn salvage) as the sole X3F
+semantics — but kept the ASCII version gate, which REJECTS EVERY REAL
+SIGMA X3F FILE (real files carry the binary u32 version 0x00020001; the
+gate demanded an ASCII digit + point). And its dispatcher rationale
+(N-217's "vtbl[+0x40] GetFallback consults the secondary FIRST") is
+byte-exact REFUTED for the X3F node: the mechanism requires the node
+class to override +0x40 with the real getter (FUN_180013700), which
+exactly 8 node classes do — the X3F node (0x18006cbc0) and the DMG node
+(the M-090 precedent!) both carry the return-0 STUB at +0x40. The
+magic-key path provably wires the MODERN count-walk for binary-version
+files: the node's +0x10 binary gate accepts → the factory creates the
+0x120 walker (cap 0x6400000 = 100 MiB) → the walker registers for the
++0x20 feeding state machine → FUN_1800404a0's extent =
+SECd + 16 + count*12 (decline on no-directory). Full decode:
+`evidence/s83-lane-sheets/s83-l1-x3f-chain-raw-asm-decode.md`.
+
+The S83 landing (M-156): the version gate GONE (the union acceptance —
+the og never refuses a readable FOVb); the version shape routes the
+generation (binary → the modern count-table walk; ASCII/other → the
+legacy fixed-tail walk, the four-lane convergent semantics preserved;
+torn → the legacy walked-prefix salvage); the row bound carries the og
+walker's own cap constant (0x6400000). Tests: the five legacy-path pins
+(ASCII plants) unchanged + five new pins (the modern path, the router,
+and `X3fRealSigmaBinaryVersionCarves` — RED at the open tree where the
+ASCII gate refused the binary form). **The rows: A25/A27/B1-adjacent
+MATCH — the CHAIN, router included; the finding stays active for its
+remaining ten members (CRW's CIFF heap chain next).**
+
+## Session-83 addendum 2 — M-107's CRW member LANDED (member 2 of 11: the CIFF heap size walk) (2026-10-29)
+
+**The blind 64 MiB stand-in replaced.** The walk decoded first-hand from
+the raw asm (evidence/s83-lane-sheets/s83-l2-crw-ciff-walk-decode.md):
+the CRW child walker (vtable 0x18006e008 slot +0x08 = FUN_180052150 →
+FUN_180052160 — both the table-builder and the walk) runs sector-stepped
+from the file start with the walker's OWN cap 0x3200000 = 50 MiB
+(raw-asm 0x18005219d); non-zero-tailed sectors are skipped (the
+registered streaming-artifact divergence); zero-tailed sectors are
+searched for CIFF directory entries {u16 type 0x2807, u32 length ∈
+{0xa8, 0xb2, 0xe4}} (the three 6-byte signatures 07 28 XX 00 00 00); a
+hit stamps extent = entry_position + the walker's own tail constant
+({0xa8 → 0x46, 0xb2 → 0x3c, 0xe4 → 0x32}); no entry anywhere → the
+loop-exit stamps the cap (never a refusal — the X3F-legacy salvage
+class).
+
+The landing: validate_crw keeps the M-081 grammar gates (byte-exact
+against FUN_180052000) + the windowed entry search + the torn salvage;
+both registry rows (II and MM) carry the og walker's own cap constant
+(0x3200000). RED→GREEN via the stash dance: CrwDirectoryEntryWalkSets
+Extent + CrwWalkCapIsTheOgsOwnConstant RED at the stand-in tree, GREEN
+with the walk; the 174-test carve suite green. **The rows: A25/A27 (the
+CRW slice) MATCH; the finding stays active for its remaining nine
+members (DWG's section-locator map next).**
+
+
+## Session-89 addendum (renumbered from the born-collided S86 seat — the racing window re-homed S79→S86 first) — this lane's DWG landing CONCEDED to the racing S85 window per SA-9; the two riders carried forward (2026-10-29/30)
+
+**The seat conceded per SA-9** (this lane's unpushed ab5bbb24 vs the racing
+ddab68b4 + the f7e49eaf gen-2 repair): both decodes agree on the gen-1
+section-locator walk (the count at +0x15, the 9-byte records, the
+id-sequence gate, the monotonic max); the racing decode went further (gen-2
+landed — the rand-LCG struct at +0x80, the six gates, extent = u64@0x34 +
+0x6c). This lane's unique contributions land as riders (see the M-107
+finding's Session-86 addendum): the ROW FLOOR 0x15 = 21 (the factory's
+qword write at +0x110 — the same write that seeds the walk cursor; the
+racing row kept the S-007-era min 64, and the gen-1 walk's residual
+512-byte floor contradicts it) and the ID-SEQUENCE GATE against the FULL
+32-bit counter (cmp %ecx,%eax at 0x18002f40a — the walk self-limits at 256
+records; the racing port's u8(i) truncation accepts count>256 fixtures
+with wrapped ids that the og refuses). RED→GREEN for both riders at the
+racing tree: DwgRowCarriesTheOgsRegisteredFloor (the 21-byte walked
+extent refused by the 512 floor AND the min-64 row) and
+DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
+
+---
+
+The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
+remainder named): the section-locator walk (count u32@0x15, 9-byte records
+{number==index, seeker, size} from 0x19, extent = max(seeker+size), the
+number-mismatch decline, the torn walked-prefix salvage) and the R2004+
+rand-XOR struct walk (the MSVC rand seed-1 stream over the 0x6c struct at
++0x20, six gates, extent = u64@0x34 + 0x6c). The registry row max carries
+the og walk's own cap constant (0x4A817C800 = the singleton's 200 MB ×
+100). Two defects discovered and fixed with the landing: the tier-1
+version table's phantom "30" / missing "13" (the og's nine exact —
+AC1013 = R13 carves again, AC1030 no longer does), and the non-og sentinel
+check (dropped — the og's tier-1 is the version table only). Evidence:
+`../evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+Tests: the six Dwg* pins (all RED at the stand-in tree). The carve suite
+180/180.
+
+---
+
+## Session-85 addendum 2 — M-107 member 4: the PSP ~BK block-chain walk landed
+
+The PSP row moves to **MATCH**: the tier-1 is the og's EXACT 32-byte
+signature ("Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the old
+16-byte prefix was a discovered acceptance defect), and the extent is the
+~BK block-chain walk from 0x24 (blocks {u32 "~BK\0", u32 length @+6},
+advance 10+length; the extent = the walked end at the first non-~BK
+block / the 20 MB bound / the device end; the torn straddle salvages).
+Tests: PspBkBlockChainWalkSetsExtent / PspExactSignatureRequired /
+PspTornChainSalvagesTheWalkedEnd (the first two RED at the stand-in via
+the stash dance). The carve suite 183/183.
+
+---
+
+## Session-85 addendum 3 — M-107 member 5: the WPG zero-tail walk landed
+
+The WPG row moves to **MATCH**: the extent is the trailing-zero-run
+position of the hit's own 512-byte window (FUN_180042b30's binary
+search — the whole-buffer-zero case declines; the no-zeros case takes
+the window length), the og's one-chunk-then-done semantic with the
+sector-size chunk (the driver's ctx+0xF0). The deferral residue (the
+processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+recorded in the finding: a future decode of the result object's layout
+could shift the window by multiples of 512. Tests: the three Wpg*
+pins (all RED at the stand-in via the stash dance). The carve suite
+186/186.
+
+## S84 rider — the DWG gen-2 struct offset repaired (+0x20 → +0x80)
+
+The racing S85 landing's gen-2 walk read the encrypted 0x6c struct at
+`hit + 0x20` — the Ghidra decompile's `param_2 + 0x20` ported without
+the INT* scaling. The raw asm arbitrates: 0x18002f5a0 is
+`lea rdx,[rdi+0x80]` with rdi = the chunk base (set once at
+0x18002f342, never reloaded; the phantom `mov edi,0x6c428d44` in naive
+disassembly is a mid-instruction start — the tail byte of
+`lea rcx,[rbp-0x41]`). **The struct sits at +0x80 BYTES** — matching the
+real R2004 format's section page map at 0x80 (the external
+corroboration). The read, both R2004 test plants, and the finding's
+gen-2 bullet repaired; RED first-hand (the +0x20 code against the +0x80
+plant declines — the struct at the wrong offset decodes zeros and the
+gates refuse). The full convergence record: M-107's Session-84
+convergence addendum + evidence/s84-lane-sheets/
+s84-l1-dwg-walk-decode.md §4.
+
+## S84 addendum 4 — M-107's WPD member (the pair table + the declared size; 2026-10-30)
+
+**WPD LANDED (members 1-6 of 11).** FileWPDAnalyser's one-function walk
+(the +0x10 slot FUN_180041f50; evidence:
+`evidence/s84-lane-sheets/s84-l2-wpd-pair-walk-decode.md`): the tier-1
+pair table (u32@+8, u32@+0xE against the three known pairs — the decline
+on unknown pairs) then extent = **u32@+0x14** (the declared document
+size). The S-007-era 'nonzero product word' gate was invented — the og
+never gates on +4 — and is gone with the 64 MiB stand-in. Tests:
+WpdPairTableDeclaredSizeSetsExtent (RED first-hand at the stand-in) +
+WpdUnknownPairDeclines; the batch plant re-pinned. The carve suite
+288/288. Remaining members: SIT APE EPS AI DXF SWF-RECT.
+
+---
+
+---
+
+## Session-85 addendum 4 — M-107 members 6/7/8: the DXF, EPS, and AI walks landed
+
+**DXF**: the EOF-trailer scan (the line-ending form from byte[3]; the
+extent past the first "  0\nEOF\n" / "  0\r\nEOF\r\n"; the cap the
+RAW singleton 0xbebc200 = 200 MB; torn → the walked bound). **EPS**: the
+og-exact "%!PS-Adobe-" covenant (a bare "%!PS" declines — the discovered
+acceptance defect) + the "%%EOF" trailer scan (past + 2; the 0x20-ctx
+arm's -0x10 form the recorded residue). **AI**: the header formula —
+extent = max of the three (start+length) pairs, capped at 20 GB; the
+invented "version 1..64" gate dropped (dw@4 is a block start, not a
+version). Seven new tests (five RED at the stand-in); the carve suite
+193/193. Remaining members: WPD, SIT, APE + the DWG gen-3 remainder.
+
+### The riders landed (the rider commit, this session)
+
+Both convergence riders over the racing DWG landing: (A) the row floor
+0x15 = 21 (the factory's +0x110 qword write; the 512-byte floor removed
+from the gen-1 walk) and (B) the id-sequence gate against the FULL
+32-bit counter (u32(rec[0]) != i - the walk self-limits at 256 records).
+RED→GREEN at the pre-rider tree via the stash dance; the racing landing's
+own six DWG tests stay green (8/8 at the landed tree). The de-confound
+note: rider B's first fixture (320-byte extent) passed at the pre-rider
+tree for the wrong reason (the 512 floor) - the fixture now carries
+2304-byte per-record ends so the counter gate is the only refusal under
+test.
+
+## Session-89 fix lane (2026-10-30 — the M-107 SIT member: the entry-marker walk + the acceptance-window repair)
+
+- **M-107 member 10 (SIT) LANDED**: the acceptance is now the og's processor
+  gate — "Stuf"+"fI"+'t' with byte[7] ∈ {' ', '!'} (raw-asm
+  0x180015df3-0x180015e67; the pre-fix core accepted any byte[7], the
+  discovered divergence: "StuffItX" never finalizes in the og). The '!'
+  form's size is the FileSITAnalyser walk (FUN_180044a10, vtable
+  0x18006d5b0 slot-0): the entry-marker search (02 D7 0A + the +4 u32
+  0x8842f698), extent = marker + 8 + stride (0x19→4 / ';'→5 / else 6), the
+  corrupt-entry terminal (the 512-aligned sector start), the new-header
+  gate (a following "StuffIt"/WEBBAIKE key at a 512-byte boundary ends the
+  walk), torn → the walked bound (the row max mirrors the og's halved
+  singleton cap). The classic ' ' form keeps the honest stand-in at reduced
+  confidence (the primary's feeding epilogue is the streaming artifact —
+  the recorded follow-up). Tests: SitEntryMarkerWalkSetsExtent /
+  SitMarkerStrideTable / SitNewHeaderAtSectorBoundaryEndsTheWalk /
+  SitCorruptEntryTerminalStampsTheSectorStart /
+  SitByteSevenOutsideTheWindowIsRefused /
+  SitClassicSpaceFormKeepsTheRegisteredStandIn (5/7 RED at the stand-in
+  tree via the stash dance); the S-007 SIT plant re-pinned; the full suite
+  1711/1711. Remaining members: APE, SWF-RECT.
+---
+
+---
+
+## S91 addendum 1 — the WPD member's convergent verification + riders (conceded per SA-9; 2026-10-30)
+
+**The racing S84/S86 window's WPD landing keeps the seat** (the same
+decode arrived at independently); this lane's riders (the two extra
+test directions) and the census-erratum record are what it adds. The og's "\xFFWPC" tier-1 (FUN_180041f50, raw-asm decoded
+first-hand; evidence: `../evidence/s88-lane-sheets/
+s88-l1-wpd-version-table-decode.md`): the version-pair table at
+(+8, +0xe) — exactly three pairs, ids 0x44/0x45/0x3d — gates the file;
+the extent is the header-declared u32@0x14 verbatim; zero size → the
+generic child's walk declines (no carve). The og never walks the
+object chain for this family and never reads the product word at +4
+(the finding's premise corrected; the S-007-era core's product-word
+gate was an invention — dropped).
+
+The same decode corrected a census erratum: the 0x90001/0x9ac6cdd7
+keys serve the WMF node (idx 0x46, the S-042 grammar — re-verified
+byte-exact against FUN_1800264d0), not "WordPerfect" and not "Windows
+thumbnail cache".
+
+Row verdict: A25/A27/A47 for WPD **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: WpdVersionTableSetsExtentFromTheDeclared
+Size / WpdUnknownVersionPairDeclines / WpdZeroSizeFieldDeclines /
+WpdZeroProductWordWithGoodPairCarves (the first, second and the
+re-pinned S-007 batch plant RED at the stand-in via the stash dance).
+The carve suite 190/190.
+
+## S91 addendum 2 — M-107 member 9: the SIT next-entry walk (2026-10-30)
+
+**SIT LANDED** (three members remain: APE, SWF-RECT + the DWG gen-3
+R2007 remainder). The og's walk (raw-asm decoded first-hand; evidence:
+`../evidence/s91-lane-sheets/s91-l2-sit-entry-walk-decode.md`): the
+tier-1 (FUN_180015a20) is the 7-byte "StuffIt" gate stamping ONLY the
+id — the extent comes from the child processor (FUN_180015d70, fed per
+512-byte chunk): the walk gates the terminator at each sector-aligned
+position — the classic 8-byte "StuffIt "/"StuffIt!" next-archive
+header or the {Stuf/WEBB + "AIKE" + checksum 0x7bbd74a3} wrapper
+family — with the walk cap 10 × max = 2 GB and **size = (chunk − hit +
+1) × 512** on finalize (the end of the sector containing the
+terminator). A no-terminator SIT does not carve in the og (the 2 GB
+cap extent row-rejects); the device-end torn case salvages the walked
+bound.
+
+Row verdict: A25/A27/A47 for SIT **MATCH** (the member row in
+CROSS-REF-MATRIX.md). Tests: SitNextEntryWalkSetsExtent /
+SitUnalignedNextEntryDoesNotStopTheWalk /
+SitWebbAikeTerminatorStopsTheWalk (all RED at the stand-in via the
+stash dance) / SitTornAtDeviceEndSalvagesTheWalkedBound (the
+regression pin) / SitMinimumIsTheOgFloor (unchanged, green). The carve
+suite 206/206.
+
+---
+
+
+---
+
+## Session-87 addendum 3 — M-160: the APE version gate (the whole-family absence)
+
+The APE row's GATE moves to **MATCH**: the og's window is the u16 LE
+at +4 against [1000, 9999] (FUN_180033180's first check); the old
+core's u32-BE [300, 5000] read rejected every real Monkey's Audio
+file — the family was invisible to the carve (the S-007 class,
+discovered during M-107's APE-member verification). Fixed with the
+two-test battery; the S-007 plants re-pinned both directions (the
+real-form plant, the out-of-window noise). The row's EXTENT stays the
+M-107 recorded stand-in — the walk's decode progress (the 2 GB
+singleton+0x70×10 cap, the two header forms' alignment gates, the
+seek-table max walk, the APETAGEX backward tail scan) is recorded in
+M-107's S87 addendum 4 for the future landing lane.
+
+## Session-90 addendum 3 — the S90 lane's SIT concession (2026-10-30)
+
+The S90 lane's independent SIT decode (the PRIMARY's pending-feed
+processor: the ×10 stay-pending gate 0x180015e77-0x180015e7b, the
+(pos−base+1)×sector_size epilogue, FUN_180015b60's marker gate) was
+conceded to the racing 2214af90 landing (the earlier push holds the
+seat per SA-9) — the racing decode found the correct SIZE AUTHORITY:
+the FileSITAnalyser secondary's entry-marker walk FUN_180044a10 (the
+M-090/M-155 authority precedent), where the same 02 D7 0A XX 98 F6 42
+88 marker constants are ALIVE (this lane's "inert" claim was scoped to
+the dead gate's call site — the honest error recorded in M-107's
+Session-90 addendum 3). The unique carries: the ×10 gate decode (the
+primary bounds the pending feeding; the secondary bounds the extent)
+and the independent byte[7] ' '/'!' split corroboration. The remerge
+cleanup: the duplicate S84-generation WPD test block resolved (the S87
+battery owns the seats; WpdZeroProductWordWithGoodPairCarves kept —
+unique to that generation). Suite 1714/1714.
+
+---
+
+---
+
+## Session-92 addendum (renumbered from the born-collided S91) — the WPD member's sub-format rider (the engine-side name split) (2026-10-30)
+
+The racing S87 WPD landing (1ff8ae24) held the seat for the tier-1
+gate + the declared-size extent; its one framing error — "the type
+split is the og's report-layer routing" — is corrected by the child
+processor decode: the CRawFileInfo child's +0x28 slot (0x18000b7a0)
+indexes the 9-byte-stride name table at 0x18008f070 by the tier-1's
+stamped id and assigns WPD/WPG/SHW inside the ENGINE's result object.
+The rider lands the split: the WPG pair via format_override onto
+FMT_WPG, the SHW pair onto the appended FMT_SHW row (the N-115
+override-target pattern). RED→GREEN via the validator-only stash
+dance (the strengthened WpdSecondAndThirdRecordsCarve); the WPD
+battery 7/7; the full suite 1705/1705. **The A25/A27/A47 rows for the
+WPD slice stay MATCH — now with the sub-format ids faithful.**
+---
+
+---
+
+## Session-87 addendum 4 — M-107 member 11: the SWF-RECT validation gate landed
+
+The SWF rows (FWS and CWS) move to **MATCH** on the gate axis: the
+og's deep gates decoded first-hand — the FWS arm (FUN_180026940):
+version [3,20], the RECT's Nbits > 1, four sign-magnitude fields
+MSB-first, the sane-positive-rectangle acceptance; the CWS arm
+(FUN_180026b80): version [6,20] (tighter than FWS), the deflate CMF
+nibble == 8, the zlib inflate into the 512-byte window, >= 16
+inflated bytes, the SAME RECT gate on the inflated bytes. The extent
+is the FileLength u32@+4 VERBATIM (the open question 3 resolved —
+the RECT never sizes); the row max carries the u32's own ceiling.
+The plants re-pinned both arms (the real RECT + the real compress2
+stream). Five RED→GREEN tests + the happy-path pin; the carve suite
+216/216. The member enumeration closes: 11 of 11 landed (the APE
+walk and the DWG gen-3 remainder are the recorded remainders).
+
+---
+
+## Session-89 fix lane, entry 2 (2026-10-30 — the M-107 SWF-RECT member: the validation-only walk)
+
+- **M-107 member 11 (SWF-RECT) LANDED**: the finding's open question 3
+  answered first-hand — the RECT parse is VALIDATION-ONLY (the extent is
+  the FileLength in both paths, the caller's stamp). The FWS walk: the
+  RECT geometry gate (nbits >= 2, the four sign-magnitude fields, both
+  axes 0 <= min < max — raw-asm 0x180026b3e-0x180026b5b). The CWS
+  gates: the version window [6,20] (the compressed form exists only from
+  SWF 6 — the pre-fix core accepted [3,20], the discovered divergence)
+  + the zlib CMF low-nibble == 8 (the deflate method); the og's
+  inflate-then-RECT validation is the registered follow-up (the GZ
+  no-inflate precedent). Tests: SwfRectGeometryGateRejectsDegenerateRect
+  / SwfRectNegativeFieldDeclines / SwfNbitsFloorIsTwo /
+  SwfCwsVersionGateIsSix / SwfCwsZlibCmfNibbleRequired (5/5 RED at the
+  pre-fix tree via the stash dance); the SWF plants re-pinned; the full
+  suite 1721/1721. Rider: the S91 window's duplicate
+  WpdZeroSizeFieldDeclines definition merged (the N-210 class, NINTH
+  occurrence). Remaining members: APE only.
+## Session-89 fix lane, entry 3 (2026-10-30 — the SIT RECONCILIATION: the architecture decides)
+
+- **The SIT member re-landed per the corpus-true arbitration**: the SIT
+  node's wrapper vtable (0x180067890) carries the +0x40 STUB — the
+  secondary-first consult never fires for a "Stuf" candidate, so the
+  PRIMARY processor (FUN_180015d70 + the search FUN_180015b60) is the
+  scan-path authority. The racing lane's semantics land: the three full
+  8-byte end magics (the extent = the magic's END), the stream-end drop
+  (no magic + no next header → NO carve), the ' '-form next-header-only
+  walk (the stand-in retired), the 2 GB cap (max × 10). The S89 lane's
+  surviving repairs: the byte[7] ∈ {' ', '!'} acceptance window + the
+  512-aligned next-header translation. The FileSITAnalyser's stride
+  table and corrupt-entry terminal are the secondary's own semantics —
+  preserved in M-107's record, withdrawn from the scan path. The
+  corrupted merge artifact (the mangled plant body) rewritten as the
+  flavor-aware plant. 11/11 SIT tests green (both batteries); the full
+  suite 1729/1729. Rider: the racing window's duplicate
+  WpdZeroSizeFieldDeclines merged (the N-210 class, NINTH occurrence).## Session-90 addendum 4 — M-107's SWF-RECT member LANDED (member 11: the FWS RECT validation gate — validation-only) (2026-10-30)
+
+The open question answered: the RECT walk NEVER changes the extent —
+the og's caller stamps FileLength unconditionally on the deep gate's
+acceptance (FUN_1800268a0). The landing adds the FWS deep gate
+(swf_rect_valid): Nbits = byte8 >> 3 (≥ 2), four sign-magnitude fields
+of Nbits bits from stream bit 5, accept iff Xmin < Xmax && Ymin < Ymax
+&& all four ≥ 0 — the exact bit-walk, raw-asm-cited
+(0x180026940-0x180026b79). The CWS deep gate (the inflate-validation,
+FUN_180026b80) is the finding's explicit recorded remainder, pinned by
+SwfCwsDeepGateIsTheRecordedFollowUp. RED→GREEN via the stash dance (the
+three rejection tests RED at the pre-fix tree). Suite 1724/1724.
+**The rows: A25/A27 (the SWF slice) MATCH for FWS; the CWS deep gate is
+the recorded remainder; APE + the DWG gen-3 R2007 remainder stand.**
+
+---
+
+## Session-86 rider addendum — the DWG convergence: the seat conceded, two truth riders landed (2026-10-30)
+
+This lane's independent three-generation decode (evidence/s86-lane-sheets/
+s86-dwg-three-generation-walk-decode.md) converged totally with the racing
+S84/S85 landings. Riders landed on the seat: (a) the tier-1 table is TEN
+pairs, not nine — the asm's tenth "09" entry + `cmp edx,0xa; jl` at
+0x18002fede; AC1009 gate-passed-but-un-walked → the decline og-true;
+DwgVersionGateIsTheOgsTenPairs renamed + the third arm; (b) the gen-3
+fall-through exposed and fixed — the explicit "21" match
+(0x18002f4eb-0x18002f505) restores the og's routing. The WPD duplicate
+red-main repair converged with N-230 (the delete form conceded). The
+remaining members: APE's frame walk, SWF-RECT.
+## S89 section — the APE member landed (the batch's live-defect headline; 2026-10-30)
+
+| Parameter | Verdict | Finding |
+|---|---|---|
+| A25/A27/A47 · the APE size walk | **MATCH (M-107 S89 addendum — APE landed; SWF-RECT only remains)** | The CAPEAnalyser walk, raw-asm decoded first-hand (evidence/s89-lane-sheets/s89-l1-ape-cape-walk-decode.md): the registry key "MAC " → the tier-1 stamps ONLY the id 0x51 (the WPG class); the walk's version gate is the **u16 LE at +4 in [1000,9999]** (raw-asm $0x3e8/$0x2710) — the stand-in's u32-BE [300,5000] gate REJECTED every real Monkey's Audio file (the M-156 ASCII-gate class, third occurrence: the S-007 plant itself was tuned to the wrong gate and is re-pinned). The format split at 3980: the old seek-table dword scan (the base/align/aux arithmetic, entry[0] the bound, stop at 0/≥cap, the max the walked size) vs the new descriptor sum (u32@8+12+16+20+24+32, the dword@32 MD5-term quirk kept). The APETAGEX epilogue: the finalizing window = the 512 bytes ending at round_up(size,512); the footer gates (items ≤ 0xFFFF, the signed tag_size−0x20 ≤ 0x1000000, flags bit29 clear); the three extent arms (the footer end / round_up(size+span,512) / the +512 slack). The row re-pinned: min 0 (the CAPERawInfo factory), max 2,000,000,000 (the walk cap singleton+0x70×10). Torn → the walked size at reduced confidence (the SIT/X3F class). RED 5/6 → GREEN 6/6; the S-007 batch re-pinned; suite 1722/1722 |
+
+
+---
+
+## Session-87 addendum 5 — M-107 member 11 COMPLETED: the SWF-RECT CWS deep gate; the enumeration closes
+
+The SWF-RECT member completes over the racing FWS seat: the CWS
+arm's own deep gate (FUN_180026b80) lands — the per-arm version
+windows (FWS [3,20], CWS [6,20] — TIGHTER), the deflate CMF nibble
+gate, the zlib inflate into the 512-byte window with the >= 16
+inflated-byte gate, and the SAME RECT walk over the INFLATED bytes
+(the helper refactored to the RECT pointer — both arms feed one
+walk). The follow-up pin flipped (the landing the racing seat's own
+test anticipated). The convergence proof set: the seat's five FWS
+tests + this lane's four CWS tests + the flipped pin. **The
+eleven-member enumeration closes** (the DWG gen-3 R2007 remainder
+is the finding's precisely-scoped recorded residue). M-107 moves to
+FIXED/.
+
+---
+

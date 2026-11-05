@@ -79,10 +79,12 @@ TEST(Consistency, CheckableVocabularyIsSignatureFamiliesPlusSpecials) {
     EXPECT_TRUE(consistency_extension_checkable("JPEG"));
     /* the OLE .DOC family IS a core signature (D0 CF 11 E0) */
     EXPECT_TRUE(consistency_extension_checkable("DOC"));
-    /* families without a core signature stay uncheckable (bounded
-     * vocabulary - camera RAWs and web formats the og's Graphic set
-     * carried; registered with the finding) */
-    EXPECT_FALSE(consistency_extension_checkable("HTML"));
+    /* the vocabulary follows the carve registry (the OQ-FLT-1
+     * shared-vocabulary decision): HTML became checkable when M-092
+     * landed its four-key carve chain - a family with a core signature
+     * is checkable. Camera RAWs without a core signature (NEF et al.)
+     * stay uncheckable - bounded vocabulary. */
+    EXPECT_TRUE(consistency_extension_checkable("HTML")) /* M-092: the carve chain landed */;
     EXPECT_FALSE(consistency_extension_checkable("NEF"));
     EXPECT_FALSE(consistency_extension_checkable(""));
 }

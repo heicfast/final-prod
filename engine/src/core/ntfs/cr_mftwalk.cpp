@@ -122,6 +122,9 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                         /* merge multi-fragment $DATA (same attr across records) */
                         for (const DataRun& r : rl.runs())
                             unnamed_data_out.runs().push_back(r);
+                        /* N-163: a torn fragment contributes its valid
+                         * prefix — the flag rides the merged list */
+                        unnamed_data_out.torn = unnamed_data_out.torn || rl.torn;
                     }
                     /* the $DATA tail's file-size-in-bytes (@+0x30) is the
                      * authoritative size: $FILE_NAME's size field is 0 on
@@ -150,6 +153,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                     has_i30 = true;
                     for (const DataRun& r : rl.runs())
                         i30_out.runs().push_back(r);
+                    i30_out.torn = i30_out.torn || rl.torn; /* N-163 */
                 }
             }
             break;
@@ -260,7 +264,8 @@ static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
  * the unit = 2^cunit clusters, each covered by per-cluster blocks
  * [u16 header][payload] (ntfs-3g ntfs_decompress shape; MS-XCA 3.3):
  *   header == 0    -> hole: the remaining blocks of the unit are sparse
- *                     (no extent; the writer zero-fills)
+ *                     (S-059: emitted as a HOLE extent - the writer
+ *                     zero-fills at the unit's logical position)
  *   bit 15 set     -> raw block: payload = one full cluster, codec 0
  *   else           -> LZNT1 chunk: payload = (hdr & 0xFFF) + 1 bytes,
  *                     decoding to min(cluster, logical-remaining) bytes
@@ -269,7 +274,7 @@ static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
  * VCN range, so buffer position maps back to disk run-by-run. On any
  * envelope inconsistency (unit read failure, header truncation, hostile
  * cunit/cluster geometry) the file gets NO extents: all-zero content is
- * the honest fallback - surfacing the raw compressed bytes would be the
+ * the honest fallback (unchanged by S-059) - surfacing the raw compressed bytes would be the
  * silent corruption this fix exists to remove. */
 static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit, u64 real_size,
                                    std::vector<tree::FileProperties::Extent>& out, u64& blocks_out,
@@ -334,8 +339,31 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
         }
         buf.resize(filled);
 
-        /* parse the unit's blocks */
+        /* parse the unit's blocks. S-059: a hole (a zero header, or a
+         * stored stream that ends mid-unit) now EMITS a hole extent
+         * covering the rest of the unit - the og writes the full unit
+         * as a zeroed type-2 chunk (:875062-75) and the file keeps its
+         * logical size; the pre-fix code emitted nothing, so every
+         * extent AFTER the hole left-shifted over it (or the whole file
+         * failed ERR_TRUNCATED when the hole was the tail). */
         size_t pos = 0;
+        const auto emit_hole = [&](u64 from_block) {
+            u64 hole_len = 0;
+            for (u64 hb = from_block; hb < unit_blocks; ++hb) {
+                const u64 hl = unit_start + hb * cluster;
+                if (hl >= real_size)
+                    break;
+                hole_len += (real_size - hl) < cluster ? (real_size - hl) : cluster;
+            }
+            if (hole_len != 0) {
+                tree::FileProperties::Extent he{};
+                he.offset = 0;
+                he.length = hole_len;
+                he.logical = unit_start + from_block * cluster;
+                he.hole = true;
+                out.push_back(he);
+            }
+        };
         for (u64 b = 0; b < unit_blocks; ++b) {
             const u64 logical = unit_start + b * cluster;
             if (logical >= real_size)
@@ -343,20 +371,26 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
             const u64 block_len = (real_size - logical) < cluster ? (real_size - logical) : cluster;
             if (pos + 2 > buf.size()) {
                 /* no stored header for this block: sparse tail of the unit
-                 * (stored stream ends mid-unit) - remaining blocks are
-                 * holes, which emit no extents */
+                 * (stored stream ends mid-unit) - the rest is a HOLE that
+                 * keeps its logical position (S-059) */
+                emit_hole(b);
                 break;
             }
             const u16 hdr = u16(buf[pos]) | (u16(buf[pos + 1]) << 8);
             if (hdr == 0) {
-                break; /* hole: the rest of the unit is sparse */
+                emit_hole(b); /* hole: the rest of the unit is sparse */
+                break;
             }
             if (hdr & 0x8000) {
                 if (pos + 2 + size_t(cluster) > buf.size()) {
                     failed_out = true;
                     return;
                 }
-                out.push_back({disk_at(pos + 2), block_len, 0, 0});
+                tree::FileProperties::Extent pe{};
+                pe.offset = disk_at(pos + 2);
+                pe.length = block_len;
+                pe.logical = logical;
+                out.push_back(pe);
                 pos += 2 + size_t(cluster);
             } else {
                 const size_t plen = size_t(hdr & 0xFFF) + 1;
@@ -364,7 +398,13 @@ static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit
                     failed_out = true;
                     return;
                 }
-                out.push_back({disk_at(pos + 2), block_len, compress::kLznt1, plen});
+                tree::FileProperties::Extent pe{};
+                pe.offset = disk_at(pos + 2);
+                pe.length = block_len;
+                pe.logical = logical;
+                pe.codec = compress::kLznt1;
+                pe.psize = plen;
+                out.push_back(pe);
                 pos += 2 + plen;
             }
             ++blocks_out;
@@ -563,6 +603,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
                                 for (const DataRun& r : rl.runs())
                                     data_runs.runs().push_back(r);
+                                data_runs.torn = data_runs.torn || rl.torn; /* N-163 */
                                 has_data = true;
                             }
                             /* $DATA authoritative size from the child too */
@@ -587,6 +628,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
                                 for (const DataRun& r : rl.runs())
                                     i30_runs.runs().push_back(r);
+                                i30_runs.torn = i30_runs.torn || rl.torn; /* N-163 */
                                 has_i30 = true;
                             }
                         }
@@ -611,6 +653,24 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             ++stats.damaged;
             continue;
         }
+
+        /* M-101: the Versions-branch identity - FNV-1a 64 over the
+         * namespace-best link's (parent record, name). Deterministic per
+         * pathname: every record holding the same name in the same
+         * directory derives the SAME id at emission (no map, no second
+         * pass); the query layer's group enumeration surfaces the
+         * multi-member sets (the og's Versions node population). */
+        auto version_group_id = [](u64 parent, const std::u16string& name) -> u64 {
+            u64 h = 0xCBF29CE484222325ull;
+            const u8* pb = reinterpret_cast<const u8*>(&parent);
+            for (size_t i = 0; i < sizeof(parent); ++i)
+                h = (h ^ u64(pb[i])) * 0x100000001B3ull;
+            for (char16_t c : name) {
+                h = (h ^ u64(u8(c & 0xFF))) * 0x100000001B3ull;
+                h = (h ^ u64(u8((c >> 8) & 0xFF))) * 0x100000001B3ull;
+            }
+            return h ? h : 1ull; /* 0 = not-a-member; FNV never yields 0, belt+braces */
+        };
 
         /* pick the best-namespace name; collect distinct parents (hard links) */
         const FileNameInfo* best = &names[0];
@@ -772,6 +832,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 
         /* viability grading (fix F5 + corpus gate) */
         tree::Confidence conf = tree::Confidence::Unknown;
+        /* N-163: the merged probe list's torn flag (a $DATA/$I30 fragment
+         * torn after valid runs) — the grading input below */
+        const bool probe_runs_torn = is_dir ? i30_runs.torn : data_runs.torn;
         if (!in_use) {
             const RunList& probe = is_dir ? (has_i30 ? i30_runs : RunList()) : data_runs;
             /* probe size must use the $DATA-authoritative size: $FILE_NAME's
@@ -810,6 +873,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         } else {
             conf = tree::Confidence::Excellent; /* live file: extents owned by it */
         }
+        /* N-163: the og's truncate-and-keep tolerance — a runlist torn
+         * after valid runs decodes to its prefix (never a whole-fragment
+         * rejection); the walker grades the file PartialRisk so the
+         * recovery-chance axis never silently pretends completeness
+         * (the og's own PartialRisk family, the salvage-over-purity
+         * doctrine). Overwritten stays the worse truth it already is. */
+        if (probe_runs_torn && conf == tree::Confidence::Excellent)
+            conf = tree::Confidence::PartialRisk;
 
         /* S-001 (diff-to-fix): the og destroy rule. After the viability
          * grading, a DELETED non-directory file whose every probe cluster
@@ -853,6 +924,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = u32(FsKindCode::Ntfs); /* corpus factory code */
         props->name = best->name;
+        /* M-101: the namespace-identity hash (the Versions-branch axis;
+         * the comment at the helper above - same parent + same name
+         * across records = versions of one file). */
+        props->version_group = version_group_id(best->parent_record, best->name);
         /* N-011a: capture a distinct DOS-namespace $FILE_NAME as the 8.3
          * short name (the og's props short-name field). Only when a
          * SEPARATE DOS name exists - a single WIN32_AND_DOS name is the
@@ -891,6 +966,30 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         /* extents in slice-relative bytes; the tree consumer resolves to
          * absolute via the slice base (orchestrator does this at merge). */
         if (has_data && !data_runs.empty()) {
+            /* OQ-SA-1 NTFS half: the +0x64 location anchor — the low u32 of
+             * the FIRST $DATA run's start LCN (the og's FUN_1800069e0
+             * :5126-5127 <- FUN_1800336f0 :41028 chain; sparse first run ->
+             * 0xFFFFFFFF, the og's stored-start read; stamped ahead of the
+             * compression branch — the og stamps from the runlist object
+             * whenever the datastream attaches, compressed or not). */
+            const DataRun& r0 = data_runs.runs().front();
+            props->ntfs_origin_lcn = r0.sparse ? 0xFFFFFFFFu : u32(r0.lcn);
+            /* N-100: the +0x60 twin — total $DATA clusters, zeroed when
+             * ANY run is sparse (FUN_1800336f0 :41096-98; a sparse file
+             * carries total 0 while allocated_size stays nonzero, which
+             * is exactly why the field is not derivable). */
+            {
+                u64 data_clusters = 0;
+                bool any_sparse = false;
+                for (const DataRun& r : data_runs.runs()) {
+                    if (r.sparse) {
+                        any_sparse = true;
+                        break;
+                    }
+                    data_clusters += r.length;
+                }
+                props->ntfs_total_clusters = any_sparse ? 0 : u32(data_clusters);
+            }
             if (data_compressed && !is_dir) {
                 /* GAP-P1-1: expand the compression-unit envelope into
                  * codec-tagged per-block extents; raw runlist extents
@@ -909,8 +1008,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 std::vector<RunList::Extent> ex;
                 data_runs.extents(ex);
                 for (const auto& e : ex) {
-                    props->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                              e.clusters * vol->params().cluster_bytes});
+                    tree::FileProperties::Extent pe{};
+                    pe.offset = e.lcn * vol->params().cluster_bytes;
+                    pe.length = e.clusters * vol->params().cluster_bytes;
+                    pe.logical = e.vcn * vol->params().cluster_bytes;
+                    pe.hole = e.sparse; /* S-059: holes keep their logical
+                                         * position (the og's type-2 zero chunk) */
+                    props->extents.push_back(pe);
                 }
             }
         } else if (has_data && !unnamed_resident.empty() && !is_dir) {
@@ -966,6 +1070,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 link_props->allocated_size = link_name->allocated_size;
                 link_props->times = link_name->times;
             }
+            /* N-131: the FS-native parent anchor — this link's $FILE_NAME
+             * parent reference masked to the record number (the og's
+             * CNTFSFileProperties +0x40; FUN_18002a340's 48-bit mask,
+             * persisted per-link so hard-link fan-outs keep each parent) */
+            link_props->ntfs_parent_ref = p & 0xFFFFFFFFFFFFULL;
             tree::FileNode* n = tree.add_file(default_root, link_props);
             if (n == nullptr) {
                 link_props->release();
@@ -1029,9 +1138,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         sp->logical_size = a.actual;
                         std::vector<RunList::Extent> ex;
                         rl.extents(ex);
-                        for (const auto& e : ex)
-                            sp->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                                   e.clusters * vol->params().cluster_bytes});
+                        for (const auto& e : ex) {
+                            tree::FileProperties::Extent pe{};
+                            pe.offset = e.lcn * vol->params().cluster_bytes;
+                            pe.length = e.clusters * vol->params().cluster_bytes;
+                            pe.logical = e.vcn * vol->params().cluster_bytes;
+                            pe.hole = e.sparse; /* S-059 */
+                            sp->extents.push_back(pe);
+                        }
                     }
                 }
                 sp->times = props->times;
@@ -1062,6 +1176,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             u64 rn = mft_reference_record(e.node->props()->record_ref);
             by_record[rn] = e.node;
         }
+    /* M-103: the per-dead-parent LostDir folders (lazily created, one per
+     * distinct dead parent record - ex-siblings group together) */
+    std::map<u64, tree::FileNode*> lost_dirs;
     for (const EmittedNode& e : emitted) {
         u64 own = e.node->props() ? mft_reference_record(e.node->props()->record_ref) : 0;
         if (e.parent_record == own && own != 0) {
@@ -1078,9 +1195,33 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             tree.reparent(e.node, parent_node);
         } else {
             ++stats.orphans;
-            /* deleted/unresolved -> lost root for coherent display; active
-             * orphans (rare: parent record itself damaged) go there too */
-            tree.reparent(e.node, root_lost);
+            /* M-103: the og's per-parent-record grouping - ex-siblings stay
+             * together under one synthetic LostDir<NNNN> folder (the NNNN is
+             * the dead parent's MFT record number, unpadded; the og's
+             * "LostDir%d", NTFSSearchDLL :48915-48924 the builder, the real
+             * sessions' LostDir7206/1707/7507 the executed pin - the
+             * majority-of-session population in a post-format salvage, H:
+             * 938,982 of 1,500,395 rows). A degenerate parent reference (0
+             * or self) goes straight to the root - no real-session sample
+             * shows the og's degenerate handling; none observed. */
+            if (e.parent_record == 0 || e.parent_record == own) {
+                tree.reparent(e.node, root_lost);
+                continue;
+            }
+            tree::FileNode*& folder = lost_dirs[e.parent_record];
+            if (folder == nullptr) {
+                char nb[32];
+                const int nl = snprintf(nb, sizeof(nb), "LostDir%llu",
+                                        static_cast<unsigned long long>(e.parent_record));
+                std::u16string nm;
+                for (int k = 0; k < nl; ++k)
+                    nm.push_back(u16(u8(nb[k])));
+                folder = tree.add_folder(root_lost, nm);
+            }
+            if (folder != nullptr)
+                tree.reparent(e.node, folder);
+            else
+                tree.reparent(e.node, root_lost); /* arena exhausted: flat, not lost */
         }
     }
 
@@ -1468,6 +1609,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         dp->record_ref = pseudo | (u64(rh.sequence) << 48);
                         dp->fs_kind = u32(FsKindCode::Ntfs);
                         dp->name = best2->name;
+                        /* N-131: the dump-recovered record's $FILE_NAME
+                         * parent reference, same 48-bit mask as the main
+                         * walk (the og's copier stamps +0x40 for every
+                         * $FILE_NAME-derived emission) */
+                        dp->ntfs_parent_ref = best2->parent_record & 0xFFFFFFFFFFFFULL;
                         dp->logical_size = size2;
                         dp->allocated_size = best2->allocated_size;
                         dp->times = has_si2 ? si_times2 : best2->times;
@@ -1478,11 +1624,37 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             (is_dir2 ? u16(0x10) : 0);
                         dp->flags = u16(is_dir2 ? PFLAG_IS_DIR : 0);
                         if (has_data2 && !data_runs2.empty()) {
+                            /* OQ-SA-1 NTFS half: same anchor stamp on the
+                             * dump-recovered record (the og's GUID-dump twin
+                             * FUN_18001c660 :22470-22471 sites the same
+                             * encoder outputs). */
+                            const DataRun& dr0 = data_runs2.runs().front();
+                            dp->ntfs_origin_lcn = dr0.sparse ? 0xFFFFFFFFu : u32(dr0.lcn);
+                            /* N-100: the same +0x60 twin on the dump-recovered
+                             * record (the og's GUID-dump twin FUN_18001c660
+                             * :22470-22471 stamps both fields). */
+                            {
+                                u64 data_clusters = 0;
+                                bool any_sparse = false;
+                                for (const DataRun& r : data_runs2.runs()) {
+                                    if (r.sparse) {
+                                        any_sparse = true;
+                                        break;
+                                    }
+                                    data_clusters += r.length;
+                                }
+                                dp->ntfs_total_clusters = any_sparse ? 0 : u32(data_clusters);
+                            }
                             std::vector<RunList::Extent> ex;
                             data_runs2.extents(ex);
-                            for (const auto& e : ex)
-                                dp->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                                       e.clusters * vol->params().cluster_bytes});
+                            for (const auto& e : ex) {
+                                tree::FileProperties::Extent pe{};
+                                pe.offset = e.lcn * vol->params().cluster_bytes;
+                                pe.length = e.clusters * vol->params().cluster_bytes;
+                                pe.logical = e.vcn * vol->params().cluster_bytes;
+                                pe.hole = e.sparse; /* S-059 */
+                                dp->extents.push_back(pe);
+                            }
                         } else if (!resident2.empty() && !is_dir2) {
                             dp->resident_data = std::move(resident2);
                         }
@@ -1584,23 +1756,7 @@ struct RemnantCtx {
     std::atomic<u64> emitted{0};
     std::atomic<u64> dup_skipped{0};
     std::atomic<bool> aborted{false};
-    /* NG-3: live deep-sweep progress. `scanned` aggregates bytes swept
-     * across ALL worker threads (monotonic); the callback fires at most
-     * every PROGRESS_STEP bytes per reporting thread - previously the
-     * parallel path ticked only when a whole total/threads chunk finished
-     * and the single-threaded path NEVER ticked during the sweep (hours at
-     * a standing permille on large volumes). false from the callback is
-     * the cancel request (same contract as the chunk reporter it replaces). */
-    std::atomic<u64> scanned{0};
-    WalkProgress progress = nullptr;
-    void* progress_user = nullptr;
-    u64 progress_total = 0; /* the whole-sweep denominator (device size) */
 };
-
-/* NG-3: report deep-sweep progress every 64 MiB of aggregated sweep (per
- * reporting thread) - bounded callback rate, sector-linear liveness like
- * the reference's "Reading sector X/Y" ticker. */
-static constexpr u64 REMNANT_PROGRESS_STEP = 64u << 20;
 
 /* GAP-S6-4: extract the remnant record's unnamed $DATA into recoverable
  * content - resident streams travel in the props, non-resident runlists
@@ -1638,9 +1794,14 @@ static bool remnant_extract_data(const std::vector<AttrView>& attrs, const Remna
             if (parse_data_runs(da, ctx.total_clusters, rl) == OK && rl.total_clusters() > 0) {
                 std::vector<RunList::Extent> ex;
                 rl.extents(ex);
-                for (const auto& e : ex)
-                    props->extents.push_back(
-                        {e.lcn * ctx.cluster_bytes, e.clusters * ctx.cluster_bytes});
+                for (const auto& e : ex) {
+                    tree::FileProperties::Extent pe{};
+                    pe.offset = e.lcn * ctx.cluster_bytes;
+                    pe.length = e.clusters * ctx.cluster_bytes;
+                    pe.logical = e.vcn * ctx.cluster_bytes;
+                    pe.hole = e.sparse; /* S-059 */
+                    props->extents.push_back(pe);
+                }
                 have_content = !props->extents.empty();
             }
             break;
@@ -1742,6 +1903,10 @@ static void indx_emit_entry(RemnantCtx& ctx, const IndxEntryInfo& ei, std::set<u
     if (props == nullptr)
         return;
     props->record_ref = ei.file_ref;
+    /* N-131: the INDX entry's embedded $FILE_NAME parent reference
+     * (already masked to the record number above — the og's entry→props
+     * builder FUN_18000e970 carries the same parent it places by) */
+    props->ntfs_parent_ref = parent_record;
     props->fs_kind = u32(FsKindCode::Ntfs);
     props->name = ei.name;
     props->logical_size = ei.real_size;
@@ -1929,9 +2094,24 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
         std::memcpy(fix.data(), rec, size_t(ctx.record_size));
         RecordHeader rh;
         std::memcpy(&rh, fix.data(), sizeof(rh));
+        /* N-213: the og's pre-gate alloc_size half, remnant-path only
+         * (FUN_180046160 :55196-55201, re-read first-hand: the declared
+         * +0x1C size must be 0x400-aligned and its sector count must
+         * cover the USA array - declared/0x200 >= usa_count - 1). On the
+         * main walk the volume-declared record size makes this redundant;
+         * here the record size is scan-geometry-supplied, so the declared
+         * size is the record's own garbage filter. NO upper cap: the >4
+         * KiB half of the og's set is the registered deliberate D-143
+         * accept-direction superset (oversize strides stay walkable, the
+         * per-record validation carrying the safety). A torn record with
+         * a zeroed declared size fails the fit form (0 < usa_count - 1)
+         * exactly like the og. */
+        const u32 us_cnt = rh.update_sequence_size;
+        const bool alloc_size_ok = (rh.bytes_allocated % 0x400) == 0 && us_cnt >= 2 &&
+                                   (rh.bytes_allocated / 0x200) >= (us_cnt - 1u);
         /* every parse failure below falls through to the shifted-header
          * salvage (og behavior: the probe runs on the failed record) */
-        if (rh.magic == RECORD_MAGIC_FILE &&
+        if (rh.magic == RECORD_MAGIC_FILE && alloc_size_ok &&
             fixup_apply(fix.data(), u32(fix.size()), rh.update_sequence_offset,
                         rh.update_sequence_size, ctx.sector_bytes) == OK) {
             std::vector<AttrView> attrs;
@@ -2108,7 +2288,6 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
      * window edge are torn (the og carries an 8-sector window for the
      * same reason - FUN_18000b4c0's split-block reassembly). */
     const u64 overlap = ctx.record_size > 0x2000 ? ctx.record_size : 0x2000;
-    u64 local_reported = 0;
     while (base < end) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
@@ -2125,23 +2304,6 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
         }
         scan_remnant_buffer(ctx, buf.data(), want);
         base += REMNANT_BLOCK;
-        /* NG-3: aggregate + report the sweep cursor (both the parallel and
-         * the single-threaded path flow through here now). */
-        if (ctx.progress) {
-            const u64 global =
-                ctx.scanned.fetch_add(REMNANT_BLOCK, std::memory_order_relaxed) + REMNANT_BLOCK;
-            if (global - local_reported >= REMNANT_PROGRESS_STEP || base >= end) {
-                local_reported = global;
-                /* every worker reports the SAME aggregated cursor against the
-                 * whole-sweep denominator: monotonic done/total semantics
-                 * regardless of which thread's range finished */
-                const u64 done = global > ctx.progress_total ? ctx.progress_total : global;
-                if (!ctx.progress(done, ctx.progress_total, ctx.progress_user)) {
-                    ctx.aborted.store(true, std::memory_order_relaxed);
-                    return ERR_CANCELLED;
-                }
-            }
-        }
     }
     return OK;
 }
@@ -2164,26 +2326,25 @@ u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes
     ctx.record_size = record_size;
     ctx.tree = &tree;
     ctx.root_lost = root_lost;
-    ctx.progress = progress;
-    ctx.progress_user = progress_user;
-    ctx.progress_total = total;
 
     u32 rc = OK;
     if (threads > 1 && total > REMNANT_BLOCK * 2) {
-        /* fan out chunk ranges over the pool; the tree serializes emission.
-         * Progress is reported from the per-block aggregator inside
-         * remnant_range_scan (NG-3) - the old per-chunk reporter ticked
-         * only when a whole total/threads range finished. */
+        /* fan out chunk ranges over the pool; the tree serializes emission */
         ThreadPool pool(threads);
         PoolCancelToken pool_cancel(&pool);
         const u64 chunk = ((total / threads) + 511) & ~u64(511);
         const u64 nchunks = (total + chunk - 1) / chunk;
+        std::atomic<u64> done_chunks{0};
         rc = parallel_for(pool, nchunks, [&](u64 ci) -> u32 {
             if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             const u64 cstart = ci * chunk;
             const u64 cend = (ci + 1) * chunk < total ? (ci + 1) * chunk : total;
-            return remnant_range_scan(ctx, cstart, cend);
+            const u32 prc = remnant_range_scan(ctx, cstart, cend);
+            const u64 d = done_chunks.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (progress && !progress(d * chunk > total ? total : d * chunk, total, progress_user))
+                return ERR_CANCELLED;
+            return prc;
         });
         if (cancel && cancel->cancelled() && rc == OK)
             rc = ERR_CANCELLED;

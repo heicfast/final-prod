@@ -54,3 +54,20 @@ converged `ImageFileIo` single seam (the core opens paths itself through
 the injected IO; Win32 implementation `src/win/cr_image_win.cpp`). The
 `cr_ui_open_image` flat-only UI-shim migration follow-up recorded above
 stays open.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**S-040** (SEVERE — the producer half absent: no `cr_ui_image_create`, no
+writer, no `image` verb; the og's home-page "Create Image" flow and the
+corpus's image-scan-first damage posture (UIUX/11:17) are unreachable; the
+reader half (S-030) is complete). Fix = a flat-image writer over the dest-I/O
+abstractions, driver class (a), SHA256 sidecar, cancel support.
+
+## Closing-fix lane addendum (2026-10-29 — the INFO-first fix lane)
+
+**S-040 FIXED** — see the finding's Resolution in findings/FIXED/S-040:
+the disk-image CREATE producer landed (portable copy loop + win-layer
+disposition + ABI append + CLI verb 13). The module's P42/C24/F59/B8
+cells flip to MATCH; R-93 PARTIAL->PRESENT in REFERENCE-API-GAP. The
+flat-only boundary is registered as D-147.

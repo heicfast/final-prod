@@ -262,6 +262,57 @@ TEST(Query, FilterSortPageCorrectness) {
  * the row's FULL path (root role + ancestors + own name, '/'-joined) must
  * start with the prefix, ASCII-case-insensitive; the walk prunes subtrees
  * whose accumulated path is prefix-incompatible with the filter. */
+TEST(Query, CarvedVolumeFilterAxis) {
+    /* S-048: the carve tree's volume attribution IS the tree position
+     * (the og's shape - Reconstructed/<volume-display>/<files>), so the
+     * volume filter axis is the path-prefix filter over the group child's
+     * path: a query for "Reconstructed/ (H:)/" returns exactly that
+     * volume's carved files, never another volume's. */
+    tree::ResultTree t;
+    auto* rec = t.add_root(u"Reconstructed");
+    auto* grpH = t.add_folder(rec, u" (H:)");
+    auto* grpSR = t.add_folder(rec, u"System Reserved");
+    ASSERT_NE(grpH, nullptr);
+    ASSERT_NE(grpSR, nullptr);
+    for (int i = 0; i < 3; ++i) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"PNG_00000" + std::u16string(1, u16(u8('1' + i))) + u".PNG";
+        p->logical_size = 100 + i;
+        auto* f = t.add_file(grpH, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"GZ_000001.GZ";
+        p->logical_size = 50;
+        auto* f = t.add_file(grpSR, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    t.refresh_stats();
+
+    Query q;
+    q.filter.path_prefix = "Reconstructed/ (H:)";
+    q.filter.origin_mask = 1u << u32(tree::Origin::Carved);
+    q.filter.state_mask = 1u << u32(tree::DeletedState::Deleted);
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(3), r.total_matched) << "exactly the H volume's carved files";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.path_utf8.rfind("Reconstructed/ (H:)/", 0), size_t(0))
+            << "every row is the H volume's: " << row.path_utf8;
+
+    q.filter.path_prefix = "Reconstructed/System Reserved";
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "exactly the System Reserved volume's files";
+    if (!r.rows.empty()) {
+        EXPECT_EQ(r.rows[0].name_utf8, "GZ_000001.GZ");
+    }
+}
+
 TEST(Query, PathPrefixFilterMatchesAndPrunes) {
     tree::ResultTree t;
     auto* found = t.add_root(u"Found");
@@ -336,6 +387,87 @@ TEST(Query, PathPrefixFilterMatchesAndPrunes) {
         q.filter.deleted_only = true;
         const Result r = run(t, q);
         EXPECT_EQ(u64(1), r.total_matched); /* a.txt only (b.jpg active) */
+    }
+}
+
+/* M-072: the path axis's SUBSTRING form + the state dimension as a MASK
+ * (the og's AdvanceFilterCondition carries 7 sub-condition groups; the
+ * core now expresses 7 - the boolean deleted_only stays sugar for the
+ * Lost-files-only control, back-compat). */
+TEST(Query, M072PathSubstringAndStateMask) {
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    auto* sub = add_file(t, found, "sub", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, sub, "b.jpg", 100, 1000, 1, false, tree::Origin::Structured);
+    add_file(t, sub, "a.txt", 200, 2000, 2, true, tree::Origin::Structured); /* deleted */
+    auto* other = add_file(t, found, "other", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, other, "e.png", 10, 10, 1, false, tree::Origin::Structured);
+    add_file(t, found, "c.mp4", 300, 3000, 1, false, tree::Origin::Carved);
+    t.refresh_stats();
+
+    /* the substring form: mid-path match, case-insensitive */
+    {
+        Query q;
+        q.filter.path_substring = "sub/b";
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("b.jpg", r.rows[0].name_utf8);
+    }
+    {
+        Query q;
+        q.filter.path_substring = "OTHER/E"; /* ASCII-case-insensitive */
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("e.png", r.rows[0].name_utf8);
+    }
+    /* substring + name axis compose */
+    {
+        Query q;
+        q.filter.path_substring = "found/sub";
+        q.filter.extensions = {".jpg"};
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("b.jpg", r.rows[0].name_utf8);
+    }
+    /* the state mask: Active-only excludes the deleted a.txt */
+    {
+        Query q;
+        q.filter.state_mask = 1u; /* bit0 Active */
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(5), r.total_matched); /* b.jpg, e.png, c.mp4, sub, other */
+    }
+    /* Deleted-only = the Lost-files-only control */
+    {
+        Query q;
+        q.filter.state_mask = 2u; /* bit1 Deleted */
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("a.txt", r.rows[0].name_utf8);
+    }
+    /* deleted_only sugar == the Deleted bit (back-compat pin) */
+    {
+        Query q1, q2;
+        q1.filter.deleted_only = true;
+        q2.filter.state_mask = 2u;
+        const Result r1 = run(t, q1);
+        const Result r2 = run(t, q2);
+        EXPECT_EQ(r1.total_matched, r2.total_matched);
+        ASSERT_EQ(u64(1), r1.total_matched);
+        EXPECT_EQ("a.txt", r1.rows[0].name_utf8);
+    }
+    /* zero mask = all states (the ABI zero-init default) */
+    {
+        Query q;
+        q.filter.state_mask = 0;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(6), r.total_matched);
+    }
+    /* no path filter: the count fast lane never materializes paths */
+    {
+        Query q;
+        q.filter.state_mask = 0xF;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(6), r.total_matched);
     }
 }
 
@@ -747,4 +879,158 @@ TEST(Query, BucketFiltersThroughRun) {
         ASSERT_EQ(u64(1), r.total_matched);
         EXPECT_EQ("today.txt", r.rows[0].name_utf8);
     }
+}
+
+TEST(Query, UnsavedFileCategory) {
+    /* N-126: the og's "Unsaved File" search-type category (the UI's
+     * type-mask bit 6) - the office unsaved-document family lands in
+     * its own category; the mask's tenth bit selects it. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Lost Files");
+    add_file(t, root, "Autosave.asd", 100, 1000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "Document.wbk", 200, 2000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "photo.jpg", 300, 3000, 1, false, tree::Origin::Carved);
+    /* the category classification */
+    EXPECT_EQ(Category::Unsaved, category_for_extension("asd"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("ASD"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("wbk"));
+    EXPECT_EQ(Category::Image, category_for_extension("jpg"));
+    /* the mask selection: Unsaved only */
+    {
+        Query q;
+        q.filter.category_mask = 1u << u32(Category::Unsaved);
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(2), r.total_matched);
+        EXPECT_EQ("Autosave.asd", r.rows[0].name_utf8);
+        EXPECT_EQ(u32(Category::Unsaved), r.rows[0].category);
+    }
+    /* the default mask (0x3FF) admits the unsaved rows */
+    {
+        Query q;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+}
+
+TEST(Query, CategoriesAppendOnlyGuard) {
+    /* N-126: the category values are serialized in sessions and cross
+     * the ABI - the pre-existing nine keep their values, Unsaved
+     * appends at 9 (the append-only rule the FileFilter landing set). */
+    EXPECT_EQ(u8(Category::None), u8(0));
+    EXPECT_EQ(u8(Category::Image), u8(1));
+    EXPECT_EQ(u8(Category::Video), u8(2));
+    EXPECT_EQ(u8(Category::Audio), u8(3));
+    EXPECT_EQ(u8(Category::Document), u8(4));
+    EXPECT_EQ(u8(Category::Archive), u8(5));
+    EXPECT_EQ(u8(Category::Other), u8(6));
+    EXPECT_EQ(u8(Category::Email), u8(7));
+    EXPECT_EQ(u8(Category::Bookmarks), u8(8));
+    EXPECT_EQ(u8(Category::Unsaved), u8(9));
+}
+
+/* ---- N-194: the og's two byte-size display formatters ---- */
+
+TEST(Display, SizeLogFormatterBoundaries) {
+    /* FUN_140163580/650 (DRWUI :264525-264583) verbatim: three tiers,
+     * binary math under decimal labels, +1 flip boundaries, no B/TB
+     * tier, and the < 1 gate writing nothing. */
+    EXPECT_EQ("", query::display_size_log(0));        /* < 1: nothing written */
+    EXPECT_EQ("0.00 KB", query::display_size_log(1)); /* 1/1024 -> 0.00 */
+    EXPECT_EQ("512.00 KB", query::display_size_log(512ull * 1024));
+    EXPECT_EQ("1024.00 KB", query::display_size_log(1ull << 20));    /* 1 MiB stays KB */
+    EXPECT_EQ("1.00 MB", query::display_size_log((1ull << 20) + 1)); /* 0x100001 flips to MB */
+    EXPECT_EQ("2.00 MB", query::display_size_log(2ull << 20));
+    EXPECT_EQ("1024.00 MB", query::display_size_log(1ull << 30));    /* 1 GiB stays MB */
+    EXPECT_EQ("1.00 GB", query::display_size_log((1ull << 30) + 1)); /* 0x40000001 flips to GB */
+    EXPECT_EQ("1.50 GB", query::display_size_log(3ull << 29));       /* 1.5 GiB is GB */
+    EXPECT_EQ("4.00 GB", query::display_size_log(4ull << 30));
+    EXPECT_EQ("2048.00 GB", query::display_size_log(2ull << 40)); /* 2 TiB has no TB tier */
+    /* the runtime anchor (dynamic-ground-truth :95): 143.74 GB is a GiB
+     * count under a GB label */
+    const u64 anchor = u64(143.74 * 1073741824.0);
+    EXPECT_EQ("143.74 GB", query::display_size_log(anchor));
+}
+
+TEST(Display, SizeUiFormatterTiers) {
+    /* the tr-family formatter (DRWUI :1556295-1556400): the B..TB set
+     * with the +1 boundaries (0x401 / 0x100001 / 0x40000001 /
+     * 0x10000000001) and the zero-bytes forced-0 precision quirk. */
+    EXPECT_EQ("0 B", query::display_size_ui(0, 2)); /* zero forces precision 0 */
+    EXPECT_EQ("0 B", query::display_size_ui(0, 9));
+    EXPECT_EQ("512 B", query::display_size_ui(512, 2));             /* < 0x401: B, ".00" strips */
+    EXPECT_EQ("1024 B", query::display_size_ui(1024, 2));           /* 0x400: still B */
+    EXPECT_EQ("1 KB", query::display_size_ui(1025, 2));             /* 0x401: KB, 1.00 strips */
+    EXPECT_EQ("1024 KB", query::display_size_ui(1ull << 20, 2));    /* 0x100000: still KB */
+    EXPECT_EQ("1 MB", query::display_size_ui((1ull << 20) + 1, 2)); /* 0x100001 flips */
+    EXPECT_EQ("1024 MB", query::display_size_ui(1ull << 30, 2));    /* 0x40000000: still MB */
+    EXPECT_EQ("1 GB", query::display_size_ui((1ull << 30) + 1, 2));
+    EXPECT_EQ("1024 GB", query::display_size_ui(1ull << 40, 2)); /* 0x10000000000: still GB */
+    EXPECT_EQ("1 TB", query::display_size_ui((1ull << 40) + 1, 2));
+}
+
+TEST(Display, SizeUiFormatterPrecisionAndStrip) {
+    /* caller precision drives the fraction width */
+    EXPECT_EQ("1.5 KB", query::display_size_ui(1536, 1));
+    EXPECT_EQ("1.50 KB", query::display_size_ui(1536, 2));  /* non-zero fraction keeps */
+    EXPECT_EQ("5 KB", query::display_size_ui(5120, 2));     /* all-zero fraction strips */
+    EXPECT_EQ("5 B", query::display_size_ui(5, 3));         /* ".000" strips too */
+    EXPECT_EQ("1.001 KB", query::display_size_ui(1025, 3)); /* ".001" keeps */
+    /* negative precision clamps to 0 */
+    EXPECT_EQ("5 B", query::display_size_ui(5, -3));
+}
+
+TEST(Query, VersionsAndTagsExtractedBranchAxes) {
+    /* M-101 (adapted to the landed implementation): the exact-id
+     * version_group filter + the tags_only branch scope, composing with
+     * the existing filter dimensions. The landed design: version_group
+     * ids are the namespace-identity hash stamped at emission;
+     * query::version_groups() collects the >=2-live-member families;
+     * Filter::version_group selects one family; Filter::tags_only
+     * scopes the Tags Extracted branch (the flag the carve rider and
+     * the host preview pass both stamp). */
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    const u64 fam = 0xAABBCCDD11223344ull;
+    auto add = [&](const char* name, u64 version_group, bool tags) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = std::u16string(name, name + std::char_traits<char>::length(name));
+        p->logical_size = 100;
+        p->version_group = version_group;
+        p->tags_extracted = tags;
+        auto* f = t.add_file(found, p);
+        p->release();
+        return f;
+    };
+    add("dupe.doc", fam, false);
+    add("DUPE.DOC", fam, true);
+    add("plain.txt", 0, false);
+    add("photo.jpg", 0, true);
+    t.refresh_stats();
+
+    /* the family census: exactly the >=2-member family surfaces */
+    const auto groups = query::version_groups(t);
+    ASSERT_EQ(groups.size(), size_t(1));
+    EXPECT_EQ(groups[0].id, fam);
+
+    Query q;
+    q.filter.version_group = fam;
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the version family members";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.version_group, fam);
+
+    q.filter.version_group = 0;
+    q.filter.tags_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(2), r.total_matched) << "exactly the tag-bearing files";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.tags_extracted, 1u);
+
+    /* the axes compose: the family member that ALSO carries the flag is
+     * the single intersection */
+    q.filter.version_group = fam;
+    q.filter.tags_only = true;
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "the two branch axes intersect";
 }

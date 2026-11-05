@@ -38,7 +38,11 @@ public:
         u32 take = len;
         if (u64(take) > have)
             take = u32(have);
-        std::memcpy(buf, data_.data() + off, take);
+        /* zero-length memcpy with a NULL source is UBSan-nonnull UB even
+         * though it copies nothing (the empty-input case: data_ is empty,
+         * data_.data() may be null - run 40682713696's preview finding) */
+        if (take > 0)
+            std::memcpy(buf, data_.data() + off, take);
         if (take < len)
             return ERR_READ_FAILED; /* short: surface as failure */
         return OK;

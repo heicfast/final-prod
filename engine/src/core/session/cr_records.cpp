@@ -139,7 +139,22 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          *   bit6: N-059 per-FS secondary payload follows (u32 id_a,
          *         u32 id_b, u64 generation, u16 zfs_flags, u16 hfs_flags,
          *         u32 hfs_type - the og's Btrfs +0x3B/+0x3F/+0x81, ZFS
-         *         +0x5A, HFS+ part2 +0xE/+0x74) */
+         *         +0x5A, HFS+ part2 +0xE/+0x74)
+         *   bit7: OQ-SA-1 FAT-family origin cluster follows (u32 - the
+         *         og's CFAT +0x3e / CExFat +0x50 first-cluster anchor,
+         *         stamped from the dentry independent of chain
+         *         resolution; passive datum)
+         *   bit11 (2048): S-059 extents carry {u64 logical, u8 hole}
+         *         each (sparse/compressed holes keep their logical
+         *         position; old files read back logical==0/hole==false
+         *         and take the legacy cumulative walk)
+         *   bit12 (4096): N-131 the NTFS parent-reference qword (the
+         *         $FILE_NAME parent FILE reference masked to the record
+         *         number - the og's CNTFSFileProperties +0x40)
+         *   bit13 (8192): N-131 the FAT parent-directory cluster (the
+         *         containing directory's own origin cluster - the og's
+         *         CFATFileProperties +0x42; exFAT has no parent anchor:
+         *         the og never stamps its +0x54 for children) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -163,10 +178,36 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                        pr->zfs_secondary_flags != 0 || pr->hfs_secondary_flags != 0 ||
                        pr->hfs_type_id != 0))
                 nflags |= 64; /* N-059: per-FS secondary payload follows */
+            if (pr && pr->fat_origin_cluster != 0)
+                nflags |= 128; /* OQ-SA-1: the FAT-family origin cluster */
+            if (pr && pr->ntfs_origin_lcn != 0)
+                nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
+            if (pr && pr->ntfs_total_clusters != 0)
+                nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
+            if (pr && pr->ntfs_parent_ref != 0)
+                nflags |= 4096; /* N-131: the NTFS parent-reference anchor (+0x40) */
+            if (pr && pr->fat_parent_cluster != 0)
+                nflags |= 8192; /* N-131: the FAT parent-directory anchor (+0x42) */
+            if (pr && pr->version_group != 0)
+                nflags |= 16384; /* M-101: the Versions-branch namespace id */
+            if (pr)
+                for (const auto& e : pr->extents)
+                    if (e.hole || e.logical != 0) {
+                        nflags |= 2048; /* S-059: positioned/hole extents */
+                        break;
+                    }
         }
+        /* S-052: the ROOT's extent-basis id (roots only, nonzero only) -
+         * the LDM dynamic-volume basis that survives the file boundary */
+        if (n->is_full() && n->basis() != 0)
+            nflags |= 1024;
         put32(out, parent_ids[i]);
         put16(out, nflags);
-        out.push_back(u8(n->is_full() ? 1 : 0));
+        /* S-048: marker 2 = a child FOLDER (a FullNode with a role under a
+         * parent - the carve tree's volume groups + per-ext skeleton
+         * folders). Roots stay marker 1 (old readers re-attach them as
+         * roots exactly as before); old files never contain marker 2. */
+        out.push_back(u8(n->is_full() ? (parent_ids[i] == 0xFFFFFFFFu ? 1 : 2) : 0));
         out.push_back(u8(n->origin()));
         out.push_back(u8(n->deleted_state()));
         out.push_back(u8(n->confidence()));
@@ -205,6 +246,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 put32(out, e.codec);
                 put64(out, e.psize);
             }
+            if (nflags & 2048) { /* S-059: the logical position + hole mark */
+                put64(out, e.logical);
+                out.push_back(e.hole ? 1 : 0);
+            }
         }
         if (nflags & 2) {
             put32(out, u32(pr->resident_data.size()));
@@ -240,6 +285,55 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             put16(out, pr->hfs_secondary_flags);
             put32(out, pr->hfs_type_id);
         }
+        /* OQ-SA-1 (nflags bit7): the FAT-family origin cluster — the og's
+         * CFAT +0x3e / CExFat +0x50 first-cluster anchor (part1 :125-127;
+         * the SetFirstCluster vt+0x28 contract, stamped from the dentry
+         * regardless of chain resolution — FUN_180012e60's unconditional
+         * closing stamp :13737-13738). 4-byte block; bit7 fires only when
+         * the carrier is nonzero, so pre-OQ-SA-1 sessions stay shape-
+         * identical. */
+        if (nflags & 128)
+            put32(out, pr->fat_origin_cluster);
+        /* OQ-SA-1 NTFS half (nflags bit8): the first-$DATA-run LCN anchor —
+         * the og's CNTFSFileProperties +0x64 (the vtable+0x30 location-
+         * anchor family; producer chain FUN_1800336f0 :41028 ->
+         * FUN_1800069e0 :5126 -> FUN_180003020 :1987 -> serializer :2362).
+         * 4-byte append-only block; the bit fires only when the carrier is
+         * nonzero, so pre-fix sessions stay shape-identical. The sparse-
+         * first-run 0xFFFFFFFF value (the og's stored-start read) is
+         * nonzero and therefore persists. */
+        if (nflags & 256)
+            put32(out, pr->ntfs_origin_lcn);
+        /* N-100: the +0x60 twin (total $DATA clusters, sparse-anywhere => 0
+         * per FUN_1800336f0 :41096-98) — the same 4-byte append-only block
+         * shape as the anchor, firing only when nonzero (pre-fix sessions
+         * stay shape-identical; the og's rsf record-4 persists the pair in
+         * the same order, rsf-format :398). */
+        if (nflags & 512)
+            put32(out, pr->ntfs_total_clusters);
+        /* N-131 (nflags bit12): the NTFS parent-reference qword — the
+         * og's CNTFSFileProperties +0x40 (part1 :84; the $FILE_NAME
+         * parent reference masked to the 48-bit record number, stamped
+         * per-link by the walk). 8-byte append-only block; the bit fires
+         * only when the carrier is nonzero, so pre-N-131 sessions stay
+         * shape-identical. */
+        if (nflags & 4096)
+            put64(out, pr->ntfs_parent_ref);
+        /* N-131 (nflags bit13): the FAT parent-directory cluster — the
+         * og's CFATFileProperties +0x42 (part1 :129; the containing
+         * directory node's own +0x3e origin cluster, stamped at every
+         * dentry emission). 4-byte append-only block; the bit fires only
+         * when the carrier is nonzero (root-level files carry 0 by
+         * construction — the og's volume-root node anchors at 0). */
+        if (nflags & 8192)
+            put32(out, pr->fat_parent_cluster);
+        /* M-101 (nflags bit14): the Versions-branch namespace-identity
+         * hash - 8-byte append-only block, firing only when the carrier
+         * is nonzero (pre-M-101 sessions stay shape-identical; the group
+         * relation is re-derivable from the walk, the persistence is the
+         * session's completeness contract). */
+        if (nflags & 16384)
+            put64(out, pr->version_group);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -249,6 +343,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             put64(out, f->stats().dir_count);
             put64(out, f->stats().total_logical);
             put64(out, f->stats().deleted_count);
+            if (nflags & 1024) /* S-052: the basis id rides the root record */
+                put32(out, n->basis());
         }
     }
     if (progress && !progress(total_nodes, total_nodes, progress_user))
@@ -256,11 +352,28 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
     return OK;
 }
 
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out) {
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out,
+                     DeserializeProgress progress, void* progress_user) {
     Cursor c{data, len};
     const u32 count = c.g32();
     if (c.fail)
         return 0x50040001;
+    /* M-150 (diff-to-fix): the count pre-allocation bomb gate. Each node
+     * consumes at least 10 wire bytes by the grammar (parent id 4 +
+     * nflags 2 + marker 1 + origin 1 + deleted 1 + confidence 1; the
+     * grade byte is optional), so a count beyond (len-4)/10 cannot fit
+     * the record - a torn write's garbage count (the M-131 class's
+     * read-side complement) or any hostile .crsf. The old code
+     * value-initialized by_id(count) straight from the u32: up to
+     * 34.4 GB of touched pages at the u32 max - minutes of pagefile
+     * thrash on Windows before bad_alloc, an uncatchable OOM-kill on
+     * Linux overcommit. The og's record-4 reader allocates node-by-node
+     * through per-FS factories (rsf-record4--tree-node-grammar.md:16,26)
+     * - its allocation is bounded by the bytes actually present; this
+     * gate restores that bound at the count field. */
+    constexpr size_t MIN_NODE_BYTES = 10;
+    if (u64(count) > (u64(len) - 4) / MIN_NODE_BYTES)
+        return 0x50040001; /* corrupt count: the container's resync layer recovers */
     /* N-077 (session 22 baseline repair): the caller-held FileProperties
      * reference leaked on every early break between the per-record
      * allocation and the successful attach (the N-058 bounds-gates and
@@ -305,7 +418,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
          * anything else is corruption - fail the record and let the
          * container's CRC/resync layer recover, never silently normalize
          * to a light node. */
-        if (marker != 0 && marker != 1) {
+        if (marker != 0 && marker != 1 && marker != 2) { /* S-048: +2 (child folder) */
             c.fail = true;
             break;
         }
@@ -378,6 +491,10 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
                 props->extents[k].codec = c.g32();
                 props->extents[k].psize = c.g64();
             }
+            if (nflags & 2048) { /* S-059: logical position + hole mark */
+                props->extents[k].logical = c.g64();
+                props->extents[k].hole = c.g8() != 0;
+            }
         }
         if (nflags & 2) {
             const u32 rlen = c.g32();
@@ -424,8 +541,76 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             if (c.fail)
                 break;
         }
+        if (nflags & 128) { /* OQ-SA-1: the FAT-family origin cluster */
+            props->fat_origin_cluster = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 256) { /* OQ-SA-1: the NTFS origin LCN anchor */
+            props->ntfs_origin_lcn = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 512) { /* N-100: the NTFS total-clusters twin (+0x60) */
+            props->ntfs_total_clusters = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 4096) { /* N-131: the NTFS parent-reference anchor */
+            props->ntfs_parent_ref = c.g64();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 8192) { /* N-131: the FAT parent-directory anchor */
+            props->fat_parent_cluster = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 16384) { /* M-101: the Versions-branch namespace id */
+            props->version_group = c.g64();
+            if (c.fail)
+                break;
+        }
         tree::FileNode* n = nullptr;
-        if (marker == 1) {
+        if (marker == 2) {
+            /* S-048: a child FOLDER - a FullNode with a role under its
+             * parent (parents always precede children in the writer's
+             * depth-first walk). A marker-2 record without a resolvable
+             * parent is structural corruption: c.fail (the N-058 class -
+             * never a silent re-parent, never a root promotion). */
+            const u16 role_len = c.g16();
+            if (c.fail || c.left < size_t(role_len) * 2u) {
+                c.fail = true;
+                break;
+            }
+            std::u16string role(role_len, 0);
+            for (u16 k = 0; k < role_len; ++k)
+                role[k] = c.g16();
+            tree::FullNode::Stats st{};
+            st.file_count = c.g64();
+            st.dir_count = c.g64();
+            st.total_logical = c.g64();
+            st.deleted_count = c.g64();
+            tree::FileNode* parent = nullptr;
+            if (parent_id != 0xFFFFFFFFu && parent_id < count)
+                parent = by_id[parent_id];
+            if (parent == nullptr) {
+                c.fail = true; /* a folder without its parent: corrupt */
+                break;
+            }
+            tree::FullNode* folder = tree.add_folder(parent, role);
+            if (folder) {
+                folder->set_stats(st);
+                folder->set_props(props);
+                if (folder->props() == nullptr) {
+                    c.fail = true;
+                    break;
+                }
+            }
+            n = folder;
+            if (n == nullptr)
+                break; /* allocation failure: the N-058 error path */
+        } else if (marker == 1) {
             /* full node: role + stats; re-attach as a root-level virtual */
             const u16 role_len = c.g16();
             /* N-058: same class as the name-length bomb (the og bounds-
@@ -446,10 +631,13 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             st.dir_count = c.g64();
             st.total_logical = c.g64();
             st.deleted_count = c.g64();
+            const u32 root_basis = (nflags & 1024) ? c.g32() : 0u; /* S-052 */
             tree::FullNode* full = tree.add_root(role);
             if (full) {
                 full->set_stats(st);
                 full->set_props(props);
+                if (root_basis != 0)
+                    tree.set_root_basis(full, root_basis);
                 n = full;
             }
         } else {
@@ -498,6 +686,13 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         created.push_back(n);
         if (c.fail)
             break;
+        /* W1b (R-54): the per-node load hook - the N-060 save mirror.
+         * The og's restore checks IsCancelled after EVERY child and
+         * tears down (rsf-format--scan-session.md flow section); false
+         * here aborts with ERR_CANCELLED - the tree is PARTIAL and the
+         * caller discards it (a torn load never half-claims state). */
+        if (progress && !progress(u64(i) + 1, u64(count), progress_user))
+            return ERR_CANCELLED;
     }
     /* N-058: resolve the deferred forward references now that every
      * record had its chance to load; the ones that never resolve stay
@@ -523,6 +718,109 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         return u32(0x50040001);
     }
     return u32(OK);
+}
+
+/* ---- S-052: the LDM layouts record codec ---- */
+
+u32 serialize_ldm_layouts(const std::vector<table::LdmVolumeLayout>& layouts,
+                          std::vector<u8>& out) {
+    out.clear();
+    put32(out, u32(layouts.size()));
+    for (const auto& lay : layouts) {
+        out.push_back(u8(lay.kind));
+        put64(out, lay.vol_obj_id);
+        put64(out, lay.total_sectors);
+        put64(out, lay.chunk_sectors);
+        put32(out, lay.columns);
+        put64(out, lay.missing_members);
+        out.push_back(lay.complete ? 1 : 0);
+        put16(out, u16(lay.name.size()));
+        for (char ch : lay.name)
+            out.push_back(u8(ch));
+        put32(out, u32(lay.copies.size()));
+        for (const auto& copy : lay.copies) {
+            put32(out, u32(copy.size()));
+            for (const auto& m : copy) {
+                put64(out, m.part_obj_id);
+                put64(out, m.disk_obj_id);
+                out.insert(out.end(), m.disk_guid.b, m.disk_guid.b + 16);
+                put64(out, m.disk_lba);
+                put64(out, m.part_start);
+                put64(out, m.sectors);
+                put64(out, m.vol_offset);
+                put32(out, m.index);
+                out.push_back(m.disk_present ? 1 : 0);
+            }
+        }
+    }
+    return OK;
+}
+
+u32 deserialize_ldm_layouts(const u8* data, size_t len, std::vector<table::LdmVolumeLayout>& out) {
+    out.clear();
+    Cursor c{data, len};
+    const u32 count = c.g32();
+    if (c.fail)
+        return ERR_SESSION_FORMAT;
+    if (count > 4096u) /* the same bomb class as the tree's node count */
+        return ERR_SESSION_FORMAT;
+    out.reserve(count);
+    for (u32 i = 0; i < count; ++i) {
+        table::LdmVolumeLayout lay;
+        lay.kind = table::LdmVolumeKind(c.g8());
+        lay.vol_obj_id = c.g64();
+        lay.total_sectors = c.g64();
+        lay.chunk_sectors = c.g64();
+        lay.columns = c.g32();
+        lay.missing_members = c.g64();
+        lay.complete = c.g8() != 0;
+        const u16 name_len = c.g16();
+        if (c.fail || c.left < size_t(name_len)) {
+            c.fail = true;
+            break;
+        }
+        lay.name.assign(reinterpret_cast<const char*>(c.p), size_t(name_len));
+        c.p += name_len;
+        c.left -= name_len;
+        const u32 copies = c.g32();
+        if (c.fail || copies > 64u) {
+            c.fail = true;
+            break;
+        }
+        lay.copies.resize(copies);
+        for (u32 k = 0; k < copies; ++k) {
+            const u32 members = c.g32();
+            if (c.fail || members > 4096u) {
+                c.fail = true;
+                break;
+            }
+            lay.copies[k].resize(members);
+            for (u32 j = 0; j < members; ++j) {
+                table::LdmMember& m = lay.copies[k][j];
+                m.part_obj_id = c.g64();
+                m.disk_obj_id = c.g64();
+                if (c.left < 16) {
+                    c.fail = true;
+                    break;
+                }
+                std::memcpy(m.disk_guid.b, c.p, 16);
+                c.p += 16;
+                c.left -= 16;
+                m.disk_lba = c.g64();
+                m.part_start = c.g64();
+                m.sectors = c.g64();
+                m.vol_offset = c.g64();
+                m.index = c.g32();
+                m.disk_present = c.g8() != 0;
+            }
+            if (c.fail)
+                break;
+        }
+        if (c.fail)
+            break;
+        out.push_back(std::move(lay));
+    }
+    return c.fail ? ERR_SESSION_FORMAT : OK;
 }
 
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out) {
@@ -597,6 +895,14 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.wwn, vi.wwn + 32);
     out.insert(out.end(), vi.interface_desc, vi.interface_desc + 32);
     out.insert(out.end(), vi.boot_snapshot, vi.boot_snapshot + 512);
+    /* W1a v5 tail: the embedded save time (the og's record-2 SYSTEMTIME,
+     * rsf-format section 5.2 +0x6C); old readers stop before it and old
+     * files simply lack it (the deserializer len-gates the read). */
+    put64(out, vi.save_unix);
+    /* N-090 v6 tail: the complete label at the og's volumeName[100]
+     * width - label[32] above keeps the legacy prefix view; old readers
+     * stop before this tail (the same len-gate pattern as v2..v5). */
+    out.insert(out.end(), vi.label_full, vi.label_full + 100);
     return OK;
 }
 
@@ -643,6 +949,20 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
             vi.firmware[31] = 0;
             vi.wwn[31] = 0;
             vi.interface_desc[31] = 0;
+            /* W1a v5 tail: absent on v1..v4 records - 0 means "not
+             * recorded" (the list surfaces it honestly; the file's mtime
+             * is the caller's fallback display, never a silent guess). */
+            if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8)
+                vi.save_unix = c.g64();
+            /* N-090 v6 tail: the complete label (the og's
+             * volumeName[100]); absent on v1..v5 records - zeros mean
+             * "the legacy 31-char card is the whole truth" (the
+             * surface joins to label[] alone, exactly pre-v6). */
+            if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8 + 100) {
+                if (!c.bytes(reinterpret_cast<u8*>(vi.label_full), 100))
+                    return 0x50040001;
+                vi.label_full[99] = 0; /* never trust a torn NUL */
+            }
         }
     }
     return c.fail ? u32(0x50040001) : u32(OK);
@@ -659,6 +979,9 @@ u32 serialize_session_state(const SessionState& st, std::vector<u8>& out) {
      * lack them (deserializer len-gates the reads) */
     put64(out, st.deleted_found);
     put64(out, st.carved_found);
+    /* v3 (N-167): the found-size aggregate - the og's "Files Found: N
+     * (X GB)" headline truth, restored on load */
+    put64(out, st.bytes_found);
     return OK;
 }
 
@@ -674,6 +997,11 @@ u32 deserialize_session_state(const u8* data, size_t len, SessionState& st) {
         st.deleted_found = c.g64();
     if (!c.fail && len >= 40)
         st.carved_found = c.g64();
+    /* v3 (N-167): the found-size aggregate - present only in 48-byte
+     * records; v1/v2 sessions leave it zeroed (the tree re-stamps it on
+     * the first count refresh after resume) */
+    if (!c.fail && len >= 48)
+        st.bytes_found = c.g64();
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 
@@ -691,6 +1019,17 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.sectors_per_cluster);
     put32(out, pc.hidden_sectors);
     put32(out, pc.flags);
+    /* v3 tail (M-137): the found-partition row context + the label
+     * (61 bytes = v3; 41 = v2; 25 = v1 — the same length detection). */
+    put32(out, pc.disk_layout);
+    put32(out, pc.disk_flags);
+    for (int k = 0; k < 12; ++k)
+        out.push_back(u8(pc.volume_label[k]));
+    /* v4 tail (N-203): the data-area extent (77 bytes = v4; the og's
+     * CSearchedPartitionInfo replays with the full extent identity —
+     * EndSec anchored at the data-area boundary). */
+    put64(out, pc.data_start_lba);
+    put64(out, pc.data_sector_count);
     return OK;
 }
 
@@ -708,6 +1047,22 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
         pc.sectors_per_cluster = c.g32();
         pc.hidden_sectors = c.g32();
         pc.flags = c.g32();
+    }
+    /* v3 (61 bytes, M-137): the presentation context + the boot label;
+     * v1/v2 payloads keep the v3 extras zeroed (the append-only wire). */
+    if (!c.fail && len >= 61) {
+        pc.disk_layout = c.g32();
+        pc.disk_flags = c.g32();
+        for (int k = 0; k < 12; ++k)
+            pc.volume_label[k] = char(c.g8());
+        pc.volume_label[11] = 0; /* NUL-floor the wire slot */
+    }
+    /* v4 (77 bytes, N-203): the data-area extent; v1..v3 payloads keep
+     * the v4 extras zeroed — a zero extent routes the resume into the
+     * revalidate scratch copy-back (the first-resume repair). */
+    if (!c.fail && len >= 77) {
+        pc.data_start_lba = c.g64();
+        pc.data_sector_count = c.g64();
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
@@ -764,6 +1119,80 @@ u32 serialize_assistant_stats(const tree::grading::AssistantStats& st, std::vect
     put64(out, st.graded_count);
     put32(out, st.small_result ? 1u : 0u);
     return OK;
+}
+
+u32 serialize_carve_tally(const CarveTallyRecord& t, std::vector<u8>& out) {
+    out.clear();
+    const u32 n = t.slots < 512 ? t.slots : 512;
+    put32(out, n);
+    put64(out, t.overflow);
+    for (u32 i = 0; i < n; ++i)
+        put64(out, t.counts[i]);
+    return OK;
+}
+
+u32 serialize_scan_filter(const std::vector<std::string>& prefixes, std::vector<u8>& out) {
+    /* M-073: u32 count, then per prefix u32 byte length + the raw UTF-8
+     * (the config's own text; normalization lives in the prune). A
+     * prefix longer than u32 bytes is refused, not truncated (a filter
+     * that outgrows 4 GiB is a config error, not a payload). */
+    out.clear();
+    if (prefixes.size() > 0xFFFFFFFFu)
+        return u32(0x50040004); /* ERR_BAD_PARAMETER family (session codes) */
+    put32(out, u32(prefixes.size()));
+    for (const auto& p : prefixes) {
+        if (p.size() > 0xFFFFFFFFu)
+            return u32(0x50040004);
+        put32(out, u32(p.size()));
+        out.insert(out.end(), p.begin(), p.end());
+    }
+    return OK;
+}
+
+u32 deserialize_scan_filter(const u8* data, size_t len, std::vector<std::string>& prefixes) {
+    prefixes.clear();
+    Cursor c{data, len};
+    const u32 n = c.g32();
+    if (c.fail)
+        return u32(0x50040001);
+    for (u32 i = 0; i < n && !c.fail; ++i) {
+        const u32 plen = c.g32();
+        if (c.fail || !c.take(plen)) {
+            c.fail = true;
+            break;
+        }
+        prefixes.emplace_back(reinterpret_cast<const char*>(c.p) - plen, plen);
+    }
+    if (c.fail) {
+        /* honest degrade: a torn record yields no filter (the session
+         * loads; the host config governs) */
+        prefixes.clear();
+        return u32(0x50040001);
+    }
+    return u32(OK);
+}
+
+u32 deserialize_carve_tally(const u8* data, size_t len, CarveTallyRecord& t) {
+    Cursor c{data, len};
+    t.slots = 0;
+    t.overflow = 0;
+    for (u32 i = 0; i < 512; ++i)
+        t.counts[i] = 0;
+    const u32 n = c.g32();
+    t.overflow = c.g64();
+    if (c.fail)
+        return u32(0x50040001);
+    /* the count may exceed this build's 512-row view (a newer writer):
+     * read every row so the cursor stays truthful, keep the in-capacity
+     * prefix, report the record's own bound */
+    u32 i = 0;
+    for (; i < n && !c.fail; ++i) {
+        const u64 v = c.g64();
+        if (i < 512)
+            t.counts[i] = v;
+    }
+    t.slots = n;
+    return c.fail ? u32(0x50040001) : u32(OK);
 }
 
 u32 deserialize_assistant_stats(const u8* data, size_t len, tree::grading::AssistantStats& st) {

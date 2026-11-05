@@ -72,7 +72,13 @@ extern "C" {
 #define CR_UI_API __attribute__((visibility("default")))
 #endif
 
-#define CR_UI_ABI_VERSION 2u
+/* v3 = M-067 (the S-039 convergence residue): the cr_ui_user_sign field
+ * resize (bytes 16 -> 48, mime 64 -> 81, sign_len/offset ranges) - the
+ * first struct FIELD change under the stability policy
+ * (docs/ABI-CONTRACT.md section 9). The S-039 caps fix (b07ee9d) landed
+ * without this half: a 73-char MIME memcpy'd into mime[64] left the
+ * field non-NUL-terminated (a host read past the field). */
+#define CR_UI_ABI_VERSION 4u
 
 /* Selected error codes (full table: cr_error.h; same numeric space). */
 #define CR_UI_OK 0x00000000u
@@ -105,17 +111,6 @@ CR_UI_API const char* cr_ui_last_error(void);
 
 /* Frees a heap string returned by this API (also valid to call free()). */
 CR_UI_API void cr_ui_string_free(char* s);
-
-/* ---- logging (NG-15): the host's operational-log sink ---------------------
- * The engine's diagnostic seam (cr/cr_log.h — scan brackets, stage
- * boundaries, read failures, memory warnings) is silent by default; the
- * host registers ONE sink here and owns every policy (placement, rollover,
- * async). level: 0 Error, 1 Warn, 2 Info (cr_log.h). The callback may fire
- * from ANY engine thread and MUST be cheap or internally deferred (the
- * cr_log.h threading contract: a blocking sink blocks the emitting worker).
- * fn == NULL restores silence. */
-typedef void (*cr_ui_log_fn)(uint32_t level, const char* line, void* user);
-CR_UI_API void cr_ui_set_log_sink(cr_ui_log_fn fn, void* user);
 
 /* ---- progress callbacks --------------------------------------------------
  * Fired on the worker thread only. Must not block. NO cancellation
@@ -197,6 +192,35 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
          * (0x1001..0x100e taxonomy) and check_family the detected                                 \
          * family byte; per-error detail rides the session record.                                 \
          * The report NEVER aborts the scan. */
+#define CR_EVT_SESSION_LOAD_PROGRESS                                                               \
+    11u /* W1b (R-54) load-path progress: fired from the thread running                            \
+         * cr_ui_session_load_with_events while the session tree                                   \
+         * deserializes - coalesced (first tick, permille steps,                                   \
+         * terminal), the CR_EVT_SAVE_PROGRESS mirror. stage =                                     \
+         * 0xFFFFFFFF; stage_permille = the load's own 0..1000;                                    \
+         * overall_permille = 0xFFFFFFFF (no scan context);                                        \
+         * bytes_done/bytes_total = nodes deserialized / persisted                                 \
+         * node count. Cancellation: the CALLER-OWNED cancel flag                                  \
+         * (cr_ui_session_load_with_events' cancel_flag argument,                                  \
+         * polled per node - the og's IUIProgressInfo IsCancelled                                  \
+         * vtable+0x20 polled per child, rsf-format--scan-session.md                               \
+         * flow section) aborts with CR_UI_ERR_CANCELLED - no                                      \
+         * session is returned and the partial tree is discarded                                   \
+         * (a torn load never half-claims state). */
+#define CR_EVT_AUTOSAVED                                                                           \
+    12u /* W1c (R-52) completion auto-save outcome: fired ONCE after                               \
+         * run() completes and ScanConfig.autosave_dir is set -                                    \
+         * autosave_rc = 0 (saved) or the write error code. The                                    \
+         * session lands as <autosave_dir>/auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf                   \
+         * (session::auto_session_name, the N-061 corpus convention                                \
+         * with the name-forbidden-char sanitizer; the og's completion                             \
+         * SaveScan flow, rsf-format section 5.5). A CANCELLED run never                           \
+         * auto-saves and never fires this event. S-044: an EMPTY run                              \
+         * (no files, no lost partitions), a RESUMED run and a run whose                           \
+         * session was already saved explicitly (cr_ui_scan_save_session)                          \
+         * never auto-save either - the og's trigger-site gates                                    \
+         * (FUN_1402857c0 call sites: results-found / not-import /                                 \
+         * not-already-saved). */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -242,6 +266,9 @@ typedef struct cr_ui_event {
     uint64_t check_errors;
     uint32_t check_family;
     uint32_t check_pad; /* keeps the POD an 8-byte multiple (always 0) */
+    /* W1c (R-52) append: the auto-save attempt's rc (CR_EVT_AUTOSAVED
+     * only; 0 on every other event type). */
+    uint64_t autosave_rc;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -278,8 +305,8 @@ CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn, voi
 /* ---- devices -------------------------------------------------------------
  * A device is a READ view handed to scans, previews and recovery. Sources:
  * a raw image FILE (portable - the ABI-check/test surface), a physical
- * disk or a volume letter (Windows platform layer: RDA-driver first with
- * direct-handle fallback, the reference Device.mo duality).
+ * disk or a volume letter (Windows platform layer: direct raw I/O under
+ * administrator privilege - session-96 removed the kernel driver).
  * Lifetime: a device must outlive every scan/preview/recovery using it
  * (they borrow, never own); close order is the caller's responsibility. */
 
@@ -288,28 +315,28 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
 /* bytes == 0: from offset to end of file. Exposed as a 512-byte-sector
  * read-only device bounded to [offset, offset+bytes). */
 
-/* Windows only (platform layer): ERR_UNSUPPORTED elsewhere. open_disk
- * prefers the RDA driver transport, falling back to \\.\PhysicalDriveN
- * (the reference duality; the chosen transport is reported by
- * cr_ui_device_transport). open_volume mirrors the CLI: BitLocker state
- * is probed first - a locked volume is refused with CR_UI_ERR_FVE_LOCKED
- * (0x50060001) unless auto-unlock succeeds; the returned device is the
- * volume's slice on its parent disk (kept alive internally). */
+/* Windows only (platform layer): ERR_UNSUPPORTED elsewhere. DIRECT raw
+ * I/O (session-96): open_disk/open_volume/open_volume_with_key open
+ * \\.\PhysicalDriveN directly - no kernel driver, no service, no
+ * fallback. The single precondition is the process token: a non-elevated
+ * token is refused with ERR_ELEVATION_REQUIRED (0x500C0001) - the host
+ * triggers its own elevation flow (the standard OS UAC prompt) and
+ * retries; nothing elevates silently. A failure under an elevated token
+ * is a target error (ERR_OPEN_FAILED et al). open_volume mirrors the
+ * CLI: BitLocker state is probed first - a locked volume is refused with
+ * ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the returned
+ * device is the volume's slice on its parent disk (kept alive
+ * internally). */
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
 CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
 
 /* M-030 (diff-to-fix; ABI-since 2.2, additive - compatible per the ABI
- * policy, no version bump): the transport-open diagnostic. The og's ABI
- * surface reports WHY the driver transport was not used; the pre-fix
- * core silently fell back RDA -> direct and overwrote the RDA leg's
- * error (the finding's claim (f)). Returns the surviving transport
- * leg's error code from the LAST cr_ui_open_disk on this process:
- *   0                  the last open succeeded (or none was attempted)
- *   CR_UI_ERR_*        the failed leg's code (e.g. the RDA open's error
- *                      when the direct fallback then succeeded - a
- *                      degraded-but-working transport is diagnosable as
- *                      such). Advisory only: never gates an open's own
- *                      return code; never clears; process-global. */
+ * policy, no version bump): the transport-open diagnostic. With the
+ * direct architecture (session-96) this carries the ERR_ELEVATION_REQUIRED
+ * refusal code from the LAST open call (or the surviving target error):
+ * the presentation contract for hosts that surface transport
+ * diagnostics. Advisory only: never gates an open's own return code;
+ * never clears; process-global. */
 CR_UI_API uint32_t cr_ui_last_transport_error(void);
 
 /* M-033 (additive export - compatible per the ABI policy, no version bump):
@@ -321,7 +348,7 @@ CR_UI_API uint32_t cr_ui_last_transport_error(void);
  * the GetFullVolumeEncryptionKey output shape). ERR_BAD_PARAMETER on
  * malformed/weak key material; ERR_UNSUPPORTED off-Windows; the
  * no-key refusal contract of cr_ui_open_volume is unchanged (locked
- * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
+ * without a key stays ERR_FVE_LOCKED - legitimate unlock only). */
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                               cr_ui_device** out);
 
@@ -332,10 +359,10 @@ CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_
  * user-typed password. THE EXPLICIT CONSENT ACTION: the host calls it only
  * from its user-initiated unlock surface (the og's BitlockerUnlockDialog
  * analog); cr_ui_open_volume NEVER tries passwords by itself - a locked
- * volume stays CR_UI_ERR_FVE_LOCKED until the user acts.
+ * volume stays ERR_FVE_LOCKED until the user acts.
  * utf8_user_passwords: optional extra candidates tried AFTER the shipped
  * set (may be NULL with count 0). Returns OK when a candidate unlocked the
- * volume, CR_UI_ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
+ * volume, ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
  * off-Windows. Attempt lines carry the candidate index only (never the
  * password) through the engine log seam. */
 CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(char letter,
@@ -353,9 +380,10 @@ typedef struct cr_ui_geometry {
 
 CR_UI_API uint32_t cr_ui_device_geometry(cr_ui_device* dev, cr_ui_geometry* out);
 
-/* Transport truth (the CLI's "[transport]" lines): "rda", "direct" or
- * "image", NUL-terminated into buf (cap bytes incl. NUL). Two-call: pass
- * buf==NULL to learn the needed size from *needed. */
+/* Transport truth (the CLI's "[transport]" lines): "direct" or "image",
+ * NUL-terminated into buf (cap bytes incl. NUL) — session-96 removed the
+ * kernel driver; every raw-disk device is a direct \\.\PhysicalDriveN
+ * view. Two-call: pass buf==NULL to learn the needed size from *needed. */
 CR_UI_API uint32_t cr_ui_device_transport(cr_ui_device* dev, char* buf, uint32_t cap,
                                           uint32_t* needed);
 
@@ -372,12 +400,19 @@ typedef struct cr_ui_disk_info {
     uint32_t table_ok;
     char model[128];  /* UTF-8, may be empty */
     char serial[128]; /* UTF-8, may be empty */
-    /* G-9/NG-14 tail append (ABI append-only; zero-init safe): the raw
-     * STORAGE_BUS_TYPE from the device descriptor (0 unknown, 7 USB,
-     * 11 SATA, 12 SD, 13 MMC, 14 virtual, 17 NVMe). Lets hosts
-     * distinguish SD cards from USB sticks (the reference's SD-card
-     * surface). */
-    uint32_t bus_type;
+    /* M-076 (append-only): the per-row TRIM datum behind the og's home-page
+     * "TRIM ON"/"TRIM OFF" chip (UIUX/07:17, :46) - the SSD-aware
+     * recovery-chance indicator. zero-init = unknown: the fields are only
+     * filled by the opt-in _ex enumeration (CR_ENUM_FLAG_TRIM below), so
+     * pre-existing hosts and the plain two-call caller see trim_known == 0
+     * (unknown) and are unaffected. The datum is the OS-global TRIM state
+     * (fsutil behavior query disabledeletenotify - the same primitive the
+     * health facet reads); every row carries the same value, exactly as
+     * every SSD row of the og's page renders the same chip state. */
+    uint32_t trim_known; /* 0 = not queried/unknown (the flag was off, or the query failed); 1 = the
+                            value below is valid */
+    uint32_t trim_on;    /* valid only when trim_known == 1: 1 = TRIM enabled (recovery-chance
+                            warning applies on SSDs), 0 = disabled */
 } cr_ui_disk_info;
 
 typedef struct cr_ui_volume_info {
@@ -390,11 +425,39 @@ typedef struct cr_ui_volume_info {
     uint32_t bitlocker; /* 1 = FVE detected */
 } cr_ui_volume_info;
 
+/* M-076: the enumeration opt-in flags (the _ex call below only - the plain
+ * two-call exports never take flags). Unknown bits are refused with
+ * CR_UI_ERR_BAD_PARAMETER - a host passing a flag this build does not know
+ * must fail loudly, not silently ignore. */
+#define CR_ENUM_FLAG_TRIM 0x00000001u
+
 /* Two-call pattern for both: *count as IN capacity when out != NULL, as
  * OUT needed when out == NULL. Enumeration failure returns its error code
- * (never a silent empty list - CLI G-20 parity). */
+ * (never a silent empty list - CLI G-20 parity).
+ *
+ * Refresh contract (R-86's pull-model equivalence, N-098): each call
+ * RE-QUERIES the OS - there is no cache, no memoization, no retained
+ * state anywhere in the path (a fresh PhysicalDiskList is constructed
+ * per invocation). Calling this again IS the refresh - the og's modal
+ * refresh flow re-runs the same enumeration machinery, and the modal
+ * chrome is host-side. The update-disk-metadata case (making the OS
+ * itself see a changed disk) is the C++-only win::refresh_disk_properties
+ * (IOCTL_DISK_UPDATE_PROPERTIES, S-029), documented as such at
+ * REFERENCE-API-GAP R-86. */
 CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count);
+CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count, uint32_t flags);
 CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count);
+
+/* M-076 opt-in contract (cr_ui_enumerate_disks_ex above): the TRIM chip
+ * datum is NOT free - the underlying fsutil query spawns a process per
+ * invocation. cr_ui_enumerate_disks (and _ex with flags == 0) never pays
+ * it; a host that wants the og's per-row chip opts in with
+ * CR_ENUM_FLAG_TRIM and accepts the latency (the og itself queries the
+ * same primitive for its home page - the chip is worth the cost there,
+ * and the caller decides, per the opt-in design recorded in the M-076
+ * resolution). The query is issued ONCE per invocation (the datum is
+ * OS-global) and stamped on every row; a failed query leaves trim_known
+ * == 0 on every row - never a guessed value. */
 
 /* ---- scan lifecycle ------------------------------------------------------
  * One cr_ui_scan = one staged pipeline over one attached device view,
@@ -449,7 +512,10 @@ typedef struct cr_ui_scan_config {
     uint32_t carve_weight;
     uint32_t threads;              /* 0 = auto */
     const char* volume_label_utf8; /* optional; NULL/"" = none; truncated
-                                    * to 31 chars (session card field) */
+                                    * to 99 chars - the og's record-2
+                                    * volumeName[100] width (N-090; the
+                                    * legacy session card keeps the
+                                    * 31-char prefix view) */
     const char* volume_model_utf8; /* optional identity-card overrides; when
                                     * absent the shim fills them from the
                                     * disk enumeration (Windows, CLI parity) */
@@ -499,6 +565,45 @@ typedef struct cr_ui_scan_config {
                                          * cr_ui_scan_stats' check_* fields, the
                                          * FsCheck event and the session record.
                                          * Zero-init safe (0 = off). */
+    const char* autosave_dir_utf8;      /* W1c (R-52) append: the completion
+                                         * auto-save DIRECTORY (the og's
+                                         * auto_<vol>_<ts> SaveScan flow,
+                                         * rsf-format section 5.5). NULL/""
+                                         * = OFF (zero-init safe). On run()
+                                         * COMPLETION - and, per S-057/N-211,
+                                         * on a user-STOPPED run with results
+                                         * (the og's stop path runs its own
+                                         * organize into the shared
+                                         * completion handler - DRWUI
+                                         * :1549399-421 -> :339076-79 ->
+                                         * FUN_140395e50, gates :612571-587
+                                         * with no stopped-check) - the shim
+                                         * saves the
+                                         * standard record set there under
+                                         * session::auto_session_name (the
+                                         * N-061 corpus naming + sanitizer),
+                                         * fires CR_EVT_AUTOSAVED once and
+                                         * sets stats.autosaved. S-044: an
+                                         * empty run (nothing found), a
+                                         * resumed run and an already-
+                                         * explicitly-saved run never
+                                         * auto-save either (the og's
+                                         * trigger-site gates). Other
+                                         * failures (device loss, read
+                                         * refusal) do not reach the
+                                         * completion handler and do not
+                                         * auto-save. */
+    /* M-073 append (zero-init safe: NULL/0 = the filter is OFF): the
+     * scan-time folder filter - the og's PushFolderFilter surface (the
+     * active AdvanceFilterCondition pushed into the scan controller at
+     * scan start, UIUX/31:142). Each entry is one UTF-8 path prefix,
+     * volume-root relative, '/' or '\\' separated, ASCII
+     * case-insensitive; out-of-prefix folders never reach the session,
+     * the snapshot or recovery (pruned at the stage boundaries before
+     * the checkpoints). The prefixes persist as REC_SCAN_FILTER so a
+     * resumed session keeps the original scope. */
+    const char* const* filter_folders_utf8; /* NULL or array of count entries */
+    uint32_t filter_folder_count;           /* 0 = OFF */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -572,6 +677,25 @@ typedef struct cr_ui_scan_stats {
     uint32_t check_ran;      /* the check phase executed at all */
     uint32_t check_errors;   /* reported issue count (the 0x1001..0x100e set) */
     uint32_t check_detected; /* family identified (fat/ntfs) */
+    /* read-truth session append (the fake-scan fix; read-truth
+     * accounting - the era-independent contract): the host must be
+     * able to present "these regions were NOT scanned" and "family
+     * unknown because the header was unreadable" without reading the
+     * log. bytes_unreadable = the error map's coverage (Skip-mode
+     * zero-fill hides failures from engines, never from this field);
+     * a scan that could read (essentially) nothing REFUSES with
+     * ERR_READ_FAILED instead of fake-completing. */
+    uint64_t bytes_unreadable;
+    uint32_t probe_unreadable; /* sector 0 read failed (family=Unknown is
+                                * BLIND, not filesystem-absent) */
+    /* W1c (R-52) append: the completion auto-save outcome (the og's
+     * auto_<vol>_<ts> SaveScan flow). 1 = the auto session landed in
+     * ScanConfig.autosave_dir under session::auto_session_name; 0 =
+     * off (the zero-init default), the run did not complete, the run
+     * found nothing, the run was resumed, or the session was already
+     * saved explicitly (S-044 - the og's trigger-site gates). The
+     * per-attempt rc rides CR_EVT_AUTOSAVED. */
+    uint32_t autosaved;
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
@@ -637,6 +761,17 @@ typedef struct cr_ui_apply_candidate {
                   * 2 exFAT, 4 GPT-table (refused by the planner), 5
                   * unknown (refused), 6 ext2, 7 HFS+, 8 Btrfs, 9 ZFS,
                   * 10 ReFS, 11 BitLocker */
+    /* M-137 append-only tail: the og's found-partition row context
+     * (UIUX/08 §2: Disk / Basic / Dynamic / MBR / GPT / File System).
+     * disk_layout: 0 none/unknown, 1 MBR, 2 EBR, 3 GPT, 4 GPT-damaged
+     * (table::TableLayout). disk_flags bit 0 = the scan target is
+     * dynamic (LDM database found), bit 1 = the target's table parsed.
+     * Hosts compiled against the pre-M-137 header may keep passing
+     * 24-byte structs - zero-initialize the whole struct before filling
+     * (the planner never reads these fields; they are presentation
+     * truth for the host's listing). */
+    uint32_t disk_layout;
+    uint32_t disk_flags;
 } cr_ui_apply_candidate;
 
 typedef struct cr_ui_apply_plan {
@@ -722,13 +857,28 @@ CR_UI_API uint32_t cr_ui_scan_verify_identity(cr_ui_scan* s);
 CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out);
 CR_UI_API void cr_ui_session_close(cr_ui_session* sess);
 
+/* M-154 (diff-to-fix): the pointed resume - the og's "continue last
+ * scanning" without enumeration (DRWUI:443092-443127 reads LastScanInfo.ini's
+ * SavePath and restores through the shared path). Reads the auto-session
+ * pointer sidecar (last_scan.info) inside utf8_dir and loads the AUTO
+ * session it names - no directory scan, no sort. Errors: CR_UI_ERR_BAD_
+ * PARAMETER (null args), ERR_OPEN_FAILED (no pointer sidecar / the pointed
+ * file does not exist / the pointer does not name an auto session - the
+ * dead-pointer class; a caller wanting a list falls back to
+ * cr_ui_session_list whose newest-first order is the enumerated form).
+ * Threading: no shared state; any thread may call. */
+CR_UI_API uint32_t cr_ui_session_resume_last(const char* utf8_dir, cr_ui_session** out);
+
 typedef struct cr_ui_session_info {
     uint32_t fs_family;       /* orchestrator::FsFamily value (D-1 truth) */
     uint32_t stage_done_mask; /* actual completion (quick|deep|carve bits) */
     uint32_t configured_mask; /* stages the original run configured */
     uint64_t slice_offset, slice_bytes;
     uint32_t logical_sector, physical_sector;
-    char label[32]; /* UTF-8 */
+    char label[32]; /* UTF-8 (the legacy 31-char prefix view) */
+    /* N-090 (ABI append): the complete label at the og's
+     * volumeName[100] width; == label on v1..v5 sessions. */
+    char label_full[100]; /* UTF-8, NUL padded */
     uint64_t scanned_bytes, elapsed_ms;
     char model[48]; /* UTF-8 identity card; empty on v1 sessions */
     char serial[32];
@@ -746,6 +896,102 @@ CR_UI_API uint32_t cr_ui_session_snapshot(cr_ui_session* sess, cr_ui_snapshot** 
  * original_cfg mirrors the config of the interrupted run. */
 CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess, const cr_ui_scan_config* original_cfg,
                                         cr_ui_scan** out);
+
+/* ---- session list (W1a / R-56) --------------------------------------------
+ * Directory-level summary listing - the og's LastScanRecordView surface
+ * (UIUX/07-home-phase-deep-dive.md:21 + its Continue-last banner): every
+ * *.crsf file in utf8_dir yields ONE row decoded from the container's
+ * LIGHT records only (SESSION_STATE + VOLUME_INFO); the heavy payloads
+ * (the 36 MB-class tree record among them) are skipped BY TYPE before
+ * any payload I/O (ScanController::read_summary + Reader::peek_record).
+ *
+ * Two-call size pattern (same contract as cr_ui_snapshot_dfs):
+ *   rows == NULL -> *count = the number of *.crsf candidates (capacity
+ *                   probe; nothing is decoded)
+ *   rows != NULL -> *count is the IN capacity; rows fill NEWEST-FIRST by
+ *                   the embedded save time (the og's LastScanRecordView
+ *                   order - its record-2 SYSTEMTIME comparator sorts
+ *                   newest first, which is what makes the og's
+ *                   "Continue last scanning" banner pick the right file);
+ *                   equal stamps and zero-stamp rows (pre-v5 sessions,
+ *                   unreadable files) break ties by path bytes so the
+ *                   order is deterministic; capacity < needed ->
+ *                   CR_UI_ERR_TRUNCATED with *count = the number filled
+ *                   (the time-ordered prefix - the NEWEST rows)
+ * An unreadable file (bad magic, torn container, open failure) still
+ * gets a row: valid = 0 + error = the decode/open error - a listing
+ * never hides damage. A valid row carries error = CR_UI_OK unless the
+ * PATH itself needed truncation (>= sizeof(path) bytes): then error =
+ * CR_UI_ERR_TRUNCATED and path[] holds the 1023-byte prefix while the
+ * summary fields stay decoded.
+ * save_unix is the EMBEDDED save time (v5+ sessions; the og record-2
+ * SYSTEMTIME scanTime); 0 = a pre-v5 session - display the file mtime
+ * then, never a fabricated time. Errors: CR_UI_ERR_BAD_PARAMETER
+ * (null/empty args), ERR_OPEN_FAILED (the directory itself cannot be
+ * read). Threading: no shared state; any thread may call. */
+
+#define CR_UI_SESSION_ROW_PATH 1024
+
+typedef struct cr_ui_session_row {
+    uint32_t valid;           /* 1 = summary decoded */
+    uint32_t error;           /* CR_UI_OK, or the decode/truncation error */
+    uint32_t fs_family;       /* orchestrator FsFamily as stored; 0 unknown */
+    uint32_t stage_done_mask; /* quick|deep|carve bits actually done */
+    uint32_t configured_mask; /* stages the original run configured */
+    uint64_t files_found, deleted_found, carved_found;
+    uint64_t bytes_scanned, elapsed_ms;
+    uint64_t save_unix;                /* embedded save time; 0 = pre-v5 session */
+    char label[32];                    /* UTF-8 volume label; empty on legacy files */
+    char path[CR_UI_SESSION_ROW_PATH]; /* UTF-8 full path, NUL padded */
+    /* N-090 (ABI append - the tail-append pattern, no version bump):
+     * the COMPLETE volume label at the og's record-2 volumeName[100]
+     * width (strncpy(...,99)); label[32] above stays the legacy
+     * 31-char prefix view so old callers see exactly what they always
+     * saw. == label on v1..v5 sessions (the uniform degrade). */
+    char label_full[100]; /* UTF-8, NUL padded */
+} cr_ui_session_row;
+
+CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
+                                      uint32_t* count);
+
+/* ---- the pointed resume (M-154) --------------------------------------------
+ * The og's continue-last flow reads the LastScanInfo.ini pointer
+ * (SavePath, validated with PathFileExistsA at DRWUI:443209-443214)
+ * instead of enumerating the directory. The core's pointer is the
+ * last_scan.info sidecar in the autosave dir (the og's [Info] four
+ * fields, PARITY-DELTAS-registered location difference). Returns OK
+ * with the pointed session's UTF-8 path copied into out_path when the
+ * pointer exists AND the pointed file is present;
+ * ERR_RANGE_OUT_OF_BOUNDS (0x50020004) when no live pointer names a
+ * present file (the impl's actual code, pinned by the ABI tests; the
+ * enum carries no ERR_NOT_FOUND - Session-84 corrected this comment
+ * from its pre-repair claim) (the host falls back to
+ * cr_ui_session_list). The returned path is directly loadable by
+ * cr_ui_session_load - the pointed-resume contract (FUN_140286390's
+ * SavePath-restore equivalent). */
+CR_UI_API uint32_t cr_ui_session_last_autosave_path(const char* utf8_dir, char* out_path,
+                                                    uint32_t cap);
+
+/* ---- session load progress + cancel (W1b / R-54) ---------------------------
+ * The load-side twin of the N-060 save machinery. The og's RESTORE
+ * reports progress inside the load window (40+50*done/(total+done),
+ * rsf-format--scan-session.md flow section) and polls IsCancelled
+ * after EVERY child. This variant of cr_ui_session_load takes:
+ *   fn          - optional event sink; CR_EVT_SESSION_LOAD_PROGRESS
+ *                 fires coalesced (first tick, permille steps,
+ *                 terminal) from the CALLING thread
+ *   cancel_flag - optional CALLER-OWNED flag (zero-init safe; set it
+ *                 nonzero FROM ANY THREAD to abort the load), the
+ *                 og's IUIProgressInfo IsCancelled mirror. Polled
+ *                 per node EVEN WHEN fn is NULL (a silent host can
+ *                 still cancel).
+ * On cancel: returns CR_UI_ERR_CANCELLED, *out untouched (no
+ * half-claimed session - a torn load never hands out partial state).
+ * With fn = NULL and cancel_flag = NULL this is exactly the plain
+ * cr_ui_session_load. */
+CR_UI_API uint32_t cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn,
+                                                  void* user, volatile uint32_t* cancel_flag,
+                                                  cr_ui_session** out);
 
 /* ---- snapshot enumeration -------------------------------------------------
  * Flat, index-addressed rows (parent/child/sibling links as indices;
@@ -779,6 +1025,14 @@ typedef struct cr_ui_node_info {
     uint32_t hash_valid;
     uint8_t sha128[16]; /* truncated content hash when hash_valid */
     uint32_t name_len;  /* name bytes excluding NUL (UTF-8) */
+    /* M-101 (ABI-appended, the N-090 tail pattern - no version bump):
+     * the two og results-tree branch axes (UIUX/09:27-36). Zero-init =
+     * the safe default (no group / not marked). The group id is the
+     * namespace-identity hash the NTFS walk stamps (query::version_groups
+     * enumerates the multi-member sets); the tags flag is the runtime
+     * preview/metadata pass's mark. */
+    uint64_t version_group;  /* NTFS namespace-identity hash; 0 = none */
+    uint32_t tags_extracted; /* 1 when the preview tag reader marked the props */
 } cr_ui_node_info;
 
 CR_UI_API void cr_ui_snapshot_close(cr_ui_snapshot* snap);
@@ -826,12 +1080,24 @@ typedef struct cr_ui_query {
     const char* path_prefix;    /* ABI-since core-api: full-path prefix filter
                                  * (og AdvanceFilterCondition path group),
                                  * ASCII-case-insensitive; NULL = no filter */
+    const char* path_substring; /* M-072 (ABI-appended): the path group's
+                                 * substring form; NULL = no filter */
+    uint32_t state_mask;        /* M-072 (ABI-appended): tree::DeletedState
+                                 * bits (bit0 Active, bit1 Deleted, bit2
+                                 * Partial, bit3 Damaged); 0 = all states */
     uint32_t deleted_only;
     uint32_t origin_mask; /* 0 = all origins */
     uint32_t sort, dir;
     uint64_t offset;
     uint32_t limit; /* 0 = default 100 */
     uint32_t count_only;
+    /* M-101 (ABI-appended): the two branch axes (UIUX/09:27-36). Zero
+     * = the axis is off (the safe default); composes with the axes above.
+     * version_group = the namespace-identity hash to select (the group
+     * membership; enumerate live groups first - cr_ui_query version of
+     * query::version_groups); tags_only = the Tags Extracted branch. */
+    uint64_t version_group; /* 0 = no filter; nonzero = only that group's members */
+    uint32_t tags_only;     /* 1 = only tag-marked rows */
 } cr_ui_query;
 
 typedef struct cr_ui_query_row {
@@ -842,6 +1108,9 @@ typedef struct cr_ui_query_row {
     uint32_t origin, deleted, confidence, category;
     uint32_t grade; /* S-023: tree::Grade 0..2 (rows carry the verdict so
                      * parity UIs can sort grade-2 first like the og) */
+    /* M-101 (ABI-appended): the branch axes per row. */
+    uint64_t version_group;  /* the namespace-identity hash; 0 = none */
+    uint32_t tags_extracted; /* 1 = the preview tag reader marked the props */
 } cr_ui_query_row;
 
 CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
@@ -857,7 +1126,7 @@ CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
  * 0x102 Last 7 days, 0x103 Last 1 month, 0x105 Custom; Size 0x1000 < 512KB,
  * 0x1001 512KB~1MB, 0x1002 1MB~512MB, 0x1003 512MB~1GB, 0x1004 > 1GB,
  * 0x1006 Custom. 0 leaves that axis untouched. The skipped IDs (0x104,
- * 0x1005) and any unknown value are REJECTED with CR_UI_ERR_INVALID_PARAM
+ * 0x1005) and any unknown value are REJECTED with ERR_BAD_PARAMETER
  * - the core never invents semantics the og's menu does not have.
  *
  * Date windows are computed from the host clock as day-truncated LOCAL
@@ -900,6 +1169,27 @@ CR_UI_API uint32_t cr_ui_carve_format_count(void);
 /* Row `index` [0, count()) into *out. BAD_PARAMETER on out-of-range. */
 CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out);
 
+/* ---- N-140: the per-format carve tally (the og's GetRawUserInfoMap) ------
+ * The og serves its per-scan carve-statistics map<extension,count> through
+ * the GetRawUserInfoMap export (RAWSearchDLL :72213-72221; FUN_18000ed00's
+ * insert-or-increment feeds it from every analyser detection; DRWUI's
+ * post-scan report renders the "found N .jpg / M .png" breakdown,
+ * :227538-227625). The core's equivalent: per-slot counts over the SAME
+ * unified format-id space cr_ui_carve_format_count() enumerates (grammar
+ * rows first, then raw-sign rows), plus ONE aggregate user-sign slot at
+ * the end (index == cr_ui_carve_format_count(); the og's map keys user
+ * signs by their dynamic extension strings - unbounded - so the aggregate
+ * is the honest fixed-table projection).
+ *
+ * cr_ui_scan_carve_tally_count: the live slot bound (0 = no carve stage
+ * ran or the session predates the tally). cr_ui_scan_carve_tally: the
+ * count at `index` into *out (BAD_PARAMETER on null/out-of-range). The
+ * format identity for index < cr_ui_carve_format_count() is
+ * cr_ui_carve_format_info(index, ...); the last slot is the user-sign
+ * aggregate. No tree walk required. */
+CR_UI_API uint32_t cr_ui_scan_carve_tally_count(cr_ui_scan* s);
+CR_UI_API uint32_t cr_ui_scan_carve_tally(cr_ui_scan* s, uint32_t index, uint64_t* out);
+
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---------
  * The og's EUUserData surface: the host registers user-taught file
  * signatures (the og's JSON shape verbatim:
@@ -919,11 +1209,12 @@ CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* o
 CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes, uint32_t json_len);
 
 typedef struct cr_ui_user_sign {
-    char ext[9];   /* lowercased, NUL-terminated */
-    char mime[64]; /* NUL-terminated; empty when the entry had none */
-    uint32_t offset;
-    uint32_t sign_len; /* 1..16 */
-    uint8_t bytes[16]; /* the signature bytes */
+    char ext[9];       /* lowercased, NUL-terminated */
+    char mime[81];     /* NUL-terminated; empty when the entry had none (v3/M-067:
+                          the og's longest MIME is 73 chars - the office family) */
+    uint32_t offset;   /* 0..1024 (v3/M-067: the og's max offset is 526) */
+    uint32_t sign_len; /* 1..48 (v3/M-067: the og's longest sign is 44 B) */
+    uint8_t bytes[48]; /* the signature bytes (v3/M-067: was 16) */
 } cr_ui_user_sign;
 
 CR_UI_API uint32_t cr_ui_user_sign_count(void);
@@ -982,8 +1273,10 @@ CR_UI_API void cr_ui_disk_map_free(uint8_t* overlay);
 
 /* ---- preview ---------------------------------------------------------------
  * Bounded, chunked reads of one node's logical content with NO recovery
- * pass (G-10 - the reference's IInWindowStream preview contract: range
- * reads under explicit caps). The reader owns a private copy of the
+ * pass (G-10 - a preview-true bounded reader: range reads under explicit
+ * caps; NOT an og-named contract - M-028 proved the corpus's
+ * IInWindowStream is the 7-Zip/LZMA SDK input interface, not a preview
+ * surface). The reader owns a private copy of the
  * node's properties, so the source session/snapshot may be closed while
  * a preview lives; the DEVICE must outlive it (it supplies the bytes). */
 
@@ -1020,10 +1313,113 @@ typedef struct cr_ui_metadata {
 
 CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_metadata* out);
 
+/* ---- archive inventory (M-116: the engine's browse-inside ABI half) -----
+ * The engine extracts a bounded archive-content inventory at preview time
+ * (the M-066 landing: the central-directory walk, the damaged-zip partial
+ * salvage, the 512-entry hostile bound) - before these exports it was
+ * unreachable from every C surface (cr_ui_metadata has no entries field
+ * and the bridge discarded Metadata.entries; the M-100 retirement's
+ * "reachable through cr_ui_preview_metadata" residue claim was false).
+ *
+ * Two-call pattern (the M-102 house shape): count probe, then per-index
+ * fill. The inventory is extracted at the FIRST archive call on the
+ * handle and cached for the handle's lifetime - a stable listing (the
+ * og's ArchivePreviewModel serves one model per browse view); a fresh
+ * preview handle re-extracts. Non-archive nodes report count 0 (never an
+ * error). `name_truncated` flags a name cut at the fixed 260-byte
+ * capacity (names are archive-native UTF-8 pass-through, never
+ * re-encoded). */
+typedef struct cr_ui_archive_entry {
+    char name[260];       /* archive-native bytes, NUL-terminated */
+    uint64_t size;        /* uncompressed size */
+    uint64_t compressed;  /* compressed size */
+    uint32_t crc_present; /* CD CRC-32 != 0 (the damaged-entry marker) */
+    uint32_t name_truncated;
+} cr_ui_archive_entry;
+
+CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint32_t* out);
+CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
+                                          cr_ui_archive_entry* out);
+
 /* Truthful failure map: device spans that could not be read and were
  * zero-filled. *total_bytes = sum of span lengths. */
 CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
                                             uint32_t* range_count);
+
+/* ---- thumbnail (M-102: the engine's ABI half; I-028 superset register) -----
+ * The og's results page fetches a 256-px thumbnail per image row through
+ * a dedicated worker (UIUX/10 §2; DRWUI :652395-652410) - host-side, but
+ * backed by engine-readable pixels. This is the equivalent surface: one
+ * bounded generation per node, synchronous (the async worker is host-side
+ * by the in-process doctrine, I-028). Output is DISPLAY-ORIENTED RGBA8
+ * (S-043: the EXIF orientation transform runs before the downscale).
+ *
+ * M-083: a successful generation promotes the node's grade to 2 ("high")
+ * - the og's grading side-effect (FUN_1402636e0 :422498-518: grade != 2
+ * -> FUN_140089630(node, 2)). The promotion never downgrades and is a
+ * no-op for already-high nodes (the setter's monotonic-max + sticky-2
+ * semantics are the node's own, og-exact). */
+
+/* Caps block mirroring the engine's ThumbnailCaps. NULL caps (or any
+ * zero field) = that default; nonzero values are validated by the same
+ * ranges the engine enforces (max_edge 1..8192, max_pixels/max_read/
+ * max_work nonzero, allow_embedded 0 or 1 - values above 1 are refused
+ * with ERR_BAD_PARAMETER). allow_embedded NOTE (N-137): the embedded
+ * fast path is ALWAYS preferred (og parity - the og's thumbnail worker
+ * takes the embedded preview whenever present); 0 = default-ON and
+ * 1 = explicit-ON. There is no off position by design. */
+typedef struct cr_ui_thumbnail_caps {
+    uint32_t max_edge;   /* 0 = 256 (the og's GDI+ convention) */
+    uint64_t max_pixels; /* 0 = 64 MP (decode-memory bomb guard) */
+    uint32_t max_read;   /* 0 = 200 MB / 0xC800000 (the og's still-image eligibility gate, M-109) */
+    uint32_t max_work;   /* 0 = 4 Mi fetch units (decoder work bound) */
+    uint32_t allow_embedded; /* 0 = ON (the EXIF fast path, M-080/D-105) */
+} cr_ui_thumbnail_caps;
+
+typedef struct cr_ui_thumbnail_info {
+    uint32_t width; /* output dims (post-orientation, post-downscale) */
+    uint32_t height;
+    uint32_t bytes_needed;  /* width*height*4 - the two-call probe's answer */
+    char source_format[16]; /* jpeg|png|bmp|gif|tiff|psd|pnm|hdr|raw */
+    uint8_t from_embedded;  /* the EXIF fast path served it */
+    uint8_t truncated;      /* decoder-tolerated short stream (disclosed,
+                             * never silent - the engine's Ok-but-truncated
+                             * contract crosses the ABI verbatim) */
+    uint8_t _pad[2];
+} cr_ui_thumbnail_info;
+
+/* Generate one node's thumbnail. TWO-CALL pattern: rgba == NULL is the
+ * SIZE PROBE (the generation runs - dims depend on the decode - and
+ * info->bytes_needed carries the answer; pixels are discarded); then the
+ * caller allocates and calls again. rgba != NULL with rgba_cap too small
+ * returns 0x50030009 ERR_NO_MEMORY with bytes_needed set (nothing is
+ * partially written). Status mapping is the engine's verbatim:
+ * 0 = OK (info + pixels); 0x50030004 ERR_TRUNCATED is returned for a
+ * decode REFUSAL (a damaged/short stream the strict decoders reject -
+ * ABI-CONTRACT 7i's mapping; the refusal branch also sets
+ * info->truncated); in-band truncation (a decoder-tolerated short
+ * stream) is NOT an error - it crosses via info->truncated on Ok;
+ * 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
+ * (info->source_format carries the family), other codes as the error
+ * table. caps == NULL = the defaults above. The device is the scan's
+ * device (the same pairing rule as cr_ui_preview_open_session).
+ *
+ * M-115 (grading side effects, decoded at DRWUI :422507-514 + :421400-402):
+ * (1) nodes of size <= 20 (0x14) are refused 0x50030008 - the og's
+ * dispatcher never creates work items that small, so no attempt and NO
+ * grade promotion happen; (2) a decode REFUSAL (0x50030004) whose reads
+ * were clean still promotes the node's grade to 2 - the og promotes on
+ * READ evidence (readVerdict==0 with payload, decode-independent, the
+ * decode's failure never retracts) - while span-damaged, budget-exhausted
+ * and unsupported attempts never promote. */
+CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
+                                            uint64_t node_id, const cr_ui_thumbnail_caps* caps,
+                                            uint8_t* rgba, uint32_t rgba_cap,
+                                            cr_ui_thumbnail_info* info);
+
+/* The format-support probe (the engine's documented v1 matrix + the
+ * S-045 raw family): true for jpeg/png/bmp/gif/tiff/psd/pnm/hdr/raw. */
+CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format);
 
 /* ---- recovery ----------------------------------------------------------------
  * The CLI `recover` flow in-process: SafeWriter over an injected DestIo
@@ -1107,17 +1503,6 @@ typedef struct cr_ui_smart_attr {
     char name[40];
 } cr_ui_smart_attr;
 
-/* NG-9 / reference-parity (the HEALTH table's "Current + Threshold" mode):
- * the extended attribute row carrying the VENDOR THRESHOLD the engine
- * already parses (0xD1 READ_THRESHOLDS; 0 = not reported by the drive).
- * A separate struct + export because cr_ui_smart_attr is an ARRAY element
- * whose stride is part of the ABI and cannot grow in place. Appended
- * within ABI version 2 per the append-only policy (new exports only). */
-typedef struct cr_ui_smart_attr_ex {
-    cr_ui_smart_attr base;
-    uint32_t threshold; /* vendor threshold; 0 = not reported */
-} cr_ui_smart_attr_ex;
-
 typedef struct cr_ui_smart_report {
     uint32_t available; /* SMART table decoded */
     char transport[24]; /* "ata-passthrough" / "nvme" / "legacy" */
@@ -1152,11 +1537,63 @@ CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                      cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                      uint32_t* attr_count);
 
-/* Same contract as cr_ui_health_read, with per-attribute vendor thresholds
- * (cr_ui_smart_attr_ex rows). The base call stays for ABI stability. */
-CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
-                                         cr_ui_smart_attr_ex* attrs, uint32_t attr_cap,
-                                         uint32_t* attr_count);
+/* S-040 (R-93): create a flat raw disk image of physical disk N at
+ * utf8_path (the og home page's "Create Image" producer - the safe-scan
+ * posture's first step, UIUX/07:36-37 + UIUX/11:17; raw-flat only,
+ * VHD/VHDX writers out of scope - PARITY-DELTAS D-147).
+ *
+ * Classification (a) privilege-required (the direct-era gate): the call
+ * requires an elevated process token like every disk-data-path verb,
+ * and refuses with ERR_ELEVATION_REQUIRED otherwise (the same gate as
+ * cr_ui_open_disk).
+ *
+ * progress (may be NULL) is the recovery-style cumulative-bytes callback.
+ * Disposition: streamed to `<path>.crimg-tmp`, atomically renamed on
+ * completion + a `<path>.sha256` sidecar (the standard "<hex>  <name>"
+ * form). On cancel or failure the partial image is KEPT as
+ * `<path>.partial` - reported, never silently passed off as complete.
+ * Win-backed: on non-Windows lanes returns ERR_UNSUPPORTED (the honest
+ * platform answer). */
+CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
+                                      cr_ui_recovery_progress_fn progress, void* user);
+
+/* M-075 (diff-to-fix): the check-phase escalation endpoint — launch
+ * Windows chkdsk on the volume mounted at `letter` ('A'..'Z'; the
+ * narrow ASCII form of the win layer's wide seam).
+ *   flags: 0 = check posture (chkdsk X:), 1 = fix posture (chkdsk X: /f)
+ *     — the guidance string's two halves (FileSystemCheck.mo
+ *     strings_ascii.txt:126); other bits are ignored for forward
+ *     compatibility.
+ *   exit_code (may be NULL): the RAW chkdsk exit code — 0 no errors, 1
+ *     errors fixed, 2 cleanup/scheduled, 3 errors remain (rerun /f), or
+ *     -1 when the spawn itself failed, 259 when the internal timeout
+ *     (15 min, the documented synchronous bound) left the process
+ *     running.
+ * Returns OK when chkdsk ran (its own verdict is in exit_code),
+ * ERR_BAD_PARAMETER for a non-letter, ERR_OPEN_FAILED when no volume is
+ * mounted at the letter (the loud refusal — never a silent skip),
+ * ERR_UNSUPPORTED when not elevated or on non-Windows lanes.
+ * The escalation ladder: in-engine check (this header's scan-side
+ * pre_scan_check) -> this endpoint -> the host's raw-carve fallback. */
+CR_UI_API uint32_t cr_ui_fsck_volume(char letter, uint32_t flags, int32_t* exit_code);
+
+/* M-078 (diff-to-fix): turn BitLocker OFF on the volume mounted at
+ * `letter` ('A'..'Z') - the CBitlockerTurnOffOperation endpoint, the
+ * DESTRUCTIVE consent twin of the unlock surface. Explicit opt-in only:
+ * nothing in the scan/open path ever calls this (the D-16
+ * legitimate-unlock-only register is untouched - this is decrypt, not
+ * bypass). Dual command chain (PowerShell Disable-BitLocker primary,
+ * manage-bde -off fallback, the unlock surface's own duality); the OS
+ * decrypt continues in the background after the request is accepted
+ * (manage-bde's documented shape) - OK means ACCEPTED, not plaintext.
+ * progress (may be NULL): the cr_ui_progress_fn form, fired at request
+ * start and at the command's settle - the OS decrypt percentage is not
+ * observable through this surface (honest contract, the og's own
+ * pending-op queue is UI-layer chrome over the same verbs).
+ * Returns OK when the request was accepted, ERR_FVE_LOCKED when both
+ * command forms failed (the loud refusal), ERR_BAD_PARAMETER for a
+ * non-letter, ERR_UNSUPPORTED off-Windows. */
+CR_UI_API uint32_t cr_ui_turn_off_bitlocker(char letter, cr_ui_progress_fn progress, void* user);
 
 #ifdef __cplusplus
 } /* extern "C" */

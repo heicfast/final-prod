@@ -4,11 +4,13 @@
  */
 
 #include "cr/ext4/cr_ext4_engine.h"
+#include "cr/session/cr_records.h"
 #include "cr/storage/cr_retry.h"
 #include <utility>
 #include <gtest/gtest.h>
 #include <cstring>
 #include <functional>
+#include <atomic>
 #include <map>
 #include <set>
 
@@ -135,6 +137,9 @@ void write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 ex
     put32(p + 0x10, 3000); /* mtime */
     put32(p + 0x14, dtime);
     put16(p + 0x1A, links);
+    /* N-177: i_blocks_lo (512-byte units) - real volumes always carry
+     * the coverage word; the fixture now reflects that. */
+    put32(p + 0x1C, u32(u64(extent_blocks) * (BS / 512)));
     put32(p + 0x20, 0x80000); /* EXTENTS_FL */
     /* extent root inline in i_block: header + 1 extent */
     u8* ib = p + 0x28;
@@ -438,6 +443,83 @@ TEST(Ext4Engine, SuperblockValidation) {
     EXPECT_FALSE(validate_superblock(raw, sb));
 }
 
+TEST(Ext4Engine, SbBandsPinned) {
+    /* N-202 (PARITY-DELTAS D-145): four superblock acceptance-band
+     * differences on garbage SBs, each a registered deliberate choice
+     * (near-zero real-volume impact - consolidated so none stays
+     * accidental):
+     *   (1) inode_size == 0 with rev >= 1: the og REJECTS (:3237's
+     *       (rev==0) || inode_size != 0 gate); the core falls back to
+     *       128 and accepts.
+     *   (2) log_bs 7..20: the og ACCEPTS (its 0x400 << log_bs int-sign
+     *       form only fails past 20 - 1 GiB blocks are an og defect
+     *       class, the I-045 family); the core rejects above 6.
+     *   (3) journal_inum: the og copies the field only when
+     *       feature_compat HAS_JOURNAL bit 2 is set (:3365-3367); the
+     *       core reads it unconditionally and defaults 0 -> 8.
+     *   (4) desc_size: the og clamps to [32,64] unconditionally
+     *       (:3397-3405); the core picks 64-iff-64BIT (32 otherwise) -
+     *       differs only on invalid combos.
+     * This pin asserts the four edges as DELIBERATE; if a band is ever
+     * changed, this test forces the register to be re-truthed first. */
+    u8 raw[1024];
+    SuperBlock sb;
+
+    /* (1) inode_size = 0 + rev 1: accepted with the 128 fallback */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0x58, 0); /* s_inode_size = 0 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb))
+            << "core accepts the og-rejected inode_size=0 (128 fallback)";
+        EXPECT_EQ(128u, sb.inode_size);
+    }
+    /* (2) log_bs = 7 (128 KiB blocks): refused - the og's int-sign form
+     * would accept up to 20 (1 GiB), an og defect class */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x14, 0); /* fdb = 0: isolate the log_bs cap
+                                        * (fdb=1 would trip the kernel
+                                        * fdb x log_bs rule first) */
+        put32(img.block(1) + 0x18, 7); /* s_log_block_size = 7 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_FALSE(validate_superblock(raw, sb))
+            << "log_bs > 6 refuses (the og accepts 7..20 - nonsense blocks)";
+    }
+    /* (3) journal_inum = 0 on a non-journal volume: read unconditionally,
+     * defaulted to 8 (the og leaves the field untouched without
+     * HAS_JOURNAL) */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0xE0, 0); /* s_journal_inum = 0, no HAS_JOURNAL */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(8u, sb.journal_inum) << "the unconditional-read stance: 0 -> the default inode 8";
+    }
+    /* (4a) 64BIT + desc_size = 32: the core forces 64 (the og's clamp
+     * would keep 32); (4b) non-64BIT + desc_size = 64: the core keeps 32 */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0002 | 0x80); /* FILETYPE | 64BIT */
+        put16(img.block(1) + 0xFE, 32);            /* s_desc_size = 32 */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(64u, sb.desc_size) << "64BIT forces the 64-byte descriptor";
+    }
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put16(img.block(1) + 0xFE, 64); /* s_desc_size = 64, NO 64BIT flag */
+        memcpy(raw, img.block(1), 1024);
+        EXPECT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(32u, sb.desc_size) << "non-64BIT keeps the 32-byte descriptor";
+    }
+}
+
 TEST(Ext4Engine, EndToEndWalk) {
     auto img = build_volume();
     MemDevice dev(img.raw());
@@ -507,6 +589,380 @@ TEST(Ext4Engine, BadMagicRejected) {
 TEST(Ext4Engine, UnixTimeConversion) {
     EXPECT_EQ(u64(11644473600ULL * 10000000ULL), unix_to_filetime(0));
     EXPECT_EQ(u64((11644473600ULL + 1000) * 10000000ULL), unix_to_filetime(1000));
+    /* post-2038: the full-i64 path is exact where the og's _gmtime32_s
+     * import (EXT4SearchDLL.dll, api-ms-win-crt-time-l1-1-0) goes garbage
+     * past the 32-bit time_t cliff - the I-040 anti-down-fix pin. */
+    EXPECT_EQ(u64((11644473600ULL + 2147483648ULL) * 10000000ULL),
+              unix_to_filetime(2147483648LL)); /* 2038-01-19T03:14:08Z+1s */
+    EXPECT_EQ(u64((11644473600ULL + 4102444800ULL) * 10000000ULL),
+              unix_to_filetime(4102444800LL)); /* 2100-01-01T00:00:00Z */
+    EXPECT_EQ(u64((11644473600ULL + 2147483648ULL) * 10000000ULL + 1234567ULL / 100ULL),
+              unix_to_filetime_ns(2147483648LL, 1234567u));
+}
+
+/* I-040 anti-down-fix pin: a directory inode with a nonzero legacy-ACL
+ * pointer at +0x6c (the I_SIZE_HIGH slot, meaningful only for regular
+ * files) must keep its true 32-bit size. The og's EXT4SearchDLL
+ * (FUN_180007510, :5455-5467) CONCATs +0x6c with +0x04 unconditionally
+ * for EVERY inode, so legacy-ACL dirs surface polluted garbage sizes;
+ * the core's clean conditional (cr_ext4_engine.cpp: high half only when
+ * ifmt(mode)==0x8000) is the registered deliberate non-adoption
+ * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
+ * defect. */
+/* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
+
+TEST(Ext4Engine, SizeExceedsBlocksDamagedDirectoryStaysUnflagged) {
+    /* N-177 CONVERGENCE REPAIR (the S53 lane's byte-equivalent landing
+     * kept under a distinct name per the superset rule - the cb2abd42
+     * convergence merge left BOTH lanes' tests under the same TEST name,
+     * a build-breaking redefinition): this one carries the pin the
+     * winning 7be438c9 battery lacks - a DIRECTORY whose size exceeds
+     * its block coverage stays unflagged (the og's param_6==0
+     * files-only gate, EXT4SearchDLL :6300-6303), and the clean-file
+     * control the other side. The clean file carries no bit; the
+     * truncated regular file carries it; the damaged dir never does. */
+    auto img = build_volume();
+    /* INO_HELLO: size 14, one 1 KiB extent = 2 sectors of coverage */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x1C, 2); /* i_blocks_lo: 2 x 512B covers the 14-byte file */
+    /* INO_SUB: size 22 -> make it the truncated one: 100 KiB declared,
+     * the same single-block extent (i_blocks stays 2 sectors) */
+    u8* sub = img.block(B_INODE_TABLE) + size_t((INO_SUB - 1) * INO_SZ);
+    put32(sub + 0x04, 100 * 1024); /* i_size_lo = 100 KiB */
+    put32(sub + 0x1C, 2);          /* i_blocks_lo: 1 KiB of coverage */
+    /* INO_DIR: a DIRECTORY whose size exceeds its blocks - stays clean
+     * (the og's param_6 == 0 files-only gate) */
+    u8* diri = img.block(B_INODE_TABLE) + size_t((INO_DIR - 1) * INO_SZ);
+    put32(diri + 0x04, 512 * 1024); /* 512 KiB declared over a 1 KiB extent */
+    put32(diri + 0x1C, 2);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode *hello_n = nullptr, *sub_n = nullptr, *dir_n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                if (c->props()->name == std::u16string(u"hello.txt"))
+                    hello_n = c;
+                if (c->props()->name == std::u16string(u"nested.bin"))
+                    sub_n = c;
+                if (c->props()->name == std::u16string(u"sub"))
+                    dir_n = c;
+            }
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_n);
+    ASSERT_NE(nullptr, sub_n);
+    ASSERT_NE(nullptr, dir_n);
+    EXPECT_EQ(0, int(hello_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the covered file carries no damaged bit";
+    EXPECT_NE(0, int(sub_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the 100-KiB-declared/1-KiB-covered file carries the 0x200 bit";
+    EXPECT_EQ(0, int(dir_n->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "directories never take the files-only damage bit";
+}
+
+TEST(Ext4Engine, LegacyAclDirSizeClean) {
+    auto img = build_volume();
+    /* the legacy dir-ACL pointer lives in i_size_high's slot for
+     * directories: a plausible allocator/ACL xattr block number */
+    u8* dir_inode = img.block(B_INODE_TABLE) + size_t((INO_DIR - 1) * INO_SZ);
+    ASSERT_EQ(0x4000, u16(dir_inode[0]) | u16(dir_inode[1] << 8)); /* dir */
+    put32(dir_inode + 0x6C, 0x00003039u);                          /* ACL pointer pollution */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode* sub = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == std::u16string(u"sub"))
+                sub = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, sub) << "the ACL-carrying dir must still surface";
+    /* the true 32-bit size (BS), never the polluted
+     * (0x3039 << 32 | BS) the og's unconditional poll would produce */
+    EXPECT_EQ(u64(BS), sub->props()->logical_size);
+}
+
+TEST(Ext4Engine, Post2038FileTimeConversionStays64Bit) {
+    /* I-040 / D-123: the og's _gmtime32_s paths (EXT4SearchDLL :5495/:5506/
+     * :6262/:6273) go garbage past 2038 (32-bit time_t); the core's u64
+     * FILETIME path must stay exact through and beyond the boundary. */
+    const u64 y2038 = 2147483648ULL; /* 2038-01-19T03:14:08Z, the +1 step */
+    EXPECT_EQ((11644473600ULL + y2038) * 10000000ULL, unix_to_filetime(y2038));
+    const u64 y2100 = 4102444800ULL; /* 2100-01-01T00:00:00Z */
+    EXPECT_EQ((11644473600ULL + y2100) * 10000000ULL, unix_to_filetime(y2100));
+}
+
+TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
+    /* I-040 / D-123 anti-down-fix pin. The og folds the +0x6C word into
+     * EVERY inode's size (EXT4SearchDLL FUN_180007510 :5455-5467 - the
+     * unconditional high-half poll), so a legacy-ACL directory's ACL
+     * pointer pollutes its surfaced size; the core folds only for regular
+     * files (cr_ext4_engine.cpp read_inode, the ifmt==0x8000 gate). Both
+     * directions pinned so no future session "fixes" the core toward
+     * either defect. */
+    auto img = build_volume();
+    u8* table = img.block(B_INODE_TABLE);
+    /* (a) the subdir inode carries a legacy-ACL pointer at +0x6C: the og
+     * computes 0x00000300_00000400 for this shape; the core surfaces 1024. */
+    put32(table + size_t((INO_DIR - 1) * INO_SZ) + 0x6C, 0x00000300u);
+    /* (b) the regular file's true size is hi=1, lo=0xFFFFFFFF (8 GiB-1):
+     * the regular-file path must surface the full 64-bit size. */
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x04, 0xFFFFFFFFu);
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x6C, 1u);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    const tree::FileNode* sub = nullptr;
+    const tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            if (nm == "sub")
+                sub = c;
+            if (nm == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, sub);
+    ASSERT_NE(nullptr, hello);
+    EXPECT_EQ(u64(1024), sub->props()->logical_size); /* NOT 0x300_00000400 */
+    EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
+}
+
+TEST(Ext4Engine, UnwrittenExtentLenDecodedKernelCorrect) {
+    /* I-045 / D-141 anti-down-fix pin (the og-defect non-adoption register,
+     * batch #3). The og multiplies the RAW ee_len word by the block size
+     * with no unwritten-bit handling anywhere in its extent decoder
+     * (EXT4SearchDLL FUN_180005670 :4044-4048 - the
+     * `CONCAT24(psVar5[-1],...) * (longlong)*(int *)(param_1 + 0x58)` and
+     * the `(ushort)psVar5[-2] * block_size` raw products), so an unwritten
+     * extent (ee_len bit 15 set - fallocate output, common on modern ext4)
+     * yields an overflow-class garbage run length. The core decodes the
+     * kernel form (cr_ext4_engine.cpp walk_extent_node :346-350: raw
+     * ee_len > 0x8000 -> raw & 0x7FFF) - an unwritten 5-block extent
+     * surfaces a 5-block content extent. Future sessions must not "fix"
+     * the core down to the og's garbage math. */
+    auto img = build_volume();
+    /* hello.txt's inline extent root: ee_len := 0x8005 (unwritten, 5 blocks) */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    /* fixture sanity: EXTENTS_FL (0x80000) set, extent magic 0xF30A at i_block */
+    ASSERT_EQ(0x80000u, u32(hello[0x20]) | u32(hello[0x21] << 8) | u32(hello[0x22] << 16) |
+                            u32(u32(hello[0x23]) << 24));
+    ASSERT_EQ(0xF30Au, u16(hello[0x28]) | u16(u16(hello[0x29]) << 8));
+    put16(hello + 0x28 + 16, 0x8005); /* ee_len @ extent+4 */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    const tree::FileNode* hello_node = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == std::u16string(u"hello.txt"))
+                hello_node = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_node) << "the unwritten-extent file must still surface";
+    ASSERT_EQ(size_t(1), hello_node->props()->extents.size());
+    /* kernel decode: 0x8005 -> 5 blocks (5120 bytes) at the extent's phys */
+    EXPECT_EQ(u64(B_HELLO_DATA * BS), hello_node->props()->extents[0].offset);
+    EXPECT_EQ(u64(5 * BS), hello_node->props()->extents[0].length);
+    /* NOT the og's raw product: 0x8005 * 1024 = 33,556,736 bytes of extent */
+    EXPECT_NE(u64(0x8005) * BS, hello_node->props()->extents[0].length);
+
+    /* the S58 convergence lane's unique supplement: the DELETED path decodes
+     * the same kernel form - the dtime-marked Inode6's extent re-stamped
+     * ee_len 0x8001 (unwritten, 1 block) surfaces a 1-block content extent,
+     * never the og's 0x8001 * 1024 raw product. */
+    u8* gone6 = img.block(B_INODE_TABLE) + size_t((6 - 1) * INO_SZ);
+    put16(gone6 + 0x28 + 16, 0x8001); /* ee_len @ extent+4 */
+    MemDevice dev2(img.raw());
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    Ext4ScanFlags fl2;
+    Ext4ScanStats st2;
+    ASSERT_EQ(OK, scan_ext4(&dev2, fl2, nullptr, nullptr, nullptr, tree2, ra2, rd2, nullptr, st2))
+        << err_text(0);
+    const tree::FileNode* gone_node = nullptr;
+    std::function<void(const tree::FileNode*)> find2 = [&](const tree::FileNode* n) {
+        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "Inode6")
+                gone_node = c;
+            find2(c);
+        }
+    };
+    find2(ra2);
+    find2(rd2);
+    ASSERT_NE(nullptr, gone_node);
+    ASSERT_EQ(size_t(1), gone_node->props()->extents.size());
+    EXPECT_EQ(u64(1 * BS), gone_node->props()->extents[0].length)
+        << "unwritten ee_len 0x8001 decodes to 1 block, not 0x8001*1024";
+}
+
+TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlagConvergent) {
+    /* N-177 (diff-to-fix): the S53 lane's CONVERGENT landing (the
+     * cb2abd42 convergence kept both lanes' bodies; the shared name
+     * broke the gtest registration - renamed, the 12c2f09e repair
+     * class). The og's truncation-damage marker (node FLAGS
+     * 0x200, EXT4SearchDLL :6300-6303 - FUN_180007510's
+     * i_blocks < size>>9 verdict) lands as NODE_FLAG_SIZE_EXCEEDS_BLOCKS
+     * (the same numeric bit 9), FILES only, clean 64-bit compute (the
+     * og's +0x1F sign-extension on i_size_high NOT adopted - the
+     * I-040/D-123 defect family). */
+    auto img = build_volume();
+    /* hello.txt: size 14, 1-block extent -> coverage 1024 >= 14: CLEAN.
+     * Inflate the size beyond coverage to make it damaged. */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x04, 4096); /* i_size 4096 > coverage 1024 */
+    /* gone (deleted file): size 512, coverage 1024: clean control in the
+     * deleted path - then damage it too by zeroing coverage. */
+    u8* gone = img.block(B_INODE_TABLE) + size_t((INO_GONE - 1) * INO_SZ);
+    put32(gone + 0x1C, 0); /* i_blocks 0 < 512: damaged */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    const tree::FileNode* hello_node = nullptr;
+    const tree::FileNode* sub_node = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "hello.txt")
+                hello_node = c;
+            if (c->name_utf8() == "sub")
+                sub_node = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_node) << "the damaged file must still surface";
+    ASSERT_NE(nullptr, sub_node) << "the clean dir must still surface";
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(hello_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "i_size 4096 > i_blocks coverage 1024 -> the damaged bit set";
+    EXPECT_EQ(u16(0), u16(sub_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "directories never carry the marker (the og's files-only gate)";
+
+    /* the deleted path: gone.dat's zeroed coverage marks it too */
+    ASSERT_NE(nullptr, rd->first_child());
+    const tree::FileNode* gone_node = rd->first_child();
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(gone_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the deleted-inode path carries the same compute";
+}
+
+TEST(Ext4Engine, DamagedFlagCleanFilesCarryNoBit) {
+    /* N-175-family regression pin: the pristine fixture (every inode's
+     * coverage >= its size) sets the bit on NOTHING. */
+    auto img = build_volume();
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                EXPECT_EQ(u16(0), u16(c->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+                    << "node " << c->name_utf8();
+            }
+            walk(c);
+        }
+    };
+    walk(ra);
+    walk(rd);
+    walk(rl);
+}
+
+TEST(Ext4Engine, DamagedFlagSessionRoundTrip) {
+    /* N-177: the marker persists - FileProperties::flags rides the
+     * session record's put16/g16 pair (cr_records.cpp), so a save/load
+     * cycle must preserve the bit. */
+    auto img = build_volume();
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x04, 4096); /* damaged: size beyond coverage */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    /* serialize the tree, reload it, compare */
+    std::vector<u8> blob;
+    ASSERT_EQ(OK, session::serialize_tree(tree, blob));
+    tree::ResultTree tree2;
+    ASSERT_EQ(OK, session::deserialize_tree(blob.data(), blob.size(), tree2));
+    const tree::FileNode* hello2 = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello2 = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree2.roots())
+        find(r);
+    ASSERT_NE(nullptr, hello2) << "the damaged file survives the round-trip";
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(hello2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the damaged bit round-trips the session container";
 }
 
 TEST(Ext4Engine, JournalSalvage) {
@@ -593,6 +1049,61 @@ TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
             saw = true;
     }
     EXPECT_TRUE(saw) << "uncommitted-tail dir block must surface (og parity)";
+}
+
+TEST(Ext4Engine, FamilyKindStampsPerDecodedAnalyserRule) {
+    /* OQ-S52-1 (resolved): the og's ext-family classification - the
+     * analyser's verdict rule decoded first-hand (ExtFileSystemAnalyser
+     * :3616-3680): the strict ext4 shape (incompat EXTENTS|64BIT|FLEX_BG
+     * == 0x2c0) is kind 9; the pre-ext4 family (incompat within
+     * {FILETYPE, HAS_JOURNAL, META_BG}, ro_compat within {SPARSE_SUPER,
+     * LARGE_FILE, DIR_INDEX}) is the family code 4 - ext2 and ext3 BOTH
+     * (the engine space collapses the analyser's verdicts 5/6); shapes
+     * the og's analyser refuses keep the ext4 stamp (no og behavior). */
+    SuperBlock sb;
+    u8 raw[1024];
+
+    /* the family shape: journal set (ext3-class), no extents */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0004); /* s_feature_incompat: HAS_JOURNAL */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext2), u32(ext_family_kind(sb)))
+            << "a journaled family shape stamps the family code (ext3 -> kind 4)";
+    }
+    /* the family shape: journal clear (ext2-class) */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0002); /* s_feature_incompat: FILETYPE only */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext2), u32(ext_family_kind(sb)))
+            << "a journal-less family shape stamps the family code (ext2 -> kind 4)";
+    }
+    /* the strict ext4 shape: all three of EXTENTS|64BIT|FLEX_BG */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x02c0); /* EXTENTS|64BIT|FLEX_BG */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext4), u32(ext_family_kind(sb)))
+            << "the 0x2c0 shape stays kind 9 (unshifted)";
+    }
+    /* a shape the og's analyser refuses (EXTENTS set, 64BIT clear):
+     * keeps the ext4 stamp - no og shift behavior exists for it */
+    {
+        Img img(BPG);
+        write_sb(img, 8);
+        put32(img.block(1) + 0x60, 0x0042); /* EXTENTS+FILETYPE, no 64BIT/FLEX_BG */
+        memcpy(raw, img.block(1), 1024);
+        ASSERT_TRUE(validate_superblock(raw, sb));
+        EXPECT_EQ(u32(FsKindCode::Ext4), u32(ext_family_kind(sb)))
+            << "the og-refused shape keeps the unshifted stamp";
+    }
 }
 
 } // namespace
@@ -905,6 +1416,9 @@ void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u3
     put32(p + 0x10, 3000);
     put32(p + 0x14, dtime);
     put16(p + 0x1A, links);
+    /* N-177: i_blocks_lo (512-byte units) - real volumes always carry
+     * the coverage word; the fixture now reflects that. */
+    put32(p + 0x1C, u32(u64(extent_blocks) * (BS / 512)));
     put32(p + 0x20, 0x80000); /* EXTENTS_FL */
     u8* ib = p + 0x28;
     put16(ib + 0, 0xF30A);
@@ -1288,6 +1802,9 @@ TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
     EXPECT_NE(0u, st.backup_sb_probes) << "probe grid never ran";
     EXPECT_EQ(0u, st.backup_sb_block);
 }
+
+} // namespace ext4
+} // namespace cr
 
 /* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
 
@@ -1754,8 +2271,309 @@ TEST(Ext4Engine, InvalidUtf8NameCarriesRawBytes) {
     EXPECT_TRUE(cafe->props()->name_raw.empty());
 }
 
-} // namespace ext4
-} // namespace cr
-} // namespace ext4
+/* ---- S-065: the indirect-block ladder's bounds -------------------------- */
 
+namespace {
+
+/* the read-counting device: proves the ladder's I/O volume (and keeps the
+ * pre-fix RED runs bounded by failing reads past a cap) */
+class LadderCountingDevice : public MemDevice {
+public:
+    explicit LadderCountingDevice(std::vector<u8> d) : MemDevice(std::move(d)) {}
+    u64 reads = 0;
+    u64 cap = 0; /* 0 = unlimited; otherwise the (cap+1)-th read fails */
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (cap != 0 && reads >= cap)
+            return ERR_READ_FAILED;
+        ++reads;
+        return MemDevice::read_at(off, buf, len);
+    }
+};
+
+/* a cancel token that flips to cancelled on demand */
+class LadderCancelToken : public CancelToken {
+public:
+    bool cancelled() const override { return on_.load(); }
+    void flip() { on_.store(true); }
+
+private:
+    std::atomic<bool> on_{false};
+};
+
+/* the arming device: flips the token the moment the poison block is first
+ * read - the cancel responsiveness is measured from THAT point */
+class LadderArmingDevice : public MemDevice {
+public:
+    explicit LadderArmingDevice(std::vector<u8> d) : MemDevice(std::move(d)) {}
+    u64 poison_reads = 0;
+    u64 poison_off = 0;
+    LadderCancelToken tok;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off == poison_off) {
+            ++poison_reads;
+            tok.flip();
+        }
+        return MemDevice::read_at(off, buf, len);
+    }
+};
+
+/* plant the deleted classic-indirect inode: NO EXTENTS_FL (flags stay 0),
+ * plain i_block pointers (slot 12 = single, 13 = double, 14 = triple) */
+void plant_classic_gone(Img& img, u64 size, int slot, u32 pointer) {
+    u8* p = img.block(B_INODE_TABLE) + size_t((INO_GONE - 1) * INO_SZ);
+    memset(p, 0, INO_SZ);
+    put16(p + 0x00, 0x8000);    /* regular file */
+    put32(p + 0x04, u32(size)); /* i_size_lo (fixtures stay < 4 GiB) */
+    put32(p + 0x14, 5000);      /* dtime: deleted */
+    put16(p + 0x1A, 0);         /* links 0 */
+    put32(p + 0x1C, 8);         /* i_blocks_lo (the N-177 carrier) */
+    put32(p + 0x28 + u64(slot) * 4, pointer);
+}
+
+/* the self-referential poison block: every slot points back at the block
+ * itself (in-range, nonzero, never converges) */
+void plant_self_referential_block(Img& img, u64 block_no) {
+    u8* b = img.block(block_no);
+    memset(b, 0, BS);
+    for (u32 i = 0; i < BS / 4; ++i)
+        put32(b + u64(i) * 4, u32(block_no));
+}
+
+} // namespace
+
+TEST(Ext4Engine, PoisonDoubleIndirectBoundedBySize) {
+    /* S-065: a deleted classic inode with a 2 KiB i_size and a stale
+     * DOUBLE-indirect pointer at a self-referential block. The og's ladder
+     * is bounded by the file's logical size (FUN_180005490 :3952-3954 -
+     * `param_4 <= lVar9` breaks the loop; size 2 KiB ends at logical block
+     * 2, deep inside the 12 direct slots, so the indirect ladder is never
+     * entered). Pre-fix: 1 + 256 indirection-block reads and 65536 extent
+     * pushes for this one inode. The read-count comparison against the
+     * identical control (no poison pointer) is the proof. */
+    Img poison = build_volume();
+    plant_classic_gone(poison, 2048, 13 /* i_block[13] double */, 20);
+    plant_self_referential_block(poison, 20);
+    Img control = build_volume();
+    plant_classic_gone(control, 2048, 13, 0);
+
+    LadderCountingDevice pd(poison.raw());
+    LadderCountingDevice cd(control.raw());
+    tree::ResultTree t1, t2;
+    auto* ra1 = t1.add_root(u"Found");
+    auto* rd1 = t1.add_root(u"Deleted");
+    auto* rl1 = t1.add_root(u"Lost Files");
+    auto* ra2 = t2.add_root(u"Found");
+    auto* rd2 = t2.add_root(u"Deleted");
+    auto* rl2 = t2.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st1, st2;
+    ASSERT_EQ(OK, scan_ext4(&pd, fl, nullptr, nullptr, nullptr, t1, ra1, rd1, rl1, st1))
+        << err_text(0);
+    ASSERT_EQ(OK, scan_ext4(&cd, fl, nullptr, nullptr, nullptr, t2, ra2, rd2, rl2, st2))
+        << err_text(0);
+    EXPECT_LE(pd.reads, cd.reads) << "the size-bounded ladder reads NOTHING the control does not "
+                                     "(the whole indirect subtree is past EOF at size 2 KiB)";
+}
+
+TEST(Ext4Engine, PoisonTripleIndirectBoundedBySize) {
+    /* S-065's headline case: the stale TRIPLE-indirect pointer. Pre-fix the
+     * self-referential block drives 1 + 256*(1+256) ~ 65k reads and 256^3
+     * ~ 16.7M extent pushes (freeze/OOM); the counting device's read cap
+     * keeps the RED run bounded while pinning that the walk BLEW PAST the
+     * size bound. Post-fix the triple subtree (logical start
+     * 12 + 256 + 65536) is far past the 2 KiB size - zero extra reads. */
+    Img poison = build_volume();
+    plant_classic_gone(poison, 2048, 14 /* i_block[14] triple */, 20);
+    plant_self_referential_block(poison, 20);
+    Img control = build_volume();
+    plant_classic_gone(control, 2048, 14, 0);
+
+    LadderCountingDevice pd(poison.raw());
+    pd.cap = 3000; /* bounded RED: the pre-fix walk wants ~65k reads */
+    LadderCountingDevice cd(control.raw());
+    tree::ResultTree t1, t2;
+    auto* ra1 = t1.add_root(u"Found");
+    auto* rd1 = t1.add_root(u"Deleted");
+    auto* rl1 = t1.add_root(u"Lost Files");
+    auto* ra2 = t2.add_root(u"Found");
+    auto* rd2 = t2.add_root(u"Deleted");
+    auto* rl2 = t2.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st1, st2;
+    (void)scan_ext4(&pd, fl, nullptr, nullptr, nullptr, t1, ra1, rd1, rl1, st1);
+    ASSERT_EQ(OK, scan_ext4(&cd, fl, nullptr, nullptr, nullptr, t2, ra2, rd2, rl2, st2))
+        << err_text(0);
+    EXPECT_LE(pd.reads, cd.reads) << "the triple-indirect subtree past EOF is never entered";
+}
+
+TEST(Ext4Engine, StaleIndirectCancelResponsive) {
+    /* S-065: the ladder consults the cancel token inside the walk. The
+     * arming device flips the token when the poison block is FIRST read;
+     * the fixed ladder's next recursion (the cancel check runs at every
+     * indirection-block boundary) stops immediately - the poison block is
+     * read at most once. Pre-fix: no check inside the walk, 257 reads of
+     * the poison block. */
+    Img img = build_volume();
+    plant_classic_gone(img, 1ull << 30 /* 1 GiB: the ladder IS in range */, 13, 20);
+    plant_self_referential_block(img, 20);
+
+    LadderArmingDevice dev(img.raw());
+    dev.poison_off = 20 * BS;
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    (void)scan_ext4(&dev, fl, &dev.tok, nullptr, nullptr, t, ra, rd, rl, st);
+    EXPECT_LE(dev.poison_reads, 1u)
+        << "cancel honored inside the walk: the poison block is read at most "
+           "once before the walk stops";
+}
+
+TEST(Ext4Engine, ContiguousPhysicalBlocksMergedToSingleExtent) {
+    /* S-065: the og's observable output shape - physically-contiguous
+     * blocks merge into ONE extent as the walk proceeds (FUN_180005490
+     * :3986-3996, the merge branch that bounds the vector by physical-run
+     * count). A 16 KiB classic file whose single-indirect block points at
+     * four consecutive blocks emits ONE 4-block extent, not four. */
+    Img img = build_volume();
+    plant_classic_gone(img, 16 * BS, 12 /* i_block[12] single */, 20);
+    u8* ib = img.block(20);
+    memset(ib, 0, BS);
+    for (u32 i = 0; i < 4; ++i)
+        put32(ib + u64(i) * 4, 21 + i); /* consecutive physical blocks */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, t, ra, rd, rl, st)) << err_text(0);
+
+    const tree::FileNode* gone = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "Inode6")
+            gone = c;
+    }
+    ASSERT_NE(nullptr, gone) << "the deleted classic inode must surface";
+    ASSERT_FALSE(gone->props()->extents.empty()) << "its extents must be emitted";
+    ASSERT_EQ(u64(1), gone->props()->extents.size())
+        << "four physically-consecutive blocks = ONE merged extent";
+    EXPECT_EQ(u64(21) * BS, gone->props()->extents.front().offset);
+    EXPECT_EQ(u64(4) * BS, gone->props()->extents.front().length);
+}
+
+/* ---- M-152: the orphan-active population surfaces (the og's
+ * predicate-free sweep filter, raw-asm verified at 0x180005f5d-0x180005f87:
+ * size_lo, EXTENTS_FL, the 0xF30A magic, eh_entries - NO dtime, NO links) */
+
+TEST(Ext4Engine, OrphanActiveInodeSurfacesInSweep) {
+    /* the finding's falsification fixture: a regular file with
+     * extent-mapped data whose parent directory's entries are damaged -
+     * dtime==0, links==1, size>0, EXTENTS_FL, a valid extent header, and
+     * NO dirent anywhere pointing at it. The og's filter admits it by
+     * construction; the core's old `dtime==0 && links!=0` skip dropped
+     * it before any content gate ran. RED at the pre-fix tree (the file
+     * appears in NO branch), GREEN here: the file surfaces under the
+     * deleted root with its extents and the honest Active state (no
+     * deletion evidence on the inode). */
+    auto img = build_volume();
+    /* inode 7: the orphan-active (table slots 1..8; 7 is unwritten in
+     * the base fixture) - data on a free block (the bitmap frees 15+) */
+    constexpr u64 B_ORPHAN_DATA = 20;
+    write_inode(img, 7, 0x8000, 24, B_ORPHAN_DATA, 1, 1, 0);
+    memcpy(img.block(B_ORPHAN_DATA), "orphaned-but-intact!", 20);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.orphan_inodes) << "the orphan-active population is counted";
+
+    tree::FileNode* orphan = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->record_ref == 7)
+            orphan = c;
+    ASSERT_NE(nullptr, orphan) << "the orphan-active inode MUST surface (M-152)";
+    EXPECT_EQ(tree::DeletedState::Active, orphan->deleted_state())
+        << "no deletion evidence: the state stays honest to the inode";
+    EXPECT_FALSE(orphan->props()->extents.empty());
+    EXPECT_EQ(u64(B_ORPHAN_DATA * BS), orphan->props()->extents[0].offset);
+    EXPECT_EQ(u64(BS), orphan->props()->extents[0].length);
+    EXPECT_EQ(u64(24), orphan->props()->logical_size);
+}
+
+TEST(Ext4Engine, OrphanSweepDedupsAgainstLiveTree) {
+    /* the live claim wins: hello.txt (dtime==0, links==1) IS reachable
+     * from the root directory - the visited_inodes guard keeps the sweep
+     * from double-emitting it as an orphan. The deleted root carries the
+     * dtime-set population only (plus no orphan copies of live files). */
+    auto img = build_volume();
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.orphan_inodes)
+        << "every live-shaped inode in the base fixture is either claimed "
+           "(hello/sub) or the journal inode (the machinery's claim)";
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        ASSERT_NE(u64(3), c->props()->record_ref)
+            << "hello.txt must NOT double-emit as an orphan copy";
+}
+
+TEST(Ext4Engine, SweepModeGateHolds) {
+    /* the registered hardening pin: the og's filter is shape-only and
+     * would admit a FIFO/socket with a forged extent header; the core
+     * keeps the regular/dir mode gate (PARITY-DELTAS carries the row). */
+    auto img = build_volume();
+    write_inode(img, 7, 0x1000 /* S_IFIFO */, 24, 20, 1, 1, 0);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.orphan_inodes);
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        EXPECT_NE(u64(7), c->props()->record_ref)
+            << "the forged-extent FIFO stays excluded (the mode gate)";
+}
+
+TEST(Ext4Engine, SweepStatsCountOrphanAdmissions) {
+    /* the two populations are countable separately: the base fixture's
+     * dtime-set inode (ino 6) counts deleted_inodes; an added
+     * orphan-active counts orphan_inodes; the journal inode (ino 8,
+     * dtime==0 links==1) counts NEITHER (the machinery's claim). */
+    auto img = build_volume();
+    write_inode(img, 7, 0x8000, 24, 20, 1, 1, 0);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.deleted_inodes) << "the dtime-set population (unchanged)";
+    EXPECT_EQ(1u, st.orphan_inodes) << "the new admission (ino 7)";
+}
+
+} // namespace ext4
 } // namespace cr

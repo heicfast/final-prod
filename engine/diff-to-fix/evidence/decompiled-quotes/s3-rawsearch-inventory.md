@@ -249,9 +249,9 @@ MATCH / MISSING / superset.
 | 0x53747566 | Stuf | StuffIt | RawSpeed::SITAnalyser +FileSIT (0x5d) | **MISSING** (N-026) |
 | 0x7b5c52e4 | E4 52 5C 7B | OneNote `.one` (GUID {E4525C7B…} LE) | RawSpeed::OneAnalyser +FileONE (0x31) (:2156-2177) | **MISSING** (N-026; census called this "LZH arc" — errata §8) |
 | 0x00777067 | `wpg\0` | WordPerfect WPG | RawSpeed::WpgAnalyser (0x33) (:2178-2191) | **MISSING** (N-026) |
-| 0x36464d4a | JMF6 | Outlook Express DBX variant | RawSpeed::DbxAnalyser | **MISSING** (N-026) |
-| 0xcf12adfe | CF AD 12 FE | Outlook Express DBX | RawSpeed::DbxAnalyser | **MISSING** (N-026) |
-| 0x2c3489f7 | F7 89 34 2C | DBX folder magic | RawSpeed::DbxAnalyser | **MISSING** (N-026) |
+| 0x36464d4a | JMF6 | Outlook Express DBX variant | RawSpeed::DbxAnalyser | **MATCH** (FMT_DBX_JMF6 — landed with M-118/S42; the never-filed N-026 residue re-pointed) |
+| 0xcf12adfe | CF AD 12 FE | Outlook Express DBX | RawSpeed::DbxAnalyser | **MATCH** (FMT_DBX — landed with M-118/S42; the never-filed N-026 residue re-pointed) |
+| 0x2c3489f7 | F7 89 34 2C | DBX folder magic | RawSpeed::DbxAnalyser | **MATCH** (FMT_DBX_MARKED — landed with M-118/S42; the never-filed N-026 residue re-pointed) |
 | 0x04034b50 | PK\0\3\4 | ZIP local header | FileZIPAnalyser (ISpecial) | MATCH (FMT_ZIP + FMT_DOCX + FMT_ZIP_CD) |
 | 0xff575043 | FF WPC | WordPerfect WPD | FileWPDAnalyser | **MISSING** (N-026) |
 | 0x00090001 | 01 00 09 00 | Windows WMF | FileWMFAnalyser | **MISSING** (N-026) |
@@ -390,7 +390,7 @@ M1V/JP2/MOBI/AAC missing (S-007); the rest missing (N-026).
 
 ## 6. Runtime format filter (RawConfig.ini) — the working-registry gate
 
-`og-codebase/config/RawConfig.ini` `[Filter]` section (read: 37 toggles, e.g.
+`og-codebase/config/RawConfig.ini` `[Filter]` section (read: 37 toggles — **CORRECTED to 34 by CORRECTIONS.md #5, recounted first-hand 2026-10-28; see M-024's addendum**, e.g.
 `HEIC=1 VCF=1 WEBM=1 WEBP=1 M1V=1 M2T=1 M2TS=1 JP2=1 STL=0 M4P=1 XMIND=1 RVT=1
 MOBI=1 MMAP=1 POS=1 EDDX=1 WFP=1 VPJ=0 OSP=1 HFP=1 DRP=1 HIK=1 ODP=1 ODT=1 ODS=1
 7Z=1 INSP=1 INSV=1 GPX=1 CRM=1 AEP=1 FFF=1 DPX=1 MUSX=1 …`) — per-format

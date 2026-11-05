@@ -108,6 +108,47 @@ ImageFormat classify_extension(const std::u16string& path_utf16);
  * buffers classify as Unknown. */
 Lba0Layout classify_lba0(const u8* lba0, size_t len);
 
+/* ---- S-040: the image-CREATE producer (the og home page's "Create
+ * Image" flow's engine half - the corpus recommends scanning the produced
+ * image as the damage posture for failing disks, UIUX/11:17) ----
+ *
+ * Portable copy loop over any IStorageDevice: 64 KiB stride reads in
+ * ascending order (the transport's direct-I/O envelope contract - the
+ * win-layer devices align internally, so the loop is geometry-agnostic),
+ * SHA-256 computed over the emitted stream, cooperative cancel consulted
+ * once per chunk, cumulative-bytes progress callback after every chunk.
+ * The final chunk may be short (devices are not 64 KiB multiples); nothing
+ * is padded and no byte is synthesized.
+ *
+ * Truth contract: on cancel or failure the stats report exactly the
+ * committed prefix (bytes_written + the digest OF THAT PREFIX) - a
+ * partial result is always distinguishable from a complete one; the
+ * caller owns the file disposition (see win::create_disk_image for the
+ * temp/commit/.partial policy). */
+class ImageCreateSink {
+public:
+    virtual ~ImageCreateSink() = default;
+    /* append len bytes to the image stream; OK or a write error code
+     * (aborts the copy with that code) */
+    virtual u32 write(const void* data, u32 len) = 0;
+};
+
+struct ImageCreateStats {
+    u64 bytes_written = 0; /* the committed prefix length */
+    u8 sha256[32] = {};    /* SHA-256 of the committed prefix */
+    bool cancelled = false;
+};
+
+/* cumulative-bytes progress: (done, total) after every chunk; may be null */
+typedef void (*ImageCreateProgressFn)(void* user, u64 done_bytes, u64 total_bytes);
+
+/* Copy the whole device into the sink. Returns OK on completion,
+ * ERR_CANCELLED on cancel, the read/write error otherwise. stats (if
+ * non-null) is always filled with the committed prefix, even on failure. */
+u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken* cancel,
+                        ImageCreateProgressFn progress, void* progress_user,
+                        ImageCreateStats* stats);
+
 } // namespace storage
 } // namespace cr
 

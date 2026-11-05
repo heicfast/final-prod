@@ -67,7 +67,12 @@ is internally reference-counted across threads — see §3 for the thread rules.
   `partial=1` and is safe to browse AND to recover from (value semantics).
 - All other entry points: call from one thread at a time per handle.
 - The library never calls back on a thread the caller didn't hand it:
-  progress callbacks fire on the thread running `run()`/`process()`.
+  progress callbacks fire on the thread running `run()`/`process()`;
+  EVENT callbacks (`cr_ui_scan_set_event_fn`) may additionally fire from
+  engine worker threads and the heartbeat watchdog thread (§6; the
+  header's contract block is the thread-provisioning reference — a host
+  reading only this section should still provision for worker-thread
+  event delivery).
 
 ## 4. Error model
 
@@ -85,6 +90,8 @@ Single numeric space, shared with `cr_error.h`. Selected codes:
 | 0x50030009 | ERR_NO_MEMORY | allocation failure |
 | 0x50050001 | ERR_DEST_OVERLAP | destination overlaps the source (F12 refusal) |
 | 0x50060001 | ERR_FVE_LOCKED | BitLocker volume locked (legitimate unlock failed) |
+| 0x50060002 | ERR_FVE_ELEVATION_REQUIRED | FVE auto-unlock keys exist but require an elevated token (M-105 option (a): the harvest's ACL diagnosis; append-only in the FVE family) |
+| 0x500C0001 | ERR_ELEVATION_REQUIRED | raw disk access needs an elevated process token (the direct-era prerequisite gate; the driver-era 0x500B family was removed with the driver — session-96) |
 | 0x50090001 | CR_UI_ERR_INTERNAL | internal invariant failure (bug — report it) |
 
 Diagnostics: `cr_ui_last_error()` returns thread-local text for the LAST
@@ -128,6 +135,22 @@ resume:      session_load -> session_resume -> scan_attach_device
 browse:      session_load -> session_snapshot -> snapshot_node/dfs
              -> preview_open_snapshot -> preview_read/metadata -> preview_close
              -> snapshot_close -> session_close
+archive:     preview_open_session/snapshot -> archive_entry_count
+             -> archive_entry_at × count -> preview_close (M-116: the
+             browse-inside inventory's two-call pattern; the extraction
+             runs once at the first archive call and is cached for the
+             handle's lifetime - one stable listing per preview, the
+             og's one-model-per-browse-view shape; non-archive nodes
+             report count 0, never an error; out-of-range indices
+             refuse with ERR_RANGE_OUT_OF_BOUNDS)
+device rows: cr_ui_enumerate_disks[_ex] (the census; the _ex form's
+             CR_ENUM_FLAG_TRIM opt-in adds the per-row TRIM chip datum —
+             trim_known/trim_on appended to cr_ui_disk_info, the og's
+             home-page SSD recovery-chance indicator UIUX/07:17; one fresh
+             fsutil read per invocation, the OS-global datum stamped on
+             every row, a failed query leaves trim_known == 0 — never a
+             guessed value; unknown flag bits are refused before the
+             platform check so the grammar is lane-uniform) — M-076
 recover:     recovery_create -> recovery_set_destination
              -> recovery_enqueue_[node|subtree][_snapshot]* -> recovery_process
              -> recovery_report_json -> recovery_close
@@ -142,6 +165,24 @@ state query: (any time after create, any thread) scan_busy / scan_stopping —
 carve formats: carve_format_count / carve_format_info — see §7a
 disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
+
+**The LDM basis (S-052).** Nodes from a dynamic-volume scan carry
+LAYOUT-RELATIVE extents: their tree root stamps a basis id (persisted
+with the session beside the REC_LDM_LAYOUTS layouts record), and every
+content consumer resolves it — recovery enqueues route the SafeWriter's
+reads through the session's (lazily re-armed) virtual volume devices,
+and preview/thumbnail open the same device, so preview bytes == recovery
+bytes == the bytes the scan read. The re-arm resolves member disks by
+their PRIVHEAD GUIDs: on Windows every disk is enumerated; elsewhere
+only the scan device itself resolves (a cross-disk member reads fail
+honestly per-extent — the documented missing-member semantics, never
+wrong bytes from a wrong disk). The destination-overlap refusal maps
+LDM-basis extents to their PHYSICAL member spans before comparing
+against the destination (mirrored/RAID-5 spans are conservative: every
+copy/column — any may be read). Snapshots carry their source
+session/scan pointer for the same routing; the source must outlive
+recoveries enqueued from it (the borrowed-nodes contract the writer's
+queue already carries).
 
 **Recovery-progress mapping (N-075 / D-78).** The og's typed
 `IUIProgressInfo` per-item recovery-progress interface
@@ -209,6 +250,9 @@ typed stream.
 #define CR_EVT_REPAIR           7u  /* pre-scan repair lifecycle (S-008) */
 #define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
 #define CR_EVT_SAVE_PROGRESS    9u  /* N-060 save-path progress (coalesced) */
+#define CR_EVT_FS_CHECK         10u /* M-041 pre-scan damage-audit phase done (fired ONCE per scan; check_errors = reported issue count 0x1001..0x100e, check_family = detected family byte; the report NEVER aborts the scan) */
+#define CR_EVT_AUTOSAVED 12u /* W1c (R-52) completion auto-save outcome (fired ONCE after run() completes with ScanConfig.autosave_dir set; autosave_rc = 0 saved or the write error; a cancelled run never auto-saves) */
+#define CR_EVT_SESSION_LOAD_PROGRESS 11u /* W1b (R-54) load-path progress: coalesced (first tick, permille steps, terminal) while cr_ui_session_load_with_events deserializes; bytes_done/bytes_total = nodes deserialized / persisted node count; cancel via the CALLER-OWNED cancel_flag -> CR_UI_ERR_CANCELLED, no session out (the og's per-child IsCancelled restore teardown) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -245,6 +289,18 @@ typedef struct cr_ui_event {
     uint32_t err_operation;  /* CR_ERROP_* (READ for this family) */
     uint32_t err_attempts;   /* retries spent before the range was given up */
     uint32_t err_context_pad;
+    /* v2-era append (M-041, CR_EVT_FS_CHECK): the damage-audit phase's
+       summary - reported issue count (the 0x1001..0x100e set; full
+       detail rides the session record + stats) and the detected
+       family byte ('f' fat / 'n' ntfs / 0 undetected). stage stays
+       0xFFFFFFFF (pre-scan). check_pad keeps the POD an 8-byte
+       multiple; always zero. */
+    uint64_t check_errors;
+    uint32_t check_family;
+    uint32_t check_pad;
+    /* W1c (R-52) append: the auto-save attempt's rc (CR_EVT_AUTOSAVED
+       only; 0 on every other event type) - matches cr_ui.h's field. */
+    uint64_t autosave_rc;
     /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
        permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
        when no stage is in flight; bytes_total = 0 = unknown.) */
@@ -447,9 +503,245 @@ Contract:
   ever ships runtime-configurable carve tables, the refresh seam becomes
   a versioned ABI question (a bumped count between calls), not a silent
   re-clone.
-- CLI rendering: `rrecov --list-carve-formats` prints the whole table
+- CLI rendering: `rrecov list-carve-formats` prints the whole table
   (layer, ext, size bounds, base confidence, grammar-layer magic) — the
   parity-tooling surface (N-033's step 2).
+
+### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1; N-090 scope/width registration)
+
+`cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count)`
+(cr_ui.h:865-914) — the og's LastScanRecordView surface
+(UIUX/07-home-phase-deep-dive.md:21 + the Continue-last banner): a
+directory-level summary listing where every `*.crsf` file yields ONE row
+decoded from the container's LIGHT records only (`SESSION_STATE` +
+`VOLUME_INFO`; the heavy payloads — the 36 MB-class tree record among them
+— are skipped BY TYPE before any payload I/O:
+`orchestrator::ScanController::read_summary` + `session::Reader::
+peek_record`, the same light-read shape as the og's record-2 read,
+rsf-format--scan-session.md §5.2).
+
+Contract (ABI RULES-conformant):
+
+- **Two-call size pattern** (same as `cr_ui_snapshot_dfs`): `rows == NULL`
+  → `*count` = the number of `*.crsf` candidates, nothing decoded;
+  `rows != NULL` → `*count` is the IN capacity, rows fill NEWEST-FIRST by
+  the embedded save time (the og's LastScanRecordView order — its record-2
+  SYSTEMTIME comparator FUN_140273550 sorts newest first, which is what
+  makes the og's "Continue last scanning" banner pick the right file);
+  equal stamps and zero-stamp rows (pre-v5 sessions, unreadable files)
+  break ties by path bytes (deterministic), capacity < needed →
+  `CR_UI_ERR_TRUNCATED` with `*count` = the number filled (the
+  time-ordered prefix — the NEWEST rows). Caller-owned memory — rows are
+  PODs, no free export.
+- **Row truth**: `valid=0` + `error` = the decode/open error for unreadable
+  files (bad magic, torn container) — a listing never hides damage; a
+  `valid=1` row carries `error=CR_UI_OK` unless the PATH itself needed
+  truncation (≥ `sizeof(path)` bytes) → `error=CR_UI_ERR_TRUNCATED`, the
+  1023-byte prefix in `path[]`, summary intact.
+- **Fields**: `fs_family`/`stage_done_mask`/`configured_mask`/counts/
+  `label` mirror `cr_ui_session_get_info` + `cr_ui_session_stats` exactly
+  (the C-consumer gate cross-checks); `save_unix` is the EMBEDDED save
+  time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
+  mtime then, never a fabricated time). N-090 registrations: (a)
+  **SCOPE** — the listing enumerates EVERY `*.crsf` in the directory,
+  the REGISTERED SUPERSET over the og's home list (the og keeps only
+  names containing BOTH `auto_` and `.rsf` — FUN_140273940 at
+  DRWUI:432326-432333 + rsf-format §5.5; PARITY-DELTAS D-129 [renumbered from the collided D-135 at N-207]): a manual
+  save is a resumable session too, and a host wanting the og's exact
+  home view filters client-side by name; (b) **LABEL WIDTH** —
+  `label_full[100]` (the ABI tail append, no version bump per §9)
+  carries the COMPLETE volume label at the og's record-2
+  `volumeName[100]` width (strncpy(…,99)); `label[32]` stays the
+  legacy 31-char prefix view so old callers see exactly what they
+  always saw; `label_full == label` on v1..v5 sessions (the uniform
+  degrade); (c) **SAVE-TIME RESOLUTION** — `save_unix` carries SECONDS
+  (the v5 tail contract); the og's record-2 carries local SYSTEMTIME
+  with milliseconds — the newest-first comparator needs second
+  resolution only (the og's own auto-save FILE NAMES are
+  second-granular: `auto_..._<HH>_<MM>_<SS>.rsf`), and equal-second
+  ties break by path bytes deterministically (N-116); (d)
+  **DEVICE TYPE** — the og's record-2 `deviceType` u32 (2 → "Desktop",
+  3 → "Recycle Bin", else the disk-info name at +0x120 — a UI display
+  classification) is NOT carried on this row; a host needing it
+  composes it client-side from its own disk enumeration (no core
+  consumer exists today; re-open with evidence when one does).
+- **Errors**: `CR_UI_ERR_BAD_PARAMETER` (null/empty args),
+  `ERR_OPEN_FAILED` (the directory itself cannot be read — fail loud,
+  never a silent empty list).
+- **Threading**: no shared state; any thread may call. No handle is
+  created — nothing to close.
+- **ABI stability**: append-only export + new POD struct = NO version
+  bump (§9 policy; `CR_UI_ABI_VERSION` stays 3).
+- **CLI rendering**: `rrecov sessions [--dir D] [--json]` (the three-site
+  verb-list pin governs its doc sites).
+
+### 7g. The session load progress/cancel surface (W1b / R-54; PLAN-API-EXPANSION Wave 1)
+
+`cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn, void* user,
+volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:926-944, the
+comment block + the decl at :943-944 — N-135: the old 916-944 range was 9 lines
+loose at the audit tree and drifted further since; re-pinned at the current
+tree) — the
+load-side twin of the N-060 save machinery. The og's RESTORE reports
+progress inside the load window (`40+50*done/(total+done)`,
+rsf-format--scan-session.md flow section) and polls `IUIProgressInfo::
+IsCancelled` after EVERY child, tearing down on cancel; our mirror:
+
+- **Events**: `fn` (optional) receives `CR_EVT_SESSION_LOAD_PROGRESS`
+  (type 11) from the CALLING thread — coalesced (first tick, permille
+  steps, terminal — the save event cadence). `stage = 0xFFFFFFFF`;
+  `stage_permille` = the load's own 0..1000; `overall_permille =
+  0xFFFFFFFF` (no scan context); `bytes_done/bytes_total` = nodes
+  deserialized / the persisted node count.
+- **Cancel**: `cancel_flag` (optional, CALLER-OWNED, zero-init safe) is
+  polled per node — EVEN WHEN `fn` is NULL (a silent host can still
+  cancel, the same rule as the save side). Any thread may set it
+  nonzero; the load aborts with `CR_UI_ERR_CANCELLED` and `*out` is
+  NEVER touched (a torn load never half-claims state — the load-side
+  twin of the save-side "a torn save never destroys the previous good
+  file").
+- **Degenerate contract**: with `fn = NULL` and `cancel_flag = NULL`
+  this is exactly the plain `cr_ui_session_load`.
+- **Core seam**: `session::DeserializeProgress` (cr_records.h:47-62),
+  threaded through `load_session` / `load_session_summary` / `resume`;
+  ERR_CANCELLED propagates from `deserialize_tree` through the
+  container layer (never flattened into ERR_SESSION_FORMAT).
+- **ABI stability**: append-only export + append-only event type = NO
+  version bump (§9; `CR_UI_ABI_VERSION` stays 3). No CLI surface (the
+  og has no CLI; load progress is a host concern).
+
+### 7h. The completion auto-save (W1c / R-52; PLAN-API-EXPANSION Wave 1)
+
+The og's completion SaveScan flow (rsf-format--scan-session.md section 5.5 +
+UIUX/30:64-67): on run() COMPLETION the session is auto-saved to
+`ScanConfig.autosave_dir` (the ABI field `cr_ui_scan_config::
+autosave_dir_utf8`, zero-init = OFF) under `session::auto_session_name` (the
+N-061 corpus naming `auto_<label>_<M>_<D>_<H>_<m>_<s>` with the
+name-forbidden-char sanitizer) + `.crsf`. The write rides the shared atomic
+path (`write_session_atomic`: tmp + finalize + rename - the N-014
+discipline; a torn auto-save never destroys a previous good file).
+
+Contract:
+- A CANCELLED run never auto-saves (the og's flow is the completion
+  window; save-on-cancel is the explicit `cr_ui_scan_save_session`
+  surface).
+- Surfacing: ONE `CR_EVT_AUTOSAVED` (type 12) event with
+  `autosave_rc` (0 = saved, else the write error code - never a silent
+  failure) and `cr_ui_scan_stats.autosaved` (0/1, live runs; loaded
+  sessions honestly report 0).
+- Pure core owns no file I/O: the WRITE is host-side by architecture -
+  the cr_ui shim honors the field on run() completion; the CLI's
+  `scan --autosave-dir D` sets the same core field and runs its own
+  completion leg through its existing save path (the shared naming
+  truth is core's `session::auto_session_name`).
+- ABI stability: appended config field + appended stats field + appended
+  event type + appended event-struct tail = NO version bump (§9).
+
+### 7i. The thumbnail surface (M-102; M-083's grade promotion)
+
+The og's results page fetches a 256-px thumbnail per image row through a
+dedicated worker (UIUX/10 §2; the GDI+ width-derived 256-px convention,
+DRWUI :652395-652410). This is the engine's equivalent: one bounded,
+synchronous generation per node (`cr_ui_thumbnail_generate`), display-
+oriented RGBA8 output (S-043: the EXIF orientation transform runs before
+the downscale), the format probe (`cr_ui_thumbnail_format_supported`).
+
+Contract:
+- TWO-CALL pattern: `rgba == NULL` is the size probe — the generation
+  runs (output dims depend on the decode), `cr_ui_thumbnail_info::
+  bytes_needed` carries the answer, pixels are discarded. A too-small
+  buffer returns 0x50030009 ERR_NO_MEMORY with `bytes_needed` set and
+  nothing partially written.
+- Caps: `NULL` (or any zero field) = the engine default for that field;
+  nonzero values ride the engine's own validation. Defaults: max_edge
+  256, max_pixels 64 MP, max_read 200 MB (0xC800000, M-109), max_work 1<<22,
+  allow_embedded ON.
+- Truncation is DATA, not an error: the engine's Ok-but-truncated
+  contract crosses the ABI verbatim via `info.truncated` (stb's JPEG
+  zero-fill leniency is the one Ok-with-short-input family; the strict
+  decoders' Ok proves completeness — the post-parse EOF probe is parse
+  noise, never reported).
+- Status mapping is verbatim the engine's names onto the shared numeric
+  space: Unsupported (the named phase-2 families — `info.source_format`
+  carries the family), DecodeFailed → 0x50030004 ERR_TRUNCATED,
+  UnreadableSpan → ERR_READ_FAILED, the caps refusals → ERR_UNSUPPORTED.
+- M-083 (the og's grading side-effect, FUN_1402636e0 :422498-518): a
+  successful generation promotes the node's grade to 2 ("high") — never
+  downgrades, no-op for already-high nodes (the node setter's
+  monotonic-max + sticky-2 semantics are the og's own, FUN_140089630).
+  Failed generations never promote. The promotion is observable through
+  `cr_ui_query_run`'s `grade` row field and persists through session
+  save/load (the S-023 serialization).
+- No version bump: appended exports + new structs, no existing shape
+  touched (§9).
+
+### 7j. The image-create producer (S-040 / R-93; PLAN-API-EXPANSION Wave 4)
+
+The og home page's "Create Image" flow (UIUX/07:36-37 + UIUX/06:27;
+the imaging capability lives in ToolsModule.dll, mom-module-system :87)
+and the product's damage posture - scan the produced image instead of
+the live disk (UIUX/11:17). The reader half is S-030
+(`cr_ui_open_image`); this is the producer the core wholly lacked.
+
+Contract:
+- `cr_ui_image_create(disk, utf8_path, progress, user)` — one-shot,
+  class (a) privilege-required: a non-elevated token is an
+  ERR_ELEVATION_REQUIRED refusal, the same gate as `cr_ui_open_disk`.
+- Progress: the recovery-style cumulative-bytes callback (bytes done /
+  bytes total, once per 64 KiB chunk); may be NULL.
+- Truth contract (the finding's acceptance): streamed to
+  `<path>.crimg-tmp`, atomically renamed on completion, plus the
+  `<path>.sha256` sidecar (the standard `<hex>  <basename>` form). On
+  cancel or failure the partial image is KEPT as `<path>.partial` -
+  reported through the return code, never silently passed off as
+  complete. A sidecar write failure is reported while the image itself
+  stays committed.
+- Flat raw only: VHD/VHDX writers are out of scope (registered
+  divergence D-147); the og's own reader accepts flat and the corpus
+  does not decode the og's writer format beyond the libvmdk link.
+- The copy loop is portable core (`storage::create_image_stream`,
+  cr_image.cpp: 64 KiB envelope reads, SHA-256 over the stream, cancel
+  at chunk heads); the platform layer owns the file disposition
+  (`win::create_image_file`) and the device open (`win::create_disk_image`
+  over `win::open_disk`). Non-Windows lanes return ERR_UNSUPPORTED
+  (the honest platform answer).
+- No version bump: one appended export, no existing shape touched (§9).
+
+### 7k. The scan-time folder filter (M-073; the og's PushFolderFilter)
+
+The og pushes the active AdvanceFilterCondition into the scan controller
+at scan start (UIUX/31-filterbar-family-decode.md:142, runtime-verified:
+the `FilterPath=` + `CDoScanPartition::PushFolderFilter:84` log sequence),
+so a pre-set filter constrains incremental tree insertion - not just the
+post-hoc results view. The ABI leg is `cr_ui_scan_config::
+filter_folders_utf8` + `filter_folder_count` (zero-init = OFF).
+
+Contract:
+- Each entry is one UTF-8 path prefix, volume-root relative, `/` or `\\`
+  separated, ASCII case-insensitive (cr_query's own prefix family);
+  empty entries are no-ops, an empty/NULL array is OFF.
+- The prune runs at every stage boundary BEFORE the checkpoint emit:
+  out-of-prefix folders (their whole subtrees) and out-of-scope root
+  files never reach a session, checkpoint, snapshot, query or recovery
+  (the og's observable: "scans of a sub-tree don't pay tree/merge cost
+  for out-of-scope folders" - the session never carries them).
+- The stage counters are decremented to the pruned tree (the presented
+  tree is the truth); the diagnostic total (`folder_filtered`) surfaces
+  in the CORE `ScanStats` (the same posture as M-018's `junk_filtered`:
+  not every diagnostic counter rides the ABI stats struct).
+- Exemptions (the scoping decision, registered with the finding): the
+  carve root and the pathless "File Path Lost" root serve pathless
+  content - a folder filter has no folder to match there, and pruning
+  pathless content as a side effect would be silent data loss.
+- Ordering with the FilterFolder junk pass (M-018): this prune runs
+  FIRST (stage boundaries); the junk hidden-set pass stays post-walk,
+  pre-grading - the two compose without double-counting.
+- The prefixes persist as `REC_SCAN_FILTER` (optional session record);
+  `resume()` adopts the stored filter only when the host config carries
+  none of its own (a new host filter is a new user choice).
+- CLI: `rrecov scan ... --filter-folder DIR` (repeatable; the three-site
+  lock: usage text, flag parse, docs/API.md).
+- No version bump: two appended config fields, zero-init safe (§9).
 
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
@@ -470,8 +762,9 @@ closure — no consumer impact.
 
 ## 9. Stability policy
 
-- `CR_UI_ABI_VERSION` is `2` (v2 = M-036: six appended `cr_ui_smart_report` fields — host_reads, host_writes, controller_busy_time, num_error_log_entries, data_bytes_read, data_bytes_written — at the struct tail; every pre-v2 field and offset unchanged). It bumps on ANY of: removing/renaming an
-  export, changing a struct FIELD (type/meaning/order), changing ownership
+- `CR_UI_ABI_VERSION` is `3` (v3 = M-067, the S-039 convergence residue: the `cr_ui_user_sign` field resize — `bytes` 16 → 48, `mime` 64 → 81, `sign_len` 1..16 → 1..48, `offset` bounded 0..1024 — the first struct FIELD change under this policy; hosts must recompile against v3 or `cr_ui_user_sign_info` would leave a v2 host's `mime[]` non-NUL-terminated on a 73-char MIME (the S-039 caps fix landed first at `b07ee9d` without this half — the two halves converged this session). v2 = M-036: six appended `cr_ui_smart_report` fields — host_reads, host_writes, controller_busy_time, num_error_log_entries, data_bytes_read, data_bytes_written — at the struct tail; every pre-v2 field and offset unchanged). It bumps on ANY of: removing/renaming an
+  export, changing a struct FIELD (type/meaning/order — an in-struct array
+  resize included, which is why v3 exists), changing ownership
   or threading contracts of an existing symbol, renumbering the error-space
   symbols a consumer must handle.
 - ADDING exports, APPENDING struct fields, adding event `type` values,
@@ -522,7 +815,8 @@ virtualizes at the UI layer (~1000-item incremental tree batches,
 against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
-Bookmarks), then extension, then name.
+Bookmarks, Unsaved - N-126's tenth bit: the og's office unsaved-document
+category, the .asd/.wbk autosave family), then extension, then name.
 
 ### Query bucket translation + the raw-category name (M-029, session 32)
 
@@ -543,12 +837,14 @@ semantics the og does not have.
 `cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
 per-scan "filter_generalraw" display-name surface (corpus
 s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
-NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+NULL/"" = the default "Reconstructed" (S-048: the og's own root name -
+DRWUI's type==7 branch; resume also recognizes the legacy "Other Deleted
+Files (Carved)" so old sessions never duplicate the root). Resume recognizes
 both the default and the configured name, so a re-run never spawns a
 duplicate raw root.
 
 
-### 7d. The user-signature registration surface (M-048, ABI-since 2.1)
+### 7d. The user-signature registration surface (M-048; caps S-039, widths v3/M-067)
 
 `cr_ui_register_user_signs(json, len)` installs the og's EUUserData-shaped
 signature database atomically (parse + validate + install; a bad payload
@@ -559,25 +855,38 @@ user-sign records is 0xFFFE0000 (distinct from raw-sign 0xFFFF0000+fmt).
 Re-registration replaces — the og's config-reload posture (EUUserData is
 re-read per scan, never session state).
 
-### 7e. The transport-open diagnostic (M-030, ABI-since 2.2)
+**S-039 (caps)**: the accepted grammar grew to the og's own shipped file's
+extremes — signs up to 48 bytes (og max 44), up to 12 signs per entry
+(og max 11), offsets up to 1024 (og max 526), MIME up to 80 chars (og max
+73). The og's actual 111-entry EUUserData parses whole (190 signs); the
+pre-fix caps rejected 15 of its 111 entries atomically (zero loaded).
 
-`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk`
-ended on the transport it did. The og's ABI surface reports the
-driver-vs-direct decision's failure reason; the pre-fix core silently
-fell back RDA -> direct and overwrote the RDA leg's error code, so a
-degraded-but-working transport was indistinguishable from a healthy
-one. The advisory is process-global, advisory-only (never gates an
-open's own return code), never cleared by reads:
+**v3 (M-067, the convergence residue)**: `cr_ui_user_sign` carries the
+full widths since v3 — `bytes[48]`, `mime[81]`, `sign_len` 1..48, `offset`
+0..1024. The caps fix alone (v2 struct) left `mime[64]` receiving a
+memcpy of a 73-char MIME with no terminator inside the field — a host
+string read ran past it; the v3 resize is the completing half.
 
-- `0` — the last open succeeded on its first-choice leg (or no open was
-  attempted; the unsupported-platform stub records the clean state).
-- `CR_UI_ERR_*` — the surviving leg's error: when the RDA leg fails and
-  the direct fallback succeeds, the advisory carries the RDA error (the
-  degraded transport is diagnosable); when both legs fail, the open's
-  return code and the advisory agree.
+### 7e. The transport-open diagnostic (M-030; direct since session-96)
 
-The WinPE environment gate (M-030's other half of the open path) rides
-the same surface implicitly: in a PE environment the RDA leg is skipped
-entirely (the og's callers go `\\.\PhysicalDrive%d` direct -
-Device_decompiled.c :50653-50663), so the advisory never reports a
-driver-leg error that was never attempted.
+`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk` /
+`cr_ui_open_volume`-family call ended as it did. The advisory is
+process-global, advisory-only (never gates an open's own return code),
+never cleared by reads — the open calls' own return codes stay
+authoritative:
+
+- `0` — the last open succeeded (or no open was attempted yet; the
+  unsupported-platform stub records the clean state).
+- `ERR_ELEVATION_REQUIRED` (`0x500C0001`) — the last open refused at
+  the privilege gate: the process token is not elevated (raw
+  `\\.\PhysicalDriveN` access needs the ELEVATED token — a
+  non-elevated admin's group membership is not enough), and the
+  returned code equals the advisory (`cr_ui.cpp` sets both from the
+  same probe). The host triggers its own elevation flow (the standard
+  OS UAC prompt) and retries.
+- Any other `cr_error` — the token **was** elevated but the TARGET
+  would not open (`ERR_OPEN_FAILED` etc.): a target error, never a
+  silent transport switch. There is no fallback leg — the direct
+  architecture is the one leg there is (the kernel driver was removed
+  entirely, session-96), so the advisory never reports "the surviving
+  leg" — it reports the one leg there is.

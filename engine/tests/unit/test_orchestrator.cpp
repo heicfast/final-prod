@@ -2,14 +2,17 @@
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/orchestrator/cr_filterfolder.h"
+#include "cr/cr_text.h"
 #include "cr/query/cr_query.h"
 #include "cr/cr_errmod.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
 #include "test_fixtures.hpp"
+#include "test_tmpdir.hpp"
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -215,6 +218,532 @@ TEST(Orchestrator, DynamicDiskVolumeScan) {
     ASSERT_NE(nullptr, doc);
 }
 
+/* ---- S-051 (diff-to-fix): the whole-disk flow's partition-list targets ----
+ *
+ * The og's disk-level flow (architecture/04-recovery-workflow.md §2/§3.4:
+ * CDoScanPartition -> CGenericRecoveryController) reads the partition list
+ * at scan setup and makes every table volume a scan target. The core
+ * previously probed LBA 0, saw the MBR, dispatched Unknown and completed
+ * rc=0 with ZERO files on any healthy partitioned disk (the executed RUN 2,
+ * evidence/executions/s10-wholedisk-scan-targets.md). These tests pin the
+ * fixed target construction; M-104's display-name and known-vs-lost
+ * distinctions ride the same mechanism. */
+
+namespace {
+
+/* count nodes by exact name anywhere in the tree */
+u64 count_named(tree::ResultTree& tree, const char* utf8_name) {
+    u64 n = 0;
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* node) {
+        if (node->name_utf8() == utf8_name)
+            ++n;
+        for (tree::FileNode* c = node->first_child(); c; c = c->next_sibling())
+            walk(c);
+    };
+    for (auto* r : tree.roots())
+        walk(r);
+    return n;
+}
+
+/* collect root display names (role for full nodes, name for the rest) */
+std::vector<std::string> root_names(tree::ResultTree& tree) {
+    std::vector<std::string> out;
+    for (auto* r : tree.roots())
+        out.push_back(r->name_utf8());
+    return out;
+}
+
+} // namespace
+
+TEST(Orchestrator, WholeDiskScansTableVolumes) {
+    /* the executed evidence's RUN 2 shape: a plain whole-disk target (no
+     * --whole-disk, Unknown hint) on a healthy two-volume MBR disk MUST
+     * find both volumes' files - previously rc=0 with an empty tree. */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.files_found, 4u) << "both volumes' DOC.TXT + the deleted files' entries";
+    EXPECT_GE(stats.deleted_found, 2u);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 0u);
+    /* each volume's DOC.TXT found exactly once - under its own root */
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u);
+}
+
+TEST(Orchestrator, WholeDiskGptTwin) {
+    /* the same flow on the GPT twin: the GPT entry array (basic-data
+     * partitions) drives the same per-volume targets. */
+    auto img = testfixture::build_two_volume_gpt_disk("GPTVOL1", "GPTVOL2");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.files_found, 4u);
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "GPTVOL1"), names.end())
+        << "the first volume's display-name root";
+    EXPECT_NE(std::find(names.begin(), names.end(), "GPTVOL2"), names.end())
+        << "the second volume's display-name root";
+}
+
+TEST(Orchestrator, WholeDiskMixedFamilies) {
+    /* one FAT16 + one exFAT volume on one MBR disk: per-target probing
+     * dispatches DIFFERENT engines in one whole-disk scan. */
+    auto fat = build_fat16();                    /* 5074 secs */
+    auto exf = testfixture::build_exfat_image(); /* 2048 secs */
+    constexpr u64 P1_START = 2048, P2_START = 8192;
+    constexpr u64 DISK_SECS = 24000;
+    std::vector<u8> img(u64(DISK_SECS) * 512, 0);
+    auto mbr_entry = [&](int slot, u8 type, u64 start, u64 count) {
+        u8* e = img.data() + 446 + slot * 16;
+        e[4] = type;
+        e[8] = u8(start);
+        e[9] = u8(start >> 8);
+        e[10] = u8(start >> 16);
+        e[11] = u8(start >> 24);
+        e[12] = u8(count);
+        e[13] = u8(count >> 8);
+        e[14] = u8(count >> 16);
+        e[15] = u8(count >> 24);
+    };
+    mbr_entry(0, 0x0E, P1_START, 5074);
+    mbr_entry(1, 0x07, P2_START, 2048); /* exFAT: IFS type */
+    img[510] = 0x55;
+    img[511] = 0xAA;
+    std::memcpy(img.data() + P1_START * 512, fat.data(), fat.size());
+    std::memcpy(img.data() + P2_START * 512, exf.data(), exf.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_scanned, 2u);
+    /* the FAT volume's DOC.TXT and the exFAT volume's doc.txt both land */
+    EXPECT_EQ(count_named(tree, "DOC.TXT") + count_named(tree, "doc.txt"), 2u);
+    EXPECT_GE(count_named(tree, "photo.jpg"), 1u) << "the exFAT target's photo.jpg found";
+}
+
+TEST(Orchestrator, WholeDiskFsMarkerNamesForeignVolume) {
+    /* M-104's tier-3 naming: a volume whose family has NO label decode yet
+     * (NTFS - the $Volume decode is N-133's landing) takes the FS-marker
+     * form "NTFS @ <LBA>", never the anonymous "Volume @ <LBA>" and never
+     * the "Candidate @" form. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("FATSIDE", "VOLTWO", &s1, &s2);
+    /* plant the NTFS probe shape over the second volume's boot sector */
+    u8* b = img.data() + s2 * 512;
+    std::memset(b, 0, 512);
+    std::memcpy(b + 3, "NTFS    ", 8);
+    put16(img, s2 * 512 + 0x0B, 512);
+    b[0x0D] = 1;
+    b[0x15] = 0xF8;
+    img[s2 * 512 + 0x28] = 200;
+    img[s2 * 512 + 0x30] = 100; /* $MFT LCN 100 */
+    img[s2 * 512 + 0x38] = 108;
+    b[0x40] = 2;
+    b[0x44] = 8; /* M-146: the realistic 4096B index block (cib=2 decoded 1024B
+                    out of the og's FUN_180005470 4096-multiple band) */
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const u64 rec = (s2 + 100) * 512;
+    std::memset(img.data() + rec, 0, 1024);
+    put32v(img, rec, 0x454C4946); /* 'FILE' */
+    put16(img, rec + 4, 0x30);
+    put16(img, rec + 6, 3);
+    put16(img, rec + 0x14, 0x38);
+    put16(img, rec + 0x18, 1);
+    img[rec + 510] = 0x34;
+    img[rec + 511] = 0x12;
+    img[rec + 1022] = 0x34;
+    img[rec + 1023] = 0x12;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "FATSIDE"), names.end());
+    std::string expected = "NTFS @ " + std::to_string(s2);
+    EXPECT_NE(std::find(names.begin(), names.end(), expected), names.end())
+        << "expected the FS-marker root '" << expected << "'";
+}
+
+TEST(Orchestrator, WholeDiskDamagedVolumeSkippedHonestly) {
+    /* one healthy volume + one table entry whose boot sector is dead: the
+     * damaged target is skipped HONESTLY (counted in table_volumes_skipped,
+     * rc stays OK, no root emitted) - never silently nor fatally. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("HEALTHY", "DEADBOOT", &s1, &s2);
+    std::memset(img.data() + s2 * 512, 0, 512); /* no FS signature at all */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 1u);
+    EXPECT_GE(stats.files_found, 2u) << "the healthy volume still scans";
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 1u);
+}
+
+TEST(Orchestrator, WholeDiskSuperfloppyUnchanged) {
+    /* no partition table (a bare FAT volume at LBA 0): the single-slice
+     * dispatch keeps the volume-scan behavior - files under Found. */
+    auto img = build_fat16(); /* TESTVOL, no table */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 0u) << "no table: no per-volume targets";
+    EXPECT_GE(stats.files_found, 1u);
+    /* the volume-target path did not fire: DOC.TXT sits under Found */
+    bool doc_under_found = false;
+    if (tree.roots().size() > 0) {
+        for (tree::FileNode* c = tree.roots()[0]->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "DOC.TXT")
+                doc_under_found = true;
+    }
+    EXPECT_TRUE(doc_under_found);
+}
+
+TEST(Orchestrator, WholeDiskNoDoubleScan) {
+    /* whole-disk mode (discovery ON): the table volumes are scanned ONCE
+     * as primary targets; discovery's table-match candidates for them
+     * are dropped - no duplicate "Candidate @ <LBA>" roots, and
+     * lost_partitions reports the genuinely-lost set only. */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.files_found, 4u);
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u) << "each volume scanned exactly once";
+    EXPECT_EQ(stats.lost_partitions, 0u)
+        << "the table's own volumes are not lost-partition candidates anymore";
+    for (const auto& n : root_names(tree))
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos)
+            << "no anonymous candidate root for table volumes: " << n;
+}
+
+TEST(Orchestrator, WholeDiskVolumeRootsCarryDisplayNames) {
+    /* M-104: the per-volume roots carry the volumes' on-disk labels
+     * (VOLONE/VOLTWO from the boot sectors), not anonymous LBA strings;
+     * the live and deleted files of one volume share its single root
+     * (deleted as a node flag, the og's one-tree-per-volume shape). */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+
+    const auto names = root_names(tree);
+    ASSERT_NE(std::find(names.begin(), names.end(), "VOLONE"), names.end());
+    ASSERT_NE(std::find(names.begin(), names.end(), "VOLTWO"), names.end());
+    for (const auto& n : names)
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos) << "anonymous root: " << n;
+
+    /* the deleted file lives under the SAME volume root, flagged deleted
+     * (the FAT engine renders the 0xE5 first byte; both nodes under
+     * VOLTWO's subtree with deleted_state set on the deleted one) */
+    tree::FileNode* vol2 = nullptr;
+    for (auto* r : tree.roots())
+        if (r->name_utf8() == "VOLTWO")
+            vol2 = r;
+    ASSERT_NE(vol2, nullptr);
+    u64 del_flagged = 0;
+    for (tree::FileNode* c = vol2->first_child(); c; c = c->next_sibling())
+        if (c->deleted_state() == tree::DeletedState::Deleted)
+            ++del_flagged;
+    EXPECT_GE(del_flagged, 1u) << "the deleted file under its volume root, flagged";
+}
+
+TEST(Orchestrator, WholeDiskKnownVsLostDistinguishable) {
+    /* M-104: one in-table volume + one OUT-OF-TABLE volume (a genuinely
+     * lost partition - a valid FAT boot outside the table). The known
+     * volume surfaces under its label root; the lost one as a discovery
+     * candidate. M-137: the lost root now carries the og's naming
+     * template - the boot-label path "VOLTWO (FAT)" (label + FS family)
+     * - distinguishable from the known volume's bare label root both by
+     * the FS suffix and by the lost_candidates stats. */
+    u64 s1 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1);
+    /* wipe the SECOND table entry (its volume data stays on disk) -> the
+     * second volume becomes a genuinely-lost partition for discovery. */
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone; entry 1 stays */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* the in-table volume: display-name root; the out-of-table volume:
+     * exactly one discovery candidate under the M-137 template's
+     * label path */
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "KNOWNVOL"), names.end());
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLTWO (FAT)"), names.end())
+        << "the lost volume's root carries the label + FS-family template";
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u) << "both volumes' files found";
+}
+
+TEST(Orchestrator, LostPartUnnamedCandidateNamedLostPartitionN) {
+    /* M-137: the og's unnamed-candidate template (FUN_1403b9330,
+     * DRWUI:634817-838): a lost volume with NO boot label surfaces as
+     * "Lost Partition <n>(<FS>)" with the per-scan counter - never the
+     * old anonymous "Candidate @ <LBA>" form. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1, &s2);
+    /* wipe the second table entry AND its boot label: the volume is
+     * genuinely lost AND unnamed */
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16);
+    std::memset(img.data() + s2 * 512 + 0x2B, 0x20, 11); /* all spaces */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "Lost Partition 1(FAT)"), names.end())
+        << "the unnamed lost volume takes the og's counter template";
+    for (const auto& n : names)
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos)
+            << "the LBA form is only the no-FS-name fallback: " << n;
+}
+
+TEST(Orchestrator, LostPartNamedCandidateKeepsVolumeLabel) {
+    /* M-137: the og's named-candidate rule (":)"-bearing labels kept
+     * verbatim - a drive-letter tail like "DISK (I:)" never gains the
+     * FS suffix; plain labels compose "<label> (<FS>)"). */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "DISK (I:)", &s1, &s2);
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone -> lost */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "DISK (I:)"), names.end())
+        << "the drive-letter-bearing label is kept verbatim (no FS suffix)";
+}
+
+namespace {
+/* a compact FAT12 boot sector for the insertion-cap fixture: SPF 8,
+ * 100 clusters -> total 113 sectors; the flavor gate classifies FAT12
+ * (spf <= 200) and the +0x2B label slot stays zeroed (unnamed). */
+void plant_compact_fat12(std::vector<u8>& img, u64 lba) {
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    /* put16 everywhere: the raw *(u16*) stores were misaligned UBSan
+     * violations on odd LBA bases (caught by this session's local
+     * --san lane; CI is windows-only by the documented decision, so the
+     * local sanitizer lanes are the only place this runs) */
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = 1;                      /* spc */
+    put16(img, lba * 512 + 0x0E, 1);  /* reserved */
+    b[0x10] = 1;                      /* one FAT */
+    put16(img, lba * 512 + 0x11, 16); /* root entries */
+    put16(img, lba * 512 + 0x16, 8);  /* SPF 8 -> FAT12 flavor */
+    b[0x15] = 0xF8;
+    put16(img, lba * 512 + 0x20, 113); /* total16 */
+    std::memcpy(b + 0x36, "FAT12   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    /* the FAT head: media + two EOC markers (a plausible empty FAT) */
+    put16(img, (lba + 1) * 512 + 0, 0xFFF8);
+    put16(img, (lba + 1) * 512 + 2, 0xFFFF);
+    put16(img, (lba + 1) * 512 + 4, 0xFFFF);
+}
+} // namespace
+
+TEST(Orchestrator, LostPartInsertionCapTenTargets) {
+    /* M-137: the og's scan-target insertion cap (DRWUI:904229-234 - the
+     * loop breaks after the 10th candidate). Twelve lost FAT volumes:
+     * all twelve stay in the surfaced list (lost_candidates, apply-able)
+     * but only ten become scan targets (lost_candidates_inserted). */
+    std::vector<u8> img(u64(12 * 256 + 512) * 512, 0); /* no table: 12 slots */
+    for (int k = 0; k < 12; ++k)
+        plant_compact_fat12(img, u64(256 + k * 256));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.lost_partitions, 12u) << "all twelve surface (the og's per-hit persistence)";
+    EXPECT_EQ(stats.lost_candidates_inserted, 10u)
+        << "the og's ten-target insertion cap (DRWUI:904229-234)";
+    /* exactly ten lost-partition roots entered the tree */
+    u64 lost_roots = 0;
+    for (const auto& n : root_names(tree))
+        if (n.find("Lost Partition ") == 0)
+            ++lost_roots;
+    EXPECT_EQ(lost_roots, 10u);
+}
+
+TEST(Orchestrator, LostPartCandidateListingCarriesLayoutFields) {
+    /* M-137: the og's found-partition row context (UIUX/08 §2 -
+     * Disk / Basic / Dynamic / MBR / GPT / File System): the surfaced
+     * candidates carry the scan target's table layout, LDM state and
+     * table-parse health, stamped from the orchestrator's own parse. */
+    u64 s1 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1);
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone -> one lost candidate */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    ASSERT_EQ(stats.lost_candidates.size(), 1u);
+    const auto& c = stats.lost_candidates[0];
+    EXPECT_EQ(c.disk_layout, 1u) << "MBR (table::TableLayout::Mbr)";
+    EXPECT_EQ(c.disk_dynamic, 0u) << "a basic disk - no LDM database";
+    EXPECT_EQ(c.disk_table_ok, 1u) << "the target's table parsed";
+    EXPECT_EQ(std::string(c.volume_label), "VOLTWO") << "the boot label rides the record";
+}
+
+TEST(Orchestrator, WholeDiskVolumeRootNamesRoundTripSession) {
+    /* M-104: the per-volume display-name roots persist through the
+     * session round-trip (the og's own persistence mechanism for
+     * multi-volume identity - the volume root IS the record). */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    tree::ResultTree tree2;
+    ScanStats stats2;
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    ASSERT_EQ(ScanController::load_session(r, tree2, stats2), OK);
+    /* the volume roots reload with their display names intact */
+    const auto names = root_names(tree2);
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLONE"), names.end());
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLTWO"), names.end());
+    EXPECT_EQ(count_named(tree2, "DOC.TXT"), 2u);
+}
+
 /* ---- M-018: the FilterFolder result-set junk filter ---- */
 
 TEST(FilterFolder, CorpusListsPinned) {
@@ -390,8 +919,121 @@ TEST(Orchestrator, JunkFilteredFromResults) {
     EXPECT_FALSE(names.count("System Volume Information"));
     EXPECT_TRUE(names.count("DOC.TXT"));
     EXPECT_TRUE(names.count("KEEP.ME"));
-    EXPECT_TRUE(names.count("_ELFILE.TXT"))
-        << "deleted files are results too (the FAT undelete convention renders 0xE5 as _)";
+    EXPECT_TRUE(names.count("#ELFILE.TXT"))
+        << "deleted files are results too (the og's FAT placeholder renders 0xE5 as # - N-172)";
+}
+
+/* ---- M-071: the file-backed junk-gate fixture ----
+ *
+ * tools/gen_junk_gate_fixture.py generates
+ * tests/data/images/junk-gate-fat16.raw (same geometry as build_fat16()
+ * above, with the SVI dir carrying an inner TRACKER.TXT so the
+ * subtree semantics are observable). This test proves the SHIPPED FILE
+ * scans with the same semantics the in-memory builder asserts - the
+ * Windows CI junk-gate contract step (rrecov scan/tree/recover over
+ * this exact file) rides a fixture the Linux suite has already proven
+ * parseable, flagged and query-gated. The two-surface semantic is
+ * pinned here: TRACKER.TXT is a query RESULT (the flag is per-node;
+ * children of hidden dirs stay results per the og's "hides entries,
+ * not contents") while the CLI tree/recover-all walks skip the whole
+ * flagged subtree (a tree view cannot show children of a hidden node;
+ * the M-018/M-071 gates live in rrecov.cpp's walks). */
+TEST(FilterFolder, JunkGateFixtureFileScansAndFlagsHiddenSet) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+    ASSERT_EQ(size_t(5074) * 512, raw.size()) << "regenerate via tools/gen_junk_gate_fixture.py";
+
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats)) << err_text(u32(0));
+
+    EXPECT_EQ(4u, stats.junk_filtered)
+        << "DESKTOP.INI + $USNJRNL + System Volume Information + the zh-CN New Folder";
+
+    std::map<std::string, bool> flagged;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                flagged[c->name_utf8()] = (c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0;
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    /* the hidden set, flagged on the file image exactly as in-memory */
+    EXPECT_TRUE(flagged.count("DESKTOP.INI") && flagged["DESKTOP.INI"]);
+    EXPECT_TRUE(flagged.count("$USNJRNL") && flagged["$USNJRNL"]);
+    EXPECT_TRUE(flagged.count("System Volume Information") && flagged["System Volume Information"]);
+    EXPECT_TRUE(flagged.count("\u65B0\u5EFA\u6587\u4EF6\u5939") &&
+                flagged["\u65B0\u5EFA\u6587\u4EF6\u5939"]);
+    /* the controls, never flagged */
+    ASSERT_TRUE(flagged.count("DOC.TXT"));
+    EXPECT_FALSE(flagged["DOC.TXT"]);
+    ASSERT_TRUE(flagged.count("KEEP.ME"));
+    EXPECT_FALSE(flagged["KEEP.ME"]);
+    /* the inner file is a result (per-node flag; children stay) */
+    ASSERT_TRUE(flagged.count("TRACKER.TXT"));
+    EXPECT_FALSE(flagged["TRACKER.TXT"]);
+
+    /* the query surface excludes the junk set, keeps everything else */
+    query::Query q;
+    q.limit = 1000;
+    query::Result res = query::run(tree, q);
+    std::set<std::string> names;
+    for (const auto& row : res.rows)
+        names.insert(row.name_utf8);
+    EXPECT_FALSE(names.count("DESKTOP.INI"));
+    EXPECT_FALSE(names.count("$USNJRNL"));
+    EXPECT_FALSE(names.count("System Volume Information"));
+    EXPECT_TRUE(names.count("DOC.TXT"));
+    EXPECT_TRUE(names.count("KEEP.ME"));
+    EXPECT_TRUE(names.count("TRACKER.TXT"));
+}
+
+/* ---- N-133/M-079: the engine label replacement must TERMINATE ----
+ *
+ * The first-ever execution of the M-071 CI step (run 41029969175)
+ * exposed the auto-session-name mangle "auto_JUNKGATEe-fat16": BOTH
+ * label copies - the engine pass's er->stats (cr_scan.cpp:2126) and
+ * the CLI's autosave stats->cfg (rrecov.cpp:2037) - stop at the
+ * label's NUL without WRITING it, so a longer prior occupant leaks
+ * through ("JUNKGATE" written over "junk-gate-fat16" leaves the
+ * "e-fat16" tail). This pin runs the shipped fixture exactly as the
+ * CLI does (the derived stem in cfg, a pre-dirtied stats buffer - the
+ * reuse shape) and demands the engine label land cleanly terminated.
+ * The rrecov.cpp half is pinned by the CI step's M-079 assertion; this
+ * is the Linux-visible half. */
+TEST(Orchestrator, EngineLabelReplacesDerivedStemTerminated) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    /* the CLI's fill_volume_label stem leg (rrecov.cpp:446): the image
+     * filename stem as the derived, replaceable label */
+    std::memcpy(cfg.volume_label, "junk-gate-fat16", 15);
+    cfg.volume_label[15] = 0;
+    cfg.volume_label_derived = true;
+    ScanController ctrl(tree, cfg);
+    /* the reuse shape: a longer prior occupant of the stats label
+     * buffer - the exact leak surface of the unterminated copy */
+    ScanStats stats;
+    std::memcpy(stats.volume_label, "prior-occupant-longer-than-the-label", 35);
+    stats.volume_label[35] = 0;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+
+    EXPECT_STREQ(stats.volume_label, "JUNKGATE")
+        << "the engine-decoded label must land TERMINATED - a prior occupant's "
+           "tail must never leak into the auto-session name (the "
+           "auto_JUNKGATEe-fat16 mangle, run 41029969175)";
 }
 
 } // namespace
@@ -978,18 +1620,414 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     bool saw_jpg = false, saw_psd = false;
     for (const std::string& n : carved_names) {
         EXPECT_EQ(std::string::npos, n.find("Carved")) << "the split family is gone: " << n;
-        /* the registered default: FileNNNNNN.ext (6 digits) */
-        ASSERT_GE(n.size(), size_t(10)) << n;
-        EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
-        for (int i = 4; i < 10; ++i)
-            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".jpg") == 0)
+        /* S-049: the og's universal contract - <PREFIX>_<%06d>.<UPPEREXT>
+         * with the per-format counter (one naming family across both
+         * carve layers, the N-014b invariant preserved) */
+        const size_t dot = n.rfind('.');
+        ASSERT_NE(dot, std::string::npos) << n;
+        ASSERT_LT(dot, n.size() - 1) << n;
+        const size_t us = n.rfind('_', dot);
+        ASSERT_NE(us, std::string::npos) << n;
+        ASSERT_EQ(dot - us - 1, size_t(6)) << "6-digit per-format counter: " << n;
+        for (size_t i = us + 1; i < dot; ++i)
+            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "counter digits: " << n;
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".JPG") == 0)
             saw_jpg = true;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".psd") == 0)
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".PSD") == 0)
             saw_psd = true;
     }
     EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";
     EXPECT_TRUE(saw_psd) << "the raw-sign-layer candidate is in the family";
+}
+
+TEST(Orchestrator, CarveTallySessionRoundTrip) {
+    /* N-140: the per-format carve tally survives the session file - the
+     * og's GetRawUserInfoMap outlives the scan into the report (the map
+     * is the post-scan surface, not a scan-time transient). A scan with
+     * a grammar-layer JPEG + a raw-sign-layer PSD saves REC_CARVE_TALLY;
+     * a reloaded session answers the per-format breakdown without a
+     * tree walk. RED pre-fix: the record did not exist. */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    {
+        /* the grammar-layer JPEG (cluster 100) - the same shape the
+         * naming-family fixture plants */
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 8;
+        for (int i = 0; i < 8; ++i)
+            at[p + 4 + i] = 0x11;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9;
+    }
+    {
+        /* the raw-sign-layer PSD (cluster 300) */
+        u8* at = img.data() + DATA + (300 - 2) * 512;
+        std::memcpy(at, "8BPS", 4);
+        at[4] = 0;
+        at[5] = 1;
+        at[12] = 0;
+        at[13] = 1;
+        at[14] = 0;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 64;
+        at[18] = 0;
+        at[19] = 0;
+        at[20] = 0;
+        at[21] = 48;
+        at[22] = 0;
+        at[23] = 8;
+        at[24] = 0;
+        at[25] = 1;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
+    ASSERT_GE(stats.carved_found, 2u);
+    ASSERT_NE(stats.carve_per_format_slots, 0u) << "the carve stage sets the live bound";
+    /* snapshot the live tally for the round-trip comparison */
+    std::vector<u64> live(stats.carve_per_format, stats.carve_per_format + 512);
+    u64 live_sum = 0;
+    for (u32 i = 0; i < stats.carve_per_format_slots; ++i)
+        live_sum += live[i];
+    EXPECT_EQ(live_sum, stats.carved_found) << "the tally partitions carved_found";
+
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    bool saw_tally = false;
+    for (u32 i = 0; i < r.record_count(); ++i) {
+        session::Record rec;
+        ASSERT_EQ(r.read_record(i, rec), OK);
+        if (rec.type != session::REC_CARVE_TALLY)
+            continue;
+        saw_tally = true;
+        session::CarveTallyRecord tr;
+        ASSERT_EQ(session::deserialize_carve_tally(rec.data.data(), rec.data.size(), tr), OK);
+        ASSERT_EQ(tr.slots, stats.carve_per_format_slots);
+        ASSERT_EQ(tr.overflow, stats.carve_per_format_overflow);
+        u64 re_sum = 0;
+        for (u32 k = 0; k < tr.slots && k < 512; ++k) {
+            EXPECT_EQ(tr.counts[k], live[k]) << "slot " << k << " must round-trip";
+            re_sum += tr.counts[k];
+        }
+        EXPECT_EQ(re_sum, stats.carved_found);
+    }
+    EXPECT_TRUE(saw_tally) << "the session must carry REC_CARVE_TALLY";
+
+    /* the record-level edge: a truncated payload is a parse failure,
+     * never a silent zero tally */
+    {
+        session::CarveTallyRecord tr;
+        const u8 junk[3] = {1, 2, 3};
+        EXPECT_NE(session::deserialize_carve_tally(junk, sizeof(junk), tr), u32(OK));
+    }
+}
+
+TEST(Orchestrator, CarveVolumeGroupTreeShape) {
+    /* S-048: the og's persisted carve tree - the "Reconstructed" root
+     * with the 7 empty category folders (Pictures/Documents/Archives/
+     * Videos/Audio/Emails/Others - every real og session carries exactly
+     * these) and the LAZY per-volume group child carrying every carved
+     * file directly under it with one empty per-extension folder beside
+     * them ("Reconstructed/ (I:)/jpg" + "Reconstructed/ (I:)/PNG_000001.PNG"
+     * - the I session's persisted shape, 12,147 rows). Fail-before: the
+     * carve root was the single flat "Other Deleted Files (Carved)" root
+     * with every file directly under it, no volume level, no skeleton. */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    {
+        /* plant a JPEG inside the volume's free clusters (cluster 100) */
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    strcpy(cfg.volume_label, "TESTVOL");
+    cfg.volume_letter = 'H';
+    ScanController ctl(tree, cfg);
+    ScanStats st;
+    ASSERT_EQ(ctl.run(&dev, nullptr, nullptr, nullptr, st), u32(OK));
+
+    /* the Reconstructed root */
+    tree::FullNode* rec = nullptr;
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            rec = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(rec, nullptr) << "the carve root is 'Reconstructed' (the og's own name)";
+
+    /* the 7 empty category skeleton folders, exact order */
+    static const char* const kCats[] = {"Pictures", "Documents", "Archives", "Videos",
+                                        "Audio",    "Emails",    "Others"};
+    size_t ci = 0;
+    for (tree::FileNode* c = rec->first_child(); c && ci < 7; c = c->next_sibling()) {
+        ASSERT_TRUE(c->is_full());
+        std::string want = kCats[ci];
+        std::string got = c->name_utf8();
+        EXPECT_EQ(got, want) << "skeleton folder " << ci;
+        EXPECT_EQ(c->first_child(), nullptr) << "the skeleton folders are EMPTY";
+        ++ci;
+    }
+    EXPECT_EQ(ci, size_t(7)) << "all 7 category folders present";
+
+    /* the lazy volume group child: "TESTVOL (H:)" (label + letter), the
+     * real-session composition; carrying the carved file DIRECTLY with
+     * the empty per-ext folder beside it */
+    tree::FullNode* grp = nullptr;
+    for (tree::FileNode* c = rec->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u"TESTVOL (H:)")
+            grp = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grp, nullptr) << "the volume group child 'TESTVOL (H:)' exists";
+    int files = 0, folders = 0;
+    tree::FullNode* jpg_folder = nullptr;
+    for (tree::FileNode* c = grp->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"jpg")
+                jpg_folder = static_cast<tree::FullNode*>(c);
+        } else {
+            ++files;
+            EXPECT_EQ(c->origin(), tree::Origin::Carved);
+        }
+    }
+    EXPECT_GE(files, 1) << "the carved JPEG attaches DIRECTLY to the volume child";
+    EXPECT_GE(folders, 1) << "the per-extension skeleton folder exists";
+    ASSERT_NE(jpg_folder, nullptr) << "the 'jpg' ext folder exists (lowercase)";
+    EXPECT_EQ(jpg_folder->first_child(), nullptr) << "the ext folder is EMPTY (the og's shape)";
+}
+
+TEST(Orchestrator, CarveVolumeGroupLazyNoCarvesNoChild) {
+    /* S-048: the volume child is LAZY - a volume whose carve finds
+     * nothing gets NO group child (the real G session carries NO child
+     * for its carves-free G: volume; only System Reserved - the volume
+     * WITH carves - appears under Reconstructed). */
+    auto img = build_fat16(); /* no plants: no carves */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    strcpy(cfg.volume_label, "TESTVOL");
+    cfg.volume_letter = 'G';
+    ScanController ctl(tree, cfg);
+    ScanStats st;
+    ASSERT_EQ(ctl.run(&dev, nullptr, nullptr, nullptr, st), u32(OK));
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                if (c->is_full()) {
+                    const std::string role = c->name_utf8();
+                    EXPECT_EQ(role.compare(0, 8, "Pictures"), 0)
+                        << "only the 7 skeleton folders; no volume child without carves: " << role;
+                    break; /* the first child is a skeleton folder or a
+                              group child - only skeleton allowed */
+                }
+    /* and NO group child anywhere */
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed") {
+            int full_children = 0;
+            for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                if (c->is_full())
+                    ++full_children;
+            EXPECT_EQ(full_children, 7) << "exactly the 7 skeleton folders";
+        }
+}
+
+TEST(Orchestrator, CarveVolumeGroupNameForms) {
+    /* S-048: the real-session naming forms - " (I:)" (an empty label +
+     * a letter: the leading space is the composition's own), "System
+     * Reserved" (a label, no letter), "DATA (H:)" (both). Each form is
+     * scanned WITH a carved file so the lazy group child exists. */
+    const auto plant_jpeg = [](std::vector<u8>& img) {
+        const size_t DATA = 74 * 512;
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    };
+    const auto group_child_name = [&](const char* label, char letter) -> std::string {
+        auto img = build_fat16();
+        plant_jpeg(img);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = false;
+        cfg.run_deep = false;
+        cfg.run_carve = true;
+        if (label && label[0])
+            strcpy(cfg.volume_label, label);
+        cfg.volume_letter = letter;
+        ScanController ctl(tree, cfg);
+        ScanStats st;
+        if (ctl.run(&dev, nullptr, nullptr, nullptr, st) != u32(OK))
+            return "<scan-failed>";
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->is_full() && c->first_child() != nullptr)
+                        return c->name_utf8(); /* the first folder WITH
+                                                  children: the lazy group
+                                                  child (the skeleton stays
+                                                  empty) */
+        return "<none>";
+    };
+    EXPECT_EQ(group_child_name("DATA", 'H'), "DATA (H:)");
+    EXPECT_EQ(group_child_name("", 'I'), " (I:)") << "the empty-label leading-space form";
+    EXPECT_EQ(group_child_name("System Reserved", 0), "System Reserved");
 }
 
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {
@@ -1119,6 +2157,54 @@ TEST(SafeWriter, OverlapRefusal) {
     std::string got = io.content_of(writer2.queue()[0].item_id);
     ASSERT_GE(got.size(), 7u);
     EXPECT_EQ(got.substr(0, 7), "DOCDATA");
+}
+
+/* M-071 design pin: the junk gate lives in the RESULT-SURFACE walks
+ * (query passes(); rrecov.cpp's CLI tree print + recover-all plan walk),
+ * NOT in SafeWriter::enqueue - an explicit selection (the flat-C API
+ * consumer's equivalent of checking the box for a hidden file) still
+ * recovers a junk-flagged node. This is the documented M-018 contract;
+ * pinning it here keeps a future "defense-in-depth" enqueue gate from
+ * silently breaking explicit selection. */
+TEST(SafeWriter, ExplicitSelectionStillRecoversJunkFlaggedNode) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+    EXPECT_EQ(stats.junk_filtered, 4u);
+
+    tree::FileNode* junk = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "DESKTOP.INI")
+                junk = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(junk, nullptr);
+    ASSERT_NE(junk->props(), nullptr);
+    ASSERT_NE(junk->props()->flags & tree::NODE_FLAG_JUNK_FILTERED, 0u)
+        << "fixture precondition: DESKTOP.INI must arrive flagged";
+
+    MockIo io;
+    SafeWriter writer(io, &dev, WriterConfig{});
+    writer.set_destination(dev.size(), dev.size()); /* disjoint destination */
+    EXPECT_EQ(writer.enqueue(junk, u16_("R:\\out")), OK);
+    WriterStats ws;
+    ASSERT_EQ(writer.process(nullptr, nullptr, nullptr, ws), OK);
+    EXPECT_EQ(ws.done, 1u);
+    EXPECT_EQ(writer.queue().size(), 1u);
+    EXPECT_EQ(writer.queue()[0].state, ItemState::Done);
+    std::string got = io.content_of(writer.queue()[0].item_id);
+    ASSERT_GE(got.size(), 15u);
+    EXPECT_EQ(got.substr(0, 15), "DESKTOPINI-JUNK");
 }
 
 TEST(SafeWriter, CollisionAndSanitize) {
@@ -1378,148 +2464,6 @@ TEST(Orchestrator, PreScanRepairWithoutHooksNeverWrites) {
     EXPECT_EQ(0u, stats.repair_actions_applied);
     EXPECT_TRUE(stats.repair_consent_denied);
     EXPECT_EQ(0xAB, dev.raw()[TornFatFixture::FAT1 + 0]);
-}
-
-/* ---- NG-21 (forensic run 40470191039): whole-disk repair scope ----
- * The corpus repair unit is the PARTITION (RawFixer::CheckPartition ->
- * per-FS fixers on damaged VOLUMES; rawfixer-fs-repair.md:13-16). The
- * pre-fix orchestrator ran analyze() on the whole-DISK slice: a healthy
- * GPT/MBR disk's LBA 0 is a partition table ("no recognizable family"),
- * and the family-agnostic FixByScanSector terminal then proposed writing
- * the first volume boot sector in the 64 MiB window over the disk's LBA
- * 0 - the catastrophic false offer the forensic probe captured as the
- * blocking consent modal on the healthy 64 GiB seed disk. */
-struct MbrDiskFixture {
-    std::vector<u8> img;
-    static constexpr u64 PART_START = 2048;
-    static constexpr u64 PART_SIZE = 5074;
-    static constexpr u64 FAT1 = PART_START * 512 + 2 * 512;             /* parent-absolute */
-    explicit MbrDiskFixture(bool tear_fat1) : img(u64(8192) * 512, 0) { /* 4 MiB disk */
-        auto fat = build_fat16();
-        std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
-        u8* mbr = img.data();
-        mbr[510] = 0x55;
-        mbr[511] = 0xAA;
-        u8* e = mbr + 446; /* entry 0 */
-        e[0] = 0x80;       /* bootable */
-        e[4] = 0x07;       /* NTFS/IFS */
-        put32v(img, 446 + 8, u32(PART_START));
-        put32v(img, 446 + 12, u32(PART_SIZE));
-        if (tear_fat1)
-            std::memset(img.data() + FAT1, 0xAB, 512); /* torn FAT1 sector 0 */
-    }
-};
-
-TEST(Orchestrator, WholeDiskHealthyPartitionsNeverOfferRepair) {
-    /* the S3 regression: a healthy disk scanned whole must surface NO
-     * repair offer at all. Fail-before: the pre-fix single whole-disk
-     * analyze found "no family" at the MBR, then FixByScanSector offered
-     * the FAT boot at 1 MiB as a DBR rebuild AT DISK OFFSET 0 - the
-     * consent hook fired on a healthy disk with a table-destroying
-     * proposal. */
-    MbrDiskFixture fx(false); /* healthy partition */
-    MemDevice dev(std::move(fx.img));
-    SharedRamWrite wdev(dev);
-    RepairCtx ctx;
-    ctx.consent = false; /* must never be asked; deny if it ever is */
-    ctx.dev = &wdev;
-
-    tree::ResultTree tree;
-    ScanConfig cfg;
-    cfg.run_quick = true;
-    cfg.run_deep = true; /* the real whole-disk UI flow arms both stages */
-    cfg.run_carve = false;
-    cfg.whole_disk = true;
-    cfg.pre_scan_repair = true;
-    cfg.repair.consent = test_consent;
-    cfg.repair.open_writer = test_open_writer;
-    cfg.repair.close_writer = test_close_writer;
-    cfg.repair.user = &ctx;
-    ScanController ctrl(tree, cfg);
-    ScanStats stats;
-    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
-    ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(0, ctx.consent_calls); /* NO offer on a healthy disk */
-    EXPECT_TRUE(stats.repair_ran);
-    EXPECT_EQ(0u, stats.repair_actions_planned);
-    EXPECT_FALSE(stats.repair_detected);
-    EXPECT_EQ(0u, wdev.writes);
-    /* the disk's partition table is byte-identical after the scan */
-    EXPECT_EQ(0x55, dev.raw()[510]);
-    EXPECT_EQ(0xAA, dev.raw()[511]);
-    EXPECT_EQ(0x07, dev.raw()[446 + 4]);
-    /* the scan itself still worked (the partition's files were found) */
-    EXPECT_GE(stats.files_found, 1u);
-}
-
-TEST(Orchestrator, WholeDiskDamagedPartitionOfferedInPlaceNeverAtTable) {
-    /* a genuinely damaged partition on a whole-disk scan IS offered - at
-     * the partition-absolute offset, never at the disk's LBA 0. The merged
-     * per-partition plan carries parent-absolute offsets (A-002 undo-log
-     * contract). Fail-before: the pre-fix whole-disk analyze proposed a
-     * DeepScanBootRestore at DISK offset 0 (over the MBR) instead of the
-     * torn FAT sector inside the partition. */
-    MbrDiskFixture fx(true); /* torn FAT1 signature sector */
-    MemDevice dev(std::move(fx.img));
-    SharedRamWrite wdev(dev);
-    /* capturing hook set (one user pointer for all three hooks - the
-     * RepairHooks contract shares `user` across consent/open/close) */
-    struct CapturingCtx {
-        bool consent = true;
-        int consent_calls = 0;
-        SharedRamWrite* dev = nullptr;
-        repair::RepairPlan captured;
-    } ctx;
-    ctx.dev = &wdev;
-    auto capturing_consent = [](const repair::RepairPlan& plan, void* user) -> bool {
-        auto* c = static_cast<CapturingCtx*>(user);
-        ++c->consent_calls;
-        c->captured = plan;
-        return c->consent;
-    };
-    auto capturing_open = [](void* user) -> repair::IWriteDevice* {
-        return static_cast<CapturingCtx*>(user)->dev;
-    };
-    auto capturing_close = [](repair::IWriteDevice*, void*) {};
-
-    tree::ResultTree tree;
-    ScanConfig cfg;
-    cfg.run_quick = true;
-    cfg.run_deep = true; /* the real whole-disk UI flow arms both stages */
-    cfg.run_carve = false;
-    cfg.whole_disk = true;
-    cfg.pre_scan_repair = true;
-    cfg.repair.consent = capturing_consent;
-    cfg.repair.open_writer = capturing_open;
-    cfg.repair.close_writer = capturing_close;
-    cfg.repair.user = &ctx;
-    ScanController ctrl(tree, cfg);
-    ScanStats stats;
-    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
-    ASSERT_EQ(rc, OK) << err_text(rc);
-
-    /* the offer: exactly one action, AT THE PARTITION (parent-absolute),
-     * never at the disk's LBA 0 */
-    ASSERT_EQ(1, ctx.consent_calls);
-    ASSERT_EQ(1u, ctx.captured.actions.size());
-    EXPECT_EQ(repair::ActionKind::RestoreFatSectorFromMirror, ctx.captured.actions[0].kind);
-    EXPECT_EQ(MbrDiskFixture::FAT1, ctx.captured.actions[0].offset);
-    EXPECT_NE(0u, ctx.captured.actions[0].offset); /* never the table */
-    EXPECT_EQ("fat", std::string(stats.repair_family));
-    EXPECT_EQ(1u, stats.repair_actions_applied);
-
-    /* executed: FAT1's sector restored from the sibling, AT the partition */
-    EXPECT_EQ(0xF8, dev.raw()[MbrDiskFixture::FAT1 + 0]);
-    EXPECT_EQ(0xFF, dev.raw()[MbrDiskFixture::FAT1 + 1]);
-    /* the partition table untouched */
-    EXPECT_EQ(0x55, dev.raw()[510]);
-    EXPECT_EQ(0xAA, dev.raw()[511]);
-    EXPECT_EQ(0x07, dev.raw()[446 + 4]);
-    /* the undo log carries parent-absolute offsets (A-002 contract) */
-    ASSERT_EQ(1u, stats.repair_undo.entries.size());
-    EXPECT_EQ(MbrDiskFixture::FAT1, stats.repair_undo.entries[0].offset);
-    /* the scan completed on the repaired partition */
-    EXPECT_GE(stats.files_found, 1u);
 }
 
 } // namespace
@@ -2002,4 +2946,567 @@ TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
         break;
     }
     EXPECT_TRUE(saw_vi) << "the VolumeInfo record must be present";
+}
+
+/* ---- S-052: the LDM basis survives the scan AND the session file ---- */
+
+TEST(Orchestrator, DynamicDiskScanStampsBasisAndSessionRoundTrips) {
+    /* a FAT16 volume inside an LDM simple volume (the DynamicDiskVolume
+     * Scan shape): the scan must (1) keep the virtual volume device past
+     * run()'s return (the S-052 registry), (2) stamp the volume root
+     * with the matching basis id, and (3) persist the layout + the stamp
+     * through save_session -> load_session_summary so a reloaded session
+     * can re-arm the basis for recovery/preview. */
+    auto fat = build_fat16();
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 5074;
+    cr::testfixture::LdmFixture fx(40960);
+    fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_dgr4(1, "TestPCDg0");
+    fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_volume({2000, "Volume1", 3, PART_SIZE, 1});
+    fx.add_component({3000, "Volume1-01", cr::table::LDM_COMP_CONCAT, 1, 2000, 0, 0});
+    fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, 0, 3000, 0, 1000});
+    fx.finish();
+    auto img = fx.take();
+    std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+
+    /* (1) the registry survived run() */
+    ASSERT_EQ(size_t(1), ctrl.ldm_devices().size());
+    ASSERT_EQ(size_t(1), ctrl.ldm_layouts().size());
+    EXPECT_EQ(cr::table::LdmVolumeKind::Simple, ctrl.ldm_layouts()[0].kind);
+    /* the registered device reads the volume (the FAT's DOC.TXT head is
+     * reachable through it) */
+    EXPECT_EQ(u64(PART_SIZE * 512), ctrl.ldm_devices()[0]->size());
+
+    /* (2) the root is stamped with basis 1 */
+    tree::FullNode* vroot = nullptr;
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+            vroot = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(nullptr, vroot);
+    EXPECT_EQ(1u, vroot->basis());
+
+    /* (3) the session round-trip: the layout record + the root stamp */
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    tree::ResultTree back;
+    ScanStats stats2;
+    session::VolumeSessionInfo info;
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, back, stats2, info, &dev));
+    /* the layout re-loaded */
+    ASSERT_EQ(size_t(1), info.ldm_layouts.size());
+    EXPECT_EQ(ctrl.ldm_layouts()[0].kind, info.ldm_layouts[0].kind);
+    EXPECT_EQ(ctrl.ldm_layouts()[0].vol_obj_id, info.ldm_layouts[0].vol_obj_id);
+    /* the root basis stamp re-loaded */
+    tree::FullNode* vroot2 = nullptr;
+    for (tree::FileNode* rn : back.roots())
+        if (rn->is_full() && rn->name_utf8().find("Dynamic Volume") == 0)
+            vroot2 = static_cast<tree::FullNode*>(rn);
+    ASSERT_NE(nullptr, vroot2);
+    EXPECT_EQ(1u, vroot2->basis());
+    /* the re-armed device over the ROUND-TRIPPED layout reads the volume
+     * (the recovery input is complete) */
+    const cr::table::LdmGuid self_guid = info.ldm_layouts[0].copies[0][0].disk_guid;
+    cr::table::LdmVolumeDevice vol2(
+        info.ldm_layouts[0], [&dev, self_guid](const cr::table::LdmGuid& g) -> IStorageDevice* {
+            return g == self_guid ? &dev : nullptr;
+        });
+    (void)vol2;
+    EXPECT_EQ(u64(PART_SIZE * 512), vol2.size());
+}
+
+TEST(Orchestrator, LostRootNamedFilePathLost) {
+    /* M-103: the lost branch's default name is the og's persisted-session
+     * name ("File Path Lost" - DRWUI :319865/:321001; the real sessions'
+     * root, G/H/I), NOT the pre-M-103 "Lost Files" invention. The legacy
+     * name stays resume-recognized (the S-048 precedent - an old session
+     * never spawns a duplicate root), pinned by the source check below. */
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    ScanController ctrl(tree, cfg);
+    bool have = false, legacy = false;
+    for (tree::FileNode* r : tree.roots()) {
+        if (!r->is_full())
+            continue;
+        const std::u16string& role = static_cast<tree::FullNode*>(r)->role;
+        if (role == u"File Path Lost")
+            have = true;
+        if (role == u"Lost Files")
+            legacy = true;
+    }
+    EXPECT_TRUE(have) << "the lost root must carry the og's branch name";
+    EXPECT_FALSE(legacy) << "the legacy name must not be CREATED anymore";
+    /* the resume recognition keeps both names (no duplicate root on an
+     * old session) */
+    const std::string src = cr_test::read_repo_text("src/core/orchestrator/cr_scan.cpp");
+    ASSERT_FALSE(src.empty());
+    EXPECT_NE(std::string::npos, src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
+        << "the resume path must recognize BOTH names";
+}
+
+TEST(Orchestrator, TelemetryCountersMoveDuringCarveStage) {
+    /* N-166: the og's "Files Found" tracks the live tree (~2 s cadence,
+     * DRWUI.log's matched/total lines; the dynamic-ground-truth capture
+     * shows the Reconstructed branch growing 1->16 live) - the core's
+     * progress events must carry MOVING counters mid-stage, not the
+     * frozen stage-begin snapshot. Pre-fix every ScanProgress event of
+     * the carve stage carried carved_found == 0 (the boundary-only
+     * stamp): RED. */
+    struct CountRecorder {
+        struct Row {
+            event::Type type;
+            u32 stage;
+            u64 files, carved;
+        };
+        std::vector<Row> rows;
+        mutable std::mutex m;
+        static void on_evt(const event::Event& e, void* user) {
+            auto* r = static_cast<CountRecorder*>(user);
+            std::lock_guard<std::mutex> lock(r->m);
+            r->rows.push_back({e.type, e.stage, e.files_found, e.carved_found});
+        }
+    } rec;
+    auto img = build_fat16();
+    /* ten JPEGs spread across the data area so the carve crosses several
+     * scan windows (each window boundary ticks the progress bridge) */
+    const auto plant_jpeg_at = [&](u64 byte_off) {
+        u8* at = img.data() + byte_off;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    };
+    for (int i = 0; i < 10; ++i)
+        plant_jpeg_at(u64(150) * 512 + u64(i) * 200 * 512);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.event_fn = &CountRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    ASSERT_GE(stats.carved_found, 10u) << "the fixture's JPEGs must carve";
+
+    std::lock_guard<std::mutex> lock(rec.m);
+    ASSERT_FALSE(rec.rows.empty()) << "the event stream must carry events";
+    /* (a) monotonic counters across the WHOLE stream (a regression guard
+     * for the live refresh: counts never regress) */
+    u64 prev_carved = 0;
+    for (const auto& r : rec.rows)
+        EXPECT_GE(r.carved, prev_carved) << "carved_found must never regress";
+    /* (b) THE PIN: at least one mid-stage ScanProgress event of the carve
+     * stage carries a NON-ZERO carved count - the live refresh moved the
+     * counter BEFORE the stage-end boundary stamp (pre-fix: frozen 0) */
+    bool moved = false;
+    for (const auto& r : rec.rows)
+        if (r.type == event::Type::ScanProgress && r.stage == 2 && r.carved > 0)
+            moved = true;
+    EXPECT_TRUE(moved) << "a mid-carve progress event must carry live counts";
+    /* (c) the live stream ends where the authoritative boundary stamp
+     * lands: the last event's counters equal the scan's final stats */
+    EXPECT_EQ(rec.rows.back().carved, stats.carved_found);
+}
+
+/* ---- M-148: cross-disk LDM members ride the pipe during scans ------ */
+
+/* a transient-fault member: the FIRST read touching [flaky_from, flaky_to)
+ * fails, every later attempt succeeds (the USB-hiccup class) */
+class FlakyFirstDevice final : public IStorageDevice {
+public:
+    explicit FlakyFirstDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    void flaky_range(u64 from, u64 to) {
+        flaky_from_ = from;
+        flaky_to_ = to;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (!armed_ && off < flaky_to_ && off + len > flaky_from_) {
+            armed_ = true;
+            return ERR_READ_FAILED;
+        }
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+    u64 flaky_from_ = 0, flaky_to_ = 0;
+    bool armed_ = false;
+};
+
+/* the two-disk spanned-LDM fixture with the concat order REVERSED: the
+ * volume's first member is DISK 2 (carrying the FAT16 volume), the second
+ * is disk 1 (the scanned disk, carrying the LDM database). A transient
+ * fault on disk 2's boot-sector read is the finding's falsifiable case. */
+TEST(Orchestrator, SpannedLdmTransientMemberFaultScans) {
+    using testfixture::LdmFixture;
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 6144; /* 3 MiB per member (the FAT fits) */
+    const char* G1 = "01020304-0506-0708-090A-0B0C0D0E0F10";
+    const char* G2 = "11121314-1516-1718-191A-1B1C1D1E1F20";
+
+    auto build_disks = [&](std::vector<u8>& img1, std::vector<u8>& img2) {
+        for (u32 i = 0; i < 2; i++) {
+            LdmFixture fx(20480);
+            fx.set_disk(1000 + i, i == 0 ? G1 : G2);
+            fx.add_dgr4(1, "TestPCDg0");
+            fx.add_dsk4(1000, "Disk1", G1);
+            fx.add_dsk4(1001, "Disk2", G2);
+            fx.add_volume({2000, "Span1", 3, PART_SIZE * 2, 1});
+            fx.add_component({3000, "Span1-01", cr::table::LDM_COMP_CONCAT, 2, 2000, 0, 0});
+            /* concat order REVERSED: disk 2 is the volume's FIRST member */
+            fx.add_partition({4001, "Disk2-01", PART_START, PART_SIZE, 0, 3000, 0, 1001});
+            fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, PART_SIZE, 3000, 1, 1000});
+            fx.finish();
+            if (i == 0)
+                img1 = fx.take();
+            else
+                img2 = fx.take();
+        }
+        /* the FAT16 volume plants at the START of the span = disk 2 */
+        auto fat = build_fat16();
+        assert(fat.size() <= PART_SIZE * 512);
+        std::memcpy(img2.data() + PART_START * 512, fat.data(), fat.size());
+    };
+
+    std::vector<u8> img1, img2;
+    build_disks(img1, img2);
+
+    /* the member GUIDs as the parser sees them (the fixture writes the
+     * GUID text bytes into PRIVHEAD+0x30 - parse, never hand-build) */
+    table::LdmGuid g1{}, g2{};
+    {
+        MemDevice probe_dev(img1);
+        table::LdmInfo probe_info;
+        ASSERT_EQ(OK, table::parse_ldm_database(&probe_dev, probe_info));
+        ASSERT_TRUE(probe_info.found);
+        ASSERT_EQ(size_t(2), probe_info.disks.size());
+        g1 = probe_info.disks[0].guid;
+        g2 = probe_info.disks[1].guid;
+    }
+
+    /* the raw-member leg (the PRE-FIX production shape): the probe's
+     * boot-sector read fails outright -> family Unknown -> the volume
+     * scans empty - the finding's silent loss */
+    {
+        MemDevice disk1(img1);
+        FlakyFirstDevice disk2(img2);
+        disk2.flaky_range(PART_START * 512, PART_START * 512 + 512);
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = true;
+        cfg.run_deep = false;
+        cfg.run_carve = false;
+        cfg.whole_disk = true;
+        cfg.ldm_resolver = [&disk1, &disk2, &g1, &g2](const table::LdmGuid& g) -> IStorageDevice* {
+            if (std::memcmp(g.b, g1.b, 16) == 0)
+                return &disk1;
+            if (std::memcmp(g.b, g2.b, 16) == 0)
+                return &disk2; /* RAW - the pre-fix member handoff */
+            return nullptr;
+        };
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&disk1, nullptr, nullptr, nullptr, stats));
+        u64 dyn_files = 0;
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->props())
+                        ++dyn_files;
+        EXPECT_EQ(u64(0), dyn_files)
+            << "the raw member handoff loses the whole volume to ONE transient fault";
+    }
+
+    /* the piped-member leg (the POST-FIX production shape): the same
+     * fault retries inside the member's own pipe - the boot sector
+     * reads on attempt 2, the FAT walk finds DOC.TXT */
+    {
+        MemDevice disk1(img1);
+        FlakyFirstDevice disk2(img2);
+        disk2.flaky_range(PART_START * 512, PART_START * 512 + 512);
+        orchestrator::ReadPipe member_pipe =
+            orchestrator::build_read_pipe(&disk2, 8ull << 20, 256 * 1024);
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = true;
+        cfg.run_deep = false;
+        cfg.run_carve = false;
+        cfg.whole_disk = true;
+        cfg.ldm_resolver = [&disk1, &member_pipe, &g1,
+                            &g2](const table::LdmGuid& g) -> IStorageDevice* {
+            if (std::memcmp(g.b, g1.b, 16) == 0)
+                return &disk1;
+            if (std::memcmp(g.b, g2.b, 16) == 0)
+                return member_pipe.pipe; /* the M-148 member pipe */
+            return nullptr;
+        };
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&disk1, nullptr, nullptr, nullptr, stats));
+        bool found_doc = false;
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->props() && c->name_utf8() == "DOC.TXT")
+                        found_doc = true;
+        EXPECT_TRUE(found_doc)
+            << "the member pipe must retry the transient fault and scan the volume";
+    }
+}
+
+TEST(Orchestrator, LdmMemberResolversConstructThroughBuildReadPipe) {
+    /* M-148's wiring pin (the M-136 grep precedent): BOTH platform
+     * resolver-arm sites construct the member's read chain through
+     * build_read_pipe - the same seam and constants the scan, the
+     * recovery writer, and the session-side LDM arm all use. The raw
+     * member handoff (`(*guid_map)[g] = dev.get()`) is the defect this
+     * pin forbids. */
+    const auto cli = cr_test::read_repo_text("src/app/rrecov.cpp");
+    ASSERT_FALSE(cli.empty());
+    EXPECT_NE(std::string::npos,
+              cli.find("ldm_member_pipes.push_back(\n                            "
+                       "orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024))"))
+        << "the CLI LDM member resolver must wrap members through build_read_pipe";
+    EXPECT_EQ(std::string::npos, cli.find("(*guid_map)[g] = dev.get();"))
+        << "the raw member handoff must not return (M-148)";
+    const auto ui = cr_test::read_repo_text("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(ui.empty());
+    EXPECT_NE(std::string::npos,
+              ui.find("s->ldm_member_pipes.push_back(\n                "
+                      "orchestrator::build_read_pipe(dev.get(), 8ull << 20, 256 * 1024))"))
+        << "the UI LDM member resolver must wrap members through build_read_pipe";
+    /* the session-side arm (d28244df) also pipes - one shape everywhere */
+    EXPECT_NE(std::string::npos, ui.find("ldm_pipes.push_back("))
+        << "the session-side LDM arm keeps its member pipes";
+}
+
+/* ---- N-216: the og's MaxFileSize cap (version.ini `[ver]` "MaxFileSize ",
+ * GiB units, default 0x400 -> 1 TiB; consumer DRWUI:750172-175: the
+ * tree-builder hides nodes whose size exceeds the cap, beside the
+ * junk-name gate) ---- */
+
+TEST(FilterFolder, MaxFileSizeDefaultIsOneTebibyte) {
+    /* the og's shipped posture: version.ini carries no key, the 0x400
+     * default applies, 1024 << 0x1e = 1 TiB (DRWUI:337923-337925 read
+     * first-hand: param_1[0xc] = value << 0x1e) */
+    EXPECT_EQ(filterfolder::max_file_size(), (u64(0x400) << 30));
+}
+
+TEST(FilterFolder, SizeCapHidesOversizeNode) {
+    /* a node whose size exceeds the cap flags as junk-filtered - the
+     * og's tree-builder visibility clear (FUN_140088f40(param_2,0) at
+     * DRWUI:750172-175, the same hide the name gate uses). A 2 TiB
+     * "file" (the torn-metadata shape the cap guards) flags; the exact
+     * cap boundary does NOT (the og's compare is cap < size, strict). */
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    auto add_file = [&](const char* name, u64 size) {
+        tree::FileProperties* pr = new tree::FileProperties();
+        pr->name = text::utf8_to_u16_lossless(name);
+        pr->logical_size = size;
+        pr->attributes = 0x20;
+        tree::FileNode* n = tree.add_file(root, pr);
+        pr->release(); /* add_file takes a reference, not ownership */
+        return n;
+    };
+    add_file("huge.bin", (u64(2) << 40));         /* 2 TiB > the 1 TiB cap */
+    add_file("boundary.bin", (u64(0x400) << 30)); /* exactly the cap: stays */
+    add_file("normal.bin", 4096);
+    const u64 flagged = filterfolder::apply(tree);
+    EXPECT_EQ(flagged, 1u);
+    tree::FileNode* huge = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "huge.bin")
+                huge = c;
+            find(c);
+        }
+    };
+    find(root);
+    ASSERT_NE(huge, nullptr);
+    EXPECT_NE(huge->props()->flags & tree::NODE_FLAG_JUNK_FILTERED, 0)
+        << "the oversize node hides (the og's tree-builder cap)";
+}
+
+TEST(FilterFolder, SizeCapHostOverrideRoundTrip) {
+    /* the og's per-host tunable (version.ini [ver] MaxFileSize, GiB
+     * units): the host sets the cap; 0 disables the predicate (the
+     * core's explicit off - the og has no 0 semantics, registered in
+     * PARITY-DELTAS) */
+    filterfolder::set_max_file_size(u64(2) << 30); /* 2 GiB */
+    EXPECT_TRUE(filterfolder::size_exceeds_cap((u64(3) << 30)));
+    EXPECT_FALSE(filterfolder::size_exceeds_cap(u64(1) << 30));
+    filterfolder::set_max_file_size(0);
+    EXPECT_FALSE(filterfolder::size_exceeds_cap(~u64(0)))
+        << "0 = the predicate off (no node hides on size)";
+    /* restore the default for the other tests */
+    filterfolder::set_max_file_size(u64(0x400) << 30);
+}
+
+TEST(ScanEvents, CarveStageBeginsBeforeDeepStage) {
+    /* N-181: the og starts the RAW (carve) controllers BEFORE the FS deep
+     * controllers inside the advanced phase (FUN_140580720's two loops,
+     * DRWUI:916484-916509) - carved files are visible while the deep pass
+     * is still sweeping. The core's stage model now runs the carve stage
+     * before the deep extras whenever the engine pass already emitted its
+     * nodes (quick_done_): the ScanStage begin sequence must read
+     * quick(0) -> carve(2) -> deep(1) in the standard configuration. The
+     * observable is the finding's own: the first carved-file event class
+     * precedes the deep stage's completion. */
+    struct StageSeqRecorder {
+        std::vector<std::pair<event::Type, u32>> seq;
+        static void on_evt(const event::Event& e, void* user) {
+            static_cast<StageSeqRecorder*>(user)->seq.emplace_back(e.type, e.stage);
+        }
+    };
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    StageSeqRecorder rec;
+    cfg.event_fn = &StageSeqRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    /* the stage-begin sequence */
+    std::vector<u32> begins;
+    for (const auto& [t, stage] : rec.seq)
+        if (t == event::Type::ScanStage && stage != 0xFFFFFFFFu)
+            begins.push_back(stage);
+    ASSERT_GE(begins.size(), 3u) << "all three stages must begin";
+    /* the STANDARD configuration's order: quick, carve, deep (N-181) */
+    EXPECT_EQ(begins[0], 0u) << "quick is first (the engine pass feeds the carve dedup)";
+    EXPECT_EQ(begins[1], 2u) << "carve begins before the deep extras (the og's RAW-first order)";
+    EXPECT_EQ(begins[2], 1u) << "deep follows (the extras: remnants + lost discovery)";
+    /* the carve results DID land (the stage completed truthfully) */
+    EXPECT_EQ(begins[begins.size() - 1] == 1u || begins[begins.size() - 1] == 2u, true);
+}
+
+TEST(ScanEvents, DeepFirstWhenQuickDisabledForTheCarveDedup) {
+    /* N-181's guarded configuration: with quick DISABLED the engine pass
+     * runs INSIDE run_deep and must precede carve (the F9
+     * carve-vs-structured extent dedup needs the engine nodes) - the
+     * original deep-before-carve order stands there. */
+    struct StageSeqRecorder {
+        std::vector<std::pair<event::Type, u32>> seq;
+        static void on_evt(const event::Event& e, void* user) {
+            static_cast<StageSeqRecorder*>(user)->seq.emplace_back(e.type, e.stage);
+        }
+    };
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = true;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    StageSeqRecorder rec;
+    cfg.event_fn = &StageSeqRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    std::vector<u32> begins;
+    for (const auto& [t, stage] : rec.seq)
+        if (t == event::Type::ScanStage && stage != 0xFFFFFFFFu)
+            begins.push_back(stage);
+    ASSERT_GE(begins.size(), 2u);
+    EXPECT_EQ(begins[0], 1u) << "deep first: the engine pass rides inside it";
+    EXPECT_EQ(begins[1], 2u) << "carve after: the F9 dedup has the engine nodes";
 }

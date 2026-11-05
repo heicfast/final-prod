@@ -1,5 +1,42 @@
 # modules/fat.md — FAT engine audit verdicts
 
+## S47 addendum (2026-10-29 — the session-47 severe-first fix lane)
+
+**A-014 FIXED** (session-47): the time-word gate landed in the shared
+`fat_datetime_to_unix_seconds` — the full DosDateTimeToFileTime reject set
+(hour>23 / minute>59 / 2s-field>29 → the zero FileTime via the N-021 mapping),
+verified first-hand against the corpus binary's own three zero-on-fail call
+sites (0x1800289d1/:a1f/:a51) and the exFAT sibling's FUN_180002f40 boundary
+set. The finding's exemplar date word 0x65C4 corrected to 0x64C4 (month 14 → 6).
+Tests: `FatEngine.TimeWord*` (5 boundary pins, RED pre-fix) +
+`FatEngine.ValidTimeWordBoundaryUnchanged` + the end-to-end
+`FatEngine.InvalidTimeWordPersistsAsZeroFileTime`. See
+../findings/FIXED/A-014-fat-time-word-validation-fabricates-shifted-timestamps.md.
+
+## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
+
+New active findings on this module: **A-014 FIXED** (ACUTE — time-word validation:
+hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
+where the og zeroes the slot, FAT:32135-54 — FIXED this session: the gate extended to
+the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vector
+cycle guard vs the og's range tree — stall-class); **M-130 — FIXED (session-52: the two-tier port
+  [walk-BREAK gates + emission-SKIP shape gates], 3 decode corrections, suite 1322/1322)**; **N-162** (the og's 32-bit cluster-math wrap registered
+— core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
+deferred failure); **N-172** (deleted-first-char `'#'` aligned + the
+LFN-checksum recovery registered as the deliberate superset D-120); **N-173** (the
+2106/2107 u32 clamp dropped). A-014's convergence addendum #2 (the S52 lane): the
+supplementary access-slot pin `FatEngine.InvalidTimeWordAccessSlotStaysReal` rides the
+merged tree (the og passes time word 0 for the access slot — it keeps its real date
+while the failing slots zero; neither earlier test family asserted it).
+~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold,
+NtResCaseFoldFourWay + the BitLocker re-pin); ~~**N-176**~~ **FIXED (S46)** (the LFN
+illegal-char fallback landed — the 9-char gate in lfn_assemble,
+LfnIllegalCharFallsBackTo83 + LfnValidNameUnchanged).
+Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
+geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
+condition bytes.
+
+
 Reference: FATSearchDLL per corpus artifacts `SearchDLL/fat-engine--deep-dive.md`,
 `fat-exfat-engine-internals.md`, `fat-exfat-engine-algorithms-v2.md`, `CORRECTIONS.md` row 3;
 decompiled evidence in `evidence/decompiled-quotes/exfat-dentry-validation.md` (Q2/Q3).
@@ -31,7 +68,8 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
   (root-causes.json, other session's lane).
 - **B7 sparse/ADS** — `NA` (not a FAT concept beyond chain model).
 - **B9 timestamps** — `M` DOS date/time → 100ns-1601 (tenths discarded — 2 s resolution is
-  the format's own).
+  the format's own). Time-word range gates now match the og's DosDateTimeToFileTime
+  accept set exactly (A-014 FIXED this session; month/day were already N-021).
 - **B10 filename/Unicode** — `M` LFN glue (0x40 last-entry + 0x0F attr checks, og :11442
   verified), 0x05→0xE5 KANJI escape, deleted-LFN recovery (above); 8.3 fallback '_'
   convention when no oracle.
@@ -242,3 +280,139 @@ NonRecycleDollarFilesStayRaw (fail-before EXECUTED — engine mutation
 3/4 RED; the over-matching pin green by design). B4/B5/D11 verdict:
 MATCH.
 
+
+## Fix-session delta (N-087 closed — 2026-10-28)
+
+- **N-087 → FIXED**: short_name_to_u16 decodes high-half 8.3 bytes
+  through the standard-verified CP437 table (the og persists raw OEM
+  bytes, ifileproperties-part1:121; the core's UTF-16 carrier converts
+  at the boundary). ASCII unchanged; the 0x05 KANJI escape + the
+  deleted-marker rewrite are caller behavior (unchanged) — 0x05 → 0xE5
+  → CP437 sigma. 3 tests (2 fail-before-proven RED on the reverted
+  build).
+
+- **N-162 FIXED** (session-43): the cluster→sector u64 width registered as
+  PARITY-DELTAS D-119 (the og's four 32-bit wrap sites vs the core's u64 — the
+  D-56/D-68 numeric-hygiene family's FAT member);
+  FatEngine.ClusterOffsetBeyond2TiB is the down-fix guard (the spec-max
+  cluster's exact address, the wrapped form explicitly not-equal).
+
+- **N-172 FIXED** (session-43): the deleted-name presentation decoded and aligned —
+  the og's placeholder is '#' (FUN_180036350 :44166-44172 re-read first-hand; the
+  B4/OQ-T2 cosmetic question closed); the no-oracle branch aligned from '_'; the
+  LFN-checksum original-byte recovery registered as PARITY-DELTAS D-120 (the
+  deliberate superset, GAP-S6-1's bench-proven bijection). Pins:
+  DeletedFirstCharPlaceholderIsHash + DeletedLfnChecksumRecoversOriginalByte + the
+  re-pinned #EL.TXT family (the placeholder sorts FIRST at 0x23 — the cr_ui
+  name-paging order re-derived).
+
+- **N-173 FIXED** (session-43): the u32 date clamp dropped — fat_date_to_unix
+  returns u64 end-to-end (the og's DosDateTimeToFileTime has no 2106 cutoff; the
+  FileTimes contract was always u64; the stale comment described a contract that
+  never existed). The N-021 invalid-date zero-FileTime semantics preserved exactly
+  (0 is now ONLY the invalid class). The FAT/exFAT decoder agreement restored
+  (both ride the shared unclamped core). Pins: Date2107ConvertsFullyNoClamp (the
+  0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
+  step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
+  corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-165 FIXED — the out-of-volume run-end stance registered.** Both og factory
+gates re-read first-hand (:10865-10903 / :28040-28075: the run-end sector-limit
+check, ReleaseTrace "File overflows partition!", the runlist destruction). The
+core's deferred-failure posture — the truncated-tail volume stays a
+first-class target, the overflow-tail file stays listed with its chain
+extents, the readable prefix recovers and the tail discloses as Salvaged at
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-130 (renumbered from the collided D-136 at N-207) and pinned by
+FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
+chain's own: the truncation is recovery-time knowledge). No behavior change,
+per the finding's own plan.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-064** (SEVERE — engine-open flavor selection
+is string-driven in the og (FUN_18002f970), bracket-driven in the core; on
+string/bracket disagreement the core decodes 12-bit entries where the og decodes
+16-bit — wrong-content class), **N-188** (the FAT1/FAT2 media-word re-flavor
+refinement absent; lands with S-064 as the og's two-step decision sequence).
+Verified-MATCH this session: the og gate set at :38044-38062 re-derived field by
+field (numFATs/spc-set/bps/root-entries/spf/signature), the flavor-0xE-only consumer
+bail, the bracket function's lost-scan-only placement, the FAT16 exact media check's
+M-015 port confirmed, and the u64 cluster math (D-119 stands).
+
+## S70 lane (2026-10-29): N-201 landed
+
+**N-201 FIXED** — the quick-open media-word re-flavor: after the string-first
+validator and the engine-open gates, scan_fat now runs
+`refine_flavor_by_media_words` — the og's FUN_180021000 two-leg probe (FAT1's
+first sector, then FAT2's at the string-flavor's spf offset, last read wins).
+The shape family is RAW-ASM-verified (objdump of FATSearchDLL.dll
+0x180021171-0x18002127c): the F8 family `(FAT[0] & 0x0FFFFFFF) == 0x0FFFFFF8`
++ the FAT[1] EOC-mask pair, the F0 reserved-window family, the FAT16-exact
+`0xFFFFFFF8` — Ghidra's decompiled text had a dropped mask digit (0x0FFFFFF,
+tautologically false) and a mis-rendered branch target (the 0xFFFFFFFF media
+word assigns nothing in either leg). Reachability is string-flavor-gated (the
+og bails at 0xE before the legs; the core's D-94/I-002 Fat12 superset
+untouched). The flavor flip re-derives the flavor's own BPB field family
+(validate_boot's tail extracted to derive_flavor_dependent_fields — S-064's
+string-override hybrids are coherent by the same path). M-015 stays the final
+gate. Registered boundaries: the og's no-assignment decline + backup-boot
+retry NOT ported (the core's tolerant Fat32 media posture stands); the og's
+mis-flip on FAT16 volumes with EOC at clusters 2,3 (packed entries fire the
+F8 mask) registered as an I-045-family defect NOT adopted — adoption requires
+the indicated flavor's own spf field usable (nonzero). B1/A25 rows now MATCH.
+RED→GREEN: HybridStringFat16MediaFat32ReflavorsToFat32; pins:
+Fat2ReadWinsOverFat1 + ConsistentVolumeUnreflavored; FatEngine 87/87.
+
+## Session-77 addendum (the S79 continuation audit lane; core `3799dee2`, re-verified at `0da3490b`, corpus `be0cfe9`)
+
+- **S-068 (SEVERE, NEW):** the FAT32 deleted first-cluster high-16 re-base — the og's
+  `DAT_1800728c8` last-good-hint machinery (the update at :13757-58, the low-16-only re-base
+  at :14753-55 under `uVar5 < 0x10000 && uVar5 < hint`, the retry walk + the dentry
+  write-back at :14834-48 under the `0x310000 < hint` big-volume gate); the core takes the
+  dentry's high word verbatim (`cr_fat_quick.cpp:289` at the re-verified pin) — wrong content
+  or dropped files on the torn-high-word deleted population. Distinct from N-172 (the
+  first-CHAR naming) and M-130 (the dentry shape validator); N-201's landing (the media-word
+  re-flavor) does not touch this seam. Evidence: `s79-lead-verification.md` §A.
+
+
+## S80 addendum — S-068 FIXED: the deleted FAT32 high-16 re-base (2026-10-29)
+
+**The last-good-hint machinery landed (the SEVERE tier closes).** All
+three og sites verified first-hand before the fix (:13753-13758 the
+hint update, :14753-14755 the low-16 re-base, :14826-14848 the deleted
+retry + write-back). The landing: EmitCtx.last_good_first_cluster —
+the scan-global hint (DAT_1800728c8), moved only by successful
+non-directory file walks; the deleted-dentry pre-walk re-base — FAT32
+only, the low-16-only shape (`< 0x10000 && < hint`), the candidate
+`hint_high | dentry_low16` walked before the raw walk, ADOPTED only
+when the re-based cluster's own FAT entry is live (the og's
+walk-confirmation gate — a FREE entry at the re-based cluster is the
+unlinked shape and never adopts); the adopted emission stamps the
+repaired pair as the origin cluster (the og's in-memory dentry repair
++0x14/+0x1a), carries the assumed/inferred provenance (never
+Excellent), and counts in FatScanStats.high16_rebased. The failed
+re-based walk falls back to the raw dentry value (the og's first-leg
+behavior; GAP-S6-2 still applies on the raw path). Open refinements
+recorded in the finding's S80 addendum: the og's hint-update
+refinement gate (param_5 undecoded) and the retry leg's distinct
+target (undecodable from the walk's return-on-failure; the pre-walk
+re-base covers the population). Tests: DeletedHigh16ZeroRebasesFromHint
+(the true-chain extent + the repaired origin stamp + PartialRisk) /
+DeletedHigh16RebaseFallsBackToRawWalk (FREE at the re-based cluster:
+no adoption, the raw walk decides) / LastGoodHintUpdatesOnlyOnFileWalks
+(a directory dentry between the anchor and the torn file never
+clobbers the hint) / FAT16NoRebase (the flavor gate). RED first-hand
+via the stash dance; suite 1604/1604.
+
+**Repair note (this session):** the `9b4a9302` trail commit's variant
+(`hint > 0x310000` on the pre-walk re-base) was the corpus-divergent
+reading — the big-volume gate guards the :14834 retry leg only (both
+of the constant's occurrences in the whole decompile are on retry
+legs; the :14754 site-1 re-base carries no such gate). The gate was
+removed from the re-base at the repair; the two RED tests
+(DeletedHigh16ZeroRebasesFromHint, LastGoodHintUpdatesOnlyOnFileWalks)
+green again; suite 1657/1657. The full record: the finding's repair
+addendum + N-220's convergence addendum (the red-window class record).
