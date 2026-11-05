@@ -15965,3 +15965,35 @@ output-identity pins that must hold), a baseline source-lane dispatch
 (validates --deep AND captures the pre-optimization source-lane numbers),
 then the two levers, each with output-identity proof, unit tests, the full
 local suite, and the source-lane measurement as the accept/revert gate.
+
+---
+
+## Session 97 — entry 11: the doc-truth lesson + the concurrent-lane coordination (session-98 opens mid-flight)
+
+**The red-CI lesson (two failed Checks runs, 42030165890 + 42046129236,
+and the first v0.7.1 release attempt's validation failure):** the
+benchmarking.md rewrite (a0a757fe) cited the deleted CI surfaces
+(`comparative-bench.yml`, `api-benchmark.yml`) with the historical
+marker on a DIFFERENT line than the names — the doc-truth gate's rule is
+line-local. The local gate's doc-link check passed (links resolve; the
+truth gate is CI-side). Fixed at 13a53c36 (markers on-line, verified
+green locally with tools/doc_truth_gate.py before the push); the v0.7.1
+tag re-pointed to the fixed commit and the release re-triggered (the
+first attempt failed BEFORE publishing - no orphan release exists).
+Process note: run `python3 tools/doc_truth_gate.py` before pushing doc
+changes that touch CI-surface citations - it is the one CI gate the
+local ci-local.sh does not run.
+
+**The concurrent lane:** session-98 opened on main mid-flight (978287ec,
+the owner's continuation prompt - it inherits PERF-LEVERS §3's frontier
+and the pending validations). Per the SA-9 concession discipline: this
+session rebased on top (b2d6131b, 13a53c36), coordinates through the
+worklog, and clobbers nothing. The in-flight validations (the source
+lane at 9d78ed9d, the release at 13a53c36) test commits that include
+both lanes' work.
+
+**In flight at this entry:** the v0.7.1 release (42049915644, at
+13a53c36 - validate → build → publish → the auto-dispatched
+test-benchmark against the fresh tag) and the source-lane validation run
+(42046142869, at 9d78ed9d: the --deep fix + the wall-span fix + the
+re-baselined floors + the F12 fix - the T15 matrix validation).
