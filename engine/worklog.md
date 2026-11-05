@@ -15415,3 +15415,88 @@ before the removal (the lane no longer installs drivers - by design),
 and the attempted re-run against the driver-era release under the new
 lane correctly failed with the old exit-4 driver-absent refusal
 (evidence the removal is complete).
+
+---
+
+## Session 97 — entry 1: the performance-parity session opens (T1 — repos pinned, prompt archived, the pre-Phase-0 discovery set)
+
+**The mandate.** The driver is gone (v0.7.0, session-96); the core reads
+raw disks directly from user mode under administrator privilege and is
+correct and functional. This session's objective is **performance parity
+or superiority against the former driver-backed implementation** and
+**architectural parity with the reference where the corpus documents
+it** — correctness the invariant, every claim a captured measurement,
+every architectural claim a citation. The prompt is archived token-
+redacted at `worklog/session-performance-parity-prompt.md`.
+
+**Repos pinned (T1):** core `42971fb683851cdaaa9c04a429e3116602650ee9`
+(main, v0.7.0 released), corpus `be0cfe95ecf22ac67e0f3a823dd003163b196d38`
+(reference-only), and — resolved this session — the former driver repo is
+`heicfast/rda-driver` `323e75acf4cd745960813af4e7fd586a4a34d1a0` (tag
+v0.2.4): the exact tree the prior session's `worklog/DRIVER-CONTRACT.md`
+was written against (the session prompt's URL field pointed at the corpus
+repo, whose driver content is the og product's seven RE'd drivers — the
+rda-driver repo is the actual removed driver; read-only, never modified).
+
+**The discovery set (first-hand, before any agent spawned):**
+
+1. **PERFORMANCE.md §2 is the session's open ledger** — the prior session
+   left the direct-path measurement table "TO FILL", and the v0.7.0
+   release auto-dispatched benchmark run **41140212296 FAILED** at the
+   matrix step, so §2 was never filled.
+
+2. **The v0.7.0 clean-volume numbers already exist inside the failed
+   run's evidence artifact** (07-performance/, same verbs, same runner
+   class, same 8 GiB 512e VHDX disk profile as the baseline of record):
+   seq 1 MiB **544.17 MiB/s** (baseline 536.92, +1.4%), rand 1 MiB
+   **1976.72 µs / 506 IOPS** (baseline 1993.22 µs / 502), open
+   **9,213 ns** (baseline 17,019 — 46% faster), quick wall **27 ms**
+   (baseline 150), deep wall **16,467 ms** (baseline 16,505 — parity),
+   deepcarve 8 GiB **1,014,235 ms** (baseline 1,501,622 — **32% faster**),
+   API open 0.5 ms / scan mask-7 **1,113,445 ms** (baseline 1,513,222 —
+   **26% faster**) / save 9.3 / recovery 36.8 ms (82 files, same shape).
+   On the clean-volume metrics the direct path is already at parity or
+   better on every row. These are candidate §2 numbers pending the
+   harness defects below.
+
+3. **The scenario-matrix failures decompose into three classes** (the
+   run's gates.md, summary.json, and per-scenario verdicts):
+   - **Pre-existing, NOT a direct-path regression:** recall-0 on every
+     floor-gated scenario — the driver-backed baseline run 41042267586
+     shows the **same recall-0** (S-DEL-NTFS verdict: hash_matched 0,
+     files_seen 92, all 0-byte placeholders; v0.7.0: 94/3-name-matched —
+     statistically identical). The old lane had no gate table so the
+     baseline run rendered green; session-96's gate discipline now
+     enforces what was always broken. The recovery inventory in BOTH
+     eras contains only 0-byte directory-skeleton entries.
+   - **Stale harness expectation (session-96 miss):** the API-lane gate
+     asserts `transport == 'rda'`; the transport is now `'direct'` —
+     every API scenario carries the spurious "expected rda" failure
+     reason on top of its real one.
+   - **New and undiagnosed:** S-PART-DELETE (a scenario added after the
+     baseline run) threw "scan deepcarve produced NO session and was not
+     capped" — the whole-disk deepcarve scan on the partition-deleted
+     disk exits within ~0.5 s without producing a session, and the
+     exception path archived NO scan stdout/stderr (an evidence gap in
+     Run-Benchmark.ps1's no-silent-skip path — the subprocess logs were
+     not copied to evidence before the throw).
+
+4. **The bench harness's own shape** (test-benchmark.yml, read end to
+   end): workflow_dispatch-able (core_tag/profile/scan_modes/reason),
+   windows-2022, tests PUBLISHED RELEASES only (never source builds),
+   concurrency group `test-benchmark` (cancel-in-progress), structured
+   evidence artifact always uploaded. Consequence: per-optimization
+   measurement requires either a release publish or a new source-build
+   benchmark lane — a T6 design decision.
+
+**The session's CI-state facts:** Checks green at main (41132255489,
+1740/1740 MSVC — the prior session's last green); installer gates green
+(41134725130); Release v0.7.0 green (41136845316); test-benchmark RED
+(41140212296 — the classes above). Toolchain pinned in this sandbox to
+the CI's own versions: cmake 4.4.4, ninja, clang-format 18.1.8, gcc
+14.2.0; hooks installed (`core.hooksPath .githooks`); the pre-commit
+secrets gate is live (the token never enters the tree).
+
+**Next:** T2 — the five Phase-0 agents (A corpus / B core / C driver /
+D consumers / E platform) with this discovery set seeded into their
+briefs; the five sheets pushed before any code change.
