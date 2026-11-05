@@ -204,12 +204,8 @@ error-codes.json session rules.
 
 ## 10. System — bridge surfaces
 
-- `DriverStatus`: installed = SCM service `RDA` exists; running = service
-  running AND device `\\.\RDA` opens; version from IOCTL GET_VERSION
-  (`driver/src/shared/inc/rda_ioctl.h`) when open; `note` carries the truthful
-  unsigned/test-signing posture.
 - `AppInfo`: `{name: Tauri productName, version: root VERSION, engineVersion:
-  null (G-6 — no engine version export; ABI version 2 is a contract number,
+  null (G-6 — no engine version export; ABI version 4 is a contract number,
   not a product version), platform: OS version string}`.
   `connectorMode` is REMOVED from the contract (mock gone — one real backend).
 - `DestinationValidation`: same-letter source → `{allowed:false,
