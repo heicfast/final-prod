@@ -1,5 +1,12 @@
 # Context Sheets (evidence base for the consolidation)
 
+> **ARCHIVED 2026-11-05 (consolidation session):** this is frozen Phase-(-1)
+> evidence of the DRIVER-ERA product, preserved as an audit trail. The kernel
+> driver was removed and the core advanced to ABI v4 in this session (commit
+> 318b9655 and successors); see `worklog/INTEGRATION-PLAN.md` for the current
+> reality. Nothing in this sheet describes the shipped product anymore.
+
+
 These five sheets are the exhaustive, citation-backed record of the four source
 repositories and the reference product, produced by parallel read-only agents
 (2026-10-26) before any change was made. They are frozen evidence, not living

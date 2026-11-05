@@ -1,5 +1,24 @@
 # PRODUCT-WIRING — runtime wiring map of the merged product (v0.6.0-rc1, af5c838a)
 
+> **STATUS CORRECTION (2026-11-05, consolidation session).** This map is
+> the dated forensic survey of the **v0.6.0-rc1 pre-consolidation tree**;
+> its `:line` citations and seam inventory are preserved as the audit
+> trail. The product has since moved twice underneath it: (1) the kernel
+> driver is REMOVED (commit 318b9655) — the transport is user-mode direct
+> `\\.\PhysicalDriveN` / `\\.\HarddiskVolumeN` opens under an
+> administrator token; the `ERR_DRIVER_REQUIRED` wiring documented below
+> (A.1/A.3/A.8/C-1/D) is replaced by **elevation-required wiring**:
+> non-elevated raw-disk verbs refuse with `ERR_ELEVATION_REQUIRED`
+> (0x500C0001) and the CLI exits 4; 0x50020007 is now
+> `ERR_DEVICE_DISCONNECTED` (device-gone, reattach-then-resume); the
+> `system_driver_status` driver surface is deleted from the UI (the
+> command stays in `contracts/command-surface.json` only until P4
+> regenerates the manifest). (2) The UI is re-based onto the
+> recovery-wizard-ui-new v3 wizard base (mock connector is the interim
+> state) — P4 lands the real engine wiring through the connector seam.
+> The seam ANALYSIS below (bridge path model, event marshaling,
+> silent-failure classes) remains the reference for that rewire.
+
 Task T4-A. Read-only forensic map. Every claim carries `path:line` (paths relative to repo
 root `final-prod/`). This document explains how the shipped product actually runs end to end
 and enumerates every seam where the pipeline can silently fail, produce empty output, or
@@ -221,7 +240,11 @@ Load: `session_load` (`sessions.rs:240-364`) → `cr_ui_session_load` → regist
 terminal state; **source device re-attach is best-effort by model+serial+slice**
 (`sessions.rs:373-419`) — absent/ambiguous ⇒ preview/recovery fail truthfully per node.
 
-### A.8 Driver status / system
+### A.8 Driver status / system  
+**[HISTORICAL — the driver, the `RDA` service, and this command's driver
+surface are removed (commit 318b9655); the elevation-required banner +
+restart-as-administrator wiring replaces it in the UI (P4). The command
+remains in the 34-command manifest until P4 regenerates it.]**
 
 `system_driver_status` (`ui/src-tauri/src/commands/system.rs:39-134`): SCM service `RDA` +
 `\\.\RDA` open + `IOCTL_RDA_GET_VERSION (0x60002448)` (`system.rs:15-17`). The engine↔driver

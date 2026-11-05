@@ -1,3 +1,9 @@
+> **ARCHIVED 2026-11-05 (consolidation session):** this is frozen Phase-(-1)
+> evidence of the DRIVER-ERA product, preserved as an audit trail. The kernel
+> driver was removed and the core advanced to ABI v4 in this session (commit
+> 318b9655 and successors); see `worklog/INTEGRATION-PLAN.md` for the current
+> reality. Nothing in this sheet describes the shipped product anymore.
+
 > **HISTORICAL SNAPSHOT (T2, pre-integration).** This sheet records the UI
 > repository's state AS MERGED — including the simulated backend this tree
 > arrived with. The simulator is GONE (worklog 2026-10-26T16:00Z;

@@ -1,5 +1,12 @@
 # REFERENCE-INSTALLER.md — EaseUS Data Recovery Wizard (DRW): Installer Behavior Record
 
+> **ARCHIVED 2026-11-05 (consolidation session):** this is frozen Phase-(-1)
+> evidence of the DRIVER-ERA product, preserved as an audit trail. The kernel
+> driver was removed and the core advanced to ABI v4 in this session (commit
+> 318b9655 and successors); see `worklog/INTEGRATION-PLAN.md` for the current
+> reality. Nothing in this sheet describes the shipped product anymore.
+
+
 > Task 2-d2 (Agent D2). READ-ONLY analysis of the reference corpus at
 > `/home/z/my-project/work/easeus-drw-research` (commit 03ad46c). No repository file modified.
 > Scope: installer technology, install sequence, elevation, registry writes, service/driver

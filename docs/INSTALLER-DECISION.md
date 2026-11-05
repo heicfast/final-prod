@@ -5,6 +5,18 @@ does not feel like a production product." This document records the
 technology research, the decision, and the trade-offs — evidence-based, not
 preference-based.
 
+> **Status correction (2026-11-05, consolidation session).** The
+> NSIS decision itself STANDS (reaffirmed with a new, simpler rationale:
+> the product now has no driver, no service, and no certificate machinery
+> at all, so NSIS's native file/registry operations cover the entire
+> install). The driver-specific reasoning recorded below — the SCM column
+> of the candidate table, decision point 2, and the rebuild's
+> driver-registration flow — is REVERSED: the kernel driver was REMOVED
+> from the product entirely (commit 318b9655), taking the `SEC_DRIVER`
+> section, the `System32\drivers` copy, the service create, and the
+> cert-store imports with it. The broken-flow evidence and the rebuild
+> history are kept as the audit trail of the 0.6.x line.
+
 ## What was actually broken (the evidence)
 
 The forensic reproduction of the shipped v0.6.0-rc1 (run 40465852724,
@@ -27,7 +39,7 @@ install; `:608,649,651` uninstall). ExecWait = a visible console child.
 |---|---|---|---|---|
 | No visible consoles | ✓ achievable (`nsExec` hides + logs; native ops for the rest) | ✓ | ✓ | ✓ |
 | Standard UAC elevation | ✓ already (`RequestExecutionLevel admin`) | ✓ | ✓ | ✓ (must build it) |
-| Driver install honoring Windows norms | ✓ SCM via `sc.exe`/registry — same mechanism the reference uses natively | DIFxApp is **deprecated**; the WiX driver extension targets PnP driver packages, our kernel service is SCM-registered | ✓ via [Run] sc.exe/pascalscript | ✓ but hand-rolled |
+| Driver install honoring Windows norms *(column historical — no driver exists since commit 318b9655; the current installer has no machine-level component to install beyond files + registry)* | ✓ SCM via `sc.exe`/registry — same mechanism the reference uses natively | DIFxApp is **deprecated**; the WiX driver extension targets PnP driver packages, our kernel service is SCM-registered | ✓ via [Run] sc.exe/pascalscript | ✓ but hand-rolled |
 | Reference product's own mechanism | — | — | the reference uses Inno + a bootstrapper, but that is *its* choice, not a norm | its bootstrapper exists for 16-OS gating we do not need |
 | Deterministic uninstall / update / repair | ✓ (T15-verified reinstall-over + byte-exact repair; repair = rerun) | ✓✓ (MSI-native repair/upgrade semantics) | ✓ | ✗ all hand-built |
 | Reproducible from clean checkout | ✓ already (build.ps1 → makensis, VERSION single-source, !error define contract) | needs WiX toolchain in every build lane | needs Inno toolchain in the lanes | needs a full C++/MSVC app + its own build |
@@ -46,7 +58,10 @@ not technology defects. The evidence:
 2. The driver is an SCM-registered kernel service (like the reference's
    `eprdtdrv` — `CreateService`, group "Boot File System"), NOT a PnP
    driver package; MSI's driver-installation story (DIFxApp) is deprecated
-   and would not change the mechanism anyway.
+   and would not change the mechanism anyway. **[Reversed 2026-11-05:
+   there is no driver and no service to install anymore (commit
+   318b9655); the argument is historical. The surviving argument for NSIS
+   is points 1, 3, and 4 plus the new simplicity: files + registry only.]**
 3. The T15 runtime matrix already validates this installer's install /
    update / repair / uninstall choreography end to end on clean Windows
    runners (run 40442056802, GREEN); a technology migration would discard
@@ -57,6 +72,11 @@ not technology defects. The evidence:
    corrupted `cr_ui.dll`), both documented in `docs/INSTALLER.md`.
 
 ## What changed (the rebuild)
+
+**[The driver-era items below are historical — removed with the driver
+(commit 318b9655). What the current installer keeps from this rebuild:
+zero PowerShell anywhere, zero helper spawns, the persistent install
+log, the abort-path hygiene, and the complete-uninstall guarantee.]**
 
 - **Driver registration is native** (no `install.ps1` execution): WOW64-safe
   copy to `System32\drivers` (`x64.nsh` redirection control — the 32-bit
@@ -79,7 +99,9 @@ not technology defects. The evidence:
 ## What was rejected, and why (honestly)
 
 - **MSI/WiX**: deprecated driver-installation integration for the SCM
-  service model we ship; full choreography rewrite discarding verified
+  service model we shipped **[historical — no driver/service since commit
+  318b9655; the remaining MSI argument is its native repair/upgrade
+  semantics]**; full choreography rewrite discarding verified
   behavior. Revisit only if the product moves to PnP driver packages or
   needs enterprise policy deployment (AD/GPO MSI distribution).
 - **Inno Setup**: capable, but migrating to the reference's installer

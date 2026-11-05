@@ -10,6 +10,21 @@
 > `docs/INTEGRATION-VALIDATION/t15-runtime-matrix/*`, and the prior context sheets.
 > No file was modified by this task except this sheet + the shared worklog.
 
+> **STATUS CORRECTION (2026-11-05, consolidation session).** This sheet
+> surveys the **v0.6.0-rc1 driver-era installer**; the kernel driver has
+> since been REMOVED from the product entirely (commit 318b9655):
+> `driver/` deleted, the NSIS de-driverized (no `SEC_DRIVER`, no
+> cert-store imports, no service — a privilege information page instead),
+> `build.ps1`'s driver lane removed, driver-ci deleted. Every
+> driver/service/certificate/`System32\drivers`/console-spawn row below is
+> **historical evidence about the 0.6.x line** — kept as the audit trail,
+> not current truth. The CURRENT footprint is §A.1's flat 8-file install
+> dir (`recovery-wizard-ui.exe`, `uninstall.exe`, `cr_ui.dll`,
+> `rrecov.exe`, the vcpkg runtime DLLs as a class, `HeicFastUninstall.exe`)
+> + the ProgramData `{sessions,logs}` tree + the product registry keys —
+> nothing in `System32`, no service, no certificates; see the corrected
+> totals under Quick totals.
+
 ---
 
 ## A. The complete installer footprint (`RecoveryWizard-0.6.0-rc1-setup.exe`)
@@ -22,7 +37,8 @@ install dir `C:\Program Files\HeicFast\Recovery Wizard` (`$PROGRAMFILES64\HeicFa
 (`docs/INTEGRATION-VALIDATION/t15-runtime-matrix/03-after-install.json`), run 2026-10-27 on a
 clean windows-2022 runner (test signing ON).
 
-### A.1 Files in `$INSTDIR` (root — 8 files, T15-observed)
+### A.1 Files in `$INSTDIR` (root — 8 files, T15-observed; **this IS the complete current set post-consolidation — nothing else is placed**)  
+*[(2026-11-05: the sizes/"dev test-signed" annotations below are the 0.6.x observations; the module set itself is unchanged by the driver removal — the `driver\` subdir of A.2 is what went away.)]*
 
 | # | File (on machine) | Source in build | Size (v0.6.0-rc1) | Placed by | What it is |
 |---|---|---|---|---|---|
@@ -38,7 +54,8 @@ Note: `cr_ui.lib` is staged into the kit (`build.ps1:113`) but **excluded** from
 `WebView2Loader.dll`, no VCRT/UCRT DLLs ship (T15 inventory is the complete set; the app exe
 is the only CRT carrier, statically linked).
 
-### A.2 Files in `$INSTDIR\driver\` (7 files — `recoverywizard.nsi:283-290`)
+### A.2 Files in `$INSTDIR\driver\` (7 files — `recoverywizard.nsi:283-290`)  
+**[HISTORICAL — REMOVED 2026-11-05 (commit 318b9655): this entire directory, its staging, and the signed-drop-in surface no longer exist.]**
 
 | # | File | Source | Size | What it is |
 |---|---|---|---|---|
@@ -53,13 +70,14 @@ is the only CRT carrier, statically linked).
 The driver staging dir is the "signed-drop-in surface": replace `driver\rda.sys` + reinstall
 without touching the app (`recoverywizard.nsi:281-282`).
 
-### A.3 Machine-level effects outside `$INSTDIR`
+### A.3 Machine-level effects outside `$INSTDIR`  
+**[Rows 1–4 and the certificate row are HISTORICAL (removed with the driver, commit 318b9655): no `System32\drivers` file, no SCM service, no kernel device, no cert-store writes exist in the current product. The ProgramData, product-key, uninstall-key, seed-key, shortcut, and `%TEMP%` rows below remain the current mechanism.]**
 
 | Effect | Exact target | Mechanism (cite) | Evidence |
 |---|---|---|---|
 | Driver file | `C:\Windows\System32\drivers\RDA.sys` (renamed from `rda.sys` to the service name) | `driver\install.ps1:58-59, 83` — copy with WOW64 FS-redirection disabled (`install.ps1:72-88`) + redirection-free verification (`:89-100`) | T15 facts: `driver ImagePath readback=\??\C:\Windows\System32\drivers\RDA.sys` (`02-install-facts.txt:7`) |
 | SCM service `RDA` | `HKLM\SYSTEM\CurrentControlSet\Services\RDA`: `type= kernel start= demand error= normal group= "Boot File System"`, `binPath= C:\Windows\System32\drivers\RDA.sys` | `sc.exe create` (`install.ps1:103`), spawned by the .nsi via `powershell.exe -File install.ps1` (`recoverywizard.nsi:349`) | service `Running` (`03-after-install.json:24`) |
-| Service Parameters | `...\Services\RDA\Parameters`: `IoctlBase=0`, `MaxDisks=200`, `DebugLevel=1`, `SessionsEnabled=1` (DWORDs) | `install.ps1:106-111` | `driver/scm` semantics per `docs/context-sheets/DRIVER-DEPLOYMENT.md` §4.3 |
+| Service Parameters | `...\Services\RDA\Parameters`: `IoctlBase=0`, `MaxDisks=200`, `DebugLevel=1`, `SessionsEnabled=1` (DWORDs) | `install.ps1:106-111` | `driver/scm` semantics per `worklog/context-sheets/DRIVER-DEPLOYMENT.md` §4.3 |
 | Kernel device | `\Device\RDA` + `\DosDevices\RDA` → user path `\\.\RDA` | derived from service name at DriverEntry (DRIVER-DEPLOYMENT §2.1); device name = UPPER(service name) (`recoverywizard.nsi:128-130`) | `driverService: 4 (Running)` (`03-after-install.json:24`) |
 | Certificate stores | `LocalMachine\Root` + `LocalMachine\TrustedPublisher` ← `rda-testcert.cer` | `certutil -addstore -f Root` (`recoverywizard.nsi:301`) and `-f TrustedPublisher` (`:307`), BEFORE the service create | `certInRoot/certInTP: true` (`matrix.json:19-21`) |
 | ProgramData dirs | `C:\ProgramData\HeicFast\Recovery Wizard\sessions\` and `...\logs\` (empty, default inherited ACLs) | `CreateDirectory` ×2 (`recoverywizard.nsi:391-392`); ACL deviation recorded (`installer/README.md:110`) | created; `sessionsKept: true` after uninstall (`matrix.json:60`) |
@@ -70,14 +88,22 @@ without touching the app (`recoverywizard.nsi:281-282`).
 | `%TEMP%` lifecycle log | `%TEMP%\HeicFastRecoveryWizard-install-facts.txt` — ALWAYS written, appended at every phase (install/update/repair/uninstall) | `InstallFact` macro (`recoverywizard.nsi:107-112`), started in `.onInit` (`:560`) | `02-install-facts.txt` (12 lines for one install) |
 | `%TEMP%` abort reason | `%TEMP%\HeicFastRecoveryWizard-install-abort.txt` — only on Abort | `AbortWithReason` macro (`recoverywizard.nsi:88-95`) | consumed by the T15 failure path (`tools/validation/installer-matrix.ps1:152-153`) |
 
-**Footprint total (silent install, observed): 15 files under `$INSTDIR` (8 root + 7 in
+**Footprint total (silent install, observed — v0.6.0-rc1 driver-era): 15 files under `$INSTDIR` (8 root + 7 in
 `driver\`) + 1 file in `System32\drivers` + 2 empty ProgramData dirs + 4 registry keys
 (SW key, uninstall key, inner seed key, service key tree incl. Parameters) + the cert in 2
 stores + 2 `%TEMP%` log files.** Install wall-time 9,384 ms silent (`02-install-transcript.txt:4`).
 
+**CURRENT footprint total (post-consolidation, 2026-11-05): 8 files in a flat `$INSTDIR`
+(`recovery-wizard-ui.exe`, `uninstall.exe`, `cr_ui.dll`, `rrecov.exe`, the vcpkg runtime
+DLLs as a class — 3 in the 0.6.x kit, names vary — `HeicFastUninstall.exe`) + 2 empty
+ProgramData dirs + 3 registry keys (SW key — Version/InstallDir/InstallMode only, the
+driver value names are gone —, uninstall key, inner seed key) + the `%TEMP%` lifecycle
+logs. Nothing in `System32`, no service, no certificate anywhere.**
+
 ---
 
-## B. The complete portable.zip contents (`RecoveryWizard-0.6.0-rc1-portable.zip`)
+## B. The complete portable.zip contents (`RecoveryWizard-0.6.0-rc1-portable.zip`)  
+**[HISTORICAL driver-era contents — post-consolidation (commit 318b9655) the zip carries app + engine kit + README only: no `driver\` stage, no certificate; the README's instruction is to run the exe as administrator for raw-disk work.]**
 
 Assembled by `installer/portable.ps1` (invoked at `build.ps1:266-275`). The zip flattens the
 portable root (`portable.ps1:46-53`, compressed `:89-92`); the T15 matrix does **not**
@@ -99,7 +125,8 @@ The zip's SHA-256 is printed at build (`portable.ps1:94-96`) and folded into `SH
 
 ---
 
-## C. The build chain (single command → lanes → outputs)
+## C. The build chain (single command → lanes → outputs)  
+**[HISTORICAL driver-era chain — post-consolidation (commit 318b9655) the `Invoke-Driver` lane, the WDK restore, the `testsigning.cer` publish, and the `DRIVER_STAGE` define are all removed; `all` = contracts → engine → ui → installer → portable → checksums (docs/BUILD.md).]**
 
 **Single entry point:** `.\build.ps1 -Target all` (default `all`, `build.ps1:20, 288-304`;
 documented in `docs/BUILD.md:8-13`). Version read from the root `VERSION` file
@@ -357,7 +384,7 @@ these windows were never seen/verified by the matrix.)
    `portable.ps1` writes it beside the exe) — the old `ProgramData`-env-var check never
    detected portable mode. Contracts/README-PORTABLE/plan prose all describe the marker.
 7. **`contracts/README.md:50`** — still cites `VERSION` = `0.5.0`; actual `0.6.0-rc1`.
-8. **`docs/context-sheets/DRIVER-DEPLOYMENT.md` §5.1** — describes `install.ps1` with a
+8. **`worklog/context-sheets/DRIVER-DEPLOYMENT.md` §5.1** — describes `install.ps1` with a
    plain `Copy-Item` to System32 (§5.1 step 3, sheet line ~253) and §7 states "rda.sys
    ships unsigned" / "The build never signs" (sheet `DRIVER-DEPLOYMENT.md:294-295`). Both
    superseded by the mandatory-driver + dev-signing session: the copy is now WOW64-guarded
@@ -396,14 +423,24 @@ these windows were never seen/verified by the matrix.)
 
 ## Quick totals
 
-- **Installed product:** 15 files in `$INSTDIR` + `System32\drivers\RDA.sys` + 2 ProgramData
+- **Installed product (CURRENT, post-consolidation):** 8 files in a flat
+  `$INSTDIR` (`recovery-wizard-ui.exe`, `uninstall.exe`, `cr_ui.dll`,
+  `rrecov.exe`, the vcpkg runtime DLLs as a class,
+  `HeicFastUninstall.exe`) + 2 ProgramData dirs + 3 registry keys + the
+  `%TEMP%` lifecycle logs. No `System32\drivers` file, no service, no
+  certificate stores, nothing loaded into the OS. Uninstall removes
+  everything (sessions kept by default).
+- **Installed product (v0.6.0-rc1, historical):** 15 files in `$INSTDIR` + `System32\drivers\RDA.sys` + 2 ProgramData
   dirs + 4 registry keys + service `RDA` (demand-start) + cert in 2 stores + 2 `%TEMP%`
-  lifecycle logs. Uninstall leaves only the (by-design) `%TEMP%` logs — and, on the empty-
+  lifecycle logs. Uninstall left only the (by-design) `%TEMP%` logs — and, on the empty-
   sessions edge, the empty ProgramData tree.
-- **Portable zip:** 15 files (app + 7-file engine kit incl. `cr_ui.lib` + 7-file driver
-  stage + README), nothing installed, driver manual.
-- **Visible windows during install (interactive):** 3 consoles (certutil ×2, PowerShell ×1);
-  during uninstall: 3 (PowerShell ×1, certutil ×2).
+- **Portable zip (CURRENT):** app + engine kit + README — no driver stage;
+  nothing installed; run as administrator for raw-disk work. (Historical
+  0.6.x zip: 15 files incl. the 7-file driver stage.)
+- **Visible windows during install/uninstall (CURRENT):** none — the
+  driver-era console spawns (certutil ×2 + PowerShell ×1 per direction,
+  historical) are gone with the driver; the current installer spawns no
+  helper processes at all.
 - **Runtime mismatches — RESOLVED (batches 1-5):** (1) bridge logger shipped (NG-15,
   `logging.rs` writes the logs dir the installer creates); (2) portable sessions/logs land
   beside the exe via the marker probe (NG-18); (3) `cr_ui.lib` ships in the zip but not the

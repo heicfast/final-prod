@@ -1,5 +1,12 @@
 # CORE-SURFACE.md — core_recovery exhaustive context sheet
 
+> **ARCHIVED 2026-11-05 (consolidation session):** this is frozen Phase-(-1)
+> evidence of the DRIVER-ERA product, preserved as an audit trail. The kernel
+> driver was removed and the core advanced to ABI v4 in this session (commit
+> 318b9655 and successors); see `worklog/INTEGRATION-PLAN.md` for the current
+> reality. Nothing in this sheet describes the shipped product anymore.
+
+
 > Produced by Agent A (Task 2-a) from a line-by-line read of
 > `/home/z/my-project/work/core_recovery` @ `a574ecf6cc06a374e1ee0f893e574efef4904639` (branch `main`, "v0.4.0-parity" tree).
 > READ-ONLY analysis; no repository file was modified.

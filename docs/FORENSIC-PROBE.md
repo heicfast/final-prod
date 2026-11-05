@@ -1,5 +1,20 @@
 # FORENSIC PROBE — what the shipped product actually does (captured evidence)
 
+> **Status note (2026-11-05, consolidation session).** The runs and
+> findings below are dated evidence against the **v0.6.0-rc1 driver-era
+> build** and are preserved verbatim as the audit trail. The product has
+> since changed under them: the kernel driver is REMOVED (commit
+> 318b9655) — the engine now opens `\\.\PhysicalDriveN` directly from
+> user mode, the installer places no service/certificate/driver, and the
+> probe facts that used to assert "RDA service Running / dev cert in
+> stores" were replaced by **elevation-posture facts** (`collect-facts.ps1`
+> rewritten to capture the token state and the installed module set).
+> Future forensic-repro runs validate the driver-free posture; until
+> they land, read every driver/RDA/certificate observation below as
+> history of the 0.6.x line, not as current product truth. The
+> methodology (CDP-driven UI, seeded disks, process/window capture) and
+> the S2/S3/S4 seam findings are unaffected by the transport change.
+
 The cross-layer forensic probe of the installed product. Every observation
 below is captured evidence from a real Windows runner (GitHub-hosted
 `windows-2022`, elevated, Secure Boot OFF, image built with TESTSIGNING ON),

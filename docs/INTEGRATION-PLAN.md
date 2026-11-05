@@ -1,5 +1,20 @@
 # INTEGRATION-PLAN.md — final-prod consolidation gate document
 
+> **COMPLETION-STATUS BANNER (2026-11-05, the consolidation session).**
+> This is the PRIOR session's plan document and it is **superseded** as
+> the operative plan by `worklog/INTEGRATION-PLAN.md` (the consolidation
+> session's plan). Its body is preserved unmodified as the audit trail:
+> the driver-era sections below (the `driver/` sub-tree in §1–§2, the
+> transport assumptions, §7.4's installer/elevation decisions, the
+> mandatory-driver amendment at the bottom) describe the
+> **pre-consolidation product**, which no longer exists — the kernel
+> driver was REMOVED entirely in the consolidation session (commit
+> 318b9655: driver tree deleted, lanes/installer/workflows de-driverized,
+> engine advanced to user-mode direct raw-disk access with the
+> `ERR_ELEVATION_REQUIRED` posture, ABI v4). Read every driver
+> reference below as history. Current truth: `docs/ARCHITECTURE.md`,
+> `docs/BUILD.md`, `docs/RELEASE.md`, `docs/INSTALLER.md`.
+
 > Author: Agent E (consolidation draft, Task 2-e), reviewed and **APPROVED by the integrator**
 > at the gate review on 2026-10-26. This is the gate document: nothing is implemented before this
 > plan is committed and pushed (Task T3). Completion state of every item is recorded at the
@@ -30,11 +45,11 @@
 >   `main`; the §2.4 verification checklist is recorded in the session worklog and in
 >   `docs/INTEGRATION-VALIDATION.md` as it completes.
 > Inputs (read completely, line by line):
-> - `work/context/CORE-SURFACE.md` — core_recovery @ `a574ecf` (C++20 engine, 78 cr_ui exports, CR_UI_ABI_VERSION=2) — committed at `docs/context-sheets/CORE-SURFACE.md` — cited **[CORE §n]**
-> - `work/context/UI-SURFACE.md` — recovery-wizard-ui-new @ `f4a8f8a` (React 19 + Tauri 2, 36-method RecoveryConnector, MockConnector) — committed at `docs/context-sheets/UI-SURFACE.md` — cited **[UI §n]**
-> - `work/context/DRIVER-DEPLOYMENT.md` — rda-driver @ `da7efb9` (WDM rda.sys, unsigned by design) — committed at `docs/context-sheets/DRIVER-DEPLOYMENT.md` — cited **[DRIVER §n]**
-> - `work/context/REFERENCE-LAYOUT.md` — EaseUS DRW installed tree (og-codebase/, 1,470 files) — committed at `docs/context-sheets/REFERENCE-LAYOUT.md` — cited **[LAYOUT §n]**
-> - `work/context/REFERENCE-INSTALLER.md` — DRW installer/registry/service evidence (Inno Setup 5.5.x) — committed at `docs/context-sheets/REFERENCE-INSTALLER.md` — cited **[INSTALLER §n]**
+> - `work/context/CORE-SURFACE.md` — core_recovery @ `a574ecf` (C++20 engine, 78 cr_ui exports, CR_UI_ABI_VERSION=2) — committed at `worklog/context-sheets/CORE-SURFACE.md` — cited **[CORE §n]**
+> - `work/context/UI-SURFACE.md` — recovery-wizard-ui-new @ `f4a8f8a` (React 19 + Tauri 2, 36-method RecoveryConnector, MockConnector) — committed at `worklog/context-sheets/UI-SURFACE.md` — cited **[UI §n]**
+> - `work/context/DRIVER-DEPLOYMENT.md` — rda-driver @ `da7efb9` (WDM rda.sys, unsigned by design) — committed at `worklog/context-sheets/DRIVER-DEPLOYMENT.md` — cited **[DRIVER §n]**
+> - `work/context/REFERENCE-LAYOUT.md` — EaseUS DRW installed tree (og-codebase/, 1,470 files) — committed at `worklog/context-sheets/REFERENCE-LAYOUT.md` — cited **[LAYOUT §n]**
+> - `work/context/REFERENCE-INSTALLER.md` — DRW installer/registry/service evidence (Inno Setup 5.5.x) — committed at `worklog/context-sheets/REFERENCE-INSTALLER.md` — cited **[INSTALLER §n]**
 > Citations include the underlying repo file the sheet cites. Items that could not be verified from the
 > sheets are marked **OPEN-QUESTION** (disposition: see the integrator sign-off decisions in the
 > header). Where a sheet's evidence contradicted a proposed decision, the plan says so explicitly

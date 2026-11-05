@@ -1,5 +1,12 @@
 # DRIVER-DEPLOYMENT.md — RDA (Raw Disk Access) kernel driver, exhaustive deployment sheet
 
+> **ARCHIVED 2026-11-05 (consolidation session):** this is frozen Phase-(-1)
+> evidence of the DRIVER-ERA product, preserved as an audit trail. The kernel
+> driver was removed and the core advanced to ABI v4 in this session (commit
+> 318b9655 and successors); see `worklog/INTEGRATION-PLAN.md` for the current
+> reality. Nothing in this sheet describes the shipped product anymore.
+
+
 > Produced by Agent C (Task 2-c) from a line-by-line read of **every** tracked file in
 > `work/rda-driver` @ commit `da7efb9e0c94046893c62b25695bb95edf519f8b` (branch `main`, 66
 > tracked files, working tree clean). READ-ONLY analysis; no repo file was modified.

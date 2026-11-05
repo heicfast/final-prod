@@ -4,10 +4,16 @@ The mandate (§5): the reference installs far more than we do — verify,
 per artifact, whether that difference is (a) legitimate consolidation,
 (b) a Missing defect, (c) a Not-applicable feature we never claimed, or
 (d) a reference-only artifact with no analog. Sources:
-`docs/INSTALL-FOOTPRINT-CURRENT.md` (ours: 15 files + service + driver +
-registry + ProgramData) and `docs/REFERENCE-FOOTPRINT.md` /
+`docs/INSTALL-FOOTPRINT-CURRENT.md` and `docs/REFERENCE-FOOTPRINT.md` /
 `docs/REFERENCE-MODULES.md` (the reference: 1,470 files / ~670 MiB /
 ~114 modules, every count corpus-cited).
+
+> **Status correction (2026-11-05, consolidation session).** The kernel
+> driver is REMOVED from our product (commit 318b9655) — our footprint is
+> now the flat 8-file install dir + ProgramData, with no service, no
+> driver, no certificate stores. The driver rows below that describe OUR
+> side are marked historical; the reference-side rows (its own drivers,
+> WinPE copy, etc.) are facts about the reference and stand unchanged.
 
 **Headline answer to the user's hypothesis** ("we install 20 files where
 the reference installs 400 — are we missing 380 files' worth of
@@ -25,7 +31,7 @@ recorded and truthfully surfaced (below).
 | Reference artifact | Ours | Evidence |
 |---|---|---|
 | `DRWUI.exe` (main orchestrator UI) | `recovery-wizard-ui.exe` (Tauri shell + bridge) | CURRENT §A |
-| `eprdtdrv.sys` raw-disk driver, SCM service (CreateService, group "Boot File System", demand) | `rda.sys`, service `RDA`, identical SCM profile | CURRENT §A; REFERENCE-FOOTPRINT §services |
+| `eprdtdrv.sys` raw-disk driver, SCM service (CreateService, group "Boot File System", demand) | **No analog — driver removed** (consolidation session, commit 318b9655: user-mode direct raw-disk transport, `ERR_ELEVATION_REQUIRED` posture; historically 0.6.x shipped `rda.sys`, service `RDA`, identical SCM profile — CURRENT §A.2, historical) | CURRENT §A; REFERENCE-FOOTPRINT §services |
 | The reference's session/persist format (`.rsf`) | our `.crsf` sessions in `ProgramData\HeicFast\Recovery Wizard\sessions` | CURRENT §A |
 | `DRWReport.exe` (recovery report) | in-app report (`cr_ui_recovery_report_json`) | CURRENT §A |
 | Uninstall entry + uninstaller | `HeicFastUninstall.exe` + the Add/Remove entry | CURRENT §A |
@@ -95,10 +101,11 @@ leftovers the corpus capture contains. No analog intended; not mimicked.
 | − language packs (37) | EN/zh-CN only |
 | − QA/log/staging residue | reference-only |
 | = functional core the reference ships for the CLAIMED surface | ~40 module-equivalents |
-| of which we consolidate into | 1 `cr_ui.dll` + the driver + the app + the CLI |
+| of which we consolidate into | 1 `cr_ui.dll` + the app + the CLI (**no driver** — removed, commit 318b9655) |
 
-Our installed set (15 files + service + driver + registry + ProgramData)
-covers the claimed surface. The delta is architecture and scope, not
-absence — and the two real gaps are disabled truthfully in the UI with
-their follow-ups recorded in `docs/INTEGRATION-GAPS.md` (G-1 (b), the
-apply-UI note in NG-11).
+Our installed set (post-consolidation: 8 flat files + ProgramData +
+registry; historically 15 files + service + driver) covers the claimed
+surface. The delta is architecture and scope, not absence — and the two
+real gaps are disabled truthfully in the UI with their follow-ups
+recorded in `docs/INTEGRATION-GAPS.md` (G-1 (b), the apply-UI note in
+NG-11).

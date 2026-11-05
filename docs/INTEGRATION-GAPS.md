@@ -18,6 +18,17 @@ records the **current reality**: the prior-gap status first, then the new-gap
 register with severity, scope, and the session plan. Runner-reproduced
 evidence lands in `docs/FORENSIC-PROBE.md` as it is captured.
 
+**Consolidation-session status note (2026-11-05).** The driver-era posture
+above is superseded: the kernel driver is REMOVED from the product
+entirely (commit 318b9655) — the engine opens `\\.\PhysicalDriveN`
+directly from user mode, raw-disk verbs require an administrator token
+(`ERR_ELEVATION_REQUIRED` 0x500C0001), and the UI's driver-status surface
+is deleted with the driver. The user-facing gap register entry that
+replaces the old driver-status surface is the **elevation UX**: the
+in-app banner + restart-as-administrator wiring (P4 work, on the v3 UI
+base). The NG rows below keep their historical scope and citations; read
+their driver references as pre-consolidation facts.
+
 ---
 
 ## Part 1 — prior-gap register: what closed, what is still open
@@ -227,13 +238,20 @@ before and passes after.
 ### Not gaps (verified this session, for the record)
 
 - The engine's scan, health, and enumeration cores are REAL and substantial
-  (926 engine tests; the T14 measurements ran through the mandatory RDA
-  driver). The breakage is at the seams (bridge path model, UI rendering,
-  installer UX) — not a missing core.
+  (926 engine tests; the T14 measurements of that era ran through the
+  since-removed RDA driver — historical evidence, superseded by the
+  user-mode direct-transport posture, commit 318b9655). The breakage is at
+  the seams (bridge path model, UI rendering, installer UX) — not a missing
+  core.
 - The driver installs, loads, and services IOCTLs (T15 run 40442056802:
-  service RUNNING, `\\.\RDA` opens; to be re-proven on this session's run).
-- The RDA transport is genuinely the only raw-disk path (no silent fallback
-  masks driver failures) — `engine/src/win/cr_transport.cpp:5-8`.
+  service RUNNING, `\\.\RDA` opens) — **historical record of the 0.6.x
+  line; the driver no longer exists in the product** (removed, commit
+  318b9655). The current no-fallback guarantee is the user-mode direct
+  transport's.
+- The no-silent-fallback property the RDA row recorded carries over:
+  the engine's user-mode direct transport is the ONLY raw-disk path, and a
+  non-elevated process gets the distinct `ERR_ELEVATION_REQUIRED`
+  refusal — never a degraded scan.
 
 ---
 

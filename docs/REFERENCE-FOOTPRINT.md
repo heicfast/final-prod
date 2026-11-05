@@ -9,8 +9,8 @@
 > decompiled/strings evidence), plus raw strings under `re-workspace/reversed/<bin>/`.
 > Read-only task: nothing outside `final-prod/docs/` was written.
 > Companion sheets: `docs/REFERENCE-MODULES.md` (module architecture, this task) and the
-> earlier frozen sheets `docs/context-sheets/REFERENCE-LAYOUT.md` (D1) and
-> `docs/context-sheets/REFERENCE-INSTALLER.md` (D2).
+> earlier frozen sheets `worklog/context-sheets/REFERENCE-LAYOUT.md` (D1) and
+> `worklog/context-sheets/REFERENCE-INSTALLER.md` (D2).
 
 **Citation convention**: `[corpus-path]` = file in the research corpus. Quotes of
 decompiled code / strings are byte-exact as documented in the cited artifact.
