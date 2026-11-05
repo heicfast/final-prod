@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    devsign.ps1 — the development TEST-SIGNING tool for the whole product.
+    devsign.ps1 — the development SELF-SIGNING tool for the whole product.
 
 .DESCRIPTION
     One place, three jobs (docs/DEV-SIGNING.md is the design document):
@@ -22,41 +22,30 @@
 
       verify       Assert one file carries our development signature.
 
-      install-cert Import the public .cer into LocalMachine Root +
-                   TrustedPublisher (the load prerequisite on machines whose
-                   Secure Boot is OFF; machines with test signing ON load
-                   test-signed drivers without it — CI runners are built
-                   with `bcdedit /set TESTSIGNING ON`, actions/runner-images
-                   build.windows-2022.pkr.hcl + WindowsFeatures.Tests.ps1).
-                   Requires elevation. Prints the thumbprint.
+    The product is USER-MODE ONLY (consolidation session): the files this
+    tool signs are the engine kit (cr_ui.dll, rrecov.exe) and the installer
+    exe. There is NO kernel component, NO service, and NO certificate-store
+    import anywhere in the product — nothing needs a trust-anchor decision
+    on the target machine (a self-signed Authenticode signature is an
+    integrity marker, not a load prerequisite).
 
-      remove-cert  Delete the certificate from LocalMachine Root +
-                   TrustedPublisher by thumbprint (the uninstaller's leg).
-
-    The WDK build stays SignMode=Off: rda.sys is built unsigned and the
-    signature is applied HERE, at product-packaging time (build.ps1
-    Invoke-Driver / Invoke-Installer). The driver's own CI keeps asserting
-    the BARE msbuild output is unsigned — the dev-sign step is deliberately
-    outside that lane and proves itself with its own smoke leg.
-
-    Production signing (a real certificate: EV/OSSign, Hardware Dev Center
-    attestation for the driver) REPLACES this tool's outputs, not its call
-    sites — docs/DEV-SIGNING.md §4 documents the production path.
+    Production signing (a real CA certificate: EV/OSSign) REPLACES this
+    tool's outputs, not its call sites — docs/DEV-SIGNING.md §4 documents
+    the production path.
 
 .PARAMETER StageDir
     The build stage directory (build\out\stage-<version>). The certificate
     lives beside the staged payloads: devsign.pfx, devsign-pfx-password.txt,
-    rda-testcert.cer, rda-testcert-thumbprint.txt.
+    devsign.cer, devsign-thumbprint.txt.
 
 .EXAMPLE
-    .\installer\devsign.ps1 -Action new-cert -StageDir build\out\stage-0.6.0-rc1
-    .\installer\devsign.ps1 -Action sign -StageDir build\out\stage-0.6.0-rc1 -File driver\bin\x64\Release\rda.sys
-    .\installer\devsign.ps1 -Action install-cert -CerPath build\out\stage-0.6.0-rc1\rda-testcert.cer
+    .\installer\devsign.ps1 -Action new-cert -StageDir build\out\stage-0.7.0
+    .\installer\devsign.ps1 -Action sign -StageDir build\out\stage-0.7.0 -File build\out\stage-0.7.0\engine\cr_ui.dll
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('new-cert', 'sign', 'verify', 'install-cert', 'remove-cert')]
+    [ValidateSet('new-cert', 'sign', 'verify')]
     [string]$Action,
 
     [string]$StageDir = '',
@@ -117,10 +106,10 @@ switch ($Action) {
 
     'new-cert' {
         $StageDir = Assert-Stage
-        $cer  = Join-Path $StageDir 'rda-testcert.cer'
+        $cer  = Join-Path $StageDir 'devsign.cer'
         $pfx  = Join-Path $StageDir 'devsign.pfx'
         $pwFile = Join-Path $StageDir 'devsign-pfx-password.txt'
-        $tpFile  = Join-Path $StageDir 'rda-testcert-thumbprint.txt'
+        $tpFile  = Join-Path $StageDir 'devsign-thumbprint.txt'
         if ((Test-Path $pfx) -and (Test-Path $cer) -and -not $Force) {
             Write-Host "[devsign] stage certificate exists - reusing $cer (use -Force to regenerate)"
             return
@@ -185,35 +174,4 @@ switch ($Action) {
         Write-Host "[devsign] $File carries a signature: signer='$($sig.SignerCertificate.Subject)' status=$($sig.Status)"
     }
 
-    'install-cert' {
-        if (-not $CerPath -or -not (Test-Path $CerPath)) { throw "-CerPath missing or does not exist: $CerPath" }
-        $id = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($id)
-        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-            throw 'install-cert must run elevated (LocalMachine Root + TrustedPublisher)'
-        }
-        foreach ($store in @('Root', 'TrustedPublisher')) {
-            certutil -addstore -f $store $CerPath | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "certutil -addstore $store failed ($LASTEXITCODE)" }
-            Write-Host "[devsign] certificate imported into LocalMachine\$store"
-        }
-        if (-not $Thumbprint -and (Test-Path (Join-Path (Split-Path $CerPath) 'rda-testcert-thumbprint.txt'))) {
-            $Thumbprint = (Get-Content (Join-Path (Split-Path $CerPath) 'rda-testcert-thumbprint.txt') -Raw).Trim()
-        }
-        if ($Thumbprint) { Write-Host "[devsign] thumbprint: $Thumbprint" }
-    }
-
-    'remove-cert' {
-        if (-not $Thumbprint) { throw '-Thumbprint is required for remove-cert' }
-        $id = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($id)
-        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-            throw 'remove-cert must run elevated'
-        }
-        foreach ($store in @('Root', 'TrustedPublisher')) {
-            certutil -delstore $store $Thumbprint | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "certutil -delstore $store failed ($LASTEXITCODE)" }
-            Write-Host "[devsign] certificate removed from LocalMachine\$store"
-        }
-    }
 }

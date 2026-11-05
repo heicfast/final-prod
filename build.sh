@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # build.sh — the Linux-subset product build (developer loop + Linux CI lanes).
-# The FULL product (driver, installer, Tauri bundle) is Windows-only: run
+# The FULL product (installer, Tauri bundle) is Windows-only: run
 # build.ps1 on Windows (docs/BUILD.md). This script runs everything that is
 # meaningful on Linux:
 #   - contracts validation (boundary truth)

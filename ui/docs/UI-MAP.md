@@ -183,7 +183,7 @@ language en/zh-CN), diagnostics (event-log ring buffer + copy), about summary
 (version, connector mode badge mock/tauri, engine status fields from connector,
 open-source licenses). Settings opens from the three-lines header Menu; the
 About menuitem opens `AboutDialog` (title-bar modal displaying connector-sourced
-Version, Data source, Recovery engine, Disk driver, and Platform — ESC closes
+Version, Data source, Recovery engine, and Platform — ESC closes
 and focus returns to the Menu trigger; outside click swallowed).
 
 States: persisted via connector-backed settings where the contract exposes them;

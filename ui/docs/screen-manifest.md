@@ -93,7 +93,7 @@
 
 - **Regions**:
   - `SettingsPage` (opened from the three-lines header Menu): Theme dropdown (`Match system`, `Light`, `Dark`, `Ember`, `Tide`, `Blossom`, `High contrast`), UI Scale segmented control (`100%`, `150%`, `200%`), Density segmented control (`Comfortable`, `Compact`), Language segmented control (`English`, `简体中文`), Diagnostics event log copy, and About summary table.
-  - `AboutDialog` (header Menu → `About` menuitem): Title-bar modal displaying connector-sourced `Version`, `Data source`, `Recovery engine`, `Disk driver`, and `Platform`.
+  - `AboutDialog` (header Menu → `About` menuitem): Title-bar modal displaying connector-sourced `Version`, `Data source`, `Recovery engine`, and `Platform`.
 
 ### S9. SD Card / Removable Media (`/sd-card`)
 

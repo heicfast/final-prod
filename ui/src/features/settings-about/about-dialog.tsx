@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppWindowIcon } from 'lucide-react';
-import { useAppInfo, useDriverStatus } from '@/queries/system';
+import { useAppInfo } from '@/queries/system';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -25,7 +25,6 @@ export function AboutDialog({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const appInfo = useAppInfo();
-  const driver = useDriverStatus();
 
   const info = appInfo.data;
   const rows: { label: string; value: React.ReactNode }[] = [
@@ -45,19 +44,6 @@ export function AboutDialog({
     {
       label: t('about.engine'),
       value: info?.engineVersion ?? t('about.engineNone'),
-    },
-    {
-      label: t('about.driver'),
-      value: driver.data
-        ? driver.data.installed
-          ? t('about.driverOk', {
-              version: driver.data.version ?? '—',
-              running: driver.data.running
-                ? t('about.driverRunning')
-                : t('about.driverStopped'),
-            })
-          : t('about.driverMissing')
-        : '…',
     },
     { label: t('about.platform'), value: info ? info.platform : '…' },
   ];

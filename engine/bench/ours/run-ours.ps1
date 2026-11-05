@@ -171,7 +171,8 @@ foreach ($mode in $ScanModes) {
         # transport assertion (GAP-BENCH-5): the scan must actually have used the
         # direct transport - a silent fallback would measure the wrong transport
         # (session-97: the field name tells the truth now - it asserts DIRECT,
-        # the only transport since v0.7.0; the old rda_* name was a stale label)
+        # the only transport since v0.7.0; the pre-0.7.0 field name was a
+        # stale label inherited from the retired transport)
         if ($DriverInfo -match 'transport=direct') {
             $directLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'direct raw I/O' } | Measure-Object).Count
             $modeInfo.direct_transport_assertion = @{ expected = $true; hits = $directLine }

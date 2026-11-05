@@ -2,46 +2,39 @@
 ; recoverywizard.nsi — the HeicFast Recovery Wizard COMBINED product installer
 ; =============================================================================
 ; One artifact installs the entire product: the application (inner Tauri NSIS
-; setup, driven silent), the native engine kit (cr_ui.dll + runtime DLLs), the
-; RDA raw-disk kernel driver (consent-gated, surfaced, explained), and the
-; machine-level shared state. Layout, service registration, and privilege
-; model per docs/INTEGRATION-PLAN.md §7 and contracts/README.md (constants
-; defined ONCE there: service name RDA, ProgramData sessions/logs paths).
+; setup, driven silent), the native engine kit (cr_ui.dll + runtime DLLs), and
+; the machine-level shared state. Layout and privilege model per
+; contracts/README.md (constants defined ONCE there: ProgramData
+; sessions/logs paths).
 ;
 ; Invoked by build.ps1 (Invoke-Installer) with these defines:
 ;   /DPRODUCT_VERSION=<x.y.z>   from the root VERSION file
 ;   /DAPP_BUNDLE=<abs path>     the Tauri NSIS setup exe (ui lane output)
 ;   /DENGINE_KIT=<abs path>     staged engine kit dir (engine lane output)
-;   /DDRIVER_STAGE=<abs path>   staged driver dir (driver lane output)
 ;   /DOUT_DIR=<abs path>        artifact output directory
 ;
 ; Design notes (installer/README.md has the full rationale):
 ;   - Wrapper architecture: the committed build.ps1 contract consumes the
 ;     Tauri bundle as the app payload; this script wraps it with the product
-;     concerns (engine kit, driver, shared state, complete uninstall).
-;   - Elevation: RequestExecutionLevel admin — ONE UAC prompt at launch; the
-;     per-machine install and the driver step (SCM + System32\drivers) both
-;     need it, and the app itself runs elevated (requireAdministrator,
-;     INTEGRATION-PLAN §7.4). Deviation from the mandate's ideal
-;     "unelevated launch" is recorded in installer/README.md.
-;   - ALL-USERS ONLY (mandatory-driver session, 2026-10-27): the driver is
-;     a REQUIRED component (machine-level: SCM + System32\drivers + the
-;     certificate stores), so per-user installs are REMOVED - MultiUser.nsh
-;     is gone, the shell context is fixed to 'all', and the driver section
-;     is SectionIn RO (no consent checkbox: installing the product installs
-;     the driver; the driver PAGE still explains it - surfaced, never
-;     hidden).
-;   - DEVELOPMENT TEST-SIGNING: the build embed-signs rda.sys + the engine
-;     kit + this installer with the ephemeral build certificate
-;     (installer/devsign.ps1; docs/DEV-SIGNING.md). Before the service
-;     create the installer imports the staged public certificate into
-;     LocalMachine Root + TrustedPublisher (the load prerequisite on
-;     Secure-Boot-off machines); the uninstaller removes it by thumbprint.
+;     concerns (engine kit, shared state, complete uninstall).
+;   - USER-MODE PRODUCT (consolidation session): there is NO kernel driver,
+;     NO service, and NO certificate-store import anywhere in this product.
+;     The engine reads raw disks directly from user mode
+;     (\\.\PhysicalDriveN); every raw-disk operation requires the app to run
+;     with an elevated (administrator) token - a non-elevated app gets a
+;     truthful elevation-required refusal (the in-app banner + the
+;     restart-as-administrator flow carry it).
+;   - Elevation: RequestExecutionLevel admin - ONE UAC prompt at installer
+;     launch; the per-machine install and the ProgramData shared state both
+;     want it, and the app itself runs elevated (requireAdministrator).
+;   - ALL-USERS ONLY: the machine-level shared state (ProgramData
+;     sessions/logs) and the single Add/Remove entry are per-machine
+;     concerns, so the shell context is fixed to 'all' (MultiUser.nsh is
+;     gone). Recorded in installer/README.md.
 ;   - Uninstall removes EVERYTHING this installer placed: inner app files
-;     (via the Tauri uninstaller, silent), engine kit, driver (service stop +
-;     delete + file removal via the driver's own uninstall.ps1), registry,
-;     shortcuts (inner), and — only with explicit consent — ProgramData
-;     sessions (default KEEP, reference parity: user data survives uninstall).
+;     (via the Tauri uninstaller, silent), engine kit, registry, shortcuts
+;     (inner), and — only with explicit consent — ProgramData sessions
+;     (default KEEP, reference parity: user data survives uninstall).
 ; =============================================================================
 
 Unicode true
@@ -55,9 +48,6 @@ SetCompressor /SOLID lzma
 !endif
 !ifndef ENGINE_KIT
   !error "ENGINE_KIT must be defined (path to the staged engine kit)"
-!endif
-!ifndef DRIVER_STAGE
-  !error "DRIVER_STAGE must be defined (path to the staged driver files)"
 !endif
 !ifndef OUT_DIR
   !error "OUT_DIR must be defined (artifact output directory)"
@@ -103,7 +93,7 @@ SetCompressor /SOLID lzma
 ;      the T15 evidence contract reads it; unchanged).
 ; Silent installs leave no UI trace, so the lifecycle records its own
 ; ground truth: resolved mode, child-process exit codes (the round-13
-; driver lesson: install.ps1's failure left NO surviving exit code), and
+; lesson: a child failure left NO surviving exit code), and
 ; read-backs of every product-key write. Dedicated handle variables so
 ; fact lines can reference $0/$1/$2 freely; no commas in fact lines
 ; (NSIS macro parameter separators).
@@ -134,9 +124,6 @@ Var FactsHandle
 ; probed. One truth now: PRODUCT_SWKEY everywhere for the SW tree.
 !define PRODUCT_UNKEY       "Recovery Wizard"             ; Uninstall\<name> (Add/Remove entry key)
 !define PRODUCT_SWKEY       "Software\HeicFast\Recovery Wizard" ; SW product key (two-level, like ProgramData)
-!define DRIVER_SERVICE      "RDA"            ; contracts/README.md: defined ONCE
-;                                              (engine opens \\.\RDA\<token>\...;
-;                                              device name = UPPERCASE(service name))
 !define APP_EXE             "recovery-wizard-ui.exe" ; the Tauri-built binary name (Cargo package name — 'Built application at: ...\recovery-wizard-ui.exe'; tauri.conf has no mainBinaryName override)
 !define APP_WINDOW_TITLE    "Recovery Wizard"  ; the Tauri main window's TEXT (tauri.conf.json app.windows[0].title) — FindWindow matches window text, not the product name (the frameless window still carries its title)
 !define PROGRAMDATA_ROOT    "$COMMONPROGRAMDATA\HeicFast\Recovery Wizard"
@@ -157,17 +144,15 @@ InstallDir "$PROGRAMFILES64\HeicFast\Recovery Wizard"
 !include "x64.nsh"
 ${Using:StrFunc} StrStr
 
-; Per-user installs are REMOVED (mandatory driver: machine-level state -
-; SCM + System32\drivers + cert stores cannot live per-user). All-users,
-; always: SetShellVarContext all in .onInit, SHCTX = HKLM throughout.
+; Per-user installs are not offered: the product's shared state (ProgramData
+; sessions/logs) and its single Add/Remove entry are per-machine concerns.
+; All-users, always: SetShellVarContext all in .onInit, SHCTX = HKLM throughout.
 
 RequestExecutionLevel admin
 
 ; -----------------------------------------------------------------------------
 ; Variables
 ; -----------------------------------------------------------------------------
-Var DriverResult          ; "" | "installed" | "installed-not-running" | "failed"
-Var DriverCertThumbprint  ; the development certificate's SHA1 (uninstall removes it)
 Var EngineDllCount
 
 ; -----------------------------------------------------------------------------
@@ -181,8 +166,7 @@ Var EngineDllCount
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${REPO_ROOT}/LICENSE"
-!insertmacro MUI_PAGE_COMPONENTS
-Page custom DriverPageCreate DriverPageLeave
+Page custom PrivilegePageCreate PrivilegePageLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -233,7 +217,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ; Integrity + ADOPTION: $INSTDIR becomes WHERE THE PRODUCT IS. The seed
   ; above steers the inner to our dir; if a template change ever makes it
   ; land elsewhere anyway, probe the inner's own defaults and adopt the
-  ; real location — the engine kit, driver stage, and registry keys then
+  ; real location — the engine kit and registry keys then
   ; record the truth instead of a fiction.
   ${IfNot} ${FileExists} "$INSTDIR\${APP_EXE}"
     ${If} ${FileExists} "$PROGRAMFILES64\${PRODUCT_NAME}\${APP_EXE}"
@@ -278,180 +262,6 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${EndIf}
 SectionEnd
 
-Section "RDA raw-disk kernel driver (required)" SEC_DRIVER
-  ; REQUIRED component (mandatory-driver session, 2026-10-27): SectionIn RO -
-  ; there is no product without it (the engine refuses every raw-disk open
-  ; when \\.\RDA is absent: ERR_DRIVER_REQUIRED). The driver page explains
-  ; it; it cannot be deselected.
-  SectionIn RO
-  SetDetailsPrint textonly
-  DetailPrint "Installing the RDA kernel driver (required component)..."
-  SetDetailsPrint both
-
-  ; Stage the driver files (kept in <app>\driver — the signed-drop-in surface
-  ; for later: replace .sys + reinstall without touching the app).
-  ; /nonfatal on the certificate pair: a PRODUCTION-signed build stages no
-  ; development certificate, and the import below is gated on its presence —
-  ; the same script serves both signing postures unchanged (docs/INSTALLER.md
-  ; "Signing posture").
-  SetOutPath "$INSTDIR\driver"
-  File "${DRIVER_STAGE}${PATHSEP}rda.sys"
-  File "${DRIVER_STAGE}${PATHSEP}rdacli.exe"
-  File "${DRIVER_STAGE}${PATHSEP}rda.inf"
-  File "${DRIVER_STAGE}${PATHSEP}install.ps1"
-  File "${DRIVER_STAGE}${PATHSEP}uninstall.ps1"
-  File /nonfatal "${DRIVER_STAGE}${PATHSEP}rda-testcert.cer"
-  File /nonfatal "${DRIVER_STAGE}${PATHSEP}rda-testcert-thumbprint.txt"
-
-  ; ---- Development-certificate import (BEFORE the service create) --------
-  ; The build embed-signed rda.sys with the ephemeral build certificate
-  ; (docs/DEV-SIGNING.md). A test-signed driver loads when (a) test signing
-  ; is ON (the CI runners are imaged that way) or (b) the machine's
-  ; LocalMachine Root + TrustedPublisher stores carry the certificate -
-  ; THIS import. certutil needs the same elevation the service create does
-  ; (the installer is admin-manifest).
-  ; PRODUCTION UX (NG-16, the PowerShell-popup fix): nsExec::ExecToLog -
-  ; NO console window (the old ExecWait spawned a VISIBLE certutil console
-  ; per import; forensic run 40465852724 captured them) and the output is
-  ; captured into the details view + the install log. certutil has NO
-  ; re-tokenization hazard here (unlike the old powershell -File call):
-  ; one quoted path argument, no nested quotes.
-  DetailPrint "Importing the development signing certificate (Root + TrustedPublisher)..."
-  ${If} ${FileExists} "$INSTDIR\driver\rda-testcert.cer"
-    nsExec::ExecToLog 'certutil -addstore -f Root "$INSTDIR\driver\rda-testcert.cer"'
-    Pop $0
-    !insertmacro InstallFact "cert Root addstore exit=$0"
-    ${If} $0 != 0
-      StrCpy $1 $0
-      !insertmacro AbortWithReason "Certificate import failed (certutil Root exit code $1). The development certificate must be importable for the driver to load on this machine."
-    ${EndIf}
-    nsExec::ExecToLog 'certutil -addstore -f TrustedPublisher "$INSTDIR\driver\rda-testcert.cer"'
-    Pop $0
-    !insertmacro InstallFact "cert TrustedPublisher addstore exit=$0"
-    ${If} $0 != 0
-      StrCpy $1 $0
-      !insertmacro AbortWithReason "Certificate import failed (certutil TrustedPublisher exit code $1). The development certificate must be importable for the driver to load on this machine."
-    ${EndIf}
-  ${Else}
-    ; Production-signed driver: no development certificate staged - nothing
-    ; to import (the flow is posture-independent by design).
-    !insertmacro InstallFact "cert import skipped (no staged development certificate - production-signed posture)"
-  ${EndIf}
-  ; remember the thumbprint for the uninstaller (the staged file carries it)
-  ClearErrors
-  FileOpen $0 "$INSTDIR\driver\rda-testcert-thumbprint.txt" r
-  ${IfNot} ${Errors}
-    FileRead $0 $DriverCertThumbprint
-    FileClose $0
-    StrCpy $DriverCertThumbprint $DriverCertThumbprint 40
-  ${EndIf}
-  !insertmacro InstallFact "cert thumbprint=$DriverCertThumbprint"
-
-  ; Update/repair semantics: an existing RDA service is stopped and removed
-  ; first (stop -> delete -> recreate; no reboot — demand-start with a real
-  ; DriverUnload, DRIVER-DEPLOYMENT §8).
-  ClearErrors
-  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
-  ${Unless} ${Errors}
-    DetailPrint "Existing ${DRIVER_SERVICE} service found - updating (stop + delete + recreate)."
-    nsExec::ExecToLog 'sc.exe stop ${DRIVER_SERVICE}'
-    Pop $0
-    Sleep 1500
-    nsExec::ExecToLog 'sc.exe delete ${DRIVER_SERVICE}'
-    Pop $0
-    Sleep 500
-  ${EndUnless}
-
-  ; ---- Register the service NATIVELY (NG-16: no PowerShell, no console) ----
-  ; The exact SCM semantics the old install.ps1 carried, as native NSIS
-  ; operations + hidden, LOGGED sc.exe calls:
-  ;   1. copy rda.sys -> System32\drivers\RDA.sys with WOW64 redirection
-  ;      DISABLED (this installer is a 32-bit process; without this the
-  ;      copy lands in SysWOW64\drivers and StartService fails with
-  ;      ERROR_FILE_NOT_FOUND before any signature check - the 0.5.0-rc3 /
-  ;      0.6.0-rc1 T15 lesson);
-  ;   2. sc.exe create (kernel / demand-start / error=normal / group
-  ;      "Boot File System" - the reference's eprdtdrv profile);
-  ;   3. Parameters {IoctlBase=0, MaxDisks=200, DebugLevel=1,
-  ;      SessionsEnabled=1} - plain registry writes (HKLM\SYSTEM is not
-  ;      WOW64-redirected);
-  ;   4. sc.exe start (a start refusal is the signing-policy WARNING, not
-  ;      a registration failure - the truthful branch below).
-  ; No powershell.exe anywhere in the install path anymore: the forensic
-  ; probe captured a ~10-second VISIBLE console window per install
-  ; (install-process-events.jsonl, run 40465852724).
-  DetailPrint "Copying the driver to System32\drivers..."
-  ${DisableX64FSRedirection}
-  ClearErrors
-  CopyFiles /SILENT "$INSTDIR\driver\rda.sys" "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
-  ${If} ${Errors}
-  ${AndIfNot} ${FileExists} "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
-    ${EnableX64FSRedirection}
-    !insertmacro AbortWithReason "The driver file could not be copied to System32\drivers (in use from a previous install - reboot and rerun or remove the ${DRIVER_SERVICE} service first)."
-  ${EndIf}
-  ${IfNot} ${FileExists} "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
-    ${EnableX64FSRedirection}
-    !insertmacro AbortWithReason "Driver copy verification failed: $SYSDIR\drivers\${DRIVER_SERVICE}.sys is not present - the service would fail to start with ERROR_FILE_NOT_FOUND."
-  ${EndIf}
-  !insertmacro InstallFact "driver copy verified=$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
-  ${EnableX64FSRedirection}
-
-  DetailPrint "Registering the ${DRIVER_SERVICE} service (kernel / demand / Boot File System)..."
-  nsExec::ExecToLog 'sc.exe create ${DRIVER_SERVICE} binPath= "$SYSDIR\drivers\${DRIVER_SERVICE}.sys" type= kernel start= demand error= normal group= "Boot File System"'
-  Pop $0
-  !insertmacro InstallFact "driver sc create exit=$0"
-
-  ; The Parameters block (the driver's documented profile).
-  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "IoctlBase" 0
-  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "MaxDisks" 200
-  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "DebugLevel" 1
-  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "SessionsEnabled" 1
-  !insertmacro InstallFact "driver Parameters written IoctlBase=0 MaxDisks=200 DebugLevel=1 SessionsEnabled=1"
-
-  ClearErrors
-  ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
-  !insertmacro InstallFact "driver ImagePath readback=$1"
-  ${If} ${Errors}
-    StrCpy $DriverResult "failed"
-    DetailPrint "RDA driver registration failed (sc create exit code $0) - aborting the install."
-    ; MANDATORY component: a product without its driver is a broken
-    ; product - the install STOPS here (no degraded-mode fiction). The
-    ; certificate imported minutes ago must not strand as an orphan trust
-    ; anchor: best-effort removal before the abort.
-    ${If} $DriverCertThumbprint != ""
-      nsExec::ExecToLog 'certutil -delstore Root $DriverCertThumbprint'
-      Pop $2
-      !insertmacro InstallFact "abort-path cert Root delstore exit=$2"
-      nsExec::ExecToLog 'certutil -delstore TrustedPublisher $DriverCertThumbprint'
-      Pop $2
-      !insertmacro InstallFact "abort-path cert TrustedPublisher delstore exit=$2"
-    ${EndIf}
-    StrCpy $1 $0
-    !insertmacro AbortWithReason "The RDA driver service could not be registered (sc create exit code $1). The driver is a REQUIRED component - the product is not installed half-way; correct the problem and rerun (see the install log and the Service event log)."
-  ${Else}
-    ; Start (idempotent): 0 = started, 1056 = already running, anything
-    ; else = did not load (usually the signing policy on stock Win10/11).
-    nsExec::ExecToLog 'sc.exe start ${DRIVER_SERVICE}'
-    Pop $0
-    !insertmacro InstallFact "driver sc start exit=$0"
-    ${If} $0 == 0
-    ${OrIf} $0 == 1056
-      StrCpy $DriverResult "installed"
-      DetailPrint "RDA driver installed and running (device \\.\${DRIVER_SERVICE})."
-    ${Else}
-      StrCpy $DriverResult "installed-not-running"
-      ; /SD IDOK — same round-11 lesson: without it the box BLOCKS /S installs.
-      ; The service IS registered (demand-start): the machine's signing
-      ; policy refused to LOAD it. TRUTHFUL mandatory-driver message: the
-      ; install completes, the service starts after the user changes the
-      ; policy - and the product REFUSES raw-disk work until it does
-      ; (ERR_DRIVER_REQUIRED). No fallback mode exists.
-      DetailPrint "RDA driver registered but not started (exit code $0 - machine signing policy; see docs/DEV-SIGNING.md)."
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The RDA driver is registered but Windows refused to load it (exit code $0).$\r$\n$\r$\nThis build's driver is DEVELOPMENT TEST-SIGNED. On machines with Secure Boot ON, enable test signing (bcdedit /set testsigning on) and reboot, or disable Secure Boot - the driver will start on the next boot (it is demand-start). On machines with Secure Boot OFF the staged certificate was imported, so it should load now.$\r$\n$\r$\nThe application is installed, but it REQUIRES the running driver for every scan - it will report the driver as missing until it loads. See docs/DEV-SIGNING.md." /SD IDOK
-    ${EndIf}
-  ${EndIf}
-SectionEnd
-
 Section "-post" ; hidden: shared state, registry, uninstaller
   ; ---- ProgramData shared state (contracts/README.md: defined ONCE) ------
   ; Default ACL inheritance: directory creators get ownership; the app runs
@@ -460,17 +270,10 @@ Section "-post" ; hidden: shared state, registry, uninstaller
   CreateDirectory "${PROGRAMDATA_LOGS}"
   DetailPrint "Shared state: ${PROGRAMDATA_ROOT}"
 
-  ; ---- Product registry key (INTEGRATION-PLAN §7 row 6: two-level form) ---
-  ; Mandatory driver: DriverInstalled is 1 whenever we reach here (the
-  ; driver section is RO and its registration failure ABORTS the install);
-  ; the RUNNING-vs-registered distinction lives in DriverResult below.
-  WriteRegDWORD SHCTX "${PRODUCT_SWKEY}" "DriverInstalled" 1
+  ; ---- Product registry key (two-level form, contracts/README.md) ---------
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "Version" "${PRODUCT_VERSION}"
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallMode" "AllUsers"
-  ${If} $DriverCertThumbprint != ""
-    WriteRegStr SHCTX "${PRODUCT_SWKEY}" "DriverCertThumbprint" "$DriverCertThumbprint"
-  ${EndIf}
   ; READ-BACKS into the facts file: in-process proof that every write
   ; landed where the plan says it lands (the round-13 lesson — the values
   ; were being written to a different tree than anything probed).
@@ -479,9 +282,7 @@ Section "-post" ; hidden: shared state, registry, uninstaller
   ReadRegStr $2 SHCTX "${PRODUCT_SWKEY}" "Version"
   !insertmacro InstallFact "post Version written=${PRODUCT_VERSION} readback=$2"
   ReadRegStr $2 SHCTX "${PRODUCT_SWKEY}" "InstallMode"
-  !insertmacro InstallFact "post InstallMode written=AllUsers readback=$2"
-  ReadRegDWORD $2 SHCTX "${PRODUCT_SWKEY}" "DriverInstalled"
-  !insertmacro InstallFact "post DriverInstalled readback=$2 driverResult=$DriverResult"
+  !insertmacro InstallFact "post InstallMode written=AllUsers readback=$2 mode=user-mode-product"
 
   ; ---- Uninstall key: take over the inner installer's entry --------------
   ; The Tauri bundle wrote its own key (name varies across Tauri versions).
@@ -500,53 +301,34 @@ Section "-post" ; hidden: shared state, registry, uninstaller
   WriteUninstaller "$INSTDIR\HeicFastUninstall.exe"
 SectionEnd
 
-; -----------------------------------------------------------------------------
-; Section descriptions (MUST follow the Section definitions: ${SEC_*} section
-; index defines are created by the Section commands below.)
-; -----------------------------------------------------------------------------
-LangString DESC_APP    ${LANG_ENGLISH} "The ${PRODUCT_NAME} application and the native recovery engine. Required."
-LangString DESC_DRIVER ${LANG_ENGLISH} "The RDA raw-disk kernel driver (rda.sys, development test-signed): the ONLY raw-disk transport - the engine refuses every scan without it. Required; machine-wide; the development certificate is imported so it can load."
-
-!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_APP} $(DESC_APP)
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DRIVER} $(DESC_DRIVER)
-!insertmacro MUI_FUNCTION_DESCRIPTION_END
-
 ; =============================================================================
 ; PAGES / CALLBACKS
 ; =============================================================================
 
-Function DriverPageCreate
-  ; The surfaced, explained driver step (the mandate's "no hidden driver
-  ; install"). INFORMATIONAL now: the component is REQUIRED - there is no
-  ; checkbox, the page explains what installs and under which signature.
+Function PrivilegePageCreate
+  ; The truthful privilege notice: what this product is (a user-mode
+  ; application with direct raw-disk access) and what it needs (an
+  ; administrator token). Informational - no choice to make.
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 40u "The RDA kernel driver is a REQUIRED component of ${PRODUCT_NAME}: it is the ONLY transport the engine uses for sector-level reads and writes of disks and volumes (\\.\RDA). It runs with SYSTEM privileges and its control device is restricted to Administrator access."
+  ${NSD_CreateLabel} 0 0 100% 40u "${PRODUCT_NAME} is a user-mode application. It reads and writes disks and volumes directly from user mode (no kernel driver, no service, no certificate changes - nothing is loaded into the operating system)."
   Pop $0
-  ${NSD_CreateLabel} 0 44u 100% 40u "The application does NOT work without the driver: every scan, repair and recovery operation requires it, and the engine refuses with an explicit 'driver required' error until it runs. There is no fallback mode and no degraded mode."
+  ${NSD_CreateLabel} 0 44u 100% 40u "Raw-disk access requires the application to run as administrator. When it is not elevated it says so plainly (a clear elevation-required notice and a restart-as-administrator action) - it never runs in a degraded mode and never pretends to work."
   Pop $0
-  ${NSD_CreateLabel} 0 88u 100% 40u "This build's driver is DEVELOPMENT TEST-SIGNED. The installer imports its certificate into the machine's Root and Trusted Publishers stores. On machines with Secure Boot ON, enable test signing (bcdedit /set testsigning on) and reboot, or disable Secure Boot - the driver starts on the next boot. On Secure-Boot-off machines it loads immediately."
-  Pop $0
-  ${NSD_CreateLabel} 0 132u 100% 16u "The driver service is demand-start; it can be removed only by uninstalling the product."
+  ${NSD_CreateLabel} 0 88u 100% 40u "This installer itself runs elevated (one UAC prompt) because it installs for all users and prepares the shared sessions and logs area. Uninstalling removes everything it placed - the recovery sessions you saved are kept unless you explicitly ask for them to be deleted."
   Pop $0
 
   nsDialogs::Show
 FunctionEnd
 
-Function DriverPageLeave
-  ; No state to record: the component is required and was installed.
+Function PrivilegePageLeave
+  ; No state to record: informational page.
 FunctionEnd
 
-; -----------------------------------------------------------------------------
-; RemoveInnerUninstallKeys — delete every Uninstall key (HKLM + HKCU) whose
-; UninstallString points into $INSTDIR. The inner Tauri installer's entry
-; disappears; ours replaces it. ONE entry in Add/Remove Programs, complete
-; scope.
 ; -----------------------------------------------------------------------------
 Function RemoveInnerUninstallKeys
   Push $R0 ; key index
@@ -607,7 +389,7 @@ Function .onInit
   ; Windows 10+ gate (registry-based — robust across NSIS header versions):
   ; CurrentMajorVersionNumber exists (10+) on Win10 and later; absent on
   ; Win7/8/8.1. The WebView2 application shell requires Win10+; the engine
-  ; and driver keep their own Win7 envelope (docs/PARITY-DELTAS.md).
+  ; keeps its own Win7 envelope (docs/PARITY-DELTAS.md).
   ClearErrors
   ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentMajorVersionNumber"
   ${If} ${Errors}
@@ -615,20 +397,17 @@ Function .onInit
     ; /SD IDOK: silent /S on Win7/8 skips the box (NSIS manual §4.12 —
     ; boxes without /SD block silent installs) and the Abort below still
     ; refuses the install with exit code 2, which is the truthful outcome.
-    MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME} requires Windows 10 or newer (the WebView2 application shell does not exist on older Windows; the engine and driver retain their own Windows 7 support envelope — see docs/PARITY-DELTAS.md)." /SD IDOK
+    MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME} requires Windows 10 or newer (the WebView2 application shell does not exist on older Windows; the engine retains its own Windows 7 support envelope — see docs/PARITY-DELTAS.md)." /SD IDOK
     Abort
   ${EndIf}
 
-  ; ALL-USERS, always (the mandatory driver is machine-level state):
+  ; ALL-USERS, always (the shared state is machine-level):
   ; SHCTX = HKLM, $SMPROGRAMS/shortcuts = all users, no per-user context.
   SetShellVarContext all
 
   ; The facts file starts here: every phase appends (install / reinstall /
   ; repair / uninstall — one lifecycle story per machine).
-  !insertmacro InstallFact "onInit version=${PRODUCT_VERSION} mode=AllUsers dir=$INSTDIR"
-
-  StrCpy $DriverResult ""
-  StrCpy $DriverCertThumbprint ""
+  !insertmacro InstallFact "onInit version=${PRODUCT_VERSION} mode=AllUsers dir=$INSTDIR mode=user-mode-product"
 FunctionEnd
 
 Function un.onInit
@@ -664,62 +443,7 @@ Section "Uninstall"
   Abort
   closed:
 
-  ; ---- 2. Driver teardown (only if a service is present) ------------------
-  ; NATIVE (NG-16: no PowerShell, no console): stop + delete via hidden,
-  ; logged sc.exe; Parameters + service key removal; the .sys deleted from
-  ; the REAL System32 (WOW64-safe: Sysnative from this 32-bit process,
-  ; literal path for any future 64-bit build).
-  ClearErrors
-  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
-  ${IfNot} ${Errors}
-    DetailPrint "Removing the ${DRIVER_SERVICE} service..."
-    nsExec::ExecToLog 'sc.exe stop ${DRIVER_SERVICE}'
-    Pop $0
-    !insertmacro InstallFact "uninstall sc stop exit=$0"
-    Sleep 1500
-    nsExec::ExecToLog 'sc.exe delete ${DRIVER_SERVICE}'
-    Pop $0
-    !insertmacro InstallFact "uninstall sc delete exit=$0"
-    Sleep 500
-    ; Belt and braces: the service key + Parameters block go even if the
-    ; service was already absent (a torn earlier uninstall leaves them).
-    DeleteRegKey HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}"
-    ; The .sys must be gone from the REAL System32. This installer is a
-    ; 32-bit process (makensis output PE32), so file operations on
-    ; System32 paths get WOW64-redirected; the Sysnative alias is the
-    ; 32-bit process's view of the real System32. Delete BOTH views: the
-    ; alias when this is a WOW64 run, the literal path if a future 64-bit
-    ; build makes Sysnative invisible (the alias does not exist for
-    ; 64-bit callers - Delete on it is a harmless no-op then).
-    ${If} ${FileExists} "$WINDIR\Sysnative\drivers\${DRIVER_SERVICE}.sys"
-      Delete /REBOOTOK "$WINDIR\Sysnative\drivers\${DRIVER_SERVICE}.sys"
-    ${EndIf}
-    ${If} ${FileExists} "$WINDIR\System32\drivers\${DRIVER_SERVICE}.sys"
-      Delete /REBOOTOK "$WINDIR\System32\drivers\${DRIVER_SERVICE}.sys"
-    ${EndIf}
-    DetailPrint "RDA driver removed (service + System32\\drivers\\${DRIVER_SERVICE}.sys)."
-  ${EndIf}
-
-  ; ---- 2b. The development certificate we imported --------------------------
-  ; The installer added rda-testcert.cer to LocalMachine Root +
-  ; TrustedPublisher; the thumbprint was recorded at install. Removing the
-  ; product removes the trust anchor it brought in - no orphans. nsExec:
-  ; hidden + logged (the old ExecWait certutil consoles were VISIBLE -
-  ; NG-16's uninstall-side half).
-  ClearErrors
-  ReadRegStr $0 SHCTX "${PRODUCT_SWKEY}" "DriverCertThumbprint"
-  ${IfNot} ${Errors}
-  ${AndIf} $0 != ""
-    DetailPrint "Removing the development signing certificate ($0)..."
-    nsExec::ExecToLog "certutil -delstore Root $0"
-    Pop $1
-    !insertmacro InstallFact "uninstall cert Root delstore exit=$1 tp=$0"
-    nsExec::ExecToLog "certutil -delstore TrustedPublisher $0"
-    Pop $1
-    !insertmacro InstallFact "uninstall cert TrustedPublisher delstore exit=$1 tp=$0"
-  ${EndIf}
-
-  ; ---- 3. Shared state: sessions kept by default (explicit consent) ------
+  ; ---- 2. Shared state: sessions kept by default (explicit consent) --------
   ${If} ${FileExists} "${PROGRAMDATA_SESSIONS}\*.*"
     ; SILENT mode must NEVER delete user data. Truth about NSIS semantics
     ; (round 11): a MessageBox without /SD is DISPLAYED and BLOCKS even in
@@ -744,7 +468,7 @@ Section "Uninstall"
     state_done:
   ${EndIf}
 
-  ; ---- 4. Inner application uninstaller (Tauri), silent ------------------
+  ; ---- 3. Inner application uninstaller (Tauri), silent ------------------
   ${If} ${FileExists} "$INSTDIR\uninstall.exe"
     DetailPrint "Removing application (Tauri uninstaller, silent)..."
     CopyFiles /SILENT "$INSTDIR\uninstall.exe" "$TEMP\RW-inner-uninst.exe"
@@ -752,7 +476,7 @@ Section "Uninstall"
     Delete /REBOOTOK "$TEMP\RW-inner-uninst.exe"
   ${EndIf}
 
-  ; ---- 5. Our own files ----------------------------------------------------
+  ; ---- 4. Our own files ----------------------------------------------------
   ; Engine kit DLLs live BESIDE the app exe (loader truth — see install):
   ; delete every file the kit staged that the inner uninstaller did not
   ; own (its manifest covers only the Tauri bundle). cr_ui.lib + the
@@ -775,12 +499,11 @@ Section "Uninstall"
   ; expected set. Also covers installs made by older installers whose kits
   ; carried the test DLLs.
   Delete "$INSTDIR\*.dll"
-  RMDir /r "$INSTDIR\driver"
 
-  ; ---- 6. Registry ---------------------------------------------------------
+  ; ---- 5. Registry ---------------------------------------------------------
   DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_UNKEY}"
   DeleteRegKey SHCTX "${PRODUCT_SWKEY}"
-  !insertmacro InstallFact "uninstall registry deleted unkey+swkey (incl. DriverCertThumbprint) mode=AllUsers"
+  !insertmacro InstallFact "uninstall registry deleted unkey+swkey mode=AllUsers"
 
   ; The install-time /D-seed key (Software\heicfast\Recovery Wizard — the
   ; inner setup's install-location key, case-insensitively the SAME tree the
@@ -795,7 +518,7 @@ Section "Uninstall"
     DeleteRegKey SHCTX "Software\heicfast"
   ${EndIf}
 
-  ; ---- 7. Final tidy -------------------------------------------------------
+  ; ---- 6. Final tidy -------------------------------------------------------
   ; The installer-placed diagnostic log goes too (complete uninstall - no
   ; orphans): ${PROGRAMDATA_LOGS}\install.log is OUR artifact, unlike the
   ; sessions which are user data behind explicit consent above. The logs

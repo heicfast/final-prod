@@ -11,10 +11,6 @@
 #   ├── cr_ui.dll + runtime DLLs    the complete host-binding kit, BESIDE the
 #   │                              exe (static-import loader truth - the DLLs
 #   │                              must sit in the exe's directory)
-#   ├── driver\                    rda.sys + rdacli.exe + rda.inf + the SCM
-#   │                              install/uninstall scripts — STAGED, NOT
-#   │                              INSTALLED. Manual, consent-explicit install
-#   │                              (elevated PowerShell) if the user wants it.
 #   ├── portable marker            'recovery-wizard.portable' beside the exe —
 #   │                              the bridge's portable-mode probe (NG-18):
 #   │                              sessions/logs resolve beside the exe
@@ -41,51 +37,35 @@ $engineKit = Join-Path $StageDir 'engine'
 if (-not (Test-Path (Join-Path $engineKit 'cr_ui.dll'))) {
     throw "portable: engine kit not staged ($engineKit) - run the engine lane first (build.ps1 -Target engine)"
 }
-$driverStage = Join-Path $StageDir 'driver'
-if (-not (Test-Path (Join-Path $driverStage 'rda.sys'))) {
-    throw "portable: driver stage not found ($driverStage) - run the driver lane first (build.ps1 -Target driver)"
-}
 
 $portableRoot = Join-Path $OutDir "RecoveryWizard-$Version-portable"
 if (Test-Path $portableRoot) { Remove-Item $portableRoot -Recurse -Force }
-New-Item -ItemType Directory -Force -Path (Join-Path $portableRoot 'driver') | Out-Null
+New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
 Copy-Item $appExe -Destination $portableRoot
 # Kit DLLs ride BESIDE the exe (static-import loader truth - see recoverywizard.nsi)
 Copy-Item (Join-Path $engineKit '*') -Destination $portableRoot -Force
-Copy-Item (Join-Path $driverStage '*') -Destination (Join-Path $portableRoot 'driver') -Recurse
 
 $readme = @"
 HeicFast Recovery Wizard $Version — PORTABLE BUILD
 
 This is the no-installer build. Differences from the installed product:
 
-  * NO DRIVER IS INSTALLED - AND THE PRODUCT REQUIRES IT. The RDA raw-disk
-    kernel driver is the ONLY raw-disk transport: the engine refuses every
-    scan, repair and recovery operation with an explicit 'driver required'
-    error (ERR_DRIVER_REQUIRED) until the driver runs. There is no
-    fallback mode. The driver is staged in .\driver\ (development
-    test-signed rda.sys + its public certificate rda-testcert.cer) - to
-    install it manually (elevated PowerShell):
-        certutil -addstore -f Root .\driver\rda-testcert.cer
-        certutil -addstore -f TrustedPublisher .\driver\rda-testcert.cer
-        .\driver\install.ps1 -ServiceName RDA -Source .\driver\rda.sys
-    The certificate import is what lets the test-signed driver load on
-    Secure-Boot-OFF machines; with Secure Boot ON, also enable test
-    signing (bcdedit /set testsigning on) and reboot. For the full
-    experience use the installer (RecoveryWizard-$Version-setup.exe),
-    which does all of this for you.
-
-  * RUN AS ADMINISTRATOR. The driver path (\\.\RDA) and the app's
-    elevated operations require elevation.
+  * RUN AS ADMINISTRATOR. The product is a pure user-mode application:
+    it reads raw disks directly from user mode (\\.\PhysicalDriveN), and
+    every raw-disk operation (scan, recover, health, repair) requires an
+    elevated (administrator) process. Launch from an elevated prompt, or
+    use the app's restart-as-administrator action when it reports the
+    elevation-required state. A non-elevated process gets a clear refusal
+    - never a degraded mode.
 
   * Sessions and logs are written BESIDE THIS EXECUTABLE (.\\sessions,
     .\\logs) — nothing is written to ProgramData or the registry.
 
   * WebView2 Runtime must be present (Windows 10/11 normally has it).
 
-For the full product (installer, driver step, ProgramData state, Start Menu
-shortcuts, complete uninstall), use RecoveryWizard-$Version-setup.exe.
+For the full product (installer, ProgramData state, Start Menu shortcuts,
+complete uninstall), use RecoveryWizard-$Version-setup.exe.
 "@
 Set-Content -Path (Join-Path $portableRoot 'README-PORTABLE.txt') -Value $readme -Encoding UTF8
 

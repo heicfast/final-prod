@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ThemeMode } from '@/app/theme';
-import { useAppInfo, useDriverStatus } from '@/queries/system';
+import { useAppInfo } from '@/queries/system';
 import { exportLogText, getLogBuffer } from '@/lib/logger';
 import { setLocale, SUPPORTED_LOCALES, type AppLocale } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,6 @@ export function SettingsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { mode, setMode, density, setDensity } = useTheme();
   const appInfo = useAppInfo();
-  const driver = useDriverStatus();
   const locale = isAppLocale(i18n.language) ? i18n.language : 'en';
   const [scale, setScaleState] = React.useState<number>(() => readStoredScale());
   const [aboutOpen, setAboutOpen] = React.useState(false);
@@ -202,16 +201,6 @@ export function SettingsPage(): React.JSX.Element {
                       ? t('settings.connectorMock')
                       : t('settings.connectorTauri')}
                   </Badge>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-foreground-secondary">
-                  {t('settings.engineStatus')}
-                </TableCell>
-                <TableCell className="tabular">
-                  {driver.data
-                    ? `${driver.data.installed ? '✓' : '✕'} ${driver.data.version ?? '—'}${driver.data.running ? '' : ' (idle)'}`
-                    : '—'}
                 </TableCell>
               </TableRow>
               <TableRow>

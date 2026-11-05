@@ -16,8 +16,8 @@
  * buffer (no bounce, no copy).
  *
  * Portable pure math (unit-tested on every platform); the Windows transport
- * is the consumer. The RDA driver transport is a kernel IRP path and keeps
- * the logical-sector envelope.
+ * is the consumer. The user-mode direct transport (physical-drive device
+ * opens) keeps the logical-sector envelope.
  *
  * Licensed under the MIT license. See LICENSE.
  */

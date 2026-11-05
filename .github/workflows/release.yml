@@ -1,18 +1,18 @@
 name: release
 
-# T13 (docs/INTEGRATION-PLAN.md §8.3/§7): a version tag triggers the FULL
-# product build (build.ps1 all lanes: driver → engine → ui+tauri → NSIS
-# installer → portable zip → checksums), runs the whole validation stack,
-# and uploads every artifact with SHA256SUMS + truthful release notes.
+# A version tag triggers the FULL product build (build.ps1 all lanes:
+# contracts → engine → ui+tauri → NSIS installer → portable zip →
+# checksums), runs the whole validation stack, and uploads every artifact
+# with SHA256SUMS + truthful release notes.
 #
-# DEVELOPMENT TEST-SIGNING (mandatory-driver session, 2026-10-27): the
-# driver is a REQUIRED component; build.ps1 embed-signs rda.sys + the
-# engine kit + the installer with the EPHEMERAL build certificate
-# (installer/devsign.ps1 - a fresh certificate per build, nothing
-# committed, docs/DEV-SIGNING.md). The staged public certificate ships as
-# the -testsigning.cer release asset; the installer imports it into
-# LocalMachine Root + TrustedPublisher. PRODUCTION signing (EV/OSSign +
-# Hardware Dev Center attestation) remains pending - the notes state it.
+# THE PRODUCT IS USER-MODE ONLY (consolidation session): no kernel driver,
+# no service, no certificate-store changes. build.ps1 self-signs the engine
+# kit (cr_ui.dll, rrecov.exe) and the installer with the EPHEMERAL build
+# certificate (installer/devsign.ps1 - a fresh certificate per build,
+# nothing committed, docs/DEV-SIGNING.md). A self-signed Authenticode
+# signature is an integrity marker, not a load prerequisite - nothing needs
+# a trust-anchor decision on the target machine. PRODUCTION signing
+# (a real CA certificate) remains pending - the notes state it.
 #
 # Reproducibility: same tag → same artifacts (byte-identical modulo
 # timestamps and the per-run certificate); the version source of truth is
@@ -59,12 +59,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v2
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
       - name: Full product build (all lanes + installer + portable + checksums)
         shell: pwsh
         run: |
@@ -79,20 +73,19 @@ jobs:
           $expected = @(
             "build\out\RecoveryWizard-$version-setup.exe",
             "build\out\RecoveryWizard-$version-portable.zip",
-            "build\out\RecoveryWizard-$version-testsigning.cer",
             "build\out\SHA256SUMS"
           )
           foreach ($p in $expected) {
             if (-not (Test-Path $p)) { Write-Error "missing artifact: $p"; exit 1 }
           }
-          # The development signature is a PRODUCT requirement now: the
-          # installer and the staged driver must carry the build cert.
+          # The development signature is a product requirement: the installer
+          # and the engine kit must carry the build certificate.
           $stage = "build\out\stage-$version"
           $devsign = "installer\devsign.ps1"
           & $devsign -Action verify -File "build\out\RecoveryWizard-$version-setup.exe"
           if (-not $?) { Write-Error "the installer carries no development signature"; exit 1 }
-          & $devsign -Action verify -File "$stage\driver\rda.sys"
-          if (-not $?) { Write-Error "rda.sys carries no development signature"; exit 1 }
+          & $devsign -Action verify -File "$stage\engine\cr_ui.dll"
+          if (-not $?) { Write-Error "cr_ui.dll carries no development signature"; exit 1 }
           Write-Host "artifacts present + development-signed:"
           Get-ChildItem build\out | Select-Object Name, Length | Format-Table | Out-String | Write-Host
 
@@ -104,62 +97,69 @@ jobs:
           @"
           # Recovery Wizard $version
 
-          Combined installer for the recovery product: application (Tauri shell),
-          native recovery engine (cr_ui), and the REQUIRED RDA raw-disk kernel
-          driver — one product, one install, standard locations
-          (Program Files / ProgramData / System32\drivers; docs/ARCHITECTURE.md).
+          Combined installer for the recovery product: application (Tauri shell)
+          and the native recovery engine (cr_ui) — one product, one install,
+          standard locations (Program Files / ProgramData; docs/ARCHITECTURE.md).
 
-          ## The driver is MANDATORY
+          ## A user-mode product with direct raw-disk access
 
-          The RDA kernel driver is the product's ONLY raw-disk transport: every
-          scan, repair and recovery operation requires it, and the engine
-          refuses with an explicit ``ERR_DRIVER_REQUIRED`` message until it
-          runs. There is no fallback mode and no degraded mode. The installer
-          installs it as a required, surfaced, explained component (all-users
-          install; per-user installs do not exist in this release).
+          Recovery Wizard is a **user-mode application**. It reads and writes
+          disks and volumes directly from user mode — no kernel driver, no
+          service, no certificate changes; nothing is loaded into the operating
+          system, and uninstalling removes everything the installer placed.
+
+          **Raw-disk operations require running as administrator.** Scanning,
+          recovering, health checks and repairs open physical drives and volumes
+          directly; when the application is not elevated it says so plainly (a
+          clear elevation-required notice and a restart-as-administrator
+          action) — it never runs in a degraded mode and never pretends to work.
+          Launch the app from an elevated context, or accept its UAC
+          restart prompt.
+
+          ## What changed in this release
+
+          - **The kernel driver is gone.** Earlier development releases (0.6.x)
+            shipped a mandatory kernel-mode raw-disk transport. This release
+            removes it entirely: the engine now opens ``\\.\PhysicalDriveN``
+            directly from user mode, and the product installs no driver, no
+            service, and imports no certificates. An all-users install and a
+            complete uninstall (nothing orphaned) remain.
+          - **The recovery engine advanced to ABI v4** (the current
+            core_recovery line — 1000+ commits of engine evolution: filesystem
+            coverage, session durability, repair consent, performance parity
+            with the reference corpus).
+          - **The application UI was rebuilt** on the current wizard base and
+            wired to the real engine (no simulated backend in shipped builds).
 
           ## Signing status (truthful)
 
-          This release is **DEVELOPMENT TEST-SIGNED**, not production-signed:
+          This release is **development self-signed**, not production-signed:
 
-          - The driver (``rda.sys``), the engine kit (``cr_ui.dll``,
-            ``rrecov.exe``) and the installer (``-setup.exe``) are embed-signed
-            with an ephemeral self-signed development certificate generated at
-            build time (docs/DEV-SIGNING.md). Nothing private is shipped or
-            committed.
-          - The installer imports the public certificate
-            (``RecoveryWizard-$version-testsigning.cer``) into the machine's
-            Root and Trusted Publishers stores — on machines with Secure Boot
-            OFF the test-signed driver then loads out of the box.
-          - On machines with Secure Boot ON, enable test signing and reboot
-            (elevated: ``bcdedit /set testsigning on``) or disable Secure
-            Boot; the registered driver starts on the next boot. Windows
-            production-driver policy requires a Microsoft attestation
-            signature to load kernel drivers under Secure Boot without test
-            signing — that is PRODUCTION signing, still pending.
+          - The engine kit (``cr_ui.dll``, ``rrecov.exe``) and the installer
+            (``-setup.exe``) are embed-signed with an ephemeral self-signed
+            development certificate generated at build time
+            (docs/DEV-SIGNING.md). Nothing private is shipped or committed, and
+            NO certificate is imported anywhere by the installer.
           - The Tauri application bundle is not signed yet (the
             production-signing gap documented in docs/DEV-SIGNING.md);
-            SmartScreen may warn on first run.
+            SmartScreen may warn on first run. Production signing (a real CA
+            certificate) remains pending.
 
           ## Artifacts
 
           - ``RecoveryWizard-$version-setup.exe`` — the combined NSIS installer
-            (driver + engine + app; all-users; the driver is a required
-            component; uninstall removes everything including the imported
-            certificate, sessions kept by default with explicit consent).
-          - ``RecoveryWizard-$version-portable.zip`` — app + engine + the
-            STAGED (not installed) driver. The engine refuses raw-disk
-            work without the running driver — install it via the staged
-            scripts or use the installer for the full product.
-          - ``RecoveryWizard-$version-testsigning.cer`` — the build's public
-            development certificate (already embedded in the installer's
-            flow; provided for transparency and manual provisioning).
+            (engine + app; all-users; uninstall removes everything, sessions
+            kept by default with explicit consent).
+          - ``RecoveryWizard-$version-portable.zip`` — app + engine, no
+            install: run the executable as administrator; sessions and logs
+            are written beside it.
+          - ``SHA256SUMS`` — checksums for every artifact.
 
           ## Checksums
 
           ``````
           $sums
-          ``````
+          ````
           "@ | Set-Content -Path release-notes.md -Encoding UTF8
 
       - name: Upload artifacts to the release
@@ -169,7 +169,6 @@ jobs:
           files: |
             build/out/RecoveryWizard-*-setup.exe
             build/out/RecoveryWizard-*-portable.zip
-            build/out/RecoveryWizard-*-testsigning.cer
             build/out/SHA256SUMS
           fail_on_unmatched_files: true
 

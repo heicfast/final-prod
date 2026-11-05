@@ -33,7 +33,7 @@ guarantees, and exactly how the real bridge replaces the simulator.
 | Recovery | `startRecovery(scanId, selection, destination, options) → {jobId}` (`selection` = `RecoverySelection`: explicit `nodeIds`, or `all` + the captured `ResultsFilter`), `cancelRecovery`, `getRecoveryState`, `getRecoveryItems`, `getRecoveryReport` | `onRecoveryProgress(jobId, cb)` |
 | Health   | `getHealth(deviceId)` → SMART table, class, TRIM, wear                                                                                                                                                                                             | —                               |
 | Repair   | `dryRunRepair(deviceId)`, `applyRepair(deviceId, {consentToken})`, `getUndoLog`, `undoRepairs`                                                                                                                                                     | —                               |
-| System   | `getDriverStatus`, `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory(hint?)`, `listMountPoints`, `openPath`                                                                                                   | —                               |
+| System   | `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory(hint?)`, `listMountPoints`, `openPath`                                                                                                   | —                               |
 
 ### Key payload shapes
 

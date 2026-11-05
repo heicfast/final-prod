@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(core_recovery
     VERSION 0.6.1
-    DESCRIPTION "User-mode Windows data-recovery stack on the RDA driver"
+    DESCRIPTION "User-mode Windows data-recovery stack with direct raw-disk access"
     LANGUAGES C CXX)
 
 # ---------------------------------------------------------------------------

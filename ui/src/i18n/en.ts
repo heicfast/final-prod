@@ -10,11 +10,6 @@ export const en = {
     connector: 'Data source',
     engine: 'Recovery engine',
     engineNone: 'Standard recovery engine',
-    driver: 'Disk driver',
-    driverOk: 'Installed ({{version}}) — {{running}}',
-    driverRunning: 'running',
-    driverStopped: 'stopped',
-    driverMissing: 'Not installed',
     platform: 'Platform',
   },
   activation: {
@@ -458,7 +453,6 @@ export const en = {
     connectorMode: 'Data source',
     connectorMock: 'Standard recovery engine',
     connectorTauri: 'Recovery engine',
-    engineStatus: 'Engine status',
     licenses: 'Open-source licenses',
     licensesBody:
       'This application builds on open-source components. Their licenses ship with the installation.',

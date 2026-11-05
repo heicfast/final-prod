@@ -570,13 +570,6 @@ export interface RepairDomain {
 // System
 // ---------------------------------------------------------------------------
 
-export interface DriverStatus {
-  readonly installed: boolean;
-  readonly version: string | null;
-  readonly running: boolean;
-  readonly note?: string;
-}
-
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
@@ -602,7 +595,6 @@ export interface DestinationValidation {
 }
 
 export interface SystemDomain {
-  getDriverStatus(): Promise<DriverStatus>;
   getAppInfo(): Promise<AppInfo>;
   validateDestination(
     path: string,

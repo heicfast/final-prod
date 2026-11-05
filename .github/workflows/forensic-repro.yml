@@ -15,10 +15,11 @@ name: forensic-repro
 #   S3  scan of a seeded 64GB NTFS vdisk      -> full timeline (stage,
 #       percentage, sector counts, found counters) up to 28 min + end state +
 #       results tree capture; app IO counters + child processes (fsutil
-#       flashes) sampled every 2s; rdacli liveness during the scan
+#       flashes) sampled every 2s; the elevated-transport liveness during
+#       the scan
 #   S4  every other surface                   -> DOM dump + screenshot
-#   plus machine facts before/after (services, driver file, certs, registry,
-#   secure boot / testsigning, System event log).
+#   plus machine facts before/after (elevation posture, services, registry,
+#   the installed product's module set, System event log).
 #
 # workflow_dispatch so every run is deliberate and recorded; artifacts are
 # downloaded and curated into docs/FORENSIC-PROBE.md by hand. No masking:

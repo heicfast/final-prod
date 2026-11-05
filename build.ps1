@@ -3,21 +3,22 @@
 # docs/BUILD.md documents every sub-build this drives.
 #
 # Usage:
-#   .\build.ps1                 # full product: driver + engine + ui + installer + portable
-#                                # + checksums - all development test-signed (installer/devsign.ps1)
-#   .\build.ps1 -Target engine  # one lane: engine | driver | ui | installer | portable | contracts | all
+#   .\build.ps1                 # full product: engine + ui + installer + portable
+#                                # + checksums (engine kit + installer development
+#                                # self-signed - installer/devsign.ps1)
+#   .\build.ps1 -Target engine  # one lane: engine | ui | installer | portable | contracts | all
 #   .\build.ps1 -Configuration Debug
 #
 # Version policy: the root VERSION file is the product version source of truth.
 # The app artifacts (package.json / Cargo.toml / tauri.conf.json) and the
 # installer + release tags derive from it; the committed state must stay in
-# lockstep and this script FAILS if it has drifted. Component wire-visible versions (driver
-# FILEVERSION reported via IOCTL, engine ABI number 2) are component contracts
+# lockstep and this script FAILS if it has drifted. Component wire-visible versions
+# (engine ABI number 4) are component contracts
 # and are documented as such in docs/BUILD.md — they are NOT restamped (that
 # would be a behavior change, not a version change).
 [CmdletBinding()]
 param(
-    [ValidateSet('all', 'contracts', 'engine', 'driver', 'ui', 'installer', 'portable')]
+    [ValidateSet('all', 'contracts', 'engine', 'ui', 'installer', 'portable')]
     [string]$Target = 'all',
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release',
@@ -119,65 +120,15 @@ function Invoke-Engine {
     $deployed | Copy-Item -Destination $engineKit
     Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '))"
 
-    # DEVELOPMENT TEST-SIGNING on the staged kit modules (the ABI dll + the
+    # DEVELOPMENT SELF-SIGNING on the staged kit modules (the ABI dll + the
     # CLI): the PE gates above ran on the build-tree files; the signature
-    # lands on the STAGED copies (what ships). The engine lane alone never
-    # built the driver, so the stage certificate may not exist yet - create
-    # it (idempotent) so '-Target engine' is self-contained.
+    # lands on the STAGED copies (what ships). User-mode code only - no
+    # kernel component exists in this product (docs/DEV-SIGNING.md).
     $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
     & $devsign -Action new-cert -StageDir $StageDir
     if (-not $?) { throw 'devsign new-cert failed' }
     & $devsign -Action sign -StageDir $StageDir -File "$engineKit\cr_ui.dll", "$engineKit\rrecov.exe"
     if (-not $?) { throw 'devsign sign (engine kit) failed' }
-}
-
-function Invoke-Driver {
-    Write-Host '[driver] WDK build (rda.sln x64 Release) + PE gates + DEVELOPMENT SIGNING'
-    Push-Location (Join-Path $RepoRoot 'driver')
-    nuget restore packages.config -SolutionDirectory . -NonInteractive
-    if ($LASTEXITCODE -ne 0) { throw 'driver nuget restore failed' }
-    msbuild rda.sln /p:Configuration=$Configuration /p:Platform=x64 /m /v:m
-    if ($LASTEXITCODE -ne 0) { throw 'driver build failed' }
-    Pop-Location
-
-    $drvBin = Join-Path $RepoRoot "driver\bin\x64\$Configuration"
-    python (Join-Path $RepoRoot 'driver\tools\stamp_osversion.py') "$drvBin\rda.sys"
-    if ($LASTEXITCODE -ne 0) { throw 'driver PE stamp failed' }
-    # Explicit allowlist: verify_pe.py's default 'tools/ref_imports.json' is
-    # CWD-relative (driver-ci runs it from driver/; build.ps1 runs from the
-    # repo root, where that relative path does not exist).
-    python (Join-Path $RepoRoot 'driver\tools\verify_pe.py') "$drvBin\rda.sys" --allowlist (Join-Path $RepoRoot 'driver\tools\ref_imports.json')
-    if ($LASTEXITCODE -ne 0) { throw 'driver PE verify failed (unsigned/import gates)' }
-
-    # DEVELOPMENT TEST-SIGNING (mandatory-driver session, 2026-10-27):
-    # the WDK build above stays SignMode=Off (driver-ci asserts the BARE
-    # msbuild output is unsigned); the embed signature is applied HERE, at
-    # product-packaging time, with the ephemeral build certificate
-    # (installer/devsign.ps1 - docs/DEV-SIGNING.md). A bare unsigned driver
-    # does not load even under test signing; the signed one loads on every
-    # machine with testsigning ON (CI runners are built that way) and on
-    # Secure-Boot-off machines whose stores carry the staged certificate
-    # (the installer imports it - recoverywizard.nsi SEC_DRIVER).
-    $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
-    & $devsign -Action new-cert -StageDir $StageDir
-    if (-not $?) { throw 'devsign new-cert failed' }
-    & $devsign -Action sign -StageDir $StageDir -File "$drvBin\rda.sys"
-    if (-not $?) { throw 'devsign sign (rda.sys) failed' }
-
-    $driverStage = Join-Path $StageDir 'driver'
-    New-Item -ItemType Directory -Force -Path $driverStage | Out-Null
-    Copy-Item "$drvBin\rda.sys", "$drvBin\rdacli.exe" -Destination $driverStage
-    Copy-Item (Join-Path $RepoRoot 'driver\src\driver\rda.inf') -Destination $driverStage
-    Copy-Item (Join-Path $RepoRoot 'driver\scripts\install.ps1'), (Join-Path $RepoRoot 'driver\scripts\uninstall.ps1') -Destination $driverStage
-    # the public certificate rides WITH the driver: the installer imports it
-    # into LocalMachine Root + TrustedPublisher before the service create;
-    # the uninstaller removes it by thumbprint.
-    Copy-Item (Join-Path $StageDir 'rda-testcert.cer'), (Join-Path $StageDir 'rda-testcert-thumbprint.txt') -Destination $driverStage
-    # the public certificate is also a first-class build artifact: the
-    # release publishes it next to the installer (transparency + manual
-    # provisioning), and Invoke-Checksums folds it into SHA256SUMS.
-    Copy-Item (Join-Path $StageDir 'rda-testcert.cer') -Destination (Join-Path $OutDir "RecoveryWizard-$Version-testsigning.cer") -Force
-    Write-Host "[driver] staged (development test-signed; docs/DEV-SIGNING.md) -> $driverStage"
 }
 
 function Invoke-Ui {
@@ -233,7 +184,7 @@ function Find-Makensis {
 }
 
 function Invoke-Installer {
-    Write-Host '[installer] NSIS combined installer (driver + engine + app)'
+    Write-Host '[installer] NSIS combined installer (engine + app)'
     $appBundle = Get-ChildItem (Join-Path $RepoRoot 'ui\src-tauri\target\release\bundle\nsis') -Filter '*-setup.exe' |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $appBundle) { throw 'no Tauri NSIS app bundle found; run the ui lane first' }
@@ -247,15 +198,13 @@ function Invoke-Installer {
     # C-runtime argument unescaping.
     & $makensis "/DPRODUCT_VERSION=$Version" "/DAPP_BUNDLE=$($appBundle.FullName)" `
         "/DENGINE_KIT=$(Join-Path $StageDir 'engine')" `
-        "/DDRIVER_STAGE=$(Join-Path $StageDir 'driver')" `
         "/DOUT_DIR=$OutDir" "/DPATHSEP=\\" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'installer build failed' }
 
-    # DEVELOPMENT TEST-SIGNING on the artifact the customer runs first: the
-    # outer installer exe (the payloads inside - rda.sys, the engine kit -
-    # carry their own embed signatures from their lanes; the Tauri app
-    # bundle's signature is the production-signing gap documented in
-    # docs/DEV-SIGNING.md).
+    # DEVELOPMENT SELF-SIGNING on the artifact the customer runs first: the
+    # outer installer exe (the payload inside - the engine kit - carries its
+    # own embed signature from its lane; the Tauri app bundle's signature is
+    # the production-signing gap documented in docs/DEV-SIGNING.md).
     $setupExe = Join-Path $OutDir "RecoveryWizard-$Version-setup.exe"
     $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
     & $devsign -Action sign -StageDir $StageDir -File $setupExe
@@ -264,7 +213,7 @@ function Invoke-Installer {
 }
 
 function Invoke-Portable {
-    Write-Host '[installer] portable zip (no driver installed — app + engine only)'
+    Write-Host '[installer] portable zip (app + engine; no install - run as administrator)'
     & (Join-Path $PSScriptRoot 'installer\portable.ps1') -RepoRoot $RepoRoot -Version $Version -StageDir $StageDir -OutDir $OutDir
     # NOT $LASTEXITCODE: portable.ps1 is cmdlet-only, so a standalone
     # 'build.ps1 -Target portable' from a fresh shell leaves $LASTEXITCODE
@@ -288,13 +237,11 @@ Assert-VersionConsistency
 switch ($Target) {
     'contracts' { Invoke-Contracts }
     'engine'    { Invoke-Contracts; Invoke-Engine }
-    'driver'    { Invoke-Driver }
     'ui'        { Invoke-Contracts; Invoke-Ui }
     'installer' { Invoke-Installer }
     'portable'  { Invoke-Portable; Invoke-Checksums }
     'all' {
         Invoke-Contracts
-        Invoke-Driver
         Invoke-Engine
         Invoke-Ui
         Invoke-Installer

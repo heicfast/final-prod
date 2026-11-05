@@ -10,14 +10,6 @@ export function useAppInfo() {
   });
 }
 
-export function useDriverStatus() {
-  return useQuery({
-    queryKey: queryKeys.driverStatus,
-    queryFn: () => connector.system.getDriverStatus(),
-    staleTime: Infinity,
-  });
-}
-
 export function useMountPoints() {
   return useQuery({
     queryKey: queryKeys.mounts,

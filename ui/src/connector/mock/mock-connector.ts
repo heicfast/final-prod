@@ -17,7 +17,6 @@ import type {
   DestinationValidation,
   Device,
   DiskHealth,
-  DriverStatus,
   MockScenarioId,
   MountPoint,
   NodeDetail,
@@ -1458,15 +1457,6 @@ ${lines.join('')}
   // ------------------------------------------------------------ system
 
   readonly system: SystemDomain = {
-    getDriverStatus: async (): Promise<DriverStatus> => {
-      await latency(60);
-      return {
-        installed: true,
-        version: 'mock-1.0.0',
-        running: true,
-      };
-    },
-
     getAppInfo: async (): Promise<AppInfo> => {
       await latency(40);
       return {
