@@ -101,3 +101,12 @@ Interim assets tracked in `docs/INTERIM-ASSETS.md`.
   replaced by the redesigned Disk Health page; ChronoSnap Backup renamed Scan
   Snapshot; File Repair & Lost Partition Rescue now 2-step direct flows (no
   Start landing screens); 3D drive/recycle-bin target icons introduced.
+- v0.3.4 (gate/docs/i18n hygiene, zero behavior change): CI push triggers
+  retargeted to the v3 default branch; knip stale-ignore removed; the
+  VirtualFileList compiler skip made explicit ('use no memo' + targeted
+  eslint disable, ADR-002); 11 unused reference-product screenshots removed
+  from the installer payload; v4-surface strings (repair/lost-partition/
+  sd-card chrome, scan ticker + celebration) moved into the governed en/zh-CN
+  catalogs (406 keys); docs synced to code truth (UI-MAP, screen-manifest,
+  IMPLEMENTATION-STATUS, component-inventory, ARCHITECTURE,
+  CONNECTOR-CONTRACT post-ADR-008).

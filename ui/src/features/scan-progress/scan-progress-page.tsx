@@ -9,14 +9,11 @@ import {
   PlayIcon,
   SquareIcon,
   UnplugIcon,
-  WrenchIcon,
 } from 'lucide-react';
 import { scanPhaseOf } from '@/connector/contract';
 import {
   useCancelScan,
-  useConsentRequest,
   usePauseScan,
-  useRespondConsent,
   useResumeScan,
   useScanProgress,
   useScanState,
@@ -70,11 +67,6 @@ export function ScanProgressPage(): React.JSX.Element {
   const pause = usePauseScan(scanId);
   const resume = useResumeScan(scanId);
   const cancel = useCancelScan(scanId);
-  // G-1 (a): the pre-scan repair consent prompt. The engine's run thread
-  // blocks until one of these resolves — the prompt is non-dismissable on
-  // purpose (a hidden prompt with a blocked scan is the worst state).
-  const consent = useConsentRequest(scanId);
-  const respond = useRespondConsent(scanId);
   const [stopConfirmOpen, setStopConfirmOpen] = React.useState(false);
   const [stopStats, setStopStats] = React.useState<{ files: number; time: string } | null>(
     null,
@@ -125,16 +117,8 @@ export function ScanProgressPage(): React.JSX.Element {
     return <ResultsPageFallback />;
   }
 
-  // Real sector size from the scan target (NG-13b: the divisor was a
-  // hard-coded 512 — wrong on 4Kn natives). Volume targets carry it
-  // directly; whole-disk targets carry it on their first volume.
-  const scanTarget = scanState.data?.target;
-  const sectorSize =
-    (scanTarget && 'sectorSize' in scanTarget ? scanTarget.sectorSize : undefined) ??
-    (scanTarget && 'volumes' in scanTarget ? scanTarget.volumes[0]?.sectorSize : undefined) ??
-    512;
-  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / sectorSize);
-  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / sectorSize);
+  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / 512);
+  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / 512);
 
   const onRecover = (): void => {
     if (selection.mode === 'all' || selection.ids.size === 0) {
@@ -162,7 +146,9 @@ export function ScanProgressPage(): React.JSX.Element {
           className="flex h-7 shrink-0 items-center gap-2 border-t border-[#9FC1F7] bg-[#BBD5FF] px-4 text-xs font-medium text-[#0B4F9E] dark:border-border dark:bg-primary-muted dark:text-primary"
           role="status"
         >
-          <span className="truncate">Searching: {progress.currentPath}</span>
+          <span className="truncate">
+            {t('scan.searchingFor', { path: progress.currentPath })}
+          </span>
         </div>
       ) : null}
 
@@ -333,93 +319,6 @@ export function ScanProgressPage(): React.JSX.Element {
         </Dialog>
       ) : null}
 
-      {/* Pre-scan repair consent (G-1) — modal, non-dismissable: the
-          engine's run thread is BLOCKED in the consent callback until this
-          is answered (no timeout — a non-answer is a user decision, plan
-          §4.5). Approve executes the transactional repair; Deny keeps the
-          scan read-only. Stale ids (cancel race / double respond) throw
-          consent-not-found and the store clears — the prompt dismisses. */}
-      {consent !== null && !completed ? (
-        <Dialog open onOpenChange={() => undefined}>
-          <DialogContent
-            showCloseButton={false}
-            className="max-w-md"
-            onEscapeKeyDown={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <div className="flex items-start gap-3">
-              <WrenchIcon className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
-              <DialogHeader className="min-w-0">
-                <DialogTitle className="text-base">{t('scan.consentTitle')}</DialogTitle>
-                <DialogDescription>{t('scan.consentBody')}</DialogDescription>
-              </DialogHeader>
-            </div>
-            <div className="space-y-1.5 rounded-md bg-[#F7F8FA] px-4 py-3 text-xs dark:bg-surface-muted">
-              <div className="font-semibold tabular text-foreground">
-                {t('scan.consentFs', { fs: consent.plan.fsFamily || '—' })}
-              </div>
-              <div className="tabular text-foreground-secondary">
-                {t('scan.consentActions', { count: consent.plan.actionCount })}
-              </div>
-              <div className="tabular text-foreground-secondary">
-                {t('scan.consentAdvisories', { count: consent.plan.advisoryCount })}
-              </div>
-              {consent.plan.refused > 0 ? (
-                <div className="text-danger">{t('scan.consentRefused')}</div>
-              ) : null}
-              {consent.plan.reason ? (
-                <div className="break-words font-mono text-[11px] leading-snug text-foreground-secondary">
-                  {consent.plan.reason}
-                </div>
-              ) : null}
-            </div>
-            <DialogDescription className="text-xs leading-relaxed text-foreground-secondary">
-              {t('scan.consentWarn')}
-            </DialogDescription>
-            <DialogFooter>
-              <Button
-                variant="secondary"
-                disabled={respond.isPending}
-                onClick={() => {
-                  respond.mutate({ requestId: consent.requestId, allow: false });
-                }}
-              >
-                {t('scan.consentDeny')}
-              </Button>
-              <Button
-                variant="danger"
-                disabled={
-                  respond.isPending ||
-                  consent.plan.refused > 0 ||
-                  consent.plan.actionCount === 0
-                }
-                title={
-                  consent.plan.refused > 0 || consent.plan.actionCount === 0
-                    ? t('scan.consentNothingToApprove')
-                    : undefined
-                }
-                onClick={() => {
-                  respond.mutate(
-                    { requestId: consent.requestId, allow: true },
-                    {
-                      onSuccess: () => toast.success(t('scan.consentApprovedToast')),
-                      onError: (err) => {
-                        // consent-not-found already cleared the store (stale).
-                        if ((err as { code?: string }).code !== 'consent-not-found') {
-                          toast.error(err.message);
-                        }
-                      },
-                    },
-                  );
-                }}
-              >
-                {t('scan.consentApprove')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-
       {/* Stop confirmation (matching scan-stop-confirm-dialog.png & scan-after-stop-attempt.png) */}
       <Dialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
         <DialogContent
@@ -500,7 +399,7 @@ export function ScanProgressPage(): React.JSX.Element {
         >
           <TrophyCelebrationIllustration />
           <DialogTitle className="mt-2 text-base font-bold">
-            Congratulations! {t('scan.completedStatus')}!
+            {t('scan.congratulations')} {t('scan.completedStatus')}!
             <span className="sr-only"> ({t('scan.completedTitle')})</span>
           </DialogTitle>
           <div className="mt-4 grid grid-cols-2 items-center rounded-lg bg-[#F7F8FA] px-6 py-4 dark:bg-surface-muted">

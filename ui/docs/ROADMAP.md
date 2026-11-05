@@ -1,5 +1,22 @@
 # ROADMAP
 
+## v0.3.4 — gate/docs/i18n hygiene — DONE (pending tag)
+
+- CI push triggers fixed to the v3 default branch (push CI previously
+  never fired on the renamed default branch).
+- knip stale ignore removed (0 findings, 0 hints); VirtualFileList
+  compiler skip made explicit per ADR-002 (lint now 0 warnings).
+- Clean-room/packaging: 11 unused reference-product screenshots removed
+  from `public/` (they shipped in every NSIS installer); AI-Studio
+  scaffold remnants (`.env.example`, `metadata.json`) removed.
+- i18n completion: all v4-surface chrome strings extracted into the
+  governed en/zh-CN catalogs (406 keys, en text byte-identical).
+- Docs truth pass: UI-MAP/screen-manifest/IMPLEMENTATION-STATUS/
+  component-inventory/ARCHITECTURE synced to code; CONNECTOR-CONTRACT
+  updated to post-ADR-008 signatures; historical session docs carry dated
+  addenda instead of rewrites.
+- No features, no dependency changes, no behavior changes.
+
 ## v4 UI pass (merged at v0.3.3) — DONE
 
 - Settings / Theme / About consolidated into the three-lines header Menu

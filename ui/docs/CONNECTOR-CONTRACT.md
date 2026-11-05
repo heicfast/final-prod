@@ -23,17 +23,17 @@ guarantees, and exactly how the real bridge replaces the simulator.
 
 ## Domains
 
-| Domain   | Commands                                                                                                                                         | Events                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Devices  | `listDevices`, `getDeviceInfo(id)` (id may be a device or volume id), `refreshDevices`                                                           | —                               |
-| Scan     | `startScan(params) → {scanId}` (params include optional `pathScope`), `pauseScan`, `resumeScan`, `cancelScan`, `getScanState`                    | `onScanProgress(scanId, cb)`    |
-| Results  | `getResultTree(scanId, parentId, mode)`, `queryResults(scanId, filter, sort, page)`, `getNodeDetail`, `countResults`                             | —                               |
-| Preview  | `requestPreview(scanId, nodeId, kind)` → bounded payload union, `getThumbnail`                                                                   | —                               |
-| Sessions | `saveSession(scanId, path)`, `listSessions`, `loadSession(path) → {scanId}`, `getSessionMeta`, `deleteSession`                                   | —                               |
-| Recovery | `startRecovery(scanId, nodeIds, destination, options) → {jobId}`, `cancelRecovery`, `getRecoveryState`, `getRecoveryItems`, `getRecoveryReport`  | `onRecoveryProgress(jobId, cb)` |
-| Health   | `getHealth(deviceId)` → SMART table, class, TRIM, wear                                                                                           | —                               |
-| Repair   | `dryRunRepair(deviceId)`, `applyRepair(deviceId, {consentToken})`, `getUndoLog`, `undoRepairs`                                                   | —                               |
-| System   | `getDriverStatus`, `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory(hint?)`, `listMountPoints`, `openPath` | —                               |
+| Domain   | Commands                                                                                                                                                                                                                                           | Events                          |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Devices  | `listDevices`, `getDeviceInfo(id)` (id may be a device or volume id), `refreshDevices`                                                                                                                                                             | —                               |
+| Scan     | `startScan(params) → {scanId}` (params include optional `pathScope`), `pauseScan`, `resumeScan`, `cancelScan`, `getScanState`                                                                                                                      | `onScanProgress(scanId, cb)`    |
+| Results  | `getResultTree(scanId, parentId, mode)`, `queryResults(scanId, filter, sort, page)`, `getNodeDetail`, `countResults`                                                                                                                               | —                               |
+| Preview  | `requestPreview(scanId, nodeId)` → bounded payload union (the CONNECTOR infers the preview kind from its own file knowledge — never the UI), `getThumbnail`                                                                                        | —                               |
+| Sessions | `saveSession(scanId, path)`, `listSessions`, `loadSession(path) → {scanId}`, `getSessionMeta`                                                                                                                                                      | —                               |
+| Recovery | `startRecovery(scanId, selection, destination, options) → {jobId}` (`selection` = `RecoverySelection`: explicit `nodeIds`, or `all` + the captured `ResultsFilter`), `cancelRecovery`, `getRecoveryState`, `getRecoveryItems`, `getRecoveryReport` | `onRecoveryProgress(jobId, cb)` |
+| Health   | `getHealth(deviceId)` → SMART table, class, TRIM, wear                                                                                                                                                                                             | —                               |
+| Repair   | `dryRunRepair(deviceId)`, `applyRepair(deviceId, {consentToken})`, `getUndoLog`, `undoRepairs`                                                                                                                                                     | —                               |
+| System   | `getDriverStatus`, `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory(hint?)`, `listMountPoints`, `openPath`                                                                                                   | —                               |
 
 ### Key payload shapes
 
@@ -47,19 +47,22 @@ guarantees, and exactly how the real bridge replaces the simulator.
   carries both the filtered file count (`total`) and the filtered byte total
   (`totalBytes`) so the status bar renders accurate filtered byte sums.
 - `ResultsFilter`: pushed server-side — tree scope, search, categories, date
-  range, size range, confidence, extensions, origins. The connector resolves it
-  over typed-array scans; the real engine will resolve it in Rust.
-- `ScanParams.pathScope`: optional folder restriction. An absolute path on
-  the target volume; `null`/omitted = whole volume. (G-11: the engine has no
-  folder-scoped scan — the bridge scans the whole volume and applies
-  path-prefix scoping to every result view.) An
+  range, size range, extensions, origins, and the `hideEmptyFiles` toggle
+  (ADR-008 removed the `confidence` filter — not a reference filter surface).
+  The mock resolves it over typed-array scans; the real engine will resolve
+  it in Rust.
+- `ScanParams.pathScope`: optional folder restriction. Volume-root-relative
+  path; an absolute path on the target volume is also accepted (the connector
+  strips the drive-letter prefix). `null`/omitted = whole volume. An
   unresolvable folder is a hard `scan-scope-invalid` error — the UI cannot
   override the connector verdict. Scoped scans list only files inside the
   subtree; the path-mode tree presents the scanned folder itself as root.
 - `pickDirectory(hint?)`: the optional hint roots the native dialog at a
   volume (`{ volumeId }`) — used by the Home "Select Folder" quick target
   (picker runs first, then the scan starts directly on the chosen scope).
-  Destination picking (recovery) calls it without a hint.
+  Destination picking (recovery) passes `{ excludeDeviceId: sourceTargetId }`
+  so the dialog avoids suggesting the recovery source device; the connector
+  still owns validation of the result.
 - `RecoveryOptions`: collision policy (`rename`/`overwrite`/`skip`), folder
   reconstruction, empty-folder preservation, file repair, hash-on-write verify.
 - `DestinationValidation`: `{ allowed, reason?, reasonKey?, freeBytes?,
@@ -83,33 +86,27 @@ neededBytes? }` — **the overlap refusal is hard**: the UI cannot proceed
   undo log; `consentToken` must be the user's explicit acknowledgment
   (`REPAIR` typed confirmation in the UI).
 
-## The real bridge (shipped)
+## Swapping in the real bridge
 
-The seam the contract promised held: `src/connector/tauri/tauri-connector.ts`
-implements all 38 methods over the 34 Tauri commands of
-`contracts/command-surface.json` (repository root), and the Rust bridge
-(`src-tauri/src/{bridge,commands}/`) binds those commands to the cr_ui
-engine ABI. `contracts/validate.mjs` cross-checks the manifest against BOTH
-implementations on every change (phase 2).
+1. Implement `RecoveryConnector` in `src/connector/tauri/tauri-connector.ts`
+   by delegating to `invoke()` calls on thin Rust commands in
+   `src-tauri/src/commands/` (reveal/path helpers already exist).
+2. Map engine progress callbacks to the two event subscriptions (Tauri
+   `emit`/`listen`).
+3. Set `VITE_CONNECTOR=tauri` at build time — the factory in
+   `src/connector/index.ts` does the switch. **No component or view changes.**
+4. The current stub throws `not-implemented` on every method with a pointer
+   to this document — a misconfigured build fails loudly, never silently.
 
-- Error model: the bridge rejects with `{ code, bridgeCode, message }`;
-  `bridgeCode` maps directly to `ConnectorErrorCode`, `code` maps through
-  the engine numeric table (`contracts/error-codes.json`). The UI renders
-  `reasonKey` strings only. `ERR_CANCELLED` never crosses as an error —
-  cancel paths resolve with status 'cancelled'.
-- Events: `scan-progress:<scanId>` / `recovery-progress:<jobId>` via Tauri
-  `emit`/`listen`; the subscriptions keep the contract's unsubscribe shape.
-- The simulated backend is GONE (no env gate, no fallback): the factory
-  (`src/connector/index.ts`) exports the real connector singleton only.
-- Integration gaps are recorded truthfully in `docs/INTEGRATION-GAPS.md`
-  (repository root) — e.g. the G-1 repair workbench throws the typed
-  `not-implemented` from the bridge, and the UI renders the message.
+## Mock simulator guarantees (verified by tests)
 
-## The test double (never shipped)
-
-`tests/fakes/test-connector.ts` implements the same contract against small
-deterministic fixtures so the component and e2e suites run without the
-engine. It is wired ONLY through the Vite test-mode alias (vitest runs,
-`vite build --mode test`); production builds can never reach it (arch-lint
-A7; CI asserts the bundle contents). The double fails EXACTLY where the
-real bridge fails — the G-1 repair gaps refuse identically — never better.
+- Determinism: fixed seed per scenario; identical runs produce identical
+  device lists, result sets, previews, and reports.
+- Timing: progress ticks 100–250 ms; pause/resume < 600 ms; cancel ≤ 300 ms
+  (all asserted).
+- Volumes: 2 TB NTFS with 1.2 M nodes (procedural typed-array index), 64 GB
+  exFAT SD, 4 TB Btrfs, lost-partition scenario.
+- Error injection: `bad-sectors`, `disconnect-mid-scan` (one-shot, recoverable
+  by resume), `out-of-space`, `permission-denied`, `corrupt-session`.
+- Preview payloads are deterministic SVG/byte/text generations; failures
+  carry diagnostic reason keys.

@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/app/theme';
@@ -81,24 +81,22 @@ describe('reference UI surfaces and sidebar', () => {
     expect(await screen.findByText(/s\.m\.a\.r\.t\. attributes/i)).toBeVisible();
   });
 
-  it('renders File Repair as a TRUTHFUL unavailable surface (no fake queue)', () => {
+  it('renders File Repair directly on Add Files Dropzone -> Queue & Repair All', () => {
     wrap(<RepairPage />, '/repair');
     expect(
       screen.getByRole('heading', {
         name: /repair corrupted videos, photos and documents/i,
       }),
     ).toBeVisible();
-    // the honest unavailable state (NG-12: the canned queue is gone)
-    expect(screen.getByText(/standalone repair workbench is not available yet/i)).toBeVisible();
-    // the REAL capability this build ships is stated
-    expect(screen.getByText(/pre-scan repair prompt/i)).toBeVisible();
-    // the fake queue never renders
-    expect(screen.queryByText(/WinMemoryCleaner/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: /repair all/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /add files/i })).toBeNull();
+    expect(
+      screen.getByText(/click or drag files from your local disk to start the repair/i),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /add files/i }));
+    expect(screen.getByText('WinMemoryCleaner (1).exe')).toBeVisible();
+    expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
   });
 
-  it('renders Lost Partition Rescue as a REAL launcher (no canned results)', async () => {
+  it('renders Lost Partition Rescue directly on Disk Selection -> Smart Partition Scan Completed', async () => {
     wrap(<LostPartitionPage />, '/lost-partition');
     expect(
       await screen.findByRole('heading', { name: /lost partition rescue/i }),
@@ -106,14 +104,11 @@ describe('reference UI surfaces and sidebar', () => {
     expect(
       screen.getByText(/choose a disk to start searching for lost partition\(s\)/i),
     ).toBeVisible();
-    // the honest apply deferral note (the CLI ships beside the app)
-    expect(screen.getByText(/rrecov apply/i)).toBeVisible();
-    // the real devices come from the connector (the double's device)
-    expect(screen.getByText(/TestDisk 512G/i)).toBeVisible();
-    // the canned completed table NEVER renders without a real scan (NG-11)
-    expect(screen.queryByText(/smart partition scan completed/i)).toBeNull();
-    expect(screen.queryByText(/double click the partition/i)).toBeNull();
-    expect(screen.queryByText(/CONSISTENT M\.2/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /search for lost partition/i }));
+    expect(
+      screen.getByRole('heading', { name: /smart partition scan completed/i }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: /try data recovery/i })).toBeVisible();
   });
 
   it('renders Scan Snapshot page', () => {

@@ -7,13 +7,14 @@ export const en = {
   about: {
     subtitle: 'Build and runtime information — every row comes from the data source.',
     version: 'Version',
+    connector: 'Data source',
     engine: 'Recovery engine',
     engineNone: 'Standard recovery engine',
     driver: 'Disk driver',
     driverOk: 'Installed ({{version}}) — {{running}}',
     driverRunning: 'running',
     driverStopped: 'stopped',
-    driverMissing: 'Required — not installed',
+    driverMissing: 'Not installed',
     platform: 'Platform',
   },
   activation: {
@@ -123,6 +124,10 @@ export const en = {
     bannerOr: 'or',
     getHelp: 'Get Help',
     helpToast: 'Ensure the card reader is firmly connected and unlocked.',
+    cardName: 'SD/MMC/MS PRO',
+    cardPartition: 'Others',
+    cardSize: '58 GB',
+    cardDiskNo: 'Disk2',
   },
   tools: {
     providerBody:
@@ -149,15 +154,23 @@ export const en = {
     title: 'Lost Partition Rescue',
     subtitle: 'Choose a disk to start searching for lost partition(s)',
     diskList: 'Choose a disk to search',
-    noDisksTitle: 'No disks found',
-    noDisksBody: 'No whole-disk capable device is present. Connect a disk and refresh.',
-    noVolumes: 'no visible volumes',
-    explainer:
-      'The search reads the WHOLE disk through the recovery driver: it finds partitions that Windows no longer lists (deleted, damaged, or overwritten partition tables), scans the filesystems on them, and lists their files under Lost Files in the results. Found files are recoverable from the results page like any other scan.',
-    searchCta: 'Search for Lost Partition',
-    searching: 'Starting the search…',
-    applyNote:
-      'Restoring a found partition back into the disk\u2019s partition table is not available in this window yet — it ships today through the rrecov command-line tool installed beside the app (rrecov apply), which lists the found partitions and writes the table with an undo log.',
+    scanCompletedTitle: 'Smart Partition Scan Completed',
+    scanCompletedFor: 'Scan completed for {{disk}}!',
+    foundPartitions: 'We found partition(s):',
+    colFilesystem: 'File System',
+    colLabel: 'Label',
+    colUsedSize: 'Used size',
+    colSize: 'Size',
+    colStartLba: 'Starting LBA',
+    colEndLba: 'Ending LBA',
+    colRecoverability: 'Recoverability',
+    colStatus: 'Status',
+    exploreHint: 'Double click the partition to explore the content.',
+    previewFor: 'Preview for {{disk}}',
+    tryDataRecovery: 'Try Data Recovery',
+    needRecoverFiles: 'Need to recover deleted or lost files? ',
+    goToHardwareDisk: 'Go to Hardware Disk',
+    searchForLostPartition: 'Search for Lost Partition',
   },
   scan: {
     filesFoundWithSize: 'Files Found: {{count}} ({{size}})',
@@ -192,21 +205,8 @@ export const en = {
       'The source device stopped responding. Reconnect it to continue the search.',
     reconnect: 'I reconnected it',
     recoverNowUnsafe: 'Recovery will be available once this stage completes safely.',
-    consentTitle: 'Pre-scan repair request',
-    consentBody:
-      'The scan engine found file-system damage it can repair before scanning. Repairing is optional — the search for your files works without it.',
-    consentFs: 'File system: {{fs}}',
-    consentActions: 'Repair actions: {{count}}',
-    consentAdvisories: 'Report-only findings: {{count}}',
-    consentRefused:
-      'The analysis also found damage that cannot be repaired safely; those items stay untouched.',
-    consentWarn:
-      'Approving writes repair actions to this volume before the scan (an undo log is saved for the command-line tool). Denying keeps the scan fully read-only.',
-    consentApprove: 'Approve repair',
-    consentDeny: 'Deny — stay read-only',
-    consentNothingToApprove:
-      'The engine planned no write actions; there is nothing to approve.',
-    consentApprovedToast: 'Repair approved — the engine applies it before the scan.',
+    searchingFor: 'Searching: {{path}}',
+    congratulations: 'Congratulations!',
   },
   results: {
     pathTab: 'Path',
@@ -257,11 +257,7 @@ export const en = {
       unknown: 'Unknown',
     },
     tree: {
-      // Neutral fallback (NG-22, forensic run 40470191039) — the root label
-      // is the scan target's real name (results-explorer passes it); this
-      // string only shows when the target is unresolved (e.g. a session
-      // view without scan state).
-      existingFiles: 'Existing Files',
+      existingFiles: 'Windows (C:)',
       rawFound: 'Reconstructed',
       lostPaths: 'File Path Lost',
     },
@@ -269,7 +265,7 @@ export const en = {
       recover: 'Recover…',
       preview: 'Preview',
       openLocation: 'Open location',
-      openLocationMissing: 'This item has no on-disk location (deleted or carved content).',
+      openLocationMock: 'Opening a file location requires elevated shell access.',
       selectUnrecovered: 'Select not-yet-recovered',
       smartSelect: 'Pick best copy of each',
       clearSelection: 'Clear selection',
@@ -318,8 +314,6 @@ export const en = {
       damaged: 'The file data is damaged and cannot be decoded.',
       encrypted: 'The file is encrypted.',
       unsupportedKind: 'Previews for this file type are not supported.',
-      timeout: 'The preview read exceeded its time budget.',
-      missingData: 'This item has no data to preview.',
     },
     statusExisting: 'Existing',
     statusDeleted: 'Deleted',
@@ -385,8 +379,6 @@ export const en = {
     statusGood: 'Good',
     statusCaution: 'Caution',
     statusBad: 'Poor',
-    statusUnknown: 'Unknown',
-    lifeUnknown: 'n/a',
     temperature: 'Temperature',
     powerOnHours: 'Powered on',
     class: 'Type',
@@ -410,26 +402,37 @@ export const en = {
     smartFailing: 'Failing',
     notAvailable: 'Health data is not available for this device.',
     cautionNote: 'This disk reports warning signs. Copy important data off it soon.',
-    unknownNote:
-      'This drive reports no S.M.A.R.T. attribute data, so its health cannot be graded. This is common for virtual and some USB bridge devices.',
-    noSmartRows:
-      'This drive reports no S.M.A.R.T. attribute rows. Health status above comes from the data the drive did provide.',
-    noSmartRowsNvme:
-      'NVMe drives do not expose the ATA S.M.A.R.T. attribute table; the NVMe health-log metrics above are this drive\u2019s health data.',
   },
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',
     introBody: 'Add corrupted files to easily repair them.',
-    workbenchUnavailableTitle: 'The standalone repair workbench is not available yet',
-    workbenchUnavailableBody:
-      'Picking individual corrupted files and repairing them here is not part of this build. This page will not pretend otherwise: when the workbench ships, it will appear here with the same flow.',
-    availableTodayTitle: 'What repair this build really ships',
-    availableTodayBody:
-      'When a scan finds file-system damage it can repair, the scan page asks for your approval first (the pre-scan repair prompt). Approve it and the repair runs as one transaction before the scan continues \u2014 the search for your files works without it too.',
-    undoNote:
-      'Every approved pre-scan repair saves an undo log beside the scan session; the rrecov command-line tool installed with the app can replay or undo it (rrecov fix --undo-apply).',
+    dropzoneHint: 'Click or drag files from your Local Disk to start the repair.',
+    addFiles: 'Add Files',
+    advancedRepair: 'Advanced Repair',
+    repaired: 'Repaired',
+    addFile: 'Add file',
+    clearFiles: 'Clear files',
+    repairAll: 'Repair All',
+    findings: 'Findings',
+    noFindings: 'No repairable problems were found.',
+    fix: 'Repair {{count}} problem',
+    fix_other: 'Repair {{count}} problems',
+    consentTitle: 'Confirm the repair',
+    consentBody:
+      'The repair writes corrections to the volume’s structural records on disk. An undo log is kept so the changes can be rolled back.',
+    consentAcknowledge: 'I understand this writes to the disk and want to continue',
+    consentTypeHere: 'Type REPAIR to confirm',
     consentRequired: 'Type REPAIR in the confirmation box to apply repairs.',
-    finding: {},
+    finding: {
+      bootSector: 'The boot sector does not match the volume’s records.',
+      backupDbr: 'The backup boot sector is out of date.',
+      fatTable: 'The file allocation table has damaged chains.',
+    },
+    appliedCount: 'Applied {{count}} repairs.',
+    rolledBackCount: 'Rolled back {{count}} repairs.',
+    undoLog: 'Undo log',
+    nothingToUndo: 'No repairs have been applied in this session.',
+    rollback: 'Undo repairs',
   },
   settings: {
     title: 'Settings',
@@ -452,6 +455,9 @@ export const en = {
     copyLog: 'Copy log',
     aboutTitle: 'About',
     version: 'Version',
+    connectorMode: 'Data source',
+    connectorMock: 'Standard recovery engine',
+    connectorTauri: 'Recovery engine',
     engineStatus: 'Engine status',
     licenses: 'Open-source licenses',
     licensesBody:
@@ -461,24 +467,12 @@ export const en = {
     title: 'That did not work',
     deviceGone: 'The selected device is no longer connected.',
     devicePermission: 'The system denied access to this device.',
-    driverRequired:
-      'The RDA disk driver is required and not running. Install or start it, then retry — the product has no fallback mode.',
     scanScopeInvalid: 'That folder was not found on the selected drive.',
     sessionNotFound: 'That scan session could not be found.',
+    openPathMock: 'Opening locations requires system file explorer access.',
     sessionCorrupt: 'The saved search could not be read.',
     unknown: 'An unexpected problem occurred. The diagnostics log has the details.',
     retryOrHome: 'Try again, or go back to the device list.',
-    scanNotFound: 'That scan does not exist (it may have been closed).',
-    scanNotRunning: 'That scan is not currently running.',
-    scanNotPaused: 'That scan is not paused.',
-    consentNotFound:
-      'The repair request is no longer active (already answered, cancelled, or the scan ended).',
-    destinationInvalid: 'That path is not a valid save location.',
-    destinationUnwritable: 'That location is not writable.',
-    repairFailed: 'The repair operation could not be completed.',
-    healthUnavailable: 'SMART health data could not be read for this device.',
-    notImplemented:
-      'The current engine interface does not provide this capability (see the integration gaps record).',
   },
   a11y: {
     mainRegion: 'Main content',
@@ -491,8 +485,11 @@ export const en = {
   },
   devPanel: {
     title: 'Developer panel',
+    scenario: 'Scenario',
+    seed: 'Seed',
     perfOverlay: 'Performance overlay',
     language: 'Override language',
+    reset: 'Reset overrides',
     closePanel: 'Close developer panel',
   },
 };

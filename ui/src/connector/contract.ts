@@ -1,7 +1,8 @@
 /**
  * CONNECTOR CONTRACT — the single source of truth for every command and event
  * the recovery backend will ever expose. The UI talks ONLY to this interface
- * (via src/queries) against the real cr_ui engine bridge.
+ * (via src/queries). Swapping the Mock Connector for a real IPC bridge must
+ * require zero changes above this layer.
  *
  * Principles:
  *  - The UI renders and requests; the connector provides and grades.
@@ -55,12 +56,10 @@ export interface ConnectorError extends Error {
 export type ConnectorErrorCode =
   | 'device-gone'
   | 'device-permission'
-  | 'driver-required'
   | 'scan-not-found'
   | 'scan-not-paused'
   | 'scan-not-running'
   | 'scan-scope-invalid'
-  | 'consent-not-found'
   | 'session-corrupt'
   | 'session-not-found'
   | 'destination-overlap'
@@ -211,38 +210,6 @@ export interface ScanState {
   readonly progress: ScanProgressEvent;
   /** Present on failed scans. */
   readonly failure?: { code: ConnectorErrorCode; reasonKey?: string };
-  /** The pending pre-scan repair consent (G-1) — re-hydration twin of the
-   *  consent-request event; null when nothing pends (answered, denied,
-   *  cancelled). The prompt renders from either source. */
-  readonly pendingConsent?: ConsentRequestEvent | null;
-  /** Live lost-partition candidate count on whole-disk scans (engine
-   *  events, never synthesized). Null when the engine has not reported. */
-  readonly lostCandidates?: number | null;
-}
-
-/** The engine's repair-plan POD (cr_ui_repair_plan), translated 1:1. */
-export interface RepairPlanSummary {
-  /** File-system family identified at all (0 = none). */
-  readonly detected: number;
-  /** 'ntfs' | 'fat' | 'exfat' | '' — engine-provided token. */
-  readonly fsFamily: string;
-  /** Planned write actions (0 = clean; nothing to approve). */
-  readonly actionCount: number;
-  /** 1 = the analysis refused (no safe repair) — Approve is meaningless. */
-  readonly refused: number;
-  /** Engine-provided reason / first action description (diagnostic text). */
-  readonly reason: string;
-  /** Report-only findings. */
-  readonly advisoryCount: number;
-}
-
-/** The typed consent request (G-1): emitted on consent-request:<scanId>,
- *  re-hydrated via ScanState.pendingConsent. requestId is the ONLY key
- *  respondToConsent accepts — an echo token, never an authority. */
-export interface ConsentRequestEvent {
-  readonly scanId: string;
-  readonly requestId: string;
-  readonly plan: RepairPlanSummary;
 }
 
 export interface ScanDomain {
@@ -253,14 +220,6 @@ export interface ScanDomain {
   getScanState(scanId: string): Promise<ScanState>;
   /** Subscribe to progress events; returns an unsubscribe function. */
   onScanProgress(scanId: string, cb: (event: ScanProgressEvent) => void): () => void;
-  /** Subscribe to pre-scan repair consent requests (G-1); returns an
-   *  unsubscribe function. Fires at most once per scan — only when the
-   *  engine found a repairable plan. */
-  onConsentRequest(scanId: string, cb: (event: ConsentRequestEvent) => void): () => void;
-  /** Answer a consent request (the consent_respond command). Throws the
-   *  typed consent-not-found when the id is stale (double respond, cancel,
-   *  scan ended) — the prompt dismisses on that error. */
-  respondToConsent(requestId: string, allow: boolean): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -533,7 +492,7 @@ export interface RecoveryDomain {
 // Health
 // ---------------------------------------------------------------------------
 
-export type HealthStatus = 'good' | 'caution' | 'bad' | 'unknown';
+export type HealthStatus = 'good' | 'caution' | 'bad';
 
 export interface SmartAttribute {
   readonly id: number;
@@ -556,10 +515,6 @@ export interface DiskHealth {
   readonly reallocatedSectors: number | null;
   readonly pendingSectors: number | null;
   readonly attributes: readonly SmartAttribute[];
-  /** Transport that produced the data (e.g. 'ata-passthrough' / 'nvme'); null when none. */
-  readonly transport: string | null;
-  /** True when the SMART table was readable but carried zero attribute rows. */
-  readonly tableEmpty: boolean;
 }
 
 export interface HealthDomain {
@@ -625,8 +580,7 @@ export interface DriverStatus {
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
-  /** G-6: no cr_ui export carries an engine version string (the ABI number
-   * is a contract number, not a product version) — null until one exists. */
+  readonly connectorMode: 'mock' | 'tauri';
   readonly engineVersion: string | null;
   readonly platform: string;
 }
@@ -656,10 +610,11 @@ export interface SystemDomain {
     neededBytes: number,
   ): Promise<DestinationValidation>;
   /**
-   * Native folder picker. The optional hint roots the dialog at a volume
-   * (scan-scope picking on the scanned device) or asks it to avoid a device
-   * (destination picking must not suggest the recovery source); the connector
-   * validates the result.
+   * Native folder picker; mock returns from a canned set in dev/browser mode.
+   * The optional hint roots the dialog at a volume (scan-scope picking on the
+   * scanned device) or asks it to avoid a device (destination picking must
+   * not suggest the recovery source); the connector still owns validation of
+   * the result.
    */
   pickDirectory(hint?: {
     readonly volumeId?: string | null;
@@ -684,3 +639,24 @@ export interface RecoveryConnector {
   readonly repair: RepairDomain;
   readonly system: SystemDomain;
 }
+
+/** Dev-panel scenario control (mock-only surface; real connector throws). */
+export interface ScenarioControl {
+  setScenario(scenario: MockScenarioId): void;
+  getScenario(): MockScenarioId;
+  setSeed(seed: number): void;
+  reset(): void;
+}
+
+export type MockScenarioId =
+  | 'standard'
+  | 'large-ntfs'
+  | 'sd-card'
+  | 'btrfs-disk'
+  | 'lost-partition'
+  | 'permission-denied'
+  | 'disconnect-mid-scan'
+  | 'bad-sectors'
+  | 'failing-disk'
+  | 'out-of-space'
+  | 'corrupt-session';

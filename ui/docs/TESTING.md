@@ -72,7 +72,7 @@ pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
 ## Live verification evidence (this session)
 
 Eight step screenshots under the session workspace (`verify-01..08`):
-home, scan config, completion modal, results 3-pane, filter bar open,
+home, scan live, completion modal, results 3-pane, filter bar open,
 preview pane populated, destination dialog, recovery report — full golden
 path with **0 page errors** and no console errors (React DevTools notice
 filtered as benign). Two real defects were caught and fixed during this

@@ -9,8 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 /**
- * ChronoSnap Backup page — accessible from the File Backup sidebar section.
- * Displays the ChronoSnap landing overview and saved recovery checkpoints.
+ * Scan Snapshot page (renamed from ChronoSnap Backup in the v4 pass) —
+ * accessible from the File Backup sidebar section. Displays the landing
+ * overview and saved recovery checkpoints.
  */
 export function BackupPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();

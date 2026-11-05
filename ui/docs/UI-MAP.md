@@ -95,13 +95,6 @@ controls pause / resume / stop (confirm dialog with stat tiles); the
 "Recover All…" CTA lives in the results bottom bar (enabled only when the
 contract marks extents safe; otherwise disabled with a tooltip).
 
-Zones: 3-pane results layout with scan-in-progress banner ("results so far" marked
-as partial); bottom status cluster: circular overall gauge (weighted monotonic),
-stage line, bytes/throughput, ETA, files-found live counter, bad-sector counter +
-map indicator; controls pause / resume / stop (confirm dialog); bottom-right
-Recover-All CTA (enabled only when contract marks extent safe; otherwise disabled
-with tooltip explaining deferral).
-
 States: running (gauge + strip animate; tree fills progressively), paused (frozen
 gauge + red strip), resuming, stopping, completed (celebration modal), cancelled
 (partial results offered: "browse what was found" vs home), error-injection
@@ -198,27 +191,33 @@ localStorage for pure UI prefs (documented split).
 
 ## 3. Dialog inventory
 
-| Dialog                   | Trigger                     | Semantics                                                                            |
-| ------------------------ | --------------------------- | ------------------------------------------------------------------------------------ |
-| Stop-scan confirm        | stop button                 | stats + Stop/Continue (destructive-first per corpus but ours: Continue default-safe) |
-| Celebration              | scan completes              | 540×380, stats grid, primary CTA "Open results"                                      |
-| Destination              | recover CTA                 | per §2.5                                                                             |
-| Space gate               | preflight fail              | needed-vs-free, Continue/Reselect (Continue only if connector allows)                |
-| Context menu             | right-click row             | 6 actions per §2.4                                                                   |
-| Preview modal            | preview action              | large preview surface                                                                |
-| Session picker           | import session              | file list from connector                                                             |
-| Repair consent           | apply repair                | checkbox + consequence text, disabled until acknowledged                             |
-| About                    | header Menu → About         | connector-sourced version/engine fields; ESC closes, focus returns to trigger        |
-| Activation               | Buy-Now pill / key icon     | license key entry + activate CTA; buy link via toast                                 |
-| Error dialog             | unrecoverable errors        | reason + retry/contact actions                                                       |
-| Confirm exit during scan | window close while scanning | guard: keep scanning / stop                                                          |
+| Dialog            | Trigger                 | Semantics                                                                                                                      |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Stop-scan confirm | stop button             | stats + Stop/Continue (destructive-first per corpus but ours: Continue default-safe)                                           |
+| Celebration       | scan completes          | 520×375 card, 2-column stats grid (Files found \| Size), green-check recoverable callout, primary CTA "Go to Recover" (no ESC) |
+| Destination       | recover CTA             | per §2.5                                                                                                                       |
+| Space gate        | preflight fail          | needed-vs-free, Continue/Reselect (Continue only if connector allows)                                                          |
+| Context menu      | right-click row         | 6 actions per §2.4                                                                                                             |
+| Preview modal     | preview action          | large preview surface                                                                                                          |
+| Session picker    | import session          | file list from connector                                                                                                       |
+| Repair consent    | apply repair            | checkbox + consequence text, disabled until acknowledged                                                                       |
+| About             | header Menu → About     | connector-sourced version/engine fields; ESC closes, focus returns to trigger                                                  |
+| Activation        | Buy-Now pill / key icon | license key entry + activate CTA; buy link via toast                                                                           |
+| Error dialog      | unrecoverable errors    | reason + retry/contact actions                                                                                                 |
+
+> Note (v3 code truth): there is NO close-during-scan confirm dialog — the
+> custom-chrome window closes immediately even while a scan runs (no Tauri
+> close-requested handler exists). If a guard is ever required, it must be
+> added deliberately.
 
 ## 4. Cross-cutting UX rules (from corpus interaction rules, adapted)
 
 1. Contextual bottom CTA reflects selection (Recover All ⇄ Recover N).
 2. Progressive disclosure: results fill during scan; pause/stop always available.
 3. Modal scrims dim main window; no click-through.
-4. Single-ESC closes menus/dialogs only; exit confirm guards scanning state.
+4. Single-ESC closes dismissible menus/dialogs only; the completion and
+   reconnect modals suppress ESC (non-dismissible by corpus rule); the
+   window itself has no close-during-scan guard.
 5. Monotonic overall progress; per-stage progress may reset.
 6. Every numeric uses tabular figures; every timestamp localized via Intl.
 7. Focus visible on every control; full keyboard path documented in TESTING.

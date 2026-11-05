@@ -19,9 +19,8 @@ import {
   XIcon,
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
-import { useScanState } from '@/queries/scan';
 import { useSaveSession } from '@/queries/sessions';
-import { useOpenLocation } from '@/queries/system';
+import { useConnectorMode } from '@/queries/dev';
 import { useFilterStore, useSortStore, resolveFilter } from '@/stores/filter-store';
 import { selectedCountOf, useSelectionStore } from '@/stores/selection-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -77,7 +76,7 @@ export function ResultsExplorer({
   const selection = useSelectionStore();
   const ui = useUiStore();
   const saveSession = useSaveSession(scanId);
-  const openLocation = useOpenLocation(scanId);
+  const connectorMode = useConnectorMode();
 
   const [filterBarOpen, setFilterBarOpen] = React.useState(false);
   const [searchDraft, setSearchDraft] = React.useState(filter.search);
@@ -90,13 +89,6 @@ export function ResultsExplorer({
     () => ({ ...resolveFilter(), nodeId: filter.treeNodeId, treeMode: filter.treeMode }),
     [filter],
   );
-
-  // NG-22 — the tree root's "existing files" label is the scan TARGET's
-  // real name — the pre-fix hard-coded 'Windows (C:)' showed the wrong
-  // volume for every other target (captured in forensic run 40470191039:
-  // a SeedNTFS(X:) scan labeled "Windows (C:)").
-  const scanState = useScanState(scanId);
-  const existingLabel = scanState.data?.target.label ?? null;
 
   const sort = { field: sortStore.field, direction: sortStore.direction };
   const pages = useResultsPages(scanId, filterPayload, sort);
@@ -119,17 +111,6 @@ export function ResultsExplorer({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeNodeId]);
-
-  // Open-location target mirrors the preview target (single selection,
-  // else the active row, else the first row). Only existing-origin rows
-  // have a live on-disk location — the menu item states the truth otherwise.
-  const openTarget = React.useMemo(() => {
-    const single =
-      selection.mode === 'ids' && selection.ids.size === 1 ? [...selection.ids][0] : null;
-    const targetId = single ?? activeNodeId ?? rows[0]?.id ?? null;
-    const row = rows.find((r) => r.id === targetId) ?? null;
-    return row && row.origin === 'existing' ? row : null;
-  }, [selection.mode, selection.ids, activeNodeId, rows]);
 
   const rowHeight = ui.viewMode === 'details' ? 42 : 96;
   const selectionSnapshot = React.useMemo(
@@ -397,7 +378,6 @@ export function ResultsExplorer({
               setActiveNodeId(null);
               filter.setTreeNode(nodeId);
             }}
-            existingLabel={existingLabel}
           />
         </aside>
 
@@ -493,19 +473,10 @@ export function ResultsExplorer({
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
-                disabled={openTarget === null || openLocation.isPending}
+                disabled={connectorMode === 'mock'}
                 title={
-                  openTarget === null ? t('results.context.openLocationMissing') : undefined
+                  connectorMode === 'mock' ? t('results.context.openLocationMock') : undefined
                 }
-                onClick={() => {
-                  if (!openTarget) return;
-                  openLocation.mutate(openTarget.id, {
-                    onError: (err) => {
-                      const reasonKey = (err as { reasonKey?: string }).reasonKey;
-                      toast.error(reasonKey ? t(reasonKey) : err.message);
-                    },
-                  });
-                }}
               >
                 <FolderTreeIcon aria-hidden />
                 {t('results.context.openLocation')}

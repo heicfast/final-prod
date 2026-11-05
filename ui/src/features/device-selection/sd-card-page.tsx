@@ -94,18 +94,18 @@ export function SdCardPage(): React.JSX.Element {
               <SdCardSlotIcon />
               <div>
                 <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">
-                  SD/MMC/MS PRO
+                  {t('sdCard.cardName')}
                 </div>
                 <div className="mt-0.5 flex items-center gap-4 text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
-                  <span>Others</span>
-                  <span>58 GB</span>
+                  <span>{t('sdCard.cardPartition')}</span>
+                  <span>{t('sdCard.cardSize')}</span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               <span className="text-[13px] font-medium text-[#64748B] dark:text-foreground-secondary">
-                Disk2
+                {t('sdCard.cardDiskNo')}
               </span>
             </div>
           </div>

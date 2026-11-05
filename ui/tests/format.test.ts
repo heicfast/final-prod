@@ -11,6 +11,7 @@ import {
   formatThroughput,
 } from '@/lib/format';
 import { formatHexRows } from '@/lib/hex-format';
+import { mulberry32, randInt } from '@/connector/mock/rng';
 
 describe('formatting (grid #49 — Intl-based)', () => {
   it('formats bytes with binary steps (Windows convention, corpus parity)', () => {
@@ -66,5 +67,24 @@ describe('formatting (grid #49 — Intl-based)', () => {
     expect(rows[0].offset).toBe(0x100);
     expect(rows[0].ascii).toBe('Hello·· A');
     expect(rows[0].hex.startsWith('48 65 6c 6c 6f 00 ff 20  41')).toBe(true);
+  });
+});
+
+describe('mulberry32 RNG', () => {
+  it('produces identical sequences for identical seeds', () => {
+    const a = mulberry32(42);
+    const b = mulberry32(42);
+    for (let i = 0; i < 100; i++) {
+      expect(a()).toBe(b());
+    }
+  });
+
+  it('randInt stays within bounds', () => {
+    const rng = mulberry32(7);
+    for (let i = 0; i < 200; i++) {
+      const v = randInt(rng, 3, 9);
+      expect(v).toBeGreaterThanOrEqual(3);
+      expect(v).toBeLessThanOrEqual(9);
+    }
   });
 });

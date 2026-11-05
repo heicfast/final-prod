@@ -14,7 +14,7 @@
 | Window chrome (min/max/restore/close)                                | EXP-SPEC §1 | **COMPLETE** | Wiring + corpus 4-state glyphs + dblclick toggle; real-window drag/snap verified via Windows tauri-debug-build gate (capabilities compile-time-validated)                                                                                                | —    |
 | Left sidebar                                                         | EXP-SPEC §2 | **COMPLETE** | Collapse/expand (52px icon rail), 360ms width + 160ms label fade, icon-gutter retention, keyboard toggle, localStorage persistence — live-verified                                                                                                       | —    |
 | Dialogs & popups                                                     | EXP-SPEC §3 | **COMPLETE** | All corpus dialogs present with ESC discipline, exit animations (`data-[state=closed]:animate-out`), outside-click swallow, and focus return                                                                                                             | —    |
-| Toasts                                                               | EXP-SPEC §4 | **COMPLETE** | sonner stack top-right (`top: 44px`), polite ARIA live region, hover-pause, zero overlap with bottom-right CTAs                                                                                                                                          | —    |
+| Toasts                                                               | EXP-SPEC §4 | **COMPLETE** | sonner stack top-right (`offset.top = 48px`), polite ARIA live region, hover-pause, zero overlap with bottom-right CTAs                                                                                                                                  | —    |
 | Page transitions                                                     | EXP-SPEC §5 | **COMPLETE** | 160 ms incoming-page opacity fade (`animate-in fade-in duration-150`) + SPA focus-on-main-landmark (`#main-content`)                                                                                                                                     | —    |
 | Microinteractions                                                    | EXP-SPEC §6 | **COMPLETE** | Button/card/row states + `--press-scale` (`0.98`) on buttons, checkboxes, switches, and segmented controls                                                                                                                                               | —    |
 | State surfaces (loading/empty/error/partial/permission/disconnected) | EXP-SPEC §7 | **COMPLETE** | All 8 states per surface verified across unit + Playwright e2e + live browser                                                                                                                                                                            | —    |
@@ -24,7 +24,7 @@
 | Preview pane                                                         | UI-MAP §4   | **COMPLETE** | 7 bounded preview kinds, 0-byte poor confidence grading (`CRecoverability::GetEntryRecoverability`), drag resizer                                                                                                                                        | —    |
 | Recovery flow                                                        | UI-MAP §5   | **COMPLETE** | Hard overlap refusal, `O(1)` streaming `recover-all` cursor, confirm-gated cancel, report export                                                                                                                                                         | —    |
 | Health / Repair / Settings / LostPartition / SD Card / Scan Snapshot | UI-MAP      | **COMPLETE** | SMART 7-col table, `REPAIR` typed consent + undo log, 7-mode theme picker + DPI scale + diagnostics; v4 pass: Disk Health redesigned (3D drive cards + health-score gauge), File Repair/Lost Partition 2-step direct flows, Scan Snapshot session resume | —    |
-| i18n (en/zh-CN)                                                      | —           | **COMPLETE** | 376 keys in 1:1 parity (`tests/i18n-parity.test.ts`, `tests/i18n-sweep.test.ts`)                                                                                                                                                                         | —    |
+| i18n (en/zh-CN)                                                      | —           | **COMPLETE** | 406 keys in 1:1 parity (`tests/i18n-parity.test.ts`, `tests/i18n-sweep.test.ts`) — v0.3.4 completed the v4-surface extraction (repair/lost-partition/sd-card chrome, scan ticker + celebration)                                                          | —    |
 | Interim asset layer                                                  | mandate §3  | **COMPLETE** | 32 chrome SVGs extracted + `manifest.json` (`src/assets/interim/chrome/`)                                                                                                                                                                                | —    |
 
 ## 2. Components (experience-critical set)
@@ -36,13 +36,13 @@
 | `SidebarNav` (shell nav)                           | IA navigation                 | 208px expanded / 52px collapsed icon rail                   | **COMPLETE** | —    |
 | `Dialog`                                           | modal surface                 | fade enter/exit, outside-click swallow, focus return        | **COMPLETE** | —    |
 | `DropdownMenu` / `ContextMenu` / `Popover`         | menus                         | 120 ms fade enter/exit                                      | **COMPLETE** | —    |
-| `Toaster`                                          | toasts                        | sonner stack (`top: 44px`, `aria-live="polite"`)            | **COMPLETE** | —    |
+| `Toaster`                                          | toasts                        | sonner stack (`offset.top = 48px`, `aria-live="polite"`)    | **COMPLETE** | —    |
 | `Button`                                           | all CTAs                      | instant state swap ≤120 ms fade + `--press-scale`           | **COMPLETE** | —    |
 | `Checkbox` / `Switch` / `RadioGroup` / `Segmented` | toggles                       | instant state swap + `--press-scale`                        | **COMPLETE** | —    |
 | `ProgressGauge`                                    | scan % ring                   | animated fill, freeze on pause                              | **COMPLETE** | —    |
-| `VirtualFileList`                                  | virtualized rows              | no scroll jank (`overscan: 8`)                              | **COMPLETE** | —    |
+| `VirtualFileList`                                  | virtualized rows              | no scroll jank (`overscan: 16`)                             | **COMPLETE** | —    |
 | `ResultsTree`                                      | tree nav                      | async expand + live scan count updates                      | **COMPLETE** | —    |
-| `PreviewPaneResizer`                               | drag resize                   | 1:1 pointer follow (`220..520px`)                           | **COMPLETE** | —    |
+| `PreviewPaneResizer`                               | drag resize                   | 1:1 pointer follow (`240..560px`)                           | **COMPLETE** | —    |
 
 ## 3. Experience parameters (§4 set) — verdicts per surface
 
@@ -73,24 +73,24 @@ Legend: ✓ verified · ◐ partial (Windows native-shell gated) · ✗ missing 
 
 ## 4. Motion inventory (from MOTION-SPEC §3)
 
-| Motion                                | Status                                                     |
-| ------------------------------------- | ---------------------------------------------------------- |
-| Dialog overlay fade-in                | IMPLEMENTED                                                |
-| Dialog content fade-in                | IMPLEMENTED                                                |
-| Dialog exit fade                      | IMPLEMENTED (`data-[state=closed]:animate-out fade-out-0`) |
-| Menu (dropdown/context/popover) enter | IMPLEMENTED (fade)                                         |
-| Menu exit fade                        | IMPLEMENTED (`data-[state=closed]:animate-out fade-out-0`) |
-| Toast enter/stack/dismiss/pause       | IMPLEMENTED (sonner)                                       |
-| Route-change fade (160 ms)            | IMPLEMENTED (`RouteFade` in `shell.tsx`)                   |
-| Type⇄Path async tab switch            | IMPLEMENTED                                                |
-| Sidebar collapse transition           | IMPLEMENTED (360 ms width + 160 ms label fade)             |
-| Chrome button state swaps             | IMPLEMENTED (T5: nor/hov/pre corpus SVGs, instant swap)    |
-| Gauge animated fill / pause freeze    | IMPLEMENTED (200 ms linear, freezes on pause)              |
-| Ticker status pulse                   | IMPLEMENTED (2.4 s, dot only)                              |
-| Progress stripes                      | IMPLEMENTED (1.1 s)                                        |
-| Button hover/press fades              | IMPLEMENTED (100 ms + `--press-scale`)                     |
-| Card selection (device tiles)         | IMPLEMENTED (instant + border)                             |
-| Reduced-motion global                 | IMPLEMENTED                                                |
+| Motion                                | Status                                                  |
+| ------------------------------------- | ------------------------------------------------------- |
+| Dialog overlay fade-in                | IMPLEMENTED                                             |
+| Dialog content fade-in                | IMPLEMENTED                                             |
+| Dialog exit fade                      | IMPLEMENTED (`data-[state=closed]:animate-fade-out`)    |
+| Menu (dropdown/context/popover) enter | IMPLEMENTED (fade)                                      |
+| Menu exit fade                        | IMPLEMENTED (`data-[state=closed]:animate-fade-out`)    |
+| Toast enter/stack/dismiss/pause       | IMPLEMENTED (sonner)                                    |
+| Route-change fade (160 ms)            | IMPLEMENTED (`.route-fade` class in `shell.tsx`)        |
+| Type⇄Path async tab switch            | IMPLEMENTED                                             |
+| Sidebar collapse transition           | IMPLEMENTED (360 ms width + 160 ms label fade)          |
+| Chrome button state swaps             | IMPLEMENTED (T5: nor/hov/pre corpus SVGs, instant swap) |
+| Gauge animated fill / pause freeze    | IMPLEMENTED (200 ms linear, freezes on pause)           |
+| Ticker status pulse                   | IMPLEMENTED (2.4 s, dot only)                           |
+| Progress stripes                      | IMPLEMENTED (1.1 s)                                     |
+| Button hover/press fades              | IMPLEMENTED (100 ms + `--press-scale`)                  |
+| Card selection (device tiles)         | IMPLEMENTED (instant + border)                          |
+| Reduced-motion global                 | IMPLEMENTED                                             |
 
 ## 5. Interim assets
 
