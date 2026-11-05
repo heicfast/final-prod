@@ -1,0 +1,300 @@
+# benchmark-src.yml - the source-build benchmark lane (session-97 T6).
+#
+# WHY THIS LANE EXISTS: test-benchmark.yml measures PUBLISHED RELEASES only
+# (its own documented convention - never a build from source). But the
+# performance-parity discipline (worklog/PERFORMANCE-TARGET.md section-6)
+# requires measuring EVERY optimization before it is released: "unreleased
+# optimizations measure through the source-build lane - never an ad-hoc
+# local build". This workflow builds the checked-out commit exactly the way
+# release.yml builds a release (same preset, same vcpkg manifest, same
+# staging shape), then runs the SAME benchmark matrix (Run-Benchmark.ps1)
+# against the fresh build. The numbers this lane produces are directly
+# comparable with the release lane's (same verbs, same runner class, same
+# disk profile) - the only delta is the binary's provenance, recorded in
+# the evidence manifest.
+#
+# What it proves, per dispatch:
+#   1. the commit builds in Release config (MSVC, manifest vcpkg)
+#   2. [optional, run_tests=true] the full ctest suite is green on the
+#      exact binary being measured (default off: the Checks lane already
+#      gates tests on every push; this lane is for MEASUREMENT)
+#   3. the scenario matrix + clean-volume benchmark + the perf gate
+#      (bench/baseline.json driver-parity rows) run against the source
+#      build, with the structured evidence artifact always uploaded
+#
+# The regression-gate contract (PERFORMANCE-TARGET section-6): a run FAILS
+# if any driver-parity row violates its tolerance, or if a metric the gate
+# expects cannot be found in the capture (no silent skip).
+#
+# Time discipline: build ~20-30 min (vcpkg binary-cached like every lane)
+# + smoke matrix ~2 h; timeout 300 min covers the full profile.
+#
+# Licensed under the MIT license. See LICENSE.
+name: Benchmark (source build, CLI + API)
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'smoke (default 7-scenario matrix) | full (adds decay/overwrite/mft on the 8 GiB disk)'
+        default: 'smoke'
+        type: choice
+        options: [smoke, full]
+      scan_modes:
+        description: 'comma list of CLI scan modes per scenario (quick,deep,deepcarve)'
+        default: 'quick,deep,deepcarve'
+        type: string
+      run_tests:
+        description: 'run the full ctest suite on the measured build before benchmarking (default: false - the Checks lane gates tests)'
+        default: false
+        type: boolean
+      reason:
+        description: 'why this run (recorded in the env manifest; sessions set session-<n>-<T#>)'
+        default: 'manual'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-src
+  cancel-in-progress: false # measurement runs are precious: queue, never drop
+
+jobs:
+  build-and-benchmark:
+    runs-on: windows-2022 # the execution-validated runner class (same as every lane)
+    timeout-minutes: 300
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      EVIDENCE: ${{ github.workspace }}\evidence
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable git long paths
+        run: git config --system core.longpaths true
+
+      # ---- 1. environment + elevation + work-drive probe (same as the release lane)
+      - name: Environment manifest + elevation + work drive
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path "$env:EVIDENCE\00-environment" | Out-Null
+
+          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            Write-Host '::error::runner is NOT elevated - diskpart/cert-store operations would fail; aborting'
+            exit 1
+          }
+          Write-Host "elevated as $([Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+
+          $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 0 }
+          $best = $drives | Sort-Object Free -Descending | Select-Object -First 1
+          $workRoot = "$($best.Name):\cr-bench-src"
+          New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
+          "WORKROOT=$workRoot" >> $env:GITHUB_ENV
+          Write-Host "work root: $workRoot ($([math]::Round($best.Free / 1GB, 1)) GiB free)"
+
+          # the source-build provenance this lane exists to record
+          $sha = '${{ github.sha }}'
+          $env = [ordered]@{
+            captured_utc   = (Get-Date).ToUniversalTime().ToString('o')
+            reason         = '${{ inputs.reason }}'
+            lane           = 'benchmark-src (source build - NOT a release fetch)'
+            source_sha     = $sha
+            source_ref     = '${{ github.ref_name }}'
+            runner         = '${{ runner.name }}'
+            image_os       = $env:ImageOS
+            runner_os      = '${{ runner.os }}'
+            runner_arch    = '${{ runner.arch }}'
+            elevation      = 'administrator (asserted)'
+            workspace      = $env:GITHUB_WORKSPACE
+            work_root      = $workRoot
+            python         = (python --version 2>&1)
+            drives_free_gb = @($drives | ForEach-Object { [ordered]@{ drive = $_.Name; free_gb = [math]::Round($_.Free / 1GB, 2) } })
+            requested      = [ordered]@{ profile = '${{ inputs.profile }}'; scan_modes = '${{ inputs.scan_modes }}'; run_tests = '${{ inputs.run_tests }}' }
+          }
+          $env | ConvertTo-Json -Depth 5 | Set-Content "$env:EVIDENCE\00-environment\env-manifest.json" -Encoding utf8
+          Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, CsProcessors, CsTotalPhysicalMemory |
+            ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\machine.json" -Encoding utf8
+
+      # ---- 2. build the checked-out commit (Release, manifest vcpkg - the release recipe)
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: vcpkg-bin-win2022-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-bin-win2022-
+
+      - name: Build the core (Release, the release.yml recipe)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "source build complete at ${{ github.sha }}"
+
+      - name: Test the measured build (optional - the Checks lane gates tests by default)
+        if: ${{ inputs.run_tests }}
+        run: |
+          ctest --preset win-x64-release -C Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # ---- 3. stage the SDK + CLI bundle (the release.yml staging recipe, same shape)
+      - name: Stage the build (release shape - bin, lib, include, data)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = Join-Path $env:WORKROOT 'core-staged'
+          New-Item -ItemType Directory -Force "$out/bin", "$out/lib", "$out/data" | Out-Null
+
+          $required = @(
+            'build/win-x64-release/src/app/Release/rrecov.exe',
+            'build/win-x64-release/src/ui/Release/cr_ui.dll',
+            'build/win-x64-release/src/ui/Release/cr_ui.lib',
+            'build/win-x64-release/src/core/Release/cr_core.lib',
+            'build/win-x64-release/src/win/Release/cr_win.lib'
+          )
+          foreach ($artifact in $required) {
+            if (-not (Test-Path $artifact -PathType Leaf)) { throw "missing build artifact: $artifact" }
+          }
+          Copy-Item build/win-x64-release/src/app/Release/rrecov.exe "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.dll "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
+
+          # app-local runtime DLLs (the release lane's exact lesson set)
+          $deployed = @()
+          foreach ($dir in @('build/win-x64-release/src/app/Release', 'build/win-x64-release/src/ui/Release')) {
+            if (Test-Path $dir) {
+              $deployed += Get-ChildItem $dir -Filter *.dll -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notmatch '^(gtest|gmock)' }
+            }
+          }
+          $deployed | Sort-Object Name -Unique | ForEach-Object { Copy-Item $_.FullName "$out/bin/" -Force }
+
+          $vcCrt = Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT' -Directory -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $vcCrt) { throw 'VC143 CRT redist dir not found (VS layout changed?)' }
+          Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
+
+          $ucrtCandidates = @()
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64' -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64' -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt' -Directory -ErrorAction SilentlyContinue
+          $ucrt = $ucrtCandidates | Where-Object { Test-Path "$($_.FullName)/ucrtbase.dll" } | Select-Object -First 1
+          if (-not $ucrt) { throw 'no UCRT redist carrying ucrtbase.dll in any SDK layout' }
+          Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
+          Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
+
+          Copy-Item -Recurse include "$out/include"
+          Copy-Item data/userdata-defaults.json "$out/bin/userdata-defaults.json"
+          Copy-Item data/userdata-defaults.json "$out/data/userdata-defaults.json"
+
+          "STAGED=$out" >> $env:GITHUB_ENV
+          [ordered]@{
+            lane = 'benchmark-src'
+            source_sha = '${{ github.sha }}'
+            rrecov_sha256 = (Get-FileHash "$out/bin/rrecov.exe" -Algorithm SHA256).Hash
+            cr_ui_sha256 = (Get-FileHash "$out/bin/cr_ui.dll" -Algorithm SHA256).Hash
+          } | ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\staged-core.json" -Encoding utf8
+          Write-Host "source build staged at $out (release shape)"
+
+      # ---- 4. CLI smoke probes (the staged binary must run before we measure it)
+      - name: Stage smoke probes
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:PATH = "$env:STAGED\bin;$env:PATH"
+          $rrecov = "$env:STAGED\bin\rrecov.exe"
+          & $rrecov 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov usage exited $LASTEXITCODE"; exit 1 }
+          $listOut = & $rrecov list 2>&1
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov list exited $LASTEXITCODE"; exit 1 }
+          $listOut | Set-Content "$env:EVIDENCE\00-environment\disk-list-before.txt" -Encoding utf8
+          Write-Host "source-build CLI smoke green"
+
+      # ---- 5. compile the API harness against the staged SDK (same recipe as the release lane)
+      - name: Compile the API harness
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { Write-Host '::error::vswhere not found'; exit 1 }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { Write-Host '::error::no VS C++ toolchain located'; exit 1 }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+
+          $harnessSrc = Copy-Item '.github\scripts\api_harness.c' "$env:WORKROOT\api_harness.c" -PassThru
+          $buildCmd = "@echo off`r`n" +
+            "call `"$vcvars`"`r`n" +
+            "if errorlevel 1 exit /b 1`r`n" +
+            "cl.exe /nologo /W4 /WX /utf-8 /D_CRT_SECURE_NO_WARNINGS `"$($harnessSrc.FullName)`"" +
+            " /I `"$env:STAGED\include`" /Fe:`"$env:STAGED\bin\api_harness.exe`" /Fo:`"$env:WORKROOT\api_harness.obj`"" +
+            " /link /LIBPATH:`"$env:STAGED\lib`" cr_ui.lib`r`n"
+          $buildCmdPath = "$env:WORKROOT\build-harness.cmd"
+          $buildCmd | Set-Content -Path $buildCmdPath -Encoding ascii
+          $out = cmd /d /s /c $buildCmdPath 2>&1
+          New-Item -ItemType Directory -Force -Path "$env:EVIDENCE\05-feature-probes" | Out-Null
+          $out | Tee-Object -FilePath "$env:EVIDENCE\05-feature-probes\harness-build.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$env:STAGED\bin\api_harness.exe")) {
+            Write-Host '::error::api_harness compile failed (log above)'
+            exit 1
+          }
+          Write-Host "api_harness.exe built against the source-build SDK"
+
+      - name: API probes (the ABI gate through the product surface)
+        run: |
+          $h = "$env:STAGED\bin\api_harness.exe"
+          $abi = & $h --abi-version 2>&1
+          if ($LASTEXITCODE -eq 0) { Write-Host "PASS ABI: $abi" } else { Write-Host "::error::$abi"; exit 1 }
+          exit 0 # never inherit a probe's $LASTEXITCODE (the 40684826829 lesson)
+
+      # ---- 6. the SAME matrix the release lane runs (Run-Benchmark.ps1 owns everything)
+      - name: Run the test + benchmark matrix (CLI + API lanes)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scanModes = @('${{ inputs.scan_modes }}' -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if (-not $scanModes -or $scanModes.Count -eq 0) { $scanModes = @('quick', 'deep', 'deepcarve') }
+          $p = @{
+            MatrixPath   = '.github\scenarios\benchmark-matrix.json'
+            RepoRoot     = $env:GITHUB_WORKSPACE
+            CoreStaged   = $env:STAGED
+            ApiHarness   = "$env:STAGED\bin\api_harness.exe"
+            WorkRoot     = $env:WORKROOT
+            EvidenceRoot = $env:EVIDENCE
+            Profile      = '${{ inputs.profile }}'
+            ScanModes    = $scanModes
+          }
+          & .github\scripts\Run-Benchmark.ps1 @p
+          exit $LASTEXITCODE
+
+      # ---- 7. teardown (ALWAYS: the M-061 contract + the detach records)
+      - name: Teardown (VHD detach + work-drive cleanup)
+        if: always()
+        run: |
+          if (-not $env:WORKROOT) {
+            Write-Host 'no WORKROOT - setup did not reach the work-drive probe; nothing to tear down'
+            exit 0
+          }
+          $p = @{
+            ReleaseDir    = "$env:WORKROOT\core-staged"
+            DiskStatePath = "$env:WORKROOT\disk-state.json"
+            EvidenceDir   = "$env:EVIDENCE\99-teardown"
+          }
+          & .github\scripts\Teardown-Benchmark.ps1 @p
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::teardown contract violation (see evidence/99-teardown)'; exit 1 }
+          exit 0
+
+      # ---- 8. the structured evidence artifact (ALWAYS - a failure without evidence is a second failure)
+      - name: Upload the structured evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-src-evidence-${{ inputs.profile }}-${{ github.run_id }}
+          path: ${{ github.workspace }}\evidence
+          if-no-files-found: error
+          retention-days: 30

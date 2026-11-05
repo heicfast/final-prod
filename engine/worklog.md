@@ -15733,3 +15733,38 @@ green matrix):**
 
 **Verification:** full ci-local.sh green (incl. the win-stub parse of the
 new test + modified win layer; 1759 test registrations, ctest 100%).
+
+---
+
+## Session 97 — entry 6: T6 complete — the benchmark harness is a first-class deliverable (the source lane + BENCHMARK.md)
+
+**worklog/BENCHMARK.md** — the harness documentation the mandate §6
+requires: the two-lane contract (test-benchmark.yml measures RELEASES
+only, by its own convention; the new benchmark-src.yml measures the
+checked-out commit built with the release recipe), the five-phase matrix
+(the disk environment, the probes, the clean-volume benchmark with the
+session-97 sampling + sweep, the scenario loop with the settle guard +
+diagnosis-carrying throws + catch-path evidence, the perf gate), the
+measurement rules (verbs, runner class, run-ID provenance, 3-run
+medians, tolerances, reviewed-commit baselines), the evidence tree, the
+reproduction recipe for every number in PERFORMANCE.md, the known
+limitations (VHDX relativity, the rand envelope-path measurement, the
+CPU/WS provenance split, the recall-floor revalidation pending the F12
+fix's release), and the CI wiring.
+
+**benchmark-src.yml** — the source-build lane: same runner class, the
+release build recipe (cmake --preset win-x64-release + vcpkg manifest +
+binary cache), the release staging shape (bin/lib/include/data + CRT +
+UCRT), the same Run-Benchmark.ps1 matrix, the same evidence artifact,
+its own concurrency group (queued, never dropped — measurement runs are
+precious). Optional run_tests input (default off: Checks gates tests).
+This is the lane T7+ optimizations measure through — the
+PERFORMANCE-TARGET §6 rule ("unreleased optimizations measure through
+the source-build lane — never an ad-hoc local build") is now enforced by
+infrastructure, not discipline.
+
+**In flight:** test-benchmark run 42012118585 (head e9bbb721's harness,
+v0.7.0 binary) — the clean re-measure + the S-PART-DELETE H1/H2
+discrimination. The F12 arming fix (4d4ef333) postdates that dispatch's
+binary; the next dispatch (v0.7.1 or the source lane) validates the
+scenario recall floors.
