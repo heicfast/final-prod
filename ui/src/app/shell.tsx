@@ -29,6 +29,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/menus';
 import { AboutDialog } from '@/features/settings-about/about-dialog';
+import { ConsentModal } from '@/features/consent/consent-modal';
+import { ElevationBanner } from '@/features/consent/elevation-banner';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
@@ -345,12 +347,14 @@ export function WizardShell(): React.JSX.Element {
             key={location.pathname}
             className="route-fade flex h-full min-h-0 flex-1 flex-col overflow-hidden"
           >
+            <ElevationBanner />
             <Outlet />
           </div>
         </main>
       </div>
 
       {import.meta.env.DEV ? <DevSurfaces /> : null}
+      <ConsentModal />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
     </div>

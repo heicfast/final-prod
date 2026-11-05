@@ -1,9 +1,10 @@
-import { useRef, useSyncExternalStore } from 'react';
+import { useEffect as reactUseEffect, useRef, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { connector } from '@/connector';
 import type { ScanParams, ScanProgressEvent, ScanState } from '@/connector/contract';
 import { queryKeys } from './client';
 import { useScanSessionStore } from '@/stores/scan-session-store';
+import { useConsentStore } from '@/stores/consent-store';
 
 // ---------------------------------------------------------------------------
 // Progress store — external-store pattern over the connector event stream.
@@ -157,5 +158,37 @@ export function useCancelScan(scanId: string | null) {
       void qc.invalidateQueries({ queryKey: queryKeys.scanState(scanId!) });
       void qc.invalidateQueries({ queryKey: queryKeys.sessions });
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The consent bridge (G-1 (a)) — the global store fed by the scan's consent
+// event + state re-hydration. Mounted by the scan-progress surface (where
+// the scanId lives); the MODAL lives in the shell (navigation-safe).
+// ---------------------------------------------------------------------------
+
+export function useConsentBridge(scanId: string | null): void {
+  const setRepair = useConsentStore((s) => s.setRepair);
+  const { data: state } = useScanState(scanId);
+  reactUseEffect(() => {
+    if (!scanId) return;
+    return connector.scan.onConsentRequest(scanId, (event) => {
+      setRepair(event);
+    });
+  }, [scanId, setRepair]);
+  // Re-hydration: the pending consent from state covers subscribe-late and
+  // navigate-away-and-back (the event may have fired before this mount).
+  reactUseEffect(() => {
+    if (state?.pendingConsent) {
+      setRepair(state.pendingConsent);
+    }
+  }, [state?.pendingConsent, setRepair]);
+}
+
+/** Answer a consent request (echo token; both families share the command). */
+export function useRespondToConsent() {
+  return useMutation({
+    mutationFn: (input: { requestId: string; allow: boolean }) =>
+      connector.scan.respondToConsent(input.requestId, input.allow),
   });
 }

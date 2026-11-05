@@ -560,10 +560,31 @@ describe('MockConnector — health & repair', () => {
   });
 });
 
-describe('Tauri stub adapter', () => {
-  it('throws NotImplementedError on every domain', async () => {
-    const stub = createTauriConnector();
-    await expect(async () => stub.devices.listDevices()).rejects.toThrow(/not implemented/i);
-    await expect(async () => stub.system.getAppInfo()).rejects.toThrow(/CONNECTOR-CONTRACT/i);
+describe('Tauri real adapter shape', () => {
+  it('exposes every domain method as a function (wired, no stub domains)', () => {
+    // The v3-era adapter threw NotImplementedError through a Proxy for
+    // every domain. The P4 bridge wires them all: the shape gate is that
+    // every method on every domain is callable (the command surface is
+    // proven by connector-tauri.test.ts against the manifest).
+    const adapter = createTauriConnector();
+    const domains = [
+      'devices',
+      'scan',
+      'results',
+      'preview',
+      'sessions',
+      'recovery',
+      'health',
+      'repair',
+      'lostPartition',
+      'system',
+    ] as const;
+    for (const domain of domains) {
+      const methods = adapter[domain] as unknown as Record<string, unknown>;
+      expect(Object.keys(methods).length, `${domain} has methods`).toBeGreaterThan(0);
+      for (const [name, fn] of Object.entries(methods)) {
+        expect(typeof fn, `${domain}.${name} is a function`).toBe('function');
+      }
+    }
   });
 });

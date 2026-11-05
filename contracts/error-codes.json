@@ -328,11 +328,12 @@
     {
       "code": "ERR_ELEVATION_REQUIRED",
       "value": "0x500C0001",
-      "uiCode": "device-permission",
+      "uiCode": "elevation-required",
       "context": {
         "rule": "THE driverless posture's core refusal (session-96, ABI v4): every raw-disk verb requires an elevated process token; a non-elevated caller gets this code (CLI exit 4). INTERIM mapping to device-permission until the P4 bridge introduces the dedicated 'elevation-required' ConnectorError code (banner + restart-as-administrator flow)."
       },
-      "surface": "every raw-disk open, scan, health, repair, apply"
+      "surface": "every raw-disk open, scan, health, repair, apply",
+      "notes": " The banner + relaunch-as-admin flow (the user-mode posture; cr_ui.h host-triggers-its-own-UAC contract)."
     }
   ],
   "bridgeOnlyCodes": [
@@ -391,6 +392,11 @@
     {
       "uiCode": "not-implemented",
       "cause": "EXACTLY the four gap methods (dryRunRepair, applyRepair, getUndoLog, undoRepairs) — truthful disabled surfaces per docs/INTEGRATION-GAPS.md G-1; no other method may throw it"
+    },
+    {
+      "uiCode": "consent-not-found",
+      "origin": "the G-1 (a) consent surface (re-added for the P4 bridge)",
+      "notes": "unknown requestId / double-respond / a cancel that force-denied first — the typed stale answer for BOTH consent families."
     }
   ],
   "uiCodesWithNoEngineSource": [],

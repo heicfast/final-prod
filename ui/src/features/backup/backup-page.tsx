@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ArchiveRestoreIcon, Clock3Icon, FolderSyncIcon, ShieldCheckIcon } from 'lucide-react';
-import { useLoadSession, useSessions } from '@/queries/sessions';
+import { useLoadSession, useResumeSession, useSessions } from '@/queries/sessions';
 import { formatDate, formatInteger } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,10 +18,25 @@ export function BackupPage(): React.JSX.Element {
   const navigate = useNavigate();
   const sessions = useSessions();
   const loadSession = useLoadSession();
+  const resumeSession = useResumeSession();
 
   const handleOpenSession = (fileName: string): void => {
     loadSession.mutate(fileName, {
       onSuccess: ({ scanId }) => void navigate(`/results/${scanId}`),
+      onError: (err) => toast.error(err instanceof Error ? err.message : t('errors.unknown')),
+    });
+  };
+
+  /** The scan RESUME (the CLI's `scan --resume`): continue an incomplete
+   * session's scan on its original target (identity-verified by the
+   * bridge — a mismatch is the typed session-corrupt refusal). */
+  const handleResumeSession = (path: string | undefined): void => {
+    if (!path) {
+      toast.error(t('backup.resumeNeedsPath'));
+      return;
+    }
+    resumeSession.mutate(path, {
+      onSuccess: ({ scanId }) => void navigate(`/scan?scanId=${scanId}`),
       onError: (err) => toast.error(err instanceof Error ? err.message : t('errors.unknown')),
     });
   };
@@ -128,14 +143,26 @@ export function BackupPage(): React.JSX.Element {
                         {formatInteger(session.filesFound, i18n.language)}
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      loading={loadSession.isPending}
-                      onClick={() => handleOpenSession(session.fileName)}
-                    >
-                      {t('backup.open')}
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!session.completed ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={resumeSession.isPending}
+                          onClick={() => handleResumeSession(session.path)}
+                        >
+                          {t('backup.resume')}
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={loadSession.isPending}
+                        onClick={() => handleOpenSession(session.fileName)}
+                      >
+                        {t('backup.open')}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

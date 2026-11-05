@@ -13,6 +13,7 @@ import {
 import { scanPhaseOf } from '@/connector/contract';
 import {
   useCancelScan,
+  useConsentBridge,
   usePauseScan,
   useResumeScan,
   useScanProgress,
@@ -64,6 +65,9 @@ export function ScanProgressPage(): React.JSX.Element {
 
   const progress = useScanProgress(scanId);
   const scanState = useScanState(scanId);
+  // G-1 (a): the pre-scan repair consent feed (the modal lives in the
+  // shell; this bridge feeds it from the scan's event + state).
+  useConsentBridge(scanId);
   const pause = usePauseScan(scanId);
   const resume = useResumeScan(scanId);
   const cancel = useCancelScan(scanId);

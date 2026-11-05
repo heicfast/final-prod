@@ -1,11 +1,11 @@
 {
   "$schema": "contracts/command-surface.schema",
-  "version": 2,
+  "version": 4,
   "description": "Every Tauri command the Rust bridge (ui/src-tauri/src/commands/) exposes to the TS connector (ui/src/connector/tauri/tauri-connector.ts). Threading classes: 'sync' (safe to run on the invoking thread — engine any-thread or pure bridge logic), 'spawn-join' (engine call is synchronous-on-caller-thread; the command spawns a dedicated thread and joins/awaits), 'async-job' (spawns a long-running thread; completion arrives via events + state queries). Events are listed separately.",
   "commands": [
     {
       "name": "devices_list",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_enumerate_disks",
         "cr_ui_enumerate_volumes",
@@ -18,11 +18,12 @@
         "devices.listDevices",
         "devices.getDeviceInfo"
       ],
-      "returns": "Device[] (contract.ts shape; type-maps §1)"
+      "returns": "Device[] (contract.ts shape; type-maps §1)",
+      "notes": "getDeviceInfo resolves a volume id to the owning device client-side (scan-target semantics). Status: fresh open probe; locked volumes probe 0x50060001. BF-02: no bus_type on v4 — kind degrades to the removable flag."
     },
     {
       "name": "devices_refresh",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_enumerate_disks",
         "cr_ui_enumerate_volumes"
@@ -30,7 +31,23 @@
       "serves": [
         "devices.refreshDevices"
       ],
-      "returns": "Device[]"
+      "returns": "Device[]",
+      "notes": "The engine re-queries the OS per call (R-86 pull model — calling IS the refresh)."
+    },
+    {
+      "name": "volume_unlock_dictionary",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_unlock_volume_with_dictionary"
+      ],
+      "serves": [
+        "devices.unlockVolume"
+      ],
+      "args": [
+        "volumeId",
+        "passwords"
+      ],
+      "notes": "N-064 explicit-consent unlock (the engine's shipped 228-entry dictionary + the caller's candidates). ERR_FVE_LOCKED -> device-permission (the whole set failed). Never tried by the scan/open path itself."
     },
     {
       "name": "scan_start",
@@ -39,6 +56,8 @@
         "cr_ui_abi_version",
         "cr_ui_open_disk",
         "cr_ui_open_volume",
+        "cr_ui_open_volume_with_key",
+        "cr_ui_device_geometry",
         "cr_ui_scan_create",
         "cr_ui_scan_attach_device",
         "cr_ui_scan_set_event_fn",
@@ -50,14 +69,15 @@
       ],
       "args": [
         "targetId",
-        "pathScope?"
+        "pathScope?",
+        "bitlockerFvek?"
       ],
       "returns": "{scanId}",
-      "notes": "Spawns the run thread; events on scan-progress:<scanId>; pathScope is view-scoping (G-11) validated here (scan-scope-invalid). Pre-scan repair arms the CONSENT callback (bridge::consent, G-1 (a)): the engine calls it ONCE on the run thread when a repairable plan exists, the bridge emits consent-request:<scanId> + blocks the run thread on the registered gate (no user-facing timeout — plan §4.5), and consent_respond answers. The run tail frees the consent pipe, force-denies any surviving gate, and persists the undo log after an approved repair (cr_ui_scan_repair_save_undo). Virtual quick-targets (vol-recycle-bin / vol-desktop) resolve to the system volume + implicit pathScope"
+      "notes": "ABI gate -> resolve target -> open (FVEK through open_volume_with_key when supplied) -> zero-init cfg (stage_mask 7; autosave_dir = the sessions store, W1c; pre_scan_check 1 always; pre_scan_repair 1 ONLY for volume targets — the NG-21 guard: whole-disk repair analysis is truthfully unavailable, BF-06) -> attach -> subscribe BEFORE run -> dedicated run thread. pathScope is view-scoping (G-11). The consent callback is armed (bridge::consent): consent-request:<scanId> + the gate; the run tail frees the pipe, force-denies survivors, persists the undo log after an approved repair. Events: scan-progress/finished/autosaved/lost-candidate/consent-request per scanId. Virtual quick-targets (vol-recycle-bin / vol-desktop) resolve to the system volume + implicit pathScope."
     },
     {
       "name": "scan_pause",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_pause"
       ],
@@ -66,11 +86,12 @@
       ],
       "args": [
         "scanId"
-      ]
+      ],
+      "notes": "Transient 'pausing' with expiry; scan-not-running refusal when idle."
     },
     {
       "name": "scan_resume",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_resume"
       ],
@@ -79,11 +100,12 @@
       ],
       "args": [
         "scanId"
-      ]
+      ],
+      "notes": "scan-not-paused refusal when not paused; transient 'resuming'."
     },
     {
       "name": "scan_cancel",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_cancel"
       ],
@@ -93,67 +115,74 @@
       "args": [
         "scanId"
       ],
-      "notes": "run() latches CR_UI_ERR_CANCELLED -> status 'cancelled' with browsable tree. Force-denies the scan's pending consent gates FIRST: a pending consent blocks the run thread inside the engine callback, and the engine observes the cancel token only after the callback returns (plan §4.5 deadlock rule)"
+      "notes": "Force-denies the scan's pending consent gates FIRST (the §4.5 deadlock rule), then cancels."
     },
     {
       "name": "scan_state",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_busy",
         "cr_ui_scan_stopping",
-        "cr_ui_scan_telemetry",
-        "cr_ui_scan_get_stats"
+        "cr_ui_scan_telemetry"
       ],
       "serves": [
         "scan.getScanState"
       ],
-      "args": [
-        "scanId"
-      ],
-      "returns": "ScanState (type-maps §3) + pendingConsent (the consent-request payload | null — G-1 (a) re-hydration)",
-      "notes": "pendingConsent re-hydrates the prompt: the event fired before the page subscribed, or the user navigated away and back. Null when nothing pends (answered, denied, cancelled)"
+      "returns": "ScanState (params/target echo, progress, failure, pendingConsent re-hydration, lostCandidates rows, autosaved)",
+      "notes": "The N-061 candidate rows (lba/sectors/fs/score) ride the live cell — the event's LBA joined with the log-seam geometry (bridge::logging)."
     },
     {
       "name": "scan_close",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_scan_close",
-        "cr_ui_device_close"
+        "cr_ui_scan_close"
       ],
       "serves": [
-        "internal (bridge lifecycle; invoked on window close / session adoption)"
+        "internal (registry Drop; the fresh contract dropped the surface)"
       ],
       "args": [
         "scanId"
       ],
-      "notes": "Present in the manifest because it is a registered command; the TS connector calls it when leaving a scan surface"
+      "notes": "Refuses while running or while jobs/resumed scans reference the entry; the Drop enforces the close order (event unsub -> sink box -> snapshot cache -> scan -> device)."
+    },
+    {
+      "name": "scan_save_cancel",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_scan_save_cancel"
+      ],
+      "serves": [
+        "sessions.cancelSave"
+      ],
+      "args": [
+        "scanId"
+      ],
+      "notes": "N-060 SAVE-SCOPED cancel (never touches the scan's cancel token; a save not in flight is a no-op)."
     },
     {
       "name": "results_tree",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_snapshot",
         "cr_ui_session_snapshot",
-        "cr_ui_snapshot_node",
+        "cr_ui_snapshot_node_count",
+        "cr_ui_snapshot_partial",
         "cr_ui_snapshot_dfs",
-        "cr_ui_query_run"
+        "cr_ui_snapshot_node"
       ],
       "serves": [
         "results.getResultTree"
       ],
-      "args": [
-        "scanId",
-        "parentId?",
-        "mode"
-      ],
-      "returns": "TreePage (type-maps §4)"
+      "returns": "TreePage",
+      "notes": "ONE filter implementation for live+session over the NodeMeta cache (G-7): path/type/raw modes; the lost-paths and raw synthetic groups."
     },
     {
       "name": "results_query",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_snapshot",
-        "cr_ui_session_snapshot"
+        "cr_ui_session_snapshot",
+        "cr_ui_snapshot_node"
       ],
       "serves": [
         "results.queryResults"
@@ -164,93 +193,69 @@
         "sort",
         "page"
       ],
-      "returns": "ResultsPage (type-maps §5)",
-      "notes": "ONE bridge-side filter path serves BOTH live scans and loaded sessions: the engine's cr_ui_query_run cannot express the contract's 'existing' atom (no deleted_never knob exists in cr_ui_query), so the bridge filters its own metadata cache for both — identical semantics mid-scan and post-scan; G-7 records the future engine-side query migration"
+      "returns": "ResultsPage (nodes/total/totalBytes/offset/pageSize/elapsedMs)"
     },
     {
       "name": "results_count",
-      "threading": "sync",
-      "abiRefs": [
-        "cr_ui_query_run",
-        "cr_ui_scan_snapshot",
-        "cr_ui_session_snapshot"
-      ],
+      "threading": "spawn-join",
+      "abiRefs": [],
       "serves": [
         "results.countResults"
       ],
-      "args": [
-        "scanId",
-        "filter"
-      ],
-      "returns": "number"
+      "returns": "number (the same predicate, count_only)"
     },
     {
       "name": "node_detail",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_snapshot_node",
-        "cr_ui_query_run",
-        "cr_ui_scan_get_stats"
+        "cr_ui_snapshot_node"
       ],
       "serves": [
         "results.getNodeDetail"
       ],
-      "args": [
-        "scanId",
-        "nodeId"
-      ],
-      "returns": "NodeDetail"
+      "returns": "NodeDetail (physical path only for structured rows on a lettered volume; confidence reason from real evidence fields)"
     },
     {
       "name": "preview_open",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_preview_open_session",
         "cr_ui_preview_open_snapshot",
+        "cr_ui_preview_open_session",
         "cr_ui_preview_size",
         "cr_ui_preview_metadata",
-        "cr_ui_preview_unreadable",
         "cr_ui_preview_read",
+        "cr_ui_preview_unreadable",
+        "cr_ui_archive_entry_count",
+        "cr_ui_archive_entry_at",
         "cr_ui_preview_close"
       ],
       "serves": [
         "preview.requestPreview"
       ],
-      "args": [
-        "scanId",
-        "nodeId"
-      ],
-      "returns": "PreviewPayload (type-maps §8)",
-      "notes": "connector decides kind from engine metadata (ADR-008); bounded payload assembly; the preview handle is transient (opened + closed inside the command — no paging surface exists in the contract, so preview_read/preview_close are internal helpers, not commands)"
+      "returns": "PreviewPayload (image/text/hex/av/office/archive)",
+      "notes": "Damage truth: any unreadable span -> preview-damaged (never zero-filled content as intact). M-116 archive browse-inside: the bounded 512-entry inventory in the 'archive' payload (truncated flag)."
     },
     {
       "name": "preview_thumbnail",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_preview_open_session",
+        "cr_ui_thumbnail_generate",
         "cr_ui_preview_open_snapshot",
-        "cr_ui_preview_size",
-        "cr_ui_preview_read",
-        "cr_ui_preview_close"
+        "cr_ui_preview_open_session",
+        "cr_ui_preview_read"
       ],
       "serves": [
         "preview.getThumbnail"
       ],
-      "args": [
-        "scanId",
-        "nodeId"
-      ],
       "returns": "{dataUrl} | null",
-      "notes": "image-kind only; non-image -> null (G-4); oversized images -> null (OQ-3 resolved: full-read bound, no decode fabrication)"
+      "notes": "M-102: SESSION-kind nodes generate through thumbnail_generate (two-call; EXIF-oriented, grade-promoting) and cross as a BMP data URL (the bridge's own BI_RGB encoder); LIVE scans assemble from preview reads (BF-13 documented degradation); decode refusal (ERR_TRUNCATED) -> preview-damaged."
     },
     {
       "name": "session_save",
       "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_scan_save_session",
-        "cr_ui_scan_save_cancel",
-        "cr_ui_scan_get_stats",
-        "cr_ui_scan_snapshot"
+        "cr_ui_scan_get_stats"
       ],
       "serves": [
         "sessions.saveSession"
@@ -259,30 +264,27 @@
         "scanId",
         "path?"
       ],
-      "returns": "SessionMeta (type-maps §9)",
-      "notes": "path null -> ProgramData auto-name; save progress on save-progress:<scanId>; save-scoped cancel token"
+      "returns": "SessionMeta",
+      "notes": "Auto-name auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf in the sessions store; refuses while the scan runs."
     },
     {
       "name": "sessions_list",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_session_load",
-        "cr_ui_session_get_info",
-        "cr_ui_session_stats",
-        "cr_ui_session_close"
+        "cr_ui_session_list"
       ],
       "serves": [
         "sessions.listSessions",
-        "sessions.getSessionMeta"
+        "sessions.getSessionMeta (via rows)"
       ],
       "returns": "SessionMeta[]",
-      "notes": "OQ-4 resolved: stat-first listing; label/target counts filled lazily via one load+close pass per file on first list (cached in the bridge; cache invalidated by directory mtime)"
+      "notes": "W1a LIGHT records (SESSION_STATE + VOLUME_INFO only; heavy payloads skipped by type); newest-first by the embedded save time; unreadable files keep a truthful degraded row; pre-v5 rows carry null savedAt (never a fabricated time)."
     },
     {
       "name": "session_load",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_session_load",
+        "cr_ui_session_load_with_events",
         "cr_ui_session_get_info",
         "cr_ui_session_stats"
       ],
@@ -292,7 +294,59 @@
       "args": [
         "path"
       ],
-      "returns": "{scanId}"
+      "returns": "{scanId}",
+      "notes": "W1b load progress (session-load-progress:<path>, coalesced from the calling thread); best-effort device re-attach by model+serial (slice-pinned); bridge pre-check -> session-not-found for a missing file."
+    },
+    {
+      "name": "session_meta",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_session_list"
+      ],
+      "serves": [
+        "sessions.getSessionMeta"
+      ],
+      "args": [
+        "path"
+      ],
+      "returns": "SessionMeta",
+      "notes": "The light-row lookup (no load)."
+    },
+    {
+      "name": "session_resume_last",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_session_last_autosave_path",
+        "cr_ui_session_load_with_events",
+        "cr_ui_session_get_info",
+        "cr_ui_session_stats"
+      ],
+      "serves": [
+        "sessions.resumeLastSession"
+      ],
+      "args": "M-154 pointed resume: the last_scan.info sidecar's auto session, no directory scan. ERR_RANGE_OUT_OF_BOUNDS -> session-not-found (the caller falls back to sessions_list).",
+      "returns": "{scanId, path}"
+    },
+    {
+      "name": "session_resume",
+      "threading": "async-job",
+      "abiRefs": [
+        "cr_ui_session_load_with_events",
+        "cr_ui_session_get_info",
+        "cr_ui_session_resume",
+        "cr_ui_scan_attach_device",
+        "cr_ui_scan_verify_identity",
+        "cr_ui_scan_set_event_fn",
+        "cr_ui_scan_run"
+      ],
+      "serves": [
+        "sessions.resumeSession"
+      ],
+      "args": [
+        "path"
+      ],
+      "returns": "{scanId}",
+      "notes": "The CLI's scan --resume: load + resume (whole_disk from the re-attach shape; NG-21 guard; W1c autosave; consent armed) + identity verify (ERR_BAD_CHECKSUM -> session-corrupt) + run. The resumed entry BORROWS the loaded entry's device (pinned via the jobs list)."
     },
     {
       "name": "recovery_start",
@@ -304,8 +358,7 @@
         "cr_ui_recovery_enqueue_subtree",
         "cr_ui_recovery_enqueue_snapshot",
         "cr_ui_recovery_enqueue_subtree_snapshot",
-        "cr_ui_recovery_process",
-        "cr_ui_query_run"
+        "cr_ui_recovery_queue_count"
       ],
       "serves": [
         "recovery.startRecovery"
@@ -317,11 +370,11 @@
         "options"
       ],
       "returns": "{jobId}",
-      "notes": "enqueue phase = 'validating'; process thread spawned; events on recovery-progress:<jobId>"
+      "notes": "Config map: collision->conflict; verifyOnWrite->skip_hash_verify; rebuildFolders->skip_dir_reconstruct (keepEmptyFolders/fileRepair have NO engine equivalent — BF-14 truthful-disable). Selection 'all' pages the bridge query at 500/page. Events: recovery-progress:<jobId>."
     },
     {
       "name": "recovery_cancel",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_recovery_cancel"
       ],
@@ -330,26 +383,21 @@
       ],
       "args": [
         "jobId"
-      ]
+      ],
+      "notes": "Committed items stay committed (report truth); terminal = the truthful no-op."
     },
     {
       "name": "recovery_state",
-      "threading": "sync",
-      "abiRefs": [
-        "cr_ui_recovery_get_stats",
-        "cr_ui_recovery_queue_count"
-      ],
+      "threading": "spawn-join",
+      "abiRefs": [],
       "serves": [
         "recovery.getRecoveryState"
-      ],
-      "args": [
-        "jobId"
       ],
       "returns": "RecoveryJob"
     },
     {
       "name": "recovery_items",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_recovery_report_json"
       ],
@@ -364,48 +412,209 @@
     },
     {
       "name": "recovery_report",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
-        "cr_ui_recovery_report_json",
-        "cr_ui_string_free"
+        "cr_ui_recovery_report_json"
       ],
       "serves": [
         "recovery.getRecoveryReport"
       ],
-      "args": [
-        "jobId"
-      ],
-      "returns": "RecoveryReport (type-maps §6)"
+      "returns": "RecoveryReport (per-list cap 500, truncatedItemLists; processedTotal exact)"
     },
     {
       "name": "health_read",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_health_read"
       ],
       "serves": [
         "health.getHealth"
       ],
+      "returns": "DiskHealth",
+      "notes": "BASE ABI only (no ex2 on v4 — BF-03: the threshold column is null). NG-6/NG-9 truth: NVMe-only reports are valid; an empty ATA table grades unknown, never good."
+    },
+    {
+      "name": "consent_respond",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "scan.respondToConsent",
+        "lostPartition.respondToApplyConsent"
+      ],
+      "args": [
+        "requestId",
+        "allow"
+      ],
+      "notes": "The echo-token answer for BOTH consent families (repair 'consent-N', apply 'apply-N'). Unknown/double ids -> consent-not-found. Registry-only (no engine call)."
+    },
+    {
+      "name": "repair_dry_run",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "repair.dryRunRepair"
+      ],
       "args": [
         "deviceId"
       ],
-      "returns": "DiskHealth (type-maps §7)"
+      "notes": "Typed not-implemented: no standalone repair surface on the v4 ABI (repair exists only as the scan's pre-scan hook; the CLI's rrecov fix covers standalone)."
+    },
+    {
+      "name": "repair_apply",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "repair.applyRepair"
+      ],
+      "args": [
+        "deviceId",
+        "options"
+      ],
+      "notes": "Typed not-implemented (same G-1 cluster)."
+    },
+    {
+      "name": "repair_undo_log",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "repair.getUndoLog"
+      ],
+      "args": [
+        "deviceId"
+      ],
+      "notes": "Typed not-implemented."
+    },
+    {
+      "name": "repair_undo",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "repair.undoRepairs"
+      ],
+      "args": [
+        "deviceId"
+      ],
+      "notes": "Typed not-implemented; undo is CLI-only today (rrecov fix --undo-apply — the bridge saves the undo log after an approved pre-scan repair)."
+    },
+    {
+      "name": "lost_partition_apply",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_open_disk",
+        "cr_ui_apply_lost_partition",
+        "cr_ui_device_close"
+      ],
+      "serves": [
+        "lostPartition.applyLostPartition"
+      ],
+      "args": [
+        "deviceId",
+        "candidate",
+        "rebuildTable?"
+      ],
+      "returns": "ApplyResult (applied/outcome 0..5/undoEntries/reason verbatim)",
+      "notes": "S-029: transcribes the scan-state candidate (apply never invents geometry); whole-disk view; the apply-consent callback armed (apply-consent-request:<deviceId> + the gate). Single-flight per device (repair-consent-required). M-137 presentation tail from fresh enumeration."
+    },
+    {
+      "name": "lost_partition_undo",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_open_disk",
+        "cr_ui_apply_undo_last",
+        "cr_ui_device_close"
+      ],
+      "serves": [
+        "lostPartition.undoLastApply"
+      ],
+      "args": [
+        "deviceId"
+      ],
+      "returns": "ApplyResult",
+      "notes": "Byte-exact sector restore of the last apply on this device; idempotent."
+    },
+    {
+      "name": "lost_partition_save_undo",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_open_disk",
+        "cr_ui_apply_save_undo",
+        "cr_ui_device_close"
+      ],
+      "serves": [
+        "lostPartition.saveApplyUndo"
+      ],
+      "args": [
+        "deviceId",
+        "path"
+      ],
+      "notes": "The durable CRC-checked container (loadable by rrecov fix --undo-apply)."
+    },
+    {
+      "name": "apply_consent_pending",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "lostPartition.pendingApplyConsent"
+      ],
+      "args": [
+        "deviceId"
+      ],
+      "returns": "ApplyConsentEvent | null",
+      "notes": "The re-hydration query for the lost-partition screen (the scan consent's scan_state.pendingConsent twin)."
     },
     {
       "name": "system_app_info",
       "threading": "sync",
       "abiRefs": [
-        "cr_ui_abi_version"
+        "cr_ui_abi_version",
+        "cr_ui_user_sign_count"
       ],
       "serves": [
         "system.getAppInfo"
       ],
-      "returns": "AppInfo (connectorMode removed; engineVersion null per G-6; abiVersion in detail)"
+      "returns": "AppInfo (engineVersion = 'cr_ui ABI v<N>' — the contract number, G-6; userSigns = the M-048 count)"
+    },
+    {
+      "name": "system_security_posture",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "system.getSecurityPosture"
+      ],
+      "returns": "{administrator}",
+      "notes": "The Win32 TokenElevation probe (mirrors core win::is_elevated) — the user-mode product's privilege truth; replaces the retired driver-status surface."
+    },
+    {
+      "name": "system_relaunch_elevated",
+      "threading": "sync",
+      "abiRefs": [],
+      "serves": [
+        "system.relaunchElevated"
+      ],
+      "notes": "ShellExecuteW 'runas' on the own exe + exit (the host-triggers-its-own-UAC contract). Refused launch -> device-permission."
+    },
+    {
+      "name": "system_load_user_signs",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_register_user_signs",
+        "cr_ui_user_sign_count"
+      ],
+      "serves": [
+        "system.loadUserSigns"
+      ],
+      "args": [
+        "content"
+      ],
+      "returns": "{count}",
+      "notes": "M-048: atomic replace from the document text (the webview file input cannot hand over a path); the exe-adjacent userdata-defaults.json is auto-loaded at startup (lib.rs)."
     },
     {
       "name": "system_validate_destination",
-      "threading": "sync",
-      "abiRefs": [],
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_enumerate_volumes"
+      ],
       "serves": [
         "system.validateDestination"
       ],
@@ -414,11 +623,12 @@
         "sourceDeviceId",
         "neededBytes"
       ],
-      "returns": "DestinationValidation"
+      "returns": "DestinationValidation",
+      "notes": "Same-letter overlap (F12) / invalid / out-of-space / unwritable (a real write probe); the engine backstops at enqueue (0x50050001)."
     },
     {
       "name": "system_pick_directory",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [],
       "serves": [
         "system.pickDirectory"
@@ -427,18 +637,19 @@
         "hint?"
       ],
       "returns": "string | null",
-      "notes": "tauri-plugin-dialog; volume hint root; excludeDeviceId honored"
+      "notes": "tauri-plugin-dialog blocking_pick_folder on the blocking pool."
     },
     {
       "name": "system_list_mounts",
-      "threading": "sync",
+      "threading": "spawn-join",
       "abiRefs": [
         "cr_ui_enumerate_volumes"
       ],
       "serves": [
         "system.listMountPoints"
       ],
-      "returns": "MountPoint[]"
+      "returns": "MountPoint[]",
+      "notes": "Letters + GetDiskFreeSpaceExW."
     },
     {
       "name": "system_open_path",
@@ -450,111 +661,77 @@
       "args": [
         "path"
       ],
-      "returns": "void",
-      "notes": "tauri-plugin-opener reveal; replaces the staged reveal_in_explorer command and un-wires the mock's openPathMock refusal"
-    },
-    {
-      "name": "consent_respond",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "scan.respondToConsent"
-      ],
-      "args": [
-        "requestId",
-        "allow"
-      ],
-      "returns": "void",
-      "notes": "The consent answer for the pre-scan repair prompt (G-1 (a), plan §4.5). requestId is the ECHO token from the consent-request payload — bridge-minted, never a guessable authority. Unknown / already-resolved / cancelled ids throw the typed consent-not-found. Registry-only (the gate's condvar notifies the blocked engine run thread); no engine call, hence sync. The engine executes the transactional repair on a true return, surfaces the outcome via CR_EVT_REPAIR + stats, and the run tail persists the undo log (rrecov fix --undo-apply <file>)"
-    },
-    {
-      "name": "repair_dry_run",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "repair.dryRunRepair"
-      ],
-      "returns": "error not-implemented",
-      "notes": "G-1 disabled surface: no engine ABI export exists; truthful message + INTEGRATION-GAPS.md pointer"
-    },
-    {
-      "name": "repair_apply",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "repair.applyRepair"
-      ],
-      "returns": "error not-implemented",
-      "notes": "G-1: the REAL repair path is pre-scan repair inside scan_start (consent-gated); the standalone workbench button is truthfully disabled"
-    },
-    {
-      "name": "repair_undo_log",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "repair.getUndoLog"
-      ],
-      "returns": "error not-implemented",
-      "notes": "G-1 disabled surface"
-    },
-    {
-      "name": "repair_undo",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "repair.undoRepairs"
-      ],
-      "returns": "error not-implemented",
-      "notes": "G-1 disabled surface; CLI-only today (rrecov fix --undo-apply)"
+      "notes": "tauri-plugin-opener: folders open, files are revealed with selection."
     }
   ],
   "events": [
     {
       "name": "scan-progress:<scanId>",
-      "to": "scan.onScanProgress",
-      "source": "cr_ui_event via channel->emit (event-mapping.md)"
-    },
-    {
-      "name": "recovery-progress:<jobId>",
-      "to": "recovery.onRecoveryProgress",
-      "source": "cr_ui_recovery_progress_fn + stats/report drain"
-    },
-    {
-      "name": "save-progress:<scanId>",
-      "to": "saveSession spinner",
-      "source": "CR_EVT_SAVE_PROGRESS"
+      "source": "cr_ui_scan_set_event_fn sink -> channel -> emitter",
+      "payload": "ScanProgressEvent"
     },
     {
       "name": "scan-finished:<scanId>",
-      "to": "terminal latch notification",
-      "source": "run() return code"
+      "source": "the run thread (terminal latch)",
+      "payload": "{status, failure?, autosaved}"
     },
     {
-      "name": "recovery-finished:<jobId>",
-      "to": "terminal latch notification",
-      "source": "process() return code"
+      "name": "save-progress:<scanId>",
+      "source": "CR_EVT_SAVE_PROGRESS (9)",
+      "payload": "{fraction}"
+    },
+    {
+      "name": "lost-candidate:<scanId>",
+      "source": "CR_EVT_LOST_CANDIDATE (6) + the N-061 geometry join",
+      "payload": "{lba, sectorCount?, fs?, score?, count}"
     },
     {
       "name": "consent-request:<scanId>",
-      "to": "scan.onConsentRequest",
-      "source": "cr_ui_repair_consent_fn (bridge::consent — the sink emits from the run thread; the gate is registered before emitting and the registry lock released before blocking, plan §4.5)"
+      "source": "cr_ui_repair_consent_fn (bridge::consent)",
+      "payload": "ConsentRequestEvent"
+    },
+    {
+      "name": "apply-consent-request:<deviceId>",
+      "source": "cr_ui_apply_consent_fn (bridge::consent)",
+      "payload": "ApplyConsentEvent"
+    },
+    {
+      "name": "recovery-progress:<jobId>",
+      "source": "the recovery progress sink + stats/report drain",
+      "payload": "RecoveryProgressEvent"
+    },
+    {
+      "name": "recovery-finished:<jobId>",
+      "source": "the process thread (terminal latch)",
+      "payload": "{status}"
+    },
+    {
+      "name": "session-load-progress:<path>",
+      "source": "CR_EVT_SESSION_LOAD_PROGRESS (11), calling thread",
+      "payload": "{path, permille, nodesDone, nodesTotal}"
+    },
+    {
+      "name": "scan-autosaved:<scanId>",
+      "source": "CR_EVT_AUTOSAVED (12)",
+      "payload": "{rc}"
     }
   ],
   "removed": [
     {
-      "name": "preview_read",
-      "why": "Internal helper (the bridge's hex assembly reads within preview_open); the contract's PreviewDomain has no paging method, so no TS caller can exist. validate.mjs phase 2 requires every non-internal manifest row to be invoked — a command with zero possible callers would be dead surface."
+      "name": "system_driver_status",
+      "reason": "the kernel driver is gone (P3); replaced by system_security_posture (the user-mode elevation truth)"
     },
     {
-      "name": "preview_close",
-      "why": "Internal helper: preview handles are transient (opened + closed inside preview_open/preview_thumbnail) — no registry, no lifecycle command needed."
+      "name": "scan_close (UI surface)",
+      "reason": "the fresh contract dropped the surface; the command stays as internal registry hygiene"
+    },
+    {
+      "name": "cr_ui_health_read_ex2 / CrUiSmartAttrEx",
+      "reason": "not on ABI v4 (BF-03); the threshold column is null until the ex2 wrapper returns upstream"
+    },
+    {
+      "name": "cr_ui_set_log_sink (flat-C)",
+      "reason": "not on ABI v4 (BF-01); the bridge binds the MSVC-mangled C++ seam (cr_ui_exports.def:19)"
     }
-  ],
-  "invariants": [
-    "Every command here is registered in ui/src-tauri invoke_handler and implemented under ui/src-tauri/src/commands/.",
-    "The TS connector invokes no command absent from this manifest (validate.mjs check 4/5).",
-    "The gap-method commands (repair_*) exist so the disabled surfaces throw a typed not-implemented from the bridge — the UI renders a truthful message, never a dead button.",
-    "Command names use snake_case (Rust) and are invoked with the exact same names from TS.",
-    "The `removed` array records commands/events dropped from earlier drafts with rationale — the manifest mirrors the SHIPPED surface truthfully (no dead rows)."
   ]
 }

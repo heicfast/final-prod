@@ -248,6 +248,8 @@ function PreviewBody({
       return <AvPreview payload={payload} />;
     case 'office':
       return <OfficePreview payload={payload} />;
+    case 'archive':
+      return <ArchivePreview payload={payload} />;
   }
   return null;
 }
@@ -444,6 +446,63 @@ function OfficePreview({
           </pre>
         </>
       ) : null}
+    </div>
+  );
+}
+
+function ArchivePreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'archive' }>;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      {payload.truncated ? (
+        <p className="text-xs text-foreground-secondary">{t('preview.archiveTruncated')}</p>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="sticky top-0 border-b border-border bg-surface-muted text-left text-foreground-secondary">
+              <th className="px-2.5 py-1.5 font-medium">{t('preview.archiveName')}</th>
+              <th className="px-2.5 py-1.5 text-right font-medium">
+                {t('preview.archiveSize')}
+              </th>
+              <th className="px-2.5 py-1.5 text-right font-medium">
+                {t('preview.archivePacked')}
+              </th>
+              <th className="px-2.5 py-1.5 font-medium">{t('preview.archiveCrc')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payload.entries.map((e, i) => (
+              <tr
+                key={`${e.name}-${i}`}
+                className="border-b border-border/60 last:border-0"
+                title={e.nameTruncated ? t('preview.archiveNameTruncated') : undefined}
+              >
+                <td className="max-w-72 truncate px-2.5 py-1.5" title={e.name}>
+                  {e.name}
+                </td>
+                <td className="px-2.5 py-1.5 text-right tabular">
+                  {formatBytes(e.size, i18n.language)}
+                </td>
+                <td className="px-2.5 py-1.5 text-right tabular">
+                  {e.compressed > 0 ? formatBytes(e.compressed, i18n.language) : '—'}
+                </td>
+                <td className="px-2.5 py-1.5">
+                  {e.crcPresent ? (
+                    <span className="text-success">{t('preview.archiveCrcOk')}</span>
+                  ) : (
+                    <span className="text-warning">{t('preview.archiveCrcMissing')}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -34,3 +34,30 @@ export function usePickDirectory() {
       connector.system.pickDirectory(hint),
   });
 }
+
+// ---------------------------------------------------------------------------
+// The user-mode posture (v4): TokenElevation probe + relaunch + user signs
+// ---------------------------------------------------------------------------
+
+export function useSecurityPosture() {
+  return useQuery({
+    queryKey: queryKeys.securityPosture,
+    queryFn: () => connector.system.getSecurityPosture(),
+    // The token cannot change for this process's lifetime — but a cheap
+    // refetch-on-focus keeps the banner truthful after a relaunch attempt.
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useRelaunchElevated() {
+  return useMutation({
+    mutationFn: () => connector.system.relaunchElevated(),
+  });
+}
+
+export function useLoadUserSigns() {
+  return useMutation({
+    mutationFn: (path: string) => connector.system.loadUserSigns(path),
+  });
+}

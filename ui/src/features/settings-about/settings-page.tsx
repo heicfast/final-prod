@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ThemeMode } from '@/app/theme';
-import { useAppInfo } from '@/queries/system';
+import { useAppInfo, useLoadUserSigns } from '@/queries/system';
 import { exportLogText, getLogBuffer } from '@/lib/logger';
 import { setLocale, SUPPORTED_LOCALES, type AppLocale } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
@@ -148,6 +148,18 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </section>
 
+      <section className="mb-8" aria-labelledby="settings-usersigns">
+        <h2 id="settings-usersigns" className="mb-3 text-base font-semibold">
+          {t('settings.userSignsTitle')}
+        </h2>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <p className="mb-2 text-xs text-foreground-secondary">
+            {t('settings.userSignsBody')}
+          </p>
+          <UserSignsRow />
+        </div>
+      </section>
+
       <section className="mb-8" aria-labelledby="settings-diagnostics">
         <h2 id="settings-diagnostics" className="mb-3 text-base font-semibold">
           {t('settings.diagnostics')}
@@ -216,6 +228,48 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </section>
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+    </div>
+  );
+}
+
+/** M-048: the user-signature import — a native file pick + the atomic
+ *  register (the count surfaces from getAppInfo). */
+function UserSignsRow(): React.JSX.Element {
+  const { t } = useTranslation();
+  const appInfo = useAppInfo();
+  const loadUserSigns = useLoadUserSigns();
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const [lastCount, setLastCount] = React.useState<number | null>(null);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          loadUserSigns.mutate(file.name, {
+            onSuccess: ({ count }) => setLastCount(count),
+            onError: (err) =>
+              toast.error(err instanceof Error ? err.message : t('errors.unknown')),
+          });
+        }}
+      />
+      <Button
+        variant="secondary"
+        size="sm"
+        loading={loadUserSigns.isPending}
+        onClick={() => fileRef.current?.click()}
+      >
+        {t('settings.userSignsImport')}
+      </Button>
+      <span className="text-xs text-foreground-secondary">
+        {t('settings.userSignsActive', {
+          count: lastCount ?? appInfo.data?.userSigns ?? 0,
+        })}
+      </span>
     </div>
   );
 }

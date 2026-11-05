@@ -96,19 +96,19 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
   });
 
-  it('renders Lost Partition Rescue directly on Disk Selection -> Smart Partition Scan Completed', async () => {
+  it('renders Lost Partition Recovery with the REAL disk list (the demo fixtures are gone)', async () => {
     wrap(<LostPartitionPage />, '/lost-partition');
     expect(
-      await screen.findByRole('heading', { name: /lost partition rescue/i }),
+      await screen.findByRole('heading', { name: /lost partition recovery/i }),
     ).toBeVisible();
     expect(
-      screen.getByText(/choose a disk to start searching for lost partition\(s\)/i),
+      screen.getByText(
+        /search a whole disk for lost partitions and write a recovered entry back/i,
+      ),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /search for lost partition/i }));
-    expect(
-      screen.getByRole('heading', { name: /smart partition scan completed/i }),
-    ).toBeVisible();
-    expect(screen.getByRole('button', { name: /try data recovery/i })).toBeVisible();
+    // The real device cards render from the connector (the mock's seeded
+    // devices); the hardcoded RESCUE_DISK_SPECS demo rows are gone.
+    expect(await screen.findAllByRole('button', { name: /whole disk/i })).not.toHaveLength(0);
   });
 
   it('renders Scan Snapshot page', () => {

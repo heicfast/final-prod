@@ -61,6 +61,12 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     css: false,
+    // The suite runs against the TEST DOUBLE (plan §4.8): the connector
+    // factory's production default is the real tauri bridge — pin the mock
+    // here so component/unit tests never need the shell.
+    env: {
+      VITE_CONNECTOR: 'mock',
+    },
     coverage: {
       reporter: ['text', 'json-summary', 'html'],
       include: [

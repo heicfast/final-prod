@@ -19,7 +19,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
-import { useSaveSession } from '@/queries/sessions';
+import { useCancelSave, useSaveSession } from '@/queries/sessions';
 import { useConnectorMode } from '@/queries/dev';
 import { useFilterStore, useSortStore, resolveFilter } from '@/stores/filter-store';
 import { selectedCountOf, useSelectionStore } from '@/stores/selection-store';
@@ -76,6 +76,7 @@ export function ResultsExplorer({
   const selection = useSelectionStore();
   const ui = useUiStore();
   const saveSession = useSaveSession(scanId);
+  const cancelSave = useCancelSave();
   const connectorMode = useConnectorMode();
 
   const [filterBarOpen, setFilterBarOpen] = React.useState(false);
@@ -557,6 +558,7 @@ export function ResultsExplorer({
             <Button
               variant="ghost"
               size="sm"
+              loading={saveSession.isPending}
               onClick={() =>
                 saveSession.mutate(null, {
                   onSuccess: () => toast.success(t('results.session.saved')),
@@ -564,8 +566,19 @@ export function ResultsExplorer({
               }
             >
               <SaveIcon aria-hidden />
-              {t('results.session.save')}
+              {saveSession.isPending ? t('results.session.saving') : t('results.session.save')}
             </Button>
+            {saveSession.isPending ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (scanId) cancelSave.mutate(scanId);
+                }}
+              >
+                {t('results.session.cancelSave')}
+              </Button>
+            ) : null}
             <Button
               variant="primary"
               size="lg"

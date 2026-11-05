@@ -56,10 +56,12 @@ export interface ConnectorError extends Error {
 export type ConnectorErrorCode =
   | 'device-gone'
   | 'device-permission'
+  | 'elevation-required'
   | 'scan-not-found'
   | 'scan-not-paused'
   | 'scan-not-running'
   | 'scan-scope-invalid'
+  | 'consent-not-found'
   | 'session-corrupt'
   | 'session-not-found'
   | 'destination-overlap'
@@ -134,6 +136,14 @@ export interface DevicesDomain {
    */
   getDeviceInfo(deviceId: string): Promise<Device>;
   refreshDevices(): Promise<Device[]>;
+  /**
+   * N-064: the explicit-consent dictionary unlock for a locked BitLocker
+   * volume (the engine's shipped common-password set + the caller's
+   * candidates). User-initiated only — nothing in the scan/open path ever
+   * tries passwords by itself. Throws device-permission when the whole set
+   * failed (candidate indexes only in the log — never the password).
+   */
+  unlockVolume(volumeId: string, passwords: readonly string[]): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +180,13 @@ export interface ScanParams {
    * Null/omitted = whole volume. The scan ALWAYS runs quick -> advanced
    * automatically (ADR-008): the reference exposes no mode selection. */
   readonly pathScope?: string | null;
+  /**
+   * M-033: optional full-volume-encryption key (64 hex chars AES-128-XTS
+   * or 128 hex chars AES-256-XTS, key||tweak-key) — consumed by the
+   * engine's locked-volume open. Null/omitted = the plain open (a locked
+   * volume then refuses with device-permission until unlocked).
+   */
+  readonly bitlockerFvek?: string | null;
 }
 
 export interface ScanProgressEvent {
@@ -210,6 +227,46 @@ export interface ScanState {
   readonly progress: ScanProgressEvent;
   /** Present on failed scans. */
   readonly failure?: { code: ConnectorErrorCode; reasonKey?: string };
+  /**
+   * G-1 (a) re-hydration: the pending pre-scan repair consent, or null.
+   * The prompt renders from this when the consent event fired before the
+   * page's subscription landed, or after navigating away and back.
+   */
+  readonly pendingConsent?: ConsentRequestEvent | null;
+  /** NG-11: live lost-partition candidate rows (whole-disk scans — engine
+   * events joined with the N-061 geometry, never synthesized). */
+  readonly lostCandidates?: LostCandidateSummary;
+  /** W1c: the completion auto-save landed (the auto session feeds
+   * resumeLastSession). */
+  readonly autosaved?: boolean;
+}
+
+/** The pre-scan repair consent payload (S-008, consent-gated). */
+export interface ConsentRequestEvent {
+  readonly scanId: string;
+  /** The echo token — the ONLY key respondToConsent accepts. */
+  readonly requestId: string;
+  readonly plan: {
+    readonly detected: number;
+    readonly fsFamily: string;
+    readonly actionCount: number;
+    readonly refused: number;
+    readonly reason: string;
+    readonly advisoryCount: number;
+  };
+}
+
+/** One discovered lost-partition candidate (the N-061 scored row). */
+export interface LostCandidateRow {
+  readonly lba: number;
+  readonly sectorCount: number | null;
+  readonly fs: number | null;
+  readonly score: number | null;
+}
+
+export interface LostCandidateSummary {
+  readonly count: number;
+  readonly rows: readonly LostCandidateRow[];
 }
 
 export interface ScanDomain {
@@ -220,6 +277,15 @@ export interface ScanDomain {
   getScanState(scanId: string): Promise<ScanState>;
   /** Subscribe to progress events; returns an unsubscribe function. */
   onScanProgress(scanId: string, cb: (event: ScanProgressEvent) => void): () => void;
+  /**
+   * G-1 (a): the pre-scan repair consent. The engine's run thread emits
+   * this at most once per scan; the prompt ALSO renders from
+   * getScanState().pendingConsent (re-hydration for subscribe-late and
+   * navigate-away-and-back).
+   */
+  onConsentRequest(scanId: string, cb: (event: ConsentRequestEvent) => void): () => void;
+  /** Answer a consent request (unknown/double ids throw consent-not-found). */
+  respondToConsent(requestId: string, allow: boolean): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +432,19 @@ export type PreviewPayload =
       readonly metadata: Readonly<Record<string, string>>;
       readonly extractedText: string | null;
       readonly truncated: boolean;
+    }
+  | {
+      /** M-116: the engine's bounded archive inventory (512-entry hostile
+       * bound; `truncated` flags the cut — never a fabricated listing). */
+      readonly kind: 'archive';
+      readonly entries: readonly {
+        readonly name: string;
+        readonly size: number;
+        readonly compressed: number;
+        readonly crcPresent: boolean;
+        readonly nameTruncated: boolean;
+      }[];
+      readonly truncated: boolean;
     };
 
 export interface PreviewDomain {
@@ -373,6 +452,13 @@ export interface PreviewDomain {
    * the UI never classifies extensions (engine knowledge stays behind the
    * connector boundary). */
   requestPreview(scanId: string, nodeId: string): Promise<PreviewPayload>;
+  /**
+   * M-102: server-side thumbnails. Loaded SESSIONS generate through the
+   * engine (EXIF-oriented, display-shaped, grade-promoting); LIVE scans
+   * assemble from preview reads (documented degradation, BF-13). Returns
+   * null when the node has no thumbnail (oversized / unsupported / no
+   * source) — never a fabricated image.
+   */
   getThumbnail(scanId: string, nodeId: string): Promise<{ dataUrl: string } | null>;
 }
 
@@ -383,7 +469,9 @@ export interface PreviewDomain {
 export interface SessionMeta {
   readonly id: string;
   readonly fileName: string;
-  readonly savedAt: Iso8601;
+  /** Full store path (the resume/load key). */
+  readonly path?: string;
+  readonly savedAt: Iso8601 | null;
   readonly targetLabel: string;
   readonly filesFound: number;
   readonly dataFoundBytes: number;
@@ -392,9 +480,23 @@ export interface SessionMeta {
 
 export interface SessionsDomain {
   saveSession(scanId: string, path: string | null): Promise<SessionMeta>;
+  /** N-060: save-scoped cancel for the save spinner (never touches the
+   * scan's cancel token — save-on-scan-cancel stays intact). */
+  cancelSave(scanId: string): Promise<void>;
   listSessions(): Promise<SessionMeta[]>;
   loadSession(path: string): Promise<{ scanId: string }>;
   getSessionMeta(path: string): Promise<SessionMeta>;
+  /** M-154: load the auto session the last-scan pointer names (the Home
+   * "continue last" banner). Throws session-not-found when no live pointer
+   * names a present file — the caller falls back to listSessions. */
+  resumeLastSession(): Promise<{ scanId: string; path: string }>;
+  /**
+   * The scan RESUME: continue an incomplete session's scan (load + resume
+   * + identity verify + run). Throws session-corrupt on an identity
+   * mismatch (the session came from a different volume) and device-gone
+   * when the source is absent.
+   */
+  resumeSession(path: string): Promise<{ scanId: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -567,6 +669,58 @@ export interface RepairDomain {
 }
 
 // ---------------------------------------------------------------------------
+// Lost-partition apply (S-029, consent-gated)
+// ---------------------------------------------------------------------------
+
+/** The apply consent payload (the plan the engine asks permission for). */
+export interface ApplyConsentEvent {
+  readonly deviceId: string;
+  /** The echo token — the ONLY key respondToApplyConsent accepts. */
+  readonly requestId: string;
+  readonly plan: {
+    readonly refused: number;
+    readonly scope: number;
+    readonly startLba: number;
+    readonly sectorCount: number;
+    readonly mbrType: number;
+    readonly slot: number;
+    readonly regenerateSignature: number;
+    readonly signature: number;
+    readonly reason: string;
+  };
+}
+
+/** The apply outcome, verbatim from the engine (cr_ui_apply_result). */
+export interface ApplyResult {
+  readonly applied: boolean;
+  /** 0 applied; 1 consent denied; 2 refused; 3 table changed since plan;
+   * 4 applied but the refresh tail failed (undo valid); 5 error. */
+  readonly outcome: number;
+  readonly undoEntries: number;
+  readonly reason: string;
+}
+
+export interface LostPartitionDomain {
+  /** Transcribe a scan-state candidate onto the disk's table (consent-gated;
+   * whole-disk views only — volume slices are refused by the engine). */
+  applyLostPartition(
+    deviceId: string,
+    candidate: LostCandidateRow,
+    rebuildTable?: boolean,
+  ): Promise<ApplyResult>;
+  /** Restore the last apply's undo log (byte-exact, idempotent). */
+  undoLastApply(deviceId: string): Promise<ApplyResult>;
+  /** Persist the last apply's undo log (loadable by rrecov fix --undo-apply). */
+  saveApplyUndo(deviceId: string, path: string): Promise<void>;
+  /** The apply consent event (subscribe before invoking apply). */
+  onApplyConsent(deviceId: string, cb: (event: ApplyConsentEvent) => void): () => void;
+  /** Answer an apply consent request (echo token). */
+  respondToApplyConsent(requestId: string, allow: boolean): Promise<void>;
+  /** Re-hydration: the pending apply consent for a device, or null. */
+  pendingApplyConsent(deviceId: string): Promise<ApplyConsentEvent | null>;
+}
+
+// ---------------------------------------------------------------------------
 // System
 // ---------------------------------------------------------------------------
 
@@ -576,6 +730,8 @@ export interface AppInfo {
   readonly connectorMode: 'mock' | 'tauri';
   readonly engineVersion: string | null;
   readonly platform: string;
+  /** M-048: the active user-taught signature count (the About row). */
+  readonly userSigns?: number;
 }
 
 export interface MountPoint {
@@ -596,6 +752,19 @@ export interface DestinationValidation {
 
 export interface SystemDomain {
   getAppInfo(): Promise<AppInfo>;
+  /**
+   * The user-mode product's privilege truth (the Win32 TokenElevation
+   * probe): raw-disk work needs the administrator token. A non-elevated
+   * launch renders the banner + relaunchElevated — never a degraded mode.
+   */
+  getSecurityPosture(): Promise<{ administrator: boolean }>;
+  /** Relaunch the app elevated (the standard OS UAC prompt) and exit the
+   * unelevated instance. */
+  relaunchElevated(): Promise<void>;
+  /** M-048: register a user-signature JSON document (atomic replace; the
+   * exe-adjacent defaults are auto-loaded at startup). The webview's file
+   * input supplies the document text. */
+  loadUserSigns(content: string): Promise<{ count: number }>;
   validateDestination(
     path: string,
     sourceDeviceId: string,
@@ -629,6 +798,7 @@ export interface RecoveryConnector {
   readonly recovery: RecoveryDomain;
   readonly health: HealthDomain;
   readonly repair: RepairDomain;
+  readonly lostPartition: LostPartitionDomain;
   readonly system: SystemDomain;
 }
 

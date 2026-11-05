@@ -1,6 +1,11 @@
 /**
- * Mock Connector — a fully typed, deterministic simulator implementing the
- * same command/event contracts the real backend will provide.
+ * Mock Connector — TEST DOUBLE. Never the shipped backend.
+ *
+ * A fully typed, deterministic simulator implementing the same command/event
+ * contracts the real backend provides. It exists for dev browser mode
+ * (VITE_CONNECTOR=mock), vitest (pinned via vite.config test.env) and the
+ * e2e lane — the production default is the REAL tauri bridge
+ * (src/connector/index.ts; plan §4.8's mock demotion).
  *
  * Determinism: fixed seed per scenario (overridable via ScenarioControl).
  * Timing: progress ticks 100–250 ms; cancel responds within 300 ms.
@@ -11,12 +16,16 @@
 import { version as appVersion } from '../../../package.json';
 import type {
   AppInfo,
+  ApplyConsentEvent,
+  ApplyResult,
   BadSectorRange,
+  ConsentRequestEvent,
   ConnectorError,
   ConnectorErrorCode,
   DestinationValidation,
   Device,
   DiskHealth,
+  LostCandidateRow,
   MockScenarioId,
   MountPoint,
   NodeDetail,
@@ -231,6 +240,15 @@ export class MockConnector {
   private nextJobId = 1;
   private nextSessionId = 1;
   private pickIndex = 0;
+  private nextConsentId = 1;
+  private consentListeners = new Map<string, Set<(e: ConsentRequestEvent) => void>>();
+  private pendingConsents = new Map<
+    string,
+    { event: ConsentRequestEvent; resolve: (allow: boolean) => void }
+  >();
+  private applyConsentListeners = new Map<string, Set<(e: ApplyConsentEvent) => void>>();
+  private pendingApplyConsents = new Map<string, ApplyConsentEvent>();
+  private userSigns: { ext: string; offset: number; hex: string }[] = [];
 
   constructor() {
     this.rebuildDevices();
@@ -253,6 +271,11 @@ export class MockConnector {
   }
 
   reset(): void {
+    this.pendingConsents.clear();
+    this.pendingApplyConsents.clear();
+    this.applyConsentResolvers.clear();
+    this.applyUndo.clear();
+    this.userSigns = [];
     for (const scan of this.scans.values()) {
       if (scan.timer) clearInterval(scan.timer);
     }
@@ -343,6 +366,24 @@ export class MockConnector {
       await latency(700, 200);
       this.rebuildDevices();
       return this.deviceList;
+    },
+
+    unlockVolume: async (volumeId: string, _passwords: readonly string[]): Promise<void> => {
+      // TEST DOUBLE: the deterministic unlock — the 'permission-denied'
+      // scenario keeps the volume locked (the refusal path); every other
+      // scenario unlocks (the happy path the dialog serves).
+      await latency(600, 200);
+      const vol = this.deviceList.flatMap((d) => d.volumes).find((v) => v.id === volumeId);
+      if (!vol) throw connError('device-gone', 'volume not found', 'errors.deviceGone');
+      if (this.scenario === 'permission-denied') {
+        throw connError(
+          'device-permission',
+          'the dictionary did not unlock the volume',
+          'errors.devicePermission',
+        );
+      }
+      (vol as { bitlocker: 'unlocked' | 'locked' | boolean }).bitlocker = 'unlocked';
+      (vol as { status: string }).status = 'ok';
     },
   };
 
@@ -456,6 +497,32 @@ export class MockConnector {
       };
       const interval = setInterval(handler, 150);
       return () => clearInterval(interval);
+    },
+
+    onConsentRequest: (
+      scanId: string,
+      cb: (event: ConsentRequestEvent) => void,
+    ): (() => void) => {
+      const set = this.consentListeners.get(scanId) ?? new Set();
+      set.add(cb);
+      this.consentListeners.set(scanId, set);
+      return () => {
+        set.delete(cb);
+      };
+    },
+
+    respondToConsent: async (requestId: string, allow: boolean): Promise<void> => {
+      const pending = this.pendingConsents.get(requestId);
+      if (!pending) {
+        throw connError(
+          'consent-not-found',
+          `consent request ${requestId} is unknown or already resolved`,
+          'errors.consentNotFound',
+        );
+      }
+      this.pendingConsents.delete(requestId);
+      pending.resolve(allow);
+      await latency(120);
     },
   };
 
@@ -606,6 +673,9 @@ export class MockConnector {
   }
 
   private toScanState(rt: ScanRuntime): ScanState {
+    const pending = Array.from(this.pendingConsents.values()).find(
+      (p) => p.event.scanId === rt.scanId,
+    );
     return {
       scanId: rt.scanId,
       params: rt.params,
@@ -614,6 +684,12 @@ export class MockConnector {
       startedAt: rt.startedAt,
       completedAt: rt.completedAt,
       progress: this.toProgress(rt),
+      pendingConsent: pending?.event ?? null,
+      lostCandidates: {
+        count: 0,
+        rows: [],
+      },
+      autosaved: false,
     };
   }
 
@@ -885,6 +961,63 @@ ${lines.join('')}
   // ------------------------------------------------------------ sessions
 
   readonly sessions = {
+    cancelSave: async (_scanId: string): Promise<void> => {
+      // TEST DOUBLE: the save is synchronous here — a cancel is a no-op.
+      await latency(60);
+    },
+
+    resumeLastSession: async (): Promise<{ scanId: string; path: string }> => {
+      // TEST DOUBLE: the newest auto-named session is the pointed one (the
+      // bridge's last_scan.info analog).
+      await latency(220, 80);
+      const newest = Array.from(this.sessionStore.values())
+        .filter((s) => s.fileName.startsWith('auto_'))
+        .sort((a, b) => (b.savedAt ?? '').localeCompare(a.savedAt ?? ''))[0];
+      if (!newest) {
+        throw connError(
+          'session-not-found',
+          'no last-scan pointer names a present auto session',
+          'errors.sessionNotFound',
+        );
+      }
+      const scanId = this.sessionPathToScan.get(newest.fileName);
+      if (!scanId) {
+        throw connError(
+          'session-not-found',
+          'the pointed session is not loadable',
+          'errors.sessionNotFound',
+        );
+      }
+      return { scanId, path: newest.fileName };
+    },
+
+    resumeSession: async (path: string): Promise<{ scanId: string }> => {
+      // TEST DOUBLE: the resume continues the incomplete session's scan on
+      // its original target (a fresh run of the same params).
+      await latency(500, 150);
+      const oldId = this.sessionPathToScan.get(path);
+      if (!oldId) {
+        throw connError(
+          'session-not-found',
+          `session ${path} not found`,
+          'errors.sessionNotFound',
+        );
+      }
+      const rt = this.requireScan(oldId);
+      if (rt.status === 'completed') {
+        throw connError(
+          'scan-not-running',
+          'the session already completed — nothing to resume',
+          'errors.scanNotRunning',
+        );
+      }
+      return this.scan.startScan({
+        targetId: rt.params.targetId,
+        pathScope: rt.params.pathScope,
+        bitlockerFvek: rt.params.bitlockerFvek,
+      });
+    },
+
     saveSession: async (scanId: string, path: string | null): Promise<SessionMeta> => {
       await latency(320, 120);
       const rt = this.requireScan(scanId);
@@ -906,7 +1039,7 @@ ${lines.join('')}
     listSessions: async (): Promise<SessionMeta[]> => {
       await latency(120, 60);
       return Array.from(this.sessionStore.values()).sort((a, b) =>
-        b.savedAt.localeCompare(a.savedAt),
+        (b.savedAt ?? '').localeCompare(a.savedAt ?? ''),
       );
     },
 
@@ -1454,6 +1587,143 @@ ${lines.join('')}
     },
   };
 
+  // ------------------------------------------------------------ lostPartition
+  // TEST DOUBLE: the S-029 apply flow — the consent gate is REAL machinery
+  // (the same echo-token + resolve semantics the bridge implements) so the
+  // e2e consent spec exercises the true UI flow; the write itself is
+  // simulated (a test double never touches a disk).
+
+  readonly lostPartition = {
+    applyLostPartition: async (
+      deviceId: string,
+      candidate: LostCandidateRow,
+      rebuildTable?: boolean,
+    ): Promise<ApplyResult> => {
+      await latency(300, 100);
+      const device = this.deviceList.find((d) => d.id === deviceId);
+      if (!device) throw connError('device-gone', 'device not found', 'errors.deviceGone');
+      const allowed = await this.offerApplyConsent(deviceId, candidate, rebuildTable ?? false);
+      if (!allowed) {
+        return { applied: false, outcome: 1, undoEntries: 0, reason: 'consent denied' };
+      }
+      const entries = 1 + (this.seed % 3);
+      this.applyUndo.set(deviceId, entries);
+      return { applied: true, outcome: 0, undoEntries: entries, reason: '' };
+    },
+
+    undoLastApply: async (deviceId: string): Promise<ApplyResult> => {
+      await latency(650, 200);
+      const entries = this.applyUndo.get(deviceId) ?? 0;
+      this.applyUndo.set(deviceId, 0);
+      return {
+        applied: entries > 0,
+        outcome: entries > 0 ? 0 : 2,
+        undoEntries: entries,
+        reason: entries > 0 ? '' : 'no undo log exists',
+      };
+    },
+
+    saveApplyUndo: async (deviceId: string, _path: string): Promise<void> => {
+      await latency(180, 60);
+      if (!this.applyUndo.has(deviceId)) {
+        throw connError('unknown', 'no undo log exists', 'errors.unknown');
+      }
+    },
+
+    onApplyConsent: (
+      deviceId: string,
+      cb: (event: ApplyConsentEvent) => void,
+    ): (() => void) => {
+      const set = this.applyConsentListeners.get(deviceId) ?? new Set();
+      set.add(cb);
+      this.applyConsentListeners.set(deviceId, set);
+      return () => {
+        set.delete(cb);
+      };
+    },
+
+    respondToApplyConsent: async (requestId: string, allow: boolean): Promise<void> => {
+      const pending = this.pendingApplyConsents.get(requestId);
+      if (!pending) {
+        throw connError(
+          'consent-not-found',
+          `consent request ${requestId} is unknown or already resolved`,
+          'errors.consentNotFound',
+        );
+      }
+      this.pendingApplyConsents.delete(requestId);
+      this.applyConsentResolvers.get(requestId)?.(allow);
+      this.applyConsentResolvers.delete(requestId);
+      await latency(120);
+    },
+
+    pendingApplyConsent: async (deviceId: string): Promise<ApplyConsentEvent | null> => {
+      await latency(40);
+      return this.pendingApplyConsents.get(`pending:${deviceId}`) ?? null;
+    },
+  };
+
+  private applyUndo = new Map<string, number>();
+  private applyConsentResolvers = new Map<string, (allow: boolean) => void>();
+
+  private offerApplyConsent(
+    deviceId: string,
+    candidate: LostCandidateRow,
+    rebuildTable: boolean,
+  ): Promise<boolean> {
+    const requestId = `apply-${this.nextConsentId++}`;
+    const event: ApplyConsentEvent = {
+      deviceId,
+      requestId,
+      plan: {
+        refused: 0,
+        scope: rebuildTable ? 1 : 0,
+        startLba: candidate.lba,
+        sectorCount: candidate.sectorCount ?? 0,
+        mbrType: 7,
+        slot: 0,
+        regenerateSignature: rebuildTable ? 1 : 0,
+        signature: 0x5a5a5a5a,
+        reason: '',
+      },
+    };
+    return new Promise<boolean>((resolve) => {
+      this.applyConsentResolvers.set(requestId, resolve);
+      this.pendingApplyConsents.set(requestId, event);
+      this.pendingApplyConsents.set(`pending:${deviceId}`, event);
+      const listeners = this.applyConsentListeners.get(deviceId);
+      if (listeners) for (const cb of listeners) cb(event);
+    });
+  }
+
+  /** TEST HOOK (e2e consent spec): the newest RUNNING scan's id (the
+   * injector's target), or null when nothing runs. */
+  lastRunningScanId(): string | null {
+    // ISO-8601 startedAt strings compare chronologically.
+    let bestId: string | null = null;
+    let bestAt = '';
+    for (const [id, rt] of this.scans) {
+      if (rt.status === 'running' && rt.startedAt > bestAt) {
+        bestAt = rt.startedAt;
+        bestId = id;
+      }
+    }
+    return bestId;
+  }
+
+  /** TEST HOOK (e2e consent spec): inject a pre-scan repair consent request
+   * for a running scan — the same payload shape the bridge's run thread
+   * emits. Resolves when respondToConsent answers. */
+  injectConsentRequest(scanId: string, plan: ConsentRequestEvent['plan']): Promise<boolean> {
+    const requestId = `consent-${this.nextConsentId++}`;
+    const event: ConsentRequestEvent = { scanId, requestId, plan };
+    return new Promise<boolean>((resolve) => {
+      this.pendingConsents.set(requestId, { event, resolve });
+      const listeners = this.consentListeners.get(scanId);
+      if (listeners) for (const cb of listeners) cb(event);
+    });
+  }
+
   // ------------------------------------------------------------ system
 
   readonly system: SystemDomain = {
@@ -1465,7 +1735,54 @@ ${lines.join('')}
         connectorMode: 'mock',
         engineVersion: null,
         platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
+        userSigns: this.userSigns.length,
       };
+    },
+
+    getSecurityPosture: async (): Promise<{ administrator: boolean }> => {
+      // TEST DOUBLE: the permission-denied scenario models the unelevated
+      // launch (the banner + relaunch flow); every other scenario is the
+      // elevated posture.
+      await latency(60, 20);
+      return { administrator: this.scenario !== 'permission-denied' };
+    },
+
+    relaunchElevated: (): Promise<void> => {
+      // Shell relaunch is a real-adapter capability (the Tauri connector
+      // implements it via ShellExecuteW "runas"); the mock has no OS access
+      // and reports so honestly instead of pretending.
+      return Promise.reject(
+        connError(
+          'not-implemented',
+          'relaunching elevated requires the desktop shell',
+          'errors.openPathMock',
+        ),
+      );
+    },
+
+    loadUserSigns: async (content: string): Promise<{ count: number }> => {
+      // TEST DOUBLE: parse the document's top-level extension keys (the
+      // engine's own EUUserData shape) and keep the deterministic set.
+      await latency(200, 80);
+      let keys: string[] = [];
+      try {
+        const parsed: unknown = JSON.parse(content);
+        if (parsed && typeof parsed === 'object') {
+          keys = Object.keys(parsed);
+        }
+      } catch {
+        throw connError(
+          'scan-scope-invalid',
+          'the signature document is not valid JSON',
+          'errors.scanScopeInvalid',
+        );
+      }
+      this.userSigns = keys.map((ext) => ({
+        ext,
+        offset: 0,
+        hex: 'aa',
+      }));
+      return { count: this.userSigns.length };
     },
 
     validateDestination: async (

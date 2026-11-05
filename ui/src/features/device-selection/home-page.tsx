@@ -11,10 +11,12 @@ import {
   HardDriveIcon,
   LockIcon,
   PlugZapIcon,
+  LockOpenIcon,
   RefreshCcwIcon,
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
-import { useLoadSession, useSessions } from '@/queries/sessions';
+import { UnlockVolumeDialog } from './unlock-volume-dialog';
+import { useLoadSession, useResumeLastSession, useSessions } from '@/queries/sessions';
 import { useStartScan } from '@/queries/scan';
 import { usePickDirectory } from '@/queries/system';
 import { formatBytes, formatDate, formatDriveGb } from '@/lib/format';
@@ -287,6 +289,7 @@ export function HomePage(): React.JSX.Element {
 
         {(sessionsQuery.data?.length ?? 0) > 0 ? (
           <>
+            <ContinueLastBanner />
             <h2 className="mb-3 mt-7 text-[13px] font-bold text-[#475569] dark:text-foreground-secondary">
               {t('home.recentSessions')}
             </h2>
@@ -510,6 +513,8 @@ function DeviceCard({
   onScanVolume: (volumeId: string) => void;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
+  const [unlockFor, setUnlockFor] = React.useState<string | null>(null);
+  const lockedVolume = device.volumes.find((v) => v.status === 'locked');
   const locked =
     device.status === 'permission-denied' ||
     device.volumes.some((v) => v.status === 'permission-denied');
@@ -553,6 +558,16 @@ function DeviceCard({
         offline && 'opacity-60',
       )}
     >
+      {unlockFor ? (
+        <UnlockVolumeDialog
+          volumeId={unlockFor}
+          open={unlockFor !== null}
+          onOpenChange={(o) => {
+            if (!o) setUnlockFor(null);
+          }}
+        />
+      ) : null}
+
       {/* Top-right blue checkmark circle on selected card */}
       {selected ? (
         <span
@@ -582,6 +597,16 @@ function DeviceCard({
               <Hint text={t('home.permissionDenied')}>
                 <LockIcon className="size-3.5 text-warning" aria-hidden />
               </Hint>
+            ) : null}
+            {lockedVolume ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded px-1 text-[12px] font-medium text-primary hover:underline"
+                onClick={() => setUnlockFor(lockedVolume.id)}
+              >
+                <LockOpenIcon className="size-3.5" aria-hidden />
+                {t('unlock.action')}
+              </button>
             ) : null}
             {offline ? (
               <Hint text={t('home.disconnected')}>
@@ -664,6 +689,34 @@ function QuickTarget({
     >
       {icon}
       <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+/** M-154: the continue-last banner - the pointed auto session (the
+ *  last_scan.info analog). Falls back silently when no live pointer
+ *  exists (the recent list below is the enumerated form). */
+function ContinueLastBanner(): React.JSX.Element {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const resumeLast = useResumeLastSession();
+  if (resumeLast.isError) return <></>; // no live pointer - the list serves
+  return (
+    <button
+      type="button"
+      className="mb-2 flex w-full items-center justify-between gap-4 rounded-[8px] border border-[#1677FF]/40 bg-[#F0F6FF] px-4 py-2.5 text-left transition-colors hover:border-[#1677FF] dark:border-primary/40 dark:bg-primary-muted/30 dark:hover:border-primary"
+      onClick={() =>
+        resumeLast.mutate(undefined, {
+          onSuccess: ({ scanId }) => void navigate(`/results/${scanId}`),
+        })
+      }
+    >
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#0B4F9E] dark:text-primary">
+        {t('home.continueLast')}
+      </span>
+      <span className="shrink-0 text-[12px] font-semibold text-[#1677FF] dark:text-primary">
+        {resumeLast.isPending ? t('common.processing') : t('common.continue')} →
+      </span>
     </button>
   );
 }

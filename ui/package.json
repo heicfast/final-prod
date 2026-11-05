@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_CONNECTOR=mock vite",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -26,7 +26,8 @@
     "knip": "knip",
     "jscpd": "jscpd src --min-tokens 70 --reporters consoleFull --ignore \"src/theme/adopted/**\"",
     "bundle:check": "node scripts/bundle-check.mjs",
-    "visual:compare": "node scripts/visual-compare.mjs"
+    "visual:compare": "node scripts/visual-compare.mjs",
+    "filefilter:check": "node scripts/gen-filefilter.mjs --check"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "1.4.1",

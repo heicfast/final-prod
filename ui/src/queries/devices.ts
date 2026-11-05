@@ -18,3 +18,13 @@ export function useRefreshDevices() {
     },
   });
 }
+
+/** N-064: the explicit-consent dictionary unlock for a locked volume. */
+export function useUnlockVolume() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { volumeId: string; passwords: string[] }) =>
+      connector.devices.unlockVolume(input.volumeId, input.passwords),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.devices }),
+  });
+}
