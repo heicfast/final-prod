@@ -45,20 +45,18 @@ on:
     paths:
       - 'engine/**'
       - '.github/workflows/engine-ci.yml'
-    paths-ignore:
-      - '**.md'
-      - 'engine/docs/**'
-      - 'engine/worklog.md'
-      - 'engine/worklog/**'
+      - '!**.md'
+      - '!engine/docs/**'
+      - '!engine/worklog.md'
+      - '!engine/worklog/**'
   pull_request:
     paths:
       - 'engine/**'
       - '.github/workflows/engine-ci.yml'
-    paths-ignore:
-      - '**.md'
-      - 'engine/docs/**'
-      - 'engine/worklog.md'
-      - 'engine/worklog/**'
+      - '!**.md'
+      - '!engine/docs/**'
+      - '!engine/worklog.md'
+      - '!engine/worklog/**'
   workflow_call: {} # release.yml calls this lane as its validation gate
   workflow_dispatch: {} # re-prove the gate on the current head on demand
 
