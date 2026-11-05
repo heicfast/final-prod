@@ -96,12 +96,14 @@ cpu_seconds); the phase-4 roll-up transcribes CPU-seconds and WS-peak
 into `perf-summary.json`. The API harness records `cancel_to_stop_ms`
 (cancel-to-scan-return latency) and the preview probe's `probe_ms`.
 
-## 6. Historical note
+## 6. Historical note (the deleted pre-session-96 lanes)
 
-The pre-session-96 benchmark bodies (`benchmark.yml`,
-`comparison-ours.yml`, `comparison-easeus.yml`, `comparative-bench.yml`,
-`api-benchmark.yml`, the driver-era install chain) are deleted; their
+The pre-consolidation benchmark bodies are deleted - `benchmark.yml`,
+`comparison-ours.yml` and `comparison-easeus.yml` (both historical, their
+og-comparison role retired with the corpus's captured evidence),
+`comparative-bench.yml` (deleted), `api-benchmark.yml` (deleted), and the
+driver-era install chain (historical, removed in session-96). Their
 correctness role lives in the scenario matrix, their transport-property
 proofs in the unit lane (tests/unit/test_directalign.cpp) and the release
 verification. The og-comparison role (running the reference product) is
-retired — the corpus's captured evidence is the reference.
+retired - the corpus's captured evidence is the reference.
