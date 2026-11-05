@@ -93,11 +93,11 @@ pub async fn system_relaunch_elevated(app: tauri::AppHandle) -> Result<(), Bridg
         let verb: Vec<u16> = "runas".encode_utf16().chain([0]).collect();
         let rc = unsafe {
             ShellExecuteW(
-                std::ptr::null(),
+                std::ptr::null_mut(), // hwnd (HWND = *mut c_void)
                 verb.as_ptr(),
                 wide.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
+                std::ptr::null(), // lpParameters (PCWSTR)
+                std::ptr::null(), // lpDirectory (PCWSTR)
                 SW_SHOWNORMAL,
             )
         };
