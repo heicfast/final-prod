@@ -1,5 +1,72 @@
 # core_recovery release notes
 
+# core_recovery v0.7.1 — the two defect fixes the performance-parity session surfaced
+
+**Scope of this release:** two product defects, both found by session-97's
+Phase-0 harness work, both proven with run-ID evidence in BOTH transport
+eras (they predate the driver removal — the direct path inherits them
+faithfully), both fixed with unit-pinned coverage.
+
+**1. The F12 destination-arming same-disk precondition (the recall-0 root
+cause).** The recovery writer's destination-overlap refusal was armed with
+the destination volume's disk spans UNCONDITIONALLY, and the per-item check
+then compared ABSOLUTE source-disk offsets against a DIFFERENT physical
+disk's spans numerically. On any host whose destination volume starts at a
+low disk offset (the benchmark runner's single-volume work disk: ~135 MiB),
+virtually every source extent above that offset "intersected" it — every
+cross-disk recovery refused with `ERR_DEST_OVERLAP` (0x50050001). The
+evidence: runs 41042267586 (driver v0.6.1) and 41140212296 (direct v0.7.0)
+both refused 10,248 of 10,405 scenario items identically; the 82
+hash-verified clean-volume recoveries were the sub-135-MiB tail. The fix
+(`win::dest_overlap_spans`): the refusal arms ONLY when a destination
+extent actually sits on the SOURCE disk — the one case where the numeric
+comparison is meaningful. The real same-disk refusal is intact (the safety
+rule) and unit-pinned; the CLI's image-source path now also never arms
+(matching the API's existing exclusion). Post-fix measurement (source lane,
+run 42019994804): S-DEL-NTFS recovers **10,341 of 10,404 items, 1.41 GB,
+zero refusals, zero errors, zero hash mismatches**, CLI and API lanes in
+exact agreement. Diagnosis record: `worklog/RECALL0-DIAGNOSIS.md`.
+
+**2. The N-044 missing `*/` (the `--deep` rejection).** The
+`--whole-disk` handler's comment lost its closing `*/` in the S-051
+landing (ad0535d6); the unclosed comment silently swallowed
+`cfg.whole_disk = true; continue; }` AND the entire `--deep` handler's
+condition. The compiled binary: `--whole-disk` worked but printed the
+`--deep` note; **`scan --deep` exited 1 with "unknown scan option"** — the
+whole-disk lost-partition discovery flow was unreachable through the
+deprecated alias. No compiler catches the class (MSVC is silent on nested
+comment openers; the Linux build excludes src/app). Found by the benchmark
+lane's archived-evidence discipline (run 42012118585's enriched
+no-silent-skip throw); fixed by restoring the `*/`, and the class now dies
+on the Linux lane forever: the win-stub parse gate runs `-Werror=comment`
+(self-tested — the v0.7.0 tree trips it at exactly rrecov.cpp:1484).
+
+**Harness and measurement surface (this release also carries):** the
+performance regression gate (bench/baseline.json schema 2: ten
+driver-parity rows with tolerances, failing on violation or on a metric
+that stops being captured), the consumer-native bench size sweep (seq
+64K/256K/4M, rand 4K), process sampling on the clean-volume scans with
+CPU/WS transcription, `cancel_to_stop_ms` and the preview `probe_ms` in
+the API harness, the source-build benchmark lane (`benchmark-src.yml` —
+unreleased changes measure through the release recipe, never ad-hoc
+builds), the S-PART-DELETE table-settle guard, the diagnosis-carrying
+no-silent-skip throws with catch-path evidence archiving, and the
+scenario floors re-baselined to the current 10,216-file corpus with
+run-ID'd provenance (the old floors dated from the ~1,000-file era).
+
+**Performance posture (unchanged code path, re-measured):** the direct
+transport meets or beats the driver baseline on every measured metric —
+seq 1 MiB 554.83 MiB/s (+3.3%), rand 1 MiB 1943.47 µs (−2.5%), rand 4 KiB
+125.3 µs / 7,979 IOPS (parity at record granularity), open 10,058 ns
+(−41%), deep wall parity, deepcarve −31%, API scan −22%, CPU per GiB
+−39%. The full ledger: `worklog/PERFORMANCE.md` §2.
+
+**Compatibility:** the `cr_ui` ABI stays v4; no ABI, CLI-surface, format,
+session, or error-code changes beyond the two defect corrections above
+(the false cross-disk `ERR_DEST_OVERLAP` refusals vanish; `scan --deep`
+parses again; `--whole-disk` prints no note). Win7-SP1 PE envelope
+unchanged; binaries unsigned by design.
+
 # core_recovery v0.7.0 — the direct-access release
 
 **Scope of this release:** the architectural change session-96 was
