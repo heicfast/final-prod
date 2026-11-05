@@ -1649,3 +1649,55 @@ workflow, cut and validate a new release.
 Next: T2 — parallel agents A–F read all three repos end to end; Phase 0
 context sheets; then INTEGRATION-PLAN.md as the gate before any code
 change.
+
+---
+
+## P1 complete — UI re-based onto recovery-wizard-ui-new@dd2782c (commits 66fdfc47, 5fe87f67, c9730310)
+
+- Merge 66fdfc47: genuine 3-way (merge-base d7413e03 = the rewritten f4a8f8a;
+  the filter-repo rewrite is deterministic, verified byte-identical). ui/
+  resolves 100% toward the fresh tree — the 40 driver-era UI commits wiped;
+  the 37 ours-only bridge/command/test assets removed; ui/.github pruned.
+- Follow-up 5fe87f67: ui-ci/ui-e2e adopt the fresh CI posture (inline
+  ast-grep replaces sg:lint; filefilter:check drops until P4; e2e builds
+  with VITE_CONNECTOR=mock); contracts-ci drops the gen-filefilter step;
+  error-codes.json phase-1 re-pointed to the fresh 24-code vocabulary
+  (ERR_DRIVER_REQUIRED -> device-permission INTERIM; consent-not-found
+  bridgeOnly row drops until P4); version lockstep 0.7.0 (VERSION,
+  ui/package.json, Cargo.toml, tauri.conf.json); knip @ast-grep/cli
+  ignoreDependencies (CI-invoked via npx; the fresh repo's push-CI trigger
+  was dead until dd2782c so this was a latent upstream finding).
+- c9730310: prettier the knip array (CI caught my multiline form).
+- Local proofs: typecheck/lint/format/arch-lint(81)/ast-grep x2/knip/jscpd/
+  145 tests/build/budget (126.3/200, 310.9/500 KB gzip) ALL GREEN.
+- CI: 5fe87f67 ui-ci red on Format (fixed by c9730310); c9730310 GREEN
+  (ui-ci 42065468233, ui-e2e 42065468258). contracts-ci 42064989839 GREEN.
+
+## P2 complete — engine/ advanced to core_recovery@12f3edf7, ABI v4 (commits 283a5d90, 01d39b33, 77643f46)
+
+- Merge 283a5d90: merge-base 7888565c (rewritten 22e9657, byte-identical);
+  1092 commits of core history ride in. Core wins all 26 divergence points;
+  no final-prod-only engine files existed. engine/.github/workflows +
+  engine/installer pruned (2a99173c precedent); root engine-ci.yml kept
+  against the rename-detected phantom conflicts. git log --follow on
+  cr_ui.h reaches core's own history (e9ff685f 'the kernel driver is
+  replaced by direct raw i/o', M-101, b9c55ca1...). Dropped final-prod-local
+  engine patches per INTEGRATION-PLAN §2.2 (BF-01..BF-06 filed).
+- Follow-up 01d39b33: the two Windows build-fix re-applies (ctest -C
+  testPreset configuration; VCPKG_APPLOCAL_DEPS=OFF + the 4x250ms deploy
+  retry); engine/.github/{scripts,scenarios} restored (the adopted CI
+  consumes Probe-Unelevated.ps1; the AST gate walks them); engine-ci.yml =
+  core's checks.yml posture monorepo-adapted (working-directory engine/,
+  root-workflow YAML+inline-AST gate, elevation refusal probes, M-071
+  junk-gate); contracts v4 data (40 error rows incl. ERR_DEVICE_DISCONNECTED
+  re-point and 0x500C0001 ERR_ELEVATION_REQUIRED; 12 events; README 92
+  exports / ABI 4).
+- 77643f46: engine-ci trigger fix — paths+paths-ignore on one event is
+  invalid GitHub syntax (run 42069001473 died at parse, zero jobs);
+  negation globs instead.
+- Local proofs: doc_truth_gate green (92/40/12 vs tree); N-041 + direct-
+  access + session-96 lints zero; clang-format 18.1.8 clean (279 files);
+  FULL Linux build zero-warning + ctest 1737/1737 GREEN in 174s; validate.mjs
+  green (40/40, 24/24, 12/12).
+- CI: contracts-ci 42069004696 GREEN; engine-ci 42069198291 in flight on
+  77643f46; ui-ci 42069004572 in flight (contracts/** path trigger).
