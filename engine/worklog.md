@@ -15922,3 +15922,46 @@ evidence artifact; HEAD 7f8f856b = the F12 fix, pre---deep-fix):
    host-variance incident with the decomposition.
 5. cancel_to_stop on this host: 1,125.3 ms (vs 282.6 on the release
    host) — the metric is host-sensitive; the median discipline applies.
+
+---
+
+# Session 98 — the performance-parity continuation (the frontier session)
+
+**Entry (T1).** The session prompt (archived token-redacted at
+worklog/session-98-performance-parity-prompt.md) re-issues the
+performance-parity mandate. Repos pinned at open: core_recovery
+@ 9d78ed9dad70c3c5bff1a9e6e70b6eb5414eefa1, easeus-drw-research
+@ be0cfe95ecf22ac67e0f3a823dd003163b196d38. The Phase-0 sheets and gate
+documents from session 97 stand; this session inherits its frontier
+(PERF-LEVERS §3) rather than re-deriving it:
+
+1. **The carve/validation pipeline** — the walls are validation-CPU-bound
+   (deepcarve 8.45 MiB/s effective vs a 544 MiB/s transport; 303.8 CPU-s/GiB;
+   the CPU lives in the carve matcher's per-byte trial dispatch over the
+   ~150-row registry — the code's own comment names it "the dominant cost").
+   The dispatch is a linear scan per BYTE; the og keyed its analysers through
+   signature maps (05-scan-engine-architecture.md:84 "signature maps (JPG:
+   0xFFD8FFE0/E1/DB/EE std::map nodes)") — a keyed dispatch is the reference's
+   own architecture, so the lever is parity AND speed.
+2. **In-flight-read cancellation** — the one registered peripheral GAP
+   (PARITY-DELTAS §3): the driver aborted a stuck read via CancelIo-on-IRP;
+   the direct path's synchronous ReadFile is uninterruptible without
+   CancelSynchronousIo. Measured impact: cancel_to_stop_ms 282.6 (release
+   host) / 1,125.3 (slow host) on healthy media — and a dying disk's 30 s
+   class timeout per attempt is the real target. The fix must map the abort
+   to ERR_CANCELLED (the established loop-head code engines already return)
+   and must NOT record ReadErrorMap ranges for aborted reads (the current
+   cancel path never records them — output identity on cancel).
+3. QD2-4 pipelining (F1/F2) and the decrypt path (F8) stay deferred —
+   no measurement surface (physical-NVMe runner / decrypt fixture).
+
+Also inherited: the pending S-PART-DELETE --deep validation (d05cd0b9
+postdates run 42019994804's HEAD) and the host-variance re-prove.
+
+**The plan (T2 first, as the mandate orders):** Phase-0 currency
+verification in parallel (corpus: the og's dispatch model + cancel
+semantics; core: the two levers' blast radius; consumers: the
+output-identity pins that must hold), a baseline source-lane dispatch
+(validates --deep AND captures the pre-optimization source-lane numbers),
+then the two levers, each with output-identity proof, unit tests, the full
+local suite, and the source-lane measurement as the accept/revert gate.
