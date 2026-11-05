@@ -68,7 +68,16 @@ function Invoke-SampledProcess {
         } catch { }
     }
     $samples | Set-Content -Path $SamplesPath -Encoding utf8
+    # session-97 (the perf gate's first live catch): the wall is the PROCESS's
+    # own span (ExitTime - StartTime), never the sampling loop's exit time -
+    # the 500 ms poll quantum overstated sub-second walls by up to a full
+    # quantum (quick scans measured 512 ms vs the true ~27 ms; run 42012118585
+    # tripped scan-quick-wall 512 <= 165 on exactly this).
     $wall = [math]::Round(((Get-Date) - $t0).TotalSeconds, 2)
+    try {
+        $p.Refresh()
+        if ($p.ExitTime -and $p.StartTime) { $wall = [math]::Round(($p.ExitTime - $p.StartTime).TotalSeconds, 2) }
+    } catch { }
     return @{ pid = $p.Id; exit = $p.ExitCode; wall_seconds = $wall; capped = $capped }
 }
 

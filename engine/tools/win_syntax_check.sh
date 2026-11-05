@@ -52,7 +52,15 @@ fi
 # expands to __declspec(dllexport/dllimport) under _WIN32) possibly BEFORE
 # windows.h - a command-line function-like no-op is include-order-proof
 # (the gate never links, so the storage class is irrelevant to parsing).
-CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
+# -Wcomment (session-97, the N-044 missing-*/ lesson): an unclosed /*
+# comment silently swallows code - the --whole-disk handler's comment lost
+# its */ in ad0535d6 and ATE the --deep handler's condition; the binary
+# then rejected `scan --deep` (exit 1, "unknown scan option") while the
+# tree looked correct and every compiler accepted it (MSVC does not warn
+# on nested comment openers; the Linux build excludes src/app). -Wcomment
+# flags any /* appearing inside a /* comment - the exact shape of the
+# class - at parse time on THIS lane.
+CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -Werror=comment -I$STUB_DIR -I$SRC_DIR/include"
 
 rc=0
 for f in "$SRC_DIR"/src/win/*.cpp; do

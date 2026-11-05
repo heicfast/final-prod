@@ -15820,3 +15820,64 @@ the carve/validation pipeline (303.8 CPU-s/GiB), QD pipelining on
 physical NVMe, the decrypt path post-fixture, and the one registered
 peripheral gap (in-flight-read cancellation, decided by the now-captured
 cancel_to_stop_ms).
+
+---
+
+## Session 97 — entry 9: the S-PART-DELETE root cause — the missing `*/` (the N-044 comment defect) + the re-measured §2 table + the gate's first catch
+
+**Run 42012118585** (v0.7.0 under the fixed harness, reason
+session-97-T5-clean-remeasure) delivered everything the dispatch was for:
+
+1. **The re-measured clean-volume table** (PERFORMANCE.md §2.1): every
+   headline row confirmed within noise — seq 554.83 (+3.3% vs driver),
+   rand 1 MiB 1943.47 µs (−2.5%), open 10,058 ns (−41%), deep 16,257 ms
+   (parity), deepcarve 1,040,054 ms (−30.7%), API scan 1,176,096 ms
+   (−22.3%), recovery 34.2 ms (−30.5%).
+2. **The consumer-native sweep, first capture**: seq 64 KiB 494.24 /
+   256 KiB 551.65 / 4 MiB 556.83 MiB/s — a flat ~550 MiB/s profile that
+   RETIRES the historical direct-vs-driver concern (run 40227375329's
+   direct leg: 151.5 MiB/s @256 KiB; the current envelope path is 3.3×
+   that and above the driver's own 169.3). **rand 4 KiB: 125.3 µs /
+   7,979 IOPS** vs the driver's own parity-table 126.1 µs / 7,932 —
+   parity at the record granularity.
+3. **The first-ever captures**: clean-volume deepcarve CPU 4,014.9 CPU-s
+   over 1,040 s (386% of 4 threads — the validation-bound shape,
+   quantifying PERF-LEVERS' frame), WS peak 245.4 MiB on the 8 GiB
+   volume (bounded; the 32 GiB ladder is T12's scope), deep-scan CPU
+   0.844 s (I/O-bound), **cancel-to-stop 282.6 ms** (the registered
+   in-flight-read gap's measured impact — sub-300 ms, T11's verdict
+   input), **preview probe 0.0 ms** (sub-ms TTFB).
+4. **The perf gate's first live run: 9/10 PASS, 1 FAIL** — the FAIL
+   (scan-quick-wall 512 ≤ 165) was the gate catching the new sampler's
+   500 ms poll quantum overstating sub-second walls (the true quick
+   wall is ~27 ms). Both samplers (run-ours + Run-Benchmark) now
+   measure the process's own span (ExitTime − StartTime) — comparable
+   with the driver-era stopwatch walls again.
+5. **S-PART-DELETE ROOT CAUSED — and it was neither hypothesis**: the
+   archived evidence (the enriched throw + the catch-path archive, both
+   landed this session) shows `[transport] direct raw I/O` (the open
+   SUCCEEDED; the settle guard held stable=True — H1 refuted) followed
+   by `unknown scan option: --deep` → exit 1. The v0.7.0 tree's
+   `--whole-disk` handler comment lost its `*/` in ad0535d6 (S-051's
+   landing); the unclosed comment swallowed `cfg.whole_disk = true;
+   continue; }` AND the `--deep` handler's condition, closing only at
+   the --deep comment's own `*/`. The compiled binary: `--whole-disk`
+   works but prints the --deep note; **`--deep` is rejected**. No
+   compiler catches the class (MSVC is silent on nested comment
+   openers; the Linux build excludes src/app; the win-stub gate parsed
+   it clean). No run ever exercised `--disk --deep` before S-PART-DELETE
+   joined the matrix — the scenario addition was what exposed it.
+
+**The fixes (this commit):** the missing `*/` restored
+(rrecov.cpp:1479, both handlers back to their intended shapes); the
+win-stub parse gate now runs **`-Werror=comment`** (self-tested both
+ways: the v0.7.0 tree trips it at exactly rrecov.cpp:1484:13; the fixed
+tree is clean — the class dies on the Linux lane forever); the stub's
+own comment reworded (it contained a literal `src/win/*.cpp` that
+tripped the new flag); both samplers' wall fix.
+
+**The scenario lanes on this run:** recall-0 as expected (the v0.7.0
+binary predates the F12 fix) — the source-lane run in flight carries
+the F12 fix and will show the recall recovery; S-PART-DELETE failed on
+--deep (also fixed after that dispatch's HEAD); the next source-lane
+dispatch (after this commit) validates both.

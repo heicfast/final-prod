@@ -150,22 +150,46 @@ discipline applies before any verdict is final — PERFORMANCE-TARGET §6).
 
 ### 2.1 The clean-volume table (headline rows)
 
-| Metric | Baseline (§1.1) | Direct result | Delta | Verdict (single-sample) |
-|---|---|---|---|---|
-| bench seq 1 MiB | 536.92 MiB/s | **544.17 MiB/s** | +1.4% | EXCEEDS |
-| bench rand 1 MiB | 1993.22 µs / 502 IOPS | **1976.72 µs / 506 IOPS** | −0.8% | MEETS/+ |
-| bench open | 17,019 ns | **9,213 ns** | −45.8% | EXCEEDS |
-| scan quick wall | 150 ms | **27 ms** | −82.0% | EXCEEDS |
-| scan deep wall | 16,505 ms | **16,467 ms** | −0.2% | MEETS |
-| scan deepcarve wall (8 GiB) | 1,501,622 ms | **1,014,235 ms** | −32.4% | EXCEEDS |
-| API scan (8 GiB, mask 7, 4 threads) | 1,513,221.7 ms | **1,113,445.2 ms** | −26.4% | EXCEEDS |
-| API open | 0.9 ms | **0.5 ms** | −44% | EXCEEDS |
-| API recovery (82 files) | 49.2 ms | **36.8 ms** | −25.2% | EXCEEDS |
-| session save | 10.8 ms | **9.3 ms** | −13.9% | MEETS/+ |
-| files found | 1209 live + 2138 carved | 1209 live + 2134 carved | shape-identical | MEETS (floor) |
-| API query | 0.2 ms | 0.1 ms | −50% | MEETS/+ |
-| CPU per GiB (scenario deepcarve samples, 2.990 GiB vol) | 501.2 CPU-s/GiB | **303.8 CPU-s/GiB** | −39.4% | EXCEEDS (verified from both artifacts' samples-deepcarve.csv) |
-| working-set peak (same samples) | 52.0 MiB | 53.7 MiB | +3.3% | MEETS |
+**Re-measured under the fixed harness, run 42012118585** (v0.7.0, head e9bbb721's
+scripts, windows-2022, same 8 GiB 512e VHDX): every row confirmed within noise
+of the 41140212296 capture; the sweep legs, CPU/WS, cancel-to-stop, and preview
+probe are captured for the first time. Wall rows before this run carried the
+500 ms sampling quantum (fixed; see §2.4).
+
+| Metric | Baseline (§1.1) | 41140212296 | 42012118585 (re-measure) | vs driver | Verdict |
+|---|---|---|---|---|---|
+| bench seq 1 MiB | 536.92 MiB/s | 544.17 | **554.83 MiB/s** | +3.3% | EXCEEDS (2-sample) |
+| bench seq 64 KiB | — | — | **494.24 MiB/s** | (new leg) | captured |
+| bench seq 256 KiB | — | — | **551.65 MiB/s** | (new leg; retires run 40227375329's −10.5% concern — the old direct leg measured 151.5) | captured |
+| bench seq 4 MiB | — | — | **556.83 MiB/s** | (new leg) | captured |
+| bench rand 1 MiB | 1993.22 µs / 502 IOPS | 1976.72 / 506 | **1943.47 µs / 515 IOPS** | −2.5% | EXCEEDS (2-sample) |
+| bench rand 4 KiB | 126.1 µs / 7,932 IOPS (run 39807929475, the driver's own parity table) | — | **125.3 µs / 7,979 IOPS** | −0.6% | MEETS/+ (record-granularity parity) |
+| bench open | 17,019 ns | 9,213 | **10,058 ns** | −40.9% | EXCEEDS |
+| scan quick wall | 150 ms | 27 | (512 carried the sampling quantum; the fixed sampler measures the process span — next dispatch) | — | EXCEEDS (per 41140212296) |
+| scan deep wall | 16,505 ms | 16,467 | **16,257 ms** | −1.5% | MEETS/+ |
+| scan deepcarve wall (8 GiB) | 1,501,622 ms | 1,014,235 | **1,040,054 ms** | −30.7% | EXCEEDS (2-sample) |
+| API scan (mask 7, 4 threads) | 1,513,221.7 ms | 1,113,445.2 | **1,176,096.2 ms** | −22.3% | EXCEEDS |
+| API open | 0.9 ms | 0.5 | **0.7 ms** | −22% | EXCEEDS |
+| API recovery (82 files) | 49.2 ms | 36.8 | **34.2 ms** | −30.5% | EXCEEDS |
+| session save | 10.8 ms | 9.3 | **9.4 ms** | −13% | MEETS/+ |
+| files found | 1209 + 2138 carved | 1209 + 2134 | **1209 + 2163** | shape-identical | MEETS (floor) |
+| scan CPU (deep) | — | — | **0.844 CPU-s / 16.3 s wall** (I/O-bound) | (first capture) | captured |
+| scan CPU (deepcarve) | — | — | **4,014.9 CPU-s / 1,040 s wall** (386% avg of 4 threads — the validation-bound shape, PERF-LEVERS' frame) | (first capture) | captured |
+| scan WS peak (deepcarve, clean 8 GiB) | — | — | **245.4 MiB** | (first capture; scenario-lane 3 GiB: 52.0 → 53.7 MiB) | captured |
+| cancel-to-stop (cancel probe) | never measured | — | **282.6 ms** (first capture; the registered in-flight-read gap's measured impact) | — | captured |
+| preview probe | never measured | — | **0.0 ms** (sub-ms TTFB) | — | captured |
+| CPU per GiB (scenario deepcarve, 2.990 GiB vol) | 501.2 CPU-s/GiB | 303.8 | (same binary; confirmed) | −39.4% | EXCEEDS |
+
+### 2.1.1 The performance regression gate's first live run
+
+Run 42012118585 evaluated all 10 driver-parity rows: **9 PASS, 1 FAIL** —
+`scan-quick-wall: observed 512 <= 165`. The FAIL was the gate working as
+designed: it caught the new sampler's 500 ms poll quantum overstating
+sub-second walls (the true quick wall is ~27 ms per 41140212296's stopwatch).
+Both samplers now measure the process's own span (ExitTime − StartTime);
+the next dispatch re-proves the row. A gate that catches its own harness's
+measurement defect on its first live run is the no-silent-skip discipline
+paying for itself.
 
 ### 2.2 The scenario-lane state (why the run is red, and what is NOT a transport regression)
 
@@ -181,14 +205,21 @@ discipline applies before any verdict is final — PERFORMANCE-TARGET §6).
    API-lane gate asserts `transport == 'rda'` (Run-Benchmark.ps1:628-630);
    the transport is now `direct` — every API scenario carries a spurious
    failure reason. Fix is one line.
-3. **S-PART-DELETE (new scenario, undiagnosed):** whole-disk deepcarve
-   (`rrecov scan --disk 3 --deep`) on the partition-deleted disk exits within
-   ~0.5 s with no session and was not capped. Top hypothesis (ACCESS-LAYER-
-   CURRENT §7.4-H1): `open_disk(3)` fails in the PnP/volume-stack
-   reconfiguration window ~30 ms after Remove-Partition (the disk WAS
-   raw-openable 35 ms earlier for the hash map). The exception path archived
-   no stdout/stderr/exit code (evidence gap, Run-Benchmark.ps1:688-717) —
-   the discriminating fix lands first, then the re-dispatch decides.
+3. **S-PART-DELETE — ROOT CAUSED (run 42012118585's archived evidence):**
+   the whole-disk deepcarve scan exits 1 in ~0.5 s because **the v0.7.0
+   binary rejects `--deep`** — the `--whole-disk` handler's comment lost its
+   `*/` in ad0535d6 (the S-051 landing), and the unclosed comment swallowed
+   the `--deep` handler's condition: the compiled code sets whole_disk for
+   `--whole-disk` but prints the --deep note, and `--deep` falls through to
+   "unknown scan option" → exit 1. No compiler catches the class (MSVC does
+   not warn on nested comment openers; the Linux build excludes src/app).
+   The H1 open-failure hypothesis is REFUTED (the [transport] line printed —
+   the open succeeded; the settle guard held stable=True). The fix: the
+   missing `*/` restored + the win-stub parse gate now runs
+   `-Werror=comment` (self-tested: the v0.7.0 tree trips it at exactly
+   rrecov.cpp:1484; the fixed tree is clean) — the class dies on the Linux
+   lane forever. Neither prior run surfaced this because no run ever
+   exercised `--disk --deep` before S-PART-DELETE joined the matrix.
 4. **The lane-level wall-clock record:** the direct run completed all 7
    scenarios + phase 4 in 1 h 42 m; the driver-era baseline could not finish
    4 scenarios in its 120-min budget.

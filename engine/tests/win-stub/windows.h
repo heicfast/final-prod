@@ -1,12 +1,12 @@
 /* windows.h - DECLARATION-ONLY stub of the Win32 SDK surface the
  * src/win platform layer consumes.
  *
- * Purpose (M-055 gate): the Windows-only layer (src/win/*.cpp) has no
- * MSVC lane executing in this environment, and a build-breaking edit
- * there is otherwise invisible until a Windows CI run executes. This
- * header re-declares the exact SDK surface those files consume so the
- * Linux lane can run `g++ -fsyntax-only` over the whole win layer as
- * a parse gate (tests/win_syntax_check).
+ * Purpose (M-055 gate): the Windows-only layer (the .cpp files under
+ * src/win) has no MSVC lane executing in this environment, and a
+ * build-breaking edit there is otherwise invisible until a Windows CI
+ * run executes. This header re-declares the exact SDK surface those
+ * files consume so the Linux lane can run `g++ -fsyntax-only` over the
+ * whole win layer as a parse gate (tests/win_syntax_check).
  *
  * These are DECLARATIONS ONLY - inline bodies exist solely so the
  * translation units parse; the gate never links or runs them.

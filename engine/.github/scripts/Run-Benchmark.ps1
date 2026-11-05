@@ -360,7 +360,17 @@ function Invoke-SampledCli {
         } catch { }
     }
     $samples | Set-Content -Path $SamplesPath -Encoding utf8
-    return @{ exit = $p.ExitCode; wall_ms = [math]::Round(((Get-Date) - $t0).TotalMilliseconds) }
+    # session-97 (the perf gate's first live catch, run 42012118585): the wall
+    # is the PROCESS's own span (ExitTime - StartTime) - the 500 ms poll
+    # quantum overstated sub-second walls by up to a full quantum (quick
+    # measured 512 ms vs the true ~27 ms). Comparability with the driver-era
+    # stopwatch walls (which never carried the quantum) requires this.
+    $wallMs = [math]::Round(((Get-Date) - $t0).TotalMilliseconds)
+    try {
+        $p.Refresh()
+        if ($p.ExitTime -and $p.StartTime) { $wallMs = [math]::Round(($p.ExitTime - $p.StartTime).TotalMilliseconds) }
+    } catch { }
+    return @{ exit = $p.ExitCode; wall_ms = $wallMs }
 }
 
 # CLI scan timings per mode on the intact (pre-deletion) volume
