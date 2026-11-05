@@ -1,5 +1,20 @@
 {
-  "_comment": "Versioned regression baseline for the ours leg. Updated ONLY by human-reviewed commits. Format: scenarios.<scenario>.{recall,precision,perf.<mode>.scan_wall_seconds} as produced by bench/metrics/compute_metrics.py.",
-  "schema": 1,
-  "scenarios": {}
+  "_comment": "Versioned regression baseline for the ours leg. Updated ONLY by human-reviewed commits. Format: scenarios.<scenario>.{recall,precision,perf.<mode>.scan_wall_seconds} as produced by bench/metrics/compute_metrics.py. The perf section (session-97 T6) is the driver-parity performance gate consumed by .github/scripts/Run-Benchmark.ps1 phase 5 - rows carry the driver-backed baseline of record (run 41042267586, PERFORMANCE.md section-1) with the tolerances from worklog/PERFORMANCE-TARGET.md section-1. Observe-only legs (seq-64k/seq-256k/seq-4m, rand-4k, cancel_to_stop_ms, preview probe_ms, cpu/ws rows pending same-workload clean-volume samples) are recorded in clean-volume-benchmark.json for PERFORMANCE.md, not gated here yet; they gain rows by reviewed commit once 3-run medians exist.",
+  "schema": 2,
+  "scenarios": {},
+  "perf": {
+    "rule": "driver-parity tolerances; baseline changes only by reviewed commit with evidence (PERFORMANCE-TARGET.md section-0/section-6)",
+    "rows": [
+      { "id": "bench-seq-1m",       "collection": "bench_verb", "leg": "seq",      "metric": "mib_per_s", "op": ">=", "value": 536.92,    "tol_pct": 3,  "source": "driver v0.6.1 run 41042267586 clean-volume bench (PERFORMANCE.md 1.1)" },
+      { "id": "bench-rand-1m",      "collection": "bench_verb", "leg": "rand",     "metric": "mean_us",   "op": "<=", "value": 1993.22,   "tol_pct": 10, "source": "driver v0.6.1 run 41042267586 clean-volume bench (PERFORMANCE.md 1.1)" },
+      { "id": "bench-open",         "collection": "bench_verb", "leg": "open",     "metric": "mean_ns",   "op": "<=", "value": 17019,     "tol_pct": 15, "source": "driver v0.6.1 run 41042267586 clean-volume bench (PERFORMANCE.md 1.1)" },
+      { "id": "scan-quick-wall",    "collection": "scans",      "leg": "quick",    "metric": "wall_ms",   "op": "<=", "value": 150,       "tol_pct": 10, "source": "driver v0.6.1 run 41042267586 clean-volume scan (PERFORMANCE.md 1.1)" },
+      { "id": "scan-deep-wall",     "collection": "scans",      "leg": "deep",     "metric": "wall_ms",   "op": "<=", "value": 16505,     "tol_pct": 10, "source": "driver v0.6.1 run 41042267586 clean-volume scan (PERFORMANCE.md 1.1)" },
+      { "id": "scan-deepcarve-wall","collection": "scans",      "leg": "deepcarve","metric": "wall_ms",   "op": "<=", "value": 1501622,  "tol_pct": 3,  "source": "driver v0.6.1 run 41042267586 clean-volume scan (PERFORMANCE.md 1.1)" },
+      { "id": "api-open",           "collection": "api",        "leg": "open",         "metric": "ms",   "op": "<=", "value": 0.9,       "tol_pct": 11, "source": "driver v0.6.1 run 41042267586 API clean-benchmark (PERFORMANCE.md 1.1)" },
+      { "id": "api-scan-run",       "collection": "api",        "leg": "scan_run",     "metric": "ms",   "op": "<=", "value": 1513221.7, "tol_pct": 3,  "source": "driver v0.6.1 run 41042267586 API clean-benchmark (PERFORMANCE.md 1.1)" },
+      { "id": "api-save-session",   "collection": "api",        "leg": "save_session", "metric": "ms",   "op": "<=", "value": 10.8,      "tol_pct": 10, "source": "driver v0.6.1 run 41042267586 API clean-benchmark (PERFORMANCE.md 1.1)" },
+      { "id": "api-recovery",       "collection": "api",        "leg": "recovery",     "metric": "ms",   "op": "<=", "value": 49.2,      "tol_pct": 10, "source": "driver v0.6.1 run 41042267586 API clean-benchmark (PERFORMANCE.md 1.1)" }
+    ]
+  }
 }

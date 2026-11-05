@@ -56,8 +56,8 @@
 | 10 | API query | 0.2 ms | 0.1 ms | MEETS/+ | ≤ 0.3 ms |
 | 11 | API recovery (82 files) | 49.2 ms | 36.8 ms | EXCEEDS (−25%) | ≤ 54.1 ms |
 | 12 | TTFR (deep, clean vol) | 0 ms | 0 ms | MEETS (floor) | ≤ 50 ms |
-| 13 | CPU per GiB (deepcarve, samples CSV) | 502 CPU-s/GiB | 305 CPU-s/GiB | EXCEEDS (−39%) — *untranscribed in the run verdicts; transcription is a T6 harness fix* | ≤ 527 |
-| 14 | Working set (deepcarve peak) | ≤ 40 MB | ≤ 40 MB (flat) | MEETS | ≤ 44 MB |
+| 13 | CPU per GiB (deepcarve, scenario-lane samples: S-DEL-NTFS 2.990 GiB) | 501.2 CPU-s/GiB | 303.8 CPU-s/GiB | EXCEEDS (−39.4%) — *verified from both artifacts' samples-deepcarve.csv; clean-volume sampling lands with T6* | ≤ 526 |
+| 14 | Working set (deepcarve peak, same samples) | 52.0 MiB | 53.7 MiB | MEETS (+3.3%) | ≤ 57.2 |
 | 15 | Files found (1209 live + 2134-2138 carved) | identical shape | identical shape | MEETS (correctness floor) | exact |
 
 Rows 1-12 are re-measured by every benchmark dispatch (the existing

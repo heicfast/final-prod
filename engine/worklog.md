@@ -15628,3 +15628,69 @@ from the captured record (§1 + DRIVER-BASELINE's run-ID table). No new
 driver-era captures are possible — the lane is core-only by design and
 re-adding a driver is forbidden (mandate §5). The baseline of record
 stands as corrected above.
+
+---
+
+## Session 97 — entry 4: the T5/T6 harness-truth wave (the scripts-only fixes that unblock every measurement)
+
+**The changes (all harness-side; zero product behavior touched):**
+
+1. **The stale transport gate** (Run-Benchmark.ps1): the API-lane assertion
+   expected `transport == 'rda'` — false-failing every API scenario in run
+   41140212296. Now asserts `'direct'`, and a MISSING transport fails too
+   (the silent-fallback shape). The CLI-side evidence field renamed to
+   `direct_transport_assertion` (the old `rda_*` name lied about what it
+   asserts).
+2. **The exception-path evidence archive** (Run-Benchmark.ps1 catch +
+   run-ours.ps1 throw): the no-silent-skip throw now carries its own
+   diagnosis (exit code, wall, command, transport lines, both stream
+   tails), and the catch copies every lane diagnostic to evidence BEFORE
+   writing the verdict — run 41140212296's S-PART-DELETE left NO scan
+   stdout/stderr/exit code, making H1-vs-H2 unanswerable from the
+   artifact. Both fixed.
+3. **The S-PART-DELETE settle guard** (Run-Benchmark.ps1): after a
+   `delete_partition` mutation, wait for two consecutive identical
+   partition-table snapshots (500 ms apart, 30 s deadline, 1 s floor)
+   before the scan lanes — the H1 hypothesis (a raw open inside the
+   PnP/volume-stack reconfiguration window ~30 ms after Remove-Partition)
+   gets its discriminating test; if the scan still fails, the archived
+   evidence now exists to decide H2.
+4. **The consumer-native bench sweep** (Run-Benchmark.ps1): seq legs at
+   64 KiB / 256 KiB / 4 MiB and rand at 4 KiB join the 1 MiB headline
+   legs — the cache-block fill size, the og's 4 MiB chunking, the image
+   chunk, the NTFS record granularity. A `leg` label disambiguates the
+   sweep in clean-volume-benchmark.json.
+5. **CPU/WS everywhere** (Run-Benchmark.ps1): the clean-volume scans are
+   now process-sampled (Invoke-SampledCli — the scenario lane always
+   sampled, phase 2 never did), and the phase-4 roll-up transcribes
+   scan/recover CPU-seconds and WS-peak from the samples CSVs that were
+   always captured but never summarized (the −39% CPU/GiB finding lived
+   only in raw CSVs).
+6. **cancel_to_stop_ms + preview probe_ms** (api_harness.c): the cancel
+   thread stamps the Stop-press instant; api-result.json now carries the
+   cancel-to-stop latency (T11's metric) and the preview probe wall
+   (T10's TTFB row). Syntax-verified against the win-stub parse gate.
+7. **The performance regression gate** (Run-Benchmark.ps1 phase 5 +
+   bench/baseline.json schema 2): the versioned driver-parity rows —
+   seq ≥ 536.92 MiB/s (tol 3%), rand ≤ 1993.22 µs (10%), open ≤ 17,019 ns
+   (15%), quick ≤ 150 ms, deep ≤ 16,505 ms, deepcarve ≤ 1,501,622 ms
+   (3%), API open/scan/save/recovery rows — evaluated every dispatch,
+   emitted to 06-comparison/perf-gate.json + gates.md, FAILING the run on
+   violation or on a metric that cannot be found (no silent skip).
+   Functionally smoke-tested against run 41140212296's data: all 10 rows
+   PASS with the expected limits.
+8. **Doc corrections**: PERFORMANCE-TARGET §1 and PERFORMANCE.md §2.1's
+   WS rows corrected to the measured values (52.0 → 53.7 MiB, +3.3% —
+   the "≤ 40 MB" summary was wrong; CPU/GiB precision: 501.2 → 303.8,
+   −39.4%, verified from both artifacts' samples-deepcarve.csv).
+
+**Verification before push:** pwsh 7.4.6 AST parse gate clean (13
+scripts), baseline.json parses, api_harness.c parses under the win-stub
+g++ gate, the phase-5 gate logic functionally validated against the
+v0.7.0 capture (10/10 PASS), full ci-local.sh green.
+
+**Next:** dispatch test-benchmark (core_tag=v0.7.0, profile=smoke,
+reason=session-97-T5) — the clean re-measure under the fixed harness +
+the S-PART-DELETE discriminating evidence; the recall-0 diagnosis runs
+in parallel (it is pre-existing in both eras and blocks T15's green
+matrix either way).

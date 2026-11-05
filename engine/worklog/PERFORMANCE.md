@@ -164,8 +164,8 @@ discipline applies before any verdict is final — PERFORMANCE-TARGET §6).
 | session save | 10.8 ms | **9.3 ms** | −13.9% | MEETS/+ |
 | files found | 1209 live + 2138 carved | 1209 live + 2134 carved | shape-identical | MEETS (floor) |
 | API query | 0.2 ms | 0.1 ms | −50% | MEETS/+ |
-| CPU per GiB (deepcarve samples) | 502 CPU-s/GiB | **305 CPU-s/GiB** | −39% | EXCEEDS (untranscribed in verdicts — T6 fix) |
-| working-set peak | ≤ 40 MB flat | ≤ 40 MB flat | parity | MEETS |
+| CPU per GiB (scenario deepcarve samples, 2.990 GiB vol) | 501.2 CPU-s/GiB | **303.8 CPU-s/GiB** | −39.4% | EXCEEDS (verified from both artifacts' samples-deepcarve.csv) |
+| working-set peak (same samples) | 52.0 MiB | 53.7 MiB | +3.3% | MEETS |
 
 ### 2.2 The scenario-lane state (why the run is red, and what is NOT a transport regression)
 

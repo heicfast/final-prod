@@ -320,6 +320,49 @@ New-Item -ItemType Directory -Force -Path $benchDir | Out-Null
 
 $cleanPerf = [ordered]@{ captured_utc = (Get-Date).ToUniversalTime().ToString('o'); scans = @(); bench_verb = @(); api = $null }
 
+# session-97 T6: process sampling for the clean-volume scans (the CPU-per-byte
+# and working-set rows). The scenario lane always sampled (run-ours.ps1); the
+# clean-volume phase never did - the driver-era CPU/WS baselines exist only for
+# the scenario lane. Get-SampleStats is the shared parser (phase 4 reuses it).
+function Get-SampleStats {
+    param([string] $CsvPath)
+    if (-not (Test-Path -LiteralPath $CsvPath)) { return $null }
+    $rows = @(Get-Content -LiteralPath $CsvPath | Select-Object -Skip 1 | Where-Object { $_.Trim() })
+    if ($rows.Count -lt 2) { return $null }
+    $wsPeak = [long]0
+    foreach ($r in $rows) {
+        $c = $r -split ','
+        if ($c.Count -ge 2) { $ws = [long]0; if ([long]::TryParse($c[1], [ref]$ws) -and $ws -gt $wsPeak) { $wsPeak = $ws } }
+    }
+    $c0 = $rows[0] -split ','; $c1 = $rows[-1] -split ','
+    $cpu = $null
+    if ($c0.Count -ge 3 -and $c1.Count -ge 3) {
+        $v0 = 0.0; $v1 = 0.0
+        if ([double]::TryParse($c0[2], [ref]$v0) -and [double]::TryParse($c1[2], [ref]$v1)) { $cpu = [math]::Round($v1 - $v0, 3) }
+    }
+    return @{ samples = $rows.Count; cpu_seconds = $cpu; ws_peak_bytes = $wsPeak }
+}
+
+function Invoke-SampledCli {
+    param([string] $Exe, [string[]] $ArgList, [string] $StdoutPath, [string] $StderrPath, [string] $SamplesPath)
+    $t0 = Get-Date
+    $p = Start-Process -FilePath $Exe -ArgumentList $ArgList `
+        -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath `
+        -PassThru -NoNewWindow
+    $samples = New-Object System.Collections.Generic.List[string]
+    $samples.Add('t_ms,working_set_bytes,cpu_seconds')
+    while (-not $p.HasExited) {
+        Start-Sleep -Milliseconds 500
+        $age = [math]::Round(((Get-Date) - $t0).TotalMilliseconds)
+        try {
+            $proc = Get-Process -Id $p.Id -ErrorAction SilentlyContinue
+            if ($proc) { $samples.Add(("{0:F0},{1},{2:F3}" -f $age, $proc.WorkingSet64, $proc.CPU)) }
+        } catch { }
+    }
+    $samples | Set-Content -Path $SamplesPath -Encoding utf8
+    return @{ exit = $p.ExitCode; wall_ms = [math]::Round(((Get-Date) - $t0).TotalMilliseconds) }
+}
+
 # CLI scan timings per mode on the intact (pre-deletion) volume
 foreach ($mode in $ScanModes) {
     $session = Join-Path $benchDir "session-$mode.crsf"
@@ -327,14 +370,20 @@ foreach ($mode in $ScanModes) {
     if ($mode -eq 'quick') { $scanArgs += '--quick-only' }
     elseif ($mode -eq 'deep') { $scanArgs += '--no-carve' }
     $scanArgs += @('--out', $session, '--log', (Join-Path $benchDir "stage-$mode.log"), '--json')
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    $out = & $RrecovExe @scanArgs 2>&1
-    $sw.Stop()
+    $sr = Invoke-SampledCli -Exe $RrecovExe -ArgList $scanArgs `
+        -StdoutPath (Join-Path $benchDir "scan-$mode.stdout") `
+        -StderrPath (Join-Path $benchDir "scan-$mode.stderr") `
+        -SamplesPath (Join-Path $benchDir "samples-$mode.csv")
     $summary = $null
-    $jline = ($out | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
+    $so = ''
+    if (Test-Path -LiteralPath (Join-Path $benchDir "scan-$mode.stdout")) {
+        $so = (Get-Content -LiteralPath (Join-Path $benchDir "scan-$mode.stdout") -Raw)
+    }
+    $jline = ($so -split "`n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
     if ($jline) { try { $summary = $jline | ConvertFrom-Json } catch { } }
+    $modeStats = Get-SampleStats -CsvPath (Join-Path $benchDir "samples-$mode.csv")
     $cleanPerf.scans += [ordered]@{
-        mode = $mode; wall_ms = $sw.ElapsedMilliseconds; exit = $LASTEXITCODE
+        mode = $mode; wall_ms = $sr.wall_ms; exit = $sr.exit
         files = if ($summary) { $summary.files } else { $null }
         bytes_scanned = if ($summary) { $summary.bytes_scanned } else { $null }
         elapsed_ms = if ($summary) { $summary.elapsed_ms } else { $null }
@@ -344,6 +393,8 @@ foreach ($mode in $ScanModes) {
         # stage boundaries). Extracted per mode so the lane's dispatches
         # transcribe it (the probe-target correction: ride this lane).
         ttfr_ms = $null; ttfr_first_files = $null
+        # session-97 T6: the CPU/WS rows (same parser as the scenario lane)
+        cpu_seconds = $modeStats.cpu_seconds; ws_peak_bytes = $modeStats.ws_peak_bytes; sample_count = $modeStats.samples
     }
     $ttfrLine = Select-String -Path (Join-Path $benchDir "stage-$mode.log") `
         -Pattern 'ttfr_ms=(\d+) first_files=(\d+) stage=(\d+)' -ErrorAction SilentlyContinue |
@@ -354,18 +405,35 @@ foreach ($mode in $ScanModes) {
         Write-Host ("  scan {0}: TTFR {1} ms (first {2} file(s))" -f $mode,
             $cleanPerf.scans[-1].ttfr_ms, $cleanPerf.scans[-1].ttfr_first_files)
     }
-    $out | Set-Content (Join-Path $benchDir "scan-$mode.stdout") -Encoding utf8
-    Write-Host ("  scan {0}: {1} ms (exit {2})" -f $mode, $sw.ElapsedMilliseconds, $LASTEXITCODE)
+    Write-Host ("  scan {0}: {1} ms (exit {2}, cpu {3}s, ws-peak {4} MiB)" -f $mode, $sr.wall_ms, $sr.exit,
+        $modeStats.cpu_seconds, [math]::Round($modeStats.ws_peak_bytes / 1MB, 1))
 }
 
-# the bench verb: info + seq + rand + open on the benchmark disk
-foreach ($bm in @(@('info', @('--mode', 'info')), @('seq', @('--mode', 'seq', '--mb', '256')), @('rand', @('--mode', 'rand')), @('open', @('--mode', 'open')))) {
+# the bench verb: info + the consumer-native size sweep + open on the benchmark disk
+# (session-97 T6: the 1 MiB legs remain the headline rows; the 64 KiB / 256 KiB /
+# 4 MiB seq legs and the 4 KiB rand leg are the CONSUMER-NATIVE sizes - the cache
+# block fill, the og's 4 MiB chunking, the image chunk, the NTFS record granularity.
+# The 'leg' label disambiguates the sweep in clean-volume-benchmark.json - the
+# product's own "mode" field alone cannot.)
+foreach ($bm in @(
+    @('info',    @('--mode', 'info')),
+    @('seq',     @('--mode', 'seq', '--mb', '256')),                        # headline: 1 MiB block (default)
+    @('seq-64k', @('--mode', 'seq', '--mb', '256', '--block-kb', '64')),   # consumer: discovery windows, image chunks
+    @('seq-256k',@('--mode', 'seq', '--mb', '256', '--block-kb', '256')),  # consumer: the CachedReader fill size
+    @('seq-4m',  @('--mode', 'seq', '--mb', '256', '--block-kb', '4096')), # consumer: og 4 MiB chunks, remnant blocks
+    @('rand',    @('--mode', 'rand')),                                      # headline: 1 MiB block (default)
+    @('rand-4k', @('--mode', 'rand', '--block-kb', '4')),                   # consumer: NTFS record granularity
+    @('open',    @('--mode', 'open'))
+)) {
     $name = $bm[0]; $margs = $bm[1]
     $out = & $RrecovExe bench --disk $benchDisk @margs --json 2>&1
     $line = ($out | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
     $obj = $null
     if ($line) { try { $obj = $line | ConvertFrom-Json } catch { } }
-    if ($obj) { $cleanPerf.bench_verb += $obj } else { Note "bench verb $name produced no JSON (recorded)" }
+    if ($obj) {
+        $obj | Add-Member -NotePropertyName leg -NotePropertyValue $name -Force
+        $cleanPerf.bench_verb += $obj
+    } else { Note "bench verb $name produced no JSON (recorded)" }
     $out | Set-Content (Join-Path $benchDir "bench-$name.stdout") -Encoding utf8
     Write-Host "  bench $name : $line"
 }
@@ -500,6 +568,34 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
             $p.PartitionNumber = @([int]$vol.partition)
         }
         & $ScenarioScript @p
+
+        # session-97 (S-PART-DELETE H1, run 41140212296): a raw whole-disk open
+        # milliseconds after a table mutation can fail inside the PnP/volume-stack
+        # reconfiguration window (the disk WAS raw-openable 35 ms earlier for the
+        # post-state hash map; the scan died ~30 ms after that). Settle BEFORE the
+        # scan lanes: wait for two consecutive identical partition-table snapshots
+        # (500 ms apart), bounded at 30 s, plus a 1 s floor. HARNESS-SIDE ONLY -
+        # the product's fail-fast open contract is driver parity and must not
+        # change; if the scan still fails after this settle, the archived evidence
+        # (the enriched throw + the catch-path archive) decides H2 (product defect)
+        # with the exit code and stream tail in hand.
+        if ($sc.mode -eq 'delete_partition') {
+            $settleDeadline = (Get-Date).AddSeconds(30)
+            $snapPrev = $null
+            $settleStable = $false
+            while ((Get-Date) -lt $settleDeadline) {
+                $snap = @(Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue |
+                    Sort-Object PartitionNumber |
+                    ForEach-Object { "$($_.PartitionNumber):$($_.StartingOffset):$($_.Size)" }) -join '|'
+                if ($null -ne $snapPrev -and $snap -eq $snapPrev) { $settleStable = $true; break }
+                $snapPrev = $snap
+                Start-Sleep -Milliseconds 500
+            }
+            Start-Sleep -Seconds 1
+            $settleCount = @(Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue).Count
+            Write-Host ("  table settle: stable={0} partitions={1} (S-PART-DELETE H1 guard)" -f $settleStable, $settleCount)
+        }
+
         $scenarioStatePath = Join-Path $scStateDir 'scenario-state.json'
         Copy-Evidence @($scenarioStatePath, (Join-Path $scStateDir 'hashmap-pre.csv')) (Join-Path $scEv 'state')
 
@@ -614,7 +710,7 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
                         $res.passed = $false
                         $res.reasons += "recover mode $($m.mode) exited $($m.recover.exit_code) (0 ok / 2 partial are the honest shapes)"
                     }
-                    if ($m.rda_transport_assertion -and [int]$m.rda_transport_assertion.hits -lt 1) {
+                    if ($m.direct_transport_assertion -and [int]$m.direct_transport_assertion.hits -lt 1) {
                         $res.passed = $false
                         $res.reasons += "mode $($m.mode) never used the direct transport (transport assertion)"
                     }
@@ -625,9 +721,14 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
                     $res.passed = $false
                     $res.reasons += "api harness exit $apiExit (expected 0 or 2)"
                 }
-                if ($apiResult -and $apiResult.transport -and ([string]$apiResult.transport) -ne 'rda') {
+                # session-97: the transport is 'direct' since v0.7.0 - the stale
+                # 'rda' expectation here false-failed every API lane in run
+                # 41140212296. A MISSING transport is equally a failure (the
+                # silent-fallback shape the assertion exists to catch).
+                if (-not $apiResult -or -not $apiResult.transport -or ([string]$apiResult.transport) -ne 'direct') {
                     $res.passed = $false
-                    $res.reasons += "api transport was '$($apiResult.transport)' (expected rda)"
+                    $observedTransport = if ($apiResult) { "'$($apiResult.transport)'" } else { '<no api-result>' }
+                    $res.reasons += "api transport was $observedTransport (expected direct)"
                 }
             }
             $laneResults[$lane] = $res
@@ -709,6 +810,22 @@ foreach ($sc in ($matrix.scenarios | Where-Object { $_.profile -eq 'smoke' -or $
         }
         Remove-Item -LiteralPath $apiDest -Recurse -Force -ErrorAction SilentlyContinue
     } catch {
+        # EVIDENCE FIRST (session-97, run 41140212296's S-PART-DELETE lesson):
+        # the no-silent-skip path must preserve its own diagnosis - the throw
+        # previously archived NO scan stdout/stderr/exit code, leaving the
+        # H1-vs-H2 question unanswerable from the artifact. Best-effort copy of
+        # every diagnostic the lanes managed to write before the throw (never
+        # the recovered-* payload dirs - those are gigabytes).
+        foreach ($lanePair in @(@($scCli, 'cli'), @($scApi, 'api'))) {
+            $laneDir = $lanePair[0]; $laneName = $lanePair[1]
+            if (Test-Path -LiteralPath $laneDir) {
+                $diags = Get-ChildItem -LiteralPath $laneDir -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^(scan-|recover-|stage-|samples-|tree-|report-|metrics|preservation|ours-run|harness\.stdout|api-result\.json|cancel\.stdout|resume\.stdout)' }
+                foreach ($df in $diags) {
+                    Copy-Evidence @($df.FullName) (Join-Path $scEv $laneName)
+                }
+            }
+        }
         $verdict.error = "exception: $($_.Exception.Message)"
         $verdict.passed = $false
         Fail "scenario ${id} threw: $($_.Exception.Message)"
@@ -763,11 +880,18 @@ foreach ($v in $scenarioVerdicts) {
     if (Test-Path $orp) {
         $run = Get-Content $orp -Raw | ConvertFrom-Json
         foreach ($m in @($run.scan_modes)) {
+            # session-97 T6: the CPU/WS transcription - the samples CSVs were
+            # always captured, never rolled up (the -39% CPU finding lived only
+            # in raw CSVs someone had to open by hand)
+            $mStats = Get-SampleStats -CsvPath (Join-Path $scCli "samples-$($m.mode).csv")
+            $rStats = Get-SampleStats -CsvPath (Join-Path $scCli "recover-samples-$($m.mode).csv")
             $entry.cli_modes += [ordered]@{
                 mode = $m.mode; scan_wall_s = $m.wall_seconds; scan_exit = $m.exit_code; capped = $m.capped
                 recover_wall_s = if ($m.recover) { $m.recover.wall_seconds } else { $null }
                 files = if ($m.summary) { $m.summary.files } else { $null }
                 lost_partitions = if ($m.summary) { $m.summary.lost_partitions } else { $null }
+                scan_cpu_seconds = $mStats.cpu_seconds; scan_ws_peak_bytes = $mStats.ws_peak_bytes
+                recover_cpu_seconds = $rStats.cpu_seconds; recover_ws_peak_bytes = $rStats.ws_peak_bytes
             }
         }
     }
@@ -779,6 +903,84 @@ foreach ($v in $scenarioVerdicts) {
 }
 $perf | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $PerfDir 'perf-summary.json') -Encoding utf8
 Write-Host "perf summary -> $PerfDir\perf-summary.json"
+
+# ---- phase 5: the performance regression gate (session-97 T6; PERFORMANCE-TARGET §6) ----
+# The versioned baseline (bench/baseline.json, perf section) carries the driver-
+# parity rows with their tolerances. A row FAILS when the observed value violates
+# its tolerance, and FAILS TOO when the metric cannot be found in this run's
+# capture (no silent skip: a metric that stops being measured is a gate break,
+# not a pass). The baseline changes only by reviewed commit with evidence.
+$baselinePath = Join-Path $RepoRoot 'bench\baseline.json'
+$gateVerdicts = @()
+if (-not (Test-Path -LiteralPath $baselinePath)) {
+    Note 'perf gate: bench/baseline.json not found - gate skipped (recorded, never silent)'
+} else {
+    $bl = $null
+    try { $bl = Get-Content -LiteralPath $baselinePath -Raw | ConvertFrom-Json } catch { }
+    if (-not $bl -or -not $bl.perf -or -not $bl.perf.rows) {
+        Note 'perf gate: bench/baseline.json carries no perf.rows - gate skipped (recorded, never silent)'
+    } else {
+        foreach ($row in @($bl.perf.rows)) {
+            $obs = $null
+            switch ([string]$row.collection) {
+                'bench_verb' {
+                    $cands = @($cleanPerf.bench_verb | Where-Object { [string]$_.leg -eq [string]$row.leg })
+                    if ($cands.Count -gt 0) { $obs = $cands[0].([string]$row.metric) }
+                }
+                'scans' {
+                    $cands = @($cleanPerf.scans | Where-Object { [string]$_.mode -eq [string]$row.leg })
+                    if ($cands.Count -gt 0) { $obs = $cands[0].([string]$row.metric) }
+                }
+                'api' {
+                    if ($cleanPerf.api) { $obs = $cleanPerf.api.timings_ms.([string]$row.leg) }
+                }
+                'scan_cpu_ws' {
+                    # cpu_s_per_gib: scan CPU over bytes_scanned (GiB) for the leg mode
+                    $cands = @($cleanPerf.scans | Where-Object { [string]$_.mode -eq [string]$row.leg })
+                    if ($cands.Count -gt 0 -and $cands[0].cpu_seconds -ne $null -and $cands[0].bytes_scanned -gt 0) {
+                        if ([string]$row.metric -eq 'cpu_s_per_gib') {
+                            $obs = [math]::Round([double]$cands[0].cpu_seconds / ([double]$cands[0].bytes_scanned / 1GB), 1)
+                        } elseif ([string]$row.metric -eq 'ws_peak_mib') {
+                            $obs = [math]::Round([double]$cands[0].ws_peak_bytes / 1MB, 1)
+                        }
+                    }
+                }
+            }
+            $verdict = 'MISSING'
+            $limit = $null
+            $baseVal = [double]$row.value
+            $tol = [double]$row.tol_pct
+            if ([string]$row.op -eq '>=') { $limit = [math]::Round($baseVal * (1.0 - $tol / 100.0), 2) }
+            else { $limit = [math]::Round($baseVal * (1.0 + $tol / 100.0), 2) }
+            if ($null -ne $obs) {
+                if ([string]$row.op -eq '>=') { $verdict = if ([double]$obs -ge $limit) { 'PASS' } else { 'FAIL' } }
+                else { $verdict = if ([double]$obs -le $limit) { 'PASS' } else { 'FAIL' } }
+            }
+            $gateVerdicts += [ordered]@{
+                id = $row.id; collection = $row.collection; leg = $row.leg; metric = $row.metric
+                op = $row.op; baseline = $baseVal; tol_pct = $tol; limit = $limit
+                observed = $obs; verdict = $verdict; source = $row.source
+            }
+        }
+    }
+}
+if ($gateVerdicts.Count -gt 0) {
+    $gateSummary = [ordered]@{
+        captured_utc = (Get-Date).ToUniversalTime().ToString('o')
+        rule = 'driver-parity tolerances from PERFORMANCE-TARGET.md section-1; baseline changes only by reviewed commit with evidence'
+        rows = $gateVerdicts
+    }
+    $gateSummary | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $SummariesDir 'perf-gate.json') -Encoding utf8
+    $gateLines = @('', '## Performance gate (driver parity)', '', '| id | metric | baseline | limit | observed | verdict |', '|---|---|---|---|---|---|')
+    foreach ($g in $gateVerdicts) {
+        $gateLines += "| $($g.id) | $($g.metric) $($g.op) | $($g.baseline) | $($g.limit) | $($g.observed) | $($g.verdict) |"
+        if ($g.verdict -ne 'PASS') {
+            Fail "perf gate $($g.id): observed $($g.observed) $($g.op) $($g.limit) (baseline $($g.baseline), tol $($g.tol_pct)%) - $($g.source)"
+        }
+    }
+    Add-Content -Path (Join-Path $SummariesDir 'gates.md') -Value ($gateLines -join "`n") -Encoding utf8
+    $gateLines | Write-Host
+}
 
 if ($script:HardFailures.Count -gt 0) {
     Write-Host "::error::$($script:HardFailures.Count) hard gate failure(s) - see evidence/06-comparison/gates.md" -ForegroundColor Red

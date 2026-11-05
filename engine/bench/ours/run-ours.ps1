@@ -118,7 +118,27 @@ foreach ($mode in $ScanModes) {
             ForEach-Object { $_.Line.Trim() })
     }
     if (-not $modeInfo.session_exists -and -not $sr.capped) {
-        throw "scan $mode produced NO session and was not capped - refusing to continue (no silent skip)"
+        # session-97 (run 41140212296's S-PART-DELETE lesson): the no-silent-skip
+        # throw must CARRY its own diagnosis - exit code, transport lines, and the
+        # tail of both streams - so the runner log alone answers "why" even before
+        # Run-Benchmark's catch-path evidence archive lands.
+        $diag = @("scan $mode produced NO session and was not capped (exit=$($sr.exit), wall=$($sr.wall_seconds)s, capped=$($sr.capped)) - refusing to continue (no silent skip)")
+        $diag += "command: $RrecovExe $($scanArgs -join ' ')"
+        if ($modeInfo.transport_lines.Count -gt 0) {
+            $diag += "transport: $($modeInfo.transport_lines -join ' ; ')"
+        } else {
+            $diag += 'transport: (no [transport] line ever printed - the process died before the open completed)'
+        }
+        foreach ($f in @("scan-$mode.stderr", "scan-$mode.stdout")) {
+            $pp = Join-Path $OutDir $f
+            if (Test-Path -LiteralPath $pp) {
+                $diag += "--- $f (tail) ---"
+                $diag += @(Get-Content -LiteralPath $pp -Tail 8 | ForEach-Object { "  $_" })
+            } else {
+                $diag += "--- $($f): NOT CREATED ---"
+            }
+        }
+        throw ($diag -join "`n")
     }
 
     if ($modeInfo.session_exists) {
@@ -141,9 +161,11 @@ foreach ($mode in $ScanModes) {
         }
         # transport assertion (GAP-BENCH-5): the scan must actually have used the
         # direct transport - a silent fallback would measure the wrong transport
+        # (session-97: the field name tells the truth now - it asserts DIRECT,
+        # the only transport since v0.7.0; the old rda_* name was a stale label)
         if ($DriverInfo -match 'transport=direct') {
             $directLine = ($modeInfo.transport_lines | Where-Object { $_ -match 'direct raw I/O' } | Measure-Object).Count
-            $modeInfo.rda_transport_assertion = @{ expected = $true; hits = $directLine }
+            $modeInfo.direct_transport_assertion = @{ expected = $true; hits = $directLine }
             if ($directLine -lt 1) {
                 Write-Host "TRANSPORT ASSERTION FAILED for $mode - scan never used the direct transport"
             }

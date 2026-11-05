@@ -68,33 +68,61 @@ typedef struct {
 
 static void event_fn(void* user, const cr_ui_event* evt) {
     sink_t* s = (sink_t*)user;
-    if (!evt) return;
+    if (!evt)
+        return;
     switch (evt->type) {
-    case 1: InterlockedIncrement(&s->events_stage); break;
-    case 2: InterlockedIncrement(&s->events_progress); break;
-    case 3: InterlockedIncrement(&s->events_files_found); break;
-    case 4: InterlockedIncrement(&s->events_error_range); break;
-    case 5: InterlockedIncrement(&s->events_checkpoint); break;
-    case 6: InterlockedIncrement(&s->events_lost_candidate); break;
-    case 7: InterlockedIncrement(&s->events_repair); break;
-    case 8: InterlockedIncrement(&s->events_heartbeat); break;
-    case 9: InterlockedIncrement(&s->events_save_progress); break;
-    case 10: InterlockedIncrement(&s->events_fs_check); break;
-    default: InterlockedIncrement(&s->events_other); break;
+    case 1:
+        InterlockedIncrement(&s->events_stage);
+        break;
+    case 2:
+        InterlockedIncrement(&s->events_progress);
+        break;
+    case 3:
+        InterlockedIncrement(&s->events_files_found);
+        break;
+    case 4:
+        InterlockedIncrement(&s->events_error_range);
+        break;
+    case 5:
+        InterlockedIncrement(&s->events_checkpoint);
+        break;
+    case 6:
+        InterlockedIncrement(&s->events_lost_candidate);
+        break;
+    case 7:
+        InterlockedIncrement(&s->events_repair);
+        break;
+    case 8:
+        InterlockedIncrement(&s->events_heartbeat);
+        break;
+    case 9:
+        InterlockedIncrement(&s->events_save_progress);
+        break;
+    case 10:
+        InterlockedIncrement(&s->events_fs_check);
+        break;
+    default:
+        InterlockedIncrement(&s->events_other);
+        break;
     }
 }
 
 static void progress_fn(void* user, uint32_t stage, uint32_t stage_permille,
-                        uint32_t overall_permille, uint64_t bytes_done,
-                        uint64_t bytes_total, uint32_t error_ranges) {
-    (void)stage; (void)stage_permille; (void)bytes_done;
-    (void)bytes_total; (void)error_ranges;
+                        uint32_t overall_permille, uint64_t bytes_done, uint64_t bytes_total,
+                        uint32_t error_ranges) {
+    (void)stage;
+    (void)stage_permille;
+    (void)bytes_done;
+    (void)bytes_total;
+    (void)error_ranges;
     sink_t* s = (sink_t*)user;
     InterlockedExchange(&s->last_overall_permille, (LONG)overall_permille);
 }
 
 static void recovery_progress_fn(void* user, uint64_t done, uint64_t total) {
-    (void)user; (void)done; (void)total; /* recorded via stats; keep the sink trivial */
+    (void)user;
+    (void)done;
+    (void)total; /* recorded via stats; keep the sink trivial */
 }
 
 /* ---- cancel timer thread (--cancel-after) */
@@ -102,11 +130,18 @@ static void recovery_progress_fn(void* user, uint64_t done, uint64_t total) {
 typedef struct {
     cr_ui_scan* scan;
     DWORD after_ms;
+    /* session-97 T11: the Stop-press instant and the fired flag - the
+     * cancel-to-stop latency (fired_at -> scan_run return) is the
+     * cancellation-responsiveness metric the perf gate records */
+    LARGE_INTEGER fired_at;
+    int fired;
 } cancel_req_t;
 
 static DWORD WINAPI cancel_thread(LPVOID arg) {
     cancel_req_t* req = (cancel_req_t*)arg;
     Sleep(req->after_ms);
+    QueryPerformanceCounter(&req->fired_at); /* the Stop-press instant */
+    req->fired = 1;
     cr_ui_scan_cancel(req->scan);
     return 0;
 }
@@ -115,7 +150,9 @@ static DWORD WINAPI cancel_thread(LPVOID arg) {
 
 static double g_freq_inv_ms;
 static LARGE_INTEGER qpc_now(void) {
-    LARGE_INTEGER t; QueryPerformanceCounter(&t); return t;
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return t;
 }
 static double qpc_ms(LARGE_INTEGER t0, LARGE_INTEGER t1) {
     return (double)(t1.QuadPart - t0.QuadPart) * g_freq_inv_ms;
@@ -126,16 +163,21 @@ static double qpc_ms(LARGE_INTEGER t0, LARGE_INTEGER t1) {
 static void json_escape_into(FILE* f, const char* s) {
     fputc('"', f);
     for (const unsigned char* p = (const unsigned char*)s; *p; p++) {
-        if (*p == '"' || *p == '\\') { fputc('\\', f); fputc(*p, f); }
-        else if (*p < 0x20) fprintf(f, "\\u%04x", *p);
-        else fputc(*p, f);
+        if (*p == '"' || *p == '\\') {
+            fputc('\\', f);
+            fputc(*p, f);
+        } else if (*p < 0x20)
+            fprintf(f, "\\u%04x", *p);
+        else
+            fputc(*p, f);
     }
     fputc('"', f);
 }
 
 static int write_text_file(const char* path, const char* content) {
     FILE* f = fopen(path, "wb");
-    if (!f) return -1;
+    if (!f)
+        return -1;
     fputs(content, f);
     fclose(f);
     return 0;
@@ -156,56 +198,76 @@ static int mode_carve_count(void) {
     for (uint32_t i = 0; i < n; i++) {
         cr_ui_carve_format fmt;
         memset(&fmt, 0, sizeof(fmt));
-        if (cr_ui_carve_format_info(i, &fmt) == CR_UI_OK) readable++;
+        if (cr_ui_carve_format_info(i, &fmt) == CR_UI_OK)
+            readable++;
     }
     printf("{\"harness\":\"carve-count\",\"carve_formats\":%lu,\"readable\":%lu}\n",
            (unsigned long)n, (unsigned long)readable);
-    if (n == 0 || readable != n) return HARNESS_FAIL;
+    if (n == 0 || readable != n)
+        return HARNESS_FAIL;
     return HARNESS_OK;
 }
 
 static int mode_user_signs(const char* file) {
     FILE* f = fopen(file, "rb");
-    if (!f) { printf("{\"harness\":\"user-signs\",\"error\":\"cannot open file\"}\n"); return HARNESS_FAIL; }
+    if (!f) {
+        printf("{\"harness\":\"user-signs\",\"error\":\"cannot open file\"}\n");
+        return HARNESS_FAIL;
+    }
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (len <= 0 || len > 8 * 1024 * 1024) { fclose(f); printf("{\"harness\":\"user-signs\",\"error\":\"bad size\"}\n"); return HARNESS_FAIL; }
+    if (len <= 0 || len > 8 * 1024 * 1024) {
+        fclose(f);
+        printf("{\"harness\":\"user-signs\",\"error\":\"bad size\"}\n");
+        return HARNESS_FAIL;
+    }
     char* buf = (char*)malloc((size_t)len + 1);
-    if (!buf) { fclose(f); return HARNESS_FAIL; }
+    if (!buf) {
+        fclose(f);
+        return HARNESS_FAIL;
+    }
     size_t got = fread(buf, 1, (size_t)len, f);
     fclose(f);
-    if (got != (size_t)len) { free(buf); return HARNESS_FAIL; }
+    if (got != (size_t)len) {
+        free(buf);
+        return HARNESS_FAIL;
+    }
     buf[len] = 0;
     uint32_t rc = cr_ui_register_user_signs(buf, (uint32_t)len);
     free(buf);
     uint32_t n = cr_ui_user_sign_count();
     printf("{\"harness\":\"user-signs\",\"register_rc\":%lu,\"registered\":%lu}\n",
            (unsigned long)rc, (unsigned long)n);
-    if (rc != CR_UI_OK) return HARNESS_FAIL;
+    if (rc != CR_UI_OK)
+        return HARNESS_FAIL;
     return HARNESS_OK;
 }
 
 /* ---- the scan lifecycle (shared by --scan and --resume) */
 
 typedef struct {
-    const char* target;      /* "volume" | "disk" */
-    const char* letter;      /* single char for volume */
-    uint32_t disk;           /* disk number for disk target */
+    const char* target; /* "volume" | "disk" */
+    const char* letter; /* single char for volume */
+    uint32_t disk;      /* disk number for disk target */
     int whole_disk;
-    const char* dest;        /* recovery destination */
-    const char* out_dir;     /* evidence out dir */
-    const char* label;       /* scenario label for the report */
+    const char* dest;    /* recovery destination */
+    const char* out_dir; /* evidence out dir */
+    const char* label;   /* scenario label for the report */
     uint32_t stage_mask;
     uint32_t threads;
-    DWORD cancel_after_ms;   /* 0 = no cancel probe */
+    DWORD cancel_after_ms; /* 0 = no cancel probe */
 } run_cfg_t;
 
 static int ensure_dir(const char* path) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s", path);
     for (char* p = buf + 1; *p; p++) {
-        if (*p == '\\' || *p == '/') { *p = 0; CreateDirectoryA(buf, NULL); *p = '\\'; }
+        if (*p == '\\' || *p == '/') {
+            *p = 0;
+            CreateDirectoryA(buf, NULL);
+            *p = '\\';
+        }
     }
     CreateDirectoryA(buf, NULL);
     return 1;
@@ -257,30 +319,56 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     if (resumed_session) {
         rc = cr_ui_session_resume(resumed_session, &scfg, &scan);
         if (rc != CR_UI_OK) {
-            printf("{\"harness\":\"scan\",\"error\":\"session_resume failed\",\"rc\":%lu}\n", (unsigned long)rc);
+            printf("{\"harness\":\"scan\",\"error\":\"session_resume failed\",\"rc\":%lu}\n",
+                   (unsigned long)rc);
             cr_ui_device_close(dev);
             return HARNESS_FAIL;
         }
         rc = cr_ui_scan_attach_device(scan, dev);
-        if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"attach failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_scan_close(scan); cr_ui_device_close(dev); return HARNESS_FAIL; }
+        if (rc != CR_UI_OK) {
+            printf("{\"harness\":\"scan\",\"error\":\"attach failed\",\"rc\":%lu}\n",
+                   (unsigned long)rc);
+            cr_ui_scan_close(scan);
+            cr_ui_device_close(dev);
+            return HARNESS_FAIL;
+        }
         rc = cr_ui_scan_verify_identity(scan); /* must match (same volume) or BAD_CHECKSUM */
         if (rc == CR_UI_ERR_BAD_CHECKSUM) {
             printf("{\"harness\":\"scan\",\"error\":\"identity mismatch on resume\"}\n");
-            cr_ui_scan_close(scan); cr_ui_device_close(dev);
+            cr_ui_scan_close(scan);
+            cr_ui_device_close(dev);
             return HARNESS_FAIL;
         }
     } else {
         rc = cr_ui_scan_create(&scfg, &scan);
-        if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"scan_create failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_device_close(dev); return HARNESS_FAIL; }
+        if (rc != CR_UI_OK) {
+            printf("{\"harness\":\"scan\",\"error\":\"scan_create failed\",\"rc\":%lu}\n",
+                   (unsigned long)rc);
+            cr_ui_device_close(dev);
+            return HARNESS_FAIL;
+        }
         rc = cr_ui_scan_attach_device(scan, dev);
-        if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"attach failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_scan_close(scan); cr_ui_device_close(dev); return HARNESS_FAIL; }
+        if (rc != CR_UI_OK) {
+            printf("{\"harness\":\"scan\",\"error\":\"attach failed\",\"rc\":%lu}\n",
+                   (unsigned long)rc);
+            cr_ui_scan_close(scan);
+            cr_ui_device_close(dev);
+            return HARNESS_FAIL;
+        }
         rc = cr_ui_scan_set_event_fn(scan, event_fn, &sink);
-        if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"set_event_fn failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_scan_close(scan); cr_ui_device_close(dev); return HARNESS_FAIL; }
+        if (rc != CR_UI_OK) {
+            printf("{\"harness\":\"scan\",\"error\":\"set_event_fn failed\",\"rc\":%lu}\n",
+                   (unsigned long)rc);
+            cr_ui_scan_close(scan);
+            cr_ui_device_close(dev);
+            return HARNESS_FAIL;
+        }
     }
 
     /* optional cancel probe thread */
     HANDLE cancel_thread_h = NULL;
     cancel_req_t cancel_req;
+    memset(&cancel_req, 0, sizeof(cancel_req));
     if (cfg->cancel_after_ms > 0 && !resumed_session) {
         cancel_req.scan = scan;
         cancel_req.after_ms = cfg->cancel_after_ms;
@@ -297,10 +385,14 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
                (unsigned long)rc);
         json_escape_into(stdout, cr_ui_last_error());
         printf("}\n");
-        cr_ui_scan_close(scan); cr_ui_device_close(dev);
+        cr_ui_scan_close(scan);
+        cr_ui_device_close(dev);
         return HARNESS_FAIL;
     }
-    if (cancel_thread_h) { WaitForSingleObject(cancel_thread_h, INFINITE); CloseHandle(cancel_thread_h); }
+    if (cancel_thread_h) {
+        WaitForSingleObject(cancel_thread_h, INFINITE);
+        CloseHandle(cancel_thread_h);
+    }
 
     /* ---- stats + telemetry + assistant */
     cr_ui_scan_stats stats;
@@ -321,7 +413,8 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     cr_ui_scan_close(scan);
     scan = NULL;
     if (save_rc != CR_UI_OK) {
-        printf("{\"harness\":\"scan\",\"error\":\"save_session failed\",\"rc\":%lu}\n", (unsigned long)save_rc);
+        printf("{\"harness\":\"scan\",\"error\":\"save_session failed\",\"rc\":%lu}\n",
+               (unsigned long)save_rc);
         cr_ui_device_close(dev);
         return HARNESS_FAIL;
     }
@@ -330,7 +423,8 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     cr_ui_session* sess = NULL;
     rc = cr_ui_session_load(path, &sess);
     if (rc != CR_UI_OK) {
-        printf("{\"harness\":\"scan\",\"error\":\"session_load failed\",\"rc\":%lu}\n", (unsigned long)rc);
+        printf("{\"harness\":\"scan\",\"error\":\"session_load failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
         cr_ui_device_close(dev);
         return HARNESS_FAIL;
     }
@@ -348,8 +442,18 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     uint32_t row_count = 0;
     uint64_t total_all = 0;
     rc = cr_ui_query_run(sess, &q_all, &rows, &row_count, &total_all);
-    if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"query(all) failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_session_close(sess); cr_ui_device_close(dev); return HARNESS_FAIL; }
-    if (rows) { cr_ui_query_rows_free(rows, row_count); rows = NULL; row_count = 0; }
+    if (rc != CR_UI_OK) {
+        printf("{\"harness\":\"scan\",\"error\":\"query(all) failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
+        cr_ui_session_close(sess);
+        cr_ui_device_close(dev);
+        return HARNESS_FAIL;
+    }
+    if (rows) {
+        cr_ui_query_rows_free(rows, row_count);
+        rows = NULL;
+        row_count = 0;
+    }
 
     cr_ui_query q_del;
     memset(&q_del, 0, sizeof(q_del));
@@ -357,8 +461,18 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     q_del.count_only = 1;
     uint64_t total_deleted = 0;
     rc = cr_ui_query_run(sess, &q_del, &rows, &row_count, &total_deleted);
-    if (rc != CR_UI_OK) { printf("{\"harness\":\"scan\",\"error\":\"query(deleted) failed\",\"rc\":%lu}\n", (unsigned long)rc); cr_ui_session_close(sess); cr_ui_device_close(dev); return HARNESS_FAIL; }
-    if (rows) { cr_ui_query_rows_free(rows, row_count); rows = NULL; row_count = 0; }
+    if (rc != CR_UI_OK) {
+        printf("{\"harness\":\"scan\",\"error\":\"query(deleted) failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
+        cr_ui_session_close(sess);
+        cr_ui_device_close(dev);
+        return HARNESS_FAIL;
+    }
+    if (rows) {
+        cr_ui_query_rows_free(rows, row_count);
+        rows = NULL;
+        row_count = 0;
+    }
 
     /* sample rows (first 100, any order) for the evidence record */
     cr_ui_query q_sample;
@@ -370,7 +484,8 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     char sample_first_path[512] = "";
     uint64_t sample_first_node = 0;
     if (rc == CR_UI_OK && row_count > 0) {
-        snprintf(sample_first_path, sizeof(sample_first_path), "%s", rows[0].path ? rows[0].path : "");
+        snprintf(sample_first_path, sizeof(sample_first_path), "%s",
+                 rows[0].path ? rows[0].path : "");
         sample_first_node = rows[0].node_id;
     }
 
@@ -379,8 +494,10 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     uint64_t preview_size = 0;
     uint32_t preview_placed = 0;
     char preview_kind[24] = "";
+    double preview_probe_ms = 0.0; /* session-97 T10: the interactive-surface TTFB row */
     cr_ui_preview* pv = NULL;
     {
+        LARGE_INTEGER t_pv0 = qpc_now();
         cr_ui_query q_del_row;
         memset(&q_del_row, 0, sizeof(q_del_row));
         q_del_row.deleted_only = 1;
@@ -394,7 +511,8 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
                 memset(&meta, 0, sizeof(meta));
                 cr_ui_preview_size(pv, &preview_size);
                 unsigned char buf[4096];
-                if (cr_ui_preview_read(pv, 0, buf, (uint32_t)sizeof(buf), &preview_placed) == CR_UI_OK)
+                if (cr_ui_preview_read(pv, 0, buf, (uint32_t)sizeof(buf), &preview_placed) ==
+                    CR_UI_OK)
                     preview_ok = 1;
                 if (cr_ui_preview_metadata(pv, &meta) == CR_UI_OK)
                     snprintf(preview_kind, sizeof(preview_kind), "%s", meta.kind);
@@ -402,27 +520,35 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
             }
             cr_ui_query_rows_free(drows, dcount);
         }
+        preview_probe_ms = qpc_ms(t_pv0, qpc_now());
     }
 
     /* ---- recovery: everything, hash-verify ON (the default config) */
     LARGE_INTEGER t_rec0 = qpc_now();
     cr_ui_recovery_config rcfg;
-    memset(&rcfg, 0, sizeof(rcfg)); /* 0 = defaults: 1 MiB chunks, rename conflicts, hash verify ON */
+    memset(&rcfg, 0,
+           sizeof(rcfg)); /* 0 = defaults: 1 MiB chunks, rename conflicts, hash verify ON */
     rcfg.progress = recovery_progress_fn;
     cr_ui_recovery* rec = NULL;
     rc = cr_ui_recovery_create(dev, &rcfg, &rec);
     if (rc != CR_UI_OK) {
-        printf("{\"harness\":\"scan\",\"error\":\"recovery_create failed\",\"rc\":%lu}\n", (unsigned long)rc);
-        if (rows) cr_ui_query_rows_free(rows, row_count);
-        cr_ui_session_close(sess); cr_ui_device_close(dev);
+        printf("{\"harness\":\"scan\",\"error\":\"recovery_create failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
+        if (rows)
+            cr_ui_query_rows_free(rows, row_count);
+        cr_ui_session_close(sess);
+        cr_ui_device_close(dev);
         return HARNESS_FAIL;
     }
     rc = cr_ui_recovery_set_destination(rec, cfg->dest);
     if (rc != CR_UI_OK) {
-        printf("{\"harness\":\"scan\",\"error\":\"set_destination failed\",\"rc\":%lu}\n", (unsigned long)rc);
+        printf("{\"harness\":\"scan\",\"error\":\"set_destination failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
         cr_ui_recovery_close(rec);
-        if (rows) cr_ui_query_rows_free(rows, row_count);
-        cr_ui_session_close(sess); cr_ui_device_close(dev);
+        if (rows)
+            cr_ui_query_rows_free(rows, row_count);
+        cr_ui_session_close(sess);
+        cr_ui_device_close(dev);
         return HARNESS_FAIL;
     }
 
@@ -466,17 +592,20 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     }
     cr_ui_recovery_close(rec);
 
-    if (rows) cr_ui_query_rows_free(rows, row_count);
+    if (rows)
+        cr_ui_query_rows_free(rows, row_count);
     cr_ui_session_close(sess);
     cr_ui_device_close(dev);
 
     /* partial = the CLI recover exit-2 shape: errors or hash mismatch */
     if (proc_rc == CR_UI_OK) {
-        if (rstats.errors > 0 || rstats.hash_mismatch > 0) exit_code = HARNESS_PARTIAL;
+        if (rstats.errors > 0 || rstats.hash_mismatch > 0)
+            exit_code = HARNESS_PARTIAL;
     } else if (proc_rc == CR_UI_ERR_CANCELLED) {
         exit_code = HARNESS_PARTIAL;
     } else {
-        printf("{\"harness\":\"scan\",\"error\":\"recovery_process failed\",\"rc\":%lu}\n", (unsigned long)proc_rc);
+        printf("{\"harness\":\"scan\",\"error\":\"recovery_process failed\",\"rc\":%lu}\n",
+               (unsigned long)proc_rc);
         return HARNESS_FAIL;
     }
 
@@ -484,68 +613,104 @@ static int run_scan_lifecycle(const run_cfg_t* cfg, cr_ui_session* resumed_sessi
     LARGE_INTEGER t_total1 = qpc_now();
     snprintf(path, sizeof(path), "%s\\api-result.json", cfg->out_dir);
     FILE* f = fopen(path, "wb");
-    if (!f) return HARNESS_FAIL;
+    if (!f)
+        return HARNESS_FAIL;
     fprintf(f, "{\n");
     fprintf(f, "  \"harness\": \"cr_ui-api-lane\",\n");
-    fprintf(f, "  \"label\": "); json_escape_into(f, cfg->label); fprintf(f, ",\n");
+    fprintf(f, "  \"label\": ");
+    json_escape_into(f, cfg->label);
+    fprintf(f, ",\n");
     fprintf(f, "  \"target\": \"%s\", \"whole_disk\": %s, \"stage_mask\": %lu, \"threads\": %lu,\n",
-            cfg->target, cfg->whole_disk ? "true" : "false",
-            (unsigned long)cfg->stage_mask, (unsigned long)cfg->threads);
-    fprintf(f, "  \"transport\": "); json_escape_into(f, transport); fprintf(f, ",\n");
-    fprintf(f, "  \"geometry\": {\"total_bytes\": %llu, \"logical_sector\": %lu, \"physical_sector\": %lu, \"sector_count\": %llu},\n",
+            cfg->target, cfg->whole_disk ? "true" : "false", (unsigned long)cfg->stage_mask,
+            (unsigned long)cfg->threads);
+    fprintf(f, "  \"transport\": ");
+    json_escape_into(f, transport);
+    fprintf(f, ",\n");
+    fprintf(f,
+            "  \"geometry\": {\"total_bytes\": %llu, \"logical_sector\": %lu, \"physical_sector\": "
+            "%lu, \"sector_count\": %llu},\n",
             (unsigned long long)geo.total_bytes, (unsigned long)geo.logical_sector,
             (unsigned long)geo.physical_sector, (unsigned long long)geo.sector_count);
-    fprintf(f, "  \"session_info\": {\"fs_family\": %lu, \"stage_done_mask\": %lu, \"configured_mask\": %lu, \"scanned_bytes\": %llu, \"elapsed_ms\": %llu, \"boot_hash\": %lu},\n",
-            (unsigned long)info.fs_family, (unsigned long)info.stage_done_mask,
-            (unsigned long)info.configured_mask, (unsigned long long)info.scanned_bytes,
-            (unsigned long long)info.elapsed_ms, (unsigned long)info.boot_hash);
+    fprintf(
+        f,
+        "  \"session_info\": {\"fs_family\": %lu, \"stage_done_mask\": %lu, \"configured_mask\": "
+        "%lu, \"scanned_bytes\": %llu, \"elapsed_ms\": %llu, \"boot_hash\": %lu},\n",
+        (unsigned long)info.fs_family, (unsigned long)info.stage_done_mask,
+        (unsigned long)info.configured_mask, (unsigned long long)info.scanned_bytes,
+        (unsigned long long)info.elapsed_ms, (unsigned long)info.boot_hash);
     fprintf(f, "  \"cancelled\": %s,\n", cancelled ? "true" : "false");
-    fprintf(f, "  \"timings_ms\": {\"open\": %.1f, \"scan_run\": %.1f, \"save_session\": %.1f, \"query\": %.1f, \"recovery\": %.1f, \"total\": %.1f},\n",
-            qpc_ms(t_open0, t_open1), qpc_ms(t_scan_run0, t_scan_run1),
-            qpc_ms(t_save0, t_save1), qpc_ms(t_query0, t_query1),
-            qpc_ms(t_rec0, t_rec1), qpc_ms(t_total0, t_total1));
-    fprintf(f, "  \"scan_stats\": {\"files_found\": %llu, \"deleted_found\": %llu, \"carved_found\": %llu, \"lost_partitions\": %llu, \"bytes_scanned\": %llu, \"bytes_unreadable\": %llu, \"elapsed_ms\": %llu, \"error_ranges\": %lu, \"probe_unreadable\": %lu},\n",
+    /* session-97 T11: time from the cancel call (the Stop press) to scan_run
+     * returning - the cancellation-responsiveness metric. null when the
+     * cancel probe was not armed (a normal scan). */
+    if (cancel_req.fired) {
+        fprintf(f, "  \"cancel_to_stop_ms\": %.1f,\n", qpc_ms(cancel_req.fired_at, t_scan_run1));
+    } else {
+        fprintf(f, "  \"cancel_to_stop_ms\": null,\n");
+    }
+    fprintf(f,
+            "  \"timings_ms\": {\"open\": %.1f, \"scan_run\": %.1f, \"save_session\": %.1f, "
+            "\"query\": %.1f, \"recovery\": %.1f, \"total\": %.1f},\n",
+            qpc_ms(t_open0, t_open1), qpc_ms(t_scan_run0, t_scan_run1), qpc_ms(t_save0, t_save1),
+            qpc_ms(t_query0, t_query1), qpc_ms(t_rec0, t_rec1), qpc_ms(t_total0, t_total1));
+    fprintf(f,
+            "  \"scan_stats\": {\"files_found\": %llu, \"deleted_found\": %llu, \"carved_found\": "
+            "%llu, \"lost_partitions\": %llu, \"bytes_scanned\": %llu, \"bytes_unreadable\": %llu, "
+            "\"elapsed_ms\": %llu, \"error_ranges\": %lu, \"probe_unreadable\": %lu},\n",
             (unsigned long long)stats.files_found, (unsigned long long)stats.deleted_found,
             (unsigned long long)stats.carved_found, (unsigned long long)stats.lost_partitions,
             (unsigned long long)stats.bytes_scanned, (unsigned long long)stats.bytes_unreadable,
             (unsigned long long)stats.elapsed_ms, (unsigned long)stats.error_ranges,
             (unsigned long)stats.probe_unreadable);
-    fprintf(f, "  \"telemetry\": {\"overall_permille\": %lu, \"bytes_scanned\": %llu, \"elapsed_ms\": %llu},\n",
+    fprintf(f,
+            "  \"telemetry\": {\"overall_permille\": %lu, \"bytes_scanned\": %llu, \"elapsed_ms\": "
+            "%llu},\n",
             (unsigned long)sink.last_overall_permille, (unsigned long long)tel.bytes_scanned,
             (unsigned long long)tel.elapsed_ms);
-    fprintf(f, "  \"assistant\": {\"total_file_count\": %llu, \"matched\": %llu, \"total\": %llu, \"small_result\": %lu, \"graded_count\": %llu},\n",
+    fprintf(f,
+            "  \"assistant\": {\"total_file_count\": %llu, \"matched\": %llu, \"total\": %llu, "
+            "\"small_result\": %lu, \"graded_count\": %llu},\n",
             (unsigned long long)assist.total_file_count, (unsigned long long)assist.matched,
             (unsigned long long)assist.total, (unsigned long)assist.small_result,
             (unsigned long long)assist.graded_count);
-    fprintf(f, "  \"events\": {\"stage\": %ld, \"progress\": %ld, \"files_found\": %ld, \"error_range\": %ld, \"checkpoint\": %ld, \"lost_candidate\": %ld, \"repair\": %ld, \"heartbeat\": %ld, \"save_progress\": %ld, \"fs_check\": %ld, \"other\": %ld},\n",
+    fprintf(f,
+            "  \"events\": {\"stage\": %ld, \"progress\": %ld, \"files_found\": %ld, "
+            "\"error_range\": %ld, \"checkpoint\": %ld, \"lost_candidate\": %ld, \"repair\": %ld, "
+            "\"heartbeat\": %ld, \"save_progress\": %ld, \"fs_check\": %ld, \"other\": %ld},\n",
             (long)sink.events_stage, (long)sink.events_progress, (long)sink.events_files_found,
             (long)sink.events_error_range, (long)sink.events_checkpoint,
-            (long)sink.events_lost_candidate, (long)sink.events_repair,
-            (long)sink.events_heartbeat, (long)sink.events_save_progress,
-            (long)sink.events_fs_check, (long)sink.events_other);
-    fprintf(f, "  \"query\": {\"total_all\": %llu, \"total_deleted\": %llu, \"sample_first_path\": ",
+            (long)sink.events_lost_candidate, (long)sink.events_repair, (long)sink.events_heartbeat,
+            (long)sink.events_save_progress, (long)sink.events_fs_check, (long)sink.events_other);
+    fprintf(f,
+            "  \"query\": {\"total_all\": %llu, \"total_deleted\": %llu, \"sample_first_path\": ",
             (unsigned long long)total_all, (unsigned long long)total_deleted);
     json_escape_into(f, sample_first_path);
     fprintf(f, ", \"sample_first_node_id\": %llu},\n", (unsigned long long)sample_first_node);
-    fprintf(f, "  \"preview\": {\"ok\": %s, \"size\": %llu, \"read_placed\": %lu, \"kind\": ",
-            preview_ok ? "true" : "false", (unsigned long long)preview_size,
+    fprintf(f,
+            "  \"preview\": {\"ok\": %s, \"probe_ms\": %.1f, \"size\": %llu, \"read_placed\": %lu, "
+            "\"kind\": ",
+            preview_ok ? "true" : "false", preview_probe_ms, (unsigned long long)preview_size,
             (unsigned long)preview_placed);
     json_escape_into(f, preview_kind);
     fprintf(f, "},\n");
-    fprintf(f, "  \"recovery\": {\"process_rc\": %lu, \"queued_roots\": %lu, \"queued\": %llu, \"done\": %llu, \"dirs\": %llu, \"refused\": %llu, \"errors\": %llu, \"hash_mismatch\": %llu, \"resumed\": %llu, \"salvaged\": %llu, \"nothing_to_recover\": %llu},\n",
-            (unsigned long)proc_rc, (unsigned long)queued_roots,
-            (unsigned long long)rstats.queued, (unsigned long long)rstats.done,
-            (unsigned long long)rstats.dirs, (unsigned long long)rstats.refused,
-            (unsigned long long)rstats.errors, (unsigned long long)rstats.hash_mismatch,
-            (unsigned long long)rstats.resumed, (unsigned long long)rstats.salvaged,
-            (unsigned long long)rstats.nothing_to_recover);
+    fprintf(
+        f,
+        "  \"recovery\": {\"process_rc\": %lu, \"queued_roots\": %lu, \"queued\": %llu, \"done\": "
+        "%llu, \"dirs\": %llu, \"refused\": %llu, \"errors\": %llu, \"hash_mismatch\": %llu, "
+        "\"resumed\": %llu, \"salvaged\": %llu, \"nothing_to_recover\": %llu},\n",
+        (unsigned long)proc_rc, (unsigned long)queued_roots, (unsigned long long)rstats.queued,
+        (unsigned long long)rstats.done, (unsigned long long)rstats.dirs,
+        (unsigned long long)rstats.refused, (unsigned long long)rstats.errors,
+        (unsigned long long)rstats.hash_mismatch, (unsigned long long)rstats.resumed,
+        (unsigned long long)rstats.salvaged, (unsigned long long)rstats.nothing_to_recover);
     fprintf(f, "  \"report\": {\"rc\": %lu, \"path\": ", (unsigned long)report_rc);
     json_escape_into(f, report_path);
     fprintf(f, "}\n}\n");
     fclose(f);
-    printf("api-lane complete: exit=%d queued=%llu done=%llu errors=%llu hash_mismatch=%llu (result: %s\\api-result.json)\n",
+    printf("api-lane complete: exit=%d queued=%llu done=%llu errors=%llu hash_mismatch=%llu "
+           "(result: %s\\api-result.json)\n",
            exit_code, (unsigned long long)rstats.queued, (unsigned long long)rstats.done,
-           (unsigned long long)rstats.errors, (unsigned long long)rstats.hash_mismatch, cfg->out_dir);
+           (unsigned long long)rstats.errors, (unsigned long long)rstats.hash_mismatch,
+           cfg->out_dir);
     return exit_code;
 }
 
@@ -555,7 +720,8 @@ static int mode_resume(const char* session_path, const run_cfg_t* cfg) {
     cr_ui_session* sess = NULL;
     uint32_t rc = cr_ui_session_load(session_path, &sess);
     if (rc != CR_UI_OK) {
-        printf("{\"harness\":\"resume\",\"error\":\"session_load failed\",\"rc\":%lu}\n", (unsigned long)rc);
+        printf("{\"harness\":\"resume\",\"error\":\"session_load failed\",\"rc\":%lu}\n",
+               (unsigned long)rc);
         return HARNESS_FAIL;
     }
     run_cfg_t cfg2 = *cfg;
@@ -571,21 +737,28 @@ int main(int argc, char** argv) {
     g_freq_inv_ms = 1000.0 / (double)freq.QuadPart;
 
     if (argc < 2) {
-        fprintf(stderr,
-                "usage: api_harness --abi-version | --carve-count\n"
-                "       api_harness --user-signs <json-file>\n"
-                "       api_harness --scan --target volume --letter Y --dest D --out O\n"
-                "                    [--stages quick|deep|deepcarve|all] [--threads N]\n"
-                "                    [--cancel-after SECONDS] [--label STR]\n"
-                "       api_harness --scan --target disk --disk N --whole-disk --dest D --out O [...]\n"
-                "       api_harness --resume --session F --target volume --letter Y --dest D --out O\n");
+        fprintf(
+            stderr,
+            "usage: api_harness --abi-version | --carve-count\n"
+            "       api_harness --user-signs <json-file>\n"
+            "       api_harness --scan --target volume --letter Y --dest D --out O\n"
+            "                    [--stages quick|deep|deepcarve|all] [--threads N]\n"
+            "                    [--cancel-after SECONDS] [--label STR]\n"
+            "       api_harness --scan --target disk --disk N --whole-disk --dest D --out O [...]\n"
+            "       api_harness --resume --session F --target volume --letter Y --dest D --out "
+            "O\n");
         return HARNESS_FAIL;
     }
 
-    if (strcmp(argv[1], "--abi-version") == 0) return mode_abi_version();
-    if (strcmp(argv[1], "--carve-count") == 0) return mode_carve_count();
+    if (strcmp(argv[1], "--abi-version") == 0)
+        return mode_abi_version();
+    if (strcmp(argv[1], "--carve-count") == 0)
+        return mode_carve_count();
     if (strcmp(argv[1], "--user-signs") == 0) {
-        if (argc < 3) { fprintf(stderr, "--user-signs needs a file\n"); return HARNESS_FAIL; }
+        if (argc < 3) {
+            fprintf(stderr, "--user-signs needs a file\n");
+            return HARNESS_FAIL;
+        }
         return mode_user_signs(argv[2]);
     }
 
@@ -604,25 +777,44 @@ int main(int argc, char** argv) {
     const char* session_path = NULL;
 
     for (int i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "--target") == 0 && i + 1 < argc) cfg.target = argv[++i];
-        else if (strcmp(argv[i], "--letter") == 0 && i + 1 < argc) cfg.letter = argv[++i];
-        else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) cfg.disk = (uint32_t)strtoul(argv[++i], NULL, 10);
-        else if (strcmp(argv[i], "--whole-disk") == 0) cfg.whole_disk = 1;
-        else if (strcmp(argv[i], "--dest") == 0 && i + 1 < argc) cfg.dest = argv[++i];
-        else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) cfg.out_dir = argv[++i];
-        else if (strcmp(argv[i], "--label") == 0 && i + 1 < argc) cfg.label = argv[++i];
-        else if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc) cfg.threads = (uint32_t)strtoul(argv[++i], NULL, 10);
-        else if (strcmp(argv[i], "--cancel-after") == 0 && i + 1 < argc) cfg.cancel_after_ms = (DWORD)(strtoul(argv[++i], NULL, 10) * 1000);
+        if (strcmp(argv[i], "--target") == 0 && i + 1 < argc)
+            cfg.target = argv[++i];
+        else if (strcmp(argv[i], "--letter") == 0 && i + 1 < argc)
+            cfg.letter = argv[++i];
+        else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc)
+            cfg.disk = (uint32_t)strtoul(argv[++i], NULL, 10);
+        else if (strcmp(argv[i], "--whole-disk") == 0)
+            cfg.whole_disk = 1;
+        else if (strcmp(argv[i], "--dest") == 0 && i + 1 < argc)
+            cfg.dest = argv[++i];
+        else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc)
+            cfg.out_dir = argv[++i];
+        else if (strcmp(argv[i], "--label") == 0 && i + 1 < argc)
+            cfg.label = argv[++i];
+        else if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc)
+            cfg.threads = (uint32_t)strtoul(argv[++i], NULL, 10);
+        else if (strcmp(argv[i], "--cancel-after") == 0 && i + 1 < argc)
+            cfg.cancel_after_ms = (DWORD)(strtoul(argv[++i], NULL, 10) * 1000);
         else if (strcmp(argv[i], "--stages") == 0 && i + 1 < argc) {
             const char* s = argv[++i];
-            if (strcmp(s, "quick") == 0) cfg.stage_mask = 1;
-            else if (strcmp(s, "deep") == 0) cfg.stage_mask = 3; /* quick+deep (the CLI --no-carve shape) */
-            else if (strcmp(s, "deepcarve") == 0) cfg.stage_mask = 7;
-            else if (strcmp(s, "all") == 0) cfg.stage_mask = 7;
-            else { fprintf(stderr, "unknown --stages value: %s\n", s); return HARNESS_FAIL; }
+            if (strcmp(s, "quick") == 0)
+                cfg.stage_mask = 1;
+            else if (strcmp(s, "deep") == 0)
+                cfg.stage_mask = 3; /* quick+deep (the CLI --no-carve shape) */
+            else if (strcmp(s, "deepcarve") == 0)
+                cfg.stage_mask = 7;
+            else if (strcmp(s, "all") == 0)
+                cfg.stage_mask = 7;
+            else {
+                fprintf(stderr, "unknown --stages value: %s\n", s);
+                return HARNESS_FAIL;
+            }
+        } else if (strcmp(argv[i], "--session") == 0 && i + 1 < argc)
+            session_path = argv[++i];
+        else {
+            fprintf(stderr, "unknown argument: %s\n", argv[i]);
+            return HARNESS_FAIL;
         }
-        else if (strcmp(argv[i], "--session") == 0 && i + 1 < argc) session_path = argv[++i];
-        else { fprintf(stderr, "unknown argument: %s\n", argv[i]); return HARNESS_FAIL; }
     }
 
     if (!cfg.target || !cfg.dest || !cfg.out_dir) {
@@ -630,7 +822,10 @@ int main(int argc, char** argv) {
         return HARNESS_FAIL;
     }
     if (strcmp(cfg.target, "volume") == 0) {
-        if (!cfg.letter || !cfg.letter[0]) { fprintf(stderr, "--letter is required for volume targets\n"); return HARNESS_FAIL; }
+        if (!cfg.letter || !cfg.letter[0]) {
+            fprintf(stderr, "--letter is required for volume targets\n");
+            return HARNESS_FAIL;
+        }
     } else if (strcmp(cfg.target, "disk") == 0) {
         /* disk number defaults handled above; letter unused */
     } else {
@@ -644,6 +839,7 @@ int main(int argc, char** argv) {
     ensure_dir(cfg.out_dir);
     ensure_dir(cfg.dest);
 
-    if (is_resume) return mode_resume(session_path, &cfg);
+    if (is_resume)
+        return mode_resume(session_path, &cfg);
     return run_scan_lifecycle(&cfg, NULL);
 }
