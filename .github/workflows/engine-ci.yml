@@ -209,11 +209,12 @@ jobs:
                           n += 1
                           stem = re.sub(r'[^A-Za-z0-9_.-]+', '_',
                               '%s-%s' % (jname, str(step.get('name', 'step'))[:40]))[:100]
-                          # GitHub substitutes ${{ ... }} expressions BEFORE the
+                          # GitHub substitutes its expression syntax BEFORE the
                           # shell parses the script - simulate that with a benign
                           # literal so the AST gate sees the script the runner
                           # would actually parse (run 42069198291: the gate
-                          # false-positived on '${{' as an illegal PS variable).
+                          # false-positived on the raw dollar-curly expression
+                          # as an illegal PS variable).
                           run = re.sub(r'\$\{\{[^}]*\}\}', 'GH_EXPRESSION', run)
                           with open(os.path.join(blocks, '%03d-%s.ps1' % (n, stem)),
                                     'w', encoding='utf-8') as f:
