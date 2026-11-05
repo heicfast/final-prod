@@ -1602,3 +1602,50 @@ ANSWERS any consent modal) is dispatched once the release assets exist.
 - Cosmetic: run 40488313774 (forensic auto-trigger on the workflow-file
   commit) failed on the release-not-yet-existing race — expected, and
   the dispatched run supersedes it.
+
+---
+
+## Session start (consolidation: driver removal + core re-merge + UI rewiring) — T1
+
+Session mandate (full prompt archived, token redacted, at
+`worklog/session-consolidation-prompt.md`): remove the kernel driver
+entirely, advance engine/ to the current core_recovery, re-merge
+recovery-wizard-ui-new (v3) as ui/ wiping the driver-era UI modifications,
+rewire the UI to the current core's real contract (no mocks), update every
+workflow, cut and validate a new release.
+
+### Repositories recorded at session start
+
+| Repo | Branch | Commit | Files |
+|---|---|---|---|
+| final-prod (target) | main | aa388e2ebd8e55e72dddc1555392f007b411f99d | 1306 |
+| core_recovery (merge source) | main | 12f3edf7cb2411dcfd5bc18c9ca57d3705d79ec3 | 2646 |
+| recovery-wizard-ui-new (UI re-merge source) | v3 (default) | dd2782cf2a37a2ad80ee5f60ab615e1f558b7e52 | 372 |
+
+### Baseline facts (measured, not guessed)
+
+- final-prod layout: engine/ (768) + ui/ (396) + driver/ (63) + docs/ (44)
+  + tools/ (9) + .github/ (8) + contracts/ (6) + installer/ (4); VERSION
+  0.6.0-rc2. Prior merges (all history-preserving, no squash): core_recovery
+  → engine/ @51701b14 (a574ecf) advanced @87b9ccd9 to 22e9657;
+  recovery-wizard-ui-new v3 → ui/ @86bc3168 (f4a8f8a); rda-driver →
+  driver/ @840201ba (da7efb9, 43 commits).
+- core_recovery is 1092 commits ahead of the merged engine/ state
+  (22e9657..12f3edf7). Its cr_ui ABI is **version 4, 95 CR_UI_API exports**;
+  the engine/ in final-prod carries ABI **version 2, 83 exports**. The UI
+  bridge must be rewired to the v4 contract — it cannot be carried over
+  as-is.
+- core_recovery's own posture (README): user-mode direct raw-disk access
+  via \\.\PhysicalDriveN (GENERIC_READ|GENERIC_WRITE, share R|W|D, 64 KiB
+  read envelope), ERR_ELEVATION_REQUIRED for non-elevated raw-disk verbs.
+  No kernel driver, no service. The driver removal aligns with the
+  current core's design.
+- Driver reference surface outside driver/ (git grep -il "rda",
+  excluding worklogs/audit trails): 154 files — concentrated in
+  .github/workflows (5), contracts/ (4), docs/ (40+), build.ps1, README,
+  installer, and engine/ (most of which the core re-merge supersedes; the
+  remainder gets explicit deletion in the removal phase).
+
+Next: T2 — parallel agents A–F read all three repos end to end; Phase 0
+context sheets; then INTEGRATION-PLAN.md as the gate before any code
+change.
