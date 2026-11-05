@@ -15581,3 +15581,50 @@ session's real work is (1) the harness defects that block the gates
 levers where the driver's own guarantees permit exceeding it, and
 (4) the 9 [U] parity-checklist items. Next: T3 — PERFORMANCE-TARGET.md
 as the gate document.
+
+---
+
+## Session 97 — entry 3: T3 — PERFORMANCE-TARGET.md lands as the gate document + PERFORMANCE.md corrected and §2 filled (T4 consolidated, T5 first capture)
+
+**worklog/PERFORMANCE-TARGET.md** — the consolidation of the five sheets
+into the session's numeric gate: §0 the verdict algebra (noise bands,
+MEETS/EXCEEDS/GAP definitions, the 3-run median discipline — armed by
+run 39807929475's 533.1→391.0 MiB/s single-sample lesson); §1 the
+headline gate table (15 rows, each with baseline run 41042267586, direct
+v0.7.0 run 41140212296, verdict, tolerance); §2 the 27-consumer
+distribution (EXCEEDS 6 / MEETS 6 / GAP 1 / UNMEASURED 15) with a
+per-unmeasured establishment plan; §3 the seven correctness invariants
+from the driver's guarantees that bound every optimization; §4 the
+prioritized lever table (harness-truth first, then F4 sector-granular
+envelope, F5 bench alignment control, F1 lock scope, F2 OVERLAPPED+QD,
+F3 sequential fill coalescing, F6/F7 image, F8 decrypt, F10 prefetch,
+F14 SIMD discovery) with the not-taken levers documented (F9
+corpus-pinned Sleeps; NO_BUFFERING deferred; Scatter/IOCP deferred);
+§5 the parity workstream (the 9 [U] items); §6 the measurement protocol
+(same verbs/runner/profile, run-ID provenance, the source-build lane
+decision for unreleased optimizations); §7 the T19 completion
+checklist.
+
+**PERFORMANCE.md corrections and fills:**
+- §1.1 corrected: run 41042267586 hit its 120-min budget mid-scenario
+  (4/7 scenarios, no 06-comparison) — the "completed green" record was
+  the job-level conclusion, not the matrix's; the 07-performance
+  clean-volume section is the valid baseline of record (Agent D's
+  first-hand artifact re-read).
+- §2 filled with the v0.7.0 direct-path capture (run 41140212296's
+  completed perf phase): the 14-row clean-volume table — seq 544.17
+  (+1.4%), rand 1976.72 µs (−0.8%), open 9,213 ns (−46%), quick 27 ms
+  (−82%), deep 16,467 ms (parity), deepcarve 1,014,235 ms (−32.4%),
+  API scan 1,113,445 ms (−26.4%), recovery 36.8 ms (−25%), CPU/GiB 305
+  (−39%) — plus §2.2's honest scenario-lane decomposition (recall-0
+  pre-existing both eras; the stale rda gate; S-PART-DELETE H1) and
+  §2.3's pending rows.
+- §3's interim verdict: MEETS or EXCEEDS on every clean-volume metric
+  measured; final verdicts await the 3-run medians and the T5/T6
+  harness work.
+
+**T4 disposition (the driver baseline per consumer):** consolidated
+from the captured record (§1 + DRIVER-BASELINE's run-ID table). No new
+driver-era captures are possible — the lane is core-only by design and
+re-adding a driver is forbidden (mandate §5). The baseline of record
+stands as corrected above.

@@ -33,9 +33,17 @@ are the comparison — nothing else is admissible as "meets or beats".
 ### 1.1 The fresh pre-replacement baseline (the session's reference point)
 
 **Run 41042267586** (test-benchmark smoke, dispatched on the session-start tree
-`619acec2` = release v0.6.1, reason `release-v0.6.1`; completed green). Target: disk 4,
+`619acec2` = release v0.6.1, reason `release-v0.6.1`). Target: disk 4,
 8 GiB VHDX (8,589,934,592 bytes; 512 logical / 4096 physical = 512e; not 4Kn), volume
 8,572,108,800 bytes, NTFS clean volume, 1209 live files + 2138 carved.
+
+> **Correction (session-97, T3 — Agent D's first-hand artifact re-read):** this run
+> was recorded above as "completed green"; the artifact shows it hit its 120-min
+> job budget mid-scenario — 4/7 scenarios captured, no 06-comparison/gates output,
+> teardown at exactly start+120:00. The **07-performance clean-volume section
+> completed before the budget hit and is the valid baseline of record** (every §1.1
+> number below comes from it); the scenario-lane walls from this run are partial.
+> The "green" was the job-level conclusion, not the matrix's.
 
 | Metric | Value | Source |
 |---|---|---|
@@ -133,28 +141,79 @@ differently — the measurement, not a claim, decides).
 
 ## §2 REPLACEMENT — the direct-access measurements
 
-TO FILL per consumer after the replacement lands on `main` and the Windows runner
-lanes execute. Same verbs, same runner class, same disk profile, run IDs recorded.
+**v0.7.0 (the direct-access release), run 41140212296** — windows-2022, same
+8 GiB 512e VHDX profile, same verbs, same disk-4 geometry. Provenance note: the
+RUN is red (the scenario lane's gates — see §2.2), but the 07-performance
+clean-volume phase completed before the failures and is a valid capture;
+every number below is from its artifact. Single-sample (the 3-run median
+discipline applies before any verdict is final — PERFORMANCE-TARGET §6).
 
-| Metric | Baseline (§1.1) | Direct result | Run ID | Verdict |
+### 2.1 The clean-volume table (headline rows)
+
+| Metric | Baseline (§1.1) | Direct result | Delta | Verdict (single-sample) |
 |---|---|---|---|---|
-| bench seq 1 MiB | 536.92 MiB/s | pending | — | — |
-| bench rand 1 MiB | 1993.22 µs / 502 IOPS | pending | — | — |
-| bench open | 17,019 ns | pending | — | — |
-| scan quick wall | 150 ms | pending | — | — |
-| scan deep wall | 16,505 ms | pending | — | — |
-| scan deepcarve wall (8 GiB) | 1,501,622 ms | pending | — | — |
-| API scan (8 GiB, mask 7, 4 threads) | 1,513,221.7 ms | pending | — | — |
-| API open | 0.9 ms | pending | — | — |
-| recovery (82 files) | 49.2 ms | pending | — | — |
-| session save | 10.8 ms | pending | — | — |
-| full-profile walls | §1.1.1 | pending | — | — |
+| bench seq 1 MiB | 536.92 MiB/s | **544.17 MiB/s** | +1.4% | EXCEEDS |
+| bench rand 1 MiB | 1993.22 µs / 502 IOPS | **1976.72 µs / 506 IOPS** | −0.8% | MEETS/+ |
+| bench open | 17,019 ns | **9,213 ns** | −45.8% | EXCEEDS |
+| scan quick wall | 150 ms | **27 ms** | −82.0% | EXCEEDS |
+| scan deep wall | 16,505 ms | **16,467 ms** | −0.2% | MEETS |
+| scan deepcarve wall (8 GiB) | 1,501,622 ms | **1,014,235 ms** | −32.4% | EXCEEDS |
+| API scan (8 GiB, mask 7, 4 threads) | 1,513,221.7 ms | **1,113,445.2 ms** | −26.4% | EXCEEDS |
+| API open | 0.9 ms | **0.5 ms** | −44% | EXCEEDS |
+| API recovery (82 files) | 49.2 ms | **36.8 ms** | −25.2% | EXCEEDS |
+| session save | 10.8 ms | **9.3 ms** | −13.9% | MEETS/+ |
+| files found | 1209 live + 2138 carved | 1209 live + 2134 carved | shape-identical | MEETS (floor) |
+| API query | 0.2 ms | 0.1 ms | −50% | MEETS/+ |
+| CPU per GiB (deepcarve samples) | 502 CPU-s/GiB | **305 CPU-s/GiB** | −39% | EXCEEDS (untranscribed in verdicts — T6 fix) |
+| working-set peak | ≤ 40 MB flat | ≤ 40 MB flat | parity | MEETS |
+
+### 2.2 The scenario-lane state (why the run is red, and what is NOT a transport regression)
+
+1. **Recall-0 on every floor-gated scenario — PRE-EXISTING, both eras.** The
+   driver-backed baseline run 41042267586's S-DEL-NTFS verdict shows the same
+   hash_matched=0 with 0-byte placeholder inventories (92 files, 1 name-only
+   match vs v0.7.0's 94/3). The recovery inventory in both eras contains only
+   directory-skeleton entries. The old lane had no gate table so this never
+   redened a job; session-96's gate discipline now enforces it. Disposition:
+   diagnose (harness matcher vs product recovery path) — NOT a direct-path
+   regression; parity holds by measurement.
+2. **Stale transport expectation (harness defect, session-96 miss):** the
+   API-lane gate asserts `transport == 'rda'` (Run-Benchmark.ps1:628-630);
+   the transport is now `direct` — every API scenario carries a spurious
+   failure reason. Fix is one line.
+3. **S-PART-DELETE (new scenario, undiagnosed):** whole-disk deepcarve
+   (`rrecov scan --disk 3 --deep`) on the partition-deleted disk exits within
+   ~0.5 s with no session and was not capped. Top hypothesis (ACCESS-LAYER-
+   CURRENT §7.4-H1): `open_disk(3)` fails in the PnP/volume-stack
+   reconfiguration window ~30 ms after Remove-Partition (the disk WAS
+   raw-openable 35 ms earlier for the hash map). The exception path archived
+   no stdout/stderr/exit code (evidence gap, Run-Benchmark.ps1:688-717) —
+   the discriminating fix lands first, then the re-dispatch decides.
+4. **The lane-level wall-clock record:** the direct run completed all 7
+   scenarios + phase 4 in 1 h 42 m; the driver-era baseline could not finish
+   4 scenarios in its 120-min budget.
+
+### 2.3 Pending rows (require the T5/T6 harness work)
+
+| Metric | Baseline | Direct result | Run ID | Verdict |
+|---|---|---|---|---|
+| full-profile walls | §1.1.1 (not capturable, driver era) | pending the full-profile dispatch | — | — |
+| rand 4 KiB / seq 64K·256K·4M legs | not in either lane | pending the bench sweep extension | — | — |
+| cancel time-to-stop | not measured | pending the api_harness probe | — | — |
+| preview/thumbnail/image/health TTFB | not measured | pending the probe timing | — | — |
+| S-DEL-NTFS scenario deep wall | 7.56 s (partial-era) | 8.10 s | 41140212296 | GAP (single-sample; 3-run median before scoping) |
+| FS-engine walls (ext4/Btrfs/ReFS/HFS+/ZFS), LDM, BitLocker | no fixtures | pending T6 fixtures | — | — |
 
 ---
 
 ## §3 The comparison verdicts
 
-TO FILL when §2 completes. Every verdict is meets/exceeds with the delta, or a
-documented trade-off with the diagnosis and the accepted reason (mandate §3: no
-access pattern regresses silently; where the baseline is not met the reason is
-diagnosed and either fixed or documented).
+Interim (single-sample, §2.1): the direct path MEETS or EXCEEDS the driver
+baseline on every clean-volume metric measured — seq +1.4%, open −46%, quick
+−82%, deep parity, deepcarve −32%, API scan −26%, recovery −25%, CPU/GiB −39%.
+The historical direct-vs-driver risk datapoint (run 40227375329: direct legs
+151.5 vs driver 169.3 MiB/s @256 KiB, −10.5%) predates the current envelope
+implementation; it is explicitly re-measured by the T6 bench size sweep on the
+current path. Final verdicts issue per PERFORMANCE-TARGET §6 (3-run medians,
+run IDs) as the T5/T6 harness work completes; every GAP is diagnosed and either
+fixed or documented (mandate §3: no access pattern regresses silently).
