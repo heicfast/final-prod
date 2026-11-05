@@ -2527,29 +2527,28 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
      * uses ALL extents (spanned/RAID destinations have more than one -
      * first-extent-only missed overlap on the second+ spans, silently
      * defeating the F12 refusal for destinations whose later spans live
-     * on the source disk). */
+     * on the source disk). Session-97 recall-0 fix: the refusal is armed
+     * ONLY when an extent actually sits on the SOURCE disk (dest_overlap_
+     * spans) - cross-disk destinations are disjoint by hardware, and
+     * image sources never arm (node extents are image-internal). */
     {
         wchar_t dletter = 0;
-        if (win::destination_volume_letter(to_dir, &dletter)) {
+        if (have_disk && !have_image && win::destination_volume_letter(to_dir, &dletter)) {
             std::vector<win::VolExtent> ve;
             if (win::volume_extents(dletter, &ve)) {
-                bool on_source = false;
-                for (const auto& v : ve)
-                    if (v.disk == disk) {
-                        on_source = true;
-                        break;
-                    }
-                if (on_source)
-                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
-                else
-                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
-                            ve.front().disk, static_cast<unsigned long long>(ve.front().start),
-                            static_cast<unsigned long long>(ve.front().len), ve.size());
                 std::vector<std::pair<u64, u64>> spans;
-                spans.reserve(ve.size());
-                for (const auto& v : ve)
-                    spans.push_back({v.start, v.len});
-                writer.set_destination_spans(spans);
+                if (win::dest_overlap_spans(ve, true, disk, &spans)) {
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u - overlap "
+                            L"refusal armed\n",
+                            disk);
+                    writer.set_destination_spans(spans);
+                } else {
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s)) - not on source "
+                            L"disk %u: overlap refusal not armed (same-disk precondition)\n",
+                            dletter, ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size(), disk);
+                }
             }
         }
     }

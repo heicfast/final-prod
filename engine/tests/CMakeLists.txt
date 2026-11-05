@@ -115,6 +115,15 @@ if(WIN32)
     cr_deploy_vcpkg_binaries(cr_destio_tests)
     add_test(NAME destio COMMAND cr_destio_tests)
 
+    # Session-97 recall-0 fix: the F12/N-013 overlap-arming policy (the
+    # same-disk precondition). Pure logic over VolExtent sets - the live
+    # arming path itself is exercised by the benchmark scenario matrix
+    # (cross-disk destinations must RECOVER, not refuse).
+    add_executable(cr_transport_tests unit/test_transport_win.cpp)
+    target_link_libraries(cr_transport_tests PRIVATE cr::win GTest::gtest_main)
+    cr_deploy_vcpkg_binaries(cr_transport_tests)
+    add_test(NAME transport_win COMMAND cr_transport_tests)
+
     # S-014: BitLocker auto-unlock contracts (live-path seam, per-GUID
     # enumeration with corpus caps, offline-hive harvest + selection)
     add_executable(cr_bitlocker_tests unit/test_bitlocker_win.cpp)

@@ -37,6 +37,7 @@
 #include "cr/apply/cr_apply.h"
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cr {
@@ -121,6 +122,23 @@ struct VolExtent {
     u64 len;
 };
 bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
+
+/* F12 same-disk precondition (the session-97 recall-0 defect fix): the
+ * writer's overlap refusal is armed ONLY when the destination volume
+ * actually lives on the SOURCE disk. The pre-fix callers armed the
+ * writer with the destination spans unconditionally, and the per-item
+ * check then compared ABSOLUTE offsets from two DIFFERENT disks
+ * numerically - refusing recovery whenever the ranges happened to
+ * intersect (the benchmark runner's single-volume work disk starts at
+ * ~135 MiB, so virtually every source extent above that refused with
+ * ERR_DEST_OVERLAP: runs 41042267586 + 41140212296, 10,248 of 10,405
+ * items refused, scenario hash-recall 0.0 in BOTH transport eras).
+ * Cross-disk destinations are disjoint by hardware - never armed.
+ * Image sources never arm either (their node extents are image-internal;
+ * the callers gate that class before this helper). Returns true and
+ * fills *out_spans when arming applies (an extent sits on source_disk). */
+bool dest_overlap_spans(const std::vector<VolExtent>& ve, bool source_disk_known, u32 source_disk,
+                        std::vector<std::pair<u64, u64>>* out_spans);
 
 /* N-013: resolve ANY local destination path (relative, junction, mount
  * point) to the volume that CONTAINS it. GetFinalPathNameByHandleW

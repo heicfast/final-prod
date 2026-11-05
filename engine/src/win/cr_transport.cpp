@@ -823,6 +823,30 @@ bool volume_extents(wchar_t letter, std::vector<VolExtent>* out) {
     return !out->empty();
 }
 
+bool dest_overlap_spans(const std::vector<VolExtent>& ve, bool source_disk_known, u32 source_disk,
+                        std::vector<std::pair<u64, u64>>* out_spans) {
+    /* F12 same-disk precondition (see cr_transport.h for the full defect
+     * record): numeric offset comparison is only meaningful when both
+     * coordinate spaces are the same disk's. Unknown source disk (the
+     * image class is gated by the callers before this point) never arms. */
+    if (out_spans == nullptr || !source_disk_known)
+        return false;
+    bool on_source = false;
+    for (const auto& v : ve) {
+        if (v.disk == source_disk) {
+            on_source = true;
+            break;
+        }
+    }
+    if (!on_source)
+        return false;
+    out_spans->clear();
+    out_spans->reserve(ve.size());
+    for (const auto& v : ve)
+        out_spans->push_back({v.start, v.len});
+    return true;
+}
+
 bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
     if (!letter || path.empty())
         return false;

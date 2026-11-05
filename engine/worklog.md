@@ -15694,3 +15694,42 @@ reason=session-97-T5) — the clean re-measure under the fixed harness +
 the S-PART-DELETE discriminating evidence; the recall-0 diagnosis runs
 in parallel (it is pre-existing in both eras and blocks T15's green
 matrix either way).
+
+---
+
+## Session 97 — entry 5: the recall-0 root cause FOUND and FIXED — the F12 destination-arming defect (the cross-disk false-positive refusal)
+
+**The diagnosis (worklog/RECALL0-DIAGNOSIS.md, the full evidence chain):**
+the scenario-matrix hash-recall 0.0 — present identically in BOTH transport
+eras (driver run 41042267586: 10,248 refusals at 0x50050001; direct run
+41140212296: the same 10,248) — is the recovery writer's destination-
+overlap refusal firing CROSS-DISK. Both recovery entry points armed the
+writer with the destination volume's disk spans unconditionally; the
+per-item check then compared ABSOLUTE source-disk offsets against a
+different physical disk's spans NUMERICALLY. The runner's work drive
+(D:, the only volume of disk 1, GPT) spans ≈[135 MiB, 220 GiB] — every
+source extent above 135 MiB "intersects" it numerically → refused with
+ERR_DEST_OVERLAP. The clean-volume API's 82 hash-verified recoveries were
+the items entirely BELOW 135 MiB — the wire works; the arming was wrong.
+The CLI even computed `on_source` but used it only for the warning text;
+run-ours.ps1's own comment ("destination-overlap refusal stays quiet by
+construction" — dest never on the source VHD) documents the intent the
+code failed to implement.
+
+**The fix (product defect fix, not a perf change — required for T15/T16's
+green matrix):**
+- `win::dest_overlap_spans()` — the arming predicate: arm ONLY when a
+  destination extent sits on the SOURCE disk (cr_transport.h/.cpp).
+- cmd_recover (rrecov.cpp): arms through the predicate; image sources
+  never arm (aligning the CLI with the API's existing image exclusion).
+- cr_ui recovery (cr_ui.cpp): arms through the predicate via the
+  device's own disk number (CrDevice::disk/disk_known).
+- tests/unit/test_transport_win.cpp (new, Windows lane): the runner case
+  verbatim, same-disk arms-with-all-spans (N-013 preserved), unknown-
+  source never arms, degenerates, zero-offset adjacency.
+- The writer's per-item mechanics are UNCHANGED — same-disk refusal
+  still fires exactly as before (existing tests keep pinning it); only
+  the false cross-disk refusals vanish.
+
+**Verification:** full ci-local.sh green (incl. the win-stub parse of the
+new test + modified win layer; 1759 test registrations, ctest 100%).

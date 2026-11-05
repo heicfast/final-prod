@@ -4514,17 +4514,22 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
      *
      * Image-file sources are NEVER writer-armed (platform truth, kept):
      * their node extents are image-internal, so comparing them against
-     * physical destination spans would be false-positive refusals. */
+     * physical destination spans would be false-positive refusals.
+     *
+     * Session-97 recall-0 fix: the same false-positive class existed for
+     * DIFFERENT-disk destinations - the pre-fix code armed unconditionally
+     * and the writer then compared absolute offsets from two different
+     * disks numerically (runs 41042267586 + 41140212296: 10,248/10,405
+     * scenario items refused ERR_DEST_OVERLAP cross-disk, recall 0.0 in
+     * BOTH eras). Arming now requires an extent ON the source disk. */
     if (std::strcmp(r->dev->transport, "image") != 0) {
         wchar_t dletter = 0;
         if (win::destination_volume_letter(u8_to_ws(utf8_path), &dletter)) {
             std::vector<win::VolExtent> ve;
             if (win::volume_extents(dletter, &ve)) {
                 std::vector<std::pair<u64, u64>> spans;
-                spans.reserve(ve.size());
-                for (const auto& v : ve)
-                    spans.push_back({v.start, v.len});
-                r->writer->set_destination_spans(spans);
+                if (win::dest_overlap_spans(ve, r->dev->disk_known, r->dev->disk, &spans))
+                    r->writer->set_destination_spans(spans);
             }
         }
     }
