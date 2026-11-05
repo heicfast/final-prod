@@ -1,9 +1,11 @@
 name: ui-ci
 
-# The UI lane (docs/INTEGRATION-PLAN.md §8.3): every quality gate the UI
-# repository defined, plus the Rust bridge compile checks. cargo check /
-# clippy need NO engine kit (no link step); the full tauri build with the
-# engine kit is the release lane's business (build.ps1 / release.yml).
+# The UI lane: the fresh UI repository's own quality gates (its ci.yml
+# posture), monorepo-adapted (working-directory ui/, lockfile cache path).
+# cargo check / clippy need NO engine kit (no link step); the full tauri
+# build with the engine kit is the release lane's business (build.ps1 /
+# release.yml). The filefilter freshness gate returns with the P4 bridge
+# (gen-filefilter.mjs mirror); the connector is the mock in this state.
 on:
   push:
     branches: [main]
@@ -54,10 +56,18 @@ jobs:
         run: pnpm arch:lint
 
       - name: Architecture rules (ast-grep)
-        run: pnpm sg:lint
-
-      - name: filefilter mirror freshness
-        run: pnpm filefilter:check
+        shell: bash
+        run: |
+          set -e
+          # Rule 1: raw invoke() may only appear inside src/connector/**.
+          # (Negation globs only — ast-grep ORs mixed globs, so a positive
+          # glob would re-include the excluded tree.)
+          npx ast-grep scan --rule rules/no-raw-invoke.yml --globs '!src/connector/**' src | tee /tmp/sg-invoke.out
+          if grep -q "error\[" /tmp/sg-invoke.out; then exit 1; fi
+          # Rule 2: the connector factory may only be imported by queries/ and connector/.
+          npx ast-grep scan --rule rules/no-connector-import-outside-queries.yml --globs '!src/queries/**' --globs '!src/connector/**' src | tee /tmp/sg-import.out
+          if grep -q "error\[" /tmp/sg-import.out; then exit 1; fi
+          echo "ast-grep: clean"
 
       - name: Dead code (knip)
         run: pnpm knip
@@ -74,8 +84,7 @@ jobs:
       - name: Unit + component tests (coverage thresholds 70/60/70/70)
         run: pnpm test:coverage
 
-      - name: Production build (real connector; the test double is
-          unreachable in production mode — verified by the alias contract)
+      - name: Production build
         run: pnpm build
 
       - name: Bundle budget

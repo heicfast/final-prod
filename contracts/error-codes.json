@@ -64,10 +64,10 @@
     {
       "code": "ERR_DRIVER_REQUIRED",
       "value": "0x50020007",
-      "uiCode": "driver-required",
+      "uiCode": "device-permission",
       "context": {
-        "rule": "Mandatory-driver session (2026-10-27): every raw-disk open/scan/repair/apply refuses with this code when \\\\.\\RDA is absent. The bridge passes the engine's message verbatim (it names the remedy: install or start the driver); the UI surfaces it as a hard, actionable failure — never a fallback, never silent.",
-        "refinement": "distinct from ERR_OPEN_FAILED: ERR_DRIVER_REQUIRED means the DRIVER is missing (probe failure), ERR_OPEN_FAILED means a live driver's grammar open failed"
+        "rule": "INTERIM (consolidation session): the v2 engine still defines this code for the mandatory-driver posture, which this session removes. Until the P2 core advance merge retires it, the honest bucket is device-permission (raw-disk access refused). At P2 this value 0x50020007 becomes ERR_DEVICE_DISCONNECTED (reattach-then-resume) and re-points to device-gone.",
+        "refinement": "distinct from ERR_OPEN_FAILED: ERR_DRIVER_REQUIRED means the transport probe refused, ERR_OPEN_FAILED means a live transport's grammar open failed"
       },
       "surface": "disk/volume open (every scan, repair, apply)"
     },
@@ -342,10 +342,6 @@
     {
       "uiCode": "preview-damaged",
       "cause": "preview_unreadable reported zero-filled spans; the payload carries the truth (bounded hex/text with damaged ranges noted)"
-    },
-    {
-      "uiCode": "consent-not-found",
-      "cause": "consent_respond requestId is unknown or already resolved (double respond, cancel force-deny, or the scan ended; G-1 (a) — the prompt treats it as stale and dismisses)"
     },
     {
       "uiCode": "not-implemented",

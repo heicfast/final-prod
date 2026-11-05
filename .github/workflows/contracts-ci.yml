@@ -1,9 +1,10 @@
 name: contracts-ci
 
-# The boundary-truth gate (docs/INTEGRATION-PLAN.md §8.3): validate.mjs checks
-# the error-code map against the engine header, the event map against CR_EVT_*,
-# and — since the bridge landed (ui/src-tauri/src/bridge/abi.rs) — phase 2
-# cross-checks the command manifest against BOTH implementations.
+# The boundary-truth gate: validate.mjs checks the error-code map against
+# the engine header, the event map against CR_EVT_*, and — once the bridge
+# lands (ui/src-tauri/src/bridge/abi.rs, P4) — phase 2 cross-checks the
+# command manifest against BOTH implementations. Phase 2 is inert while
+# the bridge is absent (prints 'pending', passes).
 on:
   push:
     branches: [main]
@@ -12,7 +13,6 @@ on:
       - 'engine/include/**'
       - 'ui/src/connector/**'
       - 'ui/src-tauri/src/**'
-      - 'ui/scripts/gen-filefilter.mjs'
       - '.github/workflows/contracts-ci.yml'
   pull_request:
     paths:
@@ -20,7 +20,6 @@ on:
       - 'engine/include/**'
       - 'ui/src/connector/**'
       - 'ui/src-tauri/src/**'
-      - 'ui/scripts/gen-filefilter.mjs'
 
 permissions:
   contents: read
@@ -37,6 +36,3 @@ jobs:
 
       - name: Boundary-truth validation (validate.mjs, phase 1 + 2)
         run: node contracts/validate.mjs
-
-      - name: filefilter mirror freshness (engine table <-> bridge mirror)
-        run: node ui/scripts/gen-filefilter.mjs --check

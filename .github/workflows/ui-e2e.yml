@@ -1,11 +1,11 @@
 name: ui-e2e
 
-# The Playwright lane (plan §8.3/§5.4): 12 spec tests against the built
-# bundle served by `vite preview`. The webServer builds in TEST MODE first
-# (`vite build --mode test`) so the bundle carries the labeled test double
-# (tests/fakes/) — the real connector needs the Tauri shell + the engine
-# kit, which is the release lane's business. Step screenshots are kept as
-# visual evidence.
+# The Playwright lane: the fresh UI repository's smoke shape — the e2e
+# suite (12 specs) runs against the built bundle served by `vite preview`.
+# The build pins the mock connector (VITE_CONNECTOR=mock): the e2e specs
+# are mock-pinned by design in this state; the real connector needs the
+# Tauri shell + the engine kit, which is the release lane's business.
+# Step screenshots are kept as visual evidence.
 on:
   push:
     branches: [main]
@@ -44,8 +44,15 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run e2e suite (test-mode build + preview server)
+      - name: Build frontend (mock connector, deterministic default seed)
+        run: pnpm build
+        env:
+          VITE_CONNECTOR: mock
+
+      - name: Run e2e suite (preview server)
         run: pnpm e2e
+        env:
+          CI: 'true'
 
       - name: Upload step screenshots (evidence)
         if: always()
