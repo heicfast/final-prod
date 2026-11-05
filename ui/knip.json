@@ -7,9 +7,7 @@
     "e2e/**/*.ts",
     "scripts/**/*.mjs"
   ],
-  "ignoreDependencies": [
-    "@ast-grep/cli"
-  ],
+  "ignoreDependencies": ["@ast-grep/cli"],
   "ignoreExportsUsedInFile": true,
   "include": [
     "files",
