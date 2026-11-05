@@ -52,13 +52,20 @@ fn map_fs(name: &str) -> &'static str {
 #[cfg(windows)]
 fn letter_usage(letter: u8) -> Option<(u64, u64)> {
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
-    let root: Vec<u16> = format!("{}:\\", letter as char).encode_utf16().chain([0]).collect();
+    let root: Vec<u16> = format!("{}:\\", letter as char)
+        .encode_utf16()
+        .chain([0])
+        .collect();
     let mut free: u64 = 0;
     let mut total: u64 = 0;
     let mut _avail: u64 = 0;
     let ok = unsafe {
-        GetDiskFreeSpaceExW(root.as_ptr(), &mut free as *mut u64, &mut total as *mut u64,
-            &mut _avail as *mut u64)
+        GetDiskFreeSpaceExW(
+            root.as_ptr(),
+            &mut free as *mut u64,
+            &mut total as *mut u64,
+            &mut _avail as *mut u64,
+        )
     };
     if ok == 0 {
         return None;
@@ -192,14 +199,12 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
             _ if !model.is_empty() => model.clone(),
             _ => format!("Hard Disk #{}", d.number),
         };
-        let is_source = active
-            .iter()
-            .any(|(dev_id, vol_id)| {
-                dev_id == &disk_id(d.number)
-                    || vol_id
-                        .as_deref()
-                        .is_some_and(|v| disk_vols.iter().any(|dv| volume_id(dv) == v))
-            });
+        let is_source = active.iter().any(|(dev_id, vol_id)| {
+            dev_id == &disk_id(d.number)
+                || vol_id
+                    .as_deref()
+                    .is_some_and(|v| disk_vols.iter().any(|dv| volume_id(dv) == v))
+        });
         out.push(json!({
             "id": disk_id(d.number),
             // BF-02 (v4 truth): disk_info carries NO bus_type — the kind
@@ -479,7 +484,11 @@ pub async fn volume_unlock_dictionary(
         let rc = unsafe {
             abi::cr_ui_unlock_volume_with_dictionary(
                 letter as i8,
-                if ptrs.is_empty() { std::ptr::null() } else { ptrs.as_ptr() },
+                if ptrs.is_empty() {
+                    std::ptr::null()
+                } else {
+                    ptrs.as_ptr()
+                },
                 ptrs.len() as u32,
             )
         };

@@ -34,10 +34,8 @@ use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::consent::{self, ConsentPipe};
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
-use crate::bridge::events::{
-    emit_scan_progress, scan_flags, scan_status, spawn_scan_emitter,
-};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
+use crate::bridge::events::{emit_scan_progress, scan_flags, scan_status, spawn_scan_emitter};
 use crate::bridge::state::{BridgeState, ScanEntry, ScanKind, ScanLive, Terminal};
 use crate::bridge::util::{now_iso, now_unix_ms, SendPtr};
 use crate::commands::devices::{disk_id, resolve_target, volume_id};
@@ -51,7 +49,11 @@ pub fn normalize_scope(raw: &str, volume_letter: Option<u8>) -> BridgeResult<Opt
         return Ok(None);
     }
     let bytes = trimmed.as_bytes();
-    if bytes.len() < 3 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' || (bytes[2] != b'\\' && bytes[2] != b'/') {
+    if bytes.len() < 3
+        || !bytes[0].is_ascii_alphabetic()
+        || bytes[1] != b':'
+        || (bytes[2] != b'\\' && bytes[2] != b'/')
+    {
         return Err(BridgeError::bridge(
             code::SCAN_SCOPE_INVALID,
             format!("folder scope '{trimmed}' is not an absolute path (expected X:\\...)"),
@@ -62,7 +64,10 @@ pub fn normalize_scope(raw: &str, volume_letter: Option<u8>) -> BridgeResult<Opt
         if letter != want {
             return Err(BridgeError::bridge(
                 code::SCAN_SCOPE_INVALID,
-                format!("folder scope '{trimmed}' is not on the scanned volume ({}:)", want as char),
+                format!(
+                    "folder scope '{trimmed}' is not on the scanned volume ({}:)",
+                    want as char
+                ),
             ));
         }
     }
@@ -138,8 +143,9 @@ pub fn scan_start_blocking(
                 let letter = s.as_bytes().first().copied().unwrap_or(b'?');
                 let on_disk = crate::bridge::util::enumerate_volumes()
                     .map(|vs| {
-                        vs.iter()
-                            .any(|v| v.disk == target.disk.number && v.letter == letter.to_ascii_uppercase())
+                        vs.iter().any(|v| {
+                            v.disk == target.disk.number && v.letter == letter.to_ascii_uppercase()
+                        })
                     })
                     .unwrap_or(false);
                 if !on_disk {
@@ -170,7 +176,9 @@ pub fn scan_start_blocking(
             match fvek {
                 Some(key) => {
                     let key_c = crate::bridge::util::cstr(key);
-                    unsafe { abi::cr_ui_open_volume_with_key(v.letter as i8, key_c.as_ptr(), &mut dev) }
+                    unsafe {
+                        abi::cr_ui_open_volume_with_key(v.letter as i8, key_c.as_ptr(), &mut dev)
+                    }
                 }
                 None => unsafe { abi::cr_ui_open_volume(v.letter as i8, &mut dev) },
             }
@@ -190,7 +198,10 @@ pub fn scan_start_blocking(
     if open_rc == abi::CR_UI_ERR_ELEVATION_REQUIRED {
         // The user-mode product's posture (cr_ui.h): the host triggers its
         // own elevation flow — never silent, never a fallback.
-        return Err(BridgeError::engine(open_rc, "cr_ui_open (elevation required)"));
+        return Err(BridgeError::engine(
+            open_rc,
+            "cr_ui_open (elevation required)",
+        ));
     }
     if open_rc != abi::CR_UI_OK {
         return Err(BridgeError::engine(open_rc, "cr_ui_open_disk/volume"));
@@ -199,7 +210,10 @@ pub fn scan_start_blocking(
 
     // Bytes total: the opened view's geometry (slice bytes for volumes).
     let mut geom: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
-    check(unsafe { abi::cr_ui_device_geometry(dev, &mut geom) }, "cr_ui_device_geometry")?;
+    check(
+        unsafe { abi::cr_ui_device_geometry(dev, &mut geom) },
+        "cr_ui_device_geometry",
+    )?;
 
     // Zero-init config = documented defaults. The NG-21 guard (§4.6): the
     // pre-scan repair analysis is armed ONLY for volume-slice targets —
@@ -227,9 +241,15 @@ pub fn scan_start_blocking(
     cfg.repair_consent_user = consent_user.get() as *mut std::ffi::c_void;
 
     let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
-    check(unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) }, "cr_ui_scan_create")?;
+    check(
+        unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) },
+        "cr_ui_scan_create",
+    )?;
     let scan_ptr = SendPtr::new(scan);
-    check(unsafe { abi::cr_ui_scan_attach_device(scan, dev) }, "cr_ui_scan_attach_device")?;
+    check(
+        unsafe { abi::cr_ui_scan_attach_device(scan, dev) },
+        "cr_ui_scan_attach_device",
+    )?;
 
     // Channel + sink box BEFORE run (the sink is read at scan start).
     // Bounded (512): the sink try_sends — full channel means the UI is
@@ -254,7 +274,11 @@ pub fn scan_start_blocking(
             target.volume.as_ref().map(volume_id),
         )
     } else {
-        (target.device_json.clone(), disk_id(target.disk.number), None)
+        (
+            target.device_json.clone(),
+            disk_id(target.disk.number),
+            None,
+        )
     };
     let params_json = json!({
         "targetId": target_id,
@@ -312,11 +336,7 @@ pub fn scan_start_blocking(
 /// emits the final events; it NEVER holds the registry lock. The consent
 /// pipe crosses here: freed in the run tail after run() returns (the engine
 /// can only call the callback inside run — cr_ui.h).
-pub fn launch_run_thread(
-    app: tauri::AppHandle,
-    state: Arc<BridgeState>,
-    prep: ScanPrep,
-) {
+pub fn launch_run_thread(app: tauri::AppHandle, state: Arc<BridgeState>, prep: ScanPrep) {
     let ScanPrep {
         entry,
         events: rx,
@@ -326,16 +346,21 @@ pub fn launch_run_thread(
     let live = entry.live.clone();
     let snapshot_exists = entry.snapshot_exists.clone();
     let scan_ptr = crate::bridge::util::SendPtr::new(entry.scan_handle());
-    spawn_scan_emitter(rx, app.clone(), scan_id.clone(), live.clone(), snapshot_exists.clone(), scan_ptr);
+    spawn_scan_emitter(
+        rx,
+        app.clone(),
+        scan_id.clone(),
+        live.clone(),
+        snapshot_exists.clone(),
+        scan_ptr,
+    );
 
     let state_for_run = state.clone();
     let entry_for_run = entry.clone();
     let app_for_run = app.clone();
     let scan_id_for_run = scan_id.clone();
     std::thread::spawn(move || {
-        crate::bridge::logging::info(&format!(
-            "scan {scan_id_for_run} starting (run() entered)"
-        ));
+        crate::bridge::logging::info(&format!("scan {scan_id_for_run} starting (run() entered)"));
         let rc = unsafe { abi::cr_ui_scan_run(entry_for_run.scan_handle()) };
         crate::bridge::logging::info(&format!(
             "scan {scan_id_for_run} run() returned rc=0x{rc:08x}"
@@ -366,8 +391,9 @@ pub fn launch_run_thread(
             let _ = std::fs::create_dir_all(&dir);
             let undo_path = dir.join(format!("{}.undo", entry_for_run.scan_id));
             let undo_c = crate::bridge::util::cstr(&undo_path.to_string_lossy());
-            let undo_rc =
-                unsafe { abi::cr_ui_scan_repair_save_undo(entry_for_run.scan_handle(), undo_c.as_ptr()) };
+            let undo_rc = unsafe {
+                abi::cr_ui_scan_repair_save_undo(entry_for_run.scan_handle(), undo_c.as_ptr())
+            };
             if undo_rc == abi::CR_UI_OK {
                 if let Ok(mut l) = entry_for_run.live.lock() {
                     if let Some(s) = &mut l.repair_summary {
@@ -394,11 +420,7 @@ pub fn launch_run_thread(
         if crate::bridge::state::ensure_metas(&entry_for_run).is_ok() {
             if let Ok(snap) = entry_for_run.snap.lock() {
                 if let Some(metas) = &snap.metas {
-                    data_found = metas
-                        .iter()
-                        .filter(|m| !m.is_dir)
-                        .map(|m| m.size)
-                        .sum();
+                    data_found = metas.iter().filter(|m| !m.is_dir).map(|m| m.size).sum();
                 }
             }
         }
@@ -484,7 +506,10 @@ pub async fn scan_pause(
     tauri::async_runtime::spawn_blocking(move || {
         set_transient(&state, &scan_id, "pausing")?;
         let entry = state.scan_entry_arc(&scan_id)?;
-        check(unsafe { abi::cr_ui_scan_pause(entry.scan_handle()) }, "cr_ui_scan_pause")
+        check(
+            unsafe { abi::cr_ui_scan_pause(entry.scan_handle()) },
+            "cr_ui_scan_pause",
+        )
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
@@ -518,7 +543,10 @@ pub async fn scan_resume(
             ));
         }
         set_transient(&state, &scan_id, "resuming")?;
-        check(unsafe { abi::cr_ui_scan_resume(entry.scan_handle()) }, "cr_ui_scan_resume")
+        check(
+            unsafe { abi::cr_ui_scan_resume(entry.scan_handle()) },
+            "cr_ui_scan_resume",
+        )
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
@@ -543,7 +571,10 @@ pub async fn scan_cancel(
         // deadlock the pre-scan phase — the engine observes the token only
         // after the callback returns.
         state.close_scan_consents(&scan_id);
-        check(unsafe { abi::cr_ui_scan_cancel(entry.scan_handle()) }, "cr_ui_scan_cancel")
+        check(
+            unsafe { abi::cr_ui_scan_cancel(entry.scan_handle()) },
+            "cr_ui_scan_cancel",
+        )
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
@@ -641,11 +672,7 @@ pub async fn scan_close(
                 "cannot close a scan while it is running (cancel it first)",
             ));
         }
-        let active_jobs = entry
-            .jobs
-            .lock()
-            .map(|j| j.len())
-            .unwrap_or(0);
+        let active_jobs = entry.jobs.lock().map(|j| j.len()).unwrap_or(0);
         if active_jobs > 0 {
             return Err(BridgeError::bridge(
                 code::UNKNOWN,
@@ -682,7 +709,10 @@ pub async fn scan_save_cancel(
         }
         // SAVE-SCOPED by the engine's own contract (cr_ui.h N-060): a save
         // not in flight is a no-op, so the call is unconditionally safe.
-        check(unsafe { abi::cr_ui_scan_save_cancel(scan_ptr) }, "cr_ui_scan_save_cancel")
+        check(
+            unsafe { abi::cr_ui_scan_save_cancel(scan_ptr) },
+            "cr_ui_scan_save_cancel",
+        )
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?

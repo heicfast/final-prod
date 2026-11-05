@@ -90,8 +90,17 @@ pub struct CrUiRecovery {
 
 // ---- callbacks ----------------------------------------------------------------
 
-pub type CrUiProgressFn =
-    Option<unsafe extern "C" fn(user: *mut c_void, stage: u32, stage_permille: u32, overall_permille: u32, bytes_done: u64, bytes_total: u64, error_ranges: u32)>;
+pub type CrUiProgressFn = Option<
+    unsafe extern "C" fn(
+        user: *mut c_void,
+        stage: u32,
+        stage_permille: u32,
+        overall_permille: u32,
+        bytes_done: u64,
+        bytes_total: u64,
+        error_ranges: u32,
+    ),
+>;
 
 pub type CrUiRecoveryProgressFn =
     Option<unsafe extern "C" fn(user: *mut c_void, bytes_done: u64, bytes_total: u64)>;
@@ -674,15 +683,33 @@ extern "C" {
     pub fn cr_ui_string_free(s: *mut i8);
 
     // devices
-    pub fn cr_ui_open_image(utf8_path: *const i8, offset: u64, bytes: u64, out: *mut *mut CrUiDevice) -> u32;
+    pub fn cr_ui_open_image(
+        utf8_path: *const i8,
+        offset: u64,
+        bytes: u64,
+        out: *mut *mut CrUiDevice,
+    ) -> u32;
     pub fn cr_ui_open_disk(disk: u32, out: *mut *mut CrUiDevice) -> u32;
     pub fn cr_ui_open_volume(letter: i8, out: *mut *mut CrUiDevice) -> u32;
     pub fn cr_ui_last_transport_error() -> u32;
-    pub fn cr_ui_open_volume_with_key(letter: i8, utf8_hex_fvek: *const i8, out: *mut *mut CrUiDevice) -> u32;
-    pub fn cr_ui_unlock_volume_with_dictionary(letter: i8, utf8_user_passwords: *const *const i8, count: u32) -> u32;
+    pub fn cr_ui_open_volume_with_key(
+        letter: i8,
+        utf8_hex_fvek: *const i8,
+        out: *mut *mut CrUiDevice,
+    ) -> u32;
+    pub fn cr_ui_unlock_volume_with_dictionary(
+        letter: i8,
+        utf8_user_passwords: *const *const i8,
+        count: u32,
+    ) -> u32;
     pub fn cr_ui_device_close(dev: *mut CrUiDevice);
     pub fn cr_ui_device_geometry(dev: *mut CrUiDevice, out: *mut CrUiGeometry) -> u32;
-    pub fn cr_ui_device_transport(dev: *mut CrUiDevice, buf: *mut i8, cap: u32, needed: *mut u32) -> u32;
+    pub fn cr_ui_device_transport(
+        dev: *mut CrUiDevice,
+        buf: *mut i8,
+        cap: u32,
+        needed: *mut u32,
+    ) -> u32;
 
     // enumeration (Windows platform layer)
     pub fn cr_ui_enumerate_disks(out: *mut CrUiDiskInfo, count: *mut u32) -> u32;
@@ -702,13 +729,25 @@ extern "C" {
     pub fn cr_ui_scan_telemetry(s: *mut CrUiScan, out: *mut CrUiTelemetry) -> u32;
     pub fn cr_ui_scan_get_stats(s: *mut CrUiScan, out: *mut CrUiScanStats) -> u32;
     pub fn cr_ui_scan_assistant(s: *mut CrUiScan, out: *mut CrUiAssistantStats) -> u32;
-    pub fn cr_ui_session_regrade(sess: *mut CrUiSession, node_ids: *const u64, count: u32, regraded: *mut u32) -> u32;
+    pub fn cr_ui_session_regrade(
+        sess: *mut CrUiSession,
+        node_ids: *const u64,
+        count: u32,
+        regraded: *mut u32,
+    ) -> u32;
     pub fn cr_ui_scan_checkpoint_count(s: *mut CrUiScan, out: *mut u64) -> u32;
     pub fn cr_ui_scan_repair_save_undo(s: *mut CrUiScan, utf8_path: *const i8) -> u32;
     pub fn cr_ui_scan_set_event_fn(s: *mut CrUiScan, f: CrUiEventFn, user: *mut c_void) -> u32;
 
     // lost-partition apply
-    pub fn cr_ui_apply_lost_partition(dev: *mut CrUiDevice, cand: *const CrUiApplyCandidate, rebuild_table: u32, consent: CrUiApplyConsentFn, consent_user: *mut c_void, out: *mut CrUiApplyResult) -> u32;
+    pub fn cr_ui_apply_lost_partition(
+        dev: *mut CrUiDevice,
+        cand: *const CrUiApplyCandidate,
+        rebuild_table: u32,
+        consent: CrUiApplyConsentFn,
+        consent_user: *mut c_void,
+        out: *mut CrUiApplyResult,
+    ) -> u32;
     pub fn cr_ui_apply_undo_last(dev: *mut CrUiDevice, out: *mut CrUiApplyResult) -> u32;
     pub fn cr_ui_apply_save_undo(dev: *mut CrUiDevice, utf8_path: *const i8) -> u32;
 
@@ -723,22 +762,60 @@ extern "C" {
     pub fn cr_ui_session_get_info(sess: *mut CrUiSession, out: *mut CrUiSessionInfo) -> u32;
     pub fn cr_ui_session_stats(sess: *mut CrUiSession, out: *mut CrUiScanStats) -> u32;
     pub fn cr_ui_session_snapshot(sess: *mut CrUiSession, out: *mut *mut CrUiSnapshot) -> u32;
-    pub fn cr_ui_session_resume(sess: *mut CrUiSession, original_cfg: *const CrUiScanConfig, out: *mut *mut CrUiScan) -> u32;
-    pub fn cr_ui_session_list(utf8_dir: *const i8, rows: *mut CrUiSessionRow, count: *mut u32) -> u32;
-    pub fn cr_ui_session_last_autosave_path(utf8_dir: *const i8, out_path: *mut i8, cap: u32) -> u32;
-    pub fn cr_ui_session_load_with_events(utf8_path: *const i8, fn_: CrUiEventFn, user: *mut c_void, cancel_flag: *mut u32, out: *mut *mut CrUiSession) -> u32;
+    pub fn cr_ui_session_resume(
+        sess: *mut CrUiSession,
+        original_cfg: *const CrUiScanConfig,
+        out: *mut *mut CrUiScan,
+    ) -> u32;
+    pub fn cr_ui_session_list(
+        utf8_dir: *const i8,
+        rows: *mut CrUiSessionRow,
+        count: *mut u32,
+    ) -> u32;
+    pub fn cr_ui_session_last_autosave_path(
+        utf8_dir: *const i8,
+        out_path: *mut i8,
+        cap: u32,
+    ) -> u32;
+    pub fn cr_ui_session_load_with_events(
+        utf8_path: *const i8,
+        fn_: CrUiEventFn,
+        user: *mut c_void,
+        cancel_flag: *mut u32,
+        out: *mut *mut CrUiSession,
+    ) -> u32;
 
     // snapshot enumeration
     pub fn cr_ui_snapshot_close(snap: *mut CrUiSnapshot);
     pub fn cr_ui_snapshot_node_count(snap: *mut CrUiSnapshot, out: *mut u32) -> u32;
     pub fn cr_ui_snapshot_partial(snap: *mut CrUiSnapshot, out: *mut u32) -> u32;
-    pub fn cr_ui_snapshot_node(snap: *mut CrUiSnapshot, index: u32, out: *mut CrUiNodeInfo, name_buf: *mut i8, name_cap: u32) -> u32;
+    pub fn cr_ui_snapshot_node(
+        snap: *mut CrUiSnapshot,
+        index: u32,
+        out: *mut CrUiNodeInfo,
+        name_buf: *mut i8,
+        name_cap: u32,
+    ) -> u32;
     pub fn cr_ui_snapshot_dfs(snap: *mut CrUiSnapshot, indices: *mut u32, count: *mut u32) -> u32;
 
     // query (session trees; DISABLE row 24 — the bridge filters its own cache)
-    pub fn cr_ui_query_run(sess: *mut CrUiSession, q: *const CrUiQuery, rows: *mut *mut CrUiQueryRow, row_count: *mut u32, total_matched: *mut u64) -> u32;
+    pub fn cr_ui_query_run(
+        sess: *mut CrUiSession,
+        q: *const CrUiQuery,
+        rows: *mut *mut CrUiQueryRow,
+        row_count: *mut u32,
+        total_matched: *mut u64,
+    ) -> u32;
     pub fn cr_ui_query_rows_free(rows: *mut CrUiQueryRow, row_count: u32);
-    pub fn cr_ui_query_apply_buckets(q: *mut CrUiQuery, date_bucket: u32, size_bucket: u32, date_custom_from: u64, date_custom_to: u64, size_custom_min: u64, size_custom_max: u64) -> u32;
+    pub fn cr_ui_query_apply_buckets(
+        q: *mut CrUiQuery,
+        date_bucket: u32,
+        size_bucket: u32,
+        date_custom_from: u64,
+        date_custom_to: u64,
+        size_custom_min: u64,
+        size_custom_max: u64,
+    ) -> u32;
 
     // carve-format registry (DISABLE rows 16-17)
     pub fn cr_ui_carve_format_count() -> u32;
@@ -752,45 +829,125 @@ extern "C" {
     pub fn cr_ui_user_sign_info(index: u32, out: *mut CrUiUserSign) -> u32;
 
     // disk map (DISABLE row 18)
-    pub fn cr_ui_disk_map(sess: *mut CrUiSession, snap: *mut CrUiSnapshot, want: *const CrUiDiskMapGeometry, got: *mut CrUiDiskMapGeometry, allocation: *mut *mut u8, coverage: *mut *mut u8, found: *mut *mut u8, confidence: *mut *mut u8, bad_ranges: *mut u64, bad_cap: u32, bad_count: *mut u32) -> u32;
+    pub fn cr_ui_disk_map(
+        sess: *mut CrUiSession,
+        snap: *mut CrUiSnapshot,
+        want: *const CrUiDiskMapGeometry,
+        got: *mut CrUiDiskMapGeometry,
+        allocation: *mut *mut u8,
+        coverage: *mut *mut u8,
+        found: *mut *mut u8,
+        confidence: *mut *mut u8,
+        bad_ranges: *mut u64,
+        bad_cap: u32,
+        bad_count: *mut u32,
+    ) -> u32;
     pub fn cr_ui_disk_map_free(overlay: *mut u8);
 
     // preview
-    pub fn cr_ui_preview_open_snapshot(dev: *mut CrUiDevice, snap: *mut CrUiSnapshot, index: u32, out: *mut *mut CrUiPreview) -> u32;
-    pub fn cr_ui_preview_open_session(dev: *mut CrUiDevice, sess: *mut CrUiSession, node_id: u64, out: *mut *mut CrUiPreview) -> u32;
+    pub fn cr_ui_preview_open_snapshot(
+        dev: *mut CrUiDevice,
+        snap: *mut CrUiSnapshot,
+        index: u32,
+        out: *mut *mut CrUiPreview,
+    ) -> u32;
+    pub fn cr_ui_preview_open_session(
+        dev: *mut CrUiDevice,
+        sess: *mut CrUiSession,
+        node_id: u64,
+        out: *mut *mut CrUiPreview,
+    ) -> u32;
     pub fn cr_ui_preview_close(pv: *mut CrUiPreview);
     pub fn cr_ui_preview_size(pv: *mut CrUiPreview, out: *mut u64) -> u32;
-    pub fn cr_ui_preview_read(pv: *mut CrUiPreview, offset: u64, buf: *mut c_void, len: u32, placed: *mut u32) -> u32;
+    pub fn cr_ui_preview_read(
+        pv: *mut CrUiPreview,
+        offset: u64,
+        buf: *mut c_void,
+        len: u32,
+        placed: *mut u32,
+    ) -> u32;
     pub fn cr_ui_preview_metadata(pv: *mut CrUiPreview, out: *mut CrUiMetadata) -> u32;
     pub fn cr_ui_archive_entry_count(pv: *mut CrUiPreview, out: *mut u32) -> u32;
-    pub fn cr_ui_archive_entry_at(pv: *mut CrUiPreview, index: u32, out: *mut CrUiArchiveEntry) -> u32;
-    pub fn cr_ui_preview_unreadable(pv: *mut CrUiPreview, total_bytes: *mut u64, range_count: *mut u32) -> u32;
+    pub fn cr_ui_archive_entry_at(
+        pv: *mut CrUiPreview,
+        index: u32,
+        out: *mut CrUiArchiveEntry,
+    ) -> u32;
+    pub fn cr_ui_preview_unreadable(
+        pv: *mut CrUiPreview,
+        total_bytes: *mut u64,
+        range_count: *mut u32,
+    ) -> u32;
 
     // thumbnail
-    pub fn cr_ui_thumbnail_generate(dev: *mut CrUiDevice, sess: *mut CrUiSession, node_id: u64, caps: *const CrUiThumbnailCaps, rgba: *mut u8, rgba_cap: u32, info: *mut CrUiThumbnailInfo) -> u32;
+    pub fn cr_ui_thumbnail_generate(
+        dev: *mut CrUiDevice,
+        sess: *mut CrUiSession,
+        node_id: u64,
+        caps: *const CrUiThumbnailCaps,
+        rgba: *mut u8,
+        rgba_cap: u32,
+        info: *mut CrUiThumbnailInfo,
+    ) -> u32;
     pub fn cr_ui_thumbnail_format_supported(utf8_format: *const i8) -> u32;
 
     // recovery
-    pub fn cr_ui_recovery_create(source: *mut CrUiDevice, cfg: *const CrUiRecoveryConfig, out: *mut *mut CrUiRecovery) -> u32;
+    pub fn cr_ui_recovery_create(
+        source: *mut CrUiDevice,
+        cfg: *const CrUiRecoveryConfig,
+        out: *mut *mut CrUiRecovery,
+    ) -> u32;
     pub fn cr_ui_recovery_close(rec: *mut CrUiRecovery);
     pub fn cr_ui_recovery_set_destination(rec: *mut CrUiRecovery, utf8_path: *const i8) -> u32;
-    pub fn cr_ui_recovery_enqueue_node(rec: *mut CrUiRecovery, sess: *mut CrUiSession, node_id: u64) -> u32;
-    pub fn cr_ui_recovery_enqueue_subtree(rec: *mut CrUiRecovery, sess: *mut CrUiSession, node_id: u64) -> u32;
-    pub fn cr_ui_recovery_enqueue_snapshot(rec: *mut CrUiRecovery, snap: *mut CrUiSnapshot, index: u32) -> u32;
-    pub fn cr_ui_recovery_enqueue_subtree_snapshot(rec: *mut CrUiRecovery, snap: *mut CrUiSnapshot, index: u32) -> u32;
+    pub fn cr_ui_recovery_enqueue_node(
+        rec: *mut CrUiRecovery,
+        sess: *mut CrUiSession,
+        node_id: u64,
+    ) -> u32;
+    pub fn cr_ui_recovery_enqueue_subtree(
+        rec: *mut CrUiRecovery,
+        sess: *mut CrUiSession,
+        node_id: u64,
+    ) -> u32;
+    pub fn cr_ui_recovery_enqueue_snapshot(
+        rec: *mut CrUiRecovery,
+        snap: *mut CrUiSnapshot,
+        index: u32,
+    ) -> u32;
+    pub fn cr_ui_recovery_enqueue_subtree_snapshot(
+        rec: *mut CrUiRecovery,
+        snap: *mut CrUiSnapshot,
+        index: u32,
+    ) -> u32;
     pub fn cr_ui_recovery_queue_count(rec: *mut CrUiRecovery, out: *mut u32) -> u32;
     pub fn cr_ui_recovery_process(rec: *mut CrUiRecovery) -> u32;
     pub fn cr_ui_recovery_cancel(rec: *mut CrUiRecovery) -> u32;
     pub fn cr_ui_recovery_get_stats(rec: *mut CrUiRecovery, out: *mut CrUiRecoveryStats) -> u32;
-    pub fn cr_ui_recovery_report_json(rec: *mut CrUiRecovery, source_utf8: *const i8, json_out: *mut *mut i8) -> u32;
+    pub fn cr_ui_recovery_report_json(
+        rec: *mut CrUiRecovery,
+        source_utf8: *const i8,
+        json_out: *mut *mut i8,
+    ) -> u32;
 
     // health (base only — no ex2 on v4, BF-03)
-    pub fn cr_ui_health_read(disk: u32, rep: *mut CrUiSmartReport, attrs: *mut CrUiSmartAttr, attr_cap: u32, attr_count: *mut u32) -> u32;
+    pub fn cr_ui_health_read(
+        disk: u32,
+        rep: *mut CrUiSmartReport,
+        attrs: *mut CrUiSmartAttr,
+        attr_cap: u32,
+        attr_count: *mut u32,
+    ) -> u32;
 
     // privileged one-shot verbs (DISABLE rows 19-21 — declared, unsurfaced)
-    pub fn cr_ui_image_create(disk: u32, utf8_path: *const i8, progress: CrUiRecoveryProgressFn, user: *mut c_void) -> u32;
+    pub fn cr_ui_image_create(
+        disk: u32,
+        utf8_path: *const i8,
+        progress: CrUiRecoveryProgressFn,
+        user: *mut c_void,
+    ) -> u32;
     pub fn cr_ui_fsck_volume(letter: i8, flags: u32, exit_code: *mut i32) -> u32;
-    pub fn cr_ui_turn_off_bitlocker(letter: i8, progress: CrUiProgressFn, user: *mut c_void) -> u32;
+    pub fn cr_ui_turn_off_bitlocker(letter: i8, progress: CrUiProgressFn, user: *mut c_void)
+        -> u32;
 }
 
 // ---- the engine log seam (NG-15; BF-01) ---------------------------------------------
@@ -805,7 +962,7 @@ extern "C" {
 
 pub type CrLogFn = unsafe extern "system" fn(level: u32, line: *const i8, user: *mut c_void);
 
-#[link_name = "?set_sink@log@cr@@YAXP6AXW4Level@12@PEBDPEAX@Z2@Z"]
 extern "system" {
+    #[link_name = "?set_sink@log@cr@@YAXP6AXW4Level@12@PEBDPEAX@Z2@Z"]
     pub fn cr_log_set_sink(fn_: Option<CrLogFn>, user: *mut c_void);
 }

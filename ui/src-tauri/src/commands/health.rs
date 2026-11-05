@@ -12,7 +12,7 @@
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{code, check, BridgeError};
+use crate::bridge::error::{check, code, BridgeError};
 use crate::bridge::util::fixed_str;
 
 #[tauri::command]

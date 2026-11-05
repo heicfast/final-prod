@@ -104,7 +104,8 @@ fn lock_wait<'a>(
     cv: &'a Condvar,
     g: std::sync::MutexGuard<'a, Option<bool>>,
 ) -> std::sync::MutexGuard<'a, Option<bool>> {
-    cv.wait(g).unwrap_or_else(std::sync::PoisonError::into_inner)
+    cv.wait(g)
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// The `repair_consent_user` payload. Boxed + leaked at scan_start; freed
@@ -210,9 +211,10 @@ pub unsafe extern "C" fn apply_consent_sink(
             gate: gate.clone(),
         },
     );
-    let _ = pipe
-        .app
-        .emit(&format!("apply-consent-request:{}", pipe.device_id), payload);
+    let _ = pipe.app.emit(
+        &format!("apply-consent-request:{}", pipe.device_id),
+        payload,
+    );
     // Block the APPLY thread (no registry lock held — §4.5).
     let approved = gate.wait_for_decision();
     pipe.state.unregister_consent(&request_id);

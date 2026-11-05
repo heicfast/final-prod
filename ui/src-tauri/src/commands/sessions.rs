@@ -28,12 +28,14 @@ use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::consent::ConsentPipe;
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::events::{scan_flags, SessionLoadPipe};
 use crate::bridge::state::{
     session_target_label, BridgeState, ScanEntry, ScanKind, ScanLive, SnapshotCache, Terminal,
 };
-use crate::bridge::util::{enumerate_disks, enumerate_volumes, fixed_str, iso_from_unix_ms, now_iso, now_unix_ms, SendPtr};
+use crate::bridge::util::{
+    enumerate_disks, enumerate_volumes, fixed_str, iso_from_unix_ms, now_iso, now_unix_ms, SendPtr,
+};
 use crate::commands::scan::{launch_run_thread, ScanPrep};
 
 /// Sanitize a volume label into the auto-name token (N-061: filesystem-safe).
@@ -74,7 +76,9 @@ fn auto_name(label: &str, dir: &Path) -> PathBuf {
     let tod = secs.rem_euclid(86_400);
     let (_y, mo, d) = crate::bridge::util::civil_parts(days);
     let (h, mi, s) = (tod / 3600, (tod % 3600) / 60, tod % 60);
-    dir.join(format!("auto_{label}_{mo:02}_{d:02}_{h:02}_{mi:02}_{s:02}.crsf"))
+    dir.join(format!(
+        "auto_{label}_{mo:02}_{d:02}_{h:02}_{mi:02}_{s:02}.crsf"
+    ))
 }
 
 #[tauri::command]
@@ -169,15 +173,15 @@ pub async fn sessions_list(
 
 fn render_row(r: &abi::CrUiSessionRow) -> Value {
     let path = fixed_str(&r.path);
-    let file_name = path
-       .rsplit(['\\', '/'])
-        .next()
-        .unwrap_or(&path)
-        .to_string();
+    let file_name = path.rsplit(['\\', '/']).next().unwrap_or(&path).to_string();
     let valid = r.valid != 0 && r.error == abi::CR_UI_OK;
     let label = {
         let full = fixed_str(&r.label_full);
-        if full.is_empty() { fixed_str(&r.label) } else { full }
+        if full.is_empty() {
+            fixed_str(&r.label)
+        } else {
+            full
+        }
     };
     // save_unix == 0 = a pre-v5 session: the row's own fallback is the file
     // mtime, which the light record does not carry — the UI renders the
@@ -187,8 +191,8 @@ fn render_row(r: &abi::CrUiSessionRow) -> Value {
     } else {
         Value::Null
     };
-    let completed = r.configured_mask != 0
-        && r.configured_mask & r.stage_done_mask == r.configured_mask;
+    let completed =
+        r.configured_mask != 0 && r.configured_mask & r.stage_done_mask == r.configured_mask;
     json!({
         "id": format!("sess-{}", r.save_unix.max(1)),
         "fileName": file_name,
@@ -245,7 +249,10 @@ fn load_session_entry(
     }
     let session = SendPtr::new(sess);
     let mut info: abi::CrUiSessionInfo = unsafe { std::mem::zeroed() };
-    check(unsafe { abi::cr_ui_session_get_info(sess, &mut info) }, "cr_ui_session_get_info")?;
+    check(
+        unsafe { abi::cr_ui_session_get_info(sess, &mut info) },
+        "cr_ui_session_get_info",
+    )?;
     let mut stats: abi::CrUiScanStats = unsafe { std::mem::zeroed() };
     let _ = unsafe { abi::cr_ui_session_stats(sess, &mut stats) };
     let label = session_target_label(&info);
@@ -275,10 +282,7 @@ fn load_session_entry(
     });
     let entry = Arc::new(ScanEntry {
         scan_id: scan_id.clone(),
-        kind: ScanKind::Session {
-            session,
-            device,
-        },
+        kind: ScanKind::Session { session, device },
         target_json,
         device_id: String::new(),
         volume_id: None,
@@ -380,7 +384,11 @@ pub async fn session_resume_last(
         let dir = crate::bridge::util::cstr(&state.sessions_dir.to_string_lossy());
         let mut path_buf = [0i8; abi::CR_UI_SESSION_ROW_PATH];
         let rc = unsafe {
-            abi::cr_ui_session_last_autosave_path(dir.as_ptr(), path_buf.as_mut_ptr(), path_buf.len() as u32)
+            abi::cr_ui_session_last_autosave_path(
+                dir.as_ptr(),
+                path_buf.as_mut_ptr(),
+                path_buf.len() as u32,
+            )
         };
         if rc == 0x5002_0004 {
             // ERR_RANGE_OUT_OF_BOUNDS: no live pointer names a present file.
@@ -416,11 +424,10 @@ pub async fn session_resume(
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
     let state_for_launch = state.clone();
-    let prep = tauri::async_runtime::spawn_blocking(move || {
-        session_resume_blocking(&state, &app, &path)
-    })
-    .await
-    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
+    let prep =
+        tauri::async_runtime::spawn_blocking(move || session_resume_blocking(&state, &app, &path))
+            .await
+            .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
     let scan_id = prep.entry.scan_id.clone();
     launch_run_thread(app, state_for_launch, prep);
     Ok(json!({ "scanId": scan_id }))
@@ -435,7 +442,10 @@ fn session_resume_blocking(
     // into a fresh scan handle.
     let entry = load_session_entry(state, app, path)?;
     let ScanKind::Session { session, device } = &entry.kind else {
-        return Err(BridgeError::bridge(code::UNKNOWN, "internal: entry is not a session"));
+        return Err(BridgeError::bridge(
+            code::UNKNOWN,
+            "internal: entry is not a session",
+        ));
     };
     let Some(dev_ptr) = device.as_ref().map(|d| d.get()) else {
         return Err(BridgeError::bridge(
@@ -471,7 +481,10 @@ fn session_resume_blocking(
         "cr_ui_session_resume",
     )?;
     let scan_ptr = SendPtr::new(scan);
-    check(unsafe { abi::cr_ui_scan_attach_device(scan, dev_ptr) }, "cr_ui_scan_attach_device")?;
+    check(
+        unsafe { abi::cr_ui_scan_attach_device(scan, dev_ptr) },
+        "cr_ui_scan_attach_device",
+    )?;
 
     // Volume-identity check (the CLI's boot-hash warning): a mismatch means
     // the session came from a DIFFERENT volume — the typed refusal, never a
@@ -479,7 +492,10 @@ fn session_resume_blocking(
     let vr = unsafe { abi::cr_ui_scan_verify_identity(scan) };
     if vr == abi::CR_UI_ERR_BAD_CHECKSUM {
         unsafe { abi::cr_ui_scan_close(scan) };
-        return Err(BridgeError::engine(vr, "cr_ui_scan_verify_identity (identity mismatch)"));
+        return Err(BridgeError::engine(
+            vr,
+            "cr_ui_scan_verify_identity (identity mismatch)",
+        ));
     }
     // 0 = match or unverifiable (legacy session with no hash) — both run on.
 
@@ -562,7 +578,10 @@ fn attach_is_volume(entry: &Arc<ScanEntry>) -> bool {
 }
 
 fn volume_slice_attached(entry: &Arc<ScanEntry>) -> bool {
-    let ScanKind::Session { device: Some(d), .. } = &entry.kind else {
+    let ScanKind::Session {
+        device: Some(d), ..
+    } = &entry.kind
+    else {
         return false;
     };
     // Geometry comparison: a volume view's total equals the session's slice

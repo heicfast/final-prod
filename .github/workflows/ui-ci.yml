@@ -69,6 +69,9 @@ jobs:
           if grep -q "error\[" /tmp/sg-import.out; then exit 1; fi
           echo "ast-grep: clean"
 
+      - name: filefilter mirror freshness
+        run: pnpm filefilter:check
+
       - name: Dead code (knip)
         run: pnpm knip
         env:

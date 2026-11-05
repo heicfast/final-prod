@@ -34,7 +34,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::state::{metas_snapshot, BridgeState, ScanEntry, ScanKind};
 use crate::bridge::util::{base64_encode, fixed_str};
 
@@ -62,10 +62,7 @@ fn mime_for(format: &str) -> &'static str {
 }
 
 /// Resolve an `f<idx>` id to (meta index, node_id) under one snapshot lock.
-fn resolve_node(
-    entry: &Arc<ScanEntry>,
-    node_id: &str,
-) -> BridgeResult<(usize, u64)> {
+fn resolve_node(entry: &Arc<ScanEntry>, node_id: &str) -> BridgeResult<(usize, u64)> {
     let idx: usize = node_id
         .strip_prefix('f')
         .and_then(|r| r.parse().ok())
@@ -131,7 +128,9 @@ fn read_bytes(pv: *mut abi::CrUiPreview, cap: u64) -> BridgeResult<Vec<u8>> {
         let mut buf = vec![0u8; want as usize];
         let mut placed: u32 = 0;
         check(
-            unsafe { abi::cr_ui_preview_read(pv, offset, buf.as_mut_ptr().cast(), want, &mut placed) },
+            unsafe {
+                abi::cr_ui_preview_read(pv, offset, buf.as_mut_ptr().cast(), want, &mut placed)
+            },
             "cr_ui_preview_read",
         )?;
         out.extend_from_slice(&buf[..placed as usize]);
@@ -153,13 +152,19 @@ fn unreadable_total(pv: *mut abi::CrUiPreview) -> u64 {
 /// The M-116 archive inventory (bounded at the engine's own 512-entry cap).
 fn archive_entries(pv: *mut abi::CrUiPreview) -> BridgeResult<(Vec<Value>, bool)> {
     let mut count: u32 = 0;
-    check(unsafe { abi::cr_ui_archive_entry_count(pv, &mut count) }, "cr_ui_archive_entry_count")?;
+    check(
+        unsafe { abi::cr_ui_archive_entry_count(pv, &mut count) },
+        "cr_ui_archive_entry_count",
+    )?;
     let total = count as usize;
     let take = total.min(ARCHIVE_ENTRY_CAP);
     let mut rows = Vec::with_capacity(take);
     for i in 0..take {
         let mut e: abi::CrUiArchiveEntry = unsafe { std::mem::zeroed() };
-        check(unsafe { abi::cr_ui_archive_entry_at(pv, i as u32, &mut e) }, "cr_ui_archive_entry_at")?;
+        check(
+            unsafe { abi::cr_ui_archive_entry_at(pv, i as u32, &mut e) },
+            "cr_ui_archive_entry_at",
+        )?;
         rows.push(json!({
             "name": fixed_str(&e.name),
             "size": e.size,
@@ -215,10 +220,7 @@ fn rgba_to_bmp_data_url(rgba: &[u8], width: u32, height: u32) -> String {
 /// preview-damaged refusal, never as pixels. M-115's small-node refusal
 /// (ERR_UNSUPPORTED at <= 20 bytes) degrades to the preview-read path only
 /// for LIVE scans; sessions have no fallback (the node is addressed by id).
-fn session_thumbnail(
-    entry: &Arc<ScanEntry>,
-    node_id: u64,
-) -> BridgeResult<Option<Value>> {
+fn session_thumbnail(entry: &Arc<ScanEntry>, node_id: u64) -> BridgeResult<Option<Value>> {
     let dev = entry.device();
     if dev.is_null() {
         return Ok(None); // truthful: no source, no thumbnail
@@ -229,7 +231,15 @@ fn session_thumbnail(
     // Probe: generation runs, dims are decided, pixels are discarded.
     let mut info: abi::CrUiThumbnailInfo = unsafe { std::mem::zeroed() };
     let rc = unsafe {
-        abi::cr_ui_thumbnail_generate(dev, session.get(), node_id, std::ptr::null(), std::ptr::null_mut(), 0, &mut info)
+        abi::cr_ui_thumbnail_generate(
+            dev,
+            session.get(),
+            node_id,
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            0,
+            &mut info,
+        )
     };
     match rc {
         abi::CR_UI_OK => {}
@@ -251,10 +261,20 @@ fn session_thumbnail(
     let cap = info.bytes_needed;
     let mut rgba = vec![0u8; cap as usize];
     let rc = unsafe {
-        abi::cr_ui_thumbnail_generate(dev, session.get(), node_id, std::ptr::null(), rgba.as_mut_ptr(), cap, &mut info)
+        abi::cr_ui_thumbnail_generate(
+            dev,
+            session.get(),
+            node_id,
+            std::ptr::null(),
+            rgba.as_mut_ptr(),
+            cap,
+            &mut info,
+        )
     };
     check(rc, "cr_ui_thumbnail_generate")?;
-    Ok(Some(json!({ "dataUrl": rgba_to_bmp_data_url(&rgba, info.width, info.height) })))
+    Ok(Some(
+        json!({ "dataUrl": rgba_to_bmp_data_url(&rgba, info.width, info.height) }),
+    ))
 }
 
 pub fn preview_payload(
@@ -313,7 +333,11 @@ pub fn preview_payload(
                         return Ok(Value::Null); // OQ-3: oversized -> null
                     }
                     let bytes = read_bytes(pv, size.min(cap))?;
-                    let data_url = format!("data:{};base64,{}", mime_for(&format), base64_encode(&bytes));
+                    let data_url = format!(
+                        "data:{};base64,{}",
+                        mime_for(&format),
+                        base64_encode(&bytes)
+                    );
                     return Ok(json!({ "dataUrl": data_url }));
                 }
                 if size > IMAGE_CAP {

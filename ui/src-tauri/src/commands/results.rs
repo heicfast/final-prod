@@ -44,12 +44,17 @@ const MS_1601_TO_1970: u64 = 11_644_473_600_000;
 /// produce: YYYY-MM-DDTHH:MM:SS[.sss]Z -> unix ms. None on mismatch.
 fn parse_iso_unix_ms(s: &str) -> Option<i64> {
     let b = s.as_bytes();
-    if b.len() < 20 || b[4] != b'-' || b[7] != b'-' || (b[10] != b'T' && b[10] != b' ') || b[13] != b':' || b[16] != b':' {
+    if b.len() < 20
+        || b[4] != b'-'
+        || b[7] != b'-'
+        || (b[10] != b'T' && b[10] != b' ')
+        || b[13] != b':'
+        || b[16] != b':'
+    {
         return None;
     }
-    let num = |from: usize, len: usize| -> Option<i64> {
-        s.get(from..from + len)?.parse::<i64>().ok()
-    };
+    let num =
+        |from: usize, len: usize| -> Option<i64> { s.get(from..from + len)?.parse::<i64>().ok() };
     let (y, mo, d) = (num(0, 4)?, num(5, 2)?, num(8, 2)?);
     let (h, mi, sec) = (num(11, 2)?, num(14, 2)?, num(17, 2)?);
     // days from civil (Hinnant) — same algorithm family as util's inverse.
@@ -95,15 +100,16 @@ fn parse_filter(v: &Value) -> FilterIn {
         categories: v
             .get("categories")
             .and_then(|x| x.as_array())
-            .map(|a| a.iter().filter_map(|c| c.as_str().map(String::from)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|c| c.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default(),
         date_from: s("dateFrom"),
         date_to: s("dateTo"),
         size_min: v.get("sizeMinBytes").and_then(|x| x.as_u64()).unwrap_or(0),
-        size_max: v
-            .get("sizeMaxBytes")
-            .and_then(|x| x.as_u64())
-            .unwrap_or(0),
+        size_max: v.get("sizeMaxBytes").and_then(|x| x.as_u64()).unwrap_or(0),
         extensions: v
             .get("extensions")
             .and_then(|x| x.as_array())
@@ -117,9 +123,16 @@ fn parse_filter(v: &Value) -> FilterIn {
         origins: v
             .get("origins")
             .and_then(|x| x.as_array())
-            .map(|a| a.iter().filter_map(|o| o.as_str().map(String::from)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|o| o.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default(),
-        hide_empty_files: v.get("hideEmptyFiles").and_then(|x| x.as_bool()).unwrap_or(false),
+        hide_empty_files: v
+            .get("hideEmptyFiles")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
     };
     if f.size_max == 0 {
         f.size_max = u64::MAX; // contract: null/0 = unbounded
@@ -145,15 +158,10 @@ struct Pred {
 }
 
 fn starts_with_ci(hay: &str, prefix: &str) -> bool {
-    hay.len() >= prefix.len()
-        && hay[..prefix.len()].eq_ignore_ascii_case(prefix)
+    hay.len() >= prefix.len() && hay[..prefix.len()].eq_ignore_ascii_case(prefix)
 }
 
-fn resolve_pred(
-    entry: &Arc<ScanEntry>,
-    f: &FilterIn,
-    metas: &[NodeMeta],
-) -> BridgeResult<Pred> {
+fn resolve_pred(entry: &Arc<ScanEntry>, f: &FilterIn, metas: &[NodeMeta]) -> BridgeResult<Pred> {
     let mut p = Pred {
         origin_mask: 0xF,
         require_active_only: false,
@@ -180,9 +188,7 @@ fn resolve_pred(
         ("path", Some("lost-paths")) => p.origin_mask = 4,
         ("path", Some("raw-all")) => p.origin_mask = 2,
         ("path", Some(id)) if id.starts_with("lost-") => {
-            let idx: usize = id["lost-".len()..]
-                .parse()
-                .map_err(|_| bad_node(id))?;
+            let idx: usize = id["lost-".len()..].parse().map_err(|_| bad_node(id))?;
             let m = metas.get(idx).ok_or_else(|| bad_node(id))?;
             p.origin_mask = 4;
             p.path_prefix = join_prefix(entry, &m.path);
@@ -230,11 +236,23 @@ fn resolve_pred(
         }
     }
     if !f.categories.is_empty() {
-        let bits: u8 = f.categories.iter().filter_map(|c| {
-            let b = category_bit(c);
-            if b == 0 { None } else { Some(b) }
-        }).fold(0u8, |acc, b| acc | b);
-        p.category_bits = if p.category_bits == 0 { bits } else { p.category_bits & bits };
+        let bits: u8 = f
+            .categories
+            .iter()
+            .filter_map(|c| {
+                let b = category_bit(c);
+                if b == 0 {
+                    None
+                } else {
+                    Some(b)
+                }
+            })
+            .fold(0u8, |acc, b| acc | b);
+        p.category_bits = if p.category_bits == 0 {
+            bits
+        } else {
+            p.category_bits & bits
+        };
     }
     if p.origin_mask == 0 {
         p.origin_mask = 0xF; // contradictory selection degenerates to all
@@ -356,22 +374,38 @@ fn sort_matches(metas: &[NodeMeta], hits: &mut [usize], field: &str, dir_desc: b
                 .to_lowercase()
                 .cmp(&metas[*b].name.to_lowercase())
                 .then_with(|| metas[*a].name.cmp(&metas[*b].name));
-            if dir_desc { cmp.reverse() } else { cmp }
+            if dir_desc {
+                cmp.reverse()
+            } else {
+                cmp
+            }
         }),
         "modified" => hits.sort_by(|a, b| {
             let cmp = metas[*a].modified_ft.cmp(&metas[*b].modified_ft);
-            if dir_desc { cmp.reverse() } else { cmp }
+            if dir_desc {
+                cmp.reverse()
+            } else {
+                cmp
+            }
         }),
         "size" => hits.sort_by(|a, b| {
             let cmp = metas[*a].size.cmp(&metas[*b].size);
-            if dir_desc { cmp.reverse() } else { cmp }
+            if dir_desc {
+                cmp.reverse()
+            } else {
+                cmp
+            }
         }),
         "confidence" => hits.sort_by(|a, b| {
             let cmp = metas[*a]
                 .confidence
                 .cmp(&metas[*b].confidence)
                 .then_with(|| metas[*a].name.cmp(&metas[*b].name));
-            if dir_desc { cmp.reverse() } else { cmp }
+            if dir_desc {
+                cmp.reverse()
+            } else {
+                cmp
+            }
         }),
         // "type": the engine's sort 7 — category, then extension, then name.
         _ => hits.sort_by(|a, b| {
@@ -381,7 +415,11 @@ fn sort_matches(metas: &[NodeMeta], hits: &mut [usize], field: &str, dir_desc: b
                 .cmp(&metas[*b].category)
                 .then_with(|| ext(&metas[*a]).cmp(&ext(&metas[*b])))
                 .then_with(|| metas[*a].name.cmp(&metas[*b].name));
-            if dir_desc { cmp.reverse() } else { cmp }
+            if dir_desc {
+                cmp.reverse()
+            } else {
+                cmp
+            }
         }),
     }
 }
@@ -401,7 +439,11 @@ pub fn query_page(
     sort_desc: bool,
     page: PageReq,
 ) -> BridgeResult<Value> {
-    let PageReq { offset, limit, count_only } = page;
+    let PageReq {
+        offset,
+        limit,
+        count_only,
+    } = page;
     let t0 = std::time::Instant::now();
     let (entry, metas, _partial) = metas_snapshot(state, scan_id)?;
     let f = parse_filter(filter);
@@ -446,7 +488,11 @@ pub async fn results_query(
     page: Value,
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
-    let sort_field = sort.get("field").and_then(|f| f.as_str()).unwrap_or("name").to_string();
+    let sort_field = sort
+        .get("field")
+        .and_then(|f| f.as_str())
+        .unwrap_or("name")
+        .to_string();
     let sort_desc = sort.get("direction").and_then(|d| d.as_str()) == Some("desc");
     let req = PageReq {
         offset: page.get("offset").and_then(|o| o.as_u64()).unwrap_or(0),
@@ -467,7 +513,11 @@ pub async fn results_count(
     filter: Value,
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
-    let req = PageReq { offset: 0, limit: 0, count_only: true };
+    let req = PageReq {
+        offset: 0,
+        limit: 0,
+        count_only: true,
+    };
     tauri::async_runtime::spawn_blocking(move || {
         query_page(&state, &scan_id, &filter, "name", false, req)
     })
@@ -558,16 +608,16 @@ pub fn tree_page(
                         }
                         for (ext, (count, size)) in exts {
                             nodes.push(tree_node(TreeSpec {
-            id: &format!("ext:{label}:{ext}"),
-            parent_id: Some(pid),
-            label: &ext.to_uppercase(),
-            icon: "directory",
-            child_count: 0,
-            file_count: count,
-            size_bytes: size,
-            origin: "existing",
-            special: None,
-        }));
+                                id: &format!("ext:{label}:{ext}"),
+                                parent_id: Some(pid),
+                                label: &ext.to_uppercase(),
+                                icon: "directory",
+                                child_count: 0,
+                                file_count: count,
+                                size_bytes: size,
+                                origin: "existing",
+                                special: None,
+                            }));
                         }
                     }
                 }
@@ -589,32 +639,32 @@ pub fn tree_page(
                         size += m.size;
                     }
                     nodes.push(tree_node(TreeSpec {
-            id: &format!("c{idx}"),
-            parent_id: None,
-            label,
-            icon: "category",
-            child_count: if count > 0 { 1 } else { 0 },
-            file_count: count,
-            size_bytes: size,
-            origin: "existing",
-            special: None,
-        }));
+                        id: &format!("c{idx}"),
+                        parent_id: None,
+                        label,
+                        icon: "category",
+                        child_count: if count > 0 { 1 } else { 0 },
+                        file_count: count,
+                        size_bytes: size,
+                        origin: "existing",
+                        special: None,
+                    }));
                 }
             }
         }
         "raw" => {
             let (count, size) = origin_sums(&metas, 1, scope.as_deref());
             nodes.push(tree_node(TreeSpec {
-            id: "raw-all",
-            parent_id: None,
-            label: "raw",
-            icon: "group",
-            child_count: 0,
-            file_count: count,
-            size_bytes: size,
-            origin: "raw",
-            special: Some("raw-found"),
-        }));
+                id: "raw-all",
+                parent_id: None,
+                label: "raw",
+                icon: "group",
+                child_count: 0,
+                file_count: count,
+                size_bytes: size,
+                origin: "raw",
+                special: Some("raw-found"),
+            }));
         }
         _ => {
             // path mode
@@ -632,16 +682,16 @@ pub fn tree_page(
                                 .filter(|x| x.is_dir && x.parent == idx as u32)
                                 .count() as u64;
                             nodes.push(tree_node(TreeSpec {
-            id: &format!("d{idx}"),
-            parent_id: None,
-            label: &m.name,
-            icon: "directory",
-            child_count: top_dirs,
-            file_count: m.file_count,
-            size_bytes: m.tree_size,
-            origin: "existing",
-            special: None,
-        }));
+                                id: &format!("d{idx}"),
+                                parent_id: None,
+                                label: &m.name,
+                                icon: "directory",
+                                child_count: top_dirs,
+                                file_count: m.file_count,
+                                size_bytes: m.tree_size,
+                                origin: "existing",
+                                special: None,
+                            }));
                         }
                     } else {
                         // Structured totals (existing + deleted + lost files
@@ -661,41 +711,41 @@ pub fn tree_page(
                             }
                         }
                         nodes.push(tree_node(TreeSpec {
-            id: "root",
-            parent_id: None,
-            label: "root",
-            icon: "device",
-            child_count: top_dirs,
-            file_count: fc,
-            size_bytes: fs,
-            origin: "existing",
-            special: None,
-        }));
+                            id: "root",
+                            parent_id: None,
+                            label: "root",
+                            icon: "device",
+                            child_count: top_dirs,
+                            file_count: fc,
+                            size_bytes: fs,
+                            origin: "existing",
+                            special: None,
+                        }));
                         let (lost_c, lost_s) = origin_sums(&metas, 2, None);
                         let lost_top_dirs = lost_dirs(&metas, 0, true).len() as u64;
                         nodes.push(tree_node(TreeSpec {
-            id: "lost-paths",
-            parent_id: None,
-            label: "lost-paths",
-            icon: "group",
-            child_count: if lost_top_dirs > 0 { 1 } else { 0 },
-            file_count: lost_c,
-            size_bytes: lost_s,
-            origin: "lost-path",
-            special: Some("lost-path"),
-        }));
+                            id: "lost-paths",
+                            parent_id: None,
+                            label: "lost-paths",
+                            icon: "group",
+                            child_count: if lost_top_dirs > 0 { 1 } else { 0 },
+                            file_count: lost_c,
+                            size_bytes: lost_s,
+                            origin: "lost-path",
+                            special: Some("lost-path"),
+                        }));
                         let (raw_c, raw_s) = origin_sums(&metas, 1, None);
                         nodes.push(tree_node(TreeSpec {
-            id: "raw-all",
-            parent_id: None,
-            label: "raw",
-            icon: "group",
-            child_count: 0,
-            file_count: raw_c,
-            size_bytes: raw_s,
-            origin: "raw",
-            special: Some("raw-found"),
-        }));
+                            id: "raw-all",
+                            parent_id: None,
+                            label: "raw",
+                            icon: "group",
+                            child_count: 0,
+                            file_count: raw_c,
+                            size_bytes: raw_s,
+                            origin: "raw",
+                            special: Some("raw-found"),
+                        }));
                     }
                 }
                 Some("root") => {
@@ -719,16 +769,16 @@ pub fn tree_page(
                         let (c, s) = lost_under(&metas, &m.path);
                         let deeper = lost_dirs(&metas, idx, false).len() as u64;
                         nodes.push(tree_node(TreeSpec {
-            id: &format!("lost-{idx}"),
-            parent_id: Some("lost-paths"),
-            label: &m.name,
-            icon: "directory",
-            child_count: deeper,
-            file_count: c,
-            size_bytes: s,
-            origin: "lost-path",
-            special: None,
-        }));
+                            id: &format!("lost-{idx}"),
+                            parent_id: Some("lost-paths"),
+                            label: &m.name,
+                            icon: "directory",
+                            child_count: deeper,
+                            file_count: c,
+                            size_bytes: s,
+                            origin: "lost-path",
+                            special: None,
+                        }));
                     }
                 }
                 Some(pid) if pid.starts_with("lost-") => {
@@ -738,16 +788,16 @@ pub fn tree_page(
                         let (c, s) = lost_under(&metas, &m.path);
                         let deeper = lost_dirs(&metas, child, false).len() as u64;
                         nodes.push(tree_node(TreeSpec {
-            id: &format!("lost-{child}"),
-            parent_id: Some(pid),
-            label: &m.name,
-            icon: "directory",
-            child_count: deeper,
-            file_count: c,
-            size_bytes: s,
-            origin: "lost-path",
-            special: None,
-        }));
+                            id: &format!("lost-{child}"),
+                            parent_id: Some(pid),
+                            label: &m.name,
+                            icon: "directory",
+                            child_count: deeper,
+                            file_count: c,
+                            size_bytes: s,
+                            origin: "lost-path",
+                            special: None,
+                        }));
                     }
                 }
                 Some(pid) if pid.starts_with('d') => {
@@ -843,8 +893,8 @@ pub async fn results_tree(
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || tree_page(&state, &scan_id, parent_id, &mode))
-    .await
-    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
+        .await
+        .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
 }
 
 // ---------------------------------------------------------------------------
@@ -875,13 +925,7 @@ pub async fn node_detail(
             .and_then(|l| l.as_str())
             .map(|l| l.trim_end_matches(':').to_string());
         let full_physical_path = if m.origin == 0 {
-            letter.map(|l| {
-                format!(
-                    "{l}:\\{}\\{}",
-                    m.path.replace('/', "\\"),
-                    m.name
-                )
-            })
+            letter.map(|l| format!("{l}:\\{}\\{}", m.path.replace('/', "\\"), m.name))
         } else {
             None
         };
@@ -966,7 +1010,11 @@ mod t14_validation {
                     name: name.clone(),
                     path: format!("users/public/docs/{name}"),
                     is_dir,
-                    size: if is_dir { 0 } else { (i as u64 % 900_000) + 100 },
+                    size: if is_dir {
+                        0
+                    } else {
+                        (i as u64 % 900_000) + 100
+                    },
                     modified_ft: 132_000_000_000_000_000 + (i as u64) * 3_600_000_000,
                     created_ft: 131_000_000_000_000_000,
                     accessed_ft: 133_000_000_000_000_000,

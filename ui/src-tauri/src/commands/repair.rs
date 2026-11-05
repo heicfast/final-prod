@@ -39,14 +39,13 @@ pub async fn consent_respond(
 
 #[tauri::command]
 pub async fn repair_dry_run(_device_id: String) -> Result<Value, BridgeError> {
-    Err(BridgeError::gap("repair.dryRunRepair (standalone repair workbench)"))
+    Err(BridgeError::gap(
+        "repair.dryRunRepair (standalone repair workbench)",
+    ))
 }
 
 #[tauri::command]
-pub async fn repair_apply(
-    _device_id: String,
-    _options: Value,
-) -> Result<Value, BridgeError> {
+pub async fn repair_apply(_device_id: String, _options: Value) -> Result<Value, BridgeError> {
     Err(BridgeError::gap(
         "repair.applyRepair (standalone apply; the real repair path is the scan's \
          pre-scan analysis — the consent prompt inside the scan)",

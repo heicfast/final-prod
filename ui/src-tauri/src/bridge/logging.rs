@@ -31,7 +31,7 @@ use std::ffi::CStr;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -75,18 +75,35 @@ fn feed_candidate_line(line: &str) {
     let mut it = rest.split(' ');
     let (Some(lba), Some(sectors), Some(fs), Some(score)) = (
         it.next().and_then(|v| v.parse::<u64>().ok()),
-        it.next().and_then(|v| v.strip_prefix("sectors=").and_then(|v| v.parse::<u64>().ok()),
-        it.next().and_then(|v| v.strip_prefix("fs=").and_then(|v| v.parse::<u32>().ok())),
-        it.next().and_then(|v| v.strip_prefix("score=").and_then(|v| v.parse::<u32>().ok())),
+        it.next().and_then(|v| {
+            v.strip_prefix("sectors=")
+                .and_then(|v| v.parse::<u64>().ok())
+        }),
+        it.next()
+            .and_then(|v| v.strip_prefix("fs=").and_then(|v| v.parse::<u32>().ok())),
+        it.next()
+            .and_then(|v| v.strip_prefix("score=").and_then(|v| v.parse::<u32>().ok())),
     ) else {
         return; // not the pinned shape — never guess
     };
     if let Ok(mut c) = candidates().lock() {
         // replace a same-LBA row if present, else append; prune by cap + age
         if let Some(slot) = c.iter_mut().find(|g| g.lba == lba) {
-            *slot = CandidateGeom { lba, sectors, fs, score, seen_ms: now_ms() };
+            *slot = CandidateGeom {
+                lba,
+                sectors,
+                fs,
+                score,
+                seen_ms: now_ms(),
+            };
         } else {
-            c.push(CandidateGeom { lba, sectors, fs, score, seen_ms: now_ms() });
+            c.push(CandidateGeom {
+                lba,
+                sectors,
+                fs,
+                score,
+                seen_ms: now_ms(),
+            });
         }
         if c.len() > CANDIDATE_STASH_CAP {
             let excess = c.len() - CANDIDATE_STASH_CAP;
@@ -243,10 +260,7 @@ mod tests {
     #[test]
     fn candidate_line_parses_and_consumes() {
         feed_candidate_line("lost candidate: lba=4096 sectors=204800 fs=0 score=85");
-        assert_eq!(
-            take_candidate_geometry(4096),
-            Some((204_800, 0, 85))
-        );
+        assert_eq!(take_candidate_geometry(4096), Some((204_800, 0, 85)));
         // consumed exactly once
         assert_eq!(take_candidate_geometry(4096), None);
         // a non-matching line never feeds

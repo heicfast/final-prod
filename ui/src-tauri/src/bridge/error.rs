@@ -111,7 +111,6 @@ impl BridgeError {
             ),
         )
     }
-
 }
 
 pub type BridgeResult<T> = Result<T, BridgeError>;

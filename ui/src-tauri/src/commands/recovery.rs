@@ -20,18 +20,14 @@ use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::events::{emit_job_terminal, spawn_job_emitter};
-use crate::bridge::state::{BridgeState, JobEntry, JobLive, ScanKind, ScanEntry};
+use crate::bridge::state::{BridgeState, JobEntry, JobLive, ScanEntry, ScanKind};
 use crate::bridge::util::{now_iso, SendPtr};
 
 /// The blocking-start result: the registered job + its id + the sample
 /// receiver the emitter drains.
-type JobStart = (
-    Arc<JobEntry>,
-    String,
-    std::sync::mpsc::Receiver<(u64, u64)>,
-);
+type JobStart = (Arc<JobEntry>, String, std::sync::mpsc::Receiver<(u64, u64)>);
 use crate::commands::results::query_page;
 
 fn conflict_of(v: &Value) -> u32 {
@@ -70,7 +66,14 @@ pub async fn recovery_start(
     let recovery_ptr = crate::bridge::util::SendPtr::new(job_entry.recovery.get());
     let live = job_entry.live.clone();
     let finished = Arc::new(AtomicBool::new(false));
-    spawn_job_emitter(rx, app.clone(), job_id.clone(), live.clone(), recovery_ptr, finished.clone());
+    spawn_job_emitter(
+        rx,
+        app.clone(),
+        job_id.clone(),
+        live.clone(),
+        recovery_ptr,
+        finished.clone(),
+    );
     spawn_process_thread(app, job_entry, finished);
     Ok(json!({ "jobId": job_id }))
 }
@@ -96,8 +99,18 @@ fn recovery_start_blocking(
     // (read_chunk 0 = 1 MiB, rename_attempts 0 = 64) stay engine-side.
     let mut cfg: abi::CrUiRecoveryConfig = unsafe { std::mem::zeroed() };
     cfg.conflict = conflict_of(&options);
-    cfg.skip_hash_verify = if options.get("verifyOnWrite").and_then(|v| v.as_bool()) == Some(false) { 1 } else { 0 };
-    cfg.skip_dir_reconstruct = if options.get("rebuildFolders").and_then(|v| v.as_bool()) == Some(false) { 1 } else { 0 };
+    cfg.skip_hash_verify = if options.get("verifyOnWrite").and_then(|v| v.as_bool()) == Some(false)
+    {
+        1
+    } else {
+        0
+    };
+    cfg.skip_dir_reconstruct =
+        if options.get("rebuildFolders").and_then(|v| v.as_bool()) == Some(false) {
+            1
+        } else {
+            0
+        };
 
     // Bounded (64): byte-sample coalescing — the writer's progress fn
     // never blocks; the emitter keeps the freshest sample.
@@ -107,7 +120,10 @@ fn recovery_start_blocking(
     cfg.progress_user = sink_user as *mut std::ffi::c_void;
 
     let mut rec: *mut abi::CrUiRecovery = std::ptr::null_mut();
-    check(unsafe { abi::cr_ui_recovery_create(dev, &cfg, &mut rec) }, "cr_ui_recovery_create")?;
+    check(
+        unsafe { abi::cr_ui_recovery_create(dev, &cfg, &mut rec) },
+        "cr_ui_recovery_create",
+    )?;
     let recovery = SendPtr::new(rec);
 
     // Destination: the engine normalizes + arms the overlap refusal (F12).
@@ -154,7 +170,10 @@ fn recovery_start_blocking(
                     node_ids.push(id_s);
                     continue;
                 } else {
-                    let idx: u32 = id_s.strip_prefix('f').and_then(|r| r.parse().ok()).ok_or_else(|| bad_sel(&id_s))?;
+                    let idx: u32 = id_s
+                        .strip_prefix('f')
+                        .and_then(|r| r.parse().ok())
+                        .ok_or_else(|| bad_sel(&id_s))?;
                     check(
                         unsafe { abi::cr_ui_recovery_enqueue_snapshot(rec, snap_ptr, idx) },
                         "cr_ui_recovery_enqueue_snapshot",
@@ -171,7 +190,10 @@ fn recovery_start_blocking(
             // Bridge pages the filtered query and enqueues every matching
             // FILE (structure materializes through the writer's dir
             // reconstruction — G-08). G-11 scope rides the filter.
-            let filter = selection.get("filter").cloned().unwrap_or_else(|| json!({}));
+            let filter = selection
+                .get("filter")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
             let mut offset = 0u64;
             loop {
                 let page = query_page(
@@ -186,12 +208,20 @@ fn recovery_start_blocking(
                         count_only: false,
                     },
                 )?;
-                let nodes = page.get("nodes").and_then(|n| n.as_array()).cloned().unwrap_or_default();
+                let nodes = page
+                    .get("nodes")
+                    .and_then(|n| n.as_array())
+                    .cloned()
+                    .unwrap_or_default();
                 if nodes.is_empty() {
                     break;
                 }
                 for node in &nodes {
-                    let id_s = node.get("id").and_then(|i| i.as_str()).unwrap_or_default().to_string();
+                    let id_s = node
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or_default()
+                        .to_string();
                     if is_session {
                         let node_id_u64 = resolve_session_node_id(&entry, &id_s)?;
                         check(
@@ -199,7 +229,10 @@ fn recovery_start_blocking(
                             "cr_ui_recovery_enqueue_node",
                         )?;
                     } else {
-                        let idx: u32 = id_s.strip_prefix('f').and_then(|r| r.parse().ok()).unwrap_or(u32::MAX);
+                        let idx: u32 = id_s
+                            .strip_prefix('f')
+                            .and_then(|r| r.parse().ok())
+                            .unwrap_or(u32::MAX);
                         check(
                             unsafe { abi::cr_ui_recovery_enqueue_snapshot(rec, snap_ptr, idx) },
                             "cr_ui_recovery_enqueue_snapshot",
@@ -222,7 +255,10 @@ fn recovery_start_blocking(
     }
 
     let mut queued: u32 = 0;
-    check(unsafe { abi::cr_ui_recovery_queue_count(rec, &mut queued) }, "cr_ui_recovery_queue_count")?;
+    check(
+        unsafe { abi::cr_ui_recovery_queue_count(rec, &mut queued) },
+        "cr_ui_recovery_queue_count",
+    )?;
 
     let job_id = state.mint_job_id();
     let started_at = now_iso();
@@ -253,7 +289,10 @@ fn recovery_start_blocking(
 }
 
 fn bad_sel(id: &str) -> BridgeError {
-    BridgeError::bridge(code::UNKNOWN, format!("selection id '{id}' does not resolve in this tree"))
+    BridgeError::bridge(
+        code::UNKNOWN,
+        format!("selection id '{id}' does not resolve in this tree"),
+    )
 }
 
 /// Session trees address nodes by engine node_id; live scans by snapshot
@@ -275,11 +314,7 @@ fn resolve_session_node_id(entry: &Arc<ScanEntry>, id: &str) -> BridgeResult<u64
     Ok(m.node_id)
 }
 
-fn spawn_process_thread(
-    app: tauri::AppHandle,
-    job: Arc<JobEntry>,
-    finished: Arc<AtomicBool>,
-) {
+fn spawn_process_thread(app: tauri::AppHandle, job: Arc<JobEntry>, finished: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         let rc = unsafe { abi::cr_ui_recovery_process(job.recovery.get()) };
         let mut stats: abi::CrUiRecoveryStats = unsafe { std::mem::zeroed() };
@@ -288,7 +323,9 @@ fn spawn_process_thread(
             "cancelled"
         } else if rc != abi::CR_UI_OK {
             "failed"
-        } else if stats.done + stats.salvaged == 0 && stats.refused + stats.errors + stats.hash_mismatch + stats.nothing_to_recover > 0 {
+        } else if stats.done + stats.salvaged == 0
+            && stats.refused + stats.errors + stats.hash_mismatch + stats.nothing_to_recover > 0
+        {
             // nothing committed and something went wrong before the writer
             "failed"
         } else if stats.done + stats.salvaged > 0
@@ -338,7 +375,10 @@ pub async fn recovery_cancel(
         if job.finished.lock().map(|f| f.is_some()).unwrap_or(false) {
             return Ok(()); // terminal: the truthful no-op
         }
-        check(unsafe { abi::cr_ui_recovery_cancel(job.recovery.get()) }, "cr_ui_recovery_cancel")
+        check(
+            unsafe { abi::cr_ui_recovery_cancel(job.recovery.get()) },
+            "cr_ui_recovery_cancel",
+        )
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?

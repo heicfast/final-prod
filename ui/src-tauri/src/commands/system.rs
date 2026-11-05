@@ -88,11 +88,7 @@ pub async fn system_relaunch_elevated(app: tauri::AppHandle) -> Result<(), Bridg
         const SW_SHOWNORMAL: i32 = 1;
         let exe = std::env::current_exe()
             .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("own exe path: {e}")))?;
-        let wide: Vec<u16> = exe
-            .to_string_lossy()
-            .encode_utf16()
-            .chain([0])
-            .collect();
+        let wide: Vec<u16> = exe.to_string_lossy().encode_utf16().chain([0]).collect();
         let verb: Vec<u16> = "runas".encode_utf16().chain([0]).collect();
         let rc = unsafe {
             ShellExecuteW(
@@ -170,7 +166,10 @@ pub fn register_user_signs_json(json_bytes: &str) -> BridgeResult<u32> {
 /// rrecov.cpp:1346-1383 posture; the DLL does NOT auto-load). Absent file
 /// or a parse failure is a LOGGED no-op — never a startup failure.
 pub fn load_default_user_signs() {
-    let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) else {
+    let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    else {
         return;
     };
     let path = dir.join(USER_SIGN_DEFAULTS_FILE);
@@ -190,7 +189,7 @@ pub fn load_default_user_signs() {
                 ));
             }
         },
-        Ok(_) => {} // empty file: nothing to load
+        Ok(_) => {}  // empty file: nothing to load
         Err(_) => {} // absent: the normal case
     }
 }
@@ -217,11 +216,21 @@ pub async fn system_load_user_signs(content: String) -> Result<Value, BridgeErro
 #[cfg(windows)]
 fn letter_free_total(letter: u8) -> Option<(u64, u64)> {
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
-    let root: Vec<u16> = format!("{}:\\", letter as char).encode_utf16().chain([0]).collect();
+    let root: Vec<u16> = format!("{}:\\", letter as char)
+        .encode_utf16()
+        .chain([0])
+        .collect();
     let mut free: u64 = 0;
     let mut total: u64 = 0;
     let mut _avail: u64 = 0;
-    let ok = unsafe { GetDiskFreeSpaceExW(root.as_ptr(), &mut free as *mut u64, &mut total as *mut u64, &mut _avail as *mut u64) };
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(
+            root.as_ptr(),
+            &mut free as *mut u64,
+            &mut total as *mut u64,
+            &mut _avail as *mut u64,
+        )
+    };
     if ok == 0 {
         return None;
     }
@@ -302,7 +311,11 @@ pub async fn system_validate_destination(
             return Ok(destination_result(Some("invalid"), None, needed_bytes));
         };
         if needed_bytes > 0 && free < needed_bytes {
-            return Ok(destination_result(Some("out-of-space"), Some(free), needed_bytes));
+            return Ok(destination_result(
+                Some("out-of-space"),
+                Some(free),
+                needed_bytes,
+            ));
         }
         // Real write probe: create + delete a temp file in the directory.
         let dir = std::path::PathBuf::from(path.trim());
@@ -312,7 +325,11 @@ pub async fn system_validate_destination(
                 let _ = std::fs::remove_file(&probe);
                 Ok(destination_result(None, Some(free), needed_bytes))
             }
-            Err(_) => Ok(destination_result(Some("unwritable"), Some(free), needed_bytes)),
+            Err(_) => Ok(destination_result(
+                Some("unwritable"),
+                Some(free),
+                needed_bytes,
+            )),
         }
     })
     .await
@@ -370,10 +387,7 @@ pub async fn system_pick_directory(
 }
 
 #[tauri::command]
-pub async fn system_open_path(
-    app: tauri::AppHandle,
-    path: String,
-) -> Result<(), BridgeError> {
+pub async fn system_open_path(app: tauri::AppHandle, path: String) -> Result<(), BridgeError> {
     // Files are REVEALED with selection in the system explorer; folders
     // open directly.
     use tauri_plugin_opener::OpenerExt;

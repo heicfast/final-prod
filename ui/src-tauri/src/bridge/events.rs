@@ -29,7 +29,10 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 use super::abi;
-use super::state::{JobLive, LostCandidateRow, ScanLive, Terminal, BAD_SECTOR_MAP_CAP, DISCONNECT_AFTER_MS, LOST_CANDIDATE_CAP};
+use super::state::{
+    JobLive, LostCandidateRow, ScanLive, Terminal, BAD_SECTOR_MAP_CAP, DISCONNECT_AFTER_MS,
+    LOST_CANDIDATE_CAP,
+};
 
 // ---------------------------------------------------------------------------
 // Sinks (engine worker threads — never add anything blocking in here)
@@ -71,7 +74,10 @@ pub struct SessionLoadPipe {
     pub last_permille: u32,
 }
 
-pub unsafe extern "C" fn session_load_sink(user: *mut std::ffi::c_void, evt: *const abi::CrUiEvent) {
+pub unsafe extern "C" fn session_load_sink(
+    user: *mut std::ffi::c_void,
+    evt: *const abi::CrUiEvent,
+) {
     if user.is_null() || evt.is_null() {
         return;
     }
@@ -271,7 +277,8 @@ pub fn spawn_scan_emitter(
                 }
                 abi::CR_EVT_ERROR_RANGE => {
                     if live.bad_sectors.len() < BAD_SECTOR_MAP_CAP {
-                        live.bad_sectors.push((evt.err_start_bytes, evt.err_len_bytes));
+                        live.bad_sectors
+                            .push((evt.err_start_bytes, evt.err_len_bytes));
                     }
                     live.errors = evt.error_ranges;
                     emit = true;
@@ -363,7 +370,8 @@ pub fn spawn_scan_emitter(
                             if live.last_throughput > 0.0 && live.bytes_total > live.bytes_scanned {
                                 live.last_eta_seconds = Some(
                                     ((live.bytes_total - live.bytes_scanned) as f64
-                                        / live.last_throughput) as u64,
+                                        / live.last_throughput)
+                                        as u64,
                                 );
                             }
                         }
@@ -451,7 +459,11 @@ pub fn spawn_job_emitter(
                 prev_sample_ms = now;
                 live.bytes_done = done;
                 live.bytes_total = total;
-                let frac = if total == 0 { 0.0 } else { done as f64 / total as f64 };
+                let frac = if total == 0 {
+                    0.0
+                } else {
+                    done as f64 / total as f64
+                };
                 if frac > live.overall {
                     live.overall = frac; // clamped monotonic
                 }
@@ -459,7 +471,9 @@ pub fn spawn_job_emitter(
             if !recovery_ptr.is_null() {
                 // Live counters from stats (event-mapping.md §Recovery).
                 let mut stats: abi::CrUiRecoveryStats = unsafe { std::mem::zeroed() };
-                if unsafe { abi::cr_ui_recovery_get_stats(recovery_ptr, &mut stats) } == abi::CR_UI_OK {
+                if unsafe { abi::cr_ui_recovery_get_stats(recovery_ptr, &mut stats) }
+                    == abi::CR_UI_OK
+                {
                     live.done_count = stats.done + stats.salvaged;
                     live.failed_count = stats.errors + stats.hash_mismatch;
                     live.skipped_count = stats.refused + stats.resumed + stats.nothing_to_recover;
@@ -486,7 +500,10 @@ pub fn spawn_job_emitter(
                         && live.bytes_done == live.bytes_total
                         && matches!(hash_status.as_str(), "verified" | "computed");
                 }
-                if live.status == "running" && live.last_throughput > 0.0 && live.bytes_total > live.bytes_done {
+                if live.status == "running"
+                    && live.last_throughput > 0.0
+                    && live.bytes_total > live.bytes_done
+                {
                     live.eta_seconds = Some(
                         ((live.bytes_total - live.bytes_done) as f64 / live.last_throughput) as u64,
                     );
@@ -513,7 +530,11 @@ fn report_tail(recovery_ptr: *mut abi::CrUiRecovery) -> Option<(String, String)>
     for item in items.iter().rev() {
         let outcome = item.get("outcome").and_then(|o| o.as_str()).unwrap_or("");
         if outcome != "pending" {
-            let path = item.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string();
+            let path = item
+                .get("path")
+                .and_then(|p| p.as_str())
+                .unwrap_or("")
+                .to_string();
             let hash = item
                 .get("hash_status")
                 .and_then(|h| h.as_str())

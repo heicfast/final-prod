@@ -306,7 +306,11 @@ impl Drop for ScanEntry {
         // Order per the engine's lifetime rules: snapshot cache closes first
         // (its own Drop), then scan/session, then the borrowed device.
         match &self.kind {
-            ScanKind::Live { scan, device, owns_device } => {
+            ScanKind::Live {
+                scan,
+                device,
+                owns_device,
+            } => {
                 unsafe { abi::cr_ui_scan_close(scan.get()) };
                 if *owns_device {
                     unsafe { abi::cr_ui_device_close(device.get()) };
@@ -462,39 +466,36 @@ impl BridgeState {
     /// anything the UI could guess into authority (plan §4.5). The two
     /// families carry distinct prefixes so a token is self-describing.
     pub fn mint_consent_id(&self) -> String {
-        format!("consent-{}", self.next_consent.fetch_add(1, Ordering::Relaxed))
+        format!(
+            "consent-{}",
+            self.next_consent.fetch_add(1, Ordering::Relaxed)
+        )
     }
 
     pub fn mint_apply_consent_id(&self) -> String {
-        format!("apply-{}", self.next_apply_consent.fetch_add(1, Ordering::Relaxed))
+        format!(
+            "apply-{}",
+            self.next_apply_consent.fetch_add(1, Ordering::Relaxed)
+        )
     }
 
     /// Look up a scan entry (cloned Arc — safe to use after releasing the
     /// registry lock).
     pub fn scan_entry_arc(&self, scan_id: &str) -> BridgeResult<Arc<ScanEntry>> {
         let guard = self.scans.lock().map_err(|_| poisoned())?;
-        guard
-            .get(scan_id)
-            .cloned()
-            .ok_or_else(|| {
-                BridgeError::bridge(
-                    code::SCAN_NOT_FOUND,
-                    format!("scan {scan_id} is not registered (unknown or closed id)"),
-                )
-            })
+        guard.get(scan_id).cloned().ok_or_else(|| {
+            BridgeError::bridge(
+                code::SCAN_NOT_FOUND,
+                format!("scan {scan_id} is not registered (unknown or closed id)"),
+            )
+        })
     }
 
     pub fn job_entry_arc(&self, job_id: &str) -> BridgeResult<Arc<JobEntry>> {
         let guard = self.jobs.lock().map_err(|_| poisoned())?;
-        guard
-            .get(job_id)
-            .cloned()
-            .ok_or_else(|| {
-                BridgeError::bridge(
-                    code::UNKNOWN,
-                    format!("job {job_id} is not registered"),
-                )
-            })
+        guard.get(job_id).cloned().ok_or_else(|| {
+            BridgeError::bridge(code::UNKNOWN, format!("job {job_id} is not registered"))
+        })
     }
 
     /// Register a pending consent (the consent sink; lock released before
@@ -541,27 +542,21 @@ impl BridgeState {
     /// The pending consent payload for a scan (scan_state re-hydration),
     /// or None when nothing pends.
     pub fn pending_consent(&self, scan_id: &str) -> Option<serde_json::Value> {
-        self.consents
-            .lock()
-            .ok()
-            .and_then(|c| {
-                c.values()
-                    .find(|pc| pc.family == ConsentFamily::Repair && pc.owner_id == scan_id)
-                    .map(|pc| pc.payload.clone())
-            })
+        self.consents.lock().ok().and_then(|c| {
+            c.values()
+                .find(|pc| pc.family == ConsentFamily::Repair && pc.owner_id == scan_id)
+                .map(|pc| pc.payload.clone())
+        })
     }
 
     /// The pending APPLY consent payload for a device (re-hydration for the
     /// lost-partition screen), or None when nothing pends.
     pub fn pending_apply_consent(&self, device_id: &str) -> Option<serde_json::Value> {
-        self.consents
-            .lock()
-            .ok()
-            .and_then(|c| {
-                c.values()
-                    .find(|pc| pc.family == ConsentFamily::Apply && pc.owner_id == device_id)
-                    .map(|pc| pc.payload.clone())
-            })
+        self.consents.lock().ok().and_then(|c| {
+            c.values()
+                .find(|pc| pc.family == ConsentFamily::Apply && pc.owner_id == device_id)
+                .map(|pc| pc.payload.clone())
+        })
     }
 }
 
@@ -745,7 +740,10 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
         if idx as usize >= count {
             continue;
         }
-        let (fc, ts) = (metas[idx as usize].file_count, metas[idx as usize].tree_size);
+        let (fc, ts) = (
+            metas[idx as usize].file_count,
+            metas[idx as usize].tree_size,
+        );
         let parent = metas[idx as usize].parent;
         if parent != abi::CR_UI_SNAP_NONE && (parent as usize) < count {
             metas[parent as usize].file_count += fc;
@@ -791,17 +789,19 @@ pub fn extension_of(name: &str) -> String {
 }
 
 /// Clone the metadata cache (payload assembly needs owned rows sometimes).
-pub fn metas_snapshot(state: &BridgeState, scan_id: &str) -> BridgeResult<(Arc<ScanEntry>, Vec<NodeMeta>, bool)> {
+pub fn metas_snapshot(
+    state: &BridgeState,
+    scan_id: &str,
+) -> BridgeResult<(Arc<ScanEntry>, Vec<NodeMeta>, bool)> {
     refresh_snapshot(state, scan_id)?;
     let entry = state.scan_entry_arc(scan_id)?;
     ensure_metas(&entry)?;
     // Extract under the lock, then release before moving `entry` out.
     let (metas, partial) = {
         let snap = entry.snap.lock().map_err(|_| poisoned())?;
-        let metas = snap
-            .metas
-            .clone()
-            .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build"))?;
+        let metas = snap.metas.clone().ok_or_else(|| {
+            BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build")
+        })?;
         (metas, snap.partial)
     };
     Ok((entry, metas, partial))

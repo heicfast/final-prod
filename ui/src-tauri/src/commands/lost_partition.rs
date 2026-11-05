@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::consent::ApplyConsentPipe;
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::state::BridgeState;
 use crate::bridge::util::{cstr, fixed_str};
 
@@ -61,9 +61,12 @@ pub async fn lost_partition_apply(
     tauri::async_runtime::spawn_blocking(move || {
         // The candidate row (scan-state geometry — lba/sectors/fs required;
         // apply transcribes, never invents).
-        let lba = candidate.get("lba").and_then(|v| v.as_u64()).ok_or_else(|| {
-            BridgeError::bridge(code::SCAN_SCOPE_INVALID, "the candidate carries no lba")
-        })?;
+        let lba = candidate
+            .get("lba")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| {
+                BridgeError::bridge(code::SCAN_SCOPE_INVALID, "the candidate carries no lba")
+            })?;
         let sectors = candidate
             .get("sectorCount")
             .and_then(|v| v.as_u64())
@@ -98,7 +101,15 @@ pub async fn lost_partition_apply(
         }
         // Teardown guarantee: whatever happens below, the in-flight marker
         // leaves and the device's pending gates close before returning.
-        let outcome = lost_partition_apply_blocking(&state, &app, &device_id, lba, sectors, fs, rebuild_table.unwrap_or(false));
+        let outcome = lost_partition_apply_blocking(
+            &state,
+            &app,
+            &device_id,
+            lba,
+            sectors,
+            fs,
+            rebuild_table.unwrap_or(false),
+        );
         if let Ok(mut in_flight) = state.apply_in_flight.lock() {
             in_flight.remove(&device_id);
         }
@@ -142,7 +153,10 @@ fn lost_partition_apply_blocking(
     let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
     let open_rc = unsafe { abi::cr_ui_open_disk(disk, &mut dev) };
     if open_rc == abi::CR_UI_ERR_ELEVATION_REQUIRED {
-        return Err(BridgeError::engine(open_rc, "cr_ui_open_disk (elevation required)"));
+        return Err(BridgeError::engine(
+            open_rc,
+            "cr_ui_open_disk (elevation required)",
+        ));
     }
     check(open_rc, "cr_ui_open_disk")?;
 
@@ -183,7 +197,10 @@ pub async fn lost_partition_undo(
     tauri::async_runtime::spawn_blocking(move || {
         let disk = disk_number(&device_id)?;
         let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
-        check(unsafe { abi::cr_ui_open_disk(disk, &mut dev) }, "cr_ui_open_disk")?;
+        check(
+            unsafe { abi::cr_ui_open_disk(disk, &mut dev) },
+            "cr_ui_open_disk",
+        )?;
         let mut result: abi::CrUiApplyResult = unsafe { std::mem::zeroed() };
         let rc = unsafe { abi::cr_ui_apply_undo_last(dev, &mut result) };
         unsafe { abi::cr_ui_device_close(dev) };
@@ -206,7 +223,10 @@ pub async fn lost_partition_save_undo(
     tauri::async_runtime::spawn_blocking(move || {
         let disk = disk_number(&device_id)?;
         let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
-        check(unsafe { abi::cr_ui_open_disk(disk, &mut dev) }, "cr_ui_open_disk")?;
+        check(
+            unsafe { abi::cr_ui_open_disk(disk, &mut dev) },
+            "cr_ui_open_disk",
+        )?;
         let path_c = cstr(&path);
         let rc = unsafe { abi::cr_ui_apply_save_undo(dev, path_c.as_ptr()) };
         unsafe { abi::cr_ui_device_close(dev) };

@@ -28,9 +28,7 @@ fn main() {
         }
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
         for profile in ["release", "debug"] {
-            println!(
-                "cargo:rustc-link-search=native={manifest}/target/{profile}"
-            );
+            println!("cargo:rustc-link-search=native={manifest}/target/{profile}");
         }
         println!("cargo:rustc-link-lib=dylib=cr_ui");
         println!(
