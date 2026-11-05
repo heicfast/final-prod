@@ -68,13 +68,24 @@ test('consent: re-hydration after navigating away and back', async ({ page }) =>
   const dialog = page.getByRole('dialog', { name: /confirm the repair/i });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-  // Navigate away through the SIDEBAR (client-side routing — the store
-  // survives): the prompt is shell-mounted and stays. (A full page reload
-  // resets the double's module state, so the reload-rehydration path is
-  // covered by the unit suite's state.pendingConsent assertions instead.)
-  await page.getByTestId('sidebar-toggle').click();
+  // Navigate away and back through BROWSER HISTORY (hash router →
+  // same-document navigation: the page never reloads, the double's module
+  // state and the zustand store survive, and the shell-mounted modal
+  // persists). This is the only away-and-back that neither answers the
+  // non-dismissable prompt (its Radix overlay swallows all in-page clicks
+  // by design — and the sidebar is not rendered on /scan routes anyway,
+  // run 42109647145) nor resets the TEST DOUBLE (page.goto() hard-reloads;
+  // that reload-rehydration path is covered by the unit suite's
+  // state.pendingConsent assertions).
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(dialog).toBeVisible();
-  await page.getByTestId('sidebar-toggle').click();
+  await page.goForward();
+  await expect(page.getByText(/quick scanning|advanced scanning/i).first()).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(dialog).toBeVisible();
 
   // Answer from the rehydrated prompt.

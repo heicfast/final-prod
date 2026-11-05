@@ -5,6 +5,7 @@ out/
 target/
 node_modules/
 vcpkg_installed/
+ui/src-tauri/gen/
 *.user
 *.aps
 .vs/

@@ -43,8 +43,8 @@ const THUMBNAIL_CAP: u64 = 8 * 1024 * 1024;
 const HEX_READ: u32 = 64 * 1024;
 /// M-116's own hostile bound — the engine never lists more.
 const ARCHIVE_ENTRY_CAP: usize = 512;
-/// M-115: nodes at or below this size are refused by the engine itself.
-const THUMBNAIL_MIN_SIZE: u64 = 20;
+// (M-115's ≤20-byte small-node refusal is the ENGINE's own ERR_UNSUPPORTED
+// — see session_thumbnail; the bridge does not re-check it, so no constant.)
 
 fn mime_for(format: &str) -> &'static str {
     match format.to_ascii_lowercase().as_str() {
@@ -204,7 +204,7 @@ fn rgba_to_bmp_data_url(rgba: &[u8], width: u32, height: u32) -> String {
     // BGRX; the engine's RGBA drops the alpha — BMP's reserved byte is 0).
     for y in (0..height as usize).rev() {
         let src = &rgba[y * row..y * row + row];
-        for px in src.chunks_exact(4) {
+        for px in src.as_chunks::<4>().0 {
             bmp.push(px[2]); // B
             bmp.push(px[1]); // G
             bmp.push(px[0]); // R

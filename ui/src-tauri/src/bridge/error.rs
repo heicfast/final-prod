@@ -40,9 +40,11 @@ pub mod code {
     pub const NOT_IMPLEMENTED: &str = "not-implemented";
     pub const HEALTH_UNAVAILABLE: &str = "health-unavailable";
     pub const REPAIR_CONSENT_REQUIRED: &str = "repair-consent-required";
-    pub const ELEVATION_REQUIRED: &str = "elevation-required";
-    pub const DESTINATION_INVALID: &str = "destination-invalid";
-    pub const DESTINATION_OVERLAP: &str = "destination-overlap";
+    // No ELEVATION_REQUIRED / DESTINATION_INVALID / DESTINATION_OVERLAP
+    // here: those three cross as ENGINE numeric codes (0x500C0001 and the
+    // 0x5005xxxx destination family the engine itself arms — F12/M-074) and
+    // the TS connector maps them through its numeric table; the bridge
+    // never classifies them itself (clippy dead-code proof, run 42109647269).
     pub const UNKNOWN: &str = "unknown";
 }
 
