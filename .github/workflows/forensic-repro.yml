@@ -162,6 +162,42 @@ jobs:
         shell: pwsh
         run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postrun
 
+      - name: Uninstall the product (silent) + no-leftover assertions
+        shell: pwsh
+        run: |
+          # The session mandate's last leg: the uninstall must remove
+          # everything the installer placed, with evidence. Silent mode
+          # KEEPS ProgramData sessions by design (data deletion requires
+          # interactive consent, recoverywizard.nsi:457) — that is the one
+          # documented, intentional survivor.
+          $ErrorActionPreference = 'Stop'
+          $instDir = 'C:\Program Files\HeicFast\Recovery Wizard'
+          $un = Join-Path $instDir 'HeicFastUninstall.exe'
+          if (-not (Test-Path $un)) { throw "uninstaller not found: $un" }
+          # NSIS silent uninstall; _? makes it synchronous (the exe copies
+          # itself to temp otherwise and returns immediately).
+          $p = Start-Process -FilePath $un -ArgumentList '/S',"_?=$instDir" -Wait -PassThru
+          "uninstaller exit code: $($p.ExitCode)" | Tee-Object -Variable _ | Set-Content C:\forensic\evidence\uninstall-exit.txt
+          if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
+          # Settle: NSIS deletes the directory tree after the process exits.
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path $instDir) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Seconds 2 }
+          .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postuninstall
+          $facts = Get-Content C:\forensic\evidence\facts-postuninstall.json -Raw | ConvertFrom-Json
+          $failures = @()
+          if (Test-Path $instDir) { $failures += "install dir still present: $instDir" }
+          if ($facts.installDir -ne 'missing') { $failures += "facts installDir not 'missing': $($facts.installDir)" }
+          if ($facts.installDirCount -ne 0) { $failures += "installDirCount = $($facts.installDirCount)" }
+          if ($facts.uninstallKey -and ($facts.uninstallKey -match 'Recovery Wizard')) { $failures += "uninstall registry key still present" }
+          if (Get-Service -Name 'RDA' -ErrorAction SilentlyContinue) { $failures += 'RDA service exists after uninstall' }
+          if (Test-Path "$env:SystemRoot\System32\drivers\RDA.sys") { $failures += 'RDA.sys exists after uninstall' }
+          # ProgramData sessions: kept by silent-mode design — recorded, not failed.
+          $pd = 'C:\ProgramData\HeicFast\Recovery Wizard'
+          "ProgramData after silent uninstall: $(if (Test-Path $pd) { 'present (sessions kept by design — deletion requires interactive consent)' } else { 'absent' })" |
+            Set-Content C:\forensic\evidence\programdata-postuninstall.txt
+          if ($failures.Count) { $failures | ForEach-Object { Write-Error $_ }; exit 1 }
+          Write-Host 'uninstall assertions: ALL CLEAN (install dir gone, uninstall key gone, no service, no driver file; ProgramData sessions kept by documented design)'
+
       - name: Upload all forensic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
