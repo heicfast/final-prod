@@ -86,3 +86,15 @@ G-09 report-schema validation + the elevation refusal probes — the
 `validation-evidence.yml` (T14/T15, workflow_dispatch).
 The driver-ci lane is deleted (no driver since commit 318b9655).
 Every lane is paths-filtered so a component break cannot red another lane.
+
+**Benchmark posture (decision, consolidation session):** final-prod keeps
+NO engine benchmark lane in CI. The engine's source-benchmark lanes are
+core_recovery's own business (the v0.7.1 direct-vs-driver ledger lives in
+core's docs); the `engine/bench/` scripts ride with the merge for local
+use only. CI measures correctness (tests, sanitizers, ABI checks), not
+throughput — a shared runner's numbers are not regression evidence, and
+the consolidation session's mandate is zero-warning correctness gates.
+
+**Action pinning:** every `uses:` across the seven workflows carries the
+full 40-hex commit SHA of the tag it tracks (the tag recorded in a
+trailing comment), resolved 2026-11-05 against the upstream repos.

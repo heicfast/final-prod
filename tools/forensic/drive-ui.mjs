@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * drive-ui.mjs — forensic UI probe: drives the REAL installed product (the
- * shipped v0.6.0-rc1 build, launched with WebView2 CDP enabled) exactly as a
+ * shipped v0.7.0 build, launched with WebView2 CDP enabled) exactly as a
  * user would, capturing DOM state, screenshots, console errors, and timings
  * for every reported symptom:
  *
@@ -104,6 +104,23 @@ async function main() {
   evidence.phases.boot = { summary: await domSummary(page).catch(e => ({ error: String(e) })) };
   await shot(page, 'boot-home');
 
+  // The no-mock gate (the release's core honesty proof): the shipped build
+  // must run the REAL engine bridge, not the TEST DOUBLE. Asserted on the
+  // live shipped DOM — the app's own runtime signal (src/lib/runtime.ts)
+  // plus the double's window hook (src/connector/index.ts) that must never
+  // exist in a shipped build. A failure throws: the run is red, never masked.
+  const backendGate = await page.evaluate(() => ({
+    tauriInternals: '__TAURI_INTERNALS__' in window,
+    injectHookPresent: '__rwInjectConsent' in window,
+  }));
+  evidence.phases.boot.backendGate = backendGate;
+  log(`no-mock gate: ${JSON.stringify(backendGate)}`);
+  if (!backendGate.tauriInternals || backendGate.injectHookPresent) {
+    throw new Error(
+      `NO-MOCK GATE FAILED: ${JSON.stringify(backendGate)} — the shipped build must carry the real Tauri bridge (internals injected) and no TEST DOUBLE hook`,
+    );
+  }
+
   // ---------------------------------------------------------------- S2: health
   try {
     log('S2 probe: navigating to #/health');
@@ -113,10 +130,13 @@ async function main() {
     evidence.phases.health = { initial: healthBase, drives: [] };
     await shot(page, 'health-initial');
 
-    // drive selector: click every button that looks like a drive (contains a
-    // size unit) and capture the health surface for each selection
+    // drive selector: click every element that looks like a drive (contains a
+    // size unit) and capture the health surface for each selection. The fresh
+    // wizard base renders drive cards as role=radio (run 40468386932 taught
+    // this for S3; S2 carries the same lesson — button-only queries find
+    // nothing on the v0.7.0 health surface).
     const candidates = await page.evaluate(() => {
-      const els = [...document.querySelectorAll('button, [role="tab"], [role="button"], li')];
+      const els = [...document.querySelectorAll('button, [role="tab"], [role="button"], [role="radio"], li')];
       return els.map((e, i) => ({
         idx: i, text: (e.textContent || '').trim().slice(0, 120),
         hasSize: /GB|TB/i.test(e.textContent || ''),
@@ -137,7 +157,7 @@ async function main() {
             pcts: [...text.matchAll(/(\d{1,3}(?:\.\d+)?)\s*%/g)].map(m => parseFloat(m[1])),
             attrRows: document.querySelectorAll('table tbody tr, table tr').length,
             tables: [...document.querySelectorAll('table')].map(t => t.rows.length),
-            statusWords: (text.match(/\b(Good|Caution|Bad|Unknown|Unavailable|Not available)\b/g) || []).slice(0, 10),
+            statusWords: (text.match(/\b(Good|Caution|Poor|Bad|Unknown|Unavailable|Not available)\b/g) || []).slice(0, 10),
             hasTemp: /°C|Temperature/i.test(text),
             hasPowerOn: /Power[- ]?On|Hours/i.test(text),
             text: text.slice(0, 3500),
@@ -195,18 +215,24 @@ async function main() {
     //      repair at all - consentSeen records which world we are in.
     evidence.phases.scan.consent = { seen: false, planText: null, answeredAtMs: null, deniedAtMs: null };
     const answerConsentIfPresent = async () => {
-      const dlg = page.getByText(/Pre-scan repair request/i);
+      // The dialog title differs across UI generations: the old wizard said
+      // "Pre-scan repair request"; the v0.7.0 base says "Confirm the repair"
+      // (i18n consent.repairTitle). Match BOTH — a missed match is the
+      // 28-minute stall class (run 40470191039).
+      const dlg = page.getByText(/Pre-scan repair request|Confirm the repair/i);
       if (await dlg.count().catch(() => 0)) {
         if (!evidence.phases.scan.consent.seen) {
           evidence.phases.scan.consent.seen = true;
           const bodyText = await page.evaluate(() => (document.body.innerText || '').slice(0, 5000)).catch(() => '');
-          evidence.phases.scan.consent.planText = (bodyText.match(/Pre-scan repair request[\s\S]{0,900}/) || [null])[0];
+          evidence.phases.scan.consent.planText = (bodyText.match(/(Pre-scan repair request|Confirm the repair)[\s\S]{0,900}/) || [null])[0];
           await shot(page, 'scan-consent-modal').catch(() => {});
-          log('scan: consent modal APPEARED - answering Deny (stay read-only)');
+          log('scan: consent modal APPEARED - answering Decline (stay read-only)');
         }
-        const deny = page.getByRole('button', { name: /Deny|stay read-only/i }).first();
+        // "Decline" is the v0.7.0 label (i18n consent.deny); "Deny"/"stay
+        // read-only" are the older generations'.
+        const deny = page.getByRole('button', { name: /Decline|Deny|stay read-only/i }).first();
         if (await deny.count().catch(() => 0)) {
-          await deny.click({ timeout: 5000 }).catch(e => log('consent deny click failed: ' + e.message));
+          await deny.click({ timeout: 5000 }).catch(e => log('consent decline click failed: ' + e.message));
           evidence.phases.scan.consent.deniedAtMs = Date.now() - t0;
         }
       }

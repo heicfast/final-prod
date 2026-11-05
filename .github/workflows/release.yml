@@ -31,7 +31,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Version gate — tag must equal the VERSION file
         shell: pwsh
@@ -47,15 +47,15 @@ jobs:
       - name: Contracts gate (boundary truth)
         run: node contracts/validate.mjs
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 12.15.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable (2026-10-16)
         with:
           toolchain: stable
 
@@ -163,7 +163,7 @@ jobs:
           "@ | Set-Content -Path release-notes.md -Encoding UTF8
 
       - name: Upload artifacts to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           body_path: release-notes.md
           files: |
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload build log artifacts (evidence)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-build-evidence
           # NG-17: EXCLUDE the ephemeral signing material — the previous

@@ -21,22 +21,30 @@ name: forensic-repro
 #   plus machine facts before/after (elevation posture, services, registry,
 #   the installed product's module set, System event log).
 #
-# workflow_dispatch so every run is deliberate and recorded; artifacts are
-# downloaded and curated into docs/FORENSIC-PROBE.md by hand. No masking:
-# every failure fails the run (evidence is still uploaded via if: always()).
+#   The v0.7.0 redesign (P5/P6, plan section 6.3): the facts layer is the
+#   DRIVER-FREE truth — no RDA service/file/cert/rdacli probes exist; the
+#   no-mock gate asserts connectorMode=tauri on the live shipped DOM; the
+#   launched app's TokenElevation is recorded; and the UNELEVATED twin
+#   (runas /trustlevel) proves the refusal posture (elevation banner +
+#   scan-start refusal), mirroring core's exit-4 probes.
+#
+# workflow_dispatch ONLY, deliberately: the probe installs a RELEASE (an
+# input that only exists after the release workflow ran). A push trigger
+# on the probe's own scripts would run against whatever default tag the
+# edit carries — a tag that may not exist yet at push time (a false red
+# on an unborn v0.7.0 during the P5 push was the concrete case). The
+# scripts' own syntax gates are the review + the dispatch run itself.
+# Artifacts are downloaded and curated into docs/FORENSIC-PROBE.md by
+# hand. No masking: every failure fails the run (evidence is still
+# uploaded via if: always()).
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'The release tag whose setup.exe the run installs (default: the current RC, v0.6.0-rc2)'
+        description: 'The release tag whose setup.exe the run installs (default: v0.7.0)'
         required: false
-        default: 'v0.6.0-rc2'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/forensic-repro.yml'
-      - 'tools/forensic/**'
+        default: 'v0.7.0'
 
 permissions:
   contents: read
@@ -47,9 +55,9 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -66,7 +74,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
-          $tag = "${{ github.event.inputs.release_tag || 'v0.6.0-rc2' }}"
+          $tag = "${{ github.event.inputs.release_tag || 'v0.7.0' }}"
           $ver = $tag.TrimStart('v')
           $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
           curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-$ver-setup.exe"
@@ -124,13 +132,39 @@ jobs:
             Start-Sleep -Seconds 2
           }
 
+      - name: Unelevated twin - the refusal posture (runas /trustlevel, CDP 9223)
+        shell: pwsh
+        run: |
+          # The restricted-token instance must show the elevation banner and
+          # refuse raw-disk work (never degraded, never silent). Same
+          # one-step-lifetime rule as the main app step (job-object teardown).
+          $ErrorActionPreference = 'Stop'
+          .\tools\forensic\unelevated-launch.ps1 -OutDir C:\forensic\evidence
+          try {
+            $env:OUT_DIR = 'C:\forensic\evidence'
+            $env:CDP_PORT = '9223'
+            Set-Location tools/forensic
+            node unelevated-probe.mjs
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally {
+            Set-Location D:\a\final-prod\final-prod
+            $pidFile = 'C:\forensic\evidence\unelevated-app-pid.txt'
+            if (Test-Path $pidFile) {
+              $up = [int](Get-Content $pidFile -Raw).Trim()
+              if (Get-Process -Id $up -ErrorAction SilentlyContinue) { Stop-Process -Id $up -Force -ErrorAction SilentlyContinue }
+            }
+            # Belt and braces: any app process still bound to port 9223's
+            # WebView2 tree dies with its parent; give the job a moment.
+            Start-Sleep -Seconds 2
+          }
+
       - name: Final facts (postrun)
         shell: pwsh
         run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postrun
 
       - name: Upload all forensic evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: forensic-repro-evidence
           path: |
