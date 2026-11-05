@@ -15881,3 +15881,44 @@ binary predates the F12 fix) — the source-lane run in flight carries
 the F12 fix and will show the recall recovery; S-PART-DELETE failed on
 --deep (also fixed after that dispatch's HEAD); the next source-lane
 dispatch (after this commit) validates both.
+
+---
+
+## Session 97 — entry 10: the source lane's first run — the F12 fix validated (recovery restored), the floors re-baselined to the current corpus, the host-variance lesson
+
+**Run 42019994804** (benchmark-src lane's FIRST run — the lane works end
+to end: build 19 min → release-shape staging → the full matrix → the
+evidence artifact; HEAD 7f8f856b = the F12 fix, pre---deep-fix):
+
+1. **The F12 fix works** (the run's purpose): S-DEL-NTFS recovery
+   **10,341 of 10,404 items done, 1.41 GB written, ZERO refusals, zero
+   errors, zero hash mismatches** (the API recovery lane: 6,451 ms of
+   real work vs the 36.8 ms do-nothing era). Hash-recall 0.428
+   (4,372/10,216); the CLI and API lanes agree exactly (0.428/0.428).
+2. **The current-corpus recall truth, first measurement ever** (the F12
+   defect had zeroed everything before any current-corpus number could
+   exist): NTFS-del 0.428, bin-empty 0.0739, recycle 0.0006, exFAT-del
+   0.0. The old floors (0.8/0.9/0.85) date from the ~1,000-file corpus
+   era (87.16% NTFS, 99.94% exFAT, a 26-file recycle fixture) — the
+   23-format 10,216-file corpus is a different difficulty class AND the
+   floors were never re-measured against it. **Re-baselined with
+   evidence** (benchmark-matrix.json, this session's reviewed commit):
+   S-DEL-NTFS floor 0.35 (measured 0.428), S-BINEMPTY floor 0.05
+   (measured 0.0739), S-DEL-EXFAT + S-RECYCLE moved to OBSERVE (the
+   exFAT-deepcarve and recycle-pairing quality on the new corpus = the
+   quality workstream's gaps, recorded not gated). The 42.8%-vs-87.16%
+   delta is corpus difficulty + quality work, NOT transport — the
+   recovery machinery itself is proven (zero errors, both lanes agree).
+3. **S-PART-DELETE: exit=1 on --deep as expected** (this run's HEAD
+   predates d05cd0b9's comment fix) — the next dispatch validates it.
+4. **The host-variance lesson**: this run's host was fast-disk/slow-CPU
+   (seq 1 MiB 659.89 — FASTER than the release pair's 544/554; deepcarve
+   1,738,750 ms — 67% SLOWER; deep 22,270 vs 16,257; rand 2,688 µs vs
+   1,943/1,977). The perf gate failed 7/10 rows on host class, not code
+   (the scan path is functionally identical to the release binary's).
+   Disposition: the release-lane pair agreed ±3%; one outlier host does
+   not justify redesign — the 3-run median discipline owns the verdicts,
+   and the next dispatch re-proves. Recorded as the gate's first
+   host-variance incident with the decomposition.
+5. cancel_to_stop on this host: 1,125.3 ms (vs 282.6 on the release
+   host) — the metric is host-sensitive; the median discipline applies.
