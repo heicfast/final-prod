@@ -18,11 +18,14 @@ carries all four.
 |------|------|---------|--------|---------|---------|
 | **Checks** | `.github/workflows/checks.yml` | push/PR to main (docs-path-filtered, symmetric) + `workflow_call` | windows-2022 | lint 15 / build 90 | the pre-merge gate: format, lints, /W4 /WX build, full ctest, Win7 posture, G-09 schema, elevation refusal probes, the CLI junk-gate probes (M-071) |
 | **Release** | `.github/workflows/release.yml` | tag push `vX.Y.Z` + dispatch (publish/drill) | windows-2022 | 90/15 | the sole source of builds: validate (calls Checks) -> build-core -> assemble + publish (session-96: core only - no driver tier, no signing) |
-| **Test & Benchmark** | `.github/workflows/test-benchmark.yml` | dispatch (release dispatches it on every publish) | windows-2022 | 120 smoke / 180 full | consumes the LATEST release: simulated disks, the scenario matrix through CLI **and API**, gates + perf + structured evidence (session-96: the elevated runner token IS the access model) |
+| **Test & Benchmark** | `.github/workflows/test-benchmark.yml` | dispatch (release dispatches it on every publish) | windows-2022 | 120 smoke / 180 full | consumes the LATEST release: simulated disks, the scenario matrix through CLI **and API**, gates + perf + structured evidence (session-96: the elevated runner token IS the access model; session-97: the perf regression gate, the consumer-native bench sweep, the CPU/WS sampling, cancel-to-stop + preview timing) |
+| **Benchmark (source)** | `.github/workflows/benchmark-src.yml` | dispatch (session-97) | windows-2022 | 300 | measures the CHECKED-OUT COMMIT (the release build recipe + staging, the SAME matrix + evidence tree as the release lane): the perf-discipline lane — every optimization is measured before release; queued-never-dropped (measurement runs are never cancelled) |
 | **Installer gates** | `.github/workflows/installer.yml` | push/PR (installer-path-filtered) + dispatch | windows-2022 | 15/75 | the S-038 app-installer gates: silent round-trip residue contract, version-key write+verify, the OS-gate matrix (Inno Setup build from source, core-only payload - session-96; the teardown asserts NO kernel service is installed) |
 
 The chain: **commit -> Checks (green) -> Release (publish) -> Test &
-Benchmark (automatic dispatch against the fresh tag)**.
+Benchmark (automatic dispatch against the fresh tag)**; performance work
+measures through **Benchmark (source)** before any release. The harness
+documentation is `worklog/BENCHMARK.md` (session-97).
 
 ## Checks lane components (the ci-local.ps1 mirror + CI-owned gates)
 
