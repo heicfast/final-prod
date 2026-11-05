@@ -1701,3 +1701,65 @@ change.
   green (40/40, 24/24, 12/12).
 - CI: contracts-ci 42069004696 GREEN; engine-ci 42069198291 in flight on
   77643f46; ui-ci 42069004572 in flight (contracts/** path trigger).
+
+## P3 complete — the kernel driver is REMOVED (commits 318b9655, b9b5015f, e432a8c9, a0fe4be0, 0629555f, bb69f3d5)
+
+> Entry recovered post-hoc: the prior session stopped immediately after the
+> P3 follow-up CI fix (bb69f3d5) without writing this entry; every fact below
+> is from the commit evidence and the committed gate file, not memory.
+
+- 318b9655 (P3a, 89 files, +297/−11,732): driver/ wiped — all 63 files
+  (rda.sys WDM sources, INF, SCM scripts, fuzz harness, signing tooling);
+  driver-ci.yml deleted; build.ps1 loses the driver lane (all = contracts →
+  engine → ui → installer → portable → checksums); recoverywizard.nsi
+  809→531 lines (SEC_DRIVER, certutil imports, service teardown gone; the
+  truthful PrivilegePage replaces the driver page); portable.ps1 driver
+  stage gone; devsign.ps1 install-cert/remove-cert gone (outputs
+  de-branded rda-testsign.* → devsign.*); the UI DriverStatus surface and
+  the contracts driver rows removed with it.
+- b9b5015f (P3b, 24 files): every product doc status-corrected to the
+  user-mode truth; prior-session context sheets archived (bannered audit
+  history, not deleted).
+- e432a8c9 + a0fe4be0 (P3c): contracts/ driver rows out —
+  system_driver_status, the §10 DriverStatus type map, the service-name
+  constant (validate.mjs green: 33 commands). a0fe4be0 is the proof-fix:
+  the first commit's string replace silently no-oped on backslash
+  escaping; index surgery did it for real.
+- 0629555f: gate-1 evidence — worklog/RELEASE-VALIDATION/DRIVER-REMOVAL.md
+  (336 lines): the documented grep sweep, 1,870 raw hits → 184 live, every
+  one classified (core's historical prose, absence tests, bannered audit
+  history, the mandated removal narratives, the repurposed error-code row,
+  the absence guards); zero unclassified; enforcement enumerated.
+- bb69f3d5 (P3 follow-ups, two CI reds): (1) engine-ci.yml's own comments
+  carried a literal GitHub expression the parser evaluates (ghost
+  instant-fail runs 42072528838/42075686380/42075907522 since 7818ed02) —
+  reworded; (2) prettier red on ui/docs/CONNECTOR-CONTRACT.md table
+  alignment — fixed.
+- CI at the P3 tip (bb69f3d5): engine-ci 42076322446 GREEN, ui-ci
+  42076322460 GREEN, ui-e2e 42076322506 GREEN, contracts-ci 42075688911
+  GREEN (a0fe4be0), forensic-repro 42072191860 GREEN (318b9655). main
+  green at every push.
+
+---
+
+## Session resume (release session) — stage checked, P4 entered
+
+User directive: "work is already in progress, check stage and add new
+release tag and start release workflow." Stage check (measured, this
+session):
+
+- main @ bb69f3d5 — P1 (UI re-base), P2 (engine → core_recovery@12f3edf7,
+  ABI v4), P3 (driver removal) all pushed; every push lane green (above).
+- **P4 NOT STARTED in the tree**: ui/src/connector/tauri/tauri-connector.ts
+  is the loud stub (35 lines, every method throws not-implemented);
+  build.ps1's ui lane (`pnpm tauri build` → vite build with no
+  VITE_CONNECTOR) ships the **mock** backend by default. A release cut
+  from this tree would be a mock-backed product with release notes
+  claiming the opposite — the mandate's no-fabrication rule forbids it.
+- Therefore: P4 (the bridge port, per INTEGRATION-PLAN §4) executes now;
+  P5 (workflow finalization) and P6 (the v0.7.0 tag + release workflow)
+  follow. The release is the session's exit criterion.
+- v2 reference measured from history (66fdfc47~1): bridge/ 4,169 lines +
+  commands/ 4,114 + lib.rs 104 + tauri-connector.ts 390 — the proven base
+  to re-pin to ABI v4 (9 changed structs, 4 new, 2 new event types, the
+  new export families per §4.1/§4.2).
