@@ -398,7 +398,7 @@ pub async fn session_resume_last(
             ));
         }
         check(rc, "cr_ui_session_last_autosave_path")?;
-        let path = crate::bridge::util::cstr_to_string_lossy(path_buf.as_ptr());
+        let path = unsafe { crate::bridge::util::cstr_to_string_lossy(path_buf.as_ptr()) };
         if path.is_empty() {
             return Err(BridgeError::bridge(
                 code::SESSION_NOT_FOUND,
@@ -424,12 +424,13 @@ pub async fn session_resume(
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
     let state_for_launch = state.clone();
+    let app_for_launch = app.clone();
     let prep =
         tauri::async_runtime::spawn_blocking(move || session_resume_blocking(&state, &app, &path))
             .await
             .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
     let scan_id = prep.entry.scan_id.clone();
-    launch_run_thread(app, state_for_launch, prep);
+    launch_run_thread(app_for_launch, state_for_launch, prep);
     Ok(json!({ "scanId": scan_id }))
 }
 

@@ -18,12 +18,12 @@
 //! scan_state.pendingConsent twin): the lost-partition screen re-renders an
 //! interrupted prompt from it after navigating away and back.
 
-use std::sync::Arc;
-
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::consent::ApplyConsentPipe;
+use std::sync::Arc;
+
 use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::state::BridgeState;
 use crate::bridge::util::{cstr, fixed_str};
@@ -189,11 +189,7 @@ fn lost_partition_apply_blocking(
 /// Restore the last apply's undo log on this device (byte-exact sector
 /// restore + properties refresh; idempotent on bytes).
 #[tauri::command]
-pub async fn lost_partition_undo(
-    state: tauri::State<'_, Arc<BridgeState>>,
-    device_id: String,
-) -> Result<Value, BridgeError> {
-    let state = state.inner().clone();
+pub async fn lost_partition_undo(device_id: String) -> Result<Value, BridgeError> {
     tauri::async_runtime::spawn_blocking(move || {
         let disk = disk_number(&device_id)?;
         let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
@@ -214,12 +210,7 @@ pub async fn lost_partition_undo(
 /// Persist the last apply's undo log (the durable CRC-checked container,
 /// loadable by `rrecov fix --undo-apply`).
 #[tauri::command]
-pub async fn lost_partition_save_undo(
-    state: tauri::State<'_, Arc<BridgeState>>,
-    device_id: String,
-    path: String,
-) -> Result<(), BridgeError> {
-    let state = state.inner().clone();
+pub async fn lost_partition_save_undo(device_id: String, path: String) -> Result<(), BridgeError> {
     tauri::async_runtime::spawn_blocking(move || {
         let disk = disk_number(&device_id)?;
         let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();

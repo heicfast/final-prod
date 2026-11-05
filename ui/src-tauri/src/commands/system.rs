@@ -22,6 +22,7 @@
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
+use crate::bridge::error::check;
 use crate::bridge::error::{code, BridgeError, BridgeResult};
 use crate::bridge::util::enumerate_volumes;
 
@@ -35,9 +36,9 @@ pub const USER_SIGN_DEFAULTS_FILE: &str = "userdata-defaults.json";
 /// Win32 TokenElevation probe (mirrors core include/cr/win/cr_elevate.h).
 #[cfg(windows)]
 fn is_elevated() -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, OpenProcessToken, HANDLE};
-    use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY};
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_QUERY};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     let mut token: HANDLE = std::ptr::null_mut();
     if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
@@ -48,7 +49,7 @@ fn is_elevated() -> bool {
     let ok = unsafe {
         GetTokenInformation(
             token,
-            TOKEN_ELEVATION,
+            TokenElevation,
             &mut elevation as *mut u32 as *mut core::ffi::c_void,
             std::mem::size_of::<u32>() as u32,
             &mut returned,

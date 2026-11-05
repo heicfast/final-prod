@@ -12,7 +12,7 @@
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{code, BridgeError, BridgeResult};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::state::BridgeState;
 use crate::bridge::util::{enumerate_disks, enumerate_volumes, fixed_str};
 
