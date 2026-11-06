@@ -79,10 +79,8 @@ pub fn run() {
             commands::lost_partition::lost_partition_undo,
             commands::lost_partition::lost_partition_save_undo,
             commands::lost_partition::apply_consent_pending,
-            // system: the user-mode posture (TokenElevation + relaunch),
-            // user signs, mounts, picker, opener
-            commands::system::system_security_posture,
-            commands::system::system_relaunch_elevated,
+            // system: user signs, mounts, picker, opener (D1: elevation is
+            // the launch-time manifest — no posture/relaunch commands)
             commands::system::system_app_info,
             commands::system::system_load_user_signs,
             commands::system::system_validate_destination,

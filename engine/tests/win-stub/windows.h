@@ -433,6 +433,21 @@ struct PROCESS_INFORMATION {
     DWORD dwProcessId;
     DWORD dwThreadId;
 };
+/* D2: the hidden-subprocess discipline (STARTF_* / SW_HIDE / HANDLE_FLAG_INHERIT
+ * as the SDK defines them) */
+#define STARTF_USESTDHANDLES 0x00000100UL
+#define STARTF_USESHOWWINDOW 0x00000001UL
+#define SW_HIDE 0
+#define HANDLE_FLAG_INHERIT 0x00000001UL
+inline BOOL CreatePipe(HANDLE*, HANDLE*, SECURITY_ATTRIBUTES*, DWORD) {
+    return 1;
+}
+inline BOOL SetHandleInformation(HANDLE, DWORD, DWORD) {
+    return 1;
+}
+inline BOOL TerminateProcess(HANDLE, UINT) {
+    return 1;
+}
 inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECURITY_ATTRIBUTES*,
                            BOOL, DWORD, void*, const wchar_t*, STARTUPINFOW*,
                            PROCESS_INFORMATION*) {

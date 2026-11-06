@@ -575,25 +575,6 @@
       "returns": "AppInfo (engineVersion = 'cr_ui ABI v<N>' — the contract number, G-6; userSigns = the M-048 count)"
     },
     {
-      "name": "system_security_posture",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "system.getSecurityPosture"
-      ],
-      "returns": "{administrator}",
-      "notes": "The Win32 TokenElevation probe (mirrors core win::is_elevated) — the user-mode product's privilege truth; replaces the retired driver-status surface."
-    },
-    {
-      "name": "system_relaunch_elevated",
-      "threading": "sync",
-      "abiRefs": [],
-      "serves": [
-        "system.relaunchElevated"
-      ],
-      "notes": "ShellExecuteW 'runas' on the own exe + exit (the host-triggers-its-own-UAC contract). Refused launch -> device-permission."
-    },
-    {
       "name": "system_load_user_signs",
       "threading": "spawn-join",
       "abiRefs": [

@@ -13,8 +13,9 @@
  * The UI renders reasonKey strings only — never string-matches messages.
  * ERR_CANCELLED never crosses as an error (the bridge translates it to
  * scan/recovery status 'cancelled'). ERR_ELEVATION_REQUIRED (0x500C0001)
- * crosses as elevation-required — the banner + relaunch-as-admin flow (the
- * user-mode product's posture).
+ * crosses as elevation-required — the honest engine vocabulary; in the
+ * shipped product it is unreachable (D1: the launch-time manifest already
+ * guarantees the administrator token).
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -421,11 +422,6 @@ export function createTauriConnector(): RecoveryConnector {
 
     system: {
       getAppInfo: async (): Promise<AppInfo> => bridge(invoke('system_app_info')),
-
-      getSecurityPosture: async (): Promise<{ administrator: boolean }> =>
-        bridge(invoke('system_security_posture')),
-
-      relaunchElevated: async (): Promise<void> => bridge(invoke('system_relaunch_elevated')),
 
       loadUserSigns: async (content: string): Promise<{ count: number }> =>
         bridge(invoke('system_load_user_signs', { content })),

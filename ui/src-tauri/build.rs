@@ -35,20 +35,15 @@ fn main() {
             "cargo:warning=linking cr_ui.lib (static import of cr_ui.dll, ABI v4); build.ps1 -Target engine stages the kit when CR_UI_LIB_DIR is unset"
         );
     }
-    // D-PRIV-01 (the missing privilege model): the product requires the
-    // administrator token for every raw-disk surface (README: scanning,
-    // recovery, health, repair, lost-partition apply), and the reference
-    // ships `requireAdministrator` on both DRW.exe and DRWUI.exe (corpus
-    // rev/DRWUI.exe/strings_ascii.txt:41023) — UAC fires ONCE at launch
-    // through the standard OS flow; no in-app restart flow exists in the
-    // reference and none is needed here. tauri-build's stock embed carries
-    // no trustInfo section at all (asInvoker by loader default); this wires
-    // our manifest (app.manifest — trustInfo + the stock Common-Controls
-    // dependency) through WindowsAttributes::app_manifest.
-    let windows_attributes = tauri_build::WindowsAttributes::new()
+    // D1 (the privilege model): the product requires the administrator token
+    // AT PROCESS CREATION. The custom app manifest carries
+    // requireAdministrator (plus the Common-Controls v6 dependency the
+    // default manifest provided — tauri-plugin-dialog needs it; a custom
+    // manifest REPLACES the default, so the dependency is restated inside
+    // app.manifest). tauri-build embeds it as RT_MANIFEST resource #1 on
+    // Windows targets; the attribute is inert on other targets.
+    let windows_attrs = tauri_build::WindowsAttributes::new()
         .app_manifest(include_str!("app.manifest"));
-    tauri_build::try_build(
-        tauri_build::Attributes::new().windows_attributes(windows_attributes),
-    )
-    .expect("tauri_build::try_build failed");
+    tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows_attrs))
+        .expect("failed to run tauri build");
 }

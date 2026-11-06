@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Recovery Wizard — the application manifest (D1, the privilege model).
+
+  The product requires the administrator token AT PROCESS CREATION: raw-disk
+  access (\\.\PhysicalDriveN, \\.\C:) is refused for standard tokens, and the
+  product NEVER runs degraded and never defers elevation to an in-app
+  relaunch. This manifest is the whole privilege model — the OS shows the
+  standard UAC consent at launch (or refuses the launch), and no code path
+  in the app can end up without the token.
+
+  Reference parity: the og ships requireAdministrator on both DRW.exe and
+  DRWUI.exe (corpus rev/DRWUI.exe/strings_ascii.txt:41023) — elevated at
+  launch, no mid-session UAC.
+
+  The Common-Controls v6 dependency is REQUIRED (tauri-plugin-dialog and
+  the native pickers); tauri-build's default manifest carries exactly this
+  dependency, and a custom manifest replaces it — so it is restated here
+  verbatim (docs.rs/tauri-build/2.7.4 WindowsAttributes::app_manifest).
+-->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <!-- D-PRIV-01: the raw-disk product requests the administrator token at
-       launch through the standard Windows UAC flow — ONE prompt at launch,
-       none mid-session, no restart-as-admin surface. The reference ships
-       the same level on both DRW.exe and DRWUI.exe (corpus
-       rev/DRWUI.exe/strings_ascii.txt:41023). -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>
@@ -12,7 +26,6 @@
       </requestedPrivileges>
     </security>
   </trustInfo>
-  <!-- Preserved from tauri-build's stock embed: Common-Controls v6. -->
   <dependency>
     <dependentAssembly>
       <assemblyIdentity
@@ -25,4 +38,12 @@
       />
     </dependentAssembly>
   </dependency>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+      <!-- Windows 8.1 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>
+    </application>
+  </compatibility>
 </assembly>

@@ -1745,27 +1745,6 @@ ${lines.join('')}
       };
     },
 
-    getSecurityPosture: async (): Promise<{ administrator: boolean }> => {
-      // TEST DOUBLE: the permission-denied scenario models the unelevated
-      // launch (the banner + relaunch flow); every other scenario is the
-      // elevated posture.
-      await latency(60, 20);
-      return { administrator: this.scenario !== 'permission-denied' };
-    },
-
-    relaunchElevated: (): Promise<void> => {
-      // Shell relaunch is a real-adapter capability (the Tauri connector
-      // implements it via ShellExecuteW "runas"); the mock has no OS access
-      // and reports so honestly instead of pretending.
-      return Promise.reject(
-        connError(
-          'not-implemented',
-          'relaunching elevated requires the desktop shell',
-          'errors.openPathMock',
-        ),
-      );
-    },
-
     loadUserSigns: async (content: string): Promise<{ count: number }> => {
       // TEST DOUBLE: parse the document's top-level extension keys (the
       // engine's own EUUserData shape) and keep the deterministic set.

@@ -239,10 +239,6 @@ describe('the tauri connector command surface (the manifest)', () => {
   it('system invokes the manifest commands', async () => {
     await conn.system.getAppInfo();
     expect(lastCall().cmd).toBe('system_app_info');
-    await conn.system.getSecurityPosture();
-    expect(lastCall().cmd).toBe('system_security_posture');
-    await conn.system.relaunchElevated();
-    expect(lastCall().cmd).toBe('system_relaunch_elevated');
     await conn.system.loadUserSigns('{ ".xyz": { "signs": ["0,AA"] } }');
     expect(lastCall()).toEqual({
       cmd: 'system_load_user_signs',

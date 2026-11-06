@@ -4945,7 +4945,10 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
     }
     rep->ssd_like = win::health::looks_like_ssd(h) ? 1u : 0u;
     bool trim = false;
-    if (win::health::query_trim_state(trim) == OK) {
+    /* D2: the per-device TRIM truth from the open handle (no subprocess,
+     * no console — the pre-fix global fsutil pipe-spawn was the reported
+     * "popup shells on opening disk health") */
+    if (win::health::query_trim_state_handle(h, trim) == OK) {
         rep->trim_known = 1;
         rep->trim_enabled = trim ? 1u : 0u;
     }

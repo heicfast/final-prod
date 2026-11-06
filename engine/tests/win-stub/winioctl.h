@@ -59,6 +59,7 @@ enum STORAGE_PROPERTY_ID {
     StorageDeviceIdProperty = 1,
     StorageAccessAlignmentProperty = 6,
     StorageDeviceSeekPenaltyProperty = 7,
+    StorageDeviceTrimProperty = 8,
     StorageDeviceProtocolSpecificProperty = 49
 };
 enum STORAGE_QUERY_TYPE { PropertyStandardQuery = 0, PropertyExistsQuery = 1 };
@@ -66,6 +67,13 @@ struct STORAGE_PROPERTY_QUERY {
     STORAGE_PROPERTY_ID PropertyId;
     STORAGE_QUERY_TYPE QueryType;
     unsigned char AdditionalParameters[1];
+};
+
+/* D2: the per-device TRIM datum (StorageDeviceTrimProperty's answer) */
+struct DEVICE_TRIM_DESCRIPTOR {
+    DWORD Version;
+    DWORD Size;
+    BOOLEAN TrimEnabled;
 };
 
 struct DEVICE_SEEK_PENALTY_DESCRIPTOR {

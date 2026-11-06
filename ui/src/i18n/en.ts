@@ -491,11 +491,6 @@ export const en = {
     deny: 'Decline',
     approve: 'Approve',
   },
-  elevation: {
-    bannerBody:
-      'Direct disk access requires administrator privileges — scanning and recovery are disabled until the app runs elevated.',
-    relaunch: 'Restart as administrator',
-  },
   unlock: {
     title: 'Unlock the volume',
     body: 'Enter the BitLocker password (tried after the built-in dictionary) or the full-volume encryption key.',

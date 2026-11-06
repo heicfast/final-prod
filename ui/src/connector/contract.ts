@@ -753,14 +753,12 @@ export interface DestinationValidation {
 export interface SystemDomain {
   getAppInfo(): Promise<AppInfo>;
   /**
-   * The user-mode product's privilege truth (the Win32 TokenElevation
-   * probe): raw-disk work needs the administrator token. A non-elevated
-   * launch renders the banner + relaunchElevated — never a degraded mode.
+   * D1 (the privilege model): elevation is a LAUNCH-TIME property — the
+   * product's embedded manifest requires the administrator token before
+   * any UI exists, so there is no runtime posture probe and no
+   * relaunch-as-administrator flow. The connector surface reflects the
+   * product as it is.
    */
-  getSecurityPosture(): Promise<{ administrator: boolean }>;
-  /** Relaunch the app elevated (the standard OS UAC prompt) and exit the
-   * unelevated instance. */
-  relaunchElevated(): Promise<void>;
   /** M-048: register a user-signature JSON document (atomic replace; the
    * exe-adjacent defaults are auto-loaded at startup). The webview's file
    * input supplies the document text. */

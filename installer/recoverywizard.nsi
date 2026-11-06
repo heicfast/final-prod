@@ -21,14 +21,19 @@
 ;     NO service, and NO certificate-store import anywhere in this product.
 ;     The engine reads raw disks directly from user mode
 ;     (\\.\PhysicalDriveN); every raw-disk operation requires the app to run
-;     with an elevated (administrator) token - a non-elevated app gets a
-;     truthful elevation-required refusal (the in-app banner + the
-;     restart-as-administrator flow carry it).
+;     with an elevated (administrator) token. D1 (the debug-and-release
+;     session): the elevation is the LAUNCH-TIME app manifest
+;     (ui/src-tauri/app.manifest, requireAdministrator, embedded by
+;     tauri-build and gated by build.ps1's D1 check) - the OS consent fires
+;     before any UI exists; there is no in-app banner and no secondary
+;     relaunch flow.
 ;   - Elevation: RequestExecutionLevel admin - ONE UAC prompt at installer
 ;     launch; the per-machine install and the ProgramData shared state both
 ;     want it, and the app itself requests elevation at launch through its
 ;     OWN manifest (requireAdministrator, ui/src-tauri/app.manifest wired
-;     through tauri-build WindowsAttributes::app_manifest - D-PRIV-01).
+;     through tauri-build WindowsAttributes::app_manifest - D-PRIV-01) and
+;     is VERIFIED in the shipped binary by build.ps1's D1 gate (the
+;     requireAdministrator byte-scan).
 ;     TRUTH NOTE: through v0.8.x this comment claimed requireAdministrator
 ;     while the shipped exe carried NO manifest of its own (tauri-build's
 ;     stock embed has no trustInfo - asInvoker by loader default); the

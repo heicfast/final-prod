@@ -302,24 +302,104 @@ u32 query_trim_state(bool& enabled) {
     /* fsutil behavior query disabledeletenotify: 0 = TRIM on (corpus
      * DRWUI:178742-178749 parsing: takes the FIRST "= " match -
      * HEALTH-6: our last-line-wins could read a trailing NTFS line on
-     * localized/multi-line output) */
-    FILE* fp = _popen("fsutil behavior query disabledeletenotify 2>nul", "r");
-    if (fp == nullptr)
+     * localized/multi-line output).
+     *
+     * D2 (the debug-and-release session): the query runs WITHOUT a visible
+     * console. The pre-fix CRT pipe-spawn (cmd.exe) — in the GUI-subsystem
+     * product process (cr_ui.dll is loaded in-process by the Tauri shell)
+     * that allocates a CONSOLE WINDOW on the user's desktop: the "popup
+     * shells on opening disk health" the user reported. The og's own
+     * vehicle is CreatePipe + CreateProcessA with wShowWindow=SW_HIDE and
+     * piped stdout/stderr (DRWUI_decompiled.c:178726-178733); this is that
+     * pattern, one step cleaner — fsutil.exe runs DIRECTLY (no shell
+     * process at all), stdout+stderr both piped, CREATE_NO_WINDOW, and a
+     * bounded 10 s wait (the og's own timeout) that terminates a hung
+     * child. Same command, same first-'=' parse, zero windows. */
+    SECURITY_ATTRIBUTES sa = {};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    HANDLE out_read = nullptr;
+    HANDLE out_write = nullptr;
+    if (!CreatePipe(&out_read, &out_write, &sa, 4096))
         return ERR_HEALTH_UNAVAILABLE;
-    char line[256];
+    /* the parent's read end must not leak into the child (inherit only the
+     * write end through STARTUPINFO) */
+    SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW si = {};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    si.hStdOutput = out_write;
+    si.hStdError = out_write;
+    si.hStdInput = nullptr;
+    PROCESS_INFORMATION pi = {};
+    wchar_t cmd[] = L"fsutil behavior query disabledeletenotify";
+    const BOOL created = CreateProcessW(nullptr, cmd, nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
+                                        nullptr, nullptr, &si, &pi);
+    CloseHandle(out_write); /* the parent's copy: EOF when the child exits */
+    if (!created) {
+        CloseHandle(out_read);
+        return ERR_HEALTH_UNAVAILABLE;
+    }
+    /* bounded wait (10 s — the og's own wait budget): a hung fsutil is
+     * terminated, never waited out forever */
+    if (WaitForSingleObject(pi.hProcess, 10'000) == WAIT_TIMEOUT) {
+        TerminateProcess(pi.hProcess, 1);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        CloseHandle(out_read);
+        return ERR_HEALTH_UNAVAILABLE;
+    }
+    /* fsutil's output is a few hundred bytes — it fits the 4 KiB pipe
+     * buffer, so post-exit reading cannot deadlock */
+    std::string out;
+    char buf[1024];
+    DWORD got = 0;
+    while (ReadFile(out_read, buf, sizeof(buf), &got, nullptr) && got > 0)
+        out.append(buf, got);
+    CloseHandle(out_read);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    /* the same first-'=' parse as before (og parity, HEALTH-6) */
     enabled = false;
     bool known = false;
-    while (fgets(line, sizeof(line), fp)) {
-        const char* eq = std::strchr(line, '=');
-        if (eq == nullptr)
-            continue;
-        const long v = strtol(eq + 1, nullptr, 10);
+    const size_t eq = out.find('=');
+    if (eq != std::string::npos) {
+        const long v = strtol(out.c_str() + eq + 1, nullptr, 10);
         enabled = (v == 0);
-        known = true;
-        break; /* first match wins (og parity) */
+        known = true; /* first match wins (og parity) */
     }
-    _pclose(fp);
     return known ? OK : ERR_HEALTH_UNAVAILABLE;
+}
+
+u32 query_trim_state_handle(void* disk_handle, bool& enabled) {
+    /* D2 companion: the PER-DEVICE TRIM truth, straight from the storage
+     * stack — no subprocess of any kind. StorageDeviceTrimProperty answers
+     * whether delete notifications (TRIM/UNMAP) are enabled for THIS
+     * device: the honest per-disk datum for a per-disk health report (the
+     * OS-global fsutil value — the same answer on every disk — is what
+     * query_trim_state provides for the landing-page chip shape; a mixed
+     * SSD+HDD machine shows real per-device states here). Registered as a
+     * deliberate divergence in PARITY-DELTAS: same user-visible field,
+     * per-device truth instead of the global value. */
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
+        return ERR_HEALTH_UNAVAILABLE;
+    STORAGE_PROPERTY_QUERY q = {};
+    q.PropertyId = StorageDeviceTrimProperty;
+    q.QueryType = PropertyStandardQuery;
+    struct {
+        DEVICE_TRIM_DESCRIPTOR d;
+        u8 pad[16];
+    } r = {};
+    DWORD br = 0;
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), &r, sizeof(r), &br,
+                         nullptr))
+        return ERR_HEALTH_UNAVAILABLE;
+    if (br < sizeof(DEVICE_TRIM_DESCRIPTOR))
+        return ERR_HEALTH_UNAVAILABLE;
+    enabled = r.d.TrimEnabled != FALSE;
+    return OK;
 }
 
 bool looks_like_ssd(void* disk_handle) {

@@ -2801,7 +2801,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     wprintf(L"seek-penalty (SSD heuristics): %hs\n",
             win::health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
     bool trim = false;
-    if (win::health::query_trim_state(trim) == OK)
+    /* D2: per-device TRIM from the open handle — no subprocess, no console */
+    if (win::health::query_trim_state_handle(h, trim) == OK)
         wprintf(L"TRIM: %hs%hs\n", trim ? "enabled" : "disabled",
                 trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
                      : "");

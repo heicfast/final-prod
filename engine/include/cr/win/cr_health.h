@@ -87,8 +87,17 @@ u32 read_smart(void* disk_handle, SmartReport& out);
  * NVMe passthrough. */
 u32 read_nvme_health(void* disk_handle, NvmeHealth& out);
 
-/* TRIM state via fsutil (child process, parsed). */
+/* TRIM state, the OS-global datum (fsutil behavior query
+ * disabledeletenotify, first-'=' parse — the landing-page chip shape).
+ * D2: the child process runs WITHOUT any visible window — direct
+ * CreateProcessW (no shell), piped stdout+stderr, CREATE_NO_WINDOW,
+ * SW_HIDE, bounded 10 s wait. */
 u32 query_trim_state(bool& enabled);
+
+/* TRIM state, the PER-DEVICE datum (StorageDeviceTrimProperty through the
+ * open disk handle — no subprocess at all). The honest per-disk value for
+ * per-disk health reports (D2 companion). */
+u32 query_trim_state_handle(void* disk_handle, bool& enabled);
 
 /* SSD detection: physical drive media type via IOCTL_STORAGE_QUERY_PROPERTY
  * (bus type NVMe => SSD; HDD registry + rotation rate 0 => SSD). */

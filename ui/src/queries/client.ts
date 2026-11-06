@@ -34,7 +34,6 @@ export const queryKeys = {
   jobItems: (jobId: string) => ['recovery', jobId, 'items'] as const,
   report: (jobId: string) => ['recovery', jobId, 'report'] as const,
   health: (deviceId: string) => ['health', deviceId] as const,
-  securityPosture: ['system', 'security-posture'] as const,
   appInfo: ['system', 'app'] as const,
   mounts: ['system', 'mounts'] as const,
   repairDryRun: (deviceId: string) => ['repair', deviceId, 'dry-run'] as const,

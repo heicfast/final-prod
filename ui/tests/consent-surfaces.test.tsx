@@ -5,13 +5,12 @@ import { MockConnector } from '@/connector/mock/mock-connector';
 import { useConsentStore } from '@/stores/consent-store';
 import { UnlockVolumeDialog } from '@/features/device-selection/unlock-volume-dialog';
 import { ConsentModal } from '@/features/consent/consent-modal';
-import { ElevationBanner } from '@/features/consent/elevation-banner';
 import { connector } from '@/connector';
 import type { ReactElement } from 'react';
 
 /**
  * The P4 surface tests: the consent machinery (store + modal + the mock's
- * echo-token flow), the elevation banner, and the N-064 unlock dialog —
+ * echo-token flow), and the N-064 unlock dialog —
  * every NEW wiring proven against the TEST DOUBLE (the real-adapter seam
  * is proven by connector-tauri.test.ts; the Rust side by ui-ci's cargo
  * check/clippy; the end-to-end flow by e2e/consent.spec.ts).
@@ -199,27 +198,6 @@ describe('the consent modal (both families render + answer)', () => {
   });
 });
 
-describe('the elevation banner (the user-mode posture)', () => {
-  it('is hidden for an administrator and shown with the relaunch action otherwise', async () => {
-    const postureSpy = vi
-      .spyOn(connector.system, 'getSecurityPosture')
-      .mockResolvedValue({ administrator: true });
-    const { unmount } = wrap(<ElevationBanner />);
-    await waitFor(() => expect(postureSpy).toHaveBeenCalled());
-    expect(screen.queryByRole('alert')).toBeNull();
-    postureSpy.mockRestore();
-    unmount();
-
-    const postureSpy2 = vi
-      .spyOn(connector.system, 'getSecurityPosture')
-      .mockResolvedValue({ administrator: false });
-    wrap(<ElevationBanner />);
-    expect(await screen.findByRole('alert')).toBeVisible();
-    expect(screen.getByRole('button', { name: /restart as administrator/i })).toBeVisible();
-    postureSpy2.mockRestore();
-  });
-});
-
 describe('the N-064 unlock dialog', () => {
   it('unlocks through the connector on a credential', async () => {
     const unlockSpy = vi.spyOn(connector.devices, 'unlockVolume').mockResolvedValue(undefined);
@@ -327,14 +305,8 @@ describe("the mock's new domains (the P4 contract members)", () => {
     expect(last.path).toBe(saved.fileName);
   });
 
-  it('system: posture follows the scenario; user signs parse the document', async () => {
+  it('system: user signs parse the document', async () => {
     const mock = new MockConnector();
-    let posture = await mock.system.getSecurityPosture();
-    expect(posture.administrator).toBe(true);
-    mock.setScenario('permission-denied');
-    posture = await mock.system.getSecurityPosture();
-    expect(posture.administrator).toBe(false);
-    mock.setScenario('standard');
 
     const doc =
       '{ ".xyz": { "signs": ["0,AA"], "mime": "x/test" }, ".zz": { "signs": ["4,BB"] } }';
@@ -344,10 +316,6 @@ describe("the mock's new domains (the P4 contract members)", () => {
     expect(info.userSigns).toBe(2);
     await expect(mock.system.loadUserSigns('not json')).rejects.toMatchObject({
       code: 'scan-scope-invalid',
-    });
-
-    await expect(mock.system.relaunchElevated()).rejects.toMatchObject({
-      code: 'not-implemented',
     });
   });
 

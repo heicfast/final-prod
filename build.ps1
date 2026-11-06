@@ -166,6 +166,29 @@ function Invoke-Ui {
     if ($LASTEXITCODE -ne 0) { throw 'ui tauri build failed' }
     Pop-Location
 
+    # D1 gate: the shipped exe MUST carry requireAdministrator (the privilege
+    # model is the launch-time manifest — ui/src-tauri/app.manifest wired via
+    # tauri-build). The manifest is embedded as the RT_MANIFEST resource; the
+    # ASCII needle appears in the resource stream. A build without it is the
+    # D1 defect (the docs claimed it for four releases while the exe shipped
+    # asInvoker) — refuse to ship that again.
+    $exe = Join-Path $RepoRoot 'ui\src-tauri\target\release\recovery-wizard-ui.exe'
+    if (-not (Test-Path $exe)) { throw "built exe not found: $exe" }
+    $exeBytes = [System.IO.File]::ReadAllBytes($exe)
+    $needle = [System.Text.Encoding]::ASCII.GetBytes('requireAdministrator')
+    $found = $false
+    for ($i = 0; $i -le $exeBytes.Length - $needle.Length; $i++) {
+        if ($exeBytes[$i] -eq $needle[0]) {
+            $match = $true
+            for ($j = 1; $j -lt $needle.Length; $j++) {
+                if ($exeBytes[$i + $j] -ne $needle[$j]) { $match = $false; break }
+            }
+            if ($match) { $found = $true; break }
+        }
+    }
+    if (-not $found) { throw 'D1 gate: requireAdministrator NOT embedded in recovery-wizard-ui.exe — the privilege model broke (app.manifest / build.rs)' }
+    Write-Host '[ui] D1 gate: requireAdministrator embedded in the exe (launch-time elevation)'
+
     $bundleDir = Join-Path $RepoRoot 'ui\src-tauri\target\release\bundle\nsis'
     if (-not (Test-Path $bundleDir)) { throw "tauri NSIS bundle missing: $bundleDir" }
     Write-Host "[ui] NSIS bundle -> $bundleDir"

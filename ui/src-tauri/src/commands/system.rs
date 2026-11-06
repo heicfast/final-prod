@@ -1,12 +1,16 @@
 //! commands/system.rs — the SystemDomain commands (type-maps §10).
 //!
 //! v4 truth: the product is USER-MODE. There is no driver, no service, no
-//! certificate store — `system_security_posture` (the Win32 TokenElevation
-//! probe, mirroring the engine's own `win::is_elevated`,
-//! include/cr/win/cr_elevate.h) replaces the retired driver-status surface:
-//! raw-disk work needs the administrator token, and a non-elevated launch
-//! shows the banner + `system_relaunch_elevated` (ShellExecuteW "runas" on
-//! the own exe — the host-triggers-its-own-UAC contract, cr_ui.h).
+//! certificate store. D1 (the privilege model): the product requires the
+//! administrator token AT PROCESS CREATION via the embedded app manifest
+//! (`ui/src-tauri/app.manifest` — requireAdministrator, wired through
+//! tauri-build's WindowsAttributes::app_manifest in build.rs). The OS
+//! elevation consent happens at launch; there is NO in-app posture probe,
+//! NO banner, and NO ShellExecuteW "runas" relaunch — an unelevated
+//! process running this product cannot exist (the loader refuses the
+//! launch). The engine's own ERR_ELEVATION_REQUIRED (0x500C0001)
+//! vocabulary remains the honest backstop for any host that loads the
+//! engine without the product shell.
 //!
 //! validateDestination mirrors the connector contract: same-letter source →
 //! 'overlap' (the engine backstops with 0x50050001 at enqueue); non-mount →
@@ -28,100 +32,6 @@ use crate::bridge::util::enumerate_volumes;
 
 /// The exe-adjacent defaults file the bridge auto-loads at startup.
 pub const USER_SIGN_DEFAULTS_FILE: &str = "userdata-defaults.json";
-
-// ---------------------------------------------------------------------------
-// Elevation posture (the user-mode product's privilege truth)
-// ---------------------------------------------------------------------------
-
-/// Win32 TokenElevation probe (mirrors core include/cr/win/cr_elevate.h).
-#[cfg(windows)]
-fn is_elevated() -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows_sys::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_QUERY};
-    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-
-    let mut token: HANDLE = std::ptr::null_mut();
-    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
-        return false;
-    }
-    let mut elevation: u32 = 0; // TOKEN_ELEVATION { TokenIsElevated: u32 }
-    let mut returned: u32 = 0;
-    let ok = unsafe {
-        GetTokenInformation(
-            token,
-            TokenElevation,
-            &mut elevation as *mut u32 as *mut core::ffi::c_void,
-            std::mem::size_of::<u32>() as u32,
-            &mut returned,
-        )
-    };
-    unsafe { CloseHandle(token) };
-    ok != 0 && elevation != 0
-}
-
-#[cfg(not(windows))]
-fn is_elevated() -> bool {
-    // The product ships Windows-only; the honest non-Windows answer for a
-    // probe that cannot run is "not elevated" (the engine's own platform
-    // layer refuses the verbs outright with ERR_UNSUPPORTED).
-    false
-}
-
-#[tauri::command]
-pub async fn system_security_posture() -> Result<Value, BridgeError> {
-    tauri::async_runtime::spawn_blocking(|| {
-        Ok(json!({
-            "administrator": is_elevated(),
-        }))
-    })
-    .await
-    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
-}
-
-/// Relaunch the OWN exe elevated (ShellExecuteW "runas") and exit the
-/// unelevated instance — the host-triggers-its-own-UAC contract (cr_ui.h:
-/// nothing elevates silently; the standard OS prompt is the only path).
-#[tauri::command]
-pub async fn system_relaunch_elevated(app: tauri::AppHandle) -> Result<(), BridgeError> {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::Shell::ShellExecuteW;
-        const SW_SHOWNORMAL: i32 = 1;
-        let exe = std::env::current_exe()
-            .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("own exe path: {e}")))?;
-        let wide: Vec<u16> = exe.to_string_lossy().encode_utf16().chain([0]).collect();
-        let verb: Vec<u16> = "runas".encode_utf16().chain([0]).collect();
-        let rc = unsafe {
-            ShellExecuteW(
-                std::ptr::null_mut(), // hwnd (HWND = *mut c_void)
-                verb.as_ptr(),
-                wide.as_ptr(),
-                std::ptr::null(), // lpParameters (PCWSTR)
-                std::ptr::null(), // lpDirectory (PCWSTR)
-                SW_SHOWNORMAL,
-            )
-        };
-        // ShellExecuteW returns a value > 32 on success (HINSTANCE > 32).
-        if rc as isize <= 32 {
-            return Err(BridgeError::bridge(
-                code::DEVICE_PERMISSION,
-                "the elevation request was refused (the UAC prompt was declined \
-                 or the launch failed)",
-            ));
-        }
-        // The elevated instance is starting; close this unelevated one.
-        app.exit(0);
-        Ok(())
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = app;
-        Err(BridgeError::bridge(
-            code::UNKNOWN,
-            "relaunch-as-administrator is a Windows-only surface",
-        ))
-    }
-}
 
 // ---------------------------------------------------------------------------
 // App info

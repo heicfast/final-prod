@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/menus';
 import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { ConsentModal } from '@/features/consent/consent-modal';
-import { ElevationBanner } from '@/features/consent/elevation-banner';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { ExitGuard } from '@/app/exit-guard';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
@@ -348,7 +347,6 @@ export function WizardShell(): React.JSX.Element {
             key={location.pathname}
             className="route-fade flex h-full min-h-0 flex-1 flex-col overflow-hidden"
           >
-            <ElevationBanner />
             <Outlet />
           </div>
         </main>

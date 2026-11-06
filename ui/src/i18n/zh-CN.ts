@@ -477,10 +477,6 @@ export const zhCN: TranslationSchema = {
     deny: '拒绝',
     approve: '批准',
   },
-  elevation: {
-    bannerBody: '直接磁盘访问需要管理员权限——在应用提权运行之前，扫描与恢复功能不可用。',
-    relaunch: '以管理员身份重启',
-  },
   unlock: {
     title: '解锁卷',
     body: '输入 BitLocker 密码（将在内置字典之后尝试）或全卷加密密钥。',
