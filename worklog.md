@@ -2670,3 +2670,13 @@ volume vanished from the device list. Fixed with the SDK's own shape: a
 512-wchar stack buffer + the overflow-return-driven exact-size retry.
 (E-01 was the one register row lane A marked pending lane-B
 confirmation — confirmed real, fixed; 12/12 enumeration tests green.)
+
+## Lane B — the v0.9.1 cut (announced per the release protocol)
+
+engine-ci green at 62fb7670 (D4e + E-01 in the full Windows suite). With
+the published v0.9.0 carrying the known D4e freeze — disclosed in its
+amended notes by lane A — and the fix green on main, the patch release
+cannot wait: per the protocol's own principle (the user's mandate
+outranks lane symmetry), lane B cuts v0.9.1. Version lockstep bumped
+(VERSION, tauri.conf.json, Cargo.toml, Cargo.lock); the release notes'
+"What changed" carries the two 0.9.1 items ahead of the 0.9.0 record.

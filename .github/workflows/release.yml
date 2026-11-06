@@ -120,7 +120,11 @@ jobs:
 
           This is the debug-and-release release: every surface reported
           broken on the installed product was reproduced on real Windows,
-          root-caused, fixed at the source, and re-gated.
+          root-caused, fixed at the source, and re-gated. 0.9.1 is the
+          patch cut over 0.9.0: the two defects the 0.9.0 validation run
+          itself caught are fixed (the deep scan phase's frozen progress
+          and the many-volume enumeration failure); everything else
+          carries over from 0.9.0.
 
           - **The app now requests administrator at launch.** Through
             v0.8.4 the exe carried no manifest at all — it launched
@@ -141,6 +145,19 @@ jobs:
             page now renders the reference layout: "Internal drives (N)"
             and "External drives (N)" together; SD cards stay first-class
             on their dedicated page.
+          - **(0.9.1) The deep scan phase moves too.** The 0.9.0
+            validation run caught a 655-second stretch on a 64 GB NTFS
+            volume where percent, found-count and the sector counter all
+            stood still — the deep stage's remnant sweep reported progress
+            only once per multi-gigabyte chunk (and not at all on
+            single-threaded runs). It now reports coverage every 4 MiB:
+            the status line stays live through the whole scan, and a Stop
+            lands within the checkpoint bound.
+          - **(0.9.1) Machines with many mounted volumes keep their
+            device list.** A fixed-size volume-enumeration buffer failed
+            wholesale at 16+ drive letters (developer machines with VHDs,
+            containers, card readers lost every volume row); the
+            enumeration now sizes itself to the system's answer.
           - **The scan really scans — visibly.** The "jumps to 75%,
             files found N (0 B), no sector progress, all stuck" symptom is
             fixed at its four roots: the carve stage now checkpoints
