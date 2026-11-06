@@ -1,5 +1,5 @@
 {
- "_comment": "Win7 import baseline for core_recovery user-mode binaries - the strict-gated DLL function sets OUR code chooses (source-census 2026-10-23, extended 2026-10-26/30 for the M-118/N-178/M-074/S-060/M-075 landings; every entry available on Windows 7 SP1 x64). New imports FAIL tools/verify_pe_um.py until consciously added there (ALLOWLIST_ADDITIONS with a reason) or here. CRT/runtime/zlib DLLs are name-gated only (shipped binaries).",
+ "_comment": "Win7 import baseline for core_recovery user-mode binaries - the strict-gated DLL function sets OUR code chooses (source-census 2026-10-23, extended 2026-10-26/30 for the M-118/N-178/M-074/S-060/M-075 landings; every entry available on Windows 7 SP1 x64). New imports FAIL tools/verify_pe_um.py until consciously added there (ALLOWLIST_ADDITIONS with a reason) or here. Extended 2026-11-06 (debug-and-release session, D2): CreatePipe + SetHandleInformation \u2014 the hidden-window fsutil vehicle (corpus DRWUI_decompiled.c:178726-178733 parity); both kernel32 exports available since Windows 2000, verified Win7 SP1 x64-safe. CRT/runtime/zlib DLLs are name-gated only (shipped binaries).",
  "dlls": {
   "advapi32.dll": [
    "GetTokenInformation",
@@ -21,6 +21,7 @@
    "CloseHandle",
    "CreateDirectoryW",
    "CreateFileW",
+   "CreatePipe",
    "CreateProcessW",
    "DeleteCriticalSection",
    "DeleteFileW",
@@ -48,6 +49,7 @@
    "SetConsoleCtrlHandler",
    "SetFileAttributesW",
    "SetFileTime",
+   "SetHandleInformation",
    "WaitForSingleObject",
    "Wow64DisableWow64FsRedirection",
    "Wow64RevertWow64FsRedirection",
