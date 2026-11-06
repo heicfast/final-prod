@@ -52,8 +52,12 @@ Add/Remove entry is a per-machine concern):
    - the inner installer's uninstall registry entry is **taken over**: any
      Uninstall key pointing into `$INSTDIR` is removed and replaced by the
      single complete product entry → ONE Add/Remove entry with full scope.
-4. **Finish**: optional app launch (the app itself is
-   `requireAdministrator` — it needs the elevated token for raw-disk work).
+4. **Finish**: optional app launch (the app requests elevation at launch
+   through its own `requireAdministrator` manifest —
+   `ui/src-tauri/app.manifest` since 0.9.0; through v0.8.x it had none,
+   and this line's old "the app itself is requireAdministrator" claim
+   described only the finish-page's inherited elevation — D-PRIV-01
+   erratum).
 
 **Uninstall order** (complete; nothing orphaned): ask-close → ProgramData
 sessions **kept by default** (deleted only on explicit consent — reference

@@ -1,5 +1,15 @@
 # INSTALL-FOOTPRINT-CURRENT.md — what the current product places on a Windows machine, and how it is built
 
+> **STALE-BY-CONSTRUCTION ERRATUM (debug-and-release session, D-PRIV-01):**
+> this sheet froze at the **v0.6.0-rc1 driver era** (RDA kernel driver,
+> inner Tauri setup, `driver/` tree — all retired in 0.7.0). It does NOT
+> describe the v0.8.x/v0.9.x product. In particular its elevation claims
+> were the documentation hallucination: the app carried NO manifest through
+> v0.8.x (asInvoker), and `requireAdministrator` became real only with
+> 0.9.0's `ui/src-tauri/app.manifest`. A current-truth rewrite is queued in
+> the DOC-AUDIT; until then treat installer/README.md and
+> worklog/INSTALLER-AND-PRIVILEGE.md as authoritative.
+
 > Task T4-B (Agent B, build & packaging). READ-ONLY analysis of
 > `/home/z/my-project/final-prod` @ `af5c838ab71d37a129f81e327e632dff6a717e4e` (branch
 > `main`, working tree clean; shipped release **v0.6.0-rc1**, development test-signed).

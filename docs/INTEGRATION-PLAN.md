@@ -945,6 +945,16 @@ packaging project). The portable zip (§7.5) serves the "no-installer" need inst
   `installMode: "both"` (launches asInvoker; elevation only for per-machine/driver choices).
   Portable build ships the same manifest — truthfully documented ("run as administrator").
 
+  > **ERRATUM (D-PRIV-01, debug-and-release session):** the sign-off above was a
+  > DECISION, never an IMPLEMENTATION — every v0.8.x release shipped with NO app
+  > manifest at all (tauri-build's stock embed has no trustInfo section; the loader
+  > default is asInvoker), while this section and two other docs kept claiming
+  > requireAdministrator. The manifest landed with 0.9.0
+  > (`ui/src-tauri/app.manifest` through `tauri_build::WindowsAttributes::app_manifest`);
+  > the installer is the repo's own NSIS script with `RequestExecutionLevel admin`
+  > (the Tauri `installMode: "both"` path described above was the 0.6.x-era inner
+  > setup, retired with the driver).
+
 ### 7.5 Portable build
 
 `installer/portable.ps1` produces `RecoveryWizard-<version>-portable.zip`: app + engine kit +

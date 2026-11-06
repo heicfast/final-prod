@@ -2311,3 +2311,29 @@ surface is complete, lane A takes the engine fixes over (announced here
 first) so the session still delivers. Phase-1 repro: lane A dispatches
 ONE forensic-repro run on v0.8.4 (evidence for all four defects) and
 curates worklog/REPRODUCTION/ — lane B does not duplicate it.
+
+## D-PRIV-01 FIXED at the source — the requireAdministrator manifest (lane A)
+
+ui/src-tauri/app.manifest (NEW): trustInfo requireAdministrator +
+the stock Common-Controls dependency preserved. Wired through
+tauri_build::WindowsAttributes::app_manifest → try_build
+(ui/src-tauri/build.rs:38-53). tauri-build 2.7.4's stock embed carries
+no trustInfo at all — every v0.8.x exe launched asInvoker; this is the
+root fix for the user's #1 defect. One UAC at launch (reference parity:
+corpus rev/DRWUI.exe/strings_ascii.txt:41023), none mid-session; the
+in-app restart flow retires to a true edge case (banner retheme lands
+as D-UI-01 next).
+
+Docs trued in the same unit (the hallucination register from
+REPO-STATE): recoverywizard.nsi header comment, README.md privilege
+paragraph, docs/INTEGRATION-PLAN.md §7.4 erratum,
+docs/INSTALL-FOOTPRINT-CURRENT.md stale-banner (whole sheet is
+v0.6.0-era; full rewrite queued for DOC-AUDIT), installer/README.md:55.
+
+Validation: ui-ci's `cargo check --tests` + clippy gate compile the
+build-script change on windows-latest (run fires on this push —
+ui/src-tauri/build.rs matches the ui/** filter). The embedded-manifest
+ASSERTION (mt.exe dump + requireAdministrator check on the built exe)
+lands in the release lane + the re-vehicled probe, before any tag is
+cut. The banner component + twin-launcher probe re-vehicle with the
+D-UI-01/probe units.

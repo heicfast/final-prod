@@ -26,7 +26,13 @@
 ;     restart-as-administrator flow carry it).
 ;   - Elevation: RequestExecutionLevel admin - ONE UAC prompt at installer
 ;     launch; the per-machine install and the ProgramData shared state both
-;     want it, and the app itself runs elevated (requireAdministrator).
+;     want it, and the app itself requests elevation at launch through its
+;     OWN manifest (requireAdministrator, ui/src-tauri/app.manifest wired
+;     through tauri-build WindowsAttributes::app_manifest - D-PRIV-01).
+;     TRUTH NOTE: through v0.8.x this comment claimed requireAdministrator
+;     while the shipped exe carried NO manifest of its own (tauri-build's
+;     stock embed has no trustInfo - asInvoker by loader default); the
+;     claim became true only with the 0.9.0 manifest.
 ;   - ALL-USERS ONLY: the machine-level shared state (ProgramData
 ;     sessions/logs) and the single Add/Remove entry are per-machine
 ;     concerns, so the shell context is fixed to 'all' (MultiUser.nsh is

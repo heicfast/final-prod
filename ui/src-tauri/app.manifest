@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <!-- D-PRIV-01: the raw-disk product requests the administrator token at
+       launch through the standard Windows UAC flow — ONE prompt at launch,
+       none mid-session, no restart-as-admin surface. The reference ships
+       the same level on both DRW.exe and DRWUI.exe (corpus
+       rev/DRWUI.exe/strings_ascii.txt:41023). -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <!-- Preserved from tauri-build's stock embed: Common-Controls v6. -->
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+        type="win32"
+        name="Microsoft.Windows.Common-Controls"
+        version="6.0.0.0"
+        processorArchitecture="*"
+        publicKeyToken="6595b64144ccf1df"
+        language="*"
+      />
+    </dependentAssembly>
+  </dependency>
+</assembly>

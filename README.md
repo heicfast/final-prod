@@ -12,11 +12,14 @@ driver, no service, and no certificate-store change anywhere in this
 product — nothing is loaded into the operating system. The engine reads
 and writes disks and volumes directly from user mode
 (`\\.\PhysicalDriveN` opens through the 64 KiB read envelope with true byte
-counts). **Raw-disk operations require the application to run as
-administrator**: scanning, recovering, health checks, repair and
-lost-partition apply all need the elevated token; a non-elevated process
-gets a truthful `ERR_ELEVATION_REQUIRED` refusal (CLI exit 4) — never a
-degraded mode, never a fallback, never a silent failure. Uninstalling
+counts). **The application requests the administrator token at launch**
+(`requireAdministrator` manifest — `ui/src-tauri/app.manifest`, reference
+parity with the og's DRW.exe/DRWUI.exe posture): one standard UAC prompt
+when it starts, none mid-session. Scanning, recovering, health checks,
+repair and lost-partition apply all need the elevated token; should a
+non-elevated context ever occur (edge case), the process gets a truthful
+`ERR_ELEVATION_REQUIRED` refusal (CLI exit 4) — never a degraded mode,
+never a fallback, never a silent failure. Uninstalling
 removes everything the installer placed; saved sessions are kept by
 default (explicit consent required to delete them).
 
