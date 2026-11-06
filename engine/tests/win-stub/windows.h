@@ -154,6 +154,7 @@ struct WIN32_FIND_DATAW {
 #define ERROR_SUCCESS 0UL
 #define ERROR_INVALID_FUNCTION 1UL
 #define ERROR_FILE_NOT_FOUND 2UL
+#define ERROR_PATH_NOT_FOUND 3UL /* D3: the namespace-gap set in cr_enumerate */
 #define ERROR_INVALID_HANDLE 6UL
 /* M-074's destination-validation classification (cr_destio.cpp's
  * classify_dest_error) - the real winerror values, declaration-only

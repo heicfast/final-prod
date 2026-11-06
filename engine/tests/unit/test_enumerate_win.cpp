@@ -44,9 +44,9 @@ TEST(Enumerate, BusyDiskMetadataRetryShipsInQueryDisk) {
      * no read/write share conflict) - not just a second data open */
     const size_t retry = src.find("CreateFileW(path, 0,");
     EXPECT_NE(retry, std::string::npos) << "the metadata-only retry must request zero access";
-    EXPECT_NE(src.find("bool& busy)"), std::string::npos)
+    EXPECT_NE(src.find("bool& busy, DWORD* last_error)"), std::string::npos)
         << "the retry must report the busy flag to its caller";
-    EXPECT_NE(src.find("open_disk_for_query(p, d.busy)"), std::string::npos)
+    EXPECT_NE(src.find("open_disk_for_query(p, d.busy, &open_le)"), std::string::npos)
         << "BOTH stacks (the numbered loop + the cfgmgr32 interface pass) must use the retry";
 }
 
@@ -106,4 +106,55 @@ TEST(Enumerate, TrimChipOptInShipsInAbiAndCli) {
     EXPECT_NE(std::string::npos, cli.find("TRIM:ON")) << "the chip must render in the row output";
     EXPECT_NE(std::string::npos, cli.find("TRIM ?"))
         << "the unknown form must render on a failed query (never guessed)";
+}
+
+/* ---- D3 (the debug-and-release session): never drop a PRESENT device ---- */
+
+TEST(D3Enumerate, PresentButUnopenableDisksStayListed) {
+    /* The user's report: two internal drives + one SD card, only one disk
+     * appeared. Root-cause class: both enumeration stacks DROPPED any disk
+     * whose open failed with anything other than ACCESS_DENIED/SHARING
+     * (cr_enumerate.cpp) — while the reference lists devices WITHOUT
+     * opening them (five-stack metadata fan-in). The fix pins:
+     *   1. the numbered loop distinguishes ABSENT (the namespace-gap error
+     *      set) from PRESENT-but-unopenable (everything else: NOT_READY,
+     *      IO_DEVICE, GEN_FAILURE, exhausted access-denied) and KEEPS the
+     *      present ones listed with honest empties + busy marking;
+     *   2. the cfgmgr interface pass lists a PRESENT interface even when
+     *      its open fails or its geometry refuses (the interface list IS
+     *      the presence truth);
+     *   3. a geometry failure on an OPENED handle still lists (not-ready
+     *      media stacks answer the open and refuse the IOCTL). */
+    const std::string src = cr_test::read_repo_text("src/win/cr_enumerate.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* 1. the namespace-gap set gates ONLY the absent case */
+    const size_t qd = src.find("bool query_disk(u32 n, PhysicalDisk& d)");
+    ASSERT_NE(std::string::npos, qd) << "query_disk moved?";
+    const std::string qd_body = src.substr(qd, 1200);
+    EXPECT_NE(std::string::npos, qd_body.find("ERROR_FILE_NOT_FOUND"))
+        << "the absent-vs-present discrimination must keep the namespace-gap set";
+    EXPECT_NE(std::string::npos, qd_body.find("ERROR_PATH_NOT_FOUND"))
+        << "the namespace-gap set must be complete";
+    EXPECT_NE(std::string::npos, qd_body.find("return false"))
+        << "absent drives still skip (the loop's probe miss)";
+    /* the present-but-unopenable branch: number stamped + busy + true */
+    const size_t present_branch = qd_body.find("PRESENT but unopenable");
+    ASSERT_NE(std::string::npos, present_branch)
+        << "the present-but-unopenable branch must exist (D3)";
+    const std::string tail = qd_body.substr(present_branch, 400);
+    EXPECT_NE(std::string::npos, tail.find("d.busy = true"))
+        << "unopenable-present disks carry the busy marker (scans re-open)";
+    EXPECT_NE(std::string::npos, tail.find("return true"))
+        << "unopenable-present disks are LISTED, not dropped";
+
+    /* 2. the interface pass lists on open failure */
+    const size_t iface = src.find("u32 enumerate_disk_interfaces(PhysicalDiskList& out)");
+    ASSERT_NE(std::string::npos, iface) << "enumerate_disk_interfaces moved?";
+    const std::string iface_body = src.substr(iface, 2600);
+    EXPECT_NE(std::string::npos, iface_body.find("the interface is PRESENT"))
+        << "an unopenable PRESENT interface must still be listed (D3)";
+    /* 3. geometry refusal still lists */
+    EXPECT_NE(std::string::npos, iface_body.find("opened but no geometry"))
+        << "a geometry refusal on an opened handle must still list (D3)";
 }

@@ -92,36 +92,71 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
  * ERROR_ACCESS_DENIED / ERROR_SHARING_VIOLATION retry a 0-access
  * metadata-only open: no read/write share conflict, and the
  * FILE_ANY_ACCESS IOCTLs used here (geometry-EX, storage query,
- * device number) still answer. A disk that cannot even be
- * metadata-opened stays absent (the honest limit - PARITY-DELTAS
- * D-85's revisit trigger). */
-HANDLE open_disk_for_query(const wchar_t* path, bool& busy) {
+ * device number) still answer. D3 (the debug-and-release session): a
+ * PRESENT device that cannot even be metadata-opened no longer vanishes -
+ * it is listed with honest empties (see query_disk below; the reference
+ * lists devices without opening them at all). */
+HANDLE open_disk_for_query(const wchar_t* path, bool& busy, DWORD* last_error) {
     HANDLE h =
         CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                     nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         const DWORD le = GetLastError();
-        if (le != ERROR_ACCESS_DENIED && le != ERROR_SHARING_VIOLATION)
+        if (le != ERROR_ACCESS_DENIED && le != ERROR_SHARING_VIOLATION) {
+            if (last_error)
+                *last_error = le;
             return INVALID_HANDLE_VALUE;
+        }
         h = CreateFileW(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h == INVALID_HANDLE_VALUE)
+        if (h == INVALID_HANDLE_VALUE) {
+            if (last_error)
+                *last_error = GetLastError();
             return INVALID_HANDLE_VALUE;
+        }
         busy = true; /* listed, but data scans must re-open later */
     }
     return h;
 }
 
+/* D3 (the debug-and-release session): a PRESENT device the OS refuses to
+ * open must NOT vanish from the device list. The pre-fix code dropped any
+ * disk whose open failed with anything other than ACCESS_DENIED/
+ * SHARING_VIOLATION (or whose geometry query failed) — the user's
+ * "only one disk of three appears" on real hardware. The reference lists
+ * devices WITHOUT opening them (its five-stack fan-in reads WMI/SetupAPI
+ * metadata; mom-module-system--architecture.md :57-59, Device.md :45-50):
+ * an unopenable-but-present device is listed there with an honest
+ * unavailable state. The numbered namespace distinguishes ABSENT from
+ * PRESENT-but-unopenable through the open error itself: FILE_NOT_FOUND /
+ * PATH_NOT_FOUND / INVALID_NAME are the namespace's "no such drive" gaps
+ * (the loop's normal probe misses); every other failure (ERROR_NOT_READY,
+ * ERROR_IO_DEVICE, ERROR_GEN_FAILURE, exhausted access-denied retries)
+ * means the device object EXISTS — keep it listed, geometry unknown,
+ * busy-marked, and let the scan attempt surface the real open error. */
 bool query_disk(u32 n, PhysicalDisk& d) {
     wchar_t path[64];
     _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", n);
-    HANDLE h = open_disk_for_query(path, d.busy);
-    if (h == INVALID_HANDLE_VALUE)
-        return false;
+    DWORD le = 0;
+    HANDLE h = open_disk_for_query(path, d.busy, &le);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (le == ERROR_FILE_NOT_FOUND || le == ERROR_PATH_NOT_FOUND || le == ERROR_INVALID_NAME)
+            return false; /* the namespace gap: no such drive (normal) */
+        /* PRESENT but unopenable: listed with honest empties — the device
+         * row renders and the scan attempt reports the true failure */
+        d.number = n;
+        d.busy = true; /* data opens are known-bad; re-open surfaces the rc */
+        return true;
+    }
     const bool ok = query_disk_handle(h, d);
     CloseHandle(h);
-    if (!ok)
-        return false;
+    if (!ok) {
+        /* opened, but no geometry answerable (some stacks refuse geometry
+         * on not-ready media): still PRESENT — list with unknown geometry */
+        d.number = n;
+        d.busy = true;
+        return true;
+    }
     d.number = n;
     return true;
 }
@@ -163,8 +198,10 @@ u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk>& out) {
  * numbered loop; the number comes from IOCTL_STORAGE_GET_DEVICE_NUMBER
  * (kUnknownDiskNumber when the query fails - such entries dedup by
  * instance path in the merge). Geometry/descriptor ride the shared
- * query_disk_handle path. Entries that do not open at all are skipped
- * (matching the loop's CreateFileW-failure behavior). */
+ * query_disk_handle path. D3: a PRESENT interface that does not open (or
+ * answers no geometry) is still listed - honest empties, busy-marked;
+ * the merge dedups it against the numbered loop's row when the number
+ * is known, or by instance path when it is not. */
 u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
     ULONG need = 0;
     CONFIGRET cr =
@@ -182,8 +219,17 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
         const size_t len = wcslen(p);
         PhysicalDisk d;
         d.interface_path = std::wstring(p, len);
-        HANDLE h = open_disk_for_query(p, d.busy);
-        if (h != INVALID_HANDLE_VALUE) {
+        DWORD open_le = 0;
+        HANDLE h = open_disk_for_query(p, d.busy, &open_le);
+        if (h == INVALID_HANDLE_VALUE) {
+            /* D3: the interface is PRESENT (cfgmgr listed it) - list the
+             * device even though nothing about it can be queried; the
+             * instance path is the identity the merge dedups by. */
+            d.number = kUnknownDiskNumber;
+            d.table_ok = false;
+            d.busy = true;
+            out.push_back(std::move(d));
+        } else {
             STORAGE_DEVICE_NUMBER num = {};
             DWORD br = 0;
             if (DeviceIoControl(h, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &num, sizeof(num),
@@ -192,7 +238,12 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
                 d.number = num.DeviceNumber;
             else
                 d.number = kUnknownDiskNumber;
-            if (query_disk_handle(h, d)) {
+            if (!query_disk_handle(h, d)) {
+                /* opened but no geometry: still PRESENT (D3) */
+                d.table_ok = false;
+                d.busy = true;
+                out.push_back(std::move(d));
+            } else {
                 if (d.number == kUnknownDiskNumber) {
                     /* no table parse possible without a drive number */
                     d.table_ok = false;
