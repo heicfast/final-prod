@@ -1925,3 +1925,28 @@ deterministic surfaces):
   workflow (build + validate + upload) → forensic-repro dispatched on
   v0.8.0 (the full gate set incl. the twin + the uninstall, both
   first-passing) → RELEASE-RUN.md's v0.8.0 section filled from evidence.
+
+### v0.8.0 shipped; forensic run 18's post-mortem → the v0.8.1 fix pair
+
+- v0.8.0 tagged on f1c0418f after ui-ci 42166263292 + ui-e2e 42166263357
+  green; release run 42167758364 GREEN (22.0 min, 1741/1741 ctest inside
+  the build, dev-sign verified, checksums published; setup.exe
+  byte-verified by independent download). RELEASE-RUN.md's v0.8.0 section
+  written from the job record.
+- Forensic #18 (42170466748) on v0.8.0: the re-vehicled S2b ran — the
+  8GB vehicle scan COMPLETED in 11.8 min and save attempt 1 landed the
+  'Search saved' toast (the db600f4c path green end-to-end on the
+  shipped binary) — then RED at the S5 resume gate, exposing two
+  mechanical defects:
+  1. BF-26 (product): a VALID whole-disk session rendered as "(unreadable
+     session)" — render_row conflated empty-label with unreadable (the
+     light row read fine; whole-disk sessions carry no volume label).
+     Fixed in the bridge: "(no volume label)" for that case.
+  2. Probe: the Resume affordance exists ONLY on incomplete rows — the
+     completed vehicle could never show it. S2b redesigned as the
+     save/resume vehicle: stop mid-deep (healthy), GATE the drain via the
+     'stopped early' banner, save the incomplete session, gate Resume +
+     live-scan URL, then gate the resumed scan's completion.
+- Because the bridge fix changes the shipped binary, the fix ships as
+  v0.8.1 (tag → release → forensic dispatch on the new tag; v0.8.0's
+  partial-green forensic stands documented, like v0.7.0's five reds).

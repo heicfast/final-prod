@@ -7,11 +7,13 @@
  *
  *   S1   installer popup        (captured by install-probe.ps1, not here)
  *   S2   SMART: one drive / percentage-only / no attributes
- *   S2b  the completion vehicle: a full deep scan of the 8GB SeedEXFAT
- *        vdisk that COMPLETES inside its window — the deterministic
- *        carrier for the session-save + backup/resume gates (run
- *        42148493806: the 64GB stall's stopped scan stays busy for an
- *        unbounded drain — BF-25 — so those gates must not ride it)
+ *   S2b  the save/resume vehicle: the 8GB SeedEXFAT scan stopped
+ *        mid-deep (healthy), drained, saved as an INCOMPLETE session,
+ *        resumed from the Backup screen, and run to completion — the
+ *        deterministic carrier for the session gates (run 42148493806:
+ *        the 64GB stall's stopped scan stays busy for an unbounded
+ *        drain — BF-25; run 42170466748: a completed session's row has
+ *        no Resume affordance, only Open)
  *   S3   scan: quick -> advanced, the reported ~76% stall (recorder)
  *   S3b  stop -> partial results -> recover -> report (gates)
  *   S4   other surfaces dead or fake
@@ -182,19 +184,21 @@ async function main() {
     await shot(page, 'health-failed').catch(() => {});
   }
 
-  // ------------------------------------------------- S2b: the completion vehicle
-  // The save/resume gates need a NON-BUSY scan. The 64GB deep-scan leg
-  // below is the stall recorder (BF-22) and its stopped scan stays busy
-  // for an unbounded drain (BF-25, run 42148493806: 15 save attempts over
-  // 136 s all refused; the run thread never returned after cancel). This
-  // leg drives the SAME product surfaces — full scan flow to completion,
-  // 'Save this search' from the results explorer, the Backup screen's
-  // saved-session row + Resume affordance — on the 8GB exFAT seed, whose
-  // deep scan completes inside its window. Gates: save lands, resume
-  // navigates to a live scan. Both fail the run (no masking).
+  // ------------------------------------------------- S2b: the save/resume vehicle
+  // The save/resume gates need a NON-BUSY scan, and the RESUME affordance
+  // needs an INCOMPLETE session (the Backup screen renders 'Resume scan'
+  // only for !completed rows — run 42170466748: a completed session's row
+  // carries only 'Open'). The vehicle: start the 8GB SeedEXFAT scan, stop
+  // it mid-deep (a HEALTHY running scan — the 64GB leg below is the stall
+  // recorder whose stopped scan never drains, BF-25), wait for the drain
+  // (the 'stopped early' banner latches when the engine's run thread
+  // returns), save the incomplete session, resume it from the Backup
+  // screen, and let the resumed scan run to completion. Gates: the drain
+  // banner, the save toast, the Resume affordance, the live-scan URL after
+  // resume, and the resumed scan's completion. A failure fails the run.
   try {
     evidence.phases.saveResume = { scan: { timeline: [], consent: { seen: false, planText: null } } };
-    log('S2b: home, select the 8GB SeedEXFAT vdisk, start the completion-vehicle scan');
+    log('S2b: home, select the 8GB SeedEXFAT vdisk, start the save/resume vehicle scan');
     await page.evaluate(() => { location.hash = '#/'; });
     await page.waitForTimeout(3000);
     await shot(page, 'save-0-home');
@@ -210,12 +214,15 @@ async function main() {
     await page.waitForTimeout(2500);
     await shot(page, 'save-1-started');
 
-    // poll the vehicle scan for up to 16 minutes (8GB exFAT; the 64GB
-    // leg's real work took ~6 min of reads before its stall)
+    // Run until the ADVANCED stage is 15 s in (mid-deep: the quick stage
+    // on exFAT is a fast metadata walk; the deep sector walk takes
+    // minutes on 8GB — run 42170466748's fresh scan ran 11.8 min end to
+    // end), then stop. Stopping mid-deep keeps us OUT of the carve window
+    // (the BF-22/25 stall class) while still leaving real work to resume.
     const q0 = Date.now();
     const Q_CAP_MS = 16 * 60 * 1000;
     let qLastShot = 0;
-    let qCompleted = false;
+    let advancedSeenAt = null;
     const answerConsentQ = async () => {
       const dlg = page.getByText(/Pre-scan repair request|Confirm the repair/i);
       if (await dlg.count().catch(() => 0)) {
@@ -248,52 +255,73 @@ async function main() {
         await shot(page, `save-poll-${Math.round((Date.now() - q0) / 1000)}s`);
         qLastShot = Date.now();
       }
-      if (state.complete) {
-        qCompleted = true;
-        log('S2b: vehicle scan COMPLETE');
+      if (state.stage === 'advanced' && !advancedSeenAt) {
+        advancedSeenAt = Date.now() - q0;
+        log(`S2b: ADVANCED stage first seen at ${(advancedSeenAt / 1000).toFixed(0)}s`);
+      }
+      // 15 s into the deep stage (or the cap): STOP — the incomplete
+      // session this leg needs.
+      if ((advancedSeenAt !== null && Date.now() - q0 - advancedSeenAt >= 15000) || state.complete) {
         break;
       }
       await page.waitForTimeout(5000);
     }
-    evidence.phases.saveResume.scan.completed = qCompleted;
-    await page.waitForTimeout(4000); // the celebration modal renders
-    await shot(page, 'save-2-complete');
+    evidence.phases.saveResume.scan.advancedSeenAtMs = advancedSeenAt;
+    await shot(page, 'save-2-before-stop');
 
-    // Completed: 'Go to Recover' lands on the results surface. Not
-    // completed inside the cap: stop it (a HEALTHY running scan drains
-    // fast, unlike the stalled 64GB stop) and take the partial path.
-    if (qCompleted) {
-      const goBtn = page.getByRole('button', { name: /go to recover/i }).first();
-      if (await goBtn.count().catch(() => 0)) {
-        await goBtn.click({ timeout: 10000 });
-      } else {
-        log('S2b: celebration modal not found (already dismissed?) - navigating directly');
-        await page.evaluate(() => { location.hash = `#/results/${location.hash.match(/scanId=([^&]+)/)?.[1] ?? ''}`; }).catch(() => {});
-      }
-      await page.waitForURL(/\/results\//, { timeout: 30000 });
-      await page.waitForTimeout(4000);
-      evidence.phases.saveResume.save = { via: 'completed-scan' };
-    } else {
-      log('S2b: vehicle scan did not complete in the cap - stopping it (the healthy stop path)');
-      await page.getByRole('button', { name: 'Stop', exact: true }).first().click({ timeout: 15000 });
+    // The stop: dialog → confirm → results (the cancel invoke resolves
+    // while the run thread drains — the UI navigates on invoke success).
+    const stopBtn = page.getByRole('button', { name: 'Stop', exact: true }).first();
+    if (await stopBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await stopBtn.click({ timeout: 15000 });
       const stopDlg = page.getByRole('dialog', { name: /Stop Searching for Lost Data\?/i });
       await stopDlg.waitFor({ state: 'visible', timeout: 10000 });
-      await shot(page, 'save-2-stop-dialog');
+      await shot(page, 'save-3-stop-dialog');
       await stopDlg.getByRole('button', { name: 'Stop', exact: true }).click({ timeout: 10000 });
-      await page.waitForURL(/\/results\//, { timeout: 30000 });
-      await page.waitForTimeout(4000);
-      evidence.phases.saveResume.save = { via: 'stopped-scan (cap fallback)' };
+    } else {
+      // Completed before the stop point (unexpected on 8GB, but honest):
+      // there is no incomplete session to resume — record and fail the
+      // gate (the resume surface went unproven this run).
+      evidence.phases.saveResume.scan.completedEarly = true;
+      throw new Error('gate: S2b vehicle - the scan completed before the mid-deep stop point (no incomplete session to resume)');
     }
-    await shot(page, 'save-3-results');
+    await page.waitForURL(/\/results\//, { timeout: 30000 });
+    await page.waitForTimeout(2000);
+    await shot(page, 'save-4-stopped-results');
 
-    // Save the session (the results explorer's affordance). Toasts live
-    // ~4 s (sonner's default) — poll FAST so a success toast can never
-    // auto-dismiss between two slow samples (run 42148493806's empty
-    // toast lists taught the timing), and record every toast verbatim.
+    // The DRAIN gate: the 'stopped early' banner (role=status) renders
+    // only when the engine's run thread has returned (status=cancelled
+    // latches at run() exit — BF-25's lesson). On this healthy mid-deep
+    // stop it must appear within the window; a healthy scan's drain is
+    // seconds. If it never lands, that is a real product failure — red.
+    let drained = false;
+    try {
+      await page
+        .getByRole('status')
+        .filter({ hasText: /stopped early/i })
+        .first()
+        .waitFor({ state: 'visible', timeout: 180000 });
+      drained = true;
+    } catch {
+      drained = false;
+    }
+    evidence.phases.saveResume.drainBannerVisible = drained;
+    log(`S2b: drain banner (stopped early) visible: ${drained}`);
+    if (!drained) {
+      throw new Error('gate: S2b drain - the stopped healthy scan never showed the partial-results banner within 180 s (unbounded drain on a NON-stalled scan)');
+    }
+
+    // Save the INCOMPLETE session (the results explorer's affordance).
+    // Toasts live ~4 s (sonner's default) — poll FAST so a success toast
+    // can never auto-dismiss between two slow samples (run 42148493806's
+    // empty toast lists taught the timing), and record every toast
+    // verbatim. A save clicked inside the drain is refused with a VISIBLE
+    // toast (the onError fix) — retry through it.
     const saveBtn = page.getByRole('button', { name: /save this search/i }).first();
     if (!(await saveBtn.count().catch(() => 0))) {
       throw new Error('gate: S2b session save - the results explorer showed no "Save this search" affordance');
     }
+    evidence.phases.saveResume.save = { via: 'stopped-mid-deep scan' };
     evidence.phases.saveResume.save.attempts = [];
     let savedOk = false;
     for (let attempt = 1; attempt <= 15 && !savedOk; attempt++) {
@@ -318,64 +346,90 @@ async function main() {
       evidence.phases.saveResume.save.attempts.push({ attempt, toasts: seenToasts });
       log(`S2b: save attempt ${attempt}: ${JSON.stringify(seenToasts)}`);
       if (!savedOk) {
-        await page.waitForTimeout(2500); // the drain window (the stopped fallback)
+        await page.waitForTimeout(2500); // the drain window
       }
     }
     evidence.phases.saveResume.save.saved = savedOk;
-    await shot(page, 'save-4-session-saved');
+    await shot(page, 'save-5-session-saved');
     if (!savedOk) {
       throw new Error(
         `gate: S2b session save - the save never landed (15 attempts; toasts: ${JSON.stringify(evidence.phases.saveResume.save.attempts.map(a => a.toasts))})`,
       );
     }
-    log('S2b: session saved from the results explorer');
+    log('S2b: incomplete session saved from the results explorer');
 
-    // S5 (relocated here from the deep-scan leg): the saved session must
-    // appear on the Backup screen with a working Resume affordance, and
-    // the resume must land on a live scan.
+    // S5: the saved session must appear on the Backup screen with a
+    // working Resume affordance (incomplete rows render 'Resume scan' +
+    // 'Open'), and the resume must land on a live scan.
     evidence.phases.saveResume.backup = {};
     await page.evaluate(() => { location.hash = '#/backup'; });
     await page.waitForTimeout(4000);
     const bk = await domSummary(page);
     evidence.phases.saveResume.backup.summary = { headings: bk.headings, bodyText: bk.bodyText.slice(0, 2500) };
-    await shot(page, 'save-5-backup-list');
+    await shot(page, 'save-6-backup-list');
     const resumeBtn = page.getByRole('button', { name: /resume scan/i }).first();
     const resumeCount = await resumeBtn.count().catch(() => 0);
     evidence.phases.saveResume.backup.resumeAffordance = resumeCount > 0;
-    if (resumeCount > 0) {
-      evidence.phases.saveResume.backup.clickedRow = (await resumeBtn.textContent().catch(() => '')) || '';
-      await resumeBtn.click({ timeout: 10000 });
-      // The load+resume+run of the session's tree can take seconds — wait
-      // for the navigation, not a fixed sleep (the old 5 s sleep was a
-      // wrong-gate waiting to happen).
-      await page.waitForURL(/\/scan\//, { timeout: 60000 });
-      await page.waitForTimeout(5000);
-      evidence.phases.saveResume.resume = { urlAfterResume: page.url() };
-      await shot(page, 'save-6-after-resume');
-      log('S2b: resume navigated to a live scan - hygiene: settle the resumed scan');
-      // Hygiene: a completed session's resume completes again almost
-      // immediately (all stages masked off) - the celebration modal is
-      // dismissed via Go to Recover; a re-running scan gets the real
-      // Stop path. Either way the app ends on results, ready for the
-      // deep-scan leg.
-      const stopBtn = page.getByRole('button', { name: 'Stop', exact: true }).first();
-      if (await stopBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await stopBtn.click({ timeout: 10000 });
-        const stopDlg = page.getByRole('dialog', { name: /Stop Searching for Lost Data\?/i });
-        await stopDlg.waitFor({ state: 'visible', timeout: 10000 });
-        await stopDlg.getByRole('button', { name: 'Stop', exact: true }).click({ timeout: 10000 });
-        await page.waitForTimeout(3000);
-      } else {
-        const goBtn2 = page.getByRole('button', { name: /go to recover/i }).first();
-        if (await goBtn2.count().catch(() => 0)) {
-          await goBtn2.click({ timeout: 10000 }).catch(() => {});
-          await page.waitForTimeout(3000);
-        }
-      }
-      await shot(page, 'save-7-hygiene-settled');
-    } else {
-      throw new Error('gate: S5 session resume - the saved session shows no Resume affordance on the Backup screen');
+    if (resumeCount === 0) {
+      throw new Error('gate: S5 session resume - the saved incomplete session shows no Resume affordance on the Backup screen');
     }
+    evidence.phases.saveResume.backup.clickedRow = (await resumeBtn.textContent().catch(() => '')) || '';
+    await resumeBtn.click({ timeout: 10000 });
+    // The load+resume+run of the session's tree can take seconds — wait
+    // for the navigation, not a fixed sleep.
+    await page.waitForURL(/\/scan\//, { timeout: 60000 });
+    await page.waitForTimeout(5000);
+    evidence.phases.saveResume.resume = { urlAfterResume: page.url() };
+    await shot(page, 'save-7-after-resume');
+    log('S2b: resume navigated to a live scan');
+
+    // The resumed scan continues the deep stage from its checkpoint, then
+    // carve, then completes (the fresh scan ran 11.8 min end to end on
+    // this seed — run 42170466748; the resume does the REMAINING work).
+    // Completion is the gate: a resumed-scan stall would be a real find.
+    const r0 = Date.now();
+    const R_CAP_MS = 16 * 60 * 1000;
+    let rLastShot = 0;
+    let rCompleted = false;
+    evidence.phases.saveResume.resumedScan = { timeline: [] };
+    while (Date.now() - r0 < R_CAP_MS) {
+      await answerConsentQ();
+      const st = await page.evaluate(() => ({
+        url: location.href,
+        text: (document.body.innerText || '').slice(0, 5000),
+      })).catch(e => ({ url: 'EVAL-FAIL', text: String(e) }));
+      const state = extractScanState(st.text || '');
+      evidence.phases.saveResume.resumedScan.timeline.push({
+        t: new Date().toISOString(), elapsedSec: Math.round((Date.now() - r0) / 1000),
+        url: st.url, ...state,
+      });
+      if (Date.now() - rLastShot > 30000) {
+        await shot(page, `resume-poll-${Math.round((Date.now() - r0) / 1000)}s`);
+        rLastShot = Date.now();
+      }
+      if (state.complete) {
+        rCompleted = true;
+        log('S2b: RESUMED scan COMPLETE');
+        break;
+      }
+      await page.waitForTimeout(5000);
+    }
+    evidence.phases.saveResume.resumedScan.completed = rCompleted;
+    if (!rCompleted) {
+      throw new Error('gate: S2b resume completion - the resumed scan did not complete within 16 min (fresh-scan baseline: 11.8 min, run 42170466748)');
+    }
+    await page.waitForTimeout(4000); // the celebration modal renders
+    await shot(page, 'save-8-resumed-complete');
+    const goBtn = page.getByRole('button', { name: /go to recover/i }).first();
+    if (await goBtn.count().catch(() => 0)) {
+      await goBtn.click({ timeout: 10000 });
+    } else {
+      log('S2b: celebration modal not found (already dismissed?) - continuing from the live page');
+    }
+    await page.waitForURL(/\/results\//, { timeout: 30000 });
+    await page.waitForTimeout(4000);
+    await shot(page, 'save-9-resumed-results');
+    log('S2b: save/resume vehicle complete - the app is on the resumed results surface');
   } catch (e) {
     (evidence.phases.saveResume ||= {}).error = String(e);
     log('S2b/S5 FAILED: ' + e.message);

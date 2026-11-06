@@ -198,7 +198,21 @@ fn render_row(r: &abi::CrUiSessionRow) -> Value {
         "fileName": file_name,
         "path": path,
         "savedAt": saved_at,
-        "targetLabel": (if valid && !label.is_empty() { json!(label) } else { json!("(unreadable session)") }),
+        // v0.8.0 forensic (run 42170466748): a VALID whole-disk session
+        // with an empty volume label rendered as '(unreadable session)' —
+        // a lie the Backup screen told about a perfectly loadable
+        // checkpoint (the light row read fine: date + counts present;
+        // only the label field was empty — whole-disk sessions carry no
+        // volume label). Split the cases: unreadable means unreadable;
+        // a valid row without a label says so. (BF-26: recording the
+        // disk identity in the session header is upstream engine scope.)
+        "targetLabel": (if !valid {
+            json!("(unreadable session)")
+        } else if label.is_empty() {
+            json!("(no volume label)")
+        } else {
+            json!(label)
+        }),
         "filesFound": (if valid { json!(r.files_found + r.deleted_found + r.carved_found) } else { json!(0) }),
         "dataFoundBytes": (if valid { json!(r.bytes_scanned) } else { json!(0) }),
         "completed": (if valid { json!(completed) } else { json!(false) }),

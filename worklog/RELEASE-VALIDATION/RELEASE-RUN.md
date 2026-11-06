@@ -1,7 +1,53 @@
-# RELEASE-RUN — gate §8 evidence: the v0.7.0 release, end to end
+# RELEASE-RUN — gate §8 evidence: the v0.7.0 + v0.8.0 releases, end to end
 
-Written: 2026-11-06 (consolidation release session). Run IDs link to
+Written: 2026-11-06 (consolidation release sessions). Run IDs link to
 https://github.com/heicfast/final-prod/actions/runs/<id>.
+
+## The v0.8.0 release (this session)
+
+### The tag
+
+- `v0.8.0` — annotated tag on **f1c0418f** (the version-bump commit; the
+  product fix db600f4c + the probe re-vehicle 95d5d1de beneath it).
+- CI at the tag: ui-ci 42166263292 GREEN, ui-e2e 42166263357 GREEN on
+  f1c0418f; contracts validated locally + inside the release gate; engine
+  unchanged since its last green lane.
+- Tag message: the release summary (the session-save visibility fix as
+  the product delta; BF-25 recorded — unbounded cancel latency inside the
+  deep-scan stall, upstream core scope).
+
+### The release workflow (run 42167758364 — SUCCESS, 22.0 min, windows-2022;
+job 127728096420, every step green)
+
+1. **Version gate** ✓ — tag `v0.8.0` == `v<VERSION>`; lockstep held
+   (ui/package.json, ui/src-tauri/Cargo.toml, tauri.conf.json, Cargo.lock —
+   all 0.8.0).
+2. **Contracts gate** ✓ — `node contracts/validate.mjs` (phase 1 + 2,
+   44 commands).
+3. **Full product build** ✓ — build.ps1 all lanes; **ctest 1741/1741 —
+   "100% tests passed, 0 tests failed"** (log line 4401); kit staged
+   (lz4/z/zstd DLLs), UI + Tauri NSIS bundle, combined installer, portable
+   zip, SHA256SUMS.
+4. **Artifact + signature verification** ✓ — devsign verify on the
+   installer AND stage-0.8.0\engine\cr_ui.dll (both
+   `CN=HeicFast Recovery Wizard Development Signing`, status UnknownError =
+   self-signed, the documented posture):
+   - `RecoveryWizard-0.8.0-setup.exe` — 2,790,696 B, SHA256
+     `AF797684917CA26268B12A9A5576D671F2D9C737FBD67934E0E91C8F93A591D4`
+     (byte-verified by an independent download of the published asset)
+   - `RecoveryWizard-0.8.0-portable.zip` — 3,915,357 B, SHA256
+     `4A26D3154FEDA68E32532D6F5BF6C482233D879D3AFB18FE728FAE85C6D1EBE4`
+   - `SHA256SUMS` — 199 B
+5. **Truthful release notes** ✓ — the 0.8.0 story: the session-save
+   visibility fix, "everything else is the proven 0.7.0 product", the
+   0.7.0 driver-removal history pointer, the honest signing status.
+6. **Upload** ✓ — all three assets on the release
+   (https://github.com/heicfast/final-prod/releases/tag/v0.8.0,
+   published 2026-11-06T05:41:34Z); `fail_on_unmatched_files: true`.
+
+---
+
+## The v0.7.0 release
 
 ## The tag
 
@@ -12,7 +58,7 @@ https://github.com/heicfast/final-prod/actions/runs/<id>.
   to core@12f3edf7 ABI v4 with the byte-identity proof, UI rewired, no
   mock in shipped builds, workflows SHA-pinned).
 
-## The release workflow (run 42126551916 — SUCCESS, 22.8 min, windows-2022)
+## The release workflow (run 42126551916 — SUCCESS, 22.8 min, windows-2022) — v0.7.0
 
 Step-by-step from the run log:
 
@@ -102,13 +148,39 @@ truth per the runs' job records:
   to completion on v0.7.0 (they run after step 10, which failed in every
   attempt) — their first full pass is the v0.8.0 dispatch below.
 
-### The v0.8.0 re-validation (dispatched on the new tag)
+### The v0.8.0 re-validation (forensic-repro dispatched on v0.8.0)
 
-**(filled from the run's evidence as it lands — the gate set: S1 install,
-launch + no-mock, S2 health, S2b completion vehicle → save → backup →
-resume, S3 stall recorder, S3b stop → partial results → recover → report,
-the unelevated twin, postrun facts, the silent uninstall + no-leftover
-assertions)**
+**Run 18 (42170466748) — RED at the S5 resume gate, with the run's own
+green evidence and two findings (step-level: steps 1–9 green; step 10
+red):**
+
+- The v0.8.0 binary's no-mock gate ✓; S2 health ✓ (4 selections);
+  **the vehicle scan completed in 11.8 min** and **save attempt 1 landed
+  the 'Search saved' toast** — the db600f4c onError/save path proven
+  GREEN end-to-end on the shipped release (the S3b recover leg never
+  ran; the failure preceded it).
+- Finding 1 (product, mechanical — fixed this session): the Backup
+  screen rendered the saved session as **"(unreadable session)"** — a
+  VALID whole-disk session with an empty volume label hit the bridge's
+  `valid && !label.is_empty()` conditional (BF-26; fixed in render_row:
+  "(no volume label)").
+- Finding 2 (probe, mechanical — fixed this session): the S5 gate
+  demanded a "Resume scan" affordance — but the Backup screen renders
+  Resume ONLY for incomplete sessions; a completed session's row carries
+  just "Open". The gate was asking the product for an affordance its
+  design never shows on that row. The vehicle was redesigned: stop the
+  8GB scan mid-deep (healthy), GATE the drain (the "stopped early"
+  banner — the run-thread-returned signal), save the INCOMPLETE session,
+  gate the Resume affordance + live-scan URL, then gate the resumed
+  scan's completion (fresh-scan baseline 11.8 min).
+- The unelevated twin + uninstall legs remain unexecuted on a v0.8.0
+  tag (step 10 red precedes them) — their first full pass moves to the
+  v0.8.1 dispatch (the fixed probe + fixed bridge).
+
+### The v0.8.1 release (the mislabel fix + the re-vehicled probe)
+
+**(filled from the runs' evidence as they land — tag, release workflow,
+forensic dispatch on v0.8.1 with the full gate set)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 
