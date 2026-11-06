@@ -118,6 +118,13 @@ jobs:
 
           ## What changed in this release
 
+          - **Whole-disk scan sessions can now resume on machines whose
+            disks share a model name** (virtual machines in particular):
+            the resume previously refused with "the session's source
+            device is not attached" when several disks reported the same
+            model; among identical-model disks the one matching the
+            session's recorded size is now chosen, and a wrong choice is
+            still caught by the session's identity check.
           - **Resuming a saved session now opens the live scan screen.**
             The Backup screen's Resume navigated to a route the app does
             not define, so the resumed scan ran invisibly behind a
