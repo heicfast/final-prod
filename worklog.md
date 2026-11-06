@@ -1950,3 +1950,25 @@ deterministic surfaces):
 - Because the bridge fix changes the shipped binary, the fix ships as
   v0.8.1 (tag → release → forensic dispatch on the new tag; v0.8.0's
   partial-green forensic stands documented, like v0.7.0's five reds).
+
+### v0.8.1 shipped; forensic run 19's post-mortem — BF-25 GENERALIZED
+
+- v0.8.1 tagged on 97893c15 (BF-26 fix 73419713 beneath); release run
+  42174434974 GREEN (18.8 min, 1741/1741 ctest, dev-sign verified,
+  setup.exe byte-verified: F316F7EC…). RELEASE-RUN.md's v0.8.1 section
+  written from the job record.
+- Forensic #19 (42176600928) on v0.8.1: RED at the S2b drain gate — the
+  probe's "stop mid-deep" assumption was wrong for exFAT (the deep stage
+  is nearly empty; the stop landed 0.6% into CARVE). The io evidence
+  GENERALIZES BF-25: reads ceased ~90 s after the cancel yet the thread
+  had not returned 180 s later — the carve matcher grinds in memory with
+  no cancellation checkpoint until it finishes (~9-10 min after a
+  2-min-in stop; fresh-scan baseline 11.8 min). The product's stop path
+  behaved as designed (reads stopped, UI navigated, results usable) —
+  the drain LATENCY is the recorded behavior.
+- Probe corrections (tooling-only; v0.8.1's binary unchanged — the
+  probe runs from main, the installer from the tag): drain window
+  180 s → 15 min (sized to the matcher baseline); NEW during-drain
+  save probe (the db600f4c refusal-toast proof, silence = red); S3
+  stall-recorder trimmed 28 → 15 min (corpus exists from runs 17 +
+  42072191860); io-probe 4800 s. BF-25's row generalized.

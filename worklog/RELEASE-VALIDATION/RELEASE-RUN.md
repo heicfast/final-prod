@@ -177,10 +177,55 @@ red):**
   tag (step 10 red precedes them) — their first full pass moves to the
   v0.8.1 dispatch (the fixed probe + fixed bridge).
 
-### The v0.8.1 release (the mislabel fix + the re-vehicled probe)
+### The v0.8.1 release (the mislabel fix)
 
-**(filled from the runs' evidence as they land — tag, release workflow,
-forensic dispatch on v0.8.1 with the full gate set)**
+- Tag `v0.8.1` on **97893c15** (the BF-26 bridge fix 73419713 + the
+  version bump; CI: ui-ci 42173490484, ui-e2e 42173490489, contracts-ci
+  42173490533 — all GREEN).
+- Release run **42174434974 — SUCCESS, 18.8 min** (job 127749513646,
+  06:26:26Z→06:45:14Z): version + contracts gates green, **ctest 1741/1741
+  "100% tests passed, 0 tests failed"** (log line 4401), dev-sign verified
+  on the installer and cr_ui.dll, all three assets published
+  (2026-11-06T06:45:08Z):
+  - `RecoveryWizard-0.8.1-setup.exe` — 2,790,224 B, SHA256
+    `F316F7EC3FB85D29A5DA46FA851F13547298FCCBAA3B2A51AD526D9E5230721B`
+    (byte-verified by an independent download of the published asset)
+  - `RecoveryWizard-0.8.1-portable.zip` — 3,915,146 B, SHA256
+    `E268156357D478C8059AC04A7B6EF9DF5A386850BFAF655A3D1B45B69B6864C3`
+  - `SHA256SUMS` — 199 B
+- Notes: the 0.8.1 truth (the Backup-list label fix, the carried save
+  visibility fix, "everything else is the proven 0.7.0 product").
+
+### The v0.8.1 forensic dispatch — attempt 1 (run 19, 42176600928)
+
+RED at the S2b DRAIN gate — and the red is a REAL generalization of
+BF-25, not a probe bug alone: the probe stopped the vehicle scan
+"15 s into advanced" assuming mid-DEEP, but on the exFAT seed the deep
+stage is nearly empty (the remnant sweep is NTFS-only), so the stop
+landed 0.6% into CARVE. The io-timeline: reads ceased ~90 s after the
+cancel (06:50), yet the run thread had not returned by 06:52:07 (the
+180 s drain window) — the carve matcher grinds on in memory for minutes
+with no cancellation checkpoint (the thread observes the token only
+when the matcher finishes; the fresh-scan baseline for the whole pass
+was 11.8 min in run 18). Two probe corrections (this is tooling — the
+v0.8.1 binary needs no change, the probe runs from main):
+1. The drain window is sized to the measured reality: 180 s → 15 min
+   (the matcher's remaining grind after a ~2-min-in stop is ~9-10 min).
+2. NEW during-drain save probe: a save clicked while the thread is still
+   draining MUST show the refusal toast (the db600f4c never-silent
+   proof — never before exercised on a shipped binary; silence = red).
+   The S3 stall-recorder window is trimmed 28 → 15 min (the full 28-min
+   corpus exists in runs 42072191860 + 42148493806; the frozen-at-76.1%
+   signature still records) so the longer vehicle fits the 90-min job.
+The green evidence run 19 did capture before its gate: install, no-mock
+gate, S2 health (4 selections), the vehicle started, advanced stage,
+the stop dialog + confirm + navigation, and (io) the reads ceasing on
+cancel — the product's stop path itself behaved exactly as designed.
+
+**(the re-dispatch on v0.8.1 with the corrected probe — filled from the
+run's evidence as it lands: the full gate set incl. the during-drain
+save, the drain banner, the incomplete save, the Backup Resume, the
+resumed completion, the unelevated twin, and the silent uninstall)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 

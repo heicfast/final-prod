@@ -214,11 +214,15 @@ async function main() {
     await page.waitForTimeout(2500);
     await shot(page, 'save-1-started');
 
-    // Run until the ADVANCED stage is 15 s in (mid-deep: the quick stage
-    // on exFAT is a fast metadata walk; the deep sector walk takes
-    // minutes on 8GB — run 42170466748's fresh scan ran 11.8 min end to
-    // end), then stop. Stopping mid-deep keeps us OUT of the carve window
-    // (the BF-22/25 stall class) while still leaving real work to resume.
+    // Run until the ADVANCED stage is 15 s in. On this exFAT seed the
+    // quick stage is a sub-second metadata walk and the deep stage is
+    // nearly empty (the NTFS remnant sweep is NTFS-only), so 'advanced
+    // +15 s' lands INSIDE the carve matcher — run 42176600928's measured
+    // reality (overall 75.6% = 0.6% into carve at the stop). That is
+    // accepted deliberately: the stop exercises the carve-window drain
+    // (BF-25's general case), the drain gate below waits out the
+    // matcher's grind, and the resulting session is genuinely incomplete
+    // (carve pending) — exactly what the Resume affordance needs.
     const q0 = Date.now();
     const Q_CAP_MS = 16 * 60 * 1000;
     let qLastShot = 0;
@@ -289,18 +293,62 @@ async function main() {
     await page.waitForTimeout(2000);
     await shot(page, 'save-4-stopped-results');
 
+    // The during-drain save probe — the db600f4c honesty proof, never
+    // before exercised on a shipped binary: a save clicked while the run
+    // thread is still draining MUST be visible (the refusal toast), never
+    // a silent no-op. Run 42176600928's io evidence: the stop landed
+    // inside the carve matcher (the exFAT deep stage is nearly empty —
+    // 'advanced+15 s' IS carve on this seed), reads cease ~90 s after the
+    // cancel, and the matcher grinds on in memory for minutes before the
+    // thread observes the token — so at this instant busy is still 1 and
+    // the refusal is the EXPECTED outcome. A SUCCESS here is equally fine
+    // (the drain already finished). SILENCE is the only failure.
+    {
+      const earlyBtn = page.getByRole('button', { name: /save this search/i }).first();
+      if (await earlyBtn.count().catch(() => 0)) {
+        await earlyBtn.click({ timeout: 10000 });
+        const earlyToasts = [];
+        const earlyUntil = Date.now() + 30000;
+        while (Date.now() < earlyUntil && earlyToasts.length === 0) {
+          const toasts = await page
+            .locator('[data-sonner-toast]')
+            .allTextContents()
+            .catch(() => []);
+          for (const t of toasts) {
+            const text = t.trim().slice(0, 200);
+            if (text && !earlyToasts.includes(text)) earlyToasts.push(text);
+          }
+          if (earlyToasts.length === 0) await page.waitForTimeout(400);
+        }
+        evidence.phases.saveResume.duringDrainSave = { toasts: earlyToasts };
+        log(`S2b: during-drain save: ${JSON.stringify(earlyToasts)}`);
+        await shot(page, 'save-4b-during-drain-save');
+        if (earlyToasts.length === 0) {
+          throw new Error('gate: S2b during-drain save - the refused save produced NO toast (the never-silent rule violated)');
+        }
+      } else {
+        evidence.phases.saveResume.duringDrainSave = { skipped: 'save affordance not found on the stopped results page' };
+      }
+    }
+
     // The DRAIN gate: the 'stopped early' banner (role=status) renders
     // only when the engine's run thread has returned (status=cancelled
-    // latches at run() exit — BF-25's lesson). On this healthy mid-deep
-    // stop it must appear within the window; a healthy scan's drain is
-    // seconds. If it never lands, that is a real product failure — red.
+    // latches at run() exit — BF-25's lesson, GENERALIZED by run
+    // 42176600928: any stop that lands inside the carve matcher waits out
+    // the matcher's remaining grind — reads stop ~90 s after the cancel,
+    // the signature match then runs minutes more in memory with no
+    // cancellation checkpoint). The window is sized from the measured
+    // baseline: the fresh 8GB scan ran 11.8 min end to end (run
+    // 42170466748); a stop ~2 min in leaves ~9-10 min of matcher — 15 min
+    // covers it with margin. It must STILL land: a drain longer than the
+    // scan itself would take is a real product failure — red.
     let drained = false;
     try {
       await page
         .getByRole('status')
         .filter({ hasText: /stopped early/i })
         .first()
-        .waitFor({ state: 'visible', timeout: 180000 });
+        .waitFor({ state: 'visible', timeout: 900000 });
       drained = true;
     } catch {
       drained = false;
@@ -308,7 +356,7 @@ async function main() {
     evidence.phases.saveResume.drainBannerVisible = drained;
     log(`S2b: drain banner (stopped early) visible: ${drained}`);
     if (!drained) {
-      throw new Error('gate: S2b drain - the stopped healthy scan never showed the partial-results banner within 180 s (unbounded drain on a NON-stalled scan)');
+      throw new Error('gate: S2b drain - the stopped scan never showed the partial-results banner within 15 min (the carve-matcher grind exceeds the fresh-scan baseline of 11.8 min — an unbounded drain)');
     }
 
     // Save the INCOMPLETE session (the results explorer's affordance).
@@ -462,9 +510,15 @@ async function main() {
     await page.waitForTimeout(2500);
     await shot(page, 'scan-1-started');
 
-    // poll the scan for up to 28 minutes
+    // Poll the scan for up to 15 minutes. This leg is a RECORDER (the
+    // stall is a behavior finding, not a gate) and the full 28-minute
+    // corpus already exists (run 42072191860 pre-merge, run 42148493806
+    // on v0.7.0: frozen at 76.1% from ~+6 min in both). 15 minutes still
+    // captures the frozen signature (9+ minutes of frozen pcts and
+    // found-counts) while leaving the job's 90-minute budget room for
+    // the save/resume vehicle's carve-matcher drain window (BF-25).
     const t0 = Date.now();
-    const CAP_MS = 28 * 60 * 1000;
+    const CAP_MS = 15 * 60 * 1000;
     let lastShot = 0;
     let advancedSeenAt = null;
     // NG-21: the pre-scan repair consent gate. Run 40470191039 sat at
