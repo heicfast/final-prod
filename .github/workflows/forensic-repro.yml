@@ -129,7 +129,14 @@ jobs:
             Set-Location D:\a\final-prod\final-prod
             if ($io -and -not $io.HasExited) { Stop-Process -Id $io.Id -Force -ErrorAction SilentlyContinue }
             if (Get-Process -Id $appPid -ErrorAction SilentlyContinue) { Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue }
-            Start-Sleep -Seconds 2
+            # The app's WebView2 browser child outlives a force-killed parent
+            # for a while and HOLDS handles into the install dir — the silent
+            # uninstaller then deletes nothing for it and still exits 0 (run
+            # 42207694695: 'install dir still present'). Sweep it too.
+            Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
+              Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' } |
+              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 3
           }
 
       - name: Unelevated twin - the refusal posture (runas /trustlevel, CDP 9223)
@@ -152,6 +159,22 @@ jobs:
             if (Test-Path $pidFile) {
               $up = [int](Get-Content $pidFile -Raw).Trim()
               if (Get-Process -Id $up -ErrorAction SilentlyContinue) { Stop-Process -Id $up -Force -ErrorAction SilentlyContinue }
+            }
+            # The twin's WebView2 browser (running as rwprobe) must be gone
+            # before the account delete and the uninstall — same lock class
+            # as the main app's (run 42207694695).
+            Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
+              Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' } |
+              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 3
+            # Wait for the swept processes to actually exit (an account
+            # delete with live processes leaves zombies).
+            $deadlineSweep = (Get-Date).AddSeconds(30)
+            while ((Get-Date) -lt $deadlineSweep) {
+              $left = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' })
+              if ($left.Count -eq 0) { break }
+              Start-Sleep -Seconds 2
             }
             # The probe user's processes (cmd wrapper) die with the app; the
             # account itself is removed so the runner carries no leftovers.
@@ -199,6 +222,15 @@ jobs:
           # documented, intentional survivor.
           $ErrorActionPreference = 'Stop'
           $instDir = 'C:\Program Files\HeicFast\Recovery Wizard'
+          # Pre-sweep: any app or WebView2-browser process still holding the
+          # install dir makes the SILENT uninstaller leave files behind while
+          # still exiting 0 (NSIS Delete/RMDir fail silently on locks — run
+          # 42207694695's 'install dir still present').
+          Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          Start-Sleep -Seconds 3
           $un = Join-Path $instDir 'HeicFastUninstall.exe'
           if (-not (Test-Path $un)) { throw "uninstaller not found: $un" }
           # NSIS silent uninstall; _? makes it synchronous (the exe copies
@@ -207,8 +239,16 @@ jobs:
           "uninstaller exit code: $($p.ExitCode)" | Tee-Object -Variable _ | Set-Content C:\forensic\evidence\uninstall-exit.txt
           if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
           # Settle: NSIS deletes the directory tree after the process exits.
-          $deadline = (Get-Date).AddSeconds(60)
+          $deadline = (Get-Date).AddSeconds(120)
           while ((Test-Path $instDir) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Seconds 2 }
+          if (Test-Path $instDir) {
+            # The leftover listing IS the failure evidence (which files
+            # survived tells which process held them).
+            Get-ChildItem $instDir -Recurse -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length, LastWriteTime |
+              Format-Table | Out-String |
+              Set-Content C:\forensic\evidence\uninstall-leftovers.txt -Encoding UTF8
+          }
           .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postuninstall
           $facts = Get-Content C:\forensic\evidence\facts-postuninstall.json -Raw | ConvertFrom-Json
           $failures = @()

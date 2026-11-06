@@ -2075,3 +2075,18 @@ stdout/stderr captured, and the launcher fails fast with the stderr +
 the filtered Application event log when the process dies. The twin-data
 dir rides the artifact. No product change — the v0.8.4 binary stands;
 re-dispatch follows.
+
+### Forensic run 25 — the twin GREEN; the uninstall's WebView2 lock (final probe fix)
+
+Run 25 (42207694695, v0.8.4): steps 10-13 ALL GREEN — the unelevated
+twin passed for the FIRST time (banner + scan-start refusal + no-mock
+on a genuinely restricted token; the WEBVIEW2_USER_DATA_FOLDER fix
+worked). RED moved to the last step: the silent uninstall's no-leftover
+assertion — 'install dir still present' with the uninstaller exit 0.
+Cause: the force-killed apps' WebView2 browser children outlive their
+parents holding handles into the install dir; NSIS's silent
+Delete/RMDir skip locked files without failing the exit code. Probe
+fix: every teardown sweeps the app's msedgewebview2 children (matched
+by data-dir command line) + waits for exit; the uninstall pre-sweeps;
+the settle window doubles; a persistent install dir records its
+leftover listing into the evidence. No product change — v0.8.4 stands.

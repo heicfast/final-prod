@@ -369,10 +369,23 @@ ACL-granted scratch dir, runs the exe DIRECTLY (capturing
 stdout/stderr), and the launcher fails fast with the twin's stderr +
 the filtered Application event log when the process dies.
 
-**(the re-dispatch on v0.8.4 with the fixed twin launcher — filled from
-the run's evidence as it lands: the full gate set incl. the twin's
-banner + scan-refusal + no-mock, postrun facts, and the silent
-uninstall + no-leftover assertions)**
+The re-dispatch on v0.8.4 (run 25, 42207694695): steps 10-13 ALL GREEN —
+**the unelevated twin passed for the first time** (the banner + the
+scan-start refusal + the no-mock gate on a genuinely restricted token;
+the WebView2 user-data-folder fix worked). RED moved to the LAST step —
+the silent uninstall's no-leftover assertion: 'install dir still
+present'. The uninstaller itself exited 0; the install dir survived
+because the force-killed apps' WebView2 browser children outlived their
+parents holding handles into the install dir, and NSIS's silent
+Delete/RMDir simply skip locked files without failing the exit code.
+Probe-side fix: every teardown now sweeps the app's msedgewebview2
+children (matched by data-dir command line) before the uninstall, the
+settle window doubled, and a persistent install dir records its
+leftover listing into the evidence.
+
+**(the final re-dispatch on v0.8.4 — filled from the run's evidence as
+it lands: the complete gate set, end to end, on a clean Windows
+machine)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 
