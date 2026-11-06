@@ -486,18 +486,27 @@ TEST(Telemetry, BytesFoundVisibleMidScan) {
 }
 
 TEST(Telemetry, CarveBytesAdvanceMidSweep) {
-    /* D4a: parked INSIDE the carve (the far read). Bounded-poll until at
-     * least one carve window completed past the retry pipe's backoff, then
-     * the snapshot's bytes_scanned must reflect the carve's live progress
-     * (pre-fix: stamped only at stage boundaries — frozen at the
-     * carve-start value for the whole sweep; the diagnostic run showed the
-     * exact user symptom: overall 750, carve bytes 0). */
+    /* D4a: parked INSIDE the carve (the far read). Deterministic shape:
+     * SINGLE-THREADED carve (cfg.threads = 1) so the windows complete in
+     * order — window 0 rides the retry pipe, window 1 completes, window 2
+     * parks (this fixture's LAST window). The multi-threaded shape is
+     * scheduling-dependent on worker count (the CI runner's 3 workers can
+     * start the parking window before the earlier windows complete, and
+     * the parked read then holds the device pipe's turn — observed as the
+     * Windows-only red on run 42266802645; the SERIAL path is the
+     * deterministic vehicle for the truth this test pins). Bounded poll
+     * until at least one carve window completed past the retry pipe's
+     * backoff, then the snapshot's bytes_scanned must reflect the carve's
+     * live progress (pre-fix: stamped only at stage boundaries — frozen at
+     * the carve-start value for the whole sweep; the diagnostic run showed
+     * the exact user symptom: overall 750, carve bytes 0). */
     std::vector<u8> img = build_fat16_wide(100);
     const u64 bad = 30 * 512;
     BadRegionDevice dev(img, bad, 512);
     dev.park_on_hit();
     tree::ResultTree tree;
     ScanConfig cfg;
+    cfg.threads = 1; /* deterministic window order: 0 (retry), 1 (done), 2 (parks) */
     ScanController ctrl(tree, cfg);
     ScanStats stats;
 
@@ -509,16 +518,16 @@ TEST(Telemetry, CarveBytesAdvanceMidSweep) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     ASSERT_TRUE(hit);
-    /* bounded poll: the bad-spot window rides the retry pipe's backoff
-     * first; a completed window (this fixture parks the LAST window) makes
-     * the live axes move while the scan is still parked */
+    /* bounded poll (cheap iterations, generous budget for the retry pipe's
+     * backoff on slower hosts): a completed window before the parked last
+     * window makes the live axes move while the scan is still parked */
     bool moved = false;
     for (int i = 0; i < 3000 && !moved; ++i) {
         const auto t = ctrl.telemetry();
         if (t.running && t.carve.bytes_done > 0 && t.bytes_scanned > 0)
             moved = true;
         else
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     ASSERT_TRUE(moved) << "the live sector counter never moved during the parked carve (D4a)";
     {
@@ -542,6 +551,7 @@ TEST(Telemetry, CancelLandsInsideTheCarveWindow) {
     dev.park_on_hit();
     tree::ResultTree tree;
     ScanConfig cfg;
+    cfg.threads = 1; /* deterministic window order (see CarveBytesAdvanceMidSweep) */
     ScanController ctrl(tree, cfg);
     ScanStats stats;
     PausableToken tok;

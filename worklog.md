@@ -2590,3 +2590,17 @@ pipe; the emitter holds the entry Arc so Drop orders after the drain) is
 designed in BF-32 and deliberately NOT rushed into the 0.9.0 train — a
 concurrency restructure this late would risk the validated release. Next
 bridge session's first item.
+
+## Lane B — the CI red on 6c9c36d9 root-caused (test determinism, not product code)
+
+engine-ci run 42266802645: Telemetry.CarveBytesAdvanceMidSweep red on the
+Windows runner (46.41 s, carve bytes never moved) while green locally. The
+fixture is scheduling-dependent: with the runner's 3 carve workers, the
+PARKING window (window 2) can start before windows 0-1 complete, and the
+parked read then holds the device pipe's turn — no window completes while
+parked. My sandbox's 8 workers completed 0-1 before 2 started (green). The
+PRODUCT code is correct either way (the park is a test-fixture artifact; a
+real device never parks mid-read); the TEST now pins the deterministic
+shape: cfg.threads = 1 (serial windows: 0 rides the retry pipe, 1
+completes, 2 parks) + a cheaper, longer poll. Same determinism applied to
+CancelLandsInsideTheCarveWindow. 3/3 green locally.
