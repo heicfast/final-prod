@@ -108,13 +108,13 @@ jobs:
           service, no certificate changes; nothing is loaded into the operating
           system, and uninstalling removes everything the installer placed.
 
-          **Raw-disk operations require running as administrator.** Scanning,
-          recovering, health checks and repairs open physical drives and volumes
-          directly; when the application is not elevated it says so plainly (a
-          clear elevation-required notice and a restart-as-administrator
-          action) — it never runs in a degraded mode and never pretends to work.
-          Launch the app from an elevated context, or accept its UAC
-          restart prompt.
+          **The application requests the administrator token at launch.** Its
+          embedded manifest carries requireAdministrator — one standard UAC
+          prompt when it starts, none mid-session (the same posture as the
+          reference product). Scanning, recovering, health checks and repairs
+          open physical drives and volumes directly and need the token; a
+          non-elevated context (an edge case, e.g. a stripped token) is refused
+          truthfully — never a degraded mode, never a silent failure.
 
           ## What changed in this release
 

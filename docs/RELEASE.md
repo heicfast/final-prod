@@ -58,10 +58,12 @@ self-signed; production signing pending.**
 - The product is a **user-mode application** with direct raw-disk access:
   no kernel driver, no service, no certificate changes; uninstall removes
   everything.
-- **Raw-disk operations require running as administrator** — scan,
-  recover, health, repair, lost-partition apply; the non-elevated app
-  refuses truthfully (`ERR_ELEVATION_REQUIRED`, CLI exit 4) and offers a
-  restart-as-administrator action. No degraded mode, no fallback.
+- **Raw-disk operations require the administrator token** — scan,
+  recover, health, repair, lost-partition apply; the exe requests it AT
+  LAUNCH through its requireAdministrator manifest (one UAC prompt,
+  D-PRIV-01), and a non-elevated context (an edge case) refuses
+  truthfully (`ERR_ELEVATION_REQUIRED`, CLI exit 4). No degraded mode,
+  no fallback.
 - The **driver removal is the headline change** vs the 0.6.x development
   releases (consolidation session, commit 318b9655): earlier releases
   shipped a mandatory kernel-mode transport; this one installs nothing

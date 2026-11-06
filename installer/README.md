@@ -33,9 +33,10 @@ Add/Remove entry is a per-machine concern):
 2. **Privilege page** (surfaced + explained, informational): what the product
    is — a user-mode application that reads and writes disks directly from
    user mode, installing no driver, no service, and no certificate — and
-   what it needs: raw-disk operations require the application to run as
-   administrator, with a plain in-app elevation-required notice and a
-   restart-as-administrator action when it is not. No degraded mode, no
+   what it needs: the app itself requests the administrator token at
+   launch through its requireAdministrator manifest (one UAC prompt,
+   reference parity) — and a non-elevated context (an edge case, e.g.
+   a stripped token) gets a plain truthful refusal. No degraded mode, no
    fallback.
 3. **Directory → Install**:
    - the inner Tauri setup runs `/S /allusers /D=$INSTDIR`

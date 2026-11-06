@@ -2525,3 +2525,14 @@ green CI. The re-vehicling (tools/forensic + forensic-repro.yml):
 These gates are RED on the v0.8.4 build by construction (that IS the
 defect register) and gate the NEXT release: the release is held until
 lane B's D4 telemetry lands (the live-bytes gate depends on it).
+
+## DOC-AUDIT + release-notes truth (T13/T20 component, lane A)
+
+Eleven documentation surfaces carried the retired restart-as-admin flow
+or the pre-manifest privilege claims (README, nsi header, installer/
+README, ARCHITECTURE, INSTALLER, RELEASE, MSIX-ASSESSMENT,
+INTEGRATION-GAPS, PRODUCT-WIRING A.8, INTEGRATION-PLAN §7.4 erratum,
+the release.yml notes template) — all trued to the launch-time
+requireAdministrator posture; INSTALL-FOOTPRINT-CURRENT.md carries the
+stale-banner (v0.6.0-era sheet; rewrite queued). worklog/DOC-AUDIT.md
+records the full register (trued / verified / queued).

@@ -23,10 +23,11 @@ above is superseded: the kernel driver is REMOVED from the product
 entirely (commit 318b9655) — the engine opens `\\.\PhysicalDriveN`
 directly from user mode, raw-disk verbs require an administrator token
 (`ERR_ELEVATION_REQUIRED` 0x500C0001), and the UI's driver-status surface
-is deleted with the driver. The user-facing gap register entry that
-replaces the old driver-status surface is the **elevation UX**: the
-in-app banner + restart-as-administrator wiring (P4 work, on the v3 UI
-base). The NG rows below keep their historical scope and citations; read
+is deleted with the driver. The elevation UX that replaced the old
+driver-status surface is now the LAUNCH-TIME manifest (requireAdministrator,
+D-PRIV-01 — the in-app banner + restart wiring was the interim P4
+posture, retired with the manifest). The NG rows below keep their
+historical scope and citations; read
 their driver references as pre-consolidation facts.
 
 ---

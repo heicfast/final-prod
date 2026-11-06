@@ -242,8 +242,9 @@ terminal state; **source device re-attach is best-effort by model+serial+slice**
 
 ### A.8 Driver status / system  
 **[HISTORICAL — the driver, the `RDA` service, and this command's driver
-surface are removed (commit 318b9655); the elevation-required banner +
-restart-as-administrator wiring replaces it in the UI (P4). The command
+surface are removed (commit 318b9655); the launch-time requireAdministrator
+manifest is the privilege surface now (D-PRIV-01) — the interim banner +
+restart wiring was retired with it. The command
 remains in the 34-command manifest until P4 regenerates it.]**
 
 `system_driver_status` (`ui/src-tauri/src/commands/system.rs:39-134`): SCM service `RDA` +

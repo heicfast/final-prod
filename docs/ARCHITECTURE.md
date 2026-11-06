@@ -71,9 +71,10 @@ hold an **administrator token**. When it does not, every raw-disk verb
 refuses with `ERR_ELEVATION_REQUIRED` (0x500C0001; FVE unlock paths carry
 `ERR_FVE_ELEVATION_REQUIRED`); the CLI (`rrecov.exe`) exits 4 and names the
 remedy. There is no degraded mode, no fallback, and no silent
-partial-function: the refusal is the product's truthful answer, and the
-UI's elevation-required banner + restart-as-administrator action (P4)
-surfaces it. A device that was open and is physically gone mid-run is the
+partial-function: the refusal is the product's truthful answer — the
+exe itself requests elevation at launch (requireAdministrator manifest,
+D-PRIV-01: one UAC, reference parity; the retired in-app banner +
+restart surface no longer exists). A device that was open and is physically gone mid-run is the
 separate `ERR_DEVICE_DISCONNECTED` (0x50020007) — reattach and resume.
 
 ## Threading model (the load-bearing rules)

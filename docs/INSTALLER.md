@@ -22,10 +22,11 @@ consolidation session, commit 318b9655.)
    only and required component) → the privilege information page →
    Install directory → Progress → Finish (with "Launch" checkbox).
    The privilege page states the product truth: a user-mode application
-   with direct raw-disk access that must run as administrator for
-   raw-disk work — when the app is not elevated it says so plainly
-   (elevation-required notice + restart-as-administrator), never
-   degrading silently. The page is informational; there is no driver
+   with direct raw-disk access whose exe requests the administrator
+   token AT LAUNCH through its requireAdministrator manifest (one UAC
+   prompt, reference parity) — a non-elevated context (an edge case)
+   refuses truthfully, never degrading silently. The page is
+   informational; there is no driver
    step, no service choice, no signing-policy branch.
 3. **No visible consoles anywhere.** The entire lifecycle (install, abort,
    update, repair, uninstall) runs `powershell.exe` **zero times**; no

@@ -66,8 +66,9 @@ gone; blocker #2 remains. The honest state:
 The blockers were structural (driver deployment + elevation model); the
 driver half is now gone. A future MSIX shape would still require at
 minimum: a brokered elevation model for raw disk access
-(`ERR_ELEVATION_REQUIRED`'s restart-as-administrator flow does not fit
-an AppContainer), and an AppContainer-compatible write surface for
+(a requireAdministrator exe does not fit an AppContainer — the
+manifest posture is incompatible with MSIX's brokered model), and an
+AppContainer-compatible write surface for
 recovery output. That is a product redesign, not a packaging task —
 out of scope for the sessions recorded here, kept in this document so
 the question never has to be re-litigated blind.
