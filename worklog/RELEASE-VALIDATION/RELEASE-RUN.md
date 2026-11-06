@@ -1,4 +1,4 @@
-# RELEASE-RUN — gate §8 evidence: the v0.7.0 + v0.8.0 releases, end to end
+# RELEASE-RUN — gate §8 evidence: the v0.7.0 + v0.8.x + v0.9.0 releases, end to end
 
 Written: 2026-11-06 (consolidation release sessions). Run IDs link to
 https://github.com/heicfast/final-prod/actions/runs/<id>.
@@ -455,3 +455,56 @@ live-scan resume route (0.8.3), and the whole-disk re-attach (0.8.4).
    surface renders its honest failure state with the retry affordance,
    identically on both engines. The SMART data path itself is covered by
    the engine's ctest suite.
+
+
+## The v0.9.0 release (the debug-and-release session)
+
+### The tag
+
+- `v0.9.0` — annotated tag on **8fe16ab8** (the version-bump commit;
+  the whole fix train beneath it: lane A's D-PRIV-01 manifest + D-ENUM-01
+  UI + D-UI-01 + W-01/W-02 + U-01..04 + T14 + the probe re-vehicling +
+  11 doc truths; lane B's D2 hidden-fsutil + D4a/b/c scan-truth + D3
+  engine never-drop + BF-28 + the format/gate iterations).
+- CI at the train: engine-ci **GREEN on 4aa33d62** (MSVC /W4 /WX build
+  clean, 1752/1752 ctest — the D4 telemetry pins, the no-console tree
+  guard, the D3 enumeration pins, the BF-28 pin, the PE import-allowlist
+  gate); ui-ci + ui-e2e **GREEN on 8fe16ab8** (189 vitest + the
+  regression pins); contracts-ci green.
+- Tag message: "the debug-and-release release: launch-time elevation, no
+  console shells, complete device list, the real visible scan".
+
+### The release workflow (run 42274682840 — SUCCESS, ~23 min, windows-2022;
+job 128087854100, 16/16 steps green)
+
+1. **Version gate** ✓ — tag `v0.9.0` == `v<VERSION>`; lockstep held
+   (ui/package.json, ui/src-tauri/Cargo.toml, tauri.conf.json — all
+   0.9.0).
+2. **Contracts gate** ✓.
+3. **Full product build** ✓ — build.ps1 all lanes, INCLUDING the D1
+   manifest gate (build.ps1:170-193: the byte-scan asserting
+   requireAdministrator is embedded in the built exe — the build REFUSES
+   to ship an asInvoker exe; this is the gate that makes the v0.8.x
+   hallucination structurally impossible) + ctest 1752/1752 inside the
+   lane.
+4. **Artifacts + dev-sign verified** ✓ — RecoveryWizard-0.9.0-setup.exe
+   (2,793,368 B), RecoveryWizard-0.9.0-portable.zip (3,916,487 B),
+   SHA256SUMS; the installer + cr_ui.dll embed-signed with the ephemeral
+   build certificate.
+5. **Truthful notes** ✓ — the composed notes state the manifest posture,
+   the four defect fixes, the exit guard, the truth fixes, and the
+   validation gates (no stale 0.8.x text — the template was trued before
+   the cut).
+6. Assets: https://github.com/heicfast/final-prod/releases/download/v0.9.0/RecoveryWizard-0.9.0-setup.exe
+   (+ portable.zip + SHA256SUMS beside it).
+
+### The installed-product validation (forensic-repro, dispatched on v0.9.0)
+
+Run **42278088695** — the RE-VEHICLED probe: the manifest gate (the
+installed exe's classification must read requireAdministrator), the
+OS-refusal twin (an unelevated CreateProcessWithLogonW start must be
+REFUSED — the privilege gate is the OS's now), the home census gate
+(every Get-Disk physical disk must render on the landing page), and the
+D-SCAN-01 progress gates (no 180 s fully-frozen stretch, the advanced
+phase advances, live found-size non-zero once files are found). The
+run's record lands in this file's validation section when it completes.
