@@ -15,6 +15,7 @@ import {
 import { useMountPoints, usePickDirectory, useValidateDestination } from '@/queries/system';
 import {
   useCancelRecovery,
+  useRecoveryFinishedBridge,
   useRecoveryItems,
   useRecoveryJob,
   useRecoveryProgress,
@@ -112,6 +113,10 @@ export function RecoveryPage(): React.JSX.Element {
 
   const jobId = startRecovery.data?.jobId ?? null;
   const jobQuery = useRecoveryJob(jobId);
+  // W-01 (the dead-letter fix): the recovery terminal event invalidates the
+  // job/items/report caches the instant the run thread latches terminal
+  // state — the completion surface no longer waits for the next poll.
+  useRecoveryFinishedBridge(jobId);
 
   const validate = (path: string): void => {
     if (!path) {

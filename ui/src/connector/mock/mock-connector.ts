@@ -25,11 +25,13 @@ import type {
   DestinationValidation,
   Device,
   DiskHealth,
+  LostCandidateEvent,
   LostCandidateRow,
   MockScenarioId,
   MountPoint,
   NodeDetail,
   PreviewPayload,
+  RecoveryFinishedEvent,
   RecoverySelection,
   RecoveryItem,
   RecoveryJob,
@@ -42,10 +44,14 @@ import type {
   ResultsFilter,
   ResultsPage,
   ResultTreeMode,
+  ScanAutosavedEvent,
+  ScanFinishedEvent,
   ScanParams,
   ScanProgressEvent,
   ScanStage,
   ScanState,
+  SaveProgressEvent,
+  SessionLoadProgressEvent,
   SessionMeta,
   SmartAttribute,
   SortDirection,
@@ -186,6 +192,11 @@ interface ScanRuntime {
   currentPath: string | null;
   /** Stages to run (quick pass skipped when the engine cannot index). */
   stages: readonly ScanStage[];
+  /** W-01: lost-partition candidates surfaced so far (fixture-derived —
+   * the lost-partition volume's own geometry, never synthetic). */
+  lostCandidates: LostCandidateRow[];
+  /** W-01: whether the completion auto-save landed. */
+  autosaved: boolean;
 }
 
 interface JobRuntime {
@@ -238,6 +249,49 @@ export class MockConnector {
   private repairApplied = new Map<string, number>();
   private nextScanId = 1;
   private nextJobId = 1;
+
+  // ------------------------------------------------------------------
+  // W-01: the event-emitter registry — the mock mirrors the bridge's
+  // previously-dead-lettered emissions (scan-finished, save-progress,
+  // lost-candidate, scan-autosaved, session-load-progress,
+  // recovery-finished) so the subscription surface is exercised by the
+  // same lifecycle that drives the real product.
+  // ------------------------------------------------------------------
+  private scanFinishedListeners = new Map<string, Set<(e: ScanFinishedEvent) => void>>();
+  private saveProgressListeners = new Map<string, Set<(e: SaveProgressEvent) => void>>();
+  private lostCandidateListeners = new Map<string, Set<(e: LostCandidateEvent) => void>>();
+  private scanAutosavedListeners = new Map<string, Set<(e: ScanAutosavedEvent) => void>>();
+  private sessionLoadProgressListeners = new Map<
+    string,
+    Set<(e: SessionLoadProgressEvent) => void>
+  >();
+  private recoveryFinishedListeners = new Map<
+    string,
+    Set<(e: RecoveryFinishedEvent) => void>
+  >();
+
+  private subscribeTo<T>(
+    registry: Map<string, Set<(e: T) => void>>,
+    key: string,
+    cb: (e: T) => void,
+  ): () => void {
+    let set = registry.get(key);
+    if (!set) {
+      set = new Set();
+      registry.set(key, set);
+    }
+    set.add(cb);
+    return () => {
+      set.delete(cb);
+      if (set.size === 0) registry.delete(key);
+    };
+  }
+
+  private emitTo<T>(registry: Map<string, Set<(e: T) => void>>, key: string, event: T): void {
+    const set = registry.get(key);
+    if (!set) return;
+    for (const cb of set) cb(event);
+  }
   private nextSessionId = 1;
   private pickIndex = 0;
   private nextConsentId = 1;
@@ -447,6 +501,8 @@ export class MockConnector {
         scopeMask,
         currentPath: null,
         stages,
+        lostCandidates: [],
+        autosaved: false,
       };
       this.scans.set(scanId, rt);
       rt.timer = setInterval(() => this.scanTick(rt), 55 + (scanId.length % 3) * 25);
@@ -481,6 +537,13 @@ export class MockConnector {
       rt.timer = null;
       rt.status = 'cancelled';
       rt.completedAt = new Date().toISOString();
+      // W-01: the terminal event (the mock's cancel does not auto-save —
+      // the honest autosaved:false).
+      this.emitTo(this.scanFinishedListeners, scanId, {
+        status: 'cancelled',
+        failure: null,
+        autosaved: rt.autosaved,
+      });
       await latency(220);
     },
 
@@ -498,6 +561,22 @@ export class MockConnector {
       const interval = setInterval(handler, 150);
       return () => clearInterval(interval);
     },
+
+    // W-01 (the dead-letter fix): the mock's mirror of the bridge's
+    // scan-finished / save-progress / lost-candidate / scan-autosaved
+    // emissions — fired by the same lifecycle transitions that drive them
+    // in the real product.
+    onScanFinished: (scanId: string, cb: (event: ScanFinishedEvent) => void): (() => void) =>
+      this.subscribeTo(this.scanFinishedListeners, scanId, cb),
+
+    onSaveProgress: (scanId: string, cb: (event: SaveProgressEvent) => void): (() => void) =>
+      this.subscribeTo(this.saveProgressListeners, scanId, cb),
+
+    onLostCandidate: (scanId: string, cb: (event: LostCandidateEvent) => void): (() => void) =>
+      this.subscribeTo(this.lostCandidateListeners, scanId, cb),
+
+    onScanAutosaved: (scanId: string, cb: (event: ScanAutosavedEvent) => void): (() => void) =>
+      this.subscribeTo(this.scanAutosavedListeners, scanId, cb),
 
     onConsentRequest: (
       scanId: string,
@@ -600,6 +679,36 @@ export class MockConnector {
       if (next) {
         rt.stage = next;
         rt.stageProgress = 0;
+        // W-01: entering the carve stage surfaces the lost-partition
+        // volume's OWN fixture geometry as a candidate event (real
+        // fixture data, never synthetic).
+        if (
+          next === 'carve' &&
+          rt.lostCandidates.length === 0 &&
+          !rt.params.targetId.startsWith('disk-')
+        ) {
+          const lost = (rt.target as Volume).lostPartition;
+          if (lost) {
+            // fs: the engine's FsKindCode (cr_types.h) — the fixture's
+            // probableFs 'ntfs' is Ntfs = 3; score is the engine's 0-100
+            // confidence (a strong boot-sector match).
+            const fsCode = lost.probableFs === 'ntfs' ? 3 : 7;
+            const row: LostCandidateRow = {
+              lba: Math.floor(lost.startByte / 512),
+              sectorCount: Math.floor(lost.sizeBytes / 512),
+              fs: fsCode,
+              score: 85,
+            };
+            rt.lostCandidates.push(row);
+            this.emitTo(this.lostCandidateListeners, rt.scanId, {
+              lba: row.lba,
+              sectorCount: row.sectorCount,
+              fs: row.fs,
+              score: row.score,
+              count: rt.lostCandidates.length,
+            });
+          }
+        }
       } else {
         rt.stage = 'done';
         rt.status = 'completed';
@@ -618,6 +727,15 @@ export class MockConnector {
       rt.filesFound = stats.files;
       rt.dataFound = stats.size;
       this.autoSaveSession(rt);
+      rt.autosaved = true;
+      // W-01: the terminal + auto-save events, fired by the same
+      // transition the bridge's run thread drives.
+      this.emitTo(this.scanAutosavedListeners, rt.scanId, { rc: 0 });
+      this.emitTo(this.scanFinishedListeners, rt.scanId, {
+        status: 'completed',
+        failure: null,
+        autosaved: true,
+      });
     } else {
       const curve = 1 - Math.exp(-3.4 * rt.overall);
       rt.filesFound = Math.floor(stats.files * curve);
@@ -686,10 +804,10 @@ export class MockConnector {
       progress: this.toProgress(rt),
       pendingConsent: pending?.event ?? null,
       lostCandidates: {
-        count: 0,
-        rows: [],
+        count: rt.lostCandidates.length,
+        rows: [...rt.lostCandidates],
       },
-      autosaved: false,
+      autosaved: rt.autosaved,
     };
   }
 
@@ -1024,22 +1142,39 @@ ${lines.join('')}
     },
 
     saveSession: async (scanId: string, path: string | null): Promise<SessionMeta> => {
-      await latency(320, 120);
-      const rt = this.requireScan(scanId);
-      const fileName =
-        path ?? `auto_session_${new Date().toISOString().replace(/[:.]/g, '-')}.crsf`;
-      const meta: SessionMeta = {
-        id: `sess-${this.nextSessionId++}`,
-        fileName,
-        savedAt: new Date().toISOString(),
-        targetLabel: rt.target.label,
-        filesFound: rt.filesFound,
-        dataFoundBytes: rt.dataFound,
-        completed: rt.status === 'completed',
-      };
-      this.sessionStore.set(meta.id, meta);
-      this.sessionPathToScan.set(fileName, scanId);
-      return meta;
+      // W-01: the save-progress stream — deterministic fractions across
+      // the save's own latency window (the bridge's 5%-coalesced stream).
+      const fractions = [0.2, 0.45, 0.7, 0.9, 1];
+      const stepTimers = fractions.map((fraction, i) =>
+        setTimeout(
+          () => this.emitTo(this.saveProgressListeners, scanId, { fraction }),
+          50 * (i + 1),
+        ),
+      );
+      try {
+        await latency(320, 120);
+        const rt = this.requireScan(scanId);
+        const fileName =
+          path ?? `auto_session_${new Date().toISOString().replace(/[:.]/g, '-')}.crsf`;
+        const meta: SessionMeta = {
+          id: `sess-${this.nextSessionId++}`,
+          fileName,
+          savedAt: new Date().toISOString(),
+          targetLabel: rt.target.label,
+          filesFound: rt.filesFound,
+          dataFoundBytes: rt.dataFound,
+          completed: rt.status === 'completed',
+        };
+        this.sessionStore.set(meta.id, meta);
+        this.sessionPathToScan.set(fileName, scanId);
+        // The terminal fraction is synchronous (the intermediate timers can
+        // be raced by a short latency window; the stream must always end
+        // at 1 when the save resolves).
+        this.emitTo(this.saveProgressListeners, scanId, { fraction: 1 });
+        return meta;
+      } finally {
+        for (const t of stepTimers) clearTimeout(t);
+      }
     },
 
     listSessions: async (): Promise<SessionMeta[]> => {
@@ -1050,15 +1185,50 @@ ${lines.join('')}
     },
 
     loadSession: async (path: string): Promise<{ scanId: string }> => {
-      await latency(420, 180);
-      if (this.scenario === 'corrupt-session' && path.includes('auto_')) {
-        throw connError('session-corrupt', 'corrupt session', 'errors.sessionCorrupt');
+      // W-01: the session-load progress stream — coalesced 5% steps across
+      // the load's latency window (the bridge's own coalescing rule).
+      const steps = [100, 300, 500, 700, 900, 1000];
+      const nodesTotal = 10_000;
+      const stepTimers = steps.map((permille, i) =>
+        setTimeout(
+          () =>
+            this.emitTo(this.sessionLoadProgressListeners, path, {
+              path,
+              permille,
+              nodesDone: Math.floor((nodesTotal * permille) / 1000),
+              nodesTotal,
+            }),
+          60 * (i + 1),
+        ),
+      );
+      try {
+        await latency(420, 180);
+        if (this.scenario === 'corrupt-session' && path.includes('auto_')) {
+          throw connError('session-corrupt', 'corrupt session', 'errors.sessionCorrupt');
+        }
+        const scanId = this.sessionPathToScan.get(path);
+        if (!scanId)
+          throw connError('session-not-found', 'session not found', 'errors.sessionNotFound');
+        // The terminal permille is synchronous (the intermediate timers can
+        // be raced by a short latency window; the stream must always end at
+        // 1000 when the load resolves).
+        this.emitTo(this.sessionLoadProgressListeners, path, {
+          path,
+          permille: 1000,
+          nodesDone: nodesTotal,
+          nodesTotal,
+        });
+        return { scanId };
+      } finally {
+        for (const t of stepTimers) clearTimeout(t);
       }
-      const scanId = this.sessionPathToScan.get(path);
-      if (!scanId)
-        throw connError('session-not-found', 'session not found', 'errors.sessionNotFound');
-      return { scanId };
     },
+
+    // W-01 (the dead-letter fix): the load-progress subscription.
+    onSessionLoadProgress: (
+      path: string,
+      cb: (event: SessionLoadProgressEvent) => void,
+    ): (() => void) => this.subscribeTo(this.sessionLoadProgressListeners, path, cb),
 
     getSessionMeta: async (path: string): Promise<SessionMeta> => {
       await latency(100, 50);
@@ -1162,6 +1332,8 @@ ${lines.join('')}
       job.timer = null;
       job.status = 'cancelled';
       job.finishedAt = new Date().toISOString();
+      // W-01: the terminal event (mirrors recovery.rs's recovery-finished).
+      this.emitTo(this.recoveryFinishedListeners, jobId, { status: 'cancelled' });
       await latency(200);
     },
 
@@ -1198,6 +1370,12 @@ ${lines.join('')}
       const interval = setInterval(handler, 150);
       return () => clearInterval(interval);
     },
+
+    // W-01 (the dead-letter fix): the recovery terminal event.
+    onRecoveryFinished: (
+      jobId: string,
+      cb: (event: RecoveryFinishedEvent) => void,
+    ): (() => void) => this.subscribeTo(this.recoveryFinishedListeners, jobId, cb),
 
     getRecoveryReport: async (jobId: string): Promise<RecoveryReport> => {
       await latency(40);
@@ -1279,6 +1457,7 @@ ${lines.join('')}
         job.timer = null;
         job.progress.status = job.status;
         job.progress.verifying = false;
+        this.emitTo(this.recoveryFinishedListeners, job.jobId, { status: job.status });
         return;
       }
       job.status = failed > 0 ? 'completed-partial' : 'completed';
@@ -1286,6 +1465,7 @@ ${lines.join('')}
       if (job.timer) clearInterval(job.timer);
       job.timer = null;
       job.progress.status = job.status;
+      this.emitTo(this.recoveryFinishedListeners, job.jobId, { status: job.status });
       return;
     }
 

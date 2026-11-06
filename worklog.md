@@ -2397,3 +2397,40 @@ never-drop-a-present-disk class (cr_enumerate.cpp:98-127).
 
 typecheck/lint/format green; 9/9 affected tests; full suite re-run with
 the commit.
+
+## W-01 FIXED — the six dead-letter events have listeners end to end (lane A)
+
+Through v0.8.x the bridge emitted six events NOTHING listened to
+(WIRING-AUDIT): scan-finished, save-progress, lost-candidate,
+scan-autosaved, session-load-progress, recovery-finished. The
+subscription surface now exists at every layer:
+
+- contract.ts: 6 new payload types (field maps mirror the bridge JSON
+  exactly — incl. LostCandidateEvent.fs as the engine's numeric
+  FsKindCode, cr_types.h) + 6 subscription methods across the scan /
+  sessions / recovery domains.
+- tauri-connector.ts: the listen() wiring for all six event names.
+- mock-connector.ts: the mirror — the same lifecycle transitions that
+  emit in the bridge (completion + autosave in scanTick's terminal
+  branch, cancel, the lost-partition fixture's own geometry entering
+  carve, save/load fractions with a SYNCHRONOUS terminal step so the
+  stream can never be raced by a short latency window, job terminal in
+  jobTick/cancelRecovery).
+- Query bridges (queries/scan|sessions|recovery): useScanFinishedBridge
+  (instant completion — the 500 ms poll becomes the fallback),
+  useSaveProgressFraction + useSessionLoadFraction (keyed state — no
+  stale leaks, no sync-setState), useLostCandidateBridge (1
+  s-throttled tree invalidation: browse-while-scan, reference parity),
+  useScanAutosaveStamp, useRecoveryFinishedBridge, readScanState (the
+  exit guard's fresh authority, A1-clean).
+- UI consumers: the scan page (instant completion + the honest
+  "Auto-saved HH:MM" stamp), the results explorer (live-growing tree +
+  the save button's REAL "Saving 42%"), the backup page (the open
+  button's REAL load fraction), the recovery page (instant terminal).
+
+Regression pins: tests/event-surface.test.ts — 6 tests driving the
+mock's real lifecycle flows, one per event (scan-finished completed +
+cancelled, autosaved rc=0, the lost-partition fixture candidate with
+Ntfs=3, save fractions ending at 1, load permille ending at 1000,
+recovery-finished). 189/189 vitest; typecheck/lint/format/arch-lint
+green.

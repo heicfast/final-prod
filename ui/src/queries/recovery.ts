@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { connector } from '@/connector';
 import type {
@@ -125,4 +125,20 @@ export function useRecoveryReport(jobId: string | null) {
     queryFn: () => connector.recovery.getRecoveryReport(jobId!),
     enabled: jobId !== null,
   });
+}
+
+/** W-01 (the dead-letter fix): the recovery terminal-event bridge —
+ * `recovery-finished:<jobId>` invalidates the job/items/report caches the
+ * instant the run thread latches the terminal state (the progress store's
+ * last-event status change remains the co-primary). */
+export function useRecoveryFinishedBridge(jobId: string | null): void {
+  const qc = useQueryClient();
+  React.useEffect(() => {
+    if (!jobId) return;
+    return connector.recovery.onRecoveryFinished(jobId, () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.jobItems(jobId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.report(jobId) });
+    });
+  }, [jobId, qc]);
 }

@@ -2,7 +2,12 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ArchiveRestoreIcon, Clock3Icon, FolderSyncIcon, ShieldCheckIcon } from 'lucide-react';
-import { useLoadSession, useResumeSession, useSessions } from '@/queries/sessions';
+import {
+  useLoadSession,
+  useResumeSession,
+  useSessionLoadFraction,
+  useSessions,
+} from '@/queries/sessions';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { formatDate, formatInteger } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -21,11 +26,22 @@ export function BackupPage(): React.JSX.Element {
   const loadSession = useLoadSession();
   const resumeSession = useResumeSession();
   const setActive = useScanSessionStore((s) => s.setActiveScan);
+  // W-01 (the dead-letter fix): the REAL load progress for the row being
+  // opened (the bridge's session-load-progress stream, 5%-coalesced).
+  const [loadingPath, setLoadingPath] = React.useState<string | null>(null);
+  const loadFraction = useSessionLoadFraction(loadingPath);
 
   const handleOpenSession = (fileName: string): void => {
+    setLoadingPath(fileName);
     loadSession.mutate(fileName, {
-      onSuccess: ({ scanId }) => void navigate(`/results/${scanId}`),
-      onError: (err) => toast.error(err instanceof Error ? err.message : t('errors.unknown')),
+      onSuccess: ({ scanId }) => {
+        setLoadingPath(null);
+        void navigate(`/results/${scanId}`);
+      },
+      onError: (err) => {
+        setLoadingPath(null);
+        toast.error(err instanceof Error ? err.message : t('errors.unknown'));
+      },
     });
   };
 
@@ -168,10 +184,12 @@ export function BackupPage(): React.JSX.Element {
                       <Button
                         size="sm"
                         variant="secondary"
-                        loading={loadSession.isPending}
+                        loading={loadSession.isPending && loadingPath === session.fileName}
                         onClick={() => handleOpenSession(session.fileName)}
                       >
-                        {t('backup.open')}
+                        {loadingPath === session.fileName && loadFraction !== null
+                          ? `${t('backup.opening')} ${Math.round(loadFraction * 100)}%`
+                          : t('backup.open')}
                       </Button>
                     </div>
                   </div>

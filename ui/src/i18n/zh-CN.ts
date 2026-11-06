@@ -153,6 +153,7 @@ export const zhCN: TranslationSchema = {
     emptyBody: '在结果浏览器中保存任意已完成扫描即可在此处继续。',
     startSearch: '开始新扫描',
     open: '打开',
+    opening: '正在打开',
   },
   scan: {
     filesFoundWithSize: '已找到文件：{{count}}（{{size}}）',
@@ -160,6 +161,8 @@ export const zhCN: TranslationSchema = {
     advancedScanning: '高级扫描 {{percent}}',
     completedStatus: '搜索完成',
     readingSector: '正在读取扇区：{{current}}/{{total}}',
+    autosavedAt: '已自动保存 {{time}}',
+    autosavedHint: '引擎会在关键节点自动保存扫描进度。',
     usedTime: '已用时间：{{time}}',
     completedVerdict: '好消息：您的文件极有可能恢复。',
     goToRecover: '前往恢复',

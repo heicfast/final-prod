@@ -19,6 +19,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
+import { useLostCandidateBridge, useSaveProgressFraction } from '@/queries/scan';
 import { useCancelSave, useSaveSession } from '@/queries/sessions';
 import { useOpenPath } from '@/queries/system';
 import { useConnectorMode } from '@/queries/dev';
@@ -79,6 +80,11 @@ export function ResultsExplorer({
   const saveSession = useSaveSession(scanId);
   const cancelSave = useCancelSave();
   const connectorMode = useConnectorMode();
+  // W-01: the lost-candidate bridge — the live results tree grows while
+  // the scan still runs (browse-while-scan, reference parity), and the
+  // save button shows the REAL save fraction (the bridge's save-progress).
+  useLostCandidateBridge(scanId);
+  const saveFraction = useSaveProgressFraction(scanId);
 
   const [filterBarOpen, setFilterBarOpen] = React.useState(false);
   const [searchDraft, setSearchDraft] = React.useState(filter.search);
@@ -599,7 +605,11 @@ export function ResultsExplorer({
               }
             >
               <SaveIcon aria-hidden />
-              {saveSession.isPending ? t('results.session.saving') : t('results.session.save')}
+              {saveSession.isPending
+                ? saveFraction !== null
+                  ? `${t('results.session.saving')} ${Math.round(saveFraction * 100)}%`
+                  : t('results.session.saving')
+                : t('results.session.save')}
             </Button>
             {saveSession.isPending ? (
               <Button

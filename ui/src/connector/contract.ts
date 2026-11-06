@@ -278,6 +278,23 @@ export interface ScanDomain {
   /** Subscribe to progress events; returns an unsubscribe function. */
   onScanProgress(scanId: string, cb: (event: ScanProgressEvent) => void): () => void;
   /**
+   * W-01 (the dead-letter fix): the terminal event — the bridge emits
+   * `scan-finished:<id>` when the run thread latches the terminal state
+   * (scan.rs). Subscribing surfaces completion INSTANTLY (the 500 ms state
+   * poll is the fallback, not the primary).
+   */
+  onScanFinished(scanId: string, cb: (event: ScanFinishedEvent) => void): () => void;
+  /** W-01: the session-save progress stream (`save-progress:<id>`, 0..1). */
+  onSaveProgress(scanId: string, cb: (event: SaveProgressEvent) => void): () => void;
+  /**
+   * W-01: a lost-partition candidate surfaced mid-scan
+   * (`lost-candidate:<id>`); the count is cumulative. The live results tree
+   * refreshes as candidates land (browse-while-scan, reference parity).
+   */
+  onLostCandidate(scanId: string, cb: (event: LostCandidateEvent) => void): () => void;
+  /** W-01: the engine's milestone auto-save landed (`scan-autosaved:<id>`). */
+  onScanAutosaved(scanId: string, cb: (event: ScanAutosavedEvent) => void): () => void;
+  /**
    * G-1 (a): the pre-scan repair consent. The engine's run thread emits
    * this at most once per scan; the prompt ALSO renders from
    * getScanState().pendingConsent (re-hydration for subscribe-late and
@@ -286,6 +303,51 @@ export interface ScanDomain {
   onConsentRequest(scanId: string, cb: (event: ConsentRequestEvent) => void): () => void;
   /** Answer a consent request (unknown/double ids throw consent-not-found). */
   respondToConsent(requestId: string, allow: boolean): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// The W-01 event payloads — the bridge emissions that were dead letters
+// through v0.8.x (emitted by events.rs/scan.rs/recovery.rs, never listened).
+// Field maps mirror the bridge JSON exactly (event-mapping §2).
+// ---------------------------------------------------------------------------
+
+export interface ScanFinishedEvent {
+  readonly status: 'completed' | 'cancelled' | 'failed';
+  /** The engine failure vocabulary key (present on 'failed'). */
+  readonly failure?: string | null;
+  /** Whether the completion auto-save landed (rc == 0). */
+  readonly autosaved: boolean;
+}
+
+export interface SaveProgressEvent {
+  /** 0..1 — the bridge's save permille / 1000. */
+  readonly fraction: number;
+}
+
+export interface LostCandidateEvent {
+  readonly lba: number;
+  readonly sectorCount: number | null;
+  /** The engine's FsKindCode (cr_types.h) — numeric, like the row state. */
+  readonly fs: number | null;
+  readonly score: number | null;
+  /** Cumulative candidate count for the scan. */
+  readonly count: number;
+}
+
+export interface ScanAutosavedEvent {
+  /** 0 = the auto session landed (the bridge's rc). */
+  readonly rc: number;
+}
+
+export interface SessionLoadProgressEvent {
+  readonly path: string;
+  readonly permille: number;
+  readonly nodesDone: number;
+  readonly nodesTotal: number;
+}
+
+export interface RecoveryFinishedEvent {
+  readonly status: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +547,12 @@ export interface SessionsDomain {
   cancelSave(scanId: string): Promise<void>;
   listSessions(): Promise<SessionMeta[]>;
   loadSession(path: string): Promise<{ scanId: string }>;
+  /** W-01 (the dead-letter fix): the session-load progress stream
+   * (`session-load-progress:<path>`, coalesced to 5% steps by the bridge). */
+  onSessionLoadProgress(
+    path: string,
+    cb: (event: SessionLoadProgressEvent) => void,
+  ): () => void;
   getSessionMeta(path: string): Promise<SessionMeta>;
   /** M-154: load the auto session the last-scan pointer names (the Home
    * "continue last" banner). Throws session-not-found when no live pointer
@@ -587,6 +655,9 @@ export interface RecoveryDomain {
     page: { offset: number; limit: number },
   ): Promise<readonly RecoveryItem[]>;
   onRecoveryProgress(jobId: string, cb: (event: RecoveryProgressEvent) => void): () => void;
+  /** W-01 (the dead-letter fix): the recovery job's terminal event
+   * (`recovery-finished:<jobId>`) — instant completion surfacing. */
+  onRecoveryFinished(jobId: string, cb: (event: RecoveryFinishedEvent) => void): () => void;
   getRecoveryReport(jobId: string): Promise<RecoveryReport>;
 }
 

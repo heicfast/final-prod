@@ -7,6 +7,7 @@ import {
   CircleAlertIcon,
   PauseIcon,
   PlayIcon,
+  SaveIcon,
   SquareIcon,
   UnplugIcon,
 } from 'lucide-react';
@@ -16,6 +17,8 @@ import {
   useConsentBridge,
   usePauseScan,
   useResumeScan,
+  useScanAutosaveStamp,
+  useScanFinishedBridge,
   useScanProgress,
   useScanState,
 } from '@/queries/scan';
@@ -68,6 +71,10 @@ export function ScanProgressPage(): React.JSX.Element {
   // G-1 (a): the pre-scan repair consent feed (the modal lives in the
   // shell; this bridge feeds it from the scan's event + state).
   useConsentBridge(scanId);
+  // W-01: the terminal-event bridge (instant completion — the 500 ms state
+  // poll is the fallback) + the milestone auto-save stamp.
+  useScanFinishedBridge(scanId);
+  const autosave = useScanAutosaveStamp(scanId);
   const pause = usePauseScan(scanId);
   const resume = useResumeScan(scanId);
   const cancel = useCancelScan(scanId);
@@ -260,6 +267,22 @@ export function ScanProgressPage(): React.JSX.Element {
                   total: sectorsTotal.toLocaleString(i18n.language),
                 })}
               </span>
+              {/* W-01: the honest milestone auto-save stamp (the engine's own
+                  autosave event, never a synthetic timer). */}
+              {autosave && autosave.rc === 0 ? (
+                <>
+                  <span className="text-border-strong" aria-hidden>
+                    |
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title={t('scan.autosavedHint')}
+                  >
+                    <SaveIcon className="size-3" aria-hidden />
+                    {t('scan.autosavedAt', { time: autosave.at })}
+                  </span>
+                </>
+              ) : null}
             </div>
           ) : usedTime ? (
             <div className="text-foreground-secondary tabular">

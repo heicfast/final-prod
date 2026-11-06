@@ -2,7 +2,7 @@ import * as React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTranslation } from 'react-i18next';
 import { HardDriveDownloadIcon } from 'lucide-react';
-import { connector } from '@/connector';
+import { readScanState } from '@/queries/scan';
 import { isTauriRuntime } from '@/lib/runtime';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useSaveSession } from '@/queries/sessions';
@@ -63,7 +63,7 @@ export function ExitGuard(): React.JSX.Element | null {
       if (!active) return; // no known scan → let the default close proceed
       let status: string | undefined;
       try {
-        status = (await connector.scan.getScanState(active.scanId)).status;
+        status = (await readScanState(active.scanId)).status;
       } catch {
         status = undefined; // scan gone (not-found) → close is safe
       }

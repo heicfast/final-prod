@@ -155,6 +155,7 @@ export const en = {
     emptyBody: 'Save any completed scan from the results explorer to resume it here.',
     startSearch: 'Start New Scan',
     open: 'Open',
+    opening: 'Opening',
   },
   scan: {
     filesFoundWithSize: 'Files Found: {{count}} ({{size}})',
@@ -162,6 +163,8 @@ export const en = {
     advancedScanning: 'Advanced Scanning {{percent}}',
     completedStatus: 'Scan Completed',
     readingSector: 'Reading sector: {{current}}/{{total}}',
+    autosavedAt: 'Auto-saved {{time}}',
+    autosavedHint: 'The engine saves scan progress automatically at milestones.',
     usedTime: 'Used time: {{time}}',
     completedVerdict: 'Great news: Your files are highly recoverable',
     goToRecover: 'Go to Recover',

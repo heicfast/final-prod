@@ -35,6 +35,7 @@ import type {
   NodeDetail,
   PreviewPayload,
   RecoveryConnector,
+  RecoveryFinishedEvent,
   RecoveryItem,
   RecoveryJob,
   RecoveryOptions,
@@ -46,9 +47,14 @@ import type {
   ResultsFilter,
   ResultsPage,
   ResultTreeMode,
+  ScanAutosavedEvent,
+  ScanFinishedEvent,
   ScanParams,
   ScanProgressEvent,
+  SaveProgressEvent,
+  LostCandidateEvent,
   ScanState,
+  SessionLoadProgressEvent,
   SessionMeta,
   SortDirection,
   SortField,
@@ -239,6 +245,56 @@ export function createTauriConnector(): RecoveryConnector {
         };
       },
 
+      // W-01 (the dead-letter fix): the bridge's scan-finished / save-progress
+      // / lost-candidate / scan-autosaved emissions — listened at last.
+      onScanFinished: (
+        scanId: string,
+        cb: (event: ScanFinishedEvent) => void,
+      ): (() => void) => {
+        const pending = listen<ScanFinishedEvent>(`scan-finished:${scanId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      onSaveProgress: (
+        scanId: string,
+        cb: (event: SaveProgressEvent) => void,
+      ): (() => void) => {
+        const pending = listen<SaveProgressEvent>(`save-progress:${scanId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      onLostCandidate: (
+        scanId: string,
+        cb: (event: LostCandidateEvent) => void,
+      ): (() => void) => {
+        const pending = listen<LostCandidateEvent>(`lost-candidate:${scanId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      onScanAutosaved: (
+        scanId: string,
+        cb: (event: ScanAutosavedEvent) => void,
+      ): (() => void) => {
+        const pending = listen<ScanAutosavedEvent>(`scan-autosaved:${scanId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
       // G-1 (a): the pre-scan repair consent surface. The engine's run
       // thread emits this at most once per scan; the prompt ALSO renders
       // from getScanState().pendingConsent (re-hydration for subscribe-late
@@ -312,6 +368,21 @@ export function createTauriConnector(): RecoveryConnector {
       loadSession: async (path: string): Promise<{ scanId: string }> =>
         bridge(invoke('session_load', { path })),
 
+      onSessionLoadProgress: (
+        path: string,
+        cb: (event: SessionLoadProgressEvent) => void,
+      ): (() => void) => {
+        const pending = listen<SessionLoadProgressEvent>(
+          `session-load-progress:${path}`,
+          (e) => {
+            cb(e.payload);
+          },
+        );
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
       getSessionMeta: async (path: string): Promise<SessionMeta> =>
         bridge(invoke('session_meta', { path })),
 
@@ -347,6 +418,18 @@ export function createTauriConnector(): RecoveryConnector {
         cb: (event: RecoveryProgressEvent) => void,
       ): (() => void) => {
         const pending = listen<RecoveryProgressEvent>(`recovery-progress:${jobId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      onRecoveryFinished: (
+        jobId: string,
+        cb: (event: RecoveryFinishedEvent) => void,
+      ): (() => void) => {
+        const pending = listen<RecoveryFinishedEvent>(`recovery-finished:${jobId}`, (e) => {
           cb(e.payload);
         });
         return () => {

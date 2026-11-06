@@ -1,4 +1,4 @@
-import { useEffect as reactUseEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect as reactUseEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { connector } from '@/connector';
 import type { ScanParams, ScanProgressEvent, ScanState } from '@/connector/contract';
@@ -204,4 +204,104 @@ export function useRespondToConsent() {
     mutationFn: (input: { requestId: string; allow: boolean }) =>
       connector.scan.respondToConsent(input.requestId, input.allow),
   });
+}
+
+// ---------------------------------------------------------------------------
+// W-01 — the dead-letter bridges. The bridge (and the mock) emit
+// scan-finished / save-progress / lost-candidate / scan-autosaved; these
+// hooks are the UI's subscription surface (the 500 ms state poll is the
+// FALLBACK, not the primary).
+// ---------------------------------------------------------------------------
+
+/** Terminal-event bridge: completion surfaces INSTANTLY (cache
+ * invalidations mirror the poller's terminal path — the poll then
+ * confirms; no state is invented here). */
+export function useScanFinishedBridge(scanId: string | null): void {
+  const qc = useQueryClient();
+  reactUseEffect(() => {
+    if (!scanId) return;
+    return connector.scan.onScanFinished(scanId, () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.scanState(scanId) });
+      void qc.invalidateQueries({ queryKey: ['scan', scanId, 'tree'] });
+      void qc.invalidateQueries({ queryKey: ['scan', scanId, 'results'] });
+      void qc.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.sessions });
+    });
+  }, [scanId, qc]);
+}
+
+/** Live save fraction (0..1) while a session save runs; null when idle.
+ * The state is keyed by scanId (a stale fraction from a previous scan can
+ * never leak across ids — no synchronous reset in the effect body). */
+export function useSaveProgressFraction(scanId: string | null): number | null {
+  const [state, setState] = useState<{ scanId: string; fraction: number } | null>(null);
+  const settle = useRef<number | undefined>(undefined);
+  reactUseEffect(() => {
+    if (!scanId) return;
+    const clear = (): void => {
+      clearTimeout(settle.current);
+      setState(null);
+    };
+    const unsubscribe = connector.scan.onSaveProgress(scanId, (event) => {
+      setState({ scanId, fraction: event.fraction });
+      if (event.fraction >= 1) {
+        // hold the full bar briefly, then reset (the save mutation's own
+        // completion resets the button anyway).
+        clearTimeout(settle.current);
+        settle.current = setTimeout(clear, 600) as unknown as number;
+      }
+    });
+    return () => {
+      unsubscribe();
+      clearTimeout(settle.current);
+    };
+  }, [scanId]);
+  return state !== null && state.scanId === scanId ? state.fraction : null;
+}
+
+/** Lost-candidate bridge: the live results tree grows while scanning
+ * (browse-while-scan, reference parity). Invalidation is throttled to one
+ * per second — the engine can emit hundreds of candidates on a carved
+ * disk and the query cache must not thrash. */
+export function useLostCandidateBridge(scanId: string | null): void {
+  const qc = useQueryClient();
+  reactUseEffect(() => {
+    if (!scanId) return;
+    let pending = false;
+    const flush = (): void => {
+      pending = false;
+      void qc.invalidateQueries({ queryKey: ['scan', scanId, 'tree'] });
+      void qc.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });
+    };
+    const timer = setInterval(() => {
+      if (pending) flush();
+    }, 1000);
+    const unsubscribe = connector.scan.onLostCandidate(scanId, () => {
+      pending = true;
+    });
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
+  }, [scanId, qc]);
+}
+
+/** The last milestone auto-save (the scan page's honest autosave stamp).
+ * Keyed by scanId — a stamp from a previous scan never leaks. */
+export function useScanAutosaveStamp(scanId: string | null): { rc: number; at: string } | null {
+  const [state, setState] = useState<{ scanId: string; rc: number; at: string } | null>(null);
+  reactUseEffect(() => {
+    if (!scanId) return;
+    return connector.scan.onScanAutosaved(scanId, (event) => {
+      setState({ scanId, rc: event.rc, at: new Date().toLocaleTimeString() });
+    });
+  }, [scanId]);
+  return state !== null && state.scanId === scanId ? { rc: state.rc, at: state.at } : null;
+}
+
+/** One fresh, uncached engine read of a scan's state (the exit guard's
+ * authority — the store can lag the engine because navigation unmounts
+ * the poller; the engine is the truth). */
+export function readScanState(scanId: string): Promise<ScanState> {
+  return connector.scan.getScanState(scanId);
 }
