@@ -324,14 +324,42 @@ async function main() {
         await shot(page, 'recover-1-complete-results');
       }
 
-        // Save the session (the results explorer's save affordance).
+        // Save the session (the results explorer's save affordance). A save
+        // that races the post-cancel drain window is REFUSED by the engine
+        // (cr_ui_scan_busy is still set while the run thread unwinds —
+        // io-timeline shows reads continuing 20+ s after the stop). The
+        // refusal toasts (the UI's onError handler); retry until the
+        // success toast lands, recording every attempt verbatim.
         const save = page.getByRole('button', { name: /save this search/i }).first();
         if (await save.count().catch(() => 0)) {
-          await save.click({ timeout: 10000 });
-          await page.waitForTimeout(4000); // the save + the toast
-          evidence.phases.recover.sessionSaved = true;
+          evidence.phases.recover.saveAttempts = [];
+          let savedOk = false;
+          for (let attempt = 1; attempt <= 15 && !savedOk; attempt++) {
+            await save.click({ timeout: 10000 });
+            await page.waitForTimeout(4000); // the invoke + the toast
+            const toasts = await page
+              .locator('[data-sonner-toast]')
+              .allTextContents()
+              .catch(() => []);
+            const texts = toasts.map((t) => t.trim().slice(0, 200));
+            evidence.phases.recover.saveAttempts.push({
+              attempt,
+              toasts: texts,
+            });
+            log(`S3b: save attempt ${attempt}: ${JSON.stringify(texts)}`);
+            if (texts.some((t) => /search saved/i.test(t))) {
+              savedOk = true;
+            } else {
+              await page.waitForTimeout(5000); // the drain window
+            }
+          }
+          evidence.phases.recover.sessionSaved = savedOk;
           await shot(page, 'recover-2-session-saved');
-          log('S3b: session saved from the results explorer');
+          if (savedOk) {
+            log('S3b: session saved from the results explorer');
+          } else {
+            log('S3b: session save did not succeed within the retry window');
+          }
         } else {
           evidence.phases.recover.sessionSaved = false;
           log('S3b: save-this-search affordance not found');

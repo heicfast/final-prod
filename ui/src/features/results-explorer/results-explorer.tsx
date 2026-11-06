@@ -562,6 +562,18 @@ export function ResultsExplorer({
               onClick={() =>
                 saveSession.mutate(null, {
                   onSuccess: () => toast.success(t('results.session.saved')),
+                  // The product's honesty doctrine: a refused save must be
+                  // VISIBLE, never silent (the engine can refuse a save that
+                  // races the post-cancel drain window — cr_ui_scan_busy is
+                  // still set while the run thread unwinds; without this
+                  // handler the failure was invisible and the checkpoint
+                  // simply never appeared in the session list).
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : t('errors.unknown'),
+                    ),
                 })
               }
             >
