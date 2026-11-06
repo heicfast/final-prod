@@ -2210,3 +2210,31 @@ Pre-read spot checks (my own, before the parallel Phase 0 agents):
 Next: Phase 0 parallel agents A–F (the six context sheets), pushed
 before any code change. Then worklog/DIAGNOSIS.md, then the Phase 1
 reproduction lanes on real Windows runners.
+
+## T1 (parallel lane B) — coordination note
+
+A second session (lane A, `heicfast-release`) pushed its T1 (c8aef05a)
+while this lane cloned. This lane (B) acknowledges it and will not
+duplicate T1's deliverables. Lane B's deep verification CONFIRMS lane
+A's four spot checks and adds the D4 decomposition the spot checks
+flagged as open:
+
+- D4(a) the carve stage is validation-CPU-bound: 8.45 MiB/s effective vs
+  a 544 MiB/s device (PERF-LEVERS wall math, run 41140212296) — the
+  user's multi-TB-class disk means the last 25% (carve weight) runs for
+  hours-to-days = "all stuck";
+- D4(b) `bytes_scanned` is stamped into the telemetry snapshot ONLY at
+  stage boundaries (cr_scan.cpp tel_counts_), so "Reading sector: X/Y"
+  freezes for the entire deep+carve span; the live carve bytes DO ride
+  CR_EVT_SCAN_PROGRESS (e.bytes_done, cr_scan.cpp:596) but the bridge's
+  emitter ignores them (events.rs:266-273 reads only the permilles);
+- D4(c) found-data bytes never cross the ABI mid-scan: CrUiTelemetry /
+  CrUiEvent carry no bytes_found, while the engine HAS the live datum
+  (`stats.bytes_found = tree_.total_logical()`, N-167, stamped only at
+  boundaries) — so "Files Found: N (0 B)" holds until terminal.
+- D3's prime suspect is D1 itself (unelevated open failures) — to be
+  settled by evidence on a multi-device runner, not assumption.
+
+Lane B proceeds with Phase-0 sheets (agents A–F), then the engine-side
+fixes (D1 manifest, D2 _popen, D4 a-c), then release. Fetch-first push
+discipline on every push.
