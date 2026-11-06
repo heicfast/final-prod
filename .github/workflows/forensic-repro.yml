@@ -42,9 +42,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'The release tag whose setup.exe the run installs (default: v0.7.0)'
+        description: 'The release tag whose setup.exe the run installs (default: v0.8.0)'
         required: false
-        default: 'v0.7.0'
+        default: 'v0.8.0'
 
 permissions:
   contents: read
@@ -74,7 +74,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
-          $tag = "${{ github.event.inputs.release_tag || 'v0.7.0' }}"
+          $tag = "${{ github.event.inputs.release_tag || 'v0.8.0' }}"
           $ver = $tag.TrimStart('v')
           $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
           curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-$ver-setup.exe"
@@ -118,7 +118,7 @@ jobs:
           "app pid: $appPid"
           $io = $null
           try {
-            $io = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
+            $io = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','3600' -PassThru
             $io.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
 
             $env:OUT_DIR = 'C:\forensic\evidence'

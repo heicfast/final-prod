@@ -118,18 +118,20 @@ jobs:
 
           ## What changed in this release
 
-          - **The kernel driver is gone.** Earlier development releases (0.6.x)
-            shipped a mandatory kernel-mode raw-disk transport. This release
-            removes it entirely: the engine now opens ``\\.\PhysicalDriveN``
-            directly from user mode, and the product installs no driver, no
-            service, and imports no certificates. An all-users install and a
-            complete uninstall (nothing orphaned) remain.
-          - **The recovery engine advanced to ABI v4** (the current
-            core_recovery line — 1000+ commits of engine evolution: filesystem
-            coverage, session durability, repair consent, performance parity
-            with the reference corpus).
-          - **The application UI was rebuilt** on the current wizard base and
-            wired to the real engine (no simulated backend in shipped builds).
+          - **A refused session save is now visible.** In 0.7.0, saving a
+            scan session while the engine was still winding down after a
+            stopped scan silently did nothing — the refusal had no visible
+            sign and the checkpoint was never written. This release shows
+            the error plainly (and the save can simply be retried once the
+            engine has settled).
+          - **Everything else is the proven 0.7.0 product**: user-mode
+            direct raw-disk access, the ABI v4 engine, the rebuilt wizard
+            UI wired to the real engine — no behavioral change to scanning,
+            recovery, health or repairs.
+          - For the history from the 0.6.x driver era: 0.7.0 removed the
+            kernel driver entirely (no service, no certificate imports,
+            complete uninstall) and advanced the engine to the current
+            core line — see the 0.7.0 release notes.
 
           ## Signing status (truthful)
 
