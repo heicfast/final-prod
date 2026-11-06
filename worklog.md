@@ -2152,3 +2152,61 @@ fix (scan-state-drain, backup-resume-route); 9 forensic attempts on the
 dispatch; BF-25 generalized with measured evidence (upstream core
 scope). Main green at every push; every tag matched its VERSION
 lockstep; every artifact byte-verified against its published checksum.
+
+## The debug-and-release session opens (post-v0.8.4 — the user's machine says NO)
+
+The consolidation session's exit claim was FORENSIC #29 all-green on the
+Azure runner. The user's report on the shipped v0.8.x line says the
+opposite on real hardware: no elevation request at launch, visible
+console shells when opening disk health, ONE disk of three enumerated
+(two internal + one SD), and a scan that jumps to 75% "advanced
+scanning" with "files found 21 (0 B)" and never moves. "Everything seems
+broken or not working." The session prompt is recorded verbatim (token
+redacted) at worklog/session-debug-and-release-prompt.md.
+
+Session opens at:
+- final-prod HEAD 4c522cd3 (v0.8.4, FORENSIC #29 evidence commit)
+- easeus-drw-research HEAD be0cfe9 (CORRECTIONS.md #9)
+
+Pre-read spot checks (my own, before the parallel Phase 0 agents):
+
+1. **The privilege claim is documentation hallucination.**
+   installer/recoverywizard.nsi:27-29 claims "the app itself runs
+   elevated (requireAdministrator)" — but NO application manifest exists
+   anywhere in ui/src-tauri (no .manifest, no requestedExecutionLevel
+   anywhere in the UI build). Tauri's default embed is asInvoker. The
+   app launches unelevated, shows the in-app restart-as-admin banner
+   (the "weird popup colour" the user reported), and elevates only via
+   the secondary ShellExecuteW "runas" relaunch
+   (ui/src-tauri/src/commands/system.rs:85). Defect D-PRIV root-caused
+   at the source: the manifest is missing.
+
+2. **The disk-health console shell is engine code.**
+   engine/src/win/cr_health.cpp:306 — `_popen("fsutil behavior query
+   disabledeletenotify 2>nul", "r")` spawns cmd.exe; in a GUI-subsystem
+   process _popen allocates a VISIBLE console window. That is the
+   user's "popup shells ... probably cmd or powershell." (cr_fsck.cpp
+   and cr_bitlocker.cpp by contrast use CreateProcessW with
+   CREATE_NO_WINDOW — the correct pattern already exists in-tree.)
+   Defect D-CONS root-caused at the source.
+
+3. **The 75%/21-files/0-B scan symptom matches BF-22** — the 76.1%
+   deep-scan stall recorded on the Azure runner and dismissed as
+   "environmental/known-perf." The user's machine reproduces it: it is
+   a REAL product defect, not environmental. The "files found 21
+   (0 B)" counter and the frozen sector progress are part of the same
+   pipeline question: which stage stalls, and does the results/progress
+   event chain survive it. Phase 1 must reproduce with instrumentation.
+
+4. **Single-disk enumeration** — the BF-27 worklog line ("every Azure
+   VM disk reports model 'Virtual Disk', serial empty") hints the
+   device identity axes (model/serial) may be weak on real hardware
+   too (two identical internal drives). Engine enumeration lives in
+   engine/src/win/cr_enumerate.cpp (257 lines, two stacks incl. a
+   device-interface stack); the UI row builder in
+   ui/src-tauri/src/commands/devices.rs. Phase 0 Agent D audits the
+   full chain; Phase 1 reproduces on multi-disk Windows.
+
+Next: Phase 0 parallel agents A–F (the six context sheets), pushed
+before any code change. Then worklog/DIAGNOSIS.md, then the Phase 1
+reproduction lanes on real Windows runners.
