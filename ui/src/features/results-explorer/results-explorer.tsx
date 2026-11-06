@@ -569,11 +569,7 @@ export function ResultsExplorer({
                   // handler the failure was invisible and the checkpoint
                   // simply never appeared in the session list).
                   onError: (err) =>
-                    toast.error(
-                      err instanceof Error
-                        ? err.message
-                        : t('errors.unknown'),
-                    ),
+                    toast.error(err instanceof Error ? err.message : t('errors.unknown')),
                 })
               }
             >
