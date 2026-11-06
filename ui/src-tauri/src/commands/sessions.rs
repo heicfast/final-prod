@@ -444,8 +444,22 @@ pub async fn session_resume(
             .await
             .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
     let scan_id = prep.entry.scan_id.clone();
+    // v0.8.2 forensic (run 42185123973): the caller must be able to build
+    // the live-scan route (/scan/<targetId>/live?scanId=<id>) — the backup
+    // page navigated to /scan?scanId=, a route the router does not define
+    // (the catch-all fallback swallowed the navigation and the resumed
+    // scan ran invisibly). The loaded entry's target id is the synthesized
+    // vol-<scan_id> (load_session_entry); the progress page reads only the
+    // ?scanId= param, so the path segment is the route shape, not a lookup.
+    let target_id = prep
+        .entry
+        .target_json
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("session")
+        .to_string();
     launch_run_thread(app_for_launch, state_for_launch, prep);
-    Ok(json!({ "scanId": scan_id }))
+    Ok(json!({ "scanId": scan_id, "targetId": target_id }))
 }
 
 fn session_resume_blocking(

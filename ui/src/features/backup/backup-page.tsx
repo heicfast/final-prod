@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ArchiveRestoreIcon, Clock3Icon, FolderSyncIcon, ShieldCheckIcon } from 'lucide-react';
 import { useLoadSession, useResumeSession, useSessions } from '@/queries/sessions';
+import { useScanSessionStore } from '@/stores/scan-session-store';
 import { formatDate, formatInteger } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +20,7 @@ export function BackupPage(): React.JSX.Element {
   const sessions = useSessions();
   const loadSession = useLoadSession();
   const resumeSession = useResumeSession();
+  const setActive = useScanSessionStore((s) => s.setActiveScan);
 
   const handleOpenSession = (fileName: string): void => {
     loadSession.mutate(fileName, {
@@ -36,7 +38,16 @@ export function BackupPage(): React.JSX.Element {
       return;
     }
     resumeSession.mutate(path, {
-      onSuccess: ({ scanId }) => void navigate(`/scan?scanId=${scanId}`),
+      // v0.8.2 forensic (run 42185123973): the live-scan route is
+      // /scan/:deviceId/live — /scan?scanId= is NOT a route (the catch-all
+      // fallback swallowed it and the resumed scan ran invisibly). The
+      // resume result carries the targetId for exactly this; the progress
+      // page reads only the ?scanId= param. The active-scan store entry
+      // lights the sidebar's pulsing link, matching useStartScan.
+      onSuccess: ({ scanId, targetId }) => {
+        setActive({ scanId, targetId });
+        void navigate(`/scan/${targetId}/live?scanId=${scanId}`);
+      },
       onError: (err) => toast.error(err instanceof Error ? err.message : t('errors.unknown')),
     });
   };

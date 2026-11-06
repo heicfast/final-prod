@@ -424,8 +424,13 @@ async function main() {
     evidence.phases.saveResume.backup.clickedRow = (await resumeBtn.textContent().catch(() => '')) || '';
     await resumeBtn.click({ timeout: 10000 });
     // The load+resume+run of the session's tree can take seconds — wait
-    // for the navigation, not a fixed sleep.
-    await page.waitForURL(/\/scan\//, { timeout: 60000 });
+    // for the navigation, not a fixed sleep. The live-scan ROUTE is
+    // /scan/:deviceId/live?scanId=<id> (run 42185123973: the v0.8.2-era
+    // product navigated /scan?scanId= — not a route; the catch-all
+    // fallback swallowed it and the waitForURL pattern /\/scan\// never
+    // matched either. The v0.8.3 fix navigates the real route; this gate
+    // now demands its exact shape — the fallback can never pass it).
+    await page.waitForURL(/\/scan\/[^/]+\/live/, { timeout: 60000 });
     await page.waitForTimeout(5000);
     evidence.phases.saveResume.resume = { urlAfterResume: page.url() };
     await shot(page, 'save-7-after-resume');

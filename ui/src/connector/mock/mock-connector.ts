@@ -991,7 +991,7 @@ ${lines.join('')}
       return { scanId, path: newest.fileName };
     },
 
-    resumeSession: async (path: string): Promise<{ scanId: string }> => {
+    resumeSession: async (path: string): Promise<{ scanId: string; targetId: string }> => {
       // TEST DOUBLE: the resume continues the incomplete session's scan on
       // its original target (a fresh run of the same params).
       await latency(500, 150);
@@ -1011,11 +1011,16 @@ ${lines.join('')}
           'errors.scanNotRunning',
         );
       }
-      return this.scan.startScan({
+      const started = await this.scan.startScan({
         targetId: rt.params.targetId,
         pathScope: rt.params.pathScope,
         bitlockerFvek: rt.params.bitlockerFvek,
       });
+      // The targetId rides along so the caller can build the live-scan
+      // route (/scan/<targetId>/live?scanId=<id>) — v0.8.2's forensic
+      // finding: the backup page navigated to /scan?scanId=, a route the
+      // router does not define.
+      return { ...started, targetId: rt.params.targetId };
     },
 
     saveSession: async (scanId: string, path: string | null): Promise<SessionMeta> => {

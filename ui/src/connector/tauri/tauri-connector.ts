@@ -317,7 +317,7 @@ export function createTauriConnector(): RecoveryConnector {
       resumeLastSession: async (): Promise<{ scanId: string; path: string }> =>
         bridge(invoke('session_resume_last')),
 
-      resumeSession: async (path: string): Promise<{ scanId: string }> =>
+      resumeSession: async (path: string): Promise<{ scanId: string; targetId: string }> =>
         bridge(invoke('session_resume', { path })),
     },
 

@@ -250,10 +250,48 @@ REAL PRODUCT BUG (the v0.8.2 fix):
 
 ### The v0.8.2 release (the stopped-scan banner fix)
 
+- Tag `v0.8.2` on **ff9e4c13** (the poller fix f76c9941 + the bump; CI:
+  ui-ci 42181863436, ui-e2e 42181863373 — GREEN, 175/175 unit incl. the
+  new drain pin).
+- Release run **42182876659 — SUCCESS** (~22 min): all gates green,
+  ctest 1741/1741, dev-sign verified, three assets published
+  (2026-11-06T08:03:34Z):
+  - `RecoveryWizard-0.8.2-setup.exe` — 2,790,576 B, SHA256
+    `64153954250C4B1B1DF9A9176CB2FBB617292E458D2D272F898243C97DA2D923`
+  - `RecoveryWizard-0.8.2-portable.zip` — 3,915,312 B, SHA256
+    `C91CE54695236CF3CB838BFD204D1E8B925BD9E17DE032819F765D2005A10974`
+  - `SHA256SUMS` — 199 B
+
+### The v0.8.2 forensic dispatch (run 21, 42185123973)
+
+RED at the S5 resume-navigation gate — with BOTH v0.8.2 fixes PROVEN
+GREEN on the shipped binary first:
+
+- The during-drain save: "Search saved" within 3 s of the stop (the
+  engine thread returned fast — the carve checkpoint variance brackets
+  ~3 s to minutes) ✓
+- **The drain banner: VISIBLE** — the v0.8.2 poller fix works on the
+  installed release (the exact failure of runs 19/20) ✓
+- The incomplete-session save attempt 1: "Search saved" ✓
+- The Backup screen: rows render **"(no volume label)"** (the v0.8.1
+  BF-26 fix proven on a shipped binary) with **Resume scan** affordances
+  on both incomplete rows ✓
+- THEN the resume click never navigated within 60 s. Root cause (a REAL
+  product bug, the third the probe has caught): the backup page
+  navigated `/scan?scanId=<id>` — **a route the router does not define**
+  (the only scan route is `scan/:deviceId/live`); the catch-all fallback
+  swallowed the navigation and the resumed scan ran INVISIBLY (the
+  session loaded, the engine re-ran — no page showed it). The probe's
+  own waitForURL pattern (`/\/scan\//`) could never match either —
+  both fixed.
+
+### The v0.8.3 release (the invisible-resume fix)
+
 **(filled from the runs' evidence as they land — tag, release workflow,
-forensic dispatch on v0.8.2: the full gate set incl. the during-drain
-save, the drain banner, the incomplete save, the Backup Resume, the
-resumed completion, the unelevated twin, and the silent uninstall)**
+forensic dispatch on v0.8.3: the full gate set incl. the during-drain
+save, the drain banner, the incomplete save, the Backup Resume landing
+on the LIVE-SCAN route, the resumed completion, the unelevated twin,
+and the silent uninstall)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 

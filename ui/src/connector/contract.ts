@@ -496,7 +496,7 @@ export interface SessionsDomain {
    * mismatch (the session came from a different volume) and device-gone
    * when the source is absent.
    */
-  resumeSession(path: string): Promise<{ scanId: string }>;
+  resumeSession(path: string): Promise<{ scanId: string; targetId: string }>;
 }
 
 // ---------------------------------------------------------------------------

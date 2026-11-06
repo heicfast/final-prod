@@ -1993,3 +1993,26 @@ proof green while the shipped product never showed it.
   stopping→stopping→cancelled; verified RED on the old interval, GREEN
   on the fix). 175/175 local; typecheck/lint/prettier green.
 - v0.8.2 cut: version lockstep + forensic default tag + notes truth.
+
+### Forensic run 21's post-mortem — the invisible resume (v0.8.3)
+
+Run 21 (42185123973, v0.8.2): both prior fixes PROVEN GREEN on the
+shipped binary (the drain banner rendered; the rows read "(no volume
+label)"; the incomplete save landed attempt 1) — then the resume click
+never navigated. Third real product bug caught by the probe: the backup
+page navigated `/scan?scanId=<id>`, a route the router does NOT define
+(only `scan/:deviceId/live` exists) — the catch-all fallback swallowed
+it and the resumed scan ran INVISIBLY. The probe's own waitForURL
+pattern could never match either (both fixed).
+
+- Bridge: session_resume now returns { scanId, targetId } (the loaded
+  entry's synthesized vol-<scan_id>; the progress page reads only the
+  ?scanId= param — the path segment is the route shape, not a lookup).
+- UI: the backup page navigates /scan/<targetId>/live?scanId=<id> and
+  sets the active-scan store (the sidebar's pulsing link, matching
+  useStartScan). Contract + mock + tauri-connector updated in lockstep.
+- Regression pin: tests/backup-resume-route.test.tsx — the Resume click
+  must land on the live-scan ROUTE, never the fallback (verified RED on
+  the old navigation, GREEN on the fix; 176/176).
+- Probe: the resume gate demands the exact route shape /\/scan\/[^/]+\/live/.
+- v0.8.3 cut (lockstep + default tag + notes truth).
