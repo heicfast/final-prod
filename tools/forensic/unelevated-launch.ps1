@@ -1,30 +1,29 @@
-# unelevated-launch.ps1 - launch the INSTALLED product with a genuinely
-# UNELEVATED token so the user-mode refusal contract can be probed: the
-# product must show the elevation banner and refuse raw-disk work — never
-# run degraded, never pretend to work (the product-side twin of core's
-# exit-4 elevation probes, INTEGRATION-PLAN section 6.3).
+# unelevated-launch.ps1 - the D-PRIV-01 twin: an UNELEVATED start of the
+# installed product MUST be refused BY THE OPERATING SYSTEM.
 #
-# Mechanism (v2, after run 42129256087): a FRESH STANDARD USER whose
-# interactive logon is genuinely unelevated regardless of the host's UAC
-# state. The first attempt used `runas /trustlevel:0x20000`, but on the
-# windows-2022 runner image UAC token filtering is not in effect, so the
-# restricted token never materialized: the app ran elevated, truthfully
-# reported administrator, and correctly showed NO banner (the product was
-# right; the launcher was wrong). CreateProcessWithLogonW via
-# Start-Process -Credential of a non-admin user is the deterministic path.
+# Post-manifest posture (0.9.0): the exe embeds requireAdministrator, so
+# the OS itself is the privilege gate - CreateProcessWithLogonW with a
+# standard-user token fails with the elevation refusal (win32 740) and
+# no app process ever exists. This launcher ASSERTS that refusal. (The
+# pre-manifest twin asserted the retired asInvoker posture - banner +
+# relaunch + no-mock - via a CDP-driven unelevated instance; that
+# surface no longer exists and the probe rode with it into history.)
 #
-# The launcher ASSERTS its own precondition: it records the spawned app
-# process's TokenElevation (OpenProcessToken P/Invoke) and THROWS if the
-# token is still elevated - the probe's banner assertion is only honest
-# when the launch was genuinely unelevated.
+# The assertion is two-sided:
+#   PASS  = the direct unelevated Start-Process throws the elevation
+#           refusal AND no recovery-wizard-ui process appears.
+#   FAIL  = the app STARTS with the unelevated token (the privilege
+#           model is broken - requireAdministrator not in effect), or
+#           the spawn fails with an unrelated error (diagnostics are
+#           captured either way).
 #
-# Usage: unelevated-launch.ps1 -OutDir <dir> [-CdpPort 9223]
-# Outputs: unelevated-app-pid.txt, unelevated-token.json, unelevated-user.txt
-#          (the workflow's finally-block deletes the user after the probe)
+# Usage: unelevated-launch.ps1 -OutDir <dir> -ExpectRefusal
+# Outputs: unelevated.json, unelevated-user.txt,
+#          unelevated-user-groups.txt (+ failure diagnostics if any)
 
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [int]$CdpPort = 9223
+    [Parameter(Mandatory = $true)][switch]$ExpectRefusal
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,108 +72,54 @@ $null = & net.exe user $user 2>&1
 & whoami.exe /groups /user "$env:COMPUTERNAME\$user" 2>&1 |
     Out-String | Set-Content (Join-Path $OutDir 'unelevated-user-groups.txt')
 
-# --- The twin's writable scratch --------------------------------------------
-# Run 42201790752: the twin's CDP never came up and app.log carried ZERO
-# lines from it. Root cause candidate: PowerShell's Start-Process
-# -Credential logs on WITHOUT loading the profile, so C:\Users\rwprobe
-# never exists and WebView2 cannot create its default user-data folder
-# under the missing %LOCALAPPDATA% - the app exits before the webview
-# starts. The documented WEBVIEW2_USER_DATA_FOLDER override points at a
-# provisioned directory instead (the twin's stderr is captured there too,
-# and the app's own ProgramData log writes drop silently by design -
-# logging.rs never crashes on a refused open).
-$twinData = 'C:\forensic\twin-data'
-New-Item -ItemType Directory -Force -Path "$twinData\webview" | Out-Null
-$null = & icacls.exe $twinData /grant "${user}:(OI)(CI)F" /T 2>&1
-Write-Host "[unelevated-launch] twin scratch $twinData provisioned for $user"
-
-# --- The CDP wrapper (the child does not inherit this shell's env) ----------
-$cmd = Join-Path $OutDir 'unelevated-launch.cmd'
-@"
-@echo off
-set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=$CdpPort
-set WEBVIEW2_USER_DATA_FOLDER=$twinData\webview
-"$appExe" > "$twinData\twin-stdout.log" 2> "$twinData\twin-stderr.log"
-"@ | Set-Content $cmd -Encoding ASCII
-
 $before = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue)
 
 $sec = ConvertTo-SecureString $pass -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential("$env:COMPUTERNAME\$user", $sec)
-Start-Process -FilePath $env:ComSpec -ArgumentList '/c', "`"$cmd`"" -Credential $cred -WindowStyle Hidden
-Write-Host "[unelevated-launch] spawned as $env:COMPUTERNAME\$user (standard user)"
-$spawnTime = Get-Date
-$seenAlive = $false
 
-# --- Wait for the CDP endpoint (fail fast if the twin dies) ------------------
-$deadline = (Get-Date).AddSeconds(90)
-$ready = $false
-$died = $false
-while ((Get-Date) -lt $deadline) {
-    try {
-        $v = Invoke-RestMethod -Uri "http://127.0.0.1:$CdpPort/json/version" -TimeoutSec 2
-        if ($v.Browser) { $ready = $true; break }
-    } catch { Start-Sleep -Milliseconds 500 }
-    # Fail fast: if the twin's app process never appeared (5 s grace for
-    # the spawn itself) or vanished, the CDP endpoint will never come up -
-    # capture WHY instead of waiting out the window.
-    $alive = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue |
-        Where-Object { $before.ProcessId -notcontains $_.Id })
-    if ($alive.Count -gt 0) {
-        $seenAlive = $true
-    } elseif ($seenAlive -or ((Get-Date) -gt $spawnTime.AddSeconds(5))) {
-        $died = $true
-        break
-    }
-}
-if (-not $ready) {
-    # The failure evidence: the twin's captured stderr/stdout, the crash
-    # records from the Windows Application log, and the scratch contents.
-    $diag = @()
-    foreach ($f in 'twin-stderr.log', 'twin-stdout.log') {
-        $p = Join-Path $twinData $f
-        if (Test-Path $p) {
-            $txt = (Get-Content $p -Raw -ErrorAction SilentlyContinue)
-            if ($txt) { $diag += "=== $f ==="; $diag += $txt.Trim().Split("`n") | Select-Object -First 20 }
-        }
-    }
-    try {
-        $evt = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-5) } -MaxEvents 40 -ErrorAction Stop |
-            Where-Object { $_.Message -match 'recovery-wizard|WebView2|rwprobe' } |
-            ForEach-Object { "{0} [{1}] {2}" -f $_.TimeCreated.ToString('HH:mm:ss'), $_.ProviderName, ($_.Message -split "`n")[0..2] -join ' ' }
-        if ($evt) { $diag += '=== Application event log (last 5 min, filtered) ==='; $diag += $evt }
-    } catch { $diag += "event log query failed: $($_.Exception.Message)" }
-    $diag += "=== twin-data contents ==="
-    $diag += (Get-ChildItem $twinData -Recurse -ErrorAction SilentlyContinue | Select-Object -First 15 | ForEach-Object { $_.FullName })
-    $diag | Out-String | Set-Content (Join-Path $OutDir 'unelevated-launch-failure.txt') -Encoding UTF8
-    Write-Host ($diag -join "`n")
-    $reason = if ($died) { 'the twin app process exited before the CDP endpoint came up' } else { 'the CDP endpoint did not come up within 90s' }
-    throw "unelevated instance launch failed: $reason (diagnostics in unelevated-launch-failure.txt)"
+# --- The refusal assertion ---------------------------------------------------
+# Launch the APP EXE DIRECTLY (no cmd wrapper - an asInvoker cmd would
+# start fine and mask the refusal one level down).
+$spawnError = $null
+try {
+    Start-Process -FilePath $appExe -Credential $cred -WindowStyle Hidden -ErrorAction Stop
+} catch {
+    $spawnError = $_.Exception
 }
 
-# --- Identify the app process + ASSERT its token is genuinely unelevated ----
-$app = $null
-foreach ($i in 1..20) {
-    $app = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue |
-        Where-Object { $before.ProcessId -notcontains $_.Id } |
-        Sort-Object StartTime | Select-Object -Last 1)
-    if ($app) { break }
-    Start-Sleep -Milliseconds 500
-}
-if (-not $app) { throw 'could not identify the unelevated app process (CDP is up; pid tracking failed)' }
+# Grace window: if the spawn "succeeded", the process must appear here.
+if (-not $spawnError) { Start-Sleep -Seconds 8 }
+$alive = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue |
+    Where-Object { $before.ProcessId -notcontains $_.Id })
 
-$token = [TokenElevationProbe2]::IsElevated($app[0].Id)
+$errText = if ($spawnError) { $spawnError.Message } else { '' }
+$isRefusal = $errText -match 'elevat|740|administrator|requested operation'
+$started = $alive.Count -gt 0
+
 [ordered]@{
-    pid             = $app[0].Id
-    tokenElevation  = $token
-    mechanism       = 'CreateProcessWithLogonW (standard user rwprobe)'
-    user            = "$env:COMPUTERNAME\$user"
-    probedUtc       = (Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json | Set-Content (Join-Path $OutDir 'unelevated-token.json') -Encoding UTF8
-Write-Host "[unelevated-launch] app pid=$($app[0].Id) token=$token"
-$app[0].Id | Set-Content (Join-Path $OutDir 'unelevated-app-pid.txt') -Encoding ASCII
+    posture           = 'D-PRIV-01: requireAdministrator - the OS refuses an unelevated start'
+    spawnThrew        = [bool]$spawnError
+    spawnError        = $errText
+    refusedByOs       = [bool]($isRefusal -and -not $started)
+    appProcessStarted = $started
+    startedToken      = if ($started) { [TokenElevationProbe2]::IsElevated($alive[0].Id) } else { $null }
+    mechanism         = 'CreateProcessWithLogonW (standard user rwprobe, direct exe)'
+    user              = "$env:COMPUTERNAME\$user"
+    probedUtc         = (Get-Date).ToUniversalTime().ToString('o')
+} | ConvertTo-Json | Set-Content (Join-Path $OutDir 'unelevated.json') -Encoding UTF8
+Write-Host "[unelevated-launch] spawnThrew=$([bool]$spawnError) refusedByOs=$($isRefusal -and -not $started) started=$started"
+if ($errText) { Write-Host "[unelevated-launch] spawn error: $errText" }
 
-if ($token -ne 'not-elevated') {
-    throw "LAUNCH PRECONDITION FAILED: the spawned app token is '$token' - the banner assertion would be dishonest; refusing to continue"
+if ($started) {
+    # The app STARTED with an unelevated token - the privilege model is
+    # broken. Record the token and refuse to pass.
+    $alive | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+    throw "D-PRIV-01 twin gate FAILED: the app STARTED unelevated (token: $($alive[0].Id) -> $([TokenElevationProbe2]::IsElevated($alive[0].Id))) - requireAdministrator is not in effect"
 }
-Write-Host '[unelevated-launch] precondition holds: app token is not-elevated'
+if ($isRefusal) {
+    Write-Host '[unelevated-launch] the OS refused the unelevated start - the privilege gate holds'
+    exit 0
+}
+# Not a refusal and not started: an unrelated failure - capture and fail.
+$errText | Set-Content (Join-Path $OutDir 'unelevated-launch-failure.txt') -Encoding UTF8
+throw "unelevated launch did not produce the expected elevation refusal (error: $errText; diagnostics in unelevated-launch-failure.txt)"

@@ -21,12 +21,15 @@ name: forensic-repro
 #   plus machine facts before/after (elevation posture, services, registry,
 #   the installed product's module set, System event log).
 #
-#   The v0.7.0 redesign (P5/P6, plan section 6.3): the facts layer is the
-#   DRIVER-FREE truth — no RDA service/file/cert/rdacli probes exist; the
-#   no-mock gate asserts connectorMode=tauri on the live shipped DOM; the
-#   launched app's TokenElevation is recorded; and the UNELEVATED twin
-#   (runas /trustlevel) proves the refusal posture (elevation banner +
-#   scan-start refusal), mirroring core's exit-4 probes.
+#   The 0.9.0 re-vehicling (the debug-and-release session): the gates
+#   assert the FIXED posture - the manifest gate (requireAdministrator on
+#   the installed exe, D-PRIV-01), the OS-refusal twin (an unelevated
+#   start is refused BY THE OS, D-PRIV-01), the home census gate (every
+#   physical disk the OS exposes renders on the landing page, D-ENUM-01),
+#   and the D-SCAN-01 progress gates (no 180 s fully-frozen stretch, the
+#   advanced phase advances, live found-data size non-zero once files
+#   are found). The no-mock gate and the TokenElevation record remain.
+#   The gates are RED on any asInvoker/stalled build by construction.
 #
 # workflow_dispatch ONLY, deliberately: the probe installs a RELEASE (an
 # input that only exists after the release workflow ran). A push trigger
@@ -103,6 +106,34 @@ jobs:
         shell: pwsh
         run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postinstall
 
+      - name: Manifest gate - the installed exe requires elevation (D-PRIV-01)
+        shell: pwsh
+        run: |
+          # The privilege model is a first-class product surface: the exe
+          # must carry requireAdministrator (one UAC at launch, the
+          # reference's DRW.exe/DRWUI.exe posture). Through v0.8.x the
+          # probe recorded 'no-manifest-match' and NO assertion consumed
+          # it - the shipped defect rode green CI. The gate is RED on any
+          # asInvoker build by construction.
+          $facts = Get-Content C:\forensic\evidence\facts-postinstall.json -Raw | ConvertFrom-Json
+          $m = [string]$facts.appManifest
+          Write-Host "[manifest-gate] appManifest = $m"
+          if ($m -ne 'requireAdministrator') {
+            throw "D-PRIV-01 gate: the installed exe's manifest is '$m' - requireAdministrator expected (asInvoker/no-manifest was the shipped defect)"
+          }
+
+      - name: Disk census (the Home device-list gate's ground truth)
+        shell: pwsh
+        run: |
+          # D-ENUM-01: the landing page must render EVERY physical disk the
+          # OS exposes. The census is the OS's own view; drive-ui.mjs's Home
+          # gate asserts the UI matches it.
+          $census = @(Get-Disk | Sort-Object Number | ForEach-Object {
+            [ordered]@{ number = $_.Number; model = $_.Model; sizeGB = [math]::Round($_.Size/1GB,1); bus = [string]$_.BusType }
+          })
+          $census | ConvertTo-Json -Depth 3 | Set-Content C:\forensic\evidence\disk-census.json -Encoding UTF8
+          Write-Host "[census] $($census.Count) physical disks recorded"
+
       - name: Launch app + probes + drive the real UI - health, scan, every surface (S2 S3 S4)
         shell: pwsh
         run: |
@@ -122,6 +153,7 @@ jobs:
             $io.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
 
             $env:OUT_DIR = 'C:\forensic\evidence'
+            $env:FORENSIC_DISK_CENSUS = 'C:\forensic\evidence\disk-census.json'
             Set-Location tools\forensic
             node drive-ui.mjs
             if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -139,44 +171,20 @@ jobs:
             Start-Sleep -Seconds 3
           }
 
-      - name: Unelevated twin - the refusal posture (runas /trustlevel, CDP 9223)
+      - name: Unelevated twin - the OS refuses an unelevated start (D-PRIV-01)
         shell: pwsh
         run: |
-          # The restricted-token instance must show the elevation banner and
-          # refuse raw-disk work (never degraded, never silent). Same
-          # one-step-lifetime rule as the main app step (job-object teardown).
+          # D-PRIV-01: with requireAdministrator embedded, an unelevated
+          # CreateProcessWithLogonW start MUST fail with the elevation
+          # refusal - the OS itself is the privilege gate (the old
+          # banner-and-relaunch twin asserted the RETIRED asInvoker
+          # posture; the banner surface no longer exists). The launcher
+          # throws when the app STARTS unelevated (the privilege model
+          # would be broken) and exits 0 on the expected refusal.
           $ErrorActionPreference = 'Stop'
-          .\tools\forensic\unelevated-launch.ps1 -OutDir C:\forensic\evidence
-          try {
-            $env:OUT_DIR = 'C:\forensic\evidence'
-            $env:CDP_PORT = '9223'
-            Set-Location tools/forensic
-            node unelevated-probe.mjs
-            if ($LASTEXITCODE -ne 0) { exit 1 }
-          } finally {
-            Set-Location D:\a\final-prod\final-prod
-            $pidFile = 'C:\forensic\evidence\unelevated-app-pid.txt'
-            if (Test-Path $pidFile) {
-              $up = [int](Get-Content $pidFile -Raw).Trim()
-              if (Get-Process -Id $up -ErrorAction SilentlyContinue) { Stop-Process -Id $up -Force -ErrorAction SilentlyContinue }
-            }
-            # The twin's WebView2 browser (running as rwprobe) must be gone
-            # before the account delete and the uninstall — same lock class
-            # as the main app's (run 42207694695).
-            Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
-              Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' } |
-              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-            Start-Sleep -Seconds 3
-            # Wait for the swept processes to actually exit (an account
-            # delete with live processes leaves zombies).
-            $deadlineSweep = (Get-Date).AddSeconds(30)
-            while ((Get-Date) -lt $deadlineSweep) {
-              $left = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
-                Where-Object { $_.CommandLine -match 'heicfast|recoverywizard|twin-data' })
-              if ($left.Count -eq 0) { break }
-              Start-Sleep -Seconds 2
-            }
-            # The probe user's processes (cmd wrapper) die with the app; the
+          .\tools\forensic\unelevated-launch.ps1 -OutDir C:\forensic\evidence -ExpectRefusal
+          try { } finally {
+            # The probe user's processes die with the refused start; the
             # account itself is removed so the runner carries no leftovers.
             $userFile = 'C:\forensic\evidence\unelevated-user.txt'
             if (Test-Path $userFile) {

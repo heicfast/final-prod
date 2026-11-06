@@ -2434,3 +2434,94 @@ cancelled, autosaved rc=0, the lost-partition fixture candidate with
 Ntfs=3, save fractions ending at 1, load permille ending at 1000,
 recovery-finished). 189/189 vitest; typecheck/lint/format/arch-lint
 green.
+
+## Lane coordination — the seam held, one crossing, main-green first (lane A)
+
+Lane B's 68460a4c (D1 manifest + D2 console fix) landed while lane A's
+W-01 was in flight; the rebase merged cleanly (both lanes' fixes
+survive: lane B adopted lane A's connectorMode truth fix and kept the
+manifest wiring; lane A's W-01 rides on top). Lane B's D-UI-01
+resolution SUPERSEDES lane A's retheme: the elevation banner surface is
+REMOVED entirely (reference parity — the og has no in-app elevation
+notice; with requireAdministrator an unelevated runtime cannot exist);
+lane A's consent-modal token fix stands.
+
+COORDINATION CROSSING (announced here per the seam): lane B's engine
+change left main RED at engine-ci's clang-format gate (pinned 18.1.8;
+test_no_console_spawn.cpp + a stale header comment). Lane A ran the
+pinned formatter over the changed engine files (mechanical only, zero
+semantic change) and re-verified the full-tree sweep clean — main-green
+outranks lane symmetry. Lane B's ui-ci red step was lane A's own A1
+violation from 21f33f32 (exit-guard importing the connector factory);
+the fix rides in lane A's W-01 commit.
+
+D-CONS-01 status: lane B's D2 fix verified against the diagnosis —
+fsutil now runs DIRECTLY via CreatePipe + CreateProcessW with
+CREATE_NO_WINDOW + SW_HIDE + a bounded 10 s wait (the og's own hidden
+pattern, one step cleaner — no shell process at all); the tree-wide
+no-_popen guard (engine/tests/unit/test_no_console_spawn.cpp) makes the
+regression class a build-time gate. The IOCTL-StorageDeviceTrimProperty
+alternative from the DIAGNOSIS addendum stays a documented option; the
+shipped vehicle is the hidden-fsutil parity fix.
+
+## Phase 1 complete — every reported defect reproduced with captured evidence (T4)
+
+Forensic run 42255492260 (the SHIPPED v0.8.4 release, real
+windows-2022 runner, seeded 64GB NTFS + 8GB exFAT vdisks, artifact
+`forensic-repro-evidence` 8.2 MB) — curated into
+worklog/REPRODUCTION/<defect-id>/ with per-defect READMEs:
+
+- **D-PRIV-01:** facts-postinstall's own manifest classification reads
+  `"no-manifest-match"` — the installed exe has NO trustInfo at all
+  (asInvoker by loader default). The app only ran elevated because the
+  probe pre-elevates; the unelevated twin shows the banner flow. Fix
+  already landed (manifest + banner removal + docs truth).
+- **D-CONS-01:** the _popen→cmd.exe console on every health read —
+  code-level (cr_health.cpp:306 unconditional per cr_ui.cpp:4948), a
+  re-merge regression of the NG-8 fix. Runner census caveat recorded
+  honestly: 2 s sampling cannot catch a ms-scale flash; the gate moves
+  to the build-time tree-wide _popen guard (landed with lane B's D2).
+- **D-ENUM-01:** the Home filter defect proven by the unit pins
+  (RED-on-old/GREEN-on-fix); runner DOM shows all four runner disks
+  because Azure disks are all internal-bus — the environmental caveat
+  is recorded in the README (the filter is the defect; the user's
+  USB/SD-bus mix is what it hid).
+- **D-SCAN-01 (BF-22 is REAL):** 172-sample timeline — 75% at t=0
+  (exact quick+deep boundary math), 76.1% at t=891s (1.1% in 15 min),
+  foundCounts FROZEN at 197 items for the entire window, sectorMatches
+  EMPTY every sample, complete=false throughout. Plus the designed-0
+  dataFoundBytes and the carve-only bytes_scanned. Fix: engine-side
+  lane B (D4a-d) + the landed UI bridges; release HELD until the
+  telemetry lands.
+
+## The probe re-vehicled — the gates now assert the FIXED posture (lane A)
+
+The forensic probe's gates codified the OLD asInvoker posture (pre-
+elevated launch + banner-expecting twin) — the shipped defects rode
+green CI. The re-vehicling (tools/forensic + forensic-repro.yml):
+
+- **Manifest gate (D-PRIV-01):** a post-install workflow step asserts
+  facts-postinstall's appManifest classification is requireAdministrator
+  — RED on any asInvoker/no-manifest build by construction (the
+  classification existed but NO assertion consumed it; that was the gap).
+- **The OS-refusal twin (D-PRIV-01):** unelevated-launch.ps1 rewritten —
+  a direct unelevated CreateProcessWithLogonW of the exe MUST be
+  refused by the OS (win32 740); the launcher fails if the app STARTS
+  unelevated. The CDP banner twin (unelevated-probe.mjs) is deleted —
+  its surface (banner + relaunch) no longer exists; git history keeps
+  the audit trail.
+- **The home census gate (D-ENUM-01):** the workflow writes the OS's
+  own Get-Disk census; drive-ui.mjs asserts every physical disk renders
+  on the landing page (matched by capacity text; misses recorded with
+  disk number + bus).
+- **The D-SCAN-01 progress gates:** extractScanState now captures the
+  live found-size; after the scan capture — (a) no 180 s fully-frozen
+  stretch (pct + found-count + sector all identical; the v0.8.4
+  evidence froze 900 s), (b) the advanced phase advances >= 1.0 point,
+  (c) the live found-size is non-"0 B" once files are found. The stale
+  "environmental/known-perf" BF-22 comment is replaced with the truth
+  (BF-22 is a real defect, reproduced + user-confirmed).
+
+These gates are RED on the v0.8.4 build by construction (that IS the
+defect register) and gate the NEXT release: the release is held until
+lane B's D4 telemetry lands (the live-bytes gate depends on it).

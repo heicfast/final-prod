@@ -78,8 +78,11 @@ function extractScanState(text) {
     : (/quick/i.test(text) ? 'quick' : null);
   const sectorMatches = [...text.matchAll(/([\d,.\s]+)\s*\/\s*([\d,.\s]+)\s*(sectors?|blocks?)/gi)].slice(0, 4);
   const foundCounts = [...text.matchAll(/(\d[\d,]*)\s*(?:files?|items?|found)/gi)].slice(0, 8).map(m => m[0]);
+  // D-SCAN-01: the live found-data size ("Files Found: N (0 B)" was the
+  // shipped defect - the size must grow live once files are found).
+  const foundSize = (text.match(/Files Found:\s*[\d,]+\s*\(([^)]+)\)/i) || [])[1] || null;
   const complete = /search complete|scan complete|congratulations/i.test(text);
-  return { pcts, stage, sectorMatches: sectorMatches.map(m => m[0]), foundCounts, complete };
+  return { pcts, stage, sectorMatches: sectorMatches.map(m => m[0]), foundCounts, foundSize, complete };
 }
 
 async function main() {
@@ -535,6 +538,32 @@ async function main() {
     evidence.phases.scan = { home, timeline: [], result: null };
     await shot(page, 'scan-0-home');
 
+    // D-ENUM-01 gate: the landing page must render EVERY physical disk
+    // the OS exposes. The census (FORENSIC_DISK_CENSUS) is the OS's own
+    // Get-Disk view, written by the workflow before the launch; the
+    // landing page's rows must cover it completely (the pre-fix Home
+    // filtered to internal-only and hid every USB/SD-bus device).
+    const censusPath = process.env.FORENSIC_DISK_CENSUS;
+    if (censusPath && fs.existsSync(censusPath)) {
+      const censusRaw = JSON.parse(fs.readFileSync(censusPath, 'utf8'));
+      const disks = Array.isArray(censusRaw) ? censusRaw : (censusRaw.disks || []);
+      const homeText = `${(home.buttons || []).join(' ')} ${(home.bodyText || '').slice(0, 4000)}`;
+      const missing = disks.filter(d => {
+        const gb = Math.round(Number(d.sizeGB));
+        return gb > 0 && !homeText.includes(`${gb} GB`) && !homeText.includes(`${gb}GB`);
+      });
+      (evidence.phases.scan.homeCensus = {
+        disks: disks.length,
+        missing: missing.map(d => `#${d.number} ${d.sizeGB}GB ${d.bus}`),
+      });
+      log(`home census: ${disks.length} OS disks, ${missing.length} missing from the landing page`);
+      if (missing.length > 0) {
+        throw new Error(`gate: D-ENUM-01 home census - ${missing.length} physical disk(s) the OS exposes do not appear on the landing page: ${missing.map(d => `#${d.number} ${d.sizeGB}GB (${d.bus})`).join(', ')}`);
+      }
+    } else {
+      log('home census: FORENSIC_DISK_CENSUS not set - the D-ENUM-01 gate is skipped (recorder mode)');
+    }
+
     // select the seeded 64GB NTFS vdisk by its deterministic volume label
     // (run 40465852724: the home card renders 'SeedNTFS(X:)63.85 GB/64 GB';
     // the cards are role=radio, NOT role=button — run 40468386932's
@@ -622,6 +651,59 @@ async function main() {
 
     // capture the results surface (auto-navigation or via any visible affordance)
     await page.waitForTimeout(6000);
+
+    // ---------------------------------------------------------------- D-SCAN-01 gates
+    // The frozen-scan class is a DEFECT, not a behavior finding: BF-22
+    // was reproduced on this lane (75% -> 76.1% over 15 min, found-count
+    // frozen, no sector movement - run 42255492260) and the user's real
+    // machine shows the same signature; the "environmental/known-perf"
+    // dismissal below was the rationalization this gate replaces.
+    const tl = evidence.phases.scan.timeline;
+    const advancedIdx = tl.findIndex(e => e.stage === 'advanced');
+    if (advancedIdx >= 0) {
+      const adv = tl.slice(advancedIdx);
+      const pctAt = e => (e.pcts && e.pcts.length ? e.pcts[e.pcts.length - 1] : null);
+      // (a) no fully-frozen 180 s stretch: percent + found-count + sector
+      // text all identical for 36 consecutive 5 s samples (the v0.8.4
+      // evidence froze for 900 s).
+      let frozenRun = 1, maxFrozen = 1;
+      for (let i = 1; i < adv.length; i++) {
+        const a = adv[i - 1], b = adv[i];
+        const same = JSON.stringify([a.pcts, a.foundCounts, a.sectorMatches]) ===
+          JSON.stringify([b.pcts, b.foundCounts, b.sectorMatches]);
+        frozenRun = same ? frozenRun + 1 : 1;
+        if (frozenRun > maxFrozen) maxFrozen = frozenRun;
+      }
+      // (b) the advanced phase must advance: >= 1.0 percentage point
+      // across the capture (the v0.8.4 run advanced 1.1 in 891 s - at the
+      // boundary; the fixed engine's intra-window checkpoints tick
+      // continuously).
+      const firstPct = pctAt(adv[0]);
+      const lastPct = pctAt(adv[adv.length - 1]);
+      const advancedPct = firstPct != null && lastPct != null ? lastPct - firstPct : null;
+      // (c) live found-data size: once files are found the size must not
+      // read "0 B" (the designed-in dataFoundBytes=0 defect).
+      const withFiles = adv.filter(e => (e.foundCounts || []).some(c => parseInt(c.replace(/[^\d]/g, ''), 10) > 0));
+      const liveBytesOk = withFiles.length === 0 || withFiles.some(e => e.foundSize && e.foundSize !== '0 B');
+      evidence.phases.scan.progressGates = {
+        samples: adv.length,
+        maxFrozenSeconds: maxFrozen * 5,
+        advancedPctDelta: advancedPct,
+        foundSizeSeen: [...new Set(adv.map(e => e.foundSize).filter(Boolean))].slice(0, 5),
+        liveBytesOk,
+      };
+      log(`D-SCAN-01 gates: maxFrozen=${maxFrozen * 5}s advancedPctDelta=${advancedPct} liveBytesOk=${liveBytesOk}`);
+      if (maxFrozen * 5 >= 180) {
+        throw new Error(`gate: D-SCAN-01 - the scan froze for ${maxFrozen * 5} s (percent + found-count + sector all identical; the BF-22 stall class)`);
+      }
+      if (advancedPct != null && advancedPct < 1.0) {
+        throw new Error(`gate: D-SCAN-01 - the advanced phase advanced only ${advancedPct} points across the capture (the frozen-percent class)`);
+      }
+      if (!liveBytesOk) {
+        throw new Error('gate: D-SCAN-01 - files were found but the live found-data size read "0 B" the whole scan (the dataFoundBytes ABI gap)');
+      }
+    }
+
     const after = await domSummary(page);
     evidence.phases.scan.result = {
       finalUrl: after.url,
@@ -643,20 +725,13 @@ async function main() {
     }
 
     // ---------------------------------------------------------------- S3b: results -> recover (+ the stop path when incomplete)
-    // The deep scan of the 64GB seeded vdisk does not complete inside the
-    // capture window on this runner class - and the PRE-MERGE engine showed
-    // the identical stall at 76.1% (old run 42072191860, ABI v2: 43%->76.1%
-    // over 28 min, 189 items; this run: 75%->76.1%, 197 items). Identical
-    // behavior across two engines 1092 commits apart = environmental /
-    // known-perf (the carve matcher over the sparse vdisk's free space; core's
-    // PERF-LEVERS frontier), NOT a wiring regression. Recorded as a behavior
-    // finding (BF-22). The stop of the STALLED scan has its own recorded
-    // behavior (BF-25): the run thread stays inside the slow carve window,
-    // so busy stays set and the partial banner never latches — the recover
-    // surface itself is unaffected (recovery runs from the live scan's
-    // results, run 42148493806 evidence) and remains a GATE here; the
-    // session-save + resume gates moved to the deterministic completion
-    // vehicle above (S2b). A failure fails the run.
+    // The deep scan of the 64GB seeded vdisk may not complete inside the
+    // capture window on this runner class - the D-SCAN-01 gates above
+    // (liveness + advance + live bytes) are the stall's assertion layer;
+    // the recover surface itself (recovery runs from the live scan's
+    // results) remains a GATE here; the session-save + resume gates ride
+    // the deterministic completion vehicle above (S2b). A failure fails
+    // the run.
     evidence.phases.recover = { viaStop: !/\/results\//.test(page.url()) };
     try {
       if (!/\/results\//.test(page.url())) {
