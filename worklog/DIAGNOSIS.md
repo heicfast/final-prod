@@ -182,3 +182,50 @@ the gates that codify asInvoker; the raw evidence artifacts are what
 Phase 1 needs. The probe is re-vehicled in Phase 2 to gate the NEW
 posture (manifest elevation, no console, complete device rows, moving
 scan progress).
+
+## Addendum — lane B's Phase-0 findings absorbed (both lanes, one register)
+
+Lane B's independent read (worklog/lane-b/, verbatim) confirms the
+register above and adds four root-cause details the canonical sheets
+now carry as their fix directions:
+
+- **D-SCAN-01 / D4a (frozen sector counter):** `tel_.snap.bytes_scanned`
+  is stamped into the telemetry snapshot ONLY at stage boundaries
+  (cr_scan.cpp tel_counts_; carve bytes land in stats at cr_scan.cpp:2662
+  after carve_slice returns). The event stream DOES carry live carve
+  bytes (`e.bytes_done`, cr_scan.cpp:596) — the bridge's emitter reads
+  only the permilles and drops them (events.rs:266-273). Fix: bridge
+  consumes evt.bytes_done/bytes_total; engine stamps live bytes at every
+  publish.
+- **D-SCAN-01 / D4b (0 B found size):** no bytes_found in any ABI struct;
+  engine has the live datum (`ScanStats.bytes_found = tree_.total_logical()`,
+  N-167) crossing only at terminal (scan.rs:419-434 re-sums the snapshot).
+  Fix: ABI append (cr_ui_event + cr_ui_telemetry gain bytes_found), live
+  stamping, bridge fill, live UI render.
+- **D-SCAN-01 / D4c (cancel latency) + D4d (the wall):** intra-window
+  checkpoints at bounded cadence; the carve is validation-CPU-bound —
+  8.45 MiB/s effective vs a 544 MiB/s device (PERF-LEVERS wall math,
+  run 41140212296), 76-124 s/GiB — on consumer multi-TB disks the last
+  25% runs hours-to-days. The 75% jump itself is legitimate (quick 40 +
+  deep 35 complete fast); the freeze and the wall are the defects.
+- **D-CONS-01 fix upgraded:** replace _popen with a per-device
+  `IOCTL_STORAGE_QUERY_PROPERTY` / `StorageDeviceTrimProperty` query —
+  NO subprocess at all, no localized-output parsing (kills HEALTH-6's
+  fragility). A deliberate divergence from the og's hidden-fsutil
+  (corpus DRWUI_decompiled.c:178726-178733 runs it hidden via
+  CreatePipe+SW_HIDE) — same user-visible truth, stronger vehicle; to be
+  documented in PARITY-DELTAS.
+- **D-ENUM-01 second layer (engine-side):** both enumeration stacks
+  silently DROP a present disk whose open fails with anything other
+  than ACCESS_DENIED/SHARING_VIOLATION, or whose geometry query fails
+  (cr_enumerate.cpp:98-127). The reference lists devices WITHOUT opening
+  them (five-stack fan-in, corpus mom-module-system architecture). Fix:
+  never drop a PRESENT disk interface — list with cfgmgr-sourced
+  identity, table_ok=0, honest "unavailable" status; the scan attempt
+  then reports the truthful open error. Stacks with the UI-side fix
+  (Home internal-only filter + kind degradation) — both layers ship.
+- **D-PRIV-01 reference citation:** DRW.exe AND DRWUI.exe embed
+  requireAdministrator (corpus rev/DRWUI.exe/strings_ascii.txt:41023);
+  privileged work rides a LocalSystem service so no mid-session UAC.
+
+Fix ownership per the seam: worklog/COORDINATION.md.
