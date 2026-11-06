@@ -118,43 +118,61 @@ jobs:
 
           ## What changed in this release
 
-          - **Whole-disk scan sessions can now resume on machines whose
-            disks share a model name** (virtual machines in particular):
-            the resume previously refused with "the session's source
-            device is not attached" when several disks reported the same
-            model; among identical-model disks the one matching the
-            session's recorded size is now chosen, and a wrong choice is
-            still caught by the session's identity check.
-          - **Resuming a saved session now opens the live scan screen.**
-            The Backup screen's Resume navigated to a route the app does
-            not define, so the resumed scan ran invisibly behind a
-            fallback page; it now opens the live scan progress screen
-            (and the sidebar's active-scan link lights up).
-          - **The "stopped early" banner now appears after stopping a
-            scan** (carried from 0.8.2): the state poller stopped
-            refreshing the moment a stop was requested, so the "Search
-            was stopped early — results may be incomplete" notice never
-            rendered on the results screen, leaving partial results
-            unlabelled; the poller now follows the stop through to its
-            terminal state.
-          - **The Backup screen no longer calls a valid session
-            "unreadable"** (carried from 0.8.1): scans of whole disks
-            (no volume label) were listed as "(unreadable session)" even
-            though the checkpoint was perfectly loadable and resumable;
-            such rows now say "(no volume label)".
-          - **A refused session save is now visible** (carried from
-            0.8.0): saving a scan session while the engine was still
-            winding down after a stopped scan used to silently do
-            nothing; the error is now shown plainly and the save can be
-            retried once the engine has settled.
-          - **Everything else is the proven 0.7.0 product**: user-mode
-            direct raw-disk access, the ABI v4 engine, the rebuilt wizard
-            UI wired to the real engine — no behavioral change to
-            scanning, recovery, health or repairs.
-          - For the history from the 0.6.x driver era: 0.7.0 removed the
-            kernel driver entirely (no service, no certificate imports,
-            complete uninstall) and advanced the engine to the current
-            core line — see the 0.7.0 release notes.
+          This is the debug-and-release release: every surface reported
+          broken on the installed product was reproduced on real Windows,
+          root-caused, fixed at the source, and re-gated.
+
+          - **The app now requests administrator at launch.** Through
+            v0.8.4 the exe carried no manifest at all — it launched
+            unelevated and deferred elevation to an in-app restart prompt
+            (which also rendered off-theme). The embedded
+            requireAdministrator manifest gives one standard UAC prompt at
+            launch and none mid-session; the restart-prompt surface is
+            gone (the reference product ships the same posture).
+          - **No console window on disk health.** Every health read used
+            to spawn a visible cmd.exe console (a CRT pipe-spawn regression
+            from the engine re-merge). The TRIM query now runs fsutil
+            directly, hidden, with a bounded wait — and a build-time
+            tree-wide guard keeps every console-spawn out of the shipped
+            engine.
+          - **Every physical disk appears on the landing page.** The home
+            screen previously listed internal drives only and hid every
+            USB/SD/removable-bus device behind an unreachable view. The
+            page now renders the reference layout: "Internal drives (N)"
+            and "External drives (N)" together; SD cards stay first-class
+            on their dedicated page.
+          - **The scan really scans — visibly.** The "jumps to 75%,
+            files found N (0 B), no sector progress, all stuck" symptom is
+            fixed at its four roots: the carve stage now checkpoints
+            progress inside each work window (the percent and the sector
+            counter move continuously, and a Stop is observed within the
+            checkpoint bound instead of after a multi-minute grind), the
+            found-data SIZE rides the live event stream (the "0 B" gap is
+            gone — "Files Found: N (size)" grows live), the counters
+            update from the engine's live tree state, and completion
+            surfaces the instant the engine latches it (no 500 ms poll
+            wait).
+          - **Closing the window on a running scan now asks.** The app
+            previously exited and lost the in-flight session; the
+            close guard offers Save-and-exit / Keep scanning /
+            Exit-without-saving, backed by a real session save.
+          - **Smaller truth fixes:** the About dialog no longer badges the
+            real backend as the test double; the results context menu's
+            "Open location" actually opens the location (or explains why
+            a lost file cannot); the user-signature import reads the real
+            file contents; the session-save and session-load buttons show
+            real progress; the results tree grows live while scanning.
+          - **The validation gates now assert the fixed posture** — the
+            release pipeline refuses to build without the manifest, the
+            forensic probe refuses an asInvoker install, an unelevated
+            start, a missing device row, a frozen scan, or a zero-size
+            found counter.
+          - Carried from the 0.8.x line: whole-disk session resume on
+            identical-model-disk hosts (0.8.4), the visible resume route
+            (0.8.3), the stopped-early banner fix (0.8.2), the
+            "(no volume label)" session rows (0.8.1), the visible refused
+            save (0.8.0). For the 0.6.x driver-era history see the 0.7.0
+            release notes.
 
           ## Signing status (truthful)
 
