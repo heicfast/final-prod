@@ -230,6 +230,26 @@ fn load_session_entry(
     app: &tauri::AppHandle,
     path: &str,
 ) -> BridgeResult<Arc<ScanEntry>> {
+    crate::bridge::logging::info(&format!("session load begin: {path}"));
+    let r = load_session_entry_inner(state, app, path);
+    match &r {
+        Ok(e) => crate::bridge::logging::info(&format!(
+            "session load end: {} (scan {})",
+            path,
+            e.scan_id
+        )),
+        Err(err) => crate::bridge::logging::info(&format!(
+            "session load FAILED: {path} ({err})"
+        )),
+    }
+    r
+}
+
+fn load_session_entry_inner(
+    state: &Arc<BridgeState>,
+    app: &tauri::AppHandle,
+    path: &str,
+) -> BridgeResult<Arc<ScanEntry>> {
     let target = PathBuf::from(path);
     if !target.is_file() {
         return Err(BridgeError::bridge(
@@ -444,6 +464,9 @@ pub async fn session_resume(
             .await
             .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
     let scan_id = prep.entry.scan_id.clone();
+    crate::bridge::logging::info(&format!(
+        "session resume complete: launching the run thread for {scan_id}"
+    ));
     // v0.8.2 forensic (run 42185123973): the caller must be able to build
     // the live-scan route (/scan/<targetId>/live?scanId=<id>) — the backup
     // page navigated to /scan?scanId=, a route the router does not define
@@ -468,8 +491,13 @@ fn session_resume_blocking(
     path: &str,
 ) -> BridgeResult<ScanPrep> {
     // Load (W1b progress rides the load events), then resume the session
-    // into a fresh scan handle.
+    // into a fresh scan handle. The milestone lines exist because a
+    // resumed-session hang is exactly the class of failure that leaves no
+    // other trace (v0.8.2 forensic run 42185123973: the invoke never
+    // returned and the app log was silent — these lines pin the stage).
+    crate::bridge::logging::info(&format!("session resume begin: {path}"));
     let entry = load_session_entry(state, app, path)?;
+    crate::bridge::logging::info("session resume: entry loaded");
     let ScanKind::Session { session, device } = &entry.kind else {
         return Err(BridgeError::bridge(
             code::UNKNOWN,
@@ -477,11 +505,13 @@ fn session_resume_blocking(
         ));
     };
     let Some(dev_ptr) = device.as_ref().map(|d| d.get()) else {
+        crate::bridge::logging::info("session resume FAILED: source device not attached");
         return Err(BridgeError::bridge(
             code::DEVICE_GONE,
             "the session's source device is not attached — resume needs the original volume/disk",
         ));
     };
+    crate::bridge::logging::info("session resume: source device attached");
 
     // The resumed config: whole_disk reflects the re-attached view (a
     // volume-slice match resumes as a volume scan; the whole-disk fallback
@@ -509,11 +539,13 @@ fn session_resume_blocking(
         unsafe { abi::cr_ui_session_resume(session.get(), &cfg, &mut scan) },
         "cr_ui_session_resume",
     )?;
+    crate::bridge::logging::info("session resume: engine resume ok");
     let scan_ptr = SendPtr::new(scan);
     check(
         unsafe { abi::cr_ui_scan_attach_device(scan, dev_ptr) },
         "cr_ui_scan_attach_device",
     )?;
+    crate::bridge::logging::info("session resume: device attached to the fresh handle");
 
     // Volume-identity check (the CLI's boot-hash warning): a mismatch means
     // the session came from a DIFFERENT volume — the typed refusal, never a

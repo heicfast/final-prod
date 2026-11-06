@@ -2016,3 +2016,20 @@ pattern could never match either (both fixed).
   the old navigation, GREEN on the fix; 176/176).
 - Probe: the resume gate demands the exact route shape /\/scan\/[^/]+\/live/.
 - v0.8.3 cut (lockstep + default tag + notes truth).
+
+### The resume-hang instrumentation (runs 21 + 22 both silent)
+
+Runs 42185123973 (v0.8.2) and 42192131100 (v0.8.3) BOTH failed the S5
+resume gate with a 60 s waitForURL timeout, NO toast, NO navigation, and
+NO further IO — the invoke itself appears to hang (both binaries prove
+the prior fixes green first: drain banner ✓, "(no volume label)" rows ✓,
+incomplete save attempt 1 ✓). The v0.8.3 route fix is verified by its
+own regression test, so the silent hang predates and survives it.
+
+Instrumentation (this commit): the probe's resume leg polls URL + toasts
+every second and records bodyText on timeout (the button's loading state
+will distinguish a pending invoke from a dead handler); the forensic
+workflow captures %ProgramData%\...\logs\app.log + a sessions-dir
+snapshot into the artifact (with if: always()); the bridge's session
+load/resume paths gain NG-15 lifecycle lines (they ship with the next
+binary — the v0.8.3 artifact predates them).

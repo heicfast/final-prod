@@ -430,7 +430,39 @@ async function main() {
     // fallback swallowed it and the waitForURL pattern /\/scan\// never
     // matched either. The v0.8.3 fix navigates the real route; this gate
     // now demands its exact shape — the fallback can never pass it).
-    await page.waitForURL(/\/scan\/[^/]+\/live/, { timeout: 60000 });
+    // Diagnostics (runs 42185123973 + 42192131100 both timed out here
+    // with NO toast and NO navigation — the invoke itself appears to
+    // hang): poll the URL + toasts every second and record everything on
+    // timeout so the failure carries its own evidence.
+    {
+      const deadline = Date.now() + 60000;
+      const seenToasts = [];
+      let urlNow = page.url();
+      while (Date.now() < deadline) {
+        urlNow = page.url();
+        if (/\/scan\/[^/]+\/live/.test(urlNow)) break;
+        const toasts = await page
+          .locator('[data-sonner-toast]')
+          .allTextContents()
+          .catch(() => []);
+        for (const t of toasts) {
+          const text = t.trim().slice(0, 200);
+          if (text && !seenToasts.includes(text)) seenToasts.push(text);
+        }
+        await page.waitForTimeout(1000);
+      }
+      evidence.phases.saveResume.resumePoll = { url: page.url(), toasts: seenToasts };
+      log(`S2b: resume poll: url=${page.url()} toasts=${JSON.stringify(seenToasts)}`);
+      if (!/\/scan\/[^/]+\/live/.test(page.url())) {
+        const body = await page
+          .evaluate(() => (document.body.innerText || '').slice(0, 2000))
+          .catch(() => '');
+        evidence.phases.saveResume.resumePoll.bodyText = body;
+        throw new Error(
+          `gate: S5 resume - never reached the live-scan route (url: ${page.url()}; toasts: ${JSON.stringify(seenToasts)}; body: ${body.slice(0, 300)})`,
+        );
+      }
+    }
     await page.waitForTimeout(5000);
     evidence.phases.saveResume.resume = { urlAfterResume: page.url() };
     await shot(page, 'save-7-after-resume');
