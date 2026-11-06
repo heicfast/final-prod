@@ -105,3 +105,51 @@ describe('home state surfaces read volume-level status', () => {
     expect(chipD).toBeEnabled();
   });
 });
+
+describe('D-ENUM-01: the landing page renders every physical device (reference parity)', () => {
+  /**
+   * Regression pin for the "only one disk appears" defect: the pre-fix page
+   * rendered internal-only and hid every non-internal device (USB / SD /
+   * removable-bus) behind an unreachable ?media URL param. The reference
+   * landing page groups "Internal drives (N)" AND "External drives (%1)" on
+   * the SAME page. Verified RED on the old filter, GREEN on the two-group
+   * layout.
+   */
+  const internalDisk = makeDevice({ id: 'disk-0', label: 'Windows (C:)', model: 'NVMe SSD' }, [
+    makeVolume({ id: 'vol-c', label: 'Windows (C:)', letter: 'C' }),
+  ]);
+  const sdCard = makeDevice(
+    {
+      id: 'disk-2',
+      kind: 'sd',
+      label: 'SD Card',
+      model: 'USB SD Reader',
+      volumes: [],
+      capacity: {
+        totalBytes: 64_000_000_000,
+        usedBytes: 12_000_000_000,
+        freeBytes: 52_000_000_000,
+      },
+    },
+    [],
+  );
+
+  it('renders BOTH the Internal drives and External drives groups', () => {
+    renderHome([internalDisk, sdCard]);
+    expect(screen.getByRole('heading', { name: /internal drives \(1\)/i })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /external drives \(1\)/i })).toBeTruthy();
+  });
+
+  it('renders the SD/removable device card on the landing page (no ?media param)', () => {
+    renderHome([internalDisk, sdCard]);
+    expect(screen.getByText('SD Card')).toBeTruthy();
+    // DeviceCard renders the reference compact label ("Windows(C:)").
+    expect(screen.getByText('Windows(C:)')).toBeTruthy();
+  });
+
+  it('hides the External drives group only when no external device exists', () => {
+    renderHome([internalDisk]);
+    expect(screen.getByRole('heading', { name: /internal drives \(1\)/i })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: /external drives/i })).toBeNull();
+  });
+});

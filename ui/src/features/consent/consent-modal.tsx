@@ -82,7 +82,7 @@ export function ConsentModal(): React.JSX.Element | null {
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShieldAlertIcon className="size-5 text-amber-500" aria-hidden />
+            <ShieldAlertIcon className="size-5 text-warning" aria-hidden />
             {isRepair ? t('consent.repairTitle') : t('consent.applyTitle')}
           </DialogTitle>
           <DialogDescription>

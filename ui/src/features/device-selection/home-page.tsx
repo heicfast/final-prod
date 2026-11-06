@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Device, Volume } from '@/connector/contract';
 import {
@@ -49,6 +49,12 @@ import { toast } from 'sonner';
  * cards with 3D drive icons + Windows OS badge + top-right blue checkmark on
  * selected card, "Specify a location" (Recycle Bin, Desktop, Select Folder),
  * and bottom bar with "Unable to find your hard drive? ^" + "Search for Lost Data".
+ *
+ * D-ENUM-01: the reference landing page renders BOTH device groups —
+ * "Internal drives (N)" AND "External drives (%1)" — on the same page; SD
+ * cards are additionally first-class on the dedicated /sd-card page. The
+ * pre-fix page rendered internal-only and hid every non-internal device
+ * behind an unreachable ?media URL param.
  */
 
 const RECYCLE_BIN_TARGET = 'vol-recycle-bin';
@@ -57,7 +63,6 @@ const DESKTOP_TARGET = 'vol-desktop';
 export function HomePage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const devicesQuery = useDevices();
   const refresh = useRefreshDevices();
   const sessionsQuery = useSessions();
@@ -74,13 +79,16 @@ export function HomePage(): React.JSX.Element {
     'vol-sys': true,
     'vol-data': true,
   });
-  const showRemovable = params.has('media');
-
   const devices = devicesQuery.data ?? [];
   const physical = devices.filter((d) => d.kind !== 'virtual');
   const internal = physical.filter((d) => d.kind === 'internal');
-  const removable = physical.filter((d) => d.kind !== 'internal');
-  const visible = showRemovable ? removable : internal;
+  // D-ENUM-01: reference parity — the landing page renders BOTH groups
+  // ("Internal drives (N)" + "External drives (%1)"); every physical device
+  // in the payload is visible and selectable. The old `?media` toggle hid
+  // every non-internal device behind an unreachable URL param — the user's
+  // "only one disk appears" on a 2-internal + 1-SD machine.
+  const external = physical.filter((d) => d.kind !== 'internal');
+  const visible = physical;
 
   const effectiveSelectedId = selectedId ?? visible[0]?.id ?? null;
   const selected = devices.find((d) => d.id === effectiveSelectedId) ?? null;
@@ -239,18 +247,17 @@ export function HomePage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {/* Internal drives (N) */}
+        {/* Internal drives (N) — reference landing group 1 */}
         <h2 className="mb-3.5 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
-          {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length}
-          )
+          {t('home.internalGroup')} ({internal.length})
         </h2>
 
         <div
           className="grid grid-cols-1 gap-4 sm:grid-cols-2"
           role="radiogroup"
-          aria-label={t('home.title')}
+          aria-label={t('home.internalGroup')}
         >
-          {visible.map((device) => (
+          {internal.map((device) => (
             <DeviceCard
               key={device.id}
               device={device}
@@ -261,6 +268,34 @@ export function HomePage(): React.JSX.Element {
             />
           ))}
         </div>
+
+        {/* External drives (N) — reference landing group 2 (D-ENUM-01: the
+            reference's "External drives (%1)" renders on the SAME landing
+            page; the group hides only when no external/SD/removable device
+            exists) */}
+        {external.length > 0 ? (
+          <>
+            <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
+              {t('home.removableGroup')} ({external.length})
+            </h2>
+            <div
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label={t('home.removableGroup')}
+            >
+              {external.map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  selected={effectiveSelectedId === device.id}
+                  onSelect={() => setSelectedId(device.id)}
+                  onScan={() => beginScan(device.id)}
+                  onScanVolume={(volumeId) => beginScan(volumeId)}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
 
         {/* Specify a location */}
         <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">

@@ -84,7 +84,7 @@ export const zhCN: TranslationSchema = {
     title: '选择要搜索丢失数据的位置',
     subtitle: '选择一个驱动器或位置开始搜索。',
     internalGroup: '内置驱动器',
-    removableGroup: '可移动设备',
+    removableGroup: '外接驱动器',
     quickTargets: '指定位置',
     recycleBin: '回收站',
     desktop: '桌面',

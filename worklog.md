@@ -2337,3 +2337,34 @@ ASSERTION (mt.exe dump + requireAdministrator check on the built exe)
 lands in the release lane + the re-vehicled probe, before any tag is
 cut. The banner component + twin-launcher probe re-vehicle with the
 D-UI-01/probe units.
+
+## D-ENUM-01 (UI layer) + D-UI-01 FIXED — reference-parity device list, token-themed elevation surfaces (lane A)
+
+Home page (ui/src/features/device-selection/home-page.tsx): the landing
+page now renders BOTH groups — "Internal drives (N)" AND "External
+drives (%1)" — exactly the reference landing layout (corpus
+REFERENCE-BEHAVIOR §2). The old filter rendered kind==='internal' only
+and hid every USB/SD/removable-bus device behind an unreachable ?media
+URL param — the user's "only one disk appears" (2 internal + 1 SD).
+i18n: removableGroup renamed to the reference string ("External
+drives" / 外接驱动器). The dedicated /sd-card page stays (sidebar-
+reachable, reference parity).
+
+Regression pin: tests/home-states.test.tsx — the landing page renders
+both groups + the SD card with NO ?media param; hides the External
+group only when empty. Verified RED on the old filter (2 failures),
+GREEN on the fix. 179/179 vitest; typecheck/lint/format/arch-lint green.
+
+Elevation surfaces re-themed onto the semantic warning tokens
+(D-UI-01): elevation-banner.tsx (the raw Tailwind amber bypass →
+border-warning/40 + bg-warning-muted + text-warning, no per-theme dark
+overrides needed — the token families carry light/dark/high-contrast),
+consent-modal.tsx's ShieldAlertIcon (text-amber-500 → text-warning).
+The banner's doc comment now states its post-manifest EDGE-CASE role
+(D-PRIV-01 made the normal launch always elevated).
+
+Remaining D-ENUM-01 layers (lane B per COORDINATION.md): the bridge's
+bus→kind degradation (devices.rs:215 marks USB/SD/MMC-bus disks 'usb'
+— fine now that Home renders them, but 'sd' vs 'usb' fidelity and any
+internal-misclassification still matter) and the engine's
+never-drop-a-present-disk class (cr_enumerate.cpp:98-127).

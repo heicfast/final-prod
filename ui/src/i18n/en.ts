@@ -83,7 +83,7 @@ export const en = {
     title: 'Select a location to search for lost data',
     subtitle: 'Pick a drive or location to start the search.',
     internalGroup: 'Internal drives',
-    removableGroup: 'Removable media',
+    removableGroup: 'External drives',
     quickTargets: 'Specify a location',
     recycleBin: 'Recycle Bin',
     desktop: 'Desktop',
