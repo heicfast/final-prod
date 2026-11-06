@@ -334,3 +334,36 @@ product tree.** The live hits are: core's own historical prose and absence-tests
 narratives the mandate itself requires ("what has changed since the prior
 release"), one error-mapping history row (the repurposed 0x50020007), and the
 absence guards that enforce this state. Zero unclassified hits.
+
+---
+
+## P6 re-sweep (gate §1 re-proof + gate §9 doc-truth), 2026-11-06
+
+Re-run of the §3.9 protocol on the release tree (db5f0b81): the same
+word-boundary pattern set over the tree minus the enumerated audit-trail
+exemptions (script: the session's driver_sweep.py, mirroring §3.9 exactly,
+including the recorded de-noise list).
+
+- Raw result: **76 files / 1,024 hits** (vs 184 live at P3 — the delta is
+  the sweep script's file-level granularity: P3 counted classified live
+  references; this re-sweep enumerates per-file before classification).
+- Classification — every file falls into the documented families:
+  1. `engine/**` (60 files): core_recovery's own historical prose and
+     absence-tests (byte-identical subtree per CORE-MERGE.md — not ours to
+     rewrite; core's history rides with the merge by design).
+  2. `docs/**` + `ui/docs/**` (13): bannered audit history + the removal
+     narratives (FORENSIC-PROBE's status banner, INSTALL-FOOTPRINT-*,
+     DEV-SIGNING's kernel-era note, INTEGRATION-GAPS' historical rows).
+  3. `README.md`: the `~~driver/~~ REMOVED` provenance row.
+  4. `contracts/`: the `.removed[]` manifest record (with reason) + the
+     repurposed 0x50020007 error row (documented repurposing).
+  5. `.github/workflows/engine-ci.yml`: the N-041 absence-lint patterns
+     (the tripwires). `forensic-repro.yml`: the uninstall absence
+     assertions ("RDA service exists after uninstall" = a FAIL condition).
+  6. `tools/validation/installer-matrix.ps1`: the driverFree assertions.
+  7. `ui/src-tauri/Cargo.toml:24`: the "SCM feature is GONE" removal note.
+  8. `ui/src-tauri/target/**`: LOCAL build artifacts — gitignored, not in
+     the repository (a sweep-script exemption-path gap, corrected in the
+     script, not a tree finding).
+- **Zero unclassified live references. The verdict above holds on the
+  release tree.**
