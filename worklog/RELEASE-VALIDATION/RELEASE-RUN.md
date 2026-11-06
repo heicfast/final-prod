@@ -323,11 +323,56 @@ the authority for a wrong pick (the typed session-corrupt refusal).
 
 ### The v0.8.4 release (the whole-disk re-attach fix)
 
-**(filled from the runs' evidence as they land — tag, release workflow,
-forensic dispatch on v0.8.4: the full gate set incl. the during-drain
-save, the drain banner, the incomplete save, the Backup Resume landing
-on the LIVE-SCAN route, the resumed completion, the unelevated twin,
-and the silent uninstall)**
+- Tag `v0.8.4` on **4b297849** (the re-attach fix 559080ae + the bump;
+  CI: ui-ci 42197913795, ui-e2e 42197913860, contracts-ci 42197913793
+  — GREEN).
+- Release run **42199111948 — SUCCESS** (~24 min): all gates green,
+  ctest 1741/1741, dev-sign verified, three assets published
+  (2026-11-06T10:17:32Z):
+  - `RecoveryWizard-0.8.4-setup.exe` — 2,791,064 B, SHA256
+    `C400738CC2ABE4131F6312314BC13CDBF9338F70C0332DF4CFB5F40E8DC52282`
+  - `RecoveryWizard-0.8.4-portable.zip` — 3,916,118 B, SHA256
+    `F73B5C04F37E65AE14A8A6CA72596E611EA1106C6D41C5E843580DF95EAF257A`
+  - `SHA256SUMS` — 199 B
+
+### The v0.8.4 forensic dispatch (run 24, 42201790752)
+
+**THE ENTIRE MAIN APP STEP (10) GREEN — every product gate on the
+shipped v0.8.4 binary passed for the first time** (the app.log captured
+by the new snapshot step tells the whole story):
+
+- Boot + no-mock gate ✓; S2 health (4 selections) ✓.
+- **S2b save/resume vehicle, ALL gates**: the mid-deep stop ✓, the
+  during-drain save ("Search saved") ✓, **the drain banner VISIBLE**
+  (the v0.8.2 poller fix on a shipped binary) ✓, the incomplete save ✓,
+  the Backup rows "(no volume label)" (the v0.8.1 fix) with Resume
+  affordances ✓, **the resume navigated the LIVE-SCAN route**
+  (`#/scan/vol-scan-2/live?scanId=scan-3` — the v0.8.3 fix) ✓, and the
+  log shows the full chain: "session resume: source device attached →
+  engine resume ok → launching the run thread for scan-3" (the v0.8.4
+  re-attach fix) → scan-3 completed rc=0 after 935 s (the carve
+  matcher, exactly as measured on the fresh scan).
+- S3 stall recorder ✓ (frozen at 76.1%); **S3b recover ✓** ("Recovery
+  finished — 1 of 1 files recovered · 0 failed"); S4 surfaces ✓.
+- The scan-1 stop drained cleanly (run() returned rc=0x50020005
+  ERR_CANCELLED) — the fast-drain side of the checkpoint variance.
+
+RED at step 11 (the unelevated twin's LAUNCHER): the twin's CDP never
+came up within 90 s and app.log carried ZERO lines from it — the twin
+app died before its first log write. Root cause (probe-side, the
+mechanism's first real execution): `Start-Process -Credential` logs on
+WITHOUT loading the profile, so `C:\Users\rwprobe` never exists and
+WebView2 cannot create its default user-data folder — the app exits
+before the webview starts. Fix (unelevated-launch.ps1 v3): the wrapper
+sets the documented `WEBVIEW2_USER_DATA_FOLDER` to a provisioned,
+ACL-granted scratch dir, runs the exe DIRECTLY (capturing
+stdout/stderr), and the launcher fails fast with the twin's stderr +
+the filtered Application event log when the process dies.
+
+**(the re-dispatch on v0.8.4 with the fixed twin launcher — filled from
+the run's evidence as it lands: the full gate set incl. the twin's
+banner + scan-refusal + no-mock, postrun facts, and the silent
+uninstall + no-leftover assertions)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 

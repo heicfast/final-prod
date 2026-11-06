@@ -73,12 +73,28 @@ $null = & net.exe user $user 2>&1
 & whoami.exe /groups /user "$env:COMPUTERNAME\$user" 2>&1 |
     Out-String | Set-Content (Join-Path $OutDir 'unelevated-user-groups.txt')
 
+# --- The twin's writable scratch --------------------------------------------
+# Run 42201790752: the twin's CDP never came up and app.log carried ZERO
+# lines from it. Root cause candidate: PowerShell's Start-Process
+# -Credential logs on WITHOUT loading the profile, so C:\Users\rwprobe
+# never exists and WebView2 cannot create its default user-data folder
+# under the missing %LOCALAPPDATA% - the app exits before the webview
+# starts. The documented WEBVIEW2_USER_DATA_FOLDER override points at a
+# provisioned directory instead (the twin's stderr is captured there too,
+# and the app's own ProgramData log writes drop silently by design -
+# logging.rs never crashes on a refused open).
+$twinData = 'C:\forensic\twin-data'
+New-Item -ItemType Directory -Force -Path "$twinData\webview" | Out-Null
+$null = & icacls.exe $twinData /grant "${user}:(OI)(CI)F" /T 2>&1
+Write-Host "[unelevated-launch] twin scratch $twinData provisioned for $user"
+
 # --- The CDP wrapper (the child does not inherit this shell's env) ----------
 $cmd = Join-Path $OutDir 'unelevated-launch.cmd'
 @"
 @echo off
 set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=$CdpPort
-start "" "$appExe"
+set WEBVIEW2_USER_DATA_FOLDER=$twinData\webview
+"$appExe" > "$twinData\twin-stdout.log" 2> "$twinData\twin-stderr.log"
 "@ | Set-Content $cmd -Encoding ASCII
 
 $before = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue)
@@ -87,17 +103,54 @@ $sec = ConvertTo-SecureString $pass -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential("$env:COMPUTERNAME\$user", $sec)
 Start-Process -FilePath $env:ComSpec -ArgumentList '/c', "`"$cmd`"" -Credential $cred -WindowStyle Hidden
 Write-Host "[unelevated-launch] spawned as $env:COMPUTERNAME\$user (standard user)"
+$spawnTime = Get-Date
+$seenAlive = $false
 
-# --- Wait for the CDP endpoint -----------------------------------------------
+# --- Wait for the CDP endpoint (fail fast if the twin dies) ------------------
 $deadline = (Get-Date).AddSeconds(90)
 $ready = $false
+$died = $false
 while ((Get-Date) -lt $deadline) {
     try {
         $v = Invoke-RestMethod -Uri "http://127.0.0.1:$CdpPort/json/version" -TimeoutSec 2
         if ($v.Browser) { $ready = $true; break }
     } catch { Start-Sleep -Milliseconds 500 }
+    # Fail fast: if the twin's app process never appeared (5 s grace for
+    # the spawn itself) or vanished, the CDP endpoint will never come up -
+    # capture WHY instead of waiting out the window.
+    $alive = @(Get-Process -Name 'recovery-wizard-ui' -ErrorAction SilentlyContinue |
+        Where-Object { $before.ProcessId -notcontains $_.Id })
+    if ($alive.Count -gt 0) {
+        $seenAlive = $true
+    } elseif ($seenAlive -or ((Get-Date) -gt $spawnTime.AddSeconds(5))) {
+        $died = $true
+        break
+    }
 }
-if (-not $ready) { throw "unelevated instance CDP did not come up on port $CdpPort within 90s" }
+if (-not $ready) {
+    # The failure evidence: the twin's captured stderr/stdout, the crash
+    # records from the Windows Application log, and the scratch contents.
+    $diag = @()
+    foreach ($f in 'twin-stderr.log', 'twin-stdout.log') {
+        $p = Join-Path $twinData $f
+        if (Test-Path $p) {
+            $txt = (Get-Content $p -Raw -ErrorAction SilentlyContinue)
+            if ($txt) { $diag += "=== $f ==="; $diag += $txt.Trim().Split("`n") | Select-Object -First 20 }
+        }
+    }
+    try {
+        $evt = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-5) } -MaxEvents 40 -ErrorAction Stop |
+            Where-Object { $_.Message -match 'recovery-wizard|WebView2|rwprobe' } |
+            ForEach-Object { "{0} [{1}] {2}" -f $_.TimeCreated.ToString('HH:mm:ss'), $_.ProviderName, ($_.Message -split "`n")[0..2] -join ' ' }
+        if ($evt) { $diag += '=== Application event log (last 5 min, filtered) ==='; $diag += $evt }
+    } catch { $diag += "event log query failed: $($_.Exception.Message)" }
+    $diag += "=== twin-data contents ==="
+    $diag += (Get-ChildItem $twinData -Recurse -ErrorAction SilentlyContinue | Select-Object -First 15 | ForEach-Object { $_.FullName })
+    $diag | Out-String | Set-Content (Join-Path $OutDir 'unelevated-launch-failure.txt') -Encoding UTF8
+    Write-Host ($diag -join "`n")
+    $reason = if ($died) { 'the twin app process exited before the CDP endpoint came up' } else { 'the CDP endpoint did not come up within 90s' }
+    throw "unelevated instance launch failed: $reason (diagnostics in unelevated-launch-failure.txt)"
+}
 
 # --- Identify the app process + ASSERT its token is genuinely unelevated ----
 $app = $null

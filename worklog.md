@@ -2052,3 +2052,26 @@ refuses.
   with ERR_BAD_CHECKSUM (the typed session-corrupt refusal), the same
   safety net the single-match path relies on for a replaced disk.
 - v0.8.4 cut (lockstep + default tag + notes truth + BF-27 recorded).
+
+### Forensic run 24 — THE MAIN GATES ALL GREEN on v0.8.4; the twin launcher fixed
+
+Run 24 (42201790752): step 10 — the ENTIRE drive-the-UI step — GREEN for
+the first time on a shipped binary. The app.log (new snapshot step)
+tells the chain: the resume attached → engine resumed → scan-3 completed
+rc=0 (935 s carve); recovery '1 of 1 files recovered'; the stall
+recorded at 76.1%. Every product fix of the 0.8.x line proven on the
+installed release: the drain banner (0.8.2), the '(no volume label)'
+rows (0.8.1), the live-scan resume route (0.8.3), the whole-disk
+re-attach (0.8.4).
+
+RED moved to step 11 — the unelevated twin's launcher: the twin's CDP
+never came up; zero log lines from it. Root cause (probe-side, first
+real execution of the mechanism): Start-Process -Credential logs on
+WITHOUT loading the profile — C:\Users\rwprobe never exists, WebView2
+cannot create its default user-data folder, the app exits before the
+webview starts. Fix (launcher v3): WEBVIEW2_USER_DATA_FOLDER → a
+provisioned ACL-granted scratch dir, the exe runs DIRECTLY with
+stdout/stderr captured, and the launcher fails fast with the stderr +
+the filtered Application event log when the process dies. The twin-data
+dir rides the artifact. No product change — the v0.8.4 binary stands;
+re-dispatch follows.
