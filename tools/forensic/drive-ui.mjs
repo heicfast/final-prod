@@ -285,7 +285,169 @@ async function main() {
         await shot(page, 'scan-4-manual-results');
       }
     }
+
+    // ---------------------------------------------------------------- S3b: results -> recover (+ the stop path when incomplete)
+    // The deep scan of the 64GB seeded vdisk does not complete inside the
+    // capture window on this runner class - and the PRE-MERGE engine showed
+    // the identical stall at 76.1% (old run 42072191860, ABI v2: 43%->76.1%
+    // over 28 min, 189 items; this run: 75%->76.1%, 197 items). Identical
+    // behavior across two engines 1092 commits apart = environmental /
+    // known-perf (the carve matcher over the sparse vdisk's free space; core's
+    // PERF-LEVERS frontier), NOT a wiring regression. Recorded as a behavior
+    // finding. Either way - completed (celebration modal) or stopped (the
+    // real partial-results path) - the recover + session surfaces are then
+    // driven on the real engine. Both are GATES: a failure fails the run.
+    evidence.phases.recover = { viaStop: !/\/results\//.test(page.url()) };
+    try {
+      if (!/\/results\//.test(page.url())) {
+        log('S3b: stopping the scan (the real partial-results path)');
+        await page.getByRole('button', { name: 'Stop', exact: true }).first().click({ timeout: 15000 });
+        const stopDlg = page.getByRole('dialog', { name: /Stop Searching for Lost Data\?/i });
+        await stopDlg.waitFor({ state: 'visible', timeout: 10000 });
+        await shot(page, 'recover-0-stop-dialog');
+        await stopDlg.getByRole('button', { name: 'Stop', exact: true }).click({ timeout: 10000 });
+        await page.waitForURL(/\/results\//, { timeout: 30000 });
+        await page.waitForTimeout(4000);
+        const partial = await page.getByRole('status').filter({ hasText: /stopped early/i }).count()
+          .catch(() => 0);
+        evidence.phases.recover.partialBanner = partial > 0;
+        await shot(page, 'recover-1-partial-results');
+      } else {
+        // Completed inside the window: the celebration modal's own
+        // 'Go to Recover' lands on the results surface.
+        const goBtn = page.getByRole('button', { name: /go to recover/i }).first();
+        if (await goBtn.count().catch(() => 0)) {
+          await goBtn.click({ timeout: 10000 });
+          await page.waitForURL(/\/results\//, { timeout: 30000 });
+          await page.waitForTimeout(4000);
+        }
+        await shot(page, 'recover-1-complete-results');
+      }
+
+        // Save the session (the results explorer's save affordance).
+        const save = page.getByRole('button', { name: /save this search/i }).first();
+        if (await save.count().catch(() => 0)) {
+          await save.click({ timeout: 10000 });
+          await page.waitForTimeout(4000); // the save + the toast
+          evidence.phases.recover.sessionSaved = true;
+          await shot(page, 'recover-2-session-saved');
+          log('S3b: session saved from the results explorer');
+        } else {
+          evidence.phases.recover.sessionSaved = false;
+          log('S3b: save-this-search affordance not found');
+        }
+
+        // Select the first data row's checkbox, then Recover.
+        const rows = page.getByRole('row');
+        const rowCount = await rows.count().catch(() => 0);
+        evidence.phases.recover.rowsInResults = rowCount;
+        if (rowCount > 1) {
+          await page.getByLabel(/select row/i).first().click({ timeout: 10000 });
+          await page.waitForTimeout(1000);
+          const recoverBtn = page.getByRole('button', { name: /recover \d+ items?/i }).first();
+          await recoverBtn.click({ timeout: 15000 });
+          await page.waitForURL(/\/recover\//, { timeout: 30000 });
+          await page.waitForTimeout(3000);
+          await shot(page, 'recover-3-destination-page');
+
+          // Destination: a MOUNT row (Temp(D:) - not C:, not the source X:).
+          // The native folder picker cannot be driven via CDP by design;
+          // the mount list is the product's own in-app destination surface.
+          const mount = page.getByRole('button', { name: /Temp\s*\(\s*D:/i }).first();
+          if (await mount.count().catch(() => 0)) {
+            await mount.click({ timeout: 10000 });
+            await page.waitForTimeout(2500); // the F12 overlap validation
+            evidence.phases.recover.destination = 'Temp(D:) mount row';
+            await shot(page, 'recover-4-destination-chosen');
+            const start = page.getByRole('button', { name: /recover \d+ items?/i }).first();
+            await start.click({ timeout: 15000 });
+            log('S3b: recovery started to the Temp(D:) mount');
+            const report = await page
+              .getByRole('status')
+              .filter({ hasText: /recovery finished|recovery failed|issues/i })
+              .first()
+              .waitFor({ state: 'visible', timeout: 180000 })
+              .catch(() => null);
+            const reportText = report
+              ? ((await page.getByRole('status').filter({ hasText: /recovery/i }).first().textContent()) || '')
+              : null;
+            evidence.phases.recover.reportText = (reportText || '').trim().slice(0, 600);
+            await shot(page, 'recover-5-report');
+            log(`S3b: recovery report: ${(reportText || 'NOT OBSERVED').slice(0, 120)}`);
+            if (!report) {
+              throw new Error('RECOVERY REPORT NOT OBSERVED within 180s of starting the recovery');
+            }
+          } else {
+            evidence.phases.recover.destination = 'Temp(D:) mount row NOT FOUND';
+            await shot(page, 'recover-3-no-mount-rows');
+            throw new Error('the destination mount rows did not render (Temp(D:) not found)');
+          }
+        } else {
+          evidence.phases.recover.error = `results grid has ${rowCount} rows - nothing to select`;
+          throw new Error(evidence.phases.recover.error);
+        }
+      } catch (e) {
+        (evidence.phases.recover ||= {}).error = String(e);
+        log('S3b FAILED: ' + e.message);
+        await shot(page, 'recover-failed').catch(() => {});
+        throw new Error(`gate: S3b recover surface - ${e.message}`); // fails the run - no masking
+      }
+
+    // ---------------------------------------------------------------- S5: session save-resume
+    // The saved session (S3b) must appear in the Backup/Scan Snapshot screen
+    // with a working Resume affordance. A missing save affordance in S3b is
+    // itself a gate failure (the surface must exist, not silently skip).
+    if (!evidence.phases.recover?.sessionSaved) {
+      throw new Error(
+        'gate: S5 session save - the results explorer showed no "Save this search" affordance',
+      );
+    }
+    {
+      evidence.phases.sessionResume = {};
+      try {
+        log('S5: backup screen - the saved session + resume affordance');
+        await page.evaluate(() => { location.hash = '#/backup'; });
+        await page.waitForTimeout(4000);
+        const s = await domSummary(page);
+        evidence.phases.sessionResume.summary = {
+          headings: s.headings, bodyText: s.bodyText.slice(0, 2500),
+        };
+        await shot(page, 'session-1-backup-list');
+        const resumeBtn = page.getByRole('button', { name: /resume scan/i }).first();
+        const resumeCount = await resumeBtn.count().catch(() => 0);
+        evidence.phases.sessionResume.resumeAffordance = resumeCount > 0;
+        if (resumeCount > 0) {
+          await resumeBtn.click({ timeout: 10000 });
+          // The resume either lands on a live scan (URL /scan/) or refuses
+          // with a toast; both are recorded, the live-scan URL is the gate.
+          await page.waitForTimeout(5000);
+          evidence.phases.sessionResume.urlAfterResume = page.url();
+          await shot(page, 'session-2-after-resume');
+          if (!/\/scan\//.test(page.url())) {
+            throw new Error(`RESUME did not navigate to a live scan (url: ${page.url()})`);
+          }
+          log('S5: resume navigated to a live scan - stopping it again (probe hygiene)');
+          await page.getByRole('button', { name: 'Stop', exact: true }).first().click({ timeout: 15000 });
+          const stopDlg = page.getByRole('dialog', { name: /Stop Searching for Lost Data\?/i });
+          await stopDlg.waitFor({ state: 'visible', timeout: 10000 });
+          await stopDlg.getByRole('button', { name: 'Stop', exact: true }).click({ timeout: 10000 });
+          await page.waitForTimeout(3000);
+        } else {
+          throw new Error('the saved session shows no Resume affordance on the backup screen');
+        }
+      } catch (e) {
+        evidence.phases.sessionResume.error = String(e);
+        log('S5 FAILED: ' + e.message);
+        await shot(page, 'session-failed').catch(() => {});
+        throw new Error(`gate: S5 session save-resume - ${e.message}`); // fails the run - no masking
+      }
+    }
   } catch (e) {
+    // S3 itself stays a RECORDER (the scan's speed/stall is a behavior
+    // finding, not a gate) - but the S3b/S5 GATE failures rethrow past this
+    // catch (marked gate:), because a failed recover/session surface must
+    // fail the run, never ride green.
+    if (String(e).includes('gate:')) throw e;
     (evidence.phases.scan ||= {}).error = String(e);
     log('S3 FAILED: ' + e.message);
     await shot(page, 'scan-failed').catch(() => {});

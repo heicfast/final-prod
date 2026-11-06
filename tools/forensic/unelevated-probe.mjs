@@ -51,7 +51,9 @@ async function main() {
   if (!page) page = await ctx.waitForEvent('page', { timeout: 30000 });
 
   await page.waitForLoadState('load').catch(() => {});
-  await page.waitForTimeout(5000); // boot + the posture query settles
+  // A fresh user's first boot initializes the WebView2 profile - allow a
+  // longer settle before asserting.
+  await page.waitForTimeout(9000);
   await page.screenshot({ path: path.join(SHOTS, 'unelevated-01-boot.png'), fullPage: true }).catch(() => {});
 
   // Assertion 1 — the no-mock gate (same signals as drive-ui.mjs).
@@ -72,7 +74,7 @@ async function main() {
   const banner = page.locator('[role="alert"]').filter({
     hasText: /administrator privileges/i,
   });
-  const bannerVisible = await banner.isVisible({ timeout: 20000 }).catch(() => false);
+  const bannerVisible = await banner.isVisible({ timeout: 30000 }).catch(() => false);
   evidence.assertions.elevationBanner = {
     visible: bannerVisible,
     text: bannerVisible ? ((await banner.textContent()) || '').trim().slice(0, 400) : null,

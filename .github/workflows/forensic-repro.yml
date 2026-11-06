@@ -153,8 +153,14 @@ jobs:
               $up = [int](Get-Content $pidFile -Raw).Trim()
               if (Get-Process -Id $up -ErrorAction SilentlyContinue) { Stop-Process -Id $up -Force -ErrorAction SilentlyContinue }
             }
-            # Belt and braces: any app process still bound to port 9223's
-            # WebView2 tree dies with its parent; give the job a moment.
+            # The probe user's processes (cmd wrapper) die with the app; the
+            # account itself is removed so the runner carries no leftovers.
+            $userFile = 'C:\forensic\evidence\unelevated-user.txt'
+            if (Test-Path $userFile) {
+              $u = (Get-Content $userFile -Raw).Trim()
+              $null = & net.exe user $u /delete /y 2>&1
+              Write-Host "probe user '$u' removed (exit $LASTEXITCODE)"
+            }
             Start-Sleep -Seconds 2
           }
 
