@@ -118,16 +118,20 @@ jobs:
 
           ## What changed in this release
 
-          - **A refused session save is now visible.** In 0.7.0, saving a
-            scan session while the engine was still winding down after a
-            stopped scan silently did nothing — the refusal had no visible
-            sign and the checkpoint was never written. This release shows
-            the error plainly (and the save can simply be retried once the
-            engine has settled).
+          - **The Backup screen no longer calls a valid session
+            "unreadable".** Scans of whole disks (no volume label) were
+            listed as "(unreadable session)" even though the checkpoint
+            was perfectly loadable and resumable; such rows now say
+            "(no volume label)".
+          - **A refused session save is now visible** (carried from
+            0.8.0): saving a scan session while the engine was still
+            winding down after a stopped scan used to silently do
+            nothing; the error is now shown plainly and the save can be
+            retried once the engine has settled.
           - **Everything else is the proven 0.7.0 product**: user-mode
             direct raw-disk access, the ABI v4 engine, the rebuilt wizard
-            UI wired to the real engine — no behavioral change to scanning,
-            recovery, health or repairs.
+            UI wired to the real engine — no behavioral change to
+            scanning, recovery, health or repairs.
           - For the history from the 0.6.x driver era: 0.7.0 removed the
             kernel driver entirely (no service, no certificate imports,
             complete uninstall) and advanced the engine to the current
