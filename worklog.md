@@ -2125,3 +2125,30 @@ nothing re-attempted it after the probe's delete. Fix: after removing
 the self-exe, the probe removes the now-EMPTY dir + parent
 (Remove-Item WITHOUT -Recurse — it fails on a non-empty dir, so a real
 leftover can never be masked). Probe-side only; v0.8.4 stands.
+
+## FORENSIC #29 — THE COMPLETE GREEN RUN (the session's exit criterion met)
+
+Run 42226613660 (v0.8.4, probe @ 0d09bca7): EVERY step green — the
+first complete end-to-end validation of an installed release in the
+product's history. S1 install, launch + no-mock, S2 health, the S2b
+save/resume vehicle (all gates: during-drain save toast, drain banner,
+incomplete save, Backup Resume, the live-scan route, the resumed
+completion — the app.log chain proves every 0.8.x fix on the shipped
+binary), S3 stall recorder (76.1%, BF-22), S3b recover ('1 of 1 files
+recovered'), S4 surfaces, the unelevated twin (banner + refusal +
+no-mock on a genuinely restricted token), postrun facts, and the silent
+uninstall with every no-leftover assertion (the documented _?=
+self-exe survivor cleaned and recorded; ProgramData sessions kept by
+design). RELEASE-RUN.md's v0.8.4 section carries the full step-by-step
+record with the artifact link.
+
+The campaign's ledger: 5 releases (v0.8.0-v0.8.4, every release
+workflow green: 42167758364, 42174434974, 42182876659, 42188868989,
+42199111948); 4 product bugs found by the probe and shipped as fixes
+(BF-26 mislabel, the poller freeze, the invisible resume route, BF-27
+whole-disk re-attach); 2 regression pins verified red-on-old/green-on-
+fix (scan-state-drain, backup-resume-route); 9 forensic attempts on the
+0.8.x line, each red root-caused from its own artifact before the next
+dispatch; BF-25 generalized with measured evidence (upstream core
+scope). Main green at every push; every tag matched its VERSION
+lockstep; every artifact byte-verified against its published checksum.

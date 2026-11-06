@@ -383,9 +383,60 @@ children (matched by data-dir command line) before the uninstall, the
 settle window doubled, and a persistent install dir records its
 leftover listing into the evidence.
 
-**(the final re-dispatch on v0.8.4 — filled from the run's evidence as
-it lands: the complete gate set, end to end, on a clean Windows
-machine)**
+### THE COMPLETE GREEN RUN — forensic #29 (42226613660, on v0.8.4)
+
+**Every step of the installed-release validation, end to end, on a clean
+Windows runner — ALL GREEN for the first time in the product's history**
+(after 12 forensic attempts across two release lines; every red was a
+probe defect fixed in-tree or a real product bug shipped as a fix
+release, never a masked failure):
+
+1. **S1 install** (full process/window capture) ✓
+2. **Launch + the no-mock gate** on the live shipped DOM
+   (`__TAURI_INTERNALS__` present, no TEST DOUBLE hook) ✓
+3. **S2 health** — 4 drive selections, the honest SMART-absent state ✓
+4. **S2b save/resume vehicle — every gate**: the mid-deep stop ✓; the
+   during-drain save ("Search saved" + the Stop toast — the never-silent
+   proof on a shipped binary) ✓; **the drain banner VISIBLE** (the
+   v0.8.2 poller fix) ✓; the incomplete-session save (attempt 1) ✓; the
+   Backup rows "(no volume label)" with Resume affordances (the v0.8.1
+   fix) ✓; **the resume navigated the live-scan route**
+   `#/scan/vol-scan-2/live?scanId=scan-3` (the v0.8.3 fix) ✓; the
+   app.log chain "source device attached → engine resume ok → run thread
+   launched" (the v0.8.4 fix) ✓; **the resumed scan completed** (rc=0;
+   103 timeline samples; measured completions 11.8-16.0 min, the cap
+   sized to the evidence) ✓
+5. **S3 stall recorder** — the 64GB deep scan frozen at 76.1% (BF-22,
+   the known environmental carve-matcher behavior, recorded not gated) ✓
+6. **S3b stop → partial results → recover → report** — 30 rows,
+   destination 'Temp (219.68 GB / 219.98 GB)', **"Recovery finished —
+   1 of 1 files recovered · 0 failed"** ✓
+7. **S4 surfaces** — lost-partition, repair, sd-card, backup, settings ✓
+8. **The unelevated twin** (genuinely restricted token,
+   CreateProcessWithLogonW of a fresh standard user): the no-mock gate ✓,
+   **the elevation banner** ("Direct disk access requires administrator
+   privileges — scanning and recovery are disabled until the app is
+   restarted as administrator") ✓, **the scan-start refusal** (the
+   elevation-required toast, never a silent no-op) ✓
+9. **Postrun facts** ✓
+10. **The silent uninstall + no-leftover assertions** — uninstaller exit
+    0, the install dir GONE, the uninstall registry key GONE, no service,
+    no driver file; the one documented `_?=` survivor (the uninstaller's
+    own exe) cleaned by the probe with the record in
+    uninstall-self-cleanup.txt; ProgramData sessions kept by documented
+    design (deletion requires interactive consent) ✓
+
+The artifact: https://github.com/heicfast/final-prod/actions/runs/42226613660/artifacts
+(evidence.json, the app.log with the full lifecycle, the twin's
+unelevated.json, all screenshots, the io-timeline, the machine facts
+before/after, the uninstall records).
+
+**The release line this validates: v0.8.4** — the proven 0.7.0
+consolidation product (user-mode raw-disk access, ABI v4 engine, the
+rewired wizard UI) plus the four session-surface fixes the forensic
+campaign itself surfaced: the visible refused save (0.8.0), the honest
+Backup row labels (0.8.1), the stopped-scan banner (0.8.2), the
+live-scan resume route (0.8.3), and the whole-disk re-attach (0.8.4).
 
 ## Behavior findings recorded during the validation (not release blockers)
 
