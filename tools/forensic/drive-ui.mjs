@@ -368,21 +368,52 @@ async function main() {
             await shot(page, 'recover-4-destination-chosen');
             const start = page.getByRole('button', { name: /recover \d+ items?/i }).first();
             await start.click({ timeout: 15000 });
-            log('S3b: recovery started to the Temp(D:) mount');
-            const report = await page
-              .getByRole('status')
-              .filter({ hasText: /recovery finished|recovery failed|issues/i })
-              .first()
-              .waitFor({ state: 'visible', timeout: 180000 })
-              .catch(() => null);
-            const reportText = report
-              ? ((await page.getByRole('status').filter({ hasText: /recovery/i }).first().textContent()) || '')
-              : null;
-            evidence.phases.recover.reportText = (reportText || '').trim().slice(0, 600);
+            log('S3b: recovery started');
+            // The report wait. Run 42138026793 rejected this wait in 268 ms
+            // on WebView2 (non-timeout; the report WAS already visible in
+            // the same-instant screenshot 71) while the identical pattern
+            // resolves in ~1.3 s on Chromium (local repro #1/#2). Rather
+            // than trust the ARIA engine over CDP/WebView2, this uses the
+            // CSS engine, captures any rejection VERBATIM (the forensic
+            // record must show it), retries once, and dumps the live
+            // role=status inventory on failure.
+            const reportWait = async (ms) => {
+              try {
+                await page
+                  .locator('[role="status"]')
+                  .filter({ hasText: /recovery finished|recovery failed|issues/i })
+                  .first()
+                  .waitFor({ state: 'visible', timeout: ms });
+                return { ok: true };
+              } catch (e) {
+                return { ok: false, error: `${e.name}: ${String(e.message).slice(0, 400)}` };
+              }
+            };
+            let report = await reportWait(180000);
+            if (!report.ok) {
+              log(`S3b: report wait rejected (${report.error}); retrying once after 2s`);
+              await page.waitForTimeout(2000);
+              report = await reportWait(60000);
+            }
+            const reportText = report.ok
+              ? ((await page.locator('[role="status"]').filter({ hasText: /recovery/i }).first().textContent().catch(() => '')) || '')
+              : '';
+            evidence.phases.recover.reportText = reportText.trim().slice(0, 600);
+            evidence.phases.recover.reportWait = report;
             await shot(page, 'recover-5-report');
-            log(`S3b: recovery report: ${(reportText || 'NOT OBSERVED').slice(0, 120)}`);
-            if (!report) {
-              throw new Error('RECOVERY REPORT NOT OBSERVED within 180s of starting the recovery');
+            log(`S3b: recovery report: ${(reportText.trim() || 'NOT OBSERVED').slice(0, 120)}`);
+            if (!report.ok) {
+              const inventory = await page
+                .evaluate(() =>
+                  [...document.querySelectorAll('[role="status"]')].map((el) => ({
+                    text: (el.textContent || '').trim().slice(0, 100),
+                    visible: !!(el.offsetWidth || el.offsetHeight),
+                  })),
+                )
+                .catch(() => 'evaluate failed');
+              evidence.phases.recover.statusInventory = inventory;
+              log('S3b: role=status inventory: ' + JSON.stringify(inventory).slice(0, 500));
+              throw new Error(`RECOVERY REPORT WAIT FAILED: ${report.error}`);
             }
           } else {
             evidence.phases.recover.destination = 'no usable mount row found (Temp / SeedEXFAT)';
