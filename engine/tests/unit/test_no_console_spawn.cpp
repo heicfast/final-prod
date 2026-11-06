@@ -32,11 +32,11 @@ TEST(D2NoConsole, NoConsoleSpawningCallsInShippingEngineCode) {
      * shim, the CLI app. If a new file needs process creation it must join
      * this list AND the CREATE_NO_WINDOW discipline. */
     const char* files[] = {
-        "src/win/cr_health.cpp", "src/win/cr_fsck.cpp",     "src/win/cr_bitlocker.cpp",
-        "src/win/cr_enumerate.cpp", "src/win/cr_transport.cpp", "src/win/cr_image_win.cpp",
-        "src/win/cr_mountpoints.cpp", "src/win/cr_elevate.cpp", "src/win/cr_destio.cpp",
-        "src/win/cr_bootfix.cpp", "src/win/cr_image_create.cpp",
-        "src/ui/cr_ui.cpp", "src/app/rrecov.cpp",
+        "src/win/cr_health.cpp",      "src/win/cr_fsck.cpp",         "src/win/cr_bitlocker.cpp",
+        "src/win/cr_enumerate.cpp",   "src/win/cr_transport.cpp",    "src/win/cr_image_win.cpp",
+        "src/win/cr_mountpoints.cpp", "src/win/cr_elevate.cpp",      "src/win/cr_destio.cpp",
+        "src/win/cr_bootfix.cpp",     "src/win/cr_image_create.cpp", "src/ui/cr_ui.cpp",
+        "src/app/rrecov.cpp",
     };
     for (const char* f : files) {
         const std::string src = cr_test::read_repo_text(f);
@@ -48,8 +48,9 @@ TEST(D2NoConsole, NoConsoleSpawningCallsInShippingEngineCode) {
         EXPECT_EQ(std::string::npos, src.find("WinExec"))
             << f << ": WinExec cannot hide the child console (D2)";
         EXPECT_EQ(std::string::npos, src.find("ShellExecute"))
-            << f << ": ShellExecute* shows windows by default (D2); use "
-                   "CreateProcessW + CREATE_NO_WINDOW";
+            << f
+            << ": ShellExecute* shows windows by default (D2); use "
+               "CreateProcessW + CREATE_NO_WINDOW";
     }
 }
 
