@@ -350,14 +350,21 @@ async function main() {
           await page.waitForTimeout(3000);
           await shot(page, 'recover-3-destination-page');
 
-          // Destination: a MOUNT row (Temp(D:) - not C:, not the source X:).
-          // The native folder picker cannot be driven via CDP by design;
-          // the mount list is the product's own in-app destination surface.
-          const mount = page.getByRole('button', { name: /Temp\s*\(\s*D:/i }).first();
+          // Destination: a MOUNT row. The native folder picker cannot be
+          // driven via CDP by design; the mount list is the product's own
+          // in-app destination surface. The rows render the VOLUME LABEL
+          // (bridge system_list_mounts: fixed_str(&v.label)) - no drive
+          // letter - so match by label: 'Temp' (the windows-2022 scratch
+          // volume, 220 GB) with 'SeedEXFAT' (Y:, 8 GB) as the fallback.
+          // 'Windows' is C: (overlap-flagged) and 'SeedNTFS' is the source.
+          const mount =
+            (await page.getByRole('button', { name: /^Temp\b/i }).first().count().catch(() => 0))
+              ? page.getByRole('button', { name: /^Temp\b/i }).first()
+              : page.getByRole('button', { name: /^SeedEXFAT\b/i }).first();
           if (await mount.count().catch(() => 0)) {
             await mount.click({ timeout: 10000 });
             await page.waitForTimeout(2500); // the F12 overlap validation
-            evidence.phases.recover.destination = 'Temp(D:) mount row';
+            evidence.phases.recover.destination = await mount.textContent().then(t => (t || '').trim().slice(0, 80)).catch(() => 'mount row');
             await shot(page, 'recover-4-destination-chosen');
             const start = page.getByRole('button', { name: /recover \d+ items?/i }).first();
             await start.click({ timeout: 15000 });
@@ -378,9 +385,9 @@ async function main() {
               throw new Error('RECOVERY REPORT NOT OBSERVED within 180s of starting the recovery');
             }
           } else {
-            evidence.phases.recover.destination = 'Temp(D:) mount row NOT FOUND';
+            evidence.phases.recover.destination = 'no usable mount row found (Temp / SeedEXFAT)';
             await shot(page, 'recover-3-no-mount-rows');
-            throw new Error('the destination mount rows did not render (Temp(D:) not found)');
+            throw new Error('the destination mount rows did not render (no Temp/SeedEXFAT row)');
           }
         } else {
           evidence.phases.recover.error = `results grid has ${rowCount} rows - nothing to select`;
