@@ -118,7 +118,7 @@ jobs:
           "app pid: $appPid"
           $io = $null
           try {
-            $io = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','4800' -PassThru
+            $io = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','5400' -PassThru
             $io.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
 
             $env:OUT_DIR = 'C:\forensic\evidence'

@@ -469,11 +469,14 @@ async function main() {
     log('S2b: resume navigated to a live scan');
 
     // The resumed scan continues the deep stage from its checkpoint, then
-    // carve, then completes (the fresh scan ran 11.8 min end to end on
-    // this seed — run 42170466748; the resume does the REMAINING work).
+    // carve, then completes. Measured completions on this seed: the fresh
+    // scan 11.8 min (run 42170466748), the resume 15.6 min (run 42201790752)
+    // and 16.03 min (run 42212963611 — which COMPLETED at 962 s, five
+    // seconds past this loop's former 960 s cap: the carve matcher's
+    // variance is minutes, so the cap must clear it with margin).
     // Completion is the gate: a resumed-scan stall would be a real find.
     const r0 = Date.now();
-    const R_CAP_MS = 16 * 60 * 1000;
+    const R_CAP_MS = 22 * 60 * 1000;
     let rLastShot = 0;
     let rCompleted = false;
     evidence.phases.saveResume.resumedScan = { timeline: [] };
@@ -501,7 +504,7 @@ async function main() {
     }
     evidence.phases.saveResume.resumedScan.completed = rCompleted;
     if (!rCompleted) {
-      throw new Error('gate: S2b resume completion - the resumed scan did not complete within 16 min (fresh-scan baseline: 11.8 min, run 42170466748)');
+      throw new Error('gate: S2b resume completion - the resumed scan did not complete within 22 min (measured baselines: fresh 11.8 min, resumed 15.6-16.0 min; runs 42170466748/42201790752/42212963611)');
     }
     await page.waitForTimeout(4000); // the celebration modal renders
     await shot(page, 'save-8-resumed-complete');

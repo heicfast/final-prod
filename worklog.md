@@ -2090,3 +2090,15 @@ fix: every teardown sweeps the app's msedgewebview2 children (matched
 by data-dir command line) + waits for exit; the uninstall pre-sweeps;
 the settle window doubles; a persistent install dir records its
 leftover listing into the evidence. No product change — v0.8.4 stands.
+
+### Forensic run 26 — a five-second race; the completion cap sized to the measured variance
+
+Run 26 (42212963611, v0.8.4): every S2b gate green (the drain banner in
+~3 s — the fast-checkpoint case; save attempt 1; the resume navigated
+the live-scan route; the resume-armed consent modal appeared and was
+answered Decline — S-008's resumed-scans-keep-the-consent-gate design,
+exercised for the first time) — then the completion gate lost a FIVE
+SECOND race: the resumed scan completed at 962 s against the 960 s cap
+(run 24's took 935 s; the carve matcher's variance is minutes). The cap
+is sized to the evidence: 22 min (baselines 11.8 fresh / 15.6-16.0
+resumed); the io-probe window follows (5400 s). Probe-side only.
