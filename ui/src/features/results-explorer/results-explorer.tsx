@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
 import { useCancelSave, useSaveSession } from '@/queries/sessions';
+import { useOpenPath } from '@/queries/system';
 import { useConnectorMode } from '@/queries/dev';
 import { useFilterStore, useSortStore, resolveFilter } from '@/stores/filter-store';
 import { selectedCountOf, useSelectionStore } from '@/stores/selection-store';
@@ -83,6 +84,7 @@ export function ResultsExplorer({
   const [searchDraft, setSearchDraft] = React.useState(filter.search);
   const [activeNodeId, setActiveNodeId] = React.useState<string | null>(null);
   const [smartSelecting, setSmartSelecting] = React.useState(false);
+  const openPath = useOpenPath();
 
   // resolveFilter() reads the store imperatively, so the subscribed state
   // object itself is the dependency (identity changes on every store update).
@@ -101,6 +103,22 @@ export function ResultsExplorer({
     [pages.data],
   );
   const total = pages.data?.pages[pages.data.pages.length - 1]?.total ?? 0;
+
+  // U-02 (the dead "Open location" item): the context menu's target row —
+  // single selection, else the active node, else the first loaded row
+  // (the same resolution the Preview item uses). Only an 'existing' row
+  // has a real on-disk path to reveal; lost/deleted/raw files are NOT on
+  // the disk (recover first — the item explains instead of failing).
+  const contextRow = React.useMemo(() => {
+    const single =
+      selection.mode === 'ids' && selection.ids.size === 1 ? [...selection.ids][0] : null;
+    const targetId = single ?? activeNodeId ?? rows[0]?.id ?? null;
+    return rows.find((r) => r.id === targetId) ?? null;
+  }, [selection, activeNodeId, rows]);
+  const revealablePath =
+    connectorMode === 'tauri' && contextRow?.origin === 'existing' && contextRow.path !== null
+      ? contextRow.path
+      : null;
 
   React.useEffect(() => {
     if (!activeNodeId) return;
@@ -474,10 +492,17 @@ export function ResultsExplorer({
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
-                disabled={connectorMode === 'mock'}
+                disabled={connectorMode === 'mock' || revealablePath === null}
                 title={
-                  connectorMode === 'mock' ? t('results.context.openLocationMock') : undefined
+                  connectorMode === 'mock'
+                    ? t('results.context.openLocationMock')
+                    : revealablePath === null
+                      ? t('results.context.openLocationLost')
+                      : undefined
                 }
+                onClick={() => {
+                  if (revealablePath !== null) openPath.mutate(revealablePath);
+                }}
               >
                 <FolderTreeIcon aria-hidden />
                 {t('results.context.openLocation')}

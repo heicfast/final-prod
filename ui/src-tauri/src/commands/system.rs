@@ -136,6 +136,12 @@ pub async fn system_app_info(app: tauri::AppHandle) -> Result<Value, BridgeError
         // lockstep consumer build.ps1's Assert-VersionConsistency gate
         // enforces against the root VERSION file.
         "version": pkg.version.to_string(),
+        // U-01 (the false mock badge): this command only exists on the REAL
+        // bridge — the backend identity is 'tauri' by construction. The
+        // pre-fix response omitted the field, the About dialog's
+        // `connectorMode === 'tauri'` check fell through to the MOCK warning
+        // badge on the shipped product (a false status on a truth surface).
+        "connectorMode": "tauri",
         // G-6: the only engine identity the ABI carries is the CONTRACT
         // number (cr_ui_abi_version) — reported as such, never dressed up
         // as a product version.

@@ -250,11 +250,23 @@ function UserSignsRow(): React.JSX.Element {
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          loadUserSigns.mutate(file.name, {
-            onSuccess: ({ count }) => setLastCount(count),
-            onError: (err) =>
-              toast.error(err instanceof Error ? err.message : t('errors.unknown')),
-          });
+          // U-03 (the user-signs import bug): the connector contract takes
+          // the DOCUMENT TEXT ("the webview's file input supplies the
+          // document text" — contract.ts loadUserSigns); the pre-fix code
+          // passed file.name, so every import registered a parse of the
+          // bare filename and always failed. Read the real contents.
+          void file
+            .text()
+            .then((content) => {
+              loadUserSigns.mutate(content, {
+                onSuccess: ({ count }) => setLastCount(count),
+                onError: (err) =>
+                  toast.error(err instanceof Error ? err.message : t('errors.unknown')),
+              });
+            })
+            .catch(() => toast.error(t('errors.unknown')));
+          // Re-picking the same file must re-fire onChange.
+          e.target.value = '';
         }}
       />
       <Button

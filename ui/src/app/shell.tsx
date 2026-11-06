@@ -32,6 +32,7 @@ import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { ConsentModal } from '@/features/consent/consent-modal';
 import { ElevationBanner } from '@/features/consent/elevation-banner';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
+import { ExitGuard } from '@/app/exit-guard';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
 import {
@@ -357,6 +358,8 @@ export function WizardShell(): React.JSX.Element {
       <ConsentModal />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
+      {/* W-02: the close-requested save guard (active scan → save/keep/exit) */}
+      <ExitGuard />
     </div>
   );
 }

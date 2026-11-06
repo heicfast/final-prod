@@ -60,6 +60,13 @@ export const zhCN: TranslationSchema = {
     restore: '还原',
     close: '关闭',
   },
+  exitGuard: {
+    title: '扫描正在进行',
+    body: '立即保存会话，之后可从“备份恢复”页继续扫描；也可以不保存直接退出。',
+    saveAndExit: '保存并退出',
+    keepScanning: '继续扫描',
+    exitWithoutSaving: '不保存退出',
+  },
   nav: {
     home: '首页',
     upOneLevel: '上一级',
@@ -239,6 +246,7 @@ export const zhCN: TranslationSchema = {
       preview: '预览',
       openLocation: '打开所在位置',
       openLocationMock: '打开文件位置需要系统文件管理器权限。',
+      openLocationLost: '该文件已不在磁盘上——请先恢复，再打开所在位置。',
       selectUnrecovered: '选中未恢复的文件',
       smartSelect: '每种只保留最佳副本',
       clearSelection: '清除选择',

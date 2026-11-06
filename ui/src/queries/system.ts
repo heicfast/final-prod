@@ -1,4 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { connector } from '@/connector';
 import { queryKeys } from './client';
 
@@ -59,5 +61,16 @@ export function useRelaunchElevated() {
 export function useLoadUserSigns() {
   return useMutation({
     mutationFn: (path: string) => connector.system.loadUserSigns(path),
+  });
+}
+
+/** U-02 (the dead "Open location" item): reveal a real on-disk path in the
+ * system explorer (files reveal-with-selection, folders open — the bridge's
+ * system_open_path contract). */
+export function useOpenPath() {
+  const { t } = useTranslation();
+  return useMutation({
+    mutationFn: (path: string) => connector.system.openPath(path),
+    onError: (err) => toast.error(err instanceof Error ? err.message : t('errors.unknown')),
   });
 }

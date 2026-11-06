@@ -59,6 +59,13 @@ export const en = {
     restore: 'Restore',
     close: 'Close',
   },
+  exitGuard: {
+    title: 'A scan is still running',
+    body: 'Save the session now to resume it later from the Backup page, or exit without saving.',
+    saveAndExit: 'Save and exit',
+    keepScanning: 'Keep scanning',
+    exitWithoutSaving: 'Exit without saving',
+  },
   nav: {
     home: 'Home',
     upOneLevel: 'Up one level',
@@ -243,6 +250,8 @@ export const en = {
       preview: 'Preview',
       openLocation: 'Open location',
       openLocationMock: 'Opening a file location requires elevated shell access.',
+      openLocationLost:
+        'This file is not on the disk — recover it first, then open its location.',
       selectUnrecovered: 'Select not-yet-recovered',
       smartSelect: 'Pick best copy of each',
       clearSelection: 'Clear selection',

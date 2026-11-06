@@ -2368,3 +2368,32 @@ bus→kind degradation (devices.rs:215 marks USB/SD/MMC-bus disks 'usb'
 — fine now that Home renders them, but 'sd' vs 'usb' fidelity and any
 internal-misclassification still matter) and the engine's
 never-drop-a-present-disk class (cr_enumerate.cpp:98-127).
+
+## W-02 + U-01 + U-02 + U-03 FIXED — the exit guard and the truthfulness trio (lane A)
+
+- **W-02 (window-close data loss):** ExitGuard (ui/src/app/exit-guard.tsx)
+  intercepts the window close-requested (title-bar X / system menu) while
+  the ENGINE reports a live scan (one fresh getScanState read — the store
+  can lag because navigation unmounts the poller) and offers Save-and-exit
+  (the REAL saveSession, then destroy) / Keep scanning / Exit-without-
+  saving. Terminal or unknown scan state closes directly; browser context
+  inactive. Mounted in shell.tsx. Regression pin tests/exit-guard.test.tsx
+  (4 tests: preventDefault + dialog on live scan; save→destroy chain;
+  terminal→direct destroy; no-scan→default close).
+- **U-01 (the false mock badge):** system_app_info now returns
+  connectorMode:"tauri" (the command only exists on the real bridge);
+  the About dialog's badge and useConnectorMode resolve truthfully (the
+  real backend previously read as mock/forever-loading).
+- **U-02 (the dead "Open location"):** the results context item now
+  resolves the context row (single selection → active node → first row)
+  and calls the REAL openPath (files reveal-with-selection, folders open
+  — system_open_path's existing contract) for origin==='existing' rows
+  with a path; lost/deleted/raw rows disable with an explanatory title
+  ("not on the disk — recover first"). i18n: openLocationLost (en/zh).
+- **U-03 (user-signs import):** the Settings import passed file.name to a
+  CONTENT-based contract (loadUserSigns(content) — "the webview's file
+  input supplies the document text"); every import failed parsing the
+  bare filename. Now reads file.text(); re-picking the same file re-fires.
+
+typecheck/lint/format green; 9/9 affected tests; full suite re-run with
+the commit.
