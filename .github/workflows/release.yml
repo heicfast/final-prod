@@ -118,11 +118,17 @@ jobs:
 
           ## What changed in this release
 
+          - **The "stopped early" banner now appears after stopping a
+            scan.** The state poller stopped refreshing the moment a stop
+            was requested, so the "Search was stopped early — results may
+            be incomplete" notice never rendered on the results screen,
+            leaving partial results unlabelled; the poller now follows
+            the stop through to its terminal state.
           - **The Backup screen no longer calls a valid session
-            "unreadable".** Scans of whole disks (no volume label) were
-            listed as "(unreadable session)" even though the checkpoint
-            was perfectly loadable and resumable; such rows now say
-            "(no volume label)".
+            "unreadable"** (carried from 0.8.1): scans of whole disks
+            (no volume label) were listed as "(unreadable session)" even
+            though the checkpoint was perfectly loadable and resumable;
+            such rows now say "(no volume label)".
           - **A refused session save is now visible** (carried from
             0.8.0): saving a scan session while the engine was still
             winding down after a stopped scan used to silently do
