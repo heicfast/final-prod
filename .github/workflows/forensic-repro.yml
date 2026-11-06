@@ -42,9 +42,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'The release tag whose setup.exe the run installs (default: v0.8.2)'
+        description: 'The release tag whose setup.exe the run installs (default: v0.8.3)'
         required: false
-        default: 'v0.8.2'
+        default: 'v0.8.3'
 
 permissions:
   contents: read
@@ -74,7 +74,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
-          $tag = "${{ github.event.inputs.release_tag || 'v0.8.2' }}"
+          $tag = "${{ github.event.inputs.release_tag || 'v0.8.3' }}"
           $ver = $tag.TrimStart('v')
           $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
           curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-$ver-setup.exe"

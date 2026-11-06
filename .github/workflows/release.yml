@@ -118,12 +118,18 @@ jobs:
 
           ## What changed in this release
 
+          - **Resuming a saved session now opens the live scan screen.**
+            The Backup screen's Resume navigated to a route the app does
+            not define, so the resumed scan ran invisibly behind a
+            fallback page; it now opens the live scan progress screen
+            (and the sidebar's active-scan link lights up).
           - **The "stopped early" banner now appears after stopping a
-            scan.** The state poller stopped refreshing the moment a stop
-            was requested, so the "Search was stopped early — results may
-            be incomplete" notice never rendered on the results screen,
-            leaving partial results unlabelled; the poller now follows
-            the stop through to its terminal state.
+            scan** (carried from 0.8.2): the state poller stopped
+            refreshing the moment a stop was requested, so the "Search
+            was stopped early — results may be incomplete" notice never
+            rendered on the results screen, leaving partial results
+            unlabelled; the poller now follows the stop through to its
+            terminal state.
           - **The Backup screen no longer calls a valid session
             "unreadable"** (carried from 0.8.1): scans of whole disks
             (no volume label) were listed as "(unreadable session)" even
