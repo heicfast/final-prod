@@ -1,6 +1,6 @@
 [package]
 name = "recovery-wizard-ui"
-version = "0.9.1"
+version = "0.9.2"
 description = "Recovery Wizard — user-facing recovery wizard (UI shell + cr_ui engine bridge, ABI v4)"
 edition = "2021"
 

@@ -145,6 +145,16 @@ jobs:
             page now renders the reference layout: "Internal drives (N)"
             and "External drives (N)" together; SD cards stay first-class
             on their dedicated page.
+          - **(0.9.2) Zero-heavy volumes no longer freeze the scan.** The
+            0.9.1 validation run caught a 10-minute stretch on a 64 GB
+            volume where every progress axis stood still with device
+            reads already finished: the user-signature probe re-locked a
+            global registry and re-scanned the format-filter list for
+            every 512-byte step — ~134 million lock round-trips across a
+            mostly-empty volume. The signature set is now snapshotted
+            once per scan and probed lock-free, with a whole-zero fast
+            skip; large empty regions cost milliseconds instead of
+            minutes.
           - **(0.9.1) The deep scan phase moves too.** The 0.9.0
             validation run caught a 655-second stretch on a 64 GB NTFS
             volume where percent, found-count and the sector counter all
