@@ -500,11 +500,32 @@ job 128087854100, 16/16 steps green)
 
 ### The installed-product validation (forensic-repro, dispatched on v0.9.0)
 
-Run **42278088695** — the RE-VEHICLED probe: the manifest gate (the
-installed exe's classification must read requireAdministrator), the
-OS-refusal twin (an unelevated CreateProcessWithLogonW start must be
-REFUSED — the privilege gate is the OS's now), the home census gate
-(every Get-Disk physical disk must render on the landing page), and the
-D-SCAN-01 progress gates (no 180 s fully-frozen stretch, the advanced
-phase advances, live found-size non-zero once files are found). The
-run's record lands in this file's validation section when it completes.
+Run **42278088695** — RED at the D-SCAN-01 frozen-stretch gate, and the
+red is the system WORKING (the gate's first catch, one release after
+the class was defined):
+
+- **Manifest gate GREEN**: appManifest = requireAdministrator on the
+  installed release (D-PRIV-01 validated end to end).
+- **Home census gate GREEN**: "4 OS disks, 0 missing from the landing
+  page" (D-ENUM-01 validated end to end).
+- **Live found-size GREEN**: "Files Found: N (196.5 MB)" live from
+  t=0 (D4b validated — the "0 B" defect gone).
+- **The smooth-carve axes GREEN**: the percent moved 75.0 -> 75.1 ->
+  75.2 ... 76.1 continuously (~0.1 pt / 21 s through the free-map
+  region; v0.8.4 sat frozen at 75.0 for 900 s).
+- **S2 health / S2b save-resume vehicle GREEN** (drain banner, save,
+  the 0.8.x fixes hold).
+- **RED**: a 655 s fully-frozen stretch at 76.1 — lane B's D4e
+  root-cause (from the run's own artifacts): the deep remnant sweep
+  (scan_mft_remnants) ticked progress only per COMPLETED 16 GiB chunk
+  and the serial path had NO tick; the freeze sat there, not in the
+  carve (advancedPctDelta=1.1 + liveBytesOk=true prove the carve axes).
+  Fixed in 62fb7670 (4 MiB block-level ticks, monotonic across
+  workers; pin Telemetry.DeepRemnantSweepTicksPerBlock; NTFS 97/97,
+  telemetry 22/22) + E-01 in the same commit.
+- The v0.9.0 release notes were amended with the honest Known Issue
+  section (pointing to 0.9.1) the same hour.
+
+**v0.9.1 follows** (lane A cuts it once engine-ci is green on 62fb7670):
+same train + D4e + E-01; the forensic dispatch re-runs the identical
+gates on the new tag.
