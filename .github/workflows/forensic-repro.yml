@@ -241,6 +241,21 @@ jobs:
           # Settle: NSIS deletes the directory tree after the process exits.
           $deadline = (Get-Date).AddSeconds(120)
           while ((Test-Path $instDir) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Seconds 2 }
+          # The ONE documented survivor of the _?= (synchronous, in-place)
+          # invocation: the uninstaller cannot delete its own running exe
+          # (run 42215611622 — the ONLY leftover was HeicFastUninstall.exe).
+          # A real user's Add/Remove Programs run copies the uninstaller to
+          # %TEMP% first, so the whole dir goes; with _?= the CALLER cleans
+          # the self-same exe. Anything else left behind remains a failure.
+          $left = @(Get-ChildItem $instDir -Recurse -File -ErrorAction SilentlyContinue)
+          $onlySelf = ($left.Count -eq 1) -and ($left[0].Name -eq 'HeicFastUninstall.exe')
+          if ($onlySelf) {
+            Remove-Item $left[0].FullName -Force -ErrorAction SilentlyContinue
+            $deadline2 = (Get-Date).AddSeconds(30)
+            while ((Test-Path $instDir) -and ((Get-Date) -lt $deadline2)) { Start-Sleep -Seconds 2 }
+            "uninstaller self-exe cleaned by the probe (the documented _?= survivor)" |
+              Set-Content C:\forensic\evidence\uninstall-self-cleanup.txt -Encoding UTF8
+          }
           if (Test-Path $instDir) {
             # The leftover listing IS the failure evidence (which files
             # survived tells which process held them).

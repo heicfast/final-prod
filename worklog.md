@@ -2102,3 +2102,16 @@ SECOND race: the resumed scan completed at 962 s against the 960 s cap
 (run 24's took 935 s; the carve matcher's variance is minutes). The cap
 is sized to the evidence: 22 min (baselines 11.8 fresh / 15.6-16.0
 resumed); the io-probe window follows (5400 s). Probe-side only.
+
+### Forensic run 27 — the NSIS _?= self-survivor (the last probe fix)
+
+Run 27 (42215611622, v0.8.4): step 10 GREEN (the 22-min cap held), the
+twin GREEN again, postrun facts GREEN — RED only at the uninstall's
+no-leftover assertion, and the new leftover listing convicted the exact
+cause: the ONLY surviving file was HeicFastUninstall.exe itself. With
+the probe's synchronous `_?=instDir` invocation the uninstaller runs
+IN PLACE and cannot delete its own running exe (NSIS's documented
+behavior; a real user's Add/Remove Programs run copies the uninstaller
+to %TEMP% first, so the whole dir goes). Probe fix: the caller cleans
+the self-same exe when it is the ONLY leftover — anything else still
+fails the assertion. Probe-side only; v0.8.4 stands.
