@@ -658,8 +658,8 @@ void ScanController::emit_progress_event_(u32 stage) const {
         bytes_now = tel_.snap.bytes_scanned;
     }
     const u64 last_bytes = evt_last_bytes_.load(std::memory_order_relaxed);
-    const bool bytes_moved = bytes_now >= last_bytes + kProgressBytesStep_ ||
-                             (last_bytes == 0 && bytes_now > 0);
+    const bool bytes_moved =
+        bytes_now >= last_bytes + kProgressBytesStep_ || (last_bytes == 0 && bytes_now > 0);
     u32 last = evt_last_overall_.load(std::memory_order_relaxed);
     if (overall == last && !bytes_moved)
         return;

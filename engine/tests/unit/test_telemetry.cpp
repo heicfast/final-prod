@@ -565,5 +565,6 @@ TEST(Telemetry, CancelLandsInsideTheCarveWindow) {
     const auto t = ctrl.telemetry();
     EXPECT_FALSE(t.running);
     EXPECT_TRUE(t.cancelled) << "the cancelled scan must stamp cancelled in telemetry";
-    EXPECT_EQ(run_rc.load(), u32(ERR_CANCELLED)) << "the stop landed through the carve checkpoints (D4c)";
+    EXPECT_EQ(run_rc.load(), u32(ERR_CANCELLED))
+        << "the stop landed through the carve checkpoints (D4c)";
 }

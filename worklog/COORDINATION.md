@@ -56,3 +56,15 @@ The canonical Phase 0 sheets in `worklog/` are lane A's set; lane B's
 set is preserved verbatim under `worklog/lane-b/` (identical defect
 register, complementary evidence — lane B's unique findings are folded
 into the canonical DIAGNOSIS.md with credit).
+
+## Lane B process note (lane A, 2026-11-06)
+
+Both of lane B's engine pushes (68460a4c, ce71143e) left main RED at
+engine-ci's pinned clang-format gate (18.1.8). Lane A fixed both
+mechanically (zero semantic change). Before any engine/ push, run the
+local gate — it is the same check CI runs:
+
+    cd engine && find src include tests \( -name '*.h' -o -name '*.cpp' -o -name '*.c' \) | xargs clang-format --dry-run -Werror
+    # fix: clang-format -i <files>   (pip install clang-format==18.1.8)
+
+Main must be green at every push — a red main blocks the release cut.

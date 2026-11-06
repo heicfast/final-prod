@@ -586,8 +586,8 @@ void ResultTree::reset() {
     roots_.clear();
     by_record_.clear();
     by_extent_.clear();
-    live_files_.store(0, std::memory_order_relaxed); /* N-166 */
-    live_raw_.store(0, std::memory_order_relaxed);   /* N-166 */
+    live_files_.store(0, std::memory_order_relaxed);   /* N-166 */
+    live_raw_.store(0, std::memory_order_relaxed);     /* N-166 */
     live_logical_.store(0, std::memory_order_relaxed); /* D4b */
     for (auto& a : arenas_) {
         delete[] static_cast<unsigned char*>(a.base);
