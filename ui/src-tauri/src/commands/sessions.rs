@@ -700,6 +700,32 @@ fn attach_source_device(info: &abi::CrUiSessionInfo) -> Option<SendPtr<abi::CrUi
             }
         }
     }
+    // v0.8.3 forensic (run 42195967961): WHOLE-DISK sessions on hosts
+    // whose disks share a model+serial (every Azure VM disk reports
+    // "Virtual Disk", serial empty) could never re-attach — the volume
+    // pin above demands a lettered volume whose offset+bytes equal the
+    // slice, and a whole-disk slice IS the disk, not a volume. Among the
+    // model/serial matches, a disk whose total size equals the session's
+    // slice is the original by construction (the session recorded the
+    // whole disk). The boot-hash verify stays the authority: a wrong
+    // pick fails cr_ui_scan_verify_identity with ERR_BAD_CHECKSUM (the
+    // typed session-corrupt refusal), never a silent cross-volume
+    // resume — the same safety net the single-match path below already
+    // relies on for a replaced same-model disk.
+    if matches.len() > 1 {
+        let sized: Vec<_> = matches
+            .iter()
+            .filter(|d| d.size_bytes == info.slice_bytes)
+            .collect();
+        if sized.len() == 1 {
+            let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
+            if unsafe { abi::cr_ui_open_disk(sized[0].number, &mut dev) } == abi::CR_UI_OK
+                && !dev.is_null()
+            {
+                return Some(SendPtr::new(dev));
+            }
+        }
+    }
     if matches.len() == 1 {
         let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
         if unsafe { abi::cr_ui_open_disk(matches[0].number, &mut dev) } == abi::CR_UI_OK

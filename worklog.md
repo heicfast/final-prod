@@ -2033,3 +2033,22 @@ workflow captures %ProgramData%\...\logs\app.log + a sessions-dir
 snapshot into the artifact (with if: always()); the bridge's session
 load/resume paths gain NG-15 lifecycle lines (they ship with the next
 binary — the v0.8.3 artifact predates them).
+
+### Forensic run 23's catch — BF-27, the whole-disk re-attach refusal (v0.8.4)
+
+The instrumented probe caught the toast verbatim: "the session's source
+device is not attached — resume needs the original volume/disk". The
+'hung invoke' of runs 21/22 was never a hang — the typed DEVICE_GONE
+refusal lands fast; those probes simply never sampled toasts. Root
+cause (BF-27): every Azure VM disk reports model 'Virtual Disk' (serial
+empty) → 4-way ambiguous model/serial match; the volume pin demands a
+lettered volume whose offset+bytes equal the slice, but the vehicle's
+scan is WHOLE-DISK (the slice IS the disk); the unique-match fallback
+refuses.
+
+- Fix (bridge attach_source_device): among the model/serial matches,
+  the disk whose total size equals the whole-disk slice is picked when
+  unique. The boot-hash verify stays the authority — a wrong pick fails
+  with ERR_BAD_CHECKSUM (the typed session-corrupt refusal), the same
+  safety net the single-match path relies on for a replaced disk.
+- v0.8.4 cut (lockstep + default tag + notes truth + BF-27 recorded).

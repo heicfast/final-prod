@@ -287,8 +287,44 @@ GREEN on the shipped binary first:
 
 ### The v0.8.3 release (the invisible-resume fix)
 
+- Tag `v0.8.3` on **939dd483** (the route fix 1cd9bc64 + the bump; CI:
+  ui-ci 42187695792, ui-e2e 42187695816, contracts-ci 42187695975 —
+  GREEN, 176/176 unit incl. the route pin).
+- Release run **42188868989 — SUCCESS** (~23 min): all gates green,
+  ctest 1741/1741, dev-sign verified, three assets published
+  (2026-11-06T08:59:03Z):
+  - `RecoveryWizard-0.8.3-setup.exe` — 2,790,176 B, SHA256
+    `859A945F7923E18EC600ED614ED2D2A66AD6B533ECF6C9B11E815FA8C0B78FBC`
+  - `RecoveryWizard-0.8.3-portable.zip` — 3,915,423 B, SHA256
+    `08D7BD19D09C1BD415E3451DA88252C582D42703CA435EC4C4D111E9751CF436`
+  - `SHA256SUMS` — 199 B
+
+### The v0.8.3 forensic dispatch (run 22, 42192131100 + run 23, 42195967961)
+
+Run 22: the S5 resume gate timed out silently again (no toast, no
+navigation, no IO) — with no diagnostics captured. The instrumentation
+commit (a5e6ae7a: the probe's URL+toast polling, the app.log capture,
+the session lifecycle logging) followed; CI green
+(ui-ci 42194741077, ui-e2e 42194741132, contracts-ci 42194741122).
+
+Run 23 (the instrumented probe, v0.8.3 binary): the diagnostic net
+CAUGHT IT — the toast, verbatim: **"the session's source device is not
+attached — resume needs the original volume/disk"**. The 'hang' was
+never a hang: the invoke rejects fast with the typed DEVICE_GONE
+refusal; runs 21/22's probes simply never sampled toasts (the ~4 s toast
+life). Root cause (BF-27): every Azure VM disk reports model "Virtual
+Disk" with an empty serial → the model/serial match is 4-way ambiguous;
+the volume pin demands a lettered volume whose offset+bytes equal the
+session's slice, but the vehicle's scan is WHOLE-DISK (the slice IS the
+disk); the unique-match fallback then refuses. The fix (v0.8.4): among
+the model/serial matches, the disk whose total size equals the
+whole-disk slice is picked when unique — the boot-hash verify remains
+the authority for a wrong pick (the typed session-corrupt refusal).
+
+### The v0.8.4 release (the whole-disk re-attach fix)
+
 **(filled from the runs' evidence as they land — tag, release workflow,
-forensic dispatch on v0.8.3: the full gate set incl. the during-drain
+forensic dispatch on v0.8.4: the full gate set incl. the during-drain
 save, the drain banner, the incomplete save, the Backup Resume landing
 on the LIVE-SCAN route, the resumed completion, the unelevated twin,
 and the silent uninstall)**
