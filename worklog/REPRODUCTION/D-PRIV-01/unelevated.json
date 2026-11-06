@@ -1,0 +1,19 @@
+{
+  "startedUtc": "2026-11-06T17:20:49.165Z",
+  "assertions": {
+    "noMockGate": {
+      "tauriInternals": true,
+      "injectHookPresent": false
+    },
+    "elevationBanner": {
+      "visible": true,
+      "text": "Direct disk access requires administrator privileges — scanning and recovery are disabled until the app runs elevated.Restart as administrator"
+    },
+    "scanRefusal": {
+      "attempted": true,
+      "refused": true
+    }
+  },
+  "completedUtc": "2026-11-06T17:20:58.706Z",
+  "passed": true
+}

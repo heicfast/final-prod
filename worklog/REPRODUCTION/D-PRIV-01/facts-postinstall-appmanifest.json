@@ -1,0 +1,8 @@
+{
+  "appManifest": "no-manifest-match",
+  "elevated": {
+    "isElevated": true,
+    "user": "runnervmquqza\\runneradmin"
+  },
+  "note": "the installed v0.8.4 setup.exe app exe carries NO manifest \u2014 the loader default is asInvoker (D-PRIV-01)"
+}

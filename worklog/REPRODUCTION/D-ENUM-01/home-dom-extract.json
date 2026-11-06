@@ -1,0 +1,22 @@
+{
+  "buttons": [
+    "Buy Now",
+    "Windows(C:)81.66 GB/256 GB",
+    "Temporary Storage(D:)146.82 GB/150 GB",
+    "SeedNTFS(X:)63.85 GB/64 GB",
+    "SeedEXFAT(Y:)7.98 GB/8 GB",
+    "Recycle Bin",
+    "Desktop",
+    "Select Folder",
+    "Continue your last scan where it stopped.Continue \u2192",
+    "(no volume label)11/06/2026 \u00b7 68 Files foundOpen results",
+    "Open results",
+    "(no volume label)11/06/2026 \u00b7 68 Files foundOpen results",
+    "Open results",
+    "(no volume label)11/06/2026 \u00b7 68 Files foundOpen results",
+    "Open results",
+    "Unable to find your hard drive?",
+    "Search for Lost Data"
+  ],
+  "note": "ALL four runner disks are internal-bus (Azure Virtual Disk) so all pass the internal-only filter; a USB/SD-bus disk (the user machine) is filtered OUT \u2014 the defect is the filter, proven by tests/home-states.test.tsx pins"
+}

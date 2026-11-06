@@ -1,0 +1,50 @@
+{
+  "run": 42255492260,
+  "entries": 172,
+  "first": {
+    "t": "2026-11-06T17:04:51.032Z",
+    "elapsedSec": 0,
+    "url": "http://tauri.localhost/#/scan/disk-2/live?scanId=scan-4",
+    "pcts": [
+      75,
+      75
+    ],
+    "stage": "advanced",
+    "sectorMatches": [],
+    "foundCounts": [
+      "197 items"
+    ],
+    "complete": false
+  },
+  "middle": {
+    "t": "2026-11-06T17:12:34.352Z",
+    "elapsedSec": 463,
+    "url": "http://tauri.localhost/#/scan/disk-2/live?scanId=scan-4",
+    "pcts": [
+      76,
+      76.1
+    ],
+    "stage": "advanced",
+    "sectorMatches": [],
+    "foundCounts": [
+      "197 items"
+    ],
+    "complete": false
+  },
+  "last": {
+    "t": "2026-11-06T17:19:47.240Z",
+    "elapsedSec": 896,
+    "url": "http://tauri.localhost/#/scan/disk-2/live?scanId=scan-4",
+    "pcts": [
+      76,
+      76.1
+    ],
+    "stage": "advanced",
+    "sectorMatches": [],
+    "foundCounts": [
+      "197 items"
+    ],
+    "complete": false
+  },
+  "reading": "pcts frozen at 75->76.1 over 891 s; foundCounts frozen at 197 items; sectorMatches empty the whole scan; complete=false throughout"
+}
