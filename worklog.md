@@ -2604,3 +2604,38 @@ real device never parks mid-read); the TEST now pins the deterministic
 shape: cfg.threads = 1 (serial windows: 0 rides the retry pipe, 1
 completes, 2 parks) + a cheaper, longer poll. Same determinism applied to
 CancelLandsInsideTheCarveWindow. 3/3 green locally.
+
+## The 0.9.0 cut — both lanes green, every defect fixed (T19)
+
+The release train: main fully green at 4aa33d62 (engine-ci: MSVC /W4/WX
+build clean, 1752/1752 ctest incl. the D4 telemetry pins, the no-console
+tree guard, the D3 enumeration pins, the BF-28 pin, the PE import
+allowlist gate; ui-ci + ui-e2e + contracts-ci green on the merged tree).
+The defect register at cut time:
+
+- D-PRIV-01 FIXED: the requireAdministrator manifest + the OS-refusal
+  posture + eleven docs trued + the manifest gates (build.ps1 D1 gate,
+  the forensic manifest gate).
+- D-CONS-01 FIXED: the hidden direct-fsutil TRIM query + the tree-wide
+  no-_popen build gate + the PE import allowlist catching the new
+  imports consciously.
+- D-ENUM-01 FIXED (both layers): the reference-parity landing page
+  (Internal + External groups) + the engine's never-drop-a-present-
+  device discrimination + the home-census probe gate.
+- D-SCAN-01 FIXED (all four roots): intra-window carve checkpoints +
+  live bytes_scanned (D4a), the bytes_found ABI append with live
+  stamping (D4b), bounded cancel (D4c), the live counters rendered
+  (bridge fill — zero frontend change needed), the instant-completion
+  and live-tree bridges (W-01), and the probe's frozen-scan gates.
+- D-UI-01 RESOLVED: the banner surface removed (reference parity).
+- W-01/02/03, U-01/02/03/04, E-01(pending lane-B confirmation), T14
+  persistence: fixed with regression pins.
+- BF register: BF-04/22/25 fixed; BF-28 fixed; BF-30/31/32 recorded
+  with precise scope (BF-32 deliberately held out of the train — the
+  right call, documented).
+
+Next: tag v0.9.0 → the release workflow (full product build, the
+manifest gate inside build.ps1, artifacts + checksums + truthful notes)
+→ the forensic dispatch on the new tag (the fixed-posture gates:
+manifest, OS-refusal twin, home census, moving scan progress, live
+found-size) → RELEASE-VALIDATION curation.
