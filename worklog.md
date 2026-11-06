@@ -2545,3 +2545,34 @@ found two user preferences that did NOT: the results view mode
 (details/icons) and the preview pane width. Both now persist
 (ui-store.ts, clamped + validated on read). Sessions (.crsf,
 ProgramData) and the locale/theme family were verified as-is.
+
+## Lane B — D3 engine + BF-28 + the D4d disposition (0eeff0ec..)
+
+- **D3 engine-side (0eeff0ec)**: both enumeration stacks dropped any PRESENT
+  disk whose open failed outside ACCESS_DENIED/SHARING or whose geometry
+  refused — the engine-side class under the user's "only one disk of
+  three". The numbered loop now discriminates ABSENT (namespace-gap error
+  set) from PRESENT-but-unopenable (NOT_READY/IO_DEVICE/GEN_FAILURE/
+  exhausted retries) and KEEPS the present ones listed (honest empties,
+  busy-marked); the cfgmgr interface pass lists unopenable PRESENT
+  interfaces (identity = instance path for the merge); geometry refusals
+  on opened handles still list. Reference: the og lists devices WITHOUT
+  opening them (five-stack fan-in). Pin: D3Enumerate.PresentButUnopenable
+  DisksStayListed; the N-071 signature pin updated for the last_error
+  out-param. 12/12 enumeration tests green.
+- **BF-28 (this commit)**: health_read_impl's unelevated ACCESS_DENIED now
+  returns ERR_ELEVATION_REQUIRED (uniform with every other raw-open site)
+  instead of ERR_OPEN_FAILED + an "administrator rights required" message
+  string standing in for the code — the bridge's table labels the refusal
+  elevation-required with zero frontend change. Pin:
+  BF28ElevationCode.HealthOpenRefusalCarriesTheElevationCode.
+- **D4d disposition (recorded as BF-30)**: the raw-sign layer IS gated
+  (free_map + occupancy + N-031 zero-stride fast-skip — verified at
+  cr_carve.cpp:968-1010); NTFS/FAT/exFAT fill the free map
+  (cr_scan.cpp:1814/1832/1841). The 8.45 MiB/s wall is real-content
+  validation CPU (PERF-LEVERS' measured 303.8 CPU-s/GiB) — upstream bench
+  scope, honestly open. The product's obligation (visible, honest,
+  bounded progress) is met by D4a/b/c.
+- Lane A's re-vehicled forensic probe (d8fbef64) carries the fixed-posture
+  gates; the shipped-v0.8.4 reproduction (run 42255492260: 75→76.1% over
+  891 s, found-count frozen at 197) is the D4 field evidence.

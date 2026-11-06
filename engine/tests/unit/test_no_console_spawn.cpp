@@ -110,3 +110,21 @@ TEST(D2NoConsole, ExistingSubprocessSitesKeepTheNoWindowFlag) {
     EXPECT_NE(std::string::npos, bl.find("CREATE_NO_WINDOW"))
         << "cr_bitlocker.cpp lost CREATE_NO_WINDOW (D2 regression)";
 }
+
+TEST(BF28ElevationCode, HealthOpenRefusalCarriesTheElevationCode) {
+    /* BF-28: an unelevated ACCESS_DENIED on the health path must return
+     * ERR_ELEVATION_REQUIRED (the uniform raw-open refusal code the bridge
+     * maps to 'elevation-required'), never ERR_OPEN_FAILED with an
+     * "administrator rights required" message-string standing in for the
+     * code. Source pin over health_read_impl's open-failure branch. */
+    const std::string ui = cr_test::read_repo_text("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(ui.empty());
+    const size_t at = ui.find("u32 health_read_impl(");
+    ASSERT_NE(std::string::npos, at) << "health_read_impl moved?";
+    const size_t end = ui.find("\nu32 ", at + 10);
+    const std::string body = ui.substr(at, (end == std::string::npos ? ui.size() : end) - at);
+    EXPECT_NE(std::string::npos, body.find("ERR_ELEVATION_REQUIRED"))
+        << "the unelevated ACCESS_DENIED refusal must carry the elevation CODE (BF-28)";
+    EXPECT_NE(std::string::npos, body.find("le == ERROR_ACCESS_DENIED"))
+        << "only the access-denied class is the elevation gate (not-ready/io stay open-failures)";
+}

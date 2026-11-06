@@ -4893,11 +4893,28 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
     HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
+        /* BF-28 (the debug-and-release session): an ACCESS_DENIED open
+         * under a NON-elevated token is the elevation gate, not an open
+         * failure — every other raw-open site (cr_ui.cpp:1438/1493/1580/
+         * 1730) already returns ERR_ELEVATION_REQUIRED for it; the health
+         * path returned ERR_OPEN_FAILED with an "administrator rights
+         * required" MESSAGE (a string where the code should be), so the
+         * bridge's error table labeled the refusal device-permission
+         * instead of elevation-required. The code is now uniform; an
+         * elevated ACCESS_DENIED (busy/locked device) stays
+         * ERR_OPEN_FAILED, and non-access errors (not-ready, io) are
+         * honest open failures either way. */
+        const DWORD le = GetLastError();
         const bool elev = win::is_elevated();
+        if (!elev && le == ERROR_ACCESS_DENIED)
+            return ret_(ERR_ELEVATION_REQUIRED,
+                        "raw-disk health read on disk %u requires the administrator token "
+                        "(elevate and retry)",
+                        disk);
         return ret_(ERR_OPEN_FAILED, "cannot open disk %u: %s", disk,
                     elev ? "access denied even elevated (device busy or locked by another "
                            "process)"
-                         : "administrator rights required (elevate and retry)");
+                         : "the device refused the open");
     }
     win::health::SmartReport sm;
     const u32 src_rc = win::health::read_smart(h, sm);
