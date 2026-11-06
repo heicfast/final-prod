@@ -33,6 +33,8 @@ bridge-side or docs-side measure; **open** = a real gap a user can hit;
 | BF-19 | Engine version-stamp drift | Core CMake VERSION 0.6.1 vs v0.7.1 notes | **Mitigated** — the product gates on `cr_ui_abi_version()` only |
 | BF-20 | Health grading duplicated at the bridge | The 4-status model re-implemented in bridge/health.rs | **Mitigated** — keep-in-sync note; upstream export recommended |
 | BF-21 | M-101 version_group/tags fields unsurfaced | NTFS namespace-identity grouping + tag extraction | **Open** — no UI surface |
+| BF-22 | Deep scan of large sparse vdisks stalls in the forensic capture window | 76.1% / found-count frozen for 27+ min on the 64GB seed; IDENTICAL on the pre-merge ABI v2 engine (run 42072191860) and v0.7.0 (42129256087) — environmental/known-perf (the carve matcher over free space; core's PERF-LEVERS 3), not a wiring regression | **Recorded** — the Stop → partial results → recover path is the gated user flow; the throughput ledger is core's bench lane's business |
+| BF-23 | SMART environmentally absent on the forensic runner | Azure VM disks expose no SMART passthrough; VHDX seeds never will — the health surface renders its honest failure state + retry affordance (identical pre/post merge) | **Recorded** — the SMART data path is covered by the engine's ctest suite; needs a bare-metal host for end-to-end visual proof |
 
 None of these block the v0.7.0 release: every row is either honestly
 disabled in the product (with a user-visible reason), carried by the CLI,
