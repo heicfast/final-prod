@@ -413,3 +413,157 @@ TEST(Telemetry, LiveAttachCounterTracksTheTree) {
     t.reset();
     EXPECT_EQ(t.live_files(), 0u);
 }
+
+/* ---- D4 (the debug-and-release session): the live scan-truth axes --------- */
+
+TEST(Telemetry, LiveLogicalCounterTracksTheTree) {
+    /* D4b: the O(1) live-logical counter — add_file adds the size, the
+     * detach paths subtract, reset zeroes. This is the data source the
+     * "Files Found: N (X GB)" size axis samples at progress cadence (the
+     * pre-fix ABI never carried it; the UI rendered "N (0 B)" until the
+     * scan's terminal re-sum). */
+    tree::ResultTree t;
+    auto* r = t.add_root(u"Found");
+    EXPECT_EQ(t.live_logical(), 0u);
+    u64 expect = 0;
+    for (int i = 0; i < 4; ++i) {
+        auto* p = new tree::FileProperties();
+        p->name = u"f";
+        p->logical_size = 1000 + u64(i);
+        expect += p->logical_size;
+        t.add_file(r, p);
+        p->release();
+    }
+    EXPECT_EQ(t.live_logical(), expect);
+    /* a folder between two files never disturbs the sum */
+    auto* folder = t.add_folder(r, u"sub");
+    auto* p2 = new tree::FileProperties();
+    p2->name = u"g";
+    p2->logical_size = 42;
+    t.add_file(folder, p2);
+    p2->release();
+    EXPECT_EQ(t.live_logical(), expect + 42);
+    /* detach the folder: its file's size subtracts with it */
+    t.detach_child(r, folder);
+    EXPECT_EQ(t.live_logical(), expect);
+    t.reset();
+    EXPECT_EQ(t.live_logical(), 0u);
+}
+
+TEST(Telemetry, BytesFoundVisibleMidScan) {
+    /* D4b: while the scan is PARKED mid-carve, the telemetry snapshot
+     * already carries the found-data SIZE (the quick stage's files are in
+     * the tree; the snapshot sampled them at the quick boundary's events).
+     * The pre-fix snapshot had no bytes_found axis at all. */
+    std::vector<u8> img = build_fat16_wide(100);
+    const u64 bad = 30 * 512;
+    BadRegionDevice dev(img, bad, 512);
+    dev.park_on_hit();
+    tree::ResultTree tree;
+    ScanConfig cfg; /* carve on: parks in the carve's far read */
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+
+    std::thread scan([&] { (void)ctrl.run(&dev, nullptr, nullptr, nullptr, stats); });
+    bool hit = false;
+    for (int i = 0; i < 1500 && !hit; ++i) {
+        hit = dev.hit();
+        if (!hit)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(hit);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); /* settle */
+
+    const auto t = ctrl.telemetry();
+    ASSERT_TRUE(t.running);
+    EXPECT_GT(t.bytes_found, 0u) << "the found-size axis must be live mid-scan (D4b)";
+    EXPECT_EQ(t.bytes_found, tree.live_logical());
+
+    dev.unpark();
+    scan.join();
+    /* terminal: stats.bytes_found is the exact tree sum */
+    EXPECT_EQ(stats.bytes_found, tree.total_logical());
+}
+
+TEST(Telemetry, CarveBytesAdvanceMidSweep) {
+    /* D4a: parked INSIDE the carve (the far read). Bounded-poll until at
+     * least one carve window completed past the retry pipe's backoff, then
+     * the snapshot's bytes_scanned must reflect the carve's live progress
+     * (pre-fix: stamped only at stage boundaries — frozen at the
+     * carve-start value for the whole sweep; the diagnostic run showed the
+     * exact user symptom: overall 750, carve bytes 0). */
+    std::vector<u8> img = build_fat16_wide(100);
+    const u64 bad = 30 * 512;
+    BadRegionDevice dev(img, bad, 512);
+    dev.park_on_hit();
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+
+    std::thread scan([&] { (void)ctrl.run(&dev, nullptr, nullptr, nullptr, stats); });
+    bool hit = false;
+    for (int i = 0; i < 1500 && !hit; ++i) {
+        hit = dev.hit();
+        if (!hit)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(hit);
+    /* bounded poll: the bad-spot window rides the retry pipe's backoff
+     * first; a completed window (this fixture parks the LAST window) makes
+     * the live axes move while the scan is still parked */
+    bool moved = false;
+    for (int i = 0; i < 3000 && !moved; ++i) {
+        const auto t = ctrl.telemetry();
+        if (t.running && t.carve.bytes_done > 0 && t.bytes_scanned > 0)
+            moved = true;
+        else
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(moved) << "the live sector counter never moved during the parked carve (D4a)";
+    {
+        const auto t = ctrl.telemetry();
+        EXPECT_TRUE(t.running); /* still parked: the axes moved mid-scan */
+        EXPECT_GE(t.bytes_scanned, t.carve.bytes_done);
+    }
+
+    dev.unpark();
+    scan.join();
+}
+
+TEST(Telemetry, CancelLandsInsideTheCarveWindow) {
+    /* D4c: a stop requested while the scan is parked INSIDE a carve read
+     * is observed by the per-byte checkpoint once the read unblocks — the
+     * run returns ERR_CANCELLED (pre-fix: only per-window checkpoints; a
+     * pathological window could hold the token for minutes, BF-25). */
+    std::vector<u8> img = build_fat16_wide(100);
+    const u64 bad = 30 * 512;
+    BadRegionDevice dev(img, bad, 512);
+    dev.park_on_hit();
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    PausableToken tok;
+
+    std::atomic<u32> run_rc{0};
+    std::thread scan([&] { run_rc = ctrl.run(&dev, &tok, nullptr, nullptr, stats); });
+    bool hit = false;
+    for (int i = 0; i < 1500 && !hit; ++i) {
+        hit = dev.hit();
+        if (!hit)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(hit);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    /* stop while parked; the parked read finishes on unpark and the next
+     * checkpoint (window head OR the D4c per-byte poll) carries the stop */
+    tok.cancel();
+    dev.unpark();
+    scan.join();
+    const auto t = ctrl.telemetry();
+    EXPECT_FALSE(t.running);
+    EXPECT_TRUE(t.cancelled) << "the cancelled scan must stamp cancelled in telemetry";
+    EXPECT_EQ(run_rc.load(), u32(ERR_CANCELLED)) << "the stop landed through the carve checkpoints (D4c)";
+}

@@ -269,10 +269,21 @@ pub fn spawn_scan_emitter(
                     if overall > live.overall {
                         live.overall = overall; // clamped monotonic
                     }
+                    // D4b: the live found-size axis rides progress events
+                    // (the engine stamps it from the tree's atomic counter
+                    // — the pre-fix payload never carried it, so the UI
+                    // rendered "Files Found: N (0 B)" until terminal).
+                    if evt.bytes_found > live.data_found_bytes {
+                        live.data_found_bytes = evt.bytes_found;
+                    }
                     emit = true;
                 }
                 abi::CR_EVT_FILES_FOUND => {
                     live.files_found = evt.files_found + evt.deleted_found + evt.carved_found;
+                    // D4b: the size moves with the counts at boundaries.
+                    if evt.bytes_found > live.data_found_bytes {
+                        live.data_found_bytes = evt.bytes_found;
+                    }
                     emit = true;
                 }
                 abi::CR_EVT_ERROR_RANGE => {
@@ -359,6 +370,11 @@ pub fn spawn_scan_emitter(
                     if unsafe { abi::cr_ui_scan_telemetry(scan_ptr, &mut tel) } == abi::CR_UI_OK {
                         live.bytes_scanned = tel.bytes_scanned;
                         live.files_found = tel.files_found + tel.deleted_found + tel.carved_found;
+                        // D4a/D4b: the live counters the engine now stamps
+                        // continuously (moving sector counter + found size).
+                        if tel.bytes_found > live.data_found_bytes {
+                            live.data_found_bytes = tel.bytes_found;
+                        }
                         let elapsed_s = (tel.elapsed_ms as f64) / 1000.0;
                         if elapsed_s > 0.5 {
                             let bps = tel.bytes_scanned as f64 / elapsed_s;

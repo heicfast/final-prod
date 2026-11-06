@@ -505,8 +505,18 @@ void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_uni
         st.units_done = done;
         st.units_total = total;
     }
-    if (bytes_units)
+    if (bytes_units) {
         st.bytes_done = done;
+        /* D4a: the live carve-bytes stamp — snap.bytes_scanned moves at
+         * publish cadence (base + done) instead of freezing until the
+         * stage-boundary count stamp. Clamped monotonic (a racing worker's
+         * late lower sample can never regress the truth). */
+        if (stage == 2) {
+            const u64 live_total = carve_bytes_base_ + done;
+            if (live_total > tel_.snap.bytes_scanned)
+                tel_.snap.bytes_scanned = live_total;
+        }
+    }
     /* stage elapsed, pause-compensated (RE parity) */
     const u64 paused_now = cancel ? cancel->paused_ms() : 0;
     const u64 stage_paused =
@@ -533,6 +543,10 @@ void ScanController::tel_counts_(ScanStats& stats, const CancelToken* cancel) {
     tel_.snap.carved_found = stats.carved_found;
     tel_.snap.lost_partitions = stats.lost_partitions;
     tel_.snap.bytes_scanned = stats.bytes_scanned;
+    /* D4b: the exact boundary truth (monotonic clamp against the live
+     * samples refresh_live_counts_ already pushed) */
+    if (stats.bytes_found > tel_.snap.bytes_found)
+        tel_.snap.bytes_found = stats.bytes_found;
     tel_.snap.paused = cancel ? cancel->paused() : false;
     /* S-016: feed the LIVE retry-pipe error map into the snapshot at every
      * stage-boundary count refresh - this runs immediately BEFORE every
@@ -572,6 +586,10 @@ void ScanController::refresh_live_counts_() const {
         tel_.snap.files_found = files;
     if (raw > tel_.snap.carved_found)
         tel_.snap.carved_found = raw;
+    /* D4b: the live found-SIZE axis — same O(1) atomic sample, same
+     * monotonic clamp (the boundary stamps stay the exact truth) */
+    if (const u64 logical = tree_.live_logical(); logical > tel_.snap.bytes_found)
+        tel_.snap.bytes_found = logical;
 }
 
 void ScanController::emit_event_(event::Type type, u32 stage) const {
@@ -588,6 +606,7 @@ void ScanController::emit_event_(event::Type type, u32 stage) const {
         e.files_found = tel_.snap.files_found;
         e.deleted_found = tel_.snap.deleted_found;
         e.carved_found = tel_.snap.carved_found;
+        e.bytes_found = tel_.snap.bytes_found; /* D4b */
         e.error_ranges = u32(tel_.snap.errors.ranges().size());
         const StageTelemetry& st = stage == 0   ? tel_.snap.quick
                                    : stage == 1 ? tel_.snap.deep
@@ -624,20 +643,32 @@ void ScanController::emit_progress_event_(u32 stage) const {
     if (event_fn_ == nullptr)
         return;
     refresh_live_counts_(); /* N-166: the counts ride every progress tick */
-    /* coalesce: fire only when the overall permille advanced (<= 1000
-     * events per scan plus stage flips - the documented sample cadence) */
+    /* coalesce: fire when the overall permille advanced (<= 1000 events
+     * per scan plus stage flips - the documented sample cadence) OR when
+     * the live scanned-bytes axis moved >= 16 MiB since the last sample
+     * (D4a: on a multi-TB carve a permille step spans minutes at the
+     * validation-bound rate — a bytes-axis trigger keeps "Reading
+     * sector: X/Y" and the ETA visibly moving; bounded by the byte step,
+     * not per-window). */
     u32 overall;
+    u64 bytes_now;
     {
         std::lock_guard<std::mutex> lock(tel_.m);
         overall = tel_.snap.overall_permille;
+        bytes_now = tel_.snap.bytes_scanned;
     }
+    const u64 last_bytes = evt_last_bytes_.load(std::memory_order_relaxed);
+    const bool bytes_moved = bytes_now >= last_bytes + kProgressBytesStep_ ||
+                             (last_bytes == 0 && bytes_now > 0);
     u32 last = evt_last_overall_.load(std::memory_order_relaxed);
-    if (overall == last)
+    if (overall == last && !bytes_moved)
         return;
     if (last != 0xFFFFFFFFu && overall < last)
         return; /* stale out-of-order worker delivery */
-    if (!evt_last_overall_.compare_exchange_strong(last, overall, std::memory_order_relaxed))
+    if (!evt_last_overall_.compare_exchange_strong(last, overall, std::memory_order_relaxed) &&
+        !bytes_moved)
         return; /* another worker emitted this step first */
+    evt_last_bytes_.store(bytes_now, std::memory_order_relaxed);
     emit_event_(event::Type::ScanProgress, stage);
 }
 
@@ -1173,6 +1204,9 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         tel_.snap.overall_permille = 0;
         tel_.run_t0 = t0;
     }
+    /* D4a: fresh coalescing state for this run (the bytes axis joins the
+     * permille axis) */
+    evt_last_bytes_.store(0, std::memory_order_relaxed);
     tel_running_.store(true, std::memory_order_release);
     tel_cancel_.store(cancel, std::memory_order_release);
 
@@ -2513,6 +2547,14 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
                                     bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
     const u32 threads = resolve_threads(cfg_.threads);
     tel_stage_begin_(2, cancel);
+    /* D4a: latch the carve's byte base so every live publish stamps
+     * snap.bytes_scanned = base + carve-done (the moving "Reading
+     * sector: X/Y" counter — the pre-fix snapshot froze at this boundary
+     * until the stage end) */
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        carve_bytes_base_ = stats.bytes_scanned;
+    }
     /* M-049: the carve sweep's reads (its internal window fan-out
      * included - the owner fallback) attribute to the carve module. */
     errmod::Guard carve_guard(errmod::kCarve);

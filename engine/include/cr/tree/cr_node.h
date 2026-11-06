@@ -528,6 +528,15 @@ public:
      * (the boundary stamp re-truths at the stage close). */
     u64 live_files() const { return live_files_.load(std::memory_order_relaxed); }
     u64 live_raw() const { return live_raw_.load(std::memory_order_relaxed); }
+    /* D4b (the debug-and-release session): the live LOGICAL-SIZE counter —
+     * every add_file adds the node's logical_size under the tree's own
+     * lock (O(1), same discipline as live_files_/live_raw_: the detach
+     * paths subtract, reset zeroes). The telemetry layer samples it at
+     * progress-event time so the og's "Files Found: N (X GB)" headline
+     * can render a live SIZE alongside the live count (N-167 stamped the
+     * size only at stage boundaries — the shipped UI showed "N (0 B)"
+     * for the whole scan). Lock-free read: an atomic load. */
+    u64 live_logical() const { return live_logical_.load(std::memory_order_relaxed); }
 
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
@@ -566,6 +575,8 @@ public:
     /* N-166: the live counters (see the accessors above) */
     mutable std::atomic<u64> live_files_{0};
     std::atomic<u64> live_raw_{0};
+    /* D4b: the live logical-size sum (see live_logical()) */
+    mutable std::atomic<u64> live_logical_{0};
 
     /* clear without destroying (engines may reuse) */
     void reset();

@@ -150,6 +150,10 @@ pub struct CrUiEvent {
     /// W1c (R-52) append: CR_EVT_AUTOSAVED's rc (0 = saved, else the write
     /// error); 0 on every other event type.
     pub autosave_rc: u64,
+    /// D4b append: the cumulative found-data size in bytes (the og's
+    /// "Files Found: N (X GB)" size axis), live at progress-event cadence;
+    /// 0 on event types that do not carry it.
+    pub bytes_found: u64,
 }
 
 pub type CrUiEventFn = Option<unsafe extern "C" fn(user: *mut c_void, evt: *const CrUiEvent)>;
@@ -274,6 +278,9 @@ pub struct CrUiTelemetry {
     pub paused: u32,
     pub running: u32,
     pub cancelled: u32,
+    /// D4b append: the live found-data size in bytes (the tree's live
+    /// logical sum — "Files Found: N (X GB)"'s size axis).
+    pub bytes_found: u64,
 }
 
 #[repr(C)]

@@ -1067,7 +1067,11 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     auto* s = static_cast<CrScan*>(user);
     if (!s || !s->event_fn)
         return;
+    /* zero first (the pre-fix stack POD left unmapped members - the W1c
+     * autosave_rc and every later append - indeterminate across the ABI);
+     * mapped members overwrite below. */
     cr_ui_event out;
+    std::memset(&out, 0, sizeof(out));
     out.type = u32(e.type);
     out.stage = e.stage;
     out.timestamp_ms = e.timestamp_ms;
@@ -1078,6 +1082,7 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.files_found = e.files_found;
     out.deleted_found = e.deleted_found;
     out.carved_found = e.carved_found;
+    out.bytes_found = e.bytes_found; /* D4b: the live found-size axis */
     out.err_start_bytes = e.err_start_bytes;
     out.err_len_bytes = e.err_len_bytes;
     out.error_ranges = e.error_ranges;
@@ -2526,6 +2531,7 @@ u32 scan_telemetry_impl(cr_ui_scan* scan, cr_ui_telemetry* out) {
     out->carved_found = t.carved_found;
     out->lost_partitions = t.lost_partitions;
     out->bytes_scanned = t.bytes_scanned;
+    out->bytes_found = t.bytes_found; /* D4b: the live found-size axis */
     out->elapsed_ms = t.elapsed_ms;
     out->error_ranges = u32(t.errors.ranges().size());
     out->paused = t.paused ? 1u : 0u;

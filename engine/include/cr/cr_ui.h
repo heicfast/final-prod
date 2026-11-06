@@ -269,6 +269,15 @@ typedef struct cr_ui_event {
     /* W1c (R-52) append: the auto-save attempt's rc (CR_EVT_AUTOSAVED
      * only; 0 on every other event type). */
     uint64_t autosave_rc;
+    /* D4b (the debug-and-release session) append: the cumulative
+     * found-data SIZE in bytes - the og's "Files Found: N (X GB)" size
+     * axis, live at progress-event cadence (stamped from the result
+     * tree's atomic live-logical counter; stage-boundary stamps re-truth
+     * it exactly). Carried on CR_EVT_SCAN_PROGRESS and
+     * CR_EVT_FILES_FOUND; 0 on every other event type. Old hosts that
+     * predate the field ignore it (additive append, the W1c layout
+     * discipline). */
+    uint64_t bytes_found;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -651,10 +660,16 @@ typedef struct cr_ui_telemetry {
     uint32_t overall_permille; /* weighted, monotonic */
     cr_ui_stage_tel quick, deep, carve;
     uint64_t files_found, deleted_found, carved_found, lost_partitions;
-    uint64_t bytes_scanned; /* carve-true-bytes (honest fill-rate) */
+    uint64_t bytes_scanned; /* carve-true-bytes (honest fill-rate); LIVE
+                               during the carve (D4a: stage base + done,
+                               clamped monotonic - the "Reading sector:
+                               X/Y" counter moves through the sweep) */
     uint64_t elapsed_ms;    /* pause-compensated run time */
     uint32_t error_ranges;  /* live read-failure count */
     uint32_t paused, running, cancelled;
+    /* D4b append: the live found-data size in bytes (the tree's atomic
+     * live-logical sum; the og's "Files Found: N (X GB)" size axis). */
+    uint64_t bytes_found;
 } cr_ui_telemetry;
 
 /* Live snapshot of the running (or finished) scan; any thread, any time. */

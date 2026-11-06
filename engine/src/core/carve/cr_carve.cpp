@@ -155,6 +155,11 @@ constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
  * counters are atomic, tree emission is internally locked). */
 struct ScanCtx {
     IStorageDevice* slice;
+    /* D4c: the caller's cancel token — the per-byte loop checkpoints it at
+     * a bounded cadence so a pathological validator window can never
+     * hold a stop request for minutes (BF-25's measured 180 s+ drain).
+     * Null = no token (the serial CLI path behaves as before). */
+    const CancelToken* cancel = nullptr;
     const Signature* reg;
     /* M-024: per-trial-slot and per-raw-sign-format disable maps, built
      * once in carve_slice from flags->disabled_formats (null list ->
@@ -596,6 +601,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
     WindowDevice wdev(ctx.slice, base, win, want);
     for (u64 off = 0; off + 12 <= want; ++off) {
         if (ctx.aborted.load(std::memory_order_relaxed))
+            return ERR_CANCELLED;
+        /* D4c: the bounded cancel checkpoint — every 4 KiB of window
+         * position observes the token, so a stop request lands within
+         * one validator call instead of waiting out the whole window's
+         * grind (BF-25: measured 180 s+ un-drained stops inside the
+         * carve matcher). An atomic load per 4096 positions is noise. */
+        if ((off & 0xFFFu) == 0 && ctx.cancel != nullptr && ctx.cancel->checkpoint())
             return ERR_CANCELLED;
         /* M-005: the used-cluster gate, grammar layer (the per-byte
          * dispatch - the dominant cost). Used -> suppress; aligned used
@@ -1455,6 +1467,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
 
         ScanCtx ctx;
         ctx.slice = slice;
+        ctx.cancel = cancel; /* D4c: the per-byte checkpoint's token */
         ctx.reg = registry();
         ctx.flags = &flags;
         ctx.tree = &tree;

@@ -220,6 +220,10 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     live_files_.fetch_add(1, std::memory_order_relaxed);
     if (n->props() && n->props()->fs_kind == u32(FsKindCode::Raw))
         live_raw_.fetch_add(1, std::memory_order_relaxed);
+    /* D4b: the live logical-size sum (the "Files Found: N (X GB)" size
+     * axis; same lock discipline as the counters above) */
+    if (n->props())
+        live_logical_.fetch_add(n->props()->logical_size, std::memory_order_relaxed);
     index_node_locked(n);
     return n;
 }
@@ -463,10 +467,15 @@ void ResultTree::detach_subtree(FileNode* root) {
      * marker=2 folders) over-subtracted and WRAPPED the unsigned
      * counter. */
     u64 live_dropped_sub = 0;
+    u64 logical_dropped_sub = 0;
     for (FileNode* n : sub)
-        if (!n->full_)
+        if (!n->full_) {
             ++live_dropped_sub;
+            if (n->props() != nullptr)
+                logical_dropped_sub += n->props()->logical_size;
+        }
     live_files_.fetch_sub(live_dropped_sub, std::memory_order_relaxed);
+    live_logical_.fetch_sub(logical_dropped_sub, std::memory_order_relaxed); /* D4b */
     /* roots_: remove the root itself (a detached root always is one; the
      * loop guards against a future non-root call shape). */
     roots_.erase(std::remove(roots_.begin(), roots_.end(), root), roots_.end());
@@ -545,10 +554,15 @@ void ResultTree::detach_child(FileNode* parent, FileNode* child) {
      * session-loaded marker=2 folders) over-subtracted and WRAPPED the
      * unsigned counter, corrupting the mid-stage telemetry samples. */
     u64 live_dropped = 0;
+    u64 logical_dropped = 0;
     for (FileNode* n : sub)
-        if (!n->full_)
+        if (!n->full_) {
             ++live_dropped;
+            if (n->props() != nullptr)
+                logical_dropped += n->props()->logical_size;
+        }
     live_files_.fetch_sub(live_dropped, std::memory_order_relaxed);
+    live_logical_.fetch_sub(logical_dropped, std::memory_order_relaxed); /* D4b */
     child->first_child_ = nullptr;
     child->last_child_ = nullptr;
     for (FileNode* n : sub) {
@@ -573,6 +587,8 @@ void ResultTree::reset() {
     by_record_.clear();
     by_extent_.clear();
     live_files_.store(0, std::memory_order_relaxed); /* N-166 */
+    live_raw_.store(0, std::memory_order_relaxed);   /* N-166 */
+    live_logical_.store(0, std::memory_order_relaxed); /* D4b */
     for (auto& a : arenas_) {
         delete[] static_cast<unsigned char*>(a.base);
         a.base = nullptr;

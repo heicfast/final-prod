@@ -159,6 +159,11 @@ struct Event {
     u32 stage_permille = 0, overall_permille = 0;
     /* FilesFound (cumulative counters, not deltas) */
     u64 files_found = 0, deleted_found = 0, carved_found = 0;
+    /* D4b: the cumulative found-data size in bytes (the og's
+     * "Files Found: N (X GB)" size axis — live at progress-event cadence,
+     * stamped from the tree's live_logical counter; boundary stamps
+     * re-truth it exactly). 0 on other event types. */
+    u64 bytes_found = 0;
     /* ErrorRange: the newest appended span (absolute device bytes) */
     u64 err_start_bytes = 0, err_len_bytes = 0;
     u32 error_ranges = 0; /* cumulative count after the append */
@@ -611,7 +616,10 @@ struct ScanTelemetrySnapshot {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
-    u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
+    u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate); live
+                              during the carve (D4a: base + done, clamped
+                              monotonic) */
+    u64 bytes_found = 0;   /* D4b: live found-data size (tree live_logical) */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
     /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
@@ -850,6 +858,11 @@ private:
     }
     mutable std::atomic<u32> evt_last_overall_{0xFFFFFFFFu};
     mutable std::atomic<u32> evt_last_errors_{0};
+    /* D4a: the bytes-axis coalescing state — a progress event also fires
+     * when the live scanned-bytes moved this much since the last sample
+     * (multi-TB carves spend minutes inside one permille step). */
+    mutable std::atomic<u64> evt_last_bytes_{0};
+    static constexpr u64 kProgressBytesStep_ = 16ull << 20;
     /* the live sink (constructed from cfg_; overridable pre-run so the
      * resumed flow - whose controller is built inside resume() - can
      * subscribe after the handle exists) */
@@ -878,6 +891,12 @@ private:
     mutable std::atomic<u32> tel_stage_ = 0; /* current stage for worker-side publishes */
     mutable std::atomic<bool> tel_running_ = false;
     std::atomic<RetryingDevice*> tel_retry_ = nullptr;
+    /* D4a: stats.bytes_scanned latched when the carve stage begins — the
+     * live publish path stamps snap.bytes_scanned = base + carve done so
+     * "Reading sector: X/Y" moves DURING the carve (the pre-fix snapshot
+     * only stamped at stage boundaries, freezing the counter for the whole
+     * sector sweep). Set under tel_.m by run_carve_stage before the sweep. */
+    u64 carve_bytes_base_ = 0;
     /* the caller's token, for live paused()/paused_ms() refresh in
      * telemetry() while run() executes (cleared under tel_.m at teardown) */
     std::atomic<const CancelToken*> tel_cancel_ = nullptr;
