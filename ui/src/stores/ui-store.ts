@@ -6,6 +6,8 @@ const logger = createLogger('ui-store');
 export type ResultsViewMode = 'details' | 'icons';
 
 const SIDEBAR_KEY = 'rw.ui.sidebarCollapsed';
+const VIEW_MODE_KEY = 'rw.ui.viewMode';
+const PREVIEW_WIDTH_KEY = 'rw.ui.previewPaneWidth';
 
 function readStoredSidebarCollapsed(): boolean {
   try {
@@ -14,6 +16,29 @@ function readStoredSidebarCollapsed(): boolean {
     /* storage unavailable */
   }
   return false;
+}
+
+/** T14 (the persistence audit): the results presentation and the preview
+ * pane width are user preferences — they survive restarts like the
+ * theme/density/locale/sidebar settings (the reference's own Qt settings
+ * persisted both). */
+function readStoredViewMode(): ResultsViewMode {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === 'icons' ? 'icons' : 'details';
+  } catch {
+    /* storage unavailable */
+  }
+  return 'details';
+}
+
+function readStoredPreviewPaneWidth(): number {
+  try {
+    const v = Number(localStorage.getItem(PREVIEW_WIDTH_KEY));
+    if (Number.isFinite(v) && v >= 240 && v <= 560) return Math.round(v);
+  } catch {
+    /* storage unavailable */
+  }
+  return 320;
 }
 
 interface UiState {
@@ -39,17 +64,29 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  viewMode: 'details',
-  previewPaneWidth: 320,
+  viewMode: readStoredViewMode(),
+  previewPaneWidth: readStoredPreviewPaneWidth(),
   sidebarCollapsed: readStoredSidebarCollapsed(),
   devPanelOpen: false,
   perfOverlayVisible: false,
   setViewMode: (mode) => {
     logger.debug('view-mode', { mode });
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      /* storage unavailable */
+    }
     set({ viewMode: mode });
   },
-  setPreviewPaneWidth: (w) =>
-    set({ previewPaneWidth: Math.min(560, Math.max(240, Math.round(w))) }),
+  setPreviewPaneWidth: (w) => {
+    const clamped = Math.min(560, Math.max(240, Math.round(w)));
+    try {
+      localStorage.setItem(PREVIEW_WIDTH_KEY, String(clamped));
+    } catch {
+      /* storage unavailable */
+    }
+    set({ previewPaneWidth: clamped });
+  },
   setSidebarCollapsed: (collapsed) => {
     logger.debug('sidebar-collapsed', { collapsed });
     try {

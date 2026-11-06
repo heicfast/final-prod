@@ -2536,3 +2536,12 @@ the release.yml notes template) — all trued to the launch-time
 requireAdministrator posture; INSTALL-FOOTPRINT-CURRENT.md carries the
 stale-banner (v0.6.0-era sheet; rewrite queued). worklog/DOC-AUDIT.md
 records the full register (trued / verified / queued).
+
+## T14 persistence audit — the last two unpersisted preferences (lane A)
+
+Theme/density/UI-scale/locale/sidebar already survive restarts
+(localStorage with hardened-profile guards); the persistence audit
+found two user preferences that did NOT: the results view mode
+(details/icons) and the preview pane width. Both now persist
+(ui-store.ts, clamped + validated on read). Sessions (.crsf,
+ProgramData) and the locale/theme family were verified as-is.
