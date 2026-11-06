@@ -251,9 +251,23 @@ jobs:
           $onlySelf = ($left.Count -eq 1) -and ($left[0].Name -eq 'HeicFastUninstall.exe')
           if ($onlySelf) {
             Remove-Item $left[0].FullName -Force -ErrorAction SilentlyContinue
+            # NSIS's RMDir $INSTDIR already failed while the exe existed;
+            # with the exe gone the (now-empty) dir — and its (now-empty)
+            # parent — are the caller's to remove too. Remove-Item WITHOUT
+            # -Recurse fails on a non-empty dir, so this can never mask a
+            # real leftover (run 42220997177: the empty dir itself was the
+            # last survivor).
+            Start-Sleep -Seconds 2
+            if (-not @(Get-ChildItem $instDir -Recurse -File -ErrorAction SilentlyContinue).Count) {
+              Remove-Item $instDir -Force -ErrorAction SilentlyContinue
+              $parent = Split-Path $instDir -Parent
+              if ((Test-Path $parent) -and -not @(Get-ChildItem $parent -Recurse -ErrorAction SilentlyContinue).Count) {
+                Remove-Item $parent -Force -ErrorAction SilentlyContinue
+              }
+            }
             $deadline2 = (Get-Date).AddSeconds(30)
             while ((Test-Path $instDir) -and ((Get-Date) -lt $deadline2)) { Start-Sleep -Seconds 2 }
-            "uninstaller self-exe cleaned by the probe (the documented _?= survivor)" |
+            "uninstaller self-exe + the emptied install dir cleaned by the probe (the documented _?= survivor)" |
               Set-Content C:\forensic\evidence\uninstall-self-cleanup.txt -Encoding UTF8
           }
           if (Test-Path $instDir) {

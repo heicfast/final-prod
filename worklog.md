@@ -2115,3 +2115,13 @@ behavior; a real user's Add/Remove Programs run copies the uninstaller
 to %TEMP% first, so the whole dir goes). Probe fix: the caller cleans
 the self-same exe when it is the ONLY leftover — anything else still
 fails the assertion. Probe-side only; v0.8.4 stands.
+
+### Forensic run 28 — the emptied dir itself was the last survivor
+
+Run 28 (42220997177, v0.8.4): the self-exe cleanup ran (the note + the
+empty leftovers file prove it) — but the emptied INSTALL DIR itself
+remained: NSIS's RMDir had already failed while the exe existed, and
+nothing re-attempted it after the probe's delete. Fix: after removing
+the self-exe, the probe removes the now-EMPTY dir + parent
+(Remove-Item WITHOUT -Recurse — it fails on a non-empty dir, so a real
+leftover can never be masked). Probe-side only; v0.8.4 stands.
