@@ -2576,3 +2576,17 @@ ProgramData) and the locale/theme family were verified as-is.
 - Lane A's re-vehicled forensic probe (d8fbef64) carries the fixed-posture
   gates; the shipped-v0.8.4 reproduction (run 42255492260: 75→76.1% over
   891 s, found-count frozen at 197) is the D4 field evidence.
+
+## Lane B — the BF-32 record (the emitter teardown race)
+
+WIRING-AUDIT's #9/#10 finding verified: the scan emitter thread holds the
+engine scan handle as a raw SendPtr (events.rs:349-398), while the entry's
+Drop (state.rs:291-327) frees that handle through cr_ui_scan_close the
+moment the last Arc drops — the run tail's final emits can still be in the
+emitter's drain queue at that instant. The window is narrow and never
+observed (29 forensic runs), but it is a real lifetime bug. The correct
+fix (two-phase teardown: sink box freed at the run tail like the consent
+pipe; the emitter holds the entry Arc so Drop orders after the drain) is
+designed in BF-32 and deliberately NOT rushed into the 0.9.0 train — a
+concurrency restructure this late would risk the validated release. Next
+bridge session's first item.
