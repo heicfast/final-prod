@@ -7,6 +7,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
+#include "test_tmpdir.hpp" /* cr_test::read_repo_text (the D4e source pin) */
 #include "cr/storage/cr_device.h"
 #include <atomic>
 #include <chrono>
@@ -577,4 +578,37 @@ TEST(Telemetry, CancelLandsInsideTheCarveWindow) {
     EXPECT_TRUE(t.cancelled) << "the cancelled scan must stamp cancelled in telemetry";
     EXPECT_EQ(run_rc.load(), u32(ERR_CANCELLED))
         << "the stop landed through the carve checkpoints (D4c)";
+}
+
+/* ---- D4e: the deep remnant sweep's live progress ------------------------- */
+
+TEST(Telemetry, DeepRemnantSweepTicksPerBlock) {
+    /* D4e: the forensic gate on v0.9.0 (run 42278088695) measured a 655 s
+     * stretch with percent + found-count + sector ALL frozen — the deep
+     * stage's remnant sweep ticked progress only per COMPLETED
+     * volume/Nth chunk (≈16 GiB on the 64 GiB seed) and NEVER on the
+     * serial path. Source pin: the block loop ticks the shared atomic
+     * coverage sum every REMNANT_BLOCK, both paths carry the seam, and the
+     * per-chunk completion tick is gone. */
+    const std::string src = cr_test::read_repo_text("src/core/ntfs/cr_mftwalk.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t ctx_at = src.find("struct RemnantCtx");
+    ASSERT_NE(std::string::npos, ctx_at) << "RemnantCtx moved?";
+    const std::string ctx_body = src.substr(ctx_at, 1600);
+    EXPECT_NE(std::string::npos, ctx_body.find("WalkProgress progress"))
+        << "the sweep context must carry the progress seam (D4e)";
+    EXPECT_NE(std::string::npos, ctx_body.find("std::atomic<u64> scanned"))
+        << "the coverage sum must be shared across workers (D4e)";
+    const size_t range_at = src.find("u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end)");
+    ASSERT_NE(std::string::npos, range_at) << "remnant_range_scan moved?";
+    const std::string range_body = src.substr(range_at, 3000);
+    EXPECT_NE(std::string::npos, range_body.find("ctx.progress(ctx.scanned.load"))
+        << "the block loop must tick progress per REMNANT_BLOCK (D4e)";
+    const size_t scan_at = src.find("u32 scan_mft_remnants(");
+    ASSERT_NE(std::string::npos, scan_at) << "scan_mft_remnants moved?";
+    const std::string scan_body = src.substr(scan_at, 2800);
+    EXPECT_NE(std::string::npos, scan_body.find("ctx.progress = progress"))
+        << "the caller's progress must be wired into the context for BOTH paths (D4e)";
+    EXPECT_EQ(std::string::npos, scan_body.find("done_chunks"))
+        << "the per-chunk completion tick is superseded by the per-block seam";
 }

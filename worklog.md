@@ -2639,3 +2639,34 @@ manifest gate inside build.ps1, artifacts + checksums + truthful notes)
 → the forensic dispatch on the new tag (the fixed-posture gates:
 manifest, OS-refusal twin, home census, moving scan progress, live
 found-size) → RELEASE-VALIDATION curation.
+
+## Lane B — D4e: the deep remnant sweep's 655-second freeze (found by the v0.9.0 forensic gate)
+
+The forensic run on v0.9.0 (42278088695) failed its own D-SCAN-01 gate:
+a 655 s stretch with percent + found-count + sector ALL frozen — in the
+DEEP stage this time, not the carve (advancedPctDelta=1.1 and
+liveBytesOk=true prove the carve axes D4a/b landed correctly; the freeze
+sat in the NTFS remnant sweep that runs BEFORE the carve). Root cause:
+scan_mft_remnants ticked progress only per COMPLETED volume/threads chunk
+(≈16 GiB per tick on the 64 GiB seed) — and the SERIAL path had NO tick
+at all. Fix: the block loop (4 MiB steps) ticks a shared atomic coverage
+sum through the caller's progress seam — monotonic across workers,
+bounded cadence, cancel-through-progress preserved, both paths. Pin:
+Telemetry.DeepRemnantSweepTicksPerBlock; NTFS suite 97/97, telemetry
+suites 22/22.
+
+**Release note (lane coordination):** v0.9.0 is published and carries
+every fix EXCEPT this one; the deep-phase freeze it still has is the
+D4e class. main needs this green, then v0.9.1 (lane A's protocol: it
+cuts the tag; the takeover clause applies if it stays silent).
+
+
+## Lane B — E-01: the volume enumeration buffer (the 16+ letters wholesale failure)
+
+cr_enumerate.cpp's enumerate_volumes used a fixed 64-wchar
+GetLogicalDriveStringsW buffer — at 16+ letters (dev VHDs, containers,
+card readers) the call overflowed, the >64 check refused, and EVERY
+volume vanished from the device list. Fixed with the SDK's own shape: a
+512-wchar stack buffer + the overflow-return-driven exact-size retry.
+(E-01 was the one register row lane A marked pending lane-B
+confirmation — confirmed real, fixed; 12/12 enumeration tests green.)

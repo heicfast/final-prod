@@ -1756,6 +1756,18 @@ struct RemnantCtx {
     std::atomic<u64> emitted{0};
     std::atomic<u64> dup_skipped{0};
     std::atomic<bool> aborted{false};
+    /* D4e (the debug-and-release session): the sweep's LIVE progress seam.
+     * The pre-fix shape ticked only per COMPLETED 1/Nth-of-the-volume
+     * chunk (parallel: total/threads ≈ 16 GiB per tick on a 64 GiB volume —
+     * the forensic D-SCAN-01 gate measured a 655 s stretch with percent,
+     * found-count AND sector all frozen, run 42278088695) and NEVER in
+     * the serial path. The block loop now ticks every REMNANT_BLOCK (4 MiB)
+     * against the shared atomic scan sum — monotonic across workers,
+     * bounded cadence, cancel-through-progress preserved. */
+    WalkProgress progress = nullptr;
+    void* progress_user = nullptr;
+    std::atomic<u64> scanned{0};
+    u64 progress_total = 0;
 };
 
 /* GAP-S6-4: extract the remnant record's unnamed $DATA into recoverable
@@ -2300,10 +2312,27 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
             /* unreadable block: skip forward (bad-sector policy is the
              * transport's job; here we just continue the sweep) */
             base += REMNANT_BLOCK;
+            /* D4e: skipped blocks count as scanned too (the sweep advanced
+             * past them — the progress axis is COVERAGE, not decode) */
+            ctx.scanned.fetch_add(REMNANT_BLOCK, std::memory_order_relaxed);
+            if (ctx.progress != nullptr &&
+                !ctx.progress(ctx.scanned.load(std::memory_order_relaxed), ctx.progress_total,
+                              ctx.progress_user)) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ERR_CANCELLED;
+            }
             continue;
         }
         scan_remnant_buffer(ctx, buf.data(), want);
         base += REMNANT_BLOCK;
+        /* D4e: the intra-block tick — the deep stage's remnant sweep now
+         * reports coverage every 4 MiB instead of per whole chunk */
+        ctx.scanned.fetch_add(REMNANT_BLOCK, std::memory_order_relaxed);
+        if (ctx.progress != nullptr && !ctx.progress(ctx.scanned.load(std::memory_order_relaxed),
+                                                     ctx.progress_total, ctx.progress_user)) {
+            ctx.aborted.store(true, std::memory_order_relaxed);
+            return ERR_CANCELLED;
+        }
     }
     return OK;
 }
@@ -2326,6 +2355,14 @@ u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes
     ctx.record_size = record_size;
     ctx.tree = &tree;
     ctx.root_lost = root_lost;
+    /* D4e: the live seam is wired for BOTH paths — the parallel fan-out's
+     * per-chunk tick (one per total/threads ≈ 16 GiB on a 64 GiB volume)
+     * measured a 655 s frozen stretch on the forensic runner; the serial
+     * path had NO tick at all. Every worker now ticks the shared atomic
+     * coverage sum per 4 MiB block. */
+    ctx.progress = progress;
+    ctx.progress_user = progress_user;
+    ctx.progress_total = total;
 
     u32 rc = OK;
     if (threads > 1 && total > REMNANT_BLOCK * 2) {
@@ -2334,17 +2371,12 @@ u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes
         PoolCancelToken pool_cancel(&pool);
         const u64 chunk = ((total / threads) + 511) & ~u64(511);
         const u64 nchunks = (total + chunk - 1) / chunk;
-        std::atomic<u64> done_chunks{0};
         rc = parallel_for(pool, nchunks, [&](u64 ci) -> u32 {
             if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             const u64 cstart = ci * chunk;
             const u64 cend = (ci + 1) * chunk < total ? (ci + 1) * chunk : total;
-            const u32 prc = remnant_range_scan(ctx, cstart, cend);
-            const u64 d = done_chunks.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (progress && !progress(d * chunk > total ? total : d * chunk, total, progress_user))
-                return ERR_CANCELLED;
-            return prc;
+            return remnant_range_scan(ctx, cstart, cend);
         });
         if (cancel && cancel->cancelled() && rc == OK)
             rc = ERR_CANCELLED;

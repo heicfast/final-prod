@@ -263,11 +263,31 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
 }
 
 u32 enumerate_volumes(std::vector<VolumeEntry>& out) {
-    wchar_t letters[64];
-    DWORD len = GetLogicalDriveStringsW(64, letters);
-    if (len == 0 || len > 64)
+    /* E-01 (the debug-and-release session): the fixed 64-wchar buffer
+     * failed WHOLESALE at 16+ letters (each drive string is 4 wchars + the
+     * list's terminating NUL — GetLogicalDriveStringsW returns the needed
+     * size on overflow, the >64 check refused, and EVERY volume vanished:
+     * a machine with many mounts — dev VHDs, containers, card readers —
+     * lost its volume rows entirely). The SDK's own shape: a generous
+     * stack buffer, and on overflow the returned requirement drives an
+     * exact-size retry. */
+    wchar_t stack_buf[512]; /* 128+ letters on the stack; the heap path covers the absurd */
+    DWORD cap = 512;
+    DWORD len = GetLogicalDriveStringsW(cap, stack_buf);
+    std::wstring heap;
+    if (len > cap) {
+        /* overflow: len IS the required size (final null included) */
+        heap.resize(size_t(len), L'\0');
+        cap = len;
+        len = GetLogicalDriveStringsW(cap, heap.data());
+        if (len == 0 || len > cap)
+            return ERR_BAD_PARAMETER;
+    } else if (len == 0) {
         return ERR_BAD_PARAMETER;
-    const wchar_t* p = letters;
+    }
+    const wchar_t* p = heap.empty() ? stack_buf : heap.c_str();
+    if (heap.empty() && len > 0 && stack_buf[0] == L'\0')
+        return OK; /* zero drives: the honest empty */
     while (*p) {
         VolumeEntry v;
         v.letter = p[0];
