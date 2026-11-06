@@ -1972,3 +1972,24 @@ deterministic surfaces):
   save probe (the db600f4c refusal-toast proof, silence = red); S3
   stall-recorder trimmed 28 → 15 min (corpus exists from runs 17 +
   42072191860); io-probe 4800 s. BF-25's row generalized.
+
+### Forensic run 20's post-mortem — the stopped-scan banner bug (v0.8.2)
+
+Run 20 (42178485694, v0.8.1 + the drain-sized probe): the during-drain
+save returned "Search saved" within 3 s of the stop — the engine thread
+had ALREADY returned (run 19's 180 s+ vs run 20's ~3 s = the carve
+checkpoint-timing variance) — yet the "stopped early" banner never
+rendered in 15 min. The artifact convicted a real product bug:
+useScanState's refetchInterval polled only while running/starting; the
+first post-stop poll reads 'stopping' (the drain), the interval turns
+off, and the query freezes at 'stopping' forever — the banner (gated on
+status === 'cancelled') could never render after ANY stop. The TEST
+DOUBLE's synchronous cancel (no stopping phase) kept every unit/e2e
+proof green while the shipped product never showed it.
+
+- Fix: the interval keeps polling through 'stopping' until the terminal
+  state (ui/src/queries/scan.ts, evidence-cited).
+- Regression pin: tests/scan-state-drain.test.tsx (scripted
+  stopping→stopping→cancelled; verified RED on the old interval, GREEN
+  on the fix). 175/175 local; typecheck/lint/prettier green.
+- v0.8.2 cut: version lockstep + forensic default tag + notes truth.

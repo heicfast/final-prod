@@ -104,7 +104,20 @@ export function useScanState(scanId: string | null) {
     enabled: scanId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'running' || status === 'starting' ? 500 : false;
+      // 'stopping' MUST keep the poll alive (v0.8.0 forensic, runs
+      // 42178485694 + 42176600928): the engine's cancel is observed by
+      // the run thread only at its next checkpoint, so the state reads
+      // 'stopping' for the whole drain window. Stopping the poll there
+      // froze the query at 'stopping' FOREVER — the "stopped early"
+      // partial-results banner (gated on status === 'cancelled') could
+      // never render after a stop, even though the thread had long
+      // returned and the save (busy=0) already worked. The TEST DOUBLE's
+      // synchronous cancel never showed a 'stopping' phase, which is why
+      // every unit/e2e proof passed while the real product never showed
+      // the banner.
+      return status === 'running' || status === 'starting' || status === 'stopping'
+        ? 500
+        : false;
     },
   });
 }

@@ -222,8 +222,36 @@ gate, S2 health (4 selections), the vehicle started, advanced stage,
 the stop dialog + confirm + navigation, and (io) the reads ceasing on
 cancel — the product's stop path itself behaved exactly as designed.
 
-**(the re-dispatch on v0.8.1 with the corrected probe — filled from the
-run's evidence as it lands: the full gate set incl. the during-drain
+### The v0.8.1 forensic dispatch — attempt 2 (run 20, 42178485694)
+
+RED at the same S2b drain gate — and this time the artifact CONVICTED A
+REAL PRODUCT BUG (the v0.8.2 fix):
+
+- The during-drain save (NEW this run) returned **"Search saved" within
+  3 s of the stop** — the engine's run thread had ALREADY returned
+  (busy=0; the carve pool watcher caught the cancel immediately this
+  time — run 19's 180 s+ drain and run 20's ~3 s drain bracket the
+  checkpoint-timing variance).
+- Yet the "stopped early" banner NEVER rendered in 15 minutes. If the
+  thread returned, the terminal latch says 'cancelled' and the banner's
+  condition (status === 'cancelled') is met — unless the UI never
+  FETCHED the terminal state. It didn't: `useScanState`'s refetchInterval
+  polled only while `running`/`starting`; the first post-stop poll
+  returns **'stopping'** (the drain), the interval turns off, and the
+  query freezes at 'stopping' FOREVER. The banner could never render
+  after ANY stop. The TEST DOUBLE's synchronous cancel
+  (mock-connector.ts:482 — 'cancelled' set immediately, no stopping
+  phase) is why all 174 unit + 14 e2e proofs stayed green while the
+  shipped product never showed the banner.
+- The fix (v0.8.2): the interval keeps polling through 'stopping' until
+  the terminal state lands; pinned by a new regression test
+  (scan-state-drain.test.tsx — scripted stopping→stopping→cancelled;
+  verified to FAIL on the old interval and PASS on the fix; 175/175).
+
+### The v0.8.2 release (the stopped-scan banner fix)
+
+**(filled from the runs' evidence as they land — tag, release workflow,
+forensic dispatch on v0.8.2: the full gate set incl. the during-drain
 save, the drain banner, the incomplete save, the Backup Resume, the
 resumed completion, the unelevated twin, and the silent uninstall)**
 
