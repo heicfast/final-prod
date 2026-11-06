@@ -48,31 +48,67 @@ Step-by-step from the run log:
 
 ## The installed-product validation (forensic-repro, dispatched on v0.7.0)
 
-- Attempt 1 (42129256087): FAILED at the unelevated-twin step — the
-  `runas /trustlevel:0x20000` mechanism cannot de-elevate on the runner
-  (UAC token filtering not in effect; the app ran elevated, truthfully
-  reported administrator, correctly showed no banner). The product was
-  right; the launcher was wrong. Fixed (CreateProcessWithLogonW of a
-  fresh standard user + the launcher now ASSERTS the spawned token is
-  not-elevated before the banner assertion). The run's other evidence was
-  captured: S1 install ✓, launch ✓, the no-mock gate ✓ on the shipped
-  DOM, S2 health (SMART environmentally absent on Azure VM disks — the
-  honest failure state renders), S3 scan started + live progress + 197
-  items found.
+Five attempts; each failure was a probe defect (fixed in-tree) or a
+recorded behavior finding — never a masked product failure. Step-level
+truth per the runs' job records:
+
+- Attempt 1 (42129256087): step 10 (drive the UI) GREEN — S1 install, launch,
+  the no-mock gate, S2 health, S3 scan started + live progress + 197 items;
+  step 11 (unelevated twin) RED — the `runas /trustlevel:0x20000` mechanism
+  cannot de-elevate on the runner (UAC token filtering not in effect; the
+  app ran elevated, truthfully reported administrator, correctly showed no
+  banner). The product was right; the launcher was wrong. Fixed (db5f0b81:
+  CreateProcessWithLogonW of a fresh standard user + the launcher now
+  ASSERTS the spawned token is not-elevated before the banner assertion).
 - Attempt 2 (42135600496): cancelled at the S3 capture when the mount-row
   selector bug was caught (rows render the volume label, not the drive
-  letter) — before it could burn the full window.
-- Attempt 3 (**42138026793**): the full gate set — S1 install, launch +
-  no-mock gate, S2 health, S3 scan (28-min capture) + **S3b stop →
-  partial results → session save → recover → report** + **S5 backup
-  screen + resume**, the unelevated twin (genuinely restricted token +
-  banner + scan-refusal + no-mock), postrun facts, and the **silent
-  uninstall + no-leftover assertions**. Result: see below.
+  letter) — before it could burn the full window. Fixed (ff5b337b).
+- Attempt 3 (42138026793): step 10 RED — the S3b recovery REPORT wait was
+  rejected by Playwright's ARIA engine on WebView2 in 268 ms (non-timeout)
+  while the report was already visible in the same-instant screenshot.
+  Fixed (eaec57b5: the CSS engine + verbatim rejection capture + one
+  retry). The run's captured evidence up to that point: stop dialog,
+  partial results, 30 rows, destination chosen (SeedEXFAT), recovery
+  STARTED — the surface itself was working.
+- Attempt 4 (42143819243): step 10 RED at the S5 save gate — the recover
+  gate was GREEN this time ('Recovery finished — 1 of 1 files recovered ·
+  0 failed', reportWait.ok=true), but the save clicked at +9 s hit the
+  post-cancel drain window (cr_ui_scan_busy still set; io-timeline shows
+  reads creeping 20+ s after the stop) and the refusal was INVISIBLE —
+  the mutation had no onError (no toast, no file). Fixed (db600f4c: the
+  onError toast — the product's never-silent rule — + the probe retries
+  through the window). BF-24 recorded.
+- Attempt 5 (42148493806): step 10 RED at the S5 save gate again — the
+  retry loop ran, but ALL 15 attempts over 136 s saw ZERO toasts and the
+  .crsf was never written (io-timeline: no write spike). Root cause
+  (BF-25, this session's analysis of the artifact): the stalled 64GB
+  scan's run thread NEVER RETURNED after the stop — reads had been idle
+  from +6 min (the BF-22 stall), the cancel token was set, the UI
+  navigated to results on the cancel invoke's success, but the thread
+  sat inside the slow carve window with no cancellation checkpoint:
+  busy stays 1 (it clears only at the heartbeat join), every save is
+  refused, and the 'stopped early' banner (gated on status=cancelled,
+  which latches when run() exits) never rendered. The recovery itself
+  SUCCEEDED from the still-live scan ('1 of 1 files recovered'). Fixed
+  probe-side (this session): the save/resume gates moved OFF the stalled
+  stop path onto a deterministic completion vehicle — a full scan of the
+  8GB SeedEXFAT seed that completes inside its window (S2b), with the
+  toast poll timing fixed (400 ms poll inside the toast's ~4 s life;
+  the old 4 s sleep could miss a toast that auto-dismissed between
+  samples). The busy-guard itself is HONEST (a save of a mid-drain scan
+  would be unsound) — BF-25 points upstream (a cancel checkpoint inside
+  the carve window), same family as BF-22.
+- The unelevated twin and the silent-uninstall assertions never executed
+  to completion on v0.7.0 (they run after step 10, which failed in every
+  attempt) — their first full pass is the v0.8.0 dispatch below.
 
-### Attempt 3 result (filled from the run's evidence)
+### The v0.8.0 re-validation (dispatched on the new tag)
 
-**(to be completed when the run lands — the step list with conclusions,
-the key evidence values, and the artifact link)**
+**(filled from the run's evidence as it lands — the gate set: S1 install,
+launch + no-mock, S2 health, S2b completion vehicle → save → backup →
+resume, S3 stall recorder, S3b stop → partial results → recover → report,
+the unelevated twin, postrun facts, the silent uninstall + no-leftover
+assertions)**
 
 ## Behavior findings recorded during the validation (not release blockers)
 

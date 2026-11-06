@@ -1862,3 +1862,66 @@ red main; P5 and P6 follow.
 Next: P6 — the v0.7.0 tag on the green tree, the release workflow
 end-to-end, forensic-repro dispatched on the release, and the evidence
 files under worklog/RELEASE-VALIDATION/.
+
+## Session resume (release session #3) — BF-25 root-caused, the probe gates re-vehicled, v0.8.0 cut
+
+Stage check (measured): main @ d3982b01 green on both ui lanes (ui-ci
+42149111723, ui-e2e 42149111834); forensic-repro #17 (42148493806, on
+db600f4c) RED at step 10. That red is this session's first unit; the
+release (new tag + release workflow) is the exit criterion.
+
+### The forensic #17 post-mortem — BF-25 (root cause from the artifact)
+
+The S5 save gate failed with 15 attempts, ZERO toasts, no .crsf. The
+io-timeline reconstruction: reads idle from +6 min (the BF-22 stall),
+stop at +28 min, and after it — 156 readOps and ~12 writeOps per minute
+only (background chatter), no write spike. The save was genuinely
+refused every time: the stalled scan's run thread NEVER returned after
+the cancel (no cancellation checkpoint inside the slow carve window), so
+cr_ui_scan_busy stays 1 (it clears only at the heartbeat join), every
+session_save is refused with SCAN_NOT_RUNNING, the v0.7.0 binary's
+missing onError makes the refusal invisible, and the 'stopped early'
+banner (gated on status=cancelled, latched when run() exits) never
+rendered. The recovery itself SUCCEEDED from the still-live scan
+('Recovery finished — 1 of 1 files recovered · 0 failed'). The
+busy-guard is HONEST (saving a mid-drain scan would be unsound);
+recorded as BF-25 (upstream core scope, same family as BF-22).
+
+### The fix — the gates move to a deterministic completion vehicle
+
+drive-ui.mjs restructured (no product change; the probe must gate on
+deterministic surfaces):
+- NEW S2b leg: a full scan of the 8GB SeedEXFAT seed — small enough to
+  COMPLETE inside a 16-min window (the 64GB leg's real work was ~6 min
+  of reads) — carries the session gates: completed scan → results →
+  'Save this search' (gate: the success toast) → Backup screen (gate:
+  the Resume affordance) → resume (gate: lands on a live scan) →
+  hygiene settle for the next leg. Cap fallback: stop the healthy scan
+  (drains fast, unlike the stalled one).
+- Toast poll timing fixed: 400 ms poll inside the toast's ~4 s life
+  (run 17's 4 s sleep could miss a toast that auto-dismissed between
+  samples — though in that run the save truly never landed).
+- S3b: the save block is gone (moved to S2b); the partial banner is
+  recorded as observed-at-nav, never gated on (BF-25: it latches only
+  when the drain finishes); the recover surface stays a GATE (proven
+  working from a live scan in run 17).
+- RELEASE-RUN.md: the five v0.7.0 attempts written step-by-step from
+  the job records (attempt 3's placeholder filled with the truth — the
+  ARIA-engine rejection; the unelevated twin + uninstall never completed
+  on v0.7.0; their first full pass is the v0.8.0 dispatch).
+- forensic-repro.yml: default tag v0.8.0; io-probe DurationSec 3000 →
+  3600 (the vehicle leg adds up to 16 min).
+
+### The v0.8.0 release
+
+- VERSION + ui/package.json + tauri.conf.json + ui/src-tauri/Cargo.toml
+  + Cargo.lock → 0.8.0 (build.ps1's lockstep gate).
+- release.yml notes: the 0.8.0 truth — the session-save visibility fix
+  (db600f4c), everything else the proven 0.7.0 product, with the 0.7.0
+  driver-removal history referenced.
+- Local proofs: node --check both probes, YAML re-parse (all seven),
+  contracts validate green (44 commands).
+- Tag v0.8.0 (annotated) on the version-bump commit → the release
+  workflow (build + validate + upload) → forensic-repro dispatched on
+  v0.8.0 (the full gate set incl. the twin + the uninstall, both
+  first-passing) → RELEASE-RUN.md's v0.8.0 section filled from evidence.
