@@ -1,265 +1,222 @@
-# WIRING-AUDIT — every UI↔core seam, and every mismatch
+# WIRING-AUDIT — every seam between the React UI and the cr_ui core (Agent D, Phase 0)
 
-Product: `/home/z/my-project/final-prod` (Tauri+React UI → Rust bridge → cr_ui ABI v4 → C++ engine).
-Scope of this sheet: commands/*.rs, bridge/*.rs, ui/src/connector/{contract.ts,tauri/tauri-connector.ts},
-ui/src/queries/*.ts, ui/src/features/**, contracts/*, engine/include/cr/cr_ui.h, engine/src (telemetry paths).
-Every claim carries file:line. Line numbers verified 2025 via direct read; engine side cited from
-`engine/src/core/orchestrator/cr_scan.cpp`, `engine/include/cr/cr_ui.h`, `engine/include/cr/orchestrator/cr_scan.h`.
+Scope: ui/src (React) → contract.ts → tauri-connector.ts (invoke) → commands/*.rs → bridge/abi.rs (cr_ui.h ABI v4) → engine; events back via bridge/events.rs → Tauri emit → frontend `listen()`. All citations file:line in /home/z/my-project/final-prod.
 
----
+Surface-size truth first: the connector contract exposes **50 methods** (contract.ts:131-786) and command-surface.json declares **45 commands** — the "36 operations" figure quoted in the task and in error-codes.json:324/326 ("the 36 methods") is a stale count that no gate checks.
 
-## 1. The seam map
+## Operation inventory (command → TS method → ABI → events → JSON shape → mismatch flags)
 
-Command registration: `ui/src-tauri/src/lib.rs:33-92` (45 commands). TS side: the ONE backend is
-`connector/tauri/tauri-connector.ts` (`connector/index.ts:23-37`; mock is dev/test-only).
+Key: `▸` = mismatch flag (detail below the table). ABI export lists abbreviated; full refs in contracts/command-surface.json:5-737.
 
-| Tauri command (Rust) | Engine ABI calls | JSON to frontend | Frontend consumer |
-|---|---|---|---|
-| `devices_list` / `devices_refresh` (commands/devices.rs:427-444) | `cr_ui_enumerate_disks/_volumes` (util.rs:156-184, 2-call), open-probe `cr_ui_open_disk` per disk (devices.rs:130), `cr_ui_open_volume` FVE probe (devices.rs:151) | `Device[]` incl. `volumes[]` (devices.rs:208-229) | `useDevices`/`useRefreshDevices` (queries/devices.ts:5-20) via `devices.listDevices/refreshDevices` (tauri-connector.ts:189-201) |
-| `volume_unlock_dictionary` (devices.rs:459-505) | `cr_ui_unlock_volume_with_dictionary` | `void` | `useUnlockVolume` (devices.ts:23-30) → unlock-volume-dialog |
-| `scan_start` (commands/scan.rs:92-110, prep :116-332) | `cr_ui_abi_version`, `cr_ui_open_volume[_with_key]`/`cr_ui_open_disk`, `cr_ui_device_geometry`, `cr_ui_scan_create`, `cr_ui_scan_attach_device`, `cr_ui_scan_set_event_fn`; run thread: `cr_ui_scan_run`, `cr_ui_scan_get_stats`, `cr_ui_scan_repair_save_undo`, `cr_ui_scan_snapshot` | `{scanId}` | `useStartScan` (queries/scan.ts:88-98) |
-| `scan_pause` / `scan_resume` / `scan_cancel` (scan.rs:500-581) | `cr_ui_scan_pause` / `_resume` / `_cancel` (+ consent force-deny first, :573) | `void` | `usePauseScan`/`useResumeScan`/`useCancelScan` (scan.ts:148-175) |
-| `scan_state` (scan.rs:587-656) | `cr_ui_scan_busy/_stopping/_telemetry` (events.rs:198-211), registry | `ScanState` (scan.rs:637-652) | `useScanState` (scan.ts:100-123), 500 ms poll while running/starting/stopping |
-| `scan_close` (scan.rs:658-691) | registry remove → `ScanEntry::Drop` (state.rs:291-327) | `void` | **NO frontend caller** (manifest `serves:"internal"`; no connector method — see §3/§4) |
-| `scan_save_cancel` (scan.rs:696-719) | `cr_ui_scan_save_cancel` | `void` | `useCancelSave` (queries/sessions.ts:31-35) |
-| `results_tree` (commands/results.rs:887-898) | `cr_ui_scan_snapshot` / `cr_ui_session_snapshot` + `cr_ui_snapshot_dfs/_node/_node_count/_partial` (state.rs:605-755) | `TreePage` | `useResultTree` (queries/results.ts:21-32) |
-| `results_query` (results.rs:482-507) | **none live** — bridge-side filter/sort/page over the NodeMeta cache (G-7, results.rs:1-17) | `ResultsPage` (results.rs:472-479) | `useResultsPages` (results.ts:34-55), page 200 |
-| `results_count` (results.rs:509-526) | same | `number` | `useCountResults` (results.ts:58-66) |
-| `node_detail` (results.rs:904-948) | metas only | `NodeDetail` (results.rs:936-944) | `useNodeDetail` (results.ts:68-74) |
-| `preview_open` (commands/preview.rs:464-474) | `cr_ui_preview_open_snapshot/_session`, `_size`, `_metadata`, `_unreadable`, `_read` (chunked ≤4 MiB), `cr_ui_archive_entry_count/_at` | `PreviewPayload` union (preview.rs:329-458) | `usePreview` (queries/preview.ts:7-15) |
-| `preview_thumbnail` (preview.rs:476-486) | same + `cr_ui_thumbnail_generate` (session-kind only, preview.rs:223-278) | `{dataUrl}\|null` | `useThumbnail` (results.ts:76-83) |
-| `session_save` (commands/sessions.rs:85-140) | `cr_ui_scan_save_session`, `cr_ui_scan_get_stats` | `SessionMeta` (sessions.rs:126-136) | `useSaveSession` (sessions.ts:12-18) |
-| `sessions_list` (sessions.rs:147-172) | `cr_ui_session_list` (2-call, W1a) | `SessionMeta[]` (render_row :174-221) | `useSessions` (sessions.ts:5-10) |
-| `session_load` (sessions.rs:356-369) | `cr_ui_session_load_with_events` (W1b sink), `cr_ui_session_get_info`, `cr_ui_session_stats`, source re-attach `cr_ui_open_volume/_disk` (:667-738) | `{scanId}` | `useLoadSession` (sessions.ts:20-29) |
-| `session_meta` (sessions.rs:372-405) | `cr_ui_session_list` | `SessionMeta` | connector method only (tauri-connector.ts:314-315) — **no query hook calls it** (§3) |
-| `session_resume_last` (sessions.rs:411-447) | `cr_ui_session_last_autosave_path` + load | `{scanId, path}` | `useResumeLastSession` (sessions.ts:49-53) → Home continue-last |
-| `session_resume` (sessions.rs:453-486) | load + `cr_ui_session_resume`, `cr_ui_scan_attach_device`, `cr_ui_scan_verify_identity`, `cr_ui_scan_set_event_fn`; launches run thread | `{scanId, targetId}` | `useResumeSession` (sessions.ts:39-45) |
-| `recovery_start` (commands/recovery.rs:51-79, blocking :81-289) | `cr_ui_recovery_create`, `_set_destination`, `_enqueue[_subtree][_snapshot]`, `_queue_count`; process thread `cr_ui_recovery_process`, `_get_stats`; emitter `_get_stats`, `_report_json` | `{jobId}` | `useStartRecovery` (queries/recovery.ts:66-84) |
-| `recovery_cancel` / `recovery_state` / `recovery_items` / `recovery_report` (recovery.rs:367-569) | `cr_ui_recovery_cancel`; registry; `cr_ui_recovery_report_json` (×2) | `void` / `RecoveryJob` / `RecoveryItem[]` / `RecoveryReport` | `useCancelRecovery`/`useRecoveryJob`/`useRecoveryItems`/`useRecoveryReport` (recovery.ts:95-128) |
-| `health_read` (commands/health.rs:18-157) | `cr_ui_health_read` (2-call) | `DiskHealth` (health.rs:138-153) | `useHealth` (queries/health.ts:5-13) |
-| `consent_respond` (commands/repair.rs:31-38) | registry gate only (bridge/consent.rs:229-250) | `void` | `useRespondToConsent` (scan.ts:202-207) + `respondToApplyConsent` (tauri-connector.ts:415-416) |
-| `repair_dry_run` / `repair_apply` / `repair_undo_log` / `repair_undo` (repair.rs:40-65) | **none** — typed `not-implemented` (G-1 gap trio) | throws | connector `repair.*` (tauri-connector.ts:368-381) → repair-page message |
-| `lost_partition_apply` (commands/lost_partition.rs:52-121) | `cr_ui_open_disk`, `cr_ui_apply_lost_partition` (+ apply consent sink, consent.rs:179-222) | `ApplyResult` (lost_partition.rs:43-50) | `useApplyLostPartition` (queries/lost-partition.ts:13-26) |
-| `lost_partition_undo` / `lost_partition_save_undo` (lost_partition.rs:191-228) | `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo` | `ApplyResult` / `void` | `useUndoLastApply` / `useSaveApplyUndo` (lost-partition.ts:28-39) |
-| `apply_consent_pending` (lost_partition.rs:233-246) | registry | `ApplyConsentEvent\|null` | `useApplyConsentPending` (lost-partition.ts:41-50, 4 s poll) |
-| `system_app_info` (commands/system.rs:130-147) | `cr_ui_abi_version`, `cr_ui_user_sign_count` | `AppInfo` — **omits `connectorMode`** (§5 M-8) | `useAppInfo` (queries/system.ts:5-11) |
-| `system_security_posture` / `system_relaunch_elevated` (system.rs:70-124) | Win32 `OpenProcessToken`/`GetTokenInformation`/`ShellExecuteW("runas")` | `{administrator}` / `void` | `useSecurityPosture`/`useRelaunchElevated` (system.ts:42-57) → ElevationBanner (features/consent/elevation-banner.tsx:16-47) |
-| `system_load_user_signs` (system.rs:202-210) | `cr_ui_register_user_signs`, `cr_ui_user_sign_count` | `{count}` | `useLoadUserSigns` (system.ts:59-63) — **bug, §5 M-7** |
-| `system_validate_destination` (system.rs:293-338) | Win32 probes + enumeration | `DestinationValidation` | `useValidateDestination` (system.ts:24-29) |
-| `system_pick_directory` / `system_list_mounts` / `system_open_path` (system.rs:340-412) | dialog/opener plugins; enumeration + `GetDiskFreeSpaceExW` | `string\|null` / `MountPoint[]` / `void` | `usePickDirectory` / `useMountPoints` (system.ts:13-36) / **openPath: no UI caller** (§5 M-9) |
-
----
-
-## 2. Event wiring
-
-The bridge emits 10 event families (contracts/command-surface.json `events`). The frontend listens
-to **4** (`listen()` appears only at tauri-connector.ts:233, 249, 348, 407). Verified by grep over
-`ui/src` — no other `listen` call sites exist.
-
-| Event | Producer (bridge) | Frontend consumer | Payload vs contract verdict |
-|---|---|---|---|
-| `scan-progress:<id>` | emitter thread (bridge/events.rs:389-398) + terminal emit from run thread (events.rs:214-236; commands/scan.rs:446-453) | `onScanProgress` (tauri-connector.ts:229-239) → external store (queries/scan.ts:22-84) | Field names match `ScanProgressEvent` (contract.ts:192-213). **Dropped/constant fields below.** |
-| `scan-finished:<id>` | run thread, `{status, failure?: string, autosaved}` (scan.rs:455-458) | **NONE** — terminal detected via `scan-progress.status` change (scan.ts:38-50) | `failure` is a bare string; contract `ScanState.failure` expects `{code, reasonKey?}` (contract.ts:229). Latent (nothing reads either). |
-| `save-progress:<id>` | CR_EVT_SAVE_PROGRESS → `{fraction}` (events.rs:330-336) | **NONE** | Save spinner has no progress feed; `cancelSave` exists (sessions.ts:31-35) but the fraction is dead. |
-| `lost-candidate:<id>` | CR_EVT_LOST_CANDIDATE + N-061 log join `{lba, sectorCount?, fs?, score?, count}` (events.rs:287-313) | **NONE** — lost-partition page polls `scan_state.lostCandidates` instead (features/lost-partition/lost-partition-page.tsx:77-78; scan.rs:623-651) | Works via polling; event is redundant dead wiring (≤500 ms staleness either way). |
-| `consent-request:<id>` | consent sink on the engine run thread (bridge/consent.rs:158-160) | `onConsentRequest` (tauri-connector.ts:245-255) → `useConsentBridge` (scan.ts:183-199) + state re-hydration | Matches `ConsentRequestEvent` (contract.ts:245-257). ✔ |
-| `apply-consent-request:<id>` | apply consent sink (consent.rs:214-217) | `onApplyConsent` (tauri-connector.ts:403-413) → `useApplyConsentBridge` (lost-partition.ts:54-62) | Matches `ApplyConsentEvent` (contract.ts:676-691). ✔ |
-| `recovery-progress:<id>` | job emitter 250 ms loop (events.rs:410-516) + terminal from process thread (events.rs:569-591) | `onRecoveryProgress` (tauri-connector.ts:344-354) → job store (recovery.ts:22-61) | Matches `RecoveryProgressEvent` (contract.ts:537-550); `currentFileProgress` constant 0, `currentFile` ≤2 s stale (below). |
-| `recovery-finished:<id>` | process thread `{status}` (events.rs:587-590) | **NONE** — status change on `recovery-progress` covers it | Redundant dead event. |
-| `session-load-progress:<path>` | calling-thread sink `{path, permille, nodesDone, nodesTotal}` (events.rs:77-102) | **NONE** — backup page shows only `isPending` (features/backup/backup-page.tsx:162,171) | Load progress never rendered; large sessions load with a bare spinner. |
-| `scan-autosaved:<id>` | CR_EVT_AUTOSAVED `{rc}` (events.rs:342-350) | **NONE** — sessions list invalidated indirectly by the progress store terminal handler (scan.ts:46-49) | Redundant dead event. |
-
-**Fields the engine provides that the bridge drops (scan-progress):**
-- `CR_EVT_SCAN_PROGRESS.bytes_done` / `bytes_total` — live carve-true bytes, stamped per sample at
-  engine/src/core/orchestrator/cr_scan.cpp:596-597 (`e.bytes_done = stage == 2 ? st.bytes_done : 0`).
-  The emitter reads only `stage_permille`/`overall_permille` (events.rs:266-273) and refreshes
-  `bytesScanned` from `cr_ui_scan_telemetry` instead (events.rs:357-360), whose `bytes_scanned`
-  is stamped **only at stage boundaries + completion** (cr_scan.cpp:535 inside `tel_counts_`, called
-  at boundaries per the N-167 comment cr_scan.cpp:521-528). Net effect: frozen byte counter during
-  carve (§5 M-1).
-- `CR_EVT_SESSION_LOAD_PROGRESS.bytes_done/bytes_total` (nodes) are forwarded (events.rs:97-98) but
-  nobody listens.
-- `CR_EVT_ERROR_RANGE.err_module/err_operation/err_attempts` — intentionally log-only per
-  contracts/event-mapping.md:35 (documented, not a defect).
-
-**Fields the frontend expects that nothing provides:**
-- `ScanProgressEvent.dataFoundBytes` mid-scan — `ScanLive.data_found_bytes` is 0 live by design
-  (bridge/state.rs:107-109, G-3); **no `bytes_found` exists anywhere in the ABI**
-  (`cr_ui_telemetry` cr_ui.h:663-674; `cr_ui_event` cr_ui.h:233-247; `cr_ui_scan_stats`
-  cr_ui.h:938-950) although the core computes `ScanStats.bytes_found`
-  (engine/include/cr/orchestrator/cr_scan.h:586; stamped cr_scan.cpp:529, 2699). The UI headline
-  renders "Files Found: N (0 B)" (features/scan-progress/scan-progress-page.tsx:183-188) until the
-  terminal latch (§5 M-2). The mock fed it live (connector/mock/mock-connector.ts:643,661,1037).
-- `ScanProgressEvent.currentPath` — hard `null` (events.rs:193, G-2 "never fabricated"); the
-  "Searching: <path>" ticker is gated on it and never renders (scan-progress-page.tsx:148-157).
-  The mock fed it (mock-connector.ts:630,671).
-- `Volume.lostPartition` (LostPartitionHint) — never emitted (devices.rs:179, G-10); Home's
-  lost-partition badge can never render (features/device-selection/home-page.tsx:523, 595).
-- `AppInfo.connectorMode` — bridge never returns it (system.rs:133-146) (§5 M-8).
-
-**Fields that are constants / synthesized:**
-- `currentFileProgress: 0` always (events.rs:558) — documented indeterminate (event-mapping.md:62-64).
-- `currentFile` — report tail polled at 2 s cadence, only names *committed* items (events.rs:484-489;
-  event-mapping.md:59-61).
-- `recoverableDuringScan` — `snapshot_exists` flag, set after first successful `cr_ui_scan_snapshot`
-  (state.rs:629, 642).
-- `deviceConnected` — synthesized from heartbeat/progress freshness within 10 s (events.rs:142-152;
-  DISCONNECT_AFTER_MS state.rs:833).
-- `quickScanAvailable: true` constant (devices.rs:180; sessions.rs:314).
-- `SmartAttribute.threshold: null` constant (health.rs:130, BF-03 — base ABI carries no threshold).
-
----
-
-## 3. Contract conformance
-
-**`node contracts/validate.mjs` verdict: GREEN, exit 0.**
-Output: `40/40 engine error codes mapped`; `26/26 ConnectorErrorCode vocabulary covered`;
-`12/12 CR_EVT_* mapped in event-mapping.md`; `45 commands, 10 events, well-formed`;
-`phase 2 rust side: 45 command implementations cross-checked`; `phase 2 ts side: 44 invoked
-commands cross-checked`; `contracts validation green`.
-
-The validator is structural (names, vocab, presence) — it does **not** check payload field shapes,
-which is where every real defect below lives.
-
-**Manifest → Rust → frontend, both directions:**
-- All 45 `command-surface.json` rows have `#[tauri::command]` implementations (validator check 5).
-- All 44 connector-invoked commands are in the manifest (check 6). The 45th, `scan_close`
-  (manifest `serves: "internal (registry Drop; the fresh contract dropped the surface)"`),
-  is exempted by the validator's `internal`-prefix rule (validate.mjs:125) — **an intentional
-  orphan with no frontend caller**, which is the root of leak L2 (§4).
-- Connector methods with **no UI consumer above the connector** (dead one level up):
-  `sessions.getSessionMeta` (contract.ts:488; tauri-connector.ts:314-315; no hook/feature calls it)
-  and `system.openPath` (contract.ts:785; tauri-connector.ts:449-451; nothing calls it — see M-9).
-
-**Error codes:**
-- Every `error-codes.json` engine row has a numeric entry in the TS `ENGINE_CODE_MAP`
-  (tauri-connector.ts:92-132; 40 codes, complete vs cr_error.h) and `bridgeCode` values resolve
-  through `REASON_KEYS` (:62-89, all 26 vocabulary members).
-- Bridge-side `code` module (bridge/error.rs:27-49) defines 17 bridge-minted codes; consistent
-  with `bridgeOnlyCodes` (error-codes.json:339-401).
-- **Orphan vocabulary (declared, mapped, never produced by the real bridge):** `preview-encrypted`
-  and `preview-timeout` — listed in error-codes.json:373-386 and REASON_KEYS:80-81, but
-  `bridge/error.rs` has no such constants and no command path throws them (preview.rs classifies
-  only unsupported/too-large/missing-data/damaged). Mock-only vocabulary.
-- `engine_failure_code` (scan.rs:465-473) re-implements a 5-row subset of the TS table for the
-  `scan-finished`/`scan_state` `failure` field (repair-failed / device-permission / device-gone /
-  elevation-required / unknown) — in lockstep today, duplicate-source risk.
-
----
-
-## 4. Threading / lifecycle audit (scan_start run thread + emitter)
-
-**Lifecycle recap:** `scan_start` → blocking prep (open, create, attach, subscribe-before-run,
-register entry, sink box `Box::into_raw` scan.rs:258) → `launch_run_thread` spawns
-(a) the emitter thread draining the bounded(512) channel (scan.rs:349-356 → events.rs:242-402) and
-(b) the run thread executing `cr_ui_scan_run` + terminal latch + final events (scan.rs:362-459).
-Sink contract (never block on an engine worker thread; try_send; coalesce) is honored
-(events.rs:46-66; event-mapping.md:10-27). Terminal latching is single-writer: only the run thread
-writes `Terminal` (scan.rs:437-439); the emitter always passes `None` (events.rs:392). ✔
-
-**L1 — jobs registry never shrinks (leak).** `BridgeState.jobs` insert at recovery.rs:282; there is
-no removal path anywhere (grep: only state.rs:513 `unregister_consent` and scan.rs:686 `scans.remove`
-exist). `JobEntry::Drop` (state.rs:384-394) — the only place `cr_ui_recovery_close` and the boxed
-progress-sender free run — therefore never executes before process exit. Every recovery job leaks an
-engine recovery handle + one boxed `SyncSender` for the app's lifetime.
-
-**L2 — scans registry is append-only in practice (leak).** `ScanEntry` removal exists only in
-`scan_close` (scan.rs:686), which **no frontend code can call** (§3). Each live scan or session load
-accumulates: the engine scan/session handle + device handle (state.rs:308-325), the snapshot handle +
-O(n) `NodeMeta` cache (state.rs:211-229; ~96 B/node struct + strings, bounded <1 KiB/node by test
-results.rs:1140-1143), the sink box, **and the emitter thread itself** — the emitter's `for evt in rx`
-only ends when the sink `Sender` drops (state.rs:300-305), which only happens in `ScanEntry::Drop`.
-In a long-lived desktop session doing several scans, threads + engine handles + metadata grow without
-bound. The UI-side store cleanup (scan.ts:75-79) only drops listeners.
-
-**L3 — `ScanEntry.jobs` never shrinks.** Job ids are pushed (recovery.rs:283-287; sessions.rs:589-591)
-and never removed, so after the first recovery job `scan_close` refuses forever
-("cannot close a scan with recovery jobs still referencing it", scan.rs:675-681) — which, combined
-with L2, makes scan entries structurally unleakable once any recovery ran.
-
-**R1 — `scan_close` during the post-run drain (BF-24/BF-25 class; latent today).** When
-`cr_ui_scan_run` returns, `busy` flips false immediately but the terminal latch happens only after
-the final snapshot freeze + full metadata pass (scan.rs:418-443) — seconds to minutes at 10⁶ nodes.
-`scan_close`'s guard is busy-only (scan.rs:668-674), so it succeeds in that window: the registry row
-is removed while the run thread still holds its `Arc` (entry survives — correct), final events still
-emit, but every later `scan_state`/tree/query on that scanId throws `scan-not-found`
-(state.rs:484-492) — the scan's results are orphaned. Harmless today (nothing calls `scan_close`);
-fatal the day close is wired into the UI. A terminal-latch check (or `is_terminal()`-based refusal)
-is missing.
-
-**R2 — emitter use-after-free window on teardown.** The emitter thread does **not** hold the
-`ScanEntry` Arc — only `live`, `snapshot_exists` Arcs and a raw `SendPtr<CrUiScan>`
-(scan.rs:346-356; events.rs:242-249). `ScanEntry::Drop` unsubscribes the event fn, frees the sink
-box, then calls `cr_ui_scan_close` (state.rs:291-327). Unsubscribing stops *new* events, but std mpsc
-still delivers already-queued events after all senders drop, so the emitter can be inside
-`cr_ui_scan_telemetry(scan_ptr)` (events.rs:359) concurrently with or after `cr_ui_scan_close` —
-a dangling-handle call. Only reachable via `scan_close` (R1's window or post-terminal), i.e. latent,
-but the emitter should hold the entry Arc (or a close barrier) to serialize Drop vs drain.
-
-**R3 — status regression during the drain.** In the same post-run pre-latch window,
-`scan_status` falls through busy/stopping/paused to `"starting"` (events.rs:134-136): after a
-cancel, the UI polls `stopping` → run returns → **`starting`** → `cancelled`. The 500 ms poll keeps
-running (scan.ts:118 includes `starting`), so the status line visibly regresses before settling.
-
-**Sound parts (verified, no action):** consent §4.5 deadlock discipline — the run thread blocks on
-the gate with the registry lock released (consent.rs:148-164); `scan_cancel` force-denies pending
-gates *before* the token call (scan.rs:569-576); the run tail closes survivors (scan.rs:377);
-apply teardown closes device gates + clears in-flight (lost_partition.rs:113-116). Snapshot
-generation swaps are serialized on the entry's snap mutex and the metadata pass holds only that
-mutex, never the registry lock (state.rs:605-669, 673-755). The job emitter exits cleanly via
-`recv_timeout(250ms)` + `finished` flag (events.rs:424-443). `snapshot_exists` uses
-`Ordering::Release/Acquire` correctly (state.rs:629/642; events.rs:229). Session-load sink emits on
-the calling thread per the header and frees its pipe on every path (sessions.rs:260-283).
-
----
-
-## 5. Mismatch table (centerpiece — ranked by user impact)
-
-Severity: **[BUG]** user-visible wrong behavior · **[UX]** degraded/missing UX · **[COS]** cosmetic/doc · **[LAT]** latent (dead wiring today, breaks when wired).
-
-| # | Mismatch | UI expectation (file:line) | Engine/bridge reality (file:line) | Severity |
+| Rust command | Serves (contract.ts) | ABI exports | Events (emit) | Returns / flags |
 |---|---|---|---|---|
-| M-1 | **bytes_scanned frozen during carve** — "Reading sector: X/Y" stalls for the whole carve stage (the longest stage). | `bytesScanned` drives the sector counter (scan-progress-page.tsx:124-125, 257-262); mock streamed it live | Event carries live carve bytes `e.bytes_done/e.bytes_total` (cr_scan.cpp:596-597); emitter drops them, reads permilles only (events.rs:266-273); telemetry `bytes_scanned` stamped only at stage boundaries (cr_scan.cpp:535 w/ :521-528; cr_ui.h:665) | **[BUG]** |
-| M-2 | **Found size is 0 B the whole scan** — headline reads "Files Found: N (0 B)" until terminal. | `dataFoundBytes` in the live headline + celebration modal (scan-progress-page.tsx:183-188, 418-425); contract.ts:203; mock fed it (mock-connector.ts:643) | No `bytes_found` in `cr_ui_telemetry`/`cr_ui_event`/`cr_ui_scan_stats` (cr_ui.h:663-674, 938-950); core has it (cr_scan.h:586, cr_scan.cpp:529) but it never crosses; bridge latches 0 live (state.rs:107-109), computes the sum from snapshot metas only at completion (scan.rs:418-426) | **[BUG]** |
-| M-3 | **loadUserSigns import always fails** — Settings import passes the file *name*, not the document text. | Contract: "the webview's file input supplies the document text" (contract.ts:764-767); call site settings-page.tsx:253 `loadUserSigns.mutate(file.name, …)` | Bridge parses the string as a JSON document (system.rs:157-164, 202-210) → engine register gets `"userdata-defaults.json"` as content → parse refusal every time | **[BUG]** |
-| M-4 | **"Open Location" context item is enabled but does nothing.** | Results-explorer context menu item has no `onClick` at all (results-explorer.tsx:476-484); `openPath` connector method exists (contract.ts:785; tauri-connector.ts:449-451) | Bridge `system_open_path` is fully implemented (system.rs:390-412) — dead on the vine | **[BUG]** |
-| M-5 | **Elevation deferred (no manifest)** — first run is a wall of 0x500C0001 refusals until the user notices the banner and relaunches. | ElevationBanner + relaunch flow (elevation-banner.tsx:16-47; queries/system.ts:42-57) | No `requestedExecutionLevel` manifest anywhere (src-tauri has no *.manifest; Cargo.toml:1-46 / tauri.conf.json carry no elevation config; NSIS bundle default). Every raw-disk verb refuses unelevated (error-codes.json:328-337) | **[UX]** |
-| M-6 | **SD cards read as 'usb'** — the SD-card page can never prefer an actual SD row. | `kind: 'sd'` expected (contract.ts:28; sd-card-page.tsx:30,33 filters/prefers `kind==='sd'`; default id `'dev-sd'` :27 never matches `disk-N`) | `kind = removable ? "usb" : "internal"` — no bus_type in `cr_ui_disk_info` (devices.rs:215; type-maps.md §1 G-9) | **[UX]** |
-| M-7 | **About dialog labels the shipped product "Mock"** with a warning badge. | `AppInfo.connectorMode` required (contract.ts:730); about-dialog.tsx:35-38 renders warning+"Mock" when ≠ 'tauri' | `system_app_info` never returns `connectorMode` (system.rs:133-146); also `engineVersion:"cr_ui ABI v4"` vs type-maps §10 "null (G-6)" | **[COS]** (user-visible mistrust) |
-| M-8 | **6 of 10 bridge events have no listener** — save/load progress, lost-candidate stream, autosave/finished notifications all dead. | Save spinner (contract SessionsDomain + cancelSave sessions.ts:31-35), load spinner (backup-page.tsx:162,171), candidate stream | Emitters exist and fire: save-progress (events.rs:330-336), session-load-progress (:92-100), lost-candidate (:287-313), scan-autosaved (:342-350), scan-finished (scan.rs:455-458), recovery-finished (events.rs:587-590); only 4 listens exist (tauri-connector.ts:233,249,348,407) | **[UX]** (functionality survives via polling, but the designed feedback loops are unwired) |
-| M-9 | **quickScanAvailable always true** — the "quick unavailable → offer deep only" contract branch is unreachable. | contract.ts:114-115 ("when false the UI must offer deep only"); mock could flip it (mock-connector.ts:309) | Constant `true` (devices.rs:180, G-9/G-10; sessions.rs:314). No UI consumer reads it today → latent | **[LAT]** |
-| M-10 | **currentPath always null** — "Searching: <path>" ticker never renders. | Ticker gated on `progress.currentPath` (scan-progress-page.tsx:148-157); contract.ts:211-212 | Hard `null`, never fabricated (events.rs:193, G-2); no ABI event carries the item | **[UX]** |
-| M-11 | **Home lost-partition badge can never render.** | `hasLost = volumes.some(v => v.lostPartition)` (home-page.tsx:523,595); contract.ts:112-113 | Hint never provided — lost candidates are scan-time events (devices.rs:179, G-10) | **[UX]** |
-| M-12 | **Status regresses to "starting" after Stop** during the terminal drain. | Poll set includes `starting` (scan.ts:118); status line shows phase labels (scan-progress-page.tsx:174-181) | Post-run pre-latch window: busy=0, terminal=None → `"starting"` (events.rs:134-136); latch happens after snapshot+metas pass (scan.rs:418-443) | **[UX]** |
-| M-13 | **Session list shows bytes *scanned* as the found size.** | `SessionMeta.dataFoundBytes` = found-data size (contract.ts:477; type-maps §9 "snapshot sum") | `render_row` maps `r.bytes_scanned` into `dataFoundBytes` (sessions.rs:217) — carve-true-bytes, a different quantity than the terminal snapshot sum (scan.rs:418-426) | **[COS]** (semantic lie in a list column) |
-| M-14 | **scan-finished failure shape mismatch.** | `ScanState.failure?: {code, reasonKey?}` (contract.ts:229) | Event payload `failure` is a bare string (scan.rs:412-414, 457); `scan_state` emits `{code}` only (scan.rs:603-609) | **[LAT]** (no consumer of either) |
-| M-15 | **Recovery currentFile is 2 s-stale and only names committed items; currentFileProgress constant 0.** | Live file row (recovery-page.tsx:657-659); per-file bar implied by contract.ts:542 | Report-tail poll at 2 s (events.rs:484-489), committed-only semantics (event-mapping.md:59-61); `currentFileProgress: 0` constant (events.rs:558) | **[UX]** (documented degradation) |
-| M-16 | **Preview of damaged files refuses instead of returning annotated content.** | type-maps §8: "preview-damaged annotation rides the payload (content still returned)" | Bridge throws `preview-damaged` and returns nothing (preview.rs:317-326) | **[COS]** (doc/code mismatch; truthful either way) |
-| M-17 | **Leaked registries / threads (L1-L3).** | UI assumes scans/sessions/jobs are managed resources | jobs never removed (recovery.rs:282; no remove site); scans removed only by the UI-unreachable `scan_close` (scan.rs:658-691); `entry.jobs` never shrinks → close refuses forever (scan.rs:675-681); emitter thread lifetime tied to the never-run Drop (state.rs:291-327) | **[BUG]** (resource leak, long sessions) |
-| M-18 | **scan_close mid-drain orphans results (R1) + emitter UAF window (R2).** | Future close callers expect the results to remain browsable | busy-only guard (scan.rs:668-674) misses the run-tail window; emitter lacks the entry Arc (events.rs:242-249) | **[LAT]** |
-| M-19 | **Dead vocabulary:** `preview-encrypted` / `preview-timeout` never produced. | REASON_KEYS + contract.ts:74-75 expect them | No bridge path throws them (bridge/error.rs:27-49; preview.rs) | **[COS]** |
-| M-20 | **Polling cadences:** scan_state 500 ms while running/starting/stopping (scan.ts:105-121) + apply-consent re-hydration 4 s (lost-partition.ts:48) + job report-tail 2 s (events.rs:408,484) are the *only* live feedback; results tree/count invalidate on 10 % overall buckets (scan.ts:37-56) — coarse but bounded. Engine coalesces progress to ≤1000 events/scan (cr_scan.cpp:632-636), so the 512-deep channel (scan.rs:257) can drop superseded samples under burst — by design (events.rs:52). | — | — | **[COS]** (as-designed; recorded for fix-order context) |
+| devices_list (devices.rs:427) | listDevices, getDeviceInfo | enumerate_disks/volumes, open_disk/volume, device_geometry, device_close | — | Device[] ▸1 ▸2 ▸3 ▸4 |
+| devices_refresh (devices.rs:437) | refreshDevices | enumerate_disks/volumes | — | Device[] (same composer) |
+| volume_unlock_dictionary (devices.rs:459) | unlockVolume | unlock_volume_with_dictionary | — | void; ERR_FVE_LOCKED→device-permission |
+| scan_start (scan.rs:92) | startScan | abi_version, open_disk/volume(+_with_key), device_geometry, scan_create, scan_attach_device, scan_set_event_fn, scan_run, scan_repair_save_undo | scan-progress / consent-request / lost-candidate / scan-autosaved per scanId ▸5 | {scanId} ▸6 |
+| scan_pause (scan.rs:501) | pauseScan | scan_pause | — | transient 'pausing' 2.5 s expiry (scan.rs:495) |
+| scan_resume (scan.rs:519) | resumeScan | scan_resume | — | scan-not-paused refusal |
+| scan_cancel (scan.rs:556) | cancelScan | scan_cancel | — | force-denies consent gates first (scan.rs:573) ▸7 |
+| scan_state (scan.rs:588) | getScanState | scan_busy/stopping/telemetry | — | ScanState ▸8 ▸9 |
+| scan_close (scan.rs:659) | internal (registry Drop) | scan_close | — | refuses while busy/jobs (scan.rs:668-681) |
+| scan_save_cancel (scan.rs:696) | sessions.cancelSave | scan_save_cancel | — | save-scoped N-060 |
+| results_tree / results_query / results_count / node_detail (results.rs) | getResultTree / queryResults / countResults / getNodeDetail | scan_snapshot, session_snapshot, snapshot_node/_count/_partial/_dfs | — | TreePage / ResultsPage / number / NodeDetail (G-7 live filter in Rust, type-maps.md:115-118) |
+| preview_open / preview_thumbnail (preview.rs) | requestPreview / getThumbnail | preview_open_snapshot/_session, preview_size/metadata/read/unreadable, archive_entry_count/_at, preview_close, thumbnail_generate | — | PreviewPayload; hex bytes arrive as JSON array → Uint8Array normalize (tauri-connector.ts:174-180) |
+| session_save (sessions.rs) | saveSession | scan_save_session, scan_get_stats | save-progress:<id> ▸5 | SessionMeta; refuses while running |
+| sessions_list / session_meta (sessions.rs) | listSessions / getSessionMeta | session_list | — | W1a light rows |
+| session_load (sessions.rs) | loadSession | session_load_with_events, session_get_info, session_stats | session-load-progress:<path> ▸5 | {scanId} |
+| session_resume_last / session_resume (sessions.rs) | resumeLastSession / resumeSession | last_autosave_path, session_load_with_events, session_resume, scan_attach_device, scan_verify_identity, scan_set_event_fn, scan_run | consent-request ▸5 | {scanId[,path,targetId]} |
+| recovery_start (recovery.rs) | startRecovery | recovery_create/set_destination/enqueue_* | recovery-progress:<jobId> | {jobId}; BF-14 options dropped |
+| recovery_cancel / _state / _items / _report (recovery.rs) | cancelRecovery / getRecoveryState / getRecoveryItems / getRecoveryReport | recovery_cancel, recovery_report_json, recovery_get_stats | recovery-finished:<jobId> ▸5 | RecoveryJob / Item[] / Report |
+| health_read (health.rs:19) | getHealth | health_read (base ABI only) | — | DiskHealth ▸10 ▸11 ▸12 ▸13 |
+| consent_respond (repair.rs) | respondToConsent + respondToApplyConsent | none (registry-only) | — | echo token, both families |
+| repair_dry_run / apply / undo_log / undo (repair.rs) | dryRunRepair / applyRepair / getUndoLog / undoRepairs | none | — | typed not-implemented (error.rs:105-115) |
+| lost_partition_apply / _undo / _save_undo (lost_partition.rs) | applyLostPartition / undoLastApply / saveApplyUndo | open_disk, apply_lost_partition / apply_undo_last / apply_save_undo, device_close | apply-consent-request:<deviceId> | ApplyResult verbatim |
+| apply_consent_pending (lost_partition.rs) | pendingApplyConsent | none | — | ApplyConsentEvent \| null |
+| system_app_info (system.rs:131) | getAppInfo | abi_version, user_sign_count | — | AppInfo ▸14 |
+| system_security_posture (system.rs:71) | getSecurityPosture | none (Win32 TokenElevation) | — | {administrator} |
+| system_relaunch_elevated (system.rs:85) | relaunchElevated | none (ShellExecuteW runas + app.exit(0)) | — | refused→device-permission |
+| system_load_user_signs (system.rs) | loadUserSigns | register_user_signs, user_sign_count | — | {count} |
+| system_validate_destination / system_pick_directory / system_list_mounts / system_open_path (system.rs) | validateDestination / pickDirectory / listMountPoints / openPath | enumerate_volumes (validate, mounts) | — | DestinationValidation / string\|null / MountPoint[] / void |
 
-Also verified clean (no mismatch): device id schemes, bitlocker tri-state, FVEK/dictionary unlock
-flow, consent echo-token flow both families, destination validation ladder, recovery report
-truncation contract, thumbnail BMP fallback, session resume identity check, W1a/W1b/W1c session
-surfaces, error vocabulary 40/40 + 26/26.
+Frontend event subscriptions (the only `listen()` calls in ui/src): scan-progress (tauri-connector.ts:233), consent-request (:249), recovery-progress (:348), apply-consent-request (:407). **5 of the 10 event families the bridge emits have no listener and no contract method**: scan-finished (scan.rs:455), save-progress (events.rs:332), lost-candidate (events.rs:304), session-load-progress (events.rs:92), scan-autosaved (events.rs:346), recovery-finished (events.rs:587). Completion/candidates/autosave reach the UI only indirectly (final progress sample + 500 ms scan_state poll + sessions query invalidation, queries/scan.ts:37-56).
 
----
+### Mismatch flags
 
-## Fix-order recommendation (drives the fix sessions)
+- ▸1 **kind degradation (BF-02)**: bridge emits `kind: removable!=0 ? "usb":"internal"` (devices.rs:215, 382) — v4 `cr_ui_disk_info` has no bus_type (abi.rs:182). DeviceKind 'sd'/'optical'/'virtual' (contract.ts:28) are never produced; 'sd' is unreachable though sd-card-page exists.
+- ▸2 **status vocabulary**: DeviceStatus 'disconnected' (contract.ts:41) is never emitted by devices_list; the UI's disconnected branch (home-page.tsx:199-201, 522) is dead. Open failure → 'permission-denied' even when the cause is elevation (devices.rs:84-90).
+- ▸3 **usage zeros**: unlettered volumes contribute 0 used/free (devices.rs:141-145) — capacity usedBytes can read 0 on fully-occupied unlettered disks.
+- ▸4 getDeviceInfo is resolved client-side by re-invoking full devices_list (tauri-connector.ts:191-199) — N open-probes per call, no server-side resolution.
+- ▸5 **dead-letter events** (list above).
+- ▸6 **dataFoundBytes pinned 0 live (G-3)**: state.rs:107-109 ("no live found-bytes counter exists in telemetry — 0 live, exact value latched at completion"); type-maps.md:44. The mock DOES emit live bytes (mock-connector.ts:624, 661) — the UI's "Files Found: N (size)" was built against a live value. `currentPath` likewise always null (G-2, events.rs:193) — the "Searching: …" ticker (scan-progress-page.tsx:148-157) never renders on the real backend; mock supplies it (mock-connector.ts:630-633).
+- ▸7 cancel is fire-and-forget at the seam: `scan_cancel` returns when the token is set (scan.rs:574-577); the UI navigates immediately (scan-progress-page.tsx:361-370) while the engine may drain for minutes (BF-25).
+- ▸8 **ScanStage 'tree-build' never emitted**: event-mapping.md:32 promises pre-run→'volume-analysis', post-run→'tree-build' then 'done'; the bridge emits only 'volume-analysis' default (state.rs:130), quick-index/deep-walk/carve (events.rs:257-262), and terminal 'done' (events.rs:178). Doc-vs-impl drift; contract.ts:166 still carries 'tree-build'.
+- ▸9 **failure.code double-mapped**: scan_state/scan-finished failure codes come from the bridge's own subset table `engine_failure_code` (scan.rs:465-473: only 0x50080001/3, 0x50060001, 0x50020007, 0x500C0001; everything else 'unknown'), NOT the frontend ENGINE_CODE_MAP (tauri-connector.ts:92-132). A run() failing with ERR_OPEN_FAILED (0x50020001) reports failure.code 'unknown' in ScanState but 'device-permission' had it crossed as a command rejection.
+- ▸10 **HealthStatus enum drift**: contract.ts:597 `HealthStatus = 'good'|'caution'|'bad'` — the bridge can return `status:"unknown"` (health.rs:101, empty-but-readable ATA table per NG-9). health-page.tsx:100-104 maps unknown into the else/"bad" visual branch → honest "no data" renders as Bad.
+- ▸11 **extra fields**: health JSON adds `transport` and `tableEmpty` (health.rs:151-152) not in contract.ts DiskHealth (additive, but undocumented drift).
+- ▸12 threshold column always null (BF-03) — documented (health.rs:127-130).
+- ▸13 **health unelevated mislabel**: engine open failure returns ERR_OPEN_FAILED with an "administrator rights required" message (cr_ui.cpp:4891-4894); it maps to 'device-permission' (tauri-connector.ts:93), not 'elevation-required' (0x500C0001 never returned by health_read) — no banner, generic toast.
+- ▸14 **AppInfo.connectorMode required in TS** (contract.ts:730) but never sent (system.rs:133-146; type-maps.md:210 says "REMOVED") — runtime undefined on a required field.
 
-1. **M-1** — honor `evt.bytes_done/bytes_total` on CR_EVT_SCAN_PROGRESS when `stage==2`
-   (events.rs:266-273): one-line-class fix, un-freezes the carve counter.
-2. **M-2** — add `bytes_found` to `cr_ui_telemetry` (tail-append ABI pattern, cr_ui.h already uses
-   it for label_full/repair fields) and latch it in ScanLive; alternatively derive from live
-   snapshot sums at the 1.5 s refresh cadence.
-3. **M-3** — read the file in the webview (`file.text()`) before `loadUserSigns.mutate`.
-4. **M-17/L1-L3** — add job cleanup (terminal + report fetched → remove) and a UI-reachable
-   `closeScan` connector method; shrink `entry.jobs` on job completion.
-5. **M-5** — ship a `requireAdministrator` manifest or NSIS elevation config.
-6. **M-8** — wire the four missing listeners (save/load progress at minimum).
-7. **M-6/M-9/M-10/M-11** — engine-side bus_type + quick-gate + path/lost-hint ABI appends, or
-   truthful UI removal of the dead affordances.
-8. **M-18/R1-R3** — terminal-latch guard in scan_close + emitter holds the entry Arc + a
-   `finishing` status word for the drain window.
+## The scan chain (hop-by-hop) and the 75 % symptom
+
+Hops (each verified; every hop is a real file:line):
+
+1. **UI scan-start** — home-page.tsx:89-102 `beginScan` → `useStartScan` (queries/scan.ts:88-98)
+   - `connector.scan.startScan(params)` → `invoke('scan_start', {targetId, pathScope: params.pathScope ?? null, bitlockerFvek: …})` (tauri-connector.ts:208-215)
+   - success → `setActive({scanId, targetId})` (queries/scan.ts:94) → navigate `/scan/<targetId>/live?scanId=` (home-page.tsx:94).
+2. **Rust preparation** (scan_start → spawn_blocking → scan_start_blocking, scan.rs:91-110, 116-332):
+   - ABI gate: `cr_ui_abi_version() != 4` → refusal (scan.rs:124-130; startup log-only twin at lib.rs:100-109).
+   - `resolve_target` (devices.rs:246-321): `disk-N` / `vol-L` / `vol-<disk>-<offset>` / virtual `vol-recycle-bin`+`vol-desktop` (implicit scopes :252-259).
+   - scope normalize (scan.rs:46-80; disk-target letter check :141-157).
+   - open: `cr_ui_open_volume` / `cr_ui_open_volume_with_key` (FVEK, :174-190); FVE-locked → device-permission :191-197; `CR_UI_ERR_ELEVATION_REQUIRED` → engine code crosses :198-205.
+   - geometry → `bytesTotal` (scan.rs:212-216, 288).
+   - zeroed `CrUiScanConfig` :229-241 — stage_mask 7 comes from `ScanConfig` defaults `run_quick/run_deep/run_carve = true` (cr_scan.h:197-200); **weights default 40/35/25** (cr_scan.h:72-75); `whole_disk` set for disk targets :230; `pre_scan_repair` volume-only (NG-21) :231; `pre_scan_check=1` :232; `autosave_dir` = sessions store (W1c) :233-234; consent sink armed :235-241.
+   - `cr_ui_scan_create` :244-247 → `cr_ui_scan_attach_device` :249-252.
+   - **bounded(512) channel + `scan_event_sink` subscribed BEFORE run** :257-268 (the ordering event-mapping.md:6-8 mandates) → registry insert :321-325 → `{scanId}` returned :109.
+3. **Thread launch** (scan.rs:339-460): `spawn_scan_emitter` (events.rs:242-402) + a dedicated run thread (scan.rs:362) calling `cr_ui_scan_run` :364.
+4. **Engine run** — `ScanController::run` (cr_scan.cpp:1101):
+   - `tel_stage_begin_` fires CR_EVT_SCAN_STAGE per stage (cr_scan.cpp:450-466).
+   - `tel_publish_` (cr_scan.cpp:485-520) → `overall_permille = weighted_progress(weights 40/35/25, …)` (cr_scan.cpp:131-146, monotonic clamp :518-519).
+   - `emit_progress_event_` coalesces: fires only when overall permille advances (cr_scan.cpp:623-642) — **≤1000 progress events per scan plus stage flips**.
+   - `emit_boundary_events_` (FilesFound + ErrorRange deltas, cr_scan.cpp:644+); live counters refreshed per event (N-166, cr_scan.cpp:567-575).
+   - heartbeat watchdog thread: CR_EVT_HEARTBEAT every 5 000 ms **only when no CR_EVT_SCAN_PROGRESS arrived in the window**, payload = standing truth, never a permille advance (cr_ui.cpp:1137-1189; contract at cr_ui.h:163-173).
+5. **Shim → bridge**: `scan_event_trampoline_` (cr_ui.cpp:1066-1104) copies the engine POD field-for-field into `cr_ui_event` → the bridge sink `scan_event_sink` does one `try_send` of the POD copy (events.rs:46-53; channel-full = coalescing, never blocks the worker).
+   - Rust `CrUiEvent` (abi.rs:125-153) is field-order/-layout-identical to C `cr_ui_event` (cr_ui.h:225-272) — verified member-by-member, incl. the 4-byte pad before `checkpoint_index` implied by repr(C).
+6. **Emitter thread** (events.rs:250-401) — the ONLY writer of `ScanLive` (state.rs:98-99):
+   - CR_EVT_SCAN_STAGE :256-264 → stage map 0→'quick-index', 1→'deep-walk', 2→'carve' (0xFFFFFFFF = standing stage kept).
+   - CR_EVT_SCAN_PROGRESS :266-273 → `stageProgress = stage_permille/1000`; `overall = overall_permille/1000` clamped monotonic.
+   - CR_EVT_FILES_FOUND :274-277 → `files_found = files+deleted+carved` (cumulative).
+   - CR_EVT_ERROR_RANGE :278-285 → bad_sectors push (cap 4096, state.rs:36) + errors = cumulative count.
+   - CR_EVT_LOST_CANDIDATE :287-314 → N-061 geometry join via `logging::take_candidate_geometry(lba)` + emits `lost-candidate:<scanId>`.
+   - CR_EVT_HEARTBEAT :326-329 → **liveness only** (`last_heartbeat_ms`; no scan-progress emit).
+   - CR_EVT_SAVE_PROGRESS :330-336 / CR_EVT_FS_CHECK :337-341 / CR_EVT_AUTOSAVED :342-350 / CR_EVT_REPAIR :315-325.
+   - on any emit-worthy event: telemetry poll (events.rs:357-387) refreshes `bytes_scanned`, the files sum, throughput/ETA, and clears the pause/resume transient → `compose_scan_progress` (events.rs:155-195) → `app.emit("scan-progress:<scanId>")` :398.
+7. **Terminal** (run thread tail, scan.rs:379-459): stats fetch :380-382 (`files_found = files+deleted+carved`), undo-log persist when repair applied :389-404, status mapping (OK→completed, 0x50020005→cancelled, else failed+`engine_failure_code`) :406-414, final snapshot freeze + exact `data_found_bytes` from snapshot metas :418-426, Terminal latch :429-443, **final progress sample** :446-453 + `scan-finished:<scanId>` :455-458 (unheard, ▸5).
+8. **Frontend receive**: `listen('scan-progress:'+scanId)` (tauri-connector.ts:229-239) → per-scan external store (queries/scan.ts:22-84):
+   - store sets `current` on every event; invalidates scanState on status change (:38-40) and tree/results/count/sessions on terminal (:42-50) or each 10 % bucket (:51-56).
+   - primes once from `getScanState` when no event has arrived (:60-68) — the subscribe-race backstop.
+   - parallel 500 ms `useScanState` poll while status is running/starting/stopping (queries/scan.ts:100-123) — reads the live cell through scan_state (scan.rs:588-656), so the chain survives long no-event windows **by polling, not by events**.
+9. **Render** (scan-progress-page.tsx):
+   - `progress = useScanProgress(scanId)` :66; `status` :79; `overall = progress.overallProgress` :80; `phase = scanPhaseOf(progress.stage ?? 'volume-analysis')` :83.
+   - gauge `value={overall}` :161-166.
+   - line 1 label: `t(phase === 'quick' ? 'scan.quickScanning' : 'scan.advancedScanning', {percent: formatPercent(overall)})` :174-181 (en.ts:154-155 "Quick/Advanced Scanning {{percent}}") + `t('scan.filesFoundWithSize', {count: filesFound, size: formatBytes(dataFoundBytes)})` :183-188 (en.ts:153 "Files Found: {{count}} ({{size}}").
+   - line 2: "Remaining time" (etaSeconds>0, :246-252) + `t('scan.readingSector', {current: sectorsScanned, total: sectorsTotal})` :257-262 where `sectorsScanned = Math.floor(bytesScanned/512)` :124-125.
+   - "Searching: <path>" ticker :148-157 — never renders (currentPath always null, ▸6).
+
+**Where each observed number comes from:**
+
+- **75 %** = `overallProgress` = `evt.overall_permille/1000` (events.rs:267-271) = `weighted_progress(40,35,25)` — when quick AND deep complete (permille 1000 each, tel_stage_end_ cr_scan.cpp:468-483) the overall is exactly `(40·1000+35·1000+25·0)/100 = 750‰ = 75.0 %`. 75 % is precisely the quick+deep boundary entering carve. The forensic corpus recorded the same boundary: "75%→76.1%, 197 items" (tools/forensic/drive-ui.mjs:648-649).
+- **"advanced scanning"** = stage 1/2 → `scanPhaseOf`→'advanced' (contract.ts:171-175) → the i18n label above.
+- **"files found 21"** = `filesFound` ← telemetry `files_found+deleted_found+carved_found` (events.rs:361) ← engine live tree counters (cr_scan.cpp:567-575, N-166). It is a **real early-scan count**, not a mock fixture — the mock never runs in shipped builds (connector/index.ts:23-26, VITE_CONNECTOR default 'tauri').
+- **"(0 B)"** = `dataFoundBytes` — pinned **0 during the whole live scan by design** (state.rs:107-109 G-3; type-maps.md:44); the mock updates it live (mock-connector.ts:624,661) so the screen was designed expecting live bytes.
+- **"no sector progress"** = `bytesScanned` ← telemetry `bytes_scanned`, which is **carve-true-bytes only** (cr_scan.h:614; emit_event_ zeroes bytes_done unless stage==2, cr_scan.cpp:596-597). During quick+deep the Reading-sector line shows 0/N; during a carve stall it freezes.
+- **"stuck"** = BF-22 (worklog/BEHAVIOR-FINDINGS.md:36): the carve matcher grinds free space in memory with reads idle. Seam behavior during the stall: heartbeats continue every 5 s → `deviceConnected` stays true (events.rs:142-152, DISCONNECT_AFTER_MS=10 s, state.rs:833); the 500 ms scan_state poll keeps returning busy=1/'running' from the live cell (queries/scan.ts:105-121; scan.rs:595-618) — the poll survives the no-event window, so the UI does not hang; it faithfully renders a stalled engine with **no stall/watchdog indicator anywhere** (the og bumped coarse progress on its watchdog; we deliberately show standing truth, cr_ui.cpp:1106-1115).
+
+**Candidate break points for symptom (a), ranked:**
+
+1. **Engine BF-22 carve stall** (primary, recorded): identical on ABI v2 and v4 engines; environmental/known-perf. Not a wiring regression; the wiring's job is to *surface* it, which it currently doesn't (no "stalled" state).
+2. **G-3 live found-bytes = 0** (bridge, designed-in): "Files Found: 21 (0 B)" reads like a broken counter to users. Fix path exists: `CrUiScanStats.bytes_found` is stamped live from `tree_.total_logical()` at every count refresh (cr_scan.cpp:522-529, N-167) — the bridge already polls stats at emit time (events.rs:357-360) but `CrUiTelemetry` (abi.rs:262-277) carries no bytes_found; polling `cr_ui_scan_get_stats` instead would give live bytes.
+3. **bytesScanned carve-only** (engine telemetry design): "Reading sector: 0/N" through quick+deep and frozen in carve — indistinguishable from "no sector progress" even on a healthy scan until carve engages.
+4. **No stall surfacing** (UI): heartbeats are distinguishable from progress at the bridge (events.rs:326-329) but the payload doesn't expose "alive but stalled"; ETA freezes (recomputed only on events, events.rs:362-377); device-lost modal requires status==='paused' (scan-progress-page.tsx:82) so a running stall shows nothing.
+5. **Subscribe race (cosmetic contributor)**: `listen()` registers asynchronously after `startScan` resolves; events before registration are dropped and only recovered by the async getScanState prime (queries/scan.ts:60-68) — a scan whose quick+deep finish inside that window appears to "jump straight to 75 %".
+
+## The device chain — "only 1 of 3 disks"
+
+Hops:
+
+1. useDevices (queries/devices.ts:5-10, no refetchInterval — enumeration is pull-only) → `invoke('devices_list')` (tauri-connector.ts:189).
+2. devices.rs:107-232 `list_devices` (spawn_blocking, devices.rs:427-434) → `enumerate_disks()` + `enumerate_volumes()` (bridge/util.rs:156-184, two-call protocol with exact-size retry semantics).
+3. Engine `cr_ui_enumerate_disks` (cr_ui.cpp:1929) → `enumerate_disks_impl` (cr_ui.cpp:1824-1879) → `win::enumerate_disks(200, list)`:
+   - Stack 1: numbered `\\.\.PhysicalDrive0..199` loop (cr_enumerate.cpp:139-153) — `open_disk_for_query` :98-113 retries a 0-access metadata open on ACCESS_DENIED/SHARING_VIOLATION (N-071) so busy disks stay listed (:110).
+   - Stack 2: cfgmgr32 GUID_DEVINTERFACE_DISK pass :156-158, 168-212 (device number via IOCTL_STORAGE_GET_DEVICE_NUMBER).
+   - Pure merge :158 → merge_disk_enumeration (cr_enumerate.h:228-255).
+4. Volumes: `cr_ui_enumerate_volumes` → `win::enumerate_volumes` (cr_enumerate.cpp:214-254): GetLogicalDriveStringsW (cap 64) + GetDriveTypeW — **only DRIVE_FIXED and DRIVE_REMOVABLE letters** (:225); extents → first extent's disk/offset/bytes :232-240; bitlocker::is_fve_volume :248.
+5. Row composition (devices.rs:121-230): per-disk open probe :129-134 → status; per-letter GetDiskFreeSpaceExW usage :53-75; FVE volume probe :149-158; kind from removable :215; label fallback chain :186-201; canScanWholeDisk=true :228.
+
+Filters/dedups on the path (all verified): engine merge dedups **by disk number and instance path only** (cr_enumerate.h:228-255) — identical-model/serial disks do NOT collapse (proven by test_enumerate_merge.cpp:58-116); the bridge adds no dedup/filter; the only UI-side filter is `kind !== 'virtual'` (use-physical-devices.ts:21) plus the Home view split below.
+
+**Candidate causes ranked:**
+
+1. **Home default view shows internal only** — home-page.tsx:80-83: `visible = showRemovable ? removable : internal` where `showRemovable = params.has('media')` (:77). With ▸1 (BF-02) every disk whose STORAGE_DEVICE_DESCRIPTOR BusType is 7/11/12 (USB attached, SD, MMC — cr_enumerate.h:89) is `kind:'usb'` and is **excluded from the default list**. Two of three disks behind USB enclosures/card readers → exactly 1 row visible. The disks exist in the payload; the view hides them (they appear only via the media/SD-card routes).
+2. **Open-failure absence** — cr_enumerate.cpp:98-113: a disk that fails both the GENERIC_READ open and the 0-access metadata open "stays absent" (:96-97). Exclusive locks (AV/imaging) survive via the busy flag; policy-blocked raw devices vanish entirely.
+3. **Permission mislabel (not absence)** — devices.rs:129-134 probes `cr_ui_open_disk` per disk; unelevated, non-system raw opens fail → `status:'permission-denied'` rows render dimmed (▸2/▸13) — could be perceived as "missing/disks don't work" but rows are present.
+4. **Volume-less disks** — cr_enumerate.cpp:224-225 drops DRIVE_UNKNOWN/NO_ROOT_DIR/CDROM/RAMDISK letters; a disk with only unlettered/Raw/BitLocker-locked volumes still lists as a disk row (label falls back to model, devices.rs:190-201) with zero scannable volume rows.
+5. Not a cause: identical-model collapse (ruled out above); 200-disk cap (cr_ui.cpp:1828); letters-buffer cap 64 (cr_enumerate.cpp:216-218).
+
+## The health chain — visible console
+
+The hop chain:
+
+1. health-page.tsx:51 `useHealth` (queries/health.ts:5-13, staleTime 60 s, retry:false) → `invoke('health_read', {deviceId})` (tauri-connector.ts:361-363).
+2. health.rs:19-157 (`spawn_blocking`, two-call attrs :34-67; `disk-N` id parse :21-29).
+3. Engine `cr_ui_health_read` → `health_read_impl` (cr_ui.cpp:4879-4958):
+   - `CreateFileW("\\.\PhysicalDrive%u", GENERIC_READ|GENERIC_WRITE)` :4887 — **requires an elevated token**; unelevated → ERR_OPEN_FAILED with "administrator rights required" text :4891-4894 (▸13).
+   - `win::health::read_smart` :4897 (ATA table, cr_health.cpp:190-262).
+   - `read_nvme_health` :4926 — IOCTL_STORAGE_QUERY_PROPERTY, NVMe log page 2 (cr_health.cpp:264-299).
+   - `looks_like_ssd` :4946 (seek-penalty probe, cr_health.cpp:325-342).
+   - **`win::health::query_trim_state(trim)` at cr_ui.cpp:4948 → `_popen("fsutil behavior query disabledeletenotify 2>nul", "r")` at cr_health.cpp:306**, first `=`-match parsing :312-320.
+
+- **Console visibility confirmed engine-side**: `_popen` spawns `cmd.exe`; from a GUI-subsystem (windows) exe every child console process flashes a window. It fires **once per health_read** (per disk), plus once per `cr_ui_enumerate_disks_ex` call with CR_ENUM_FLAG_TRIM (cr_ui.cpp:1843-1846) — the bridge's enumeration calls the plain `cr_ui_enumerate_disks` (util.rs:158) with flags=0, so **only the health path pops the console**. No UI seam defect beyond invoking it.
+- **No timeout/lifecycle guard at the seam**: health.rs runs on `spawn_blocking` with no deadline; a hung fsutil blocks that worker forever (frontend sees a pending query). First-match parsing is og-parity (cr_health.cpp:319 "first match wins").
+- Note: the same `_popen` is the engine's only trim source; `trimEnabled` (health.rs:147) is derived from it — disabling the console (CREATE_NO_WINDOW) is an engine-side fix, not a bridge one.
+
+## Lifecycle & threading
+
+- **Registry ownership** (state.rs:40-327):
+  - `BridgeState.scans: HashMap<scanId, Arc<ScanEntry>>`; ids minted `scan-N` (state.rs:457); `sessions_dir` at state.rs:572.
+  - `ScanKind::Live{scan, device, owns_device}` (state.rs:47-60) — resumed scans borrow the loaded session's device (pinned via the jobs list; scan_close refuses while borrowers live, scan.rs:675-681).
+  - `ScanLive` has exactly ONE writer: the emitter thread (state.rs:98-99); `scan_state` only reads it under the lock.
+  - The run thread latches `Terminal` exactly once (state.rs:71-83; scan.rs:429-443) and is also the only emitter of `scan-finished` (scan.rs:446-458).
+  - Drop order enforced per the engine lifetime rules: unsubscribe event fn → free the leaked sink Sender box → snapshot cache (own Drop → `cr_ui_snapshot_close`) → `cr_ui_scan_close` → `cr_ui_device_close` (state.rs:291-327).
+- **Window close / app exit mid-scan — SEAM GAP**: lib.rs:29-117 registers no `RunEvent::ExitRequested`/`Exit` handler and no window-close hook; Tauri's default tears the process down with the window, killing the detached run thread, the emitter, and the engine's worker pool mid-scan:
+  - No cancel is propagated on close; nothing is saved — W1c auto-save fires only when `run()` completes (cr_ui.h:210-223), so close-mid-scan persists NOTHING.
+  - G-13 checkpoint files exist engine-side (cr_ui.cpp:870-873 ck_path) but nothing at this seam reloads them; `session_resume` is user-driven only.
+  - The consent gate's documented unblock set is "answered / cancelled / process exits" (consent.rs:25-27) — process death is the third path, i.e. teardown relies on dying.
+- **Event emission threading**:
+  - Sinks run on engine worker threads and only `try_send` (events.rs:46-53, 56-66); bounded channel 512 (scan.rs:257).
+  - One emitter thread per scan (events.rs:242-402); one per recovery job with a 250 ms recv timeout keep-alive loop (events.rs:410-516).
+  - Terminal events are emitter-NEVER: the run/process threads latch state first, then emit the final sample + finished event themselves (events.rs:13-15; scan.rs:446-458; recovery events.rs:570-591).
+  - Session-load progress fires on the CALLING thread and emits directly, no channel hop (events.rs:68-102; cr_ui.h:195-209).
+- **Cancellation propagation** (UI → bridge → engine):
+  - `scan_cancel` (scan.rs:556-581) force-denies the scan's pending consent gates FIRST (:573 — §4.5: a pending consent blocks the run thread inside the callback; the engine observes the cancel token only after it returns), then `cr_ui_scan_cancel`.
+  - Engine observes the token only at stage checkpoints — **unbounded inside the carve matcher (BF-25, BEHAVIOR-FINDINGS.md:39)**: the UI navigates to results on invoke success (scan-progress-page.tsx:361-370) while run() drains; 'cancelled' (and the partial-results banner gated on status==='cancelled') latches only when run() exits (scan.rs:406-411); saves are refused while busy (command-surface.json:268).
+  - Recovery cancel mirrors this: committed items stay committed; terminal cancel is a truthful no-op (command-surface.json:376-388).
+- **Pause/resume**: token calls + bridge transient state ('pausing'/'resuming', 2 500 ms expiry, scan.rs:494-497) cleared when telemetry catches up (events.rs:378-385). The scan_state poll keeps 'stopping' alive deliberately (queries/scan.ts:105-121 — the v0.8.0 forensic fix for the frozen 'stopping' query).
+- **Consent lifecycle**: the engine asks at most once per scan, ON the run thread, before any engine read (cr_ui.h S-008; consent.rs:1-41); the gate blocks with NO user-facing timeout (consent.rs:87-96); re-hydration via `scan_state.pendingConsent` (scan.rs:619-622) covers subscribe-late and navigate-away; the run tail closes survivors and frees the pipe (scan.rs:374-377); an approved repair's undo log is persisted by the run tail (scan.rs:389-404).
+- **Session save/resume wiring**: `session_save` refuses while running; `scan_save_cancel` is save-scoped (N-060, scan.rs:696-719); `session_resume` re-attaches by model+serial (best-effort) and verifies identity (ERR_BAD_CHECKSUM → session-corrupt, command-surface.json:331-350); auto-saves land because `cfg.autosave_dir` is set at scan_start (scan.rs:233-234) — but `scan-autosaved` is unheard (▸5) and the sessions list refreshes only via the terminal-status query invalidation (queries/scan.ts:49).
+
+## Error mapping
+
+- Wire shape: `BridgeError {code: u32, bridgeCode: string|null, message}` (error.rs:51-60, camelCase serde) → `toConnectorError` (tauri-connector.ts:134-153): bridgeCode direct, else ENGINE_CODE_MAP (:92-132). UI renders reasonKey only (REASON_KEYS :62-89 — all 26 codes covered).
+- **Codes the frontend cannot distinguish / mislabels:**
+  - `preview-timeout` and `preview-missing-data` share reasonKey 'preview.reason.damaged' (tauri-connector.ts:81-82) — indistinguishable in UI copy.
+  - ERR_TRUNCATED (0x50030004), ERR_RANGE_OUT_OF_BOUNDS (0x50020004), ERR_CYCLE_LIMIT/DEPTH_LIMIT, ERR_NO_MEMORY, ERR_IMAGE_CORRUPT, ERR_INTERNAL all → 'unknown' — six engine codes collapse into one bucket.
+  - **ERR_BAD_PARAMETER (0x50030003) hard-maps to 'scan-scope-invalid' regardless of surface** (tauri-connector.ts:102) — a bad-parameter from health/preview/enumeration surfaces as a scan-scope toast. The engine's context refinement cannot cross a numeric-only channel.
+  - ERR_OPEN_FAILED → 'device-permission' vs bridge-refined device-gone (devices.rs:262-308): two truths for one code; the elevation sub-case (▸13) never gets the elevation banner.
+  - ▸9: ScanState.failure.code / scan-finished failure use the bridge's 4-entry subset table (scan.rs:465-473) — disagrees with the 38-entry TS table for every code outside the subset (e.g. ERR_OPEN_FAILED → 'unknown' here, 'device-permission' there).
+  - ERR_CANCELLED never crosses as an error (translated to status 'cancelled', scan.rs:406-411) — correct per invariant (error-codes.json:405).
+- validate.mjs keeps the vocabulary closed (checks 1-2) and it is green; every mismatch above is *inside* green rows.
+
+## What validate.mjs cannot catch
+
+contracts/validate.mjs is a **name/vocabulary linter, not a contract checker**. Concretely it validates: every cr::Err has an error-codes row (check 1, :39-55), every uiCode exists in ConnectorErrorCode and vice versa (check 2, :57-77), every CR_EVT_* define appears in event-mapping.md's table (check 3, :79-88 — a regex over markdown!), manifest well-formedness/duplicate names (check 4, :90-97), every manifest command has a Rust fn and vice versa (check 5, :108-116), every `invoke('name'` literal is in the manifest (check 6, :118-130).
+
+It cannot catch any of:
+
+1. **Runtime payload shape drift** — field names/types/optionality of the JSON vs contract.ts (▸10 'unknown' outside HealthStatus; ▸14 missing AppInfo.connectorMode; ▸11 extra health fields; a renamed field would pass).
+2. **Value semantics** — dataFoundBytes pinned 0 live vs mock-live (G-3), bytesScanned carve-only, etaSeconds 0-vs-null, units (permille vs fraction) — all numeric contracts are unchecked.
+3. **Event listeners** — nothing verifies the frontend subscribes to what the bridge emits; 5-6 event families are dead letters (▸5) and the gate is green.
+4. **Doc-vs-impl drift inside contracts/** — event-mapping.md:32 promises 'tree-build' (▸8); the md table only needs to *contain* the event name.
+5. **Duplicate translation tables** — engine_failure_code (scan.rs:465) vs ENGINE_CODE_MAP drift silently (▸9).
+6. **Dead enum branches** — DeviceStatus 'disconnected', DeviceKind 'sd'/'optical'/'virtual', ScanStage 'tree-build', SmartAttribute status 'unknown' — none ever produced.
+7. **Count claims** — "36 operations" vs the real 45 commands/50 methods.
+8. **Lifecycle/threading regressions** — window-close mid-scan, cancel drain windows, consent blocking, threading classes — out of scope of every check.
+9. **Mock/real behavioral divergence** — the test double (mock-connector.ts:624,630-633,661) satisfies the same TS types while differing observably (live bytes, live currentPath) — exactly the class that produced the "(0 B)" and missing-ticker symptoms.
+
+## Bottom line (seam verdict per live defect)
+
+- (a) scan: engine-truth stall (BF-22) faithfully rendered; the 75 % is the 40+35 weight boundary; "(0 B)" and the dead ticker are **real bridge-vs-contract divergences (G-3/G-2) the mock masked**; no stall indicator exists anywhere on the seam.
+- (b) devices: rows are complete at the bridge; the **Home view's internal-only filter + BF-02 kind degradation** hides removable-bus disks — the single most likely cause of "1 of 3".
+- (c) console: engine `_popen` (cr_health.cpp:306) fired per health_read; seam adds only the missing timeout.
+- (d) elevation: the designed user-mode posture (installer admin at recoverywizard.nsi:151, app asInvoker, banner + relaunchElevated system.rs:85-124) — not a wiring bug; but health/enumeration failures mislabel as device-permission instead of elevation-required (▸13).

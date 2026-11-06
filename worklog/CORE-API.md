@@ -1,357 +1,459 @@
-# CORE-API — the engine core contract as a consumer sees it (T2-C)
+# CORE-API — the `cr_ui` C ABI as a consumer sees it (Phase 0, Agent C)
 
-Ground truth: `engine/include/cr/cr_ui.h` (1,602 ln) + `engine/src/ui/cr_ui.cpp` (5,086 ln),
-`engine/src/core/orchestrator/cr_scan.cpp` + `engine/include/cr/orchestrator/cr_scan.h`,
-`engine/src/app/rrecov.cpp`, `engine/src/win/cr_health.cpp`, `engine/src/win/cr_enumerate.cpp`,
-cross-checked against `engine/docs/API.md` and `engine/docs/ABI-CONTRACT.md`. What IS, not what
-should be. (Note: the UI header lives at `engine/include/cr/cr_ui.h` — there is no `cr/ui/` dir.)
+Scope: `engine/include/cr/cr_ui.h` (1,602 lines, **92 `CR_UI_API` exports**, ABI v4) plus the
+implementing sources read in full or in the load-bearing parts:
+`src/ui/cr_ui.cpp` (5,087 l), `src/core/orchestrator/cr_scan.{h,cpp}`, `src/core/carve/cr_carve.cpp`,
+`src/win/cr_enumerate.cpp`, `src/win/cr_health.cpp`, `src/win/cr_fsck.cpp`, `src/win/cr_bitlocker.cpp`,
+`include/cr/cr_error.h`, `include/cr/win/cr_enumerate.h`, `src/app/rrecov.cpp` (the CLI).
+Consumer cross-refs into `ui/src-tauri/src/bridge/*` and `ui/src/connector/contract.ts` are cited only
+where they pin the user-visible presentation of an engine fact.
 
-## 1. The cr_ui ABI surface (v4)
+---
 
-**Version gate.** `CR_UI_ABI_VERSION 4u` (cr_ui.h:81); `cr_ui_abi_version()` returns it
-(cr_ui.h:105, cr_ui.cpp:1377). Host must call it first and refuse on mismatch. Policy
-(cr_ui.h:39-48): adding exports, appending struct fields, new event `type`s = compatible, NO
-bump; removing/renaming exports, changing field type/meaning/order/ownership/threading = bump.
-v3→v4 bump was the M-067 `cr_ui_user_sign` field resize (cr_ui.h:75-80) and the sanctioned
-removal of the driver-era `cr_ui_driver_status` export (docs/API.md:110-116). 92 exports
-(docs/API.md:111). `CR_UI_API` = dllexport/dllimport on Win32, default-visibility elsewhere
-(cr_ui.h:63-73); MSVC additionally exports one core symbol via `engine/src/ui/cr_ui_exports.def:18-19`.
+## ABI overview + versioning
 
-**Rules (cr_ui.h:23-48, ABI-CONTRACT §1-3).** C11, no C++ types, no exception escapes — every
-entry wrapped in `guarded()` catch-all → `CR_UI_ERR_INTERNAL` (cr_ui.cpp:138-146). Strings in:
-NUL-terminated UTF-8; out: caller buffers (two-call) or heap freed with `cr_ui_string_free`
-(`free()` also valid, cr_ui.cpp:1385-1387). Zero-init configs always safe (0 = default). Handles
-opaque; close order caller's. Threading: `run()`/`process()` synchronous on the caller's thread;
-pause/resume/cancel/telemetry/snapshot safe from any thread while running (cr_ui.h:34-38,
-622-639); progress + event callbacks fire on **engine worker threads** (never block, no cancel
-semantics — token functions are the cancel path); heartbeat events fire on the shim's watchdog
-thread (cr_ui.h:141-150). `cr_ui_scan_set_event_fn` is pre-run only (ERR_BAD_PARAMETER while
-running; cr_ui.cpp:2477-2499). `cr_ui_last_error()` = thread-local text, stable until next
-cr_ui call on that thread (cr_ui.cpp:117-136).
+- Flat C11 ABI over cr_core + the cr_win platform layer; opaque handles (`cr_ui_device`,
+  `cr_ui_scan`, `cr_ui_session`, `cr_ui_snapshot`, `cr_ui_preview`, `cr_ui_recovery`)
+  — cr_ui.h:93-99. In-process by doctrine ("no CLI subprocess and NO IPC on the UI<->engine leg",
+  cr_ui.h:5-21); the Rust bridge binds it via `libloading`-style externs (ui/src-tauri/src/bridge/abi.rs).
+- **Every function returns u32 from the same numeric space as cr_error.h** (0 = OK); no exception
+  escapes (each entry wrapped in `guarded()` with a catch-all → `CR_UI_ERR_INTERNAL` 0x50090001,
+  cr_ui.cpp:138-143). Thread-local diagnostic text: `cr_ui_last_error` (cr_ui.h:107-110; cr_ui.cpp:117,1381).
+- Strings: UTF-8 in, caller buffers out (two-call size pattern) or heap strings freed with
+  `cr_ui_string_free` (cr_ui.h:28-29,112-113). Zero-init config structs are always safe
+  (0 = "default", never "nothing matches") — cr_ui.h:30-31.
+- **Threading contract** (cr_ui.h:34-38): scan/recovery run on the CALLER's thread (blocking);
+  pause/cancel/telemetry/snapshot capture are safe from ANY thread; progress/event callbacks fire
+  on worker threads, must not block, and carry NO cancellation semantics — the token functions
+  (`cr_ui_scan_pause/_resume/_cancel`, `cr_ui_recovery_cancel`) are the cancel path.
+- **Versioning** (cr_ui.h:39-48,81): `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION = 4`.
+  Policy (docs/ABI-CONTRACT.md §9): ADDING exports, APPENDING struct fields, adding event `type`
+  values are compatible — NO bump (consumers detect by export presence / zero-init appended fields);
+  removing/renaming an export or changing a field's type/meaning/order bumps. v3→v4 was the
+  M-067 `cr_ui_user_sign` field resize (bytes 16→48, mime 64→81 — a 73-char MIME memcpy previously
+  left the field non-NUL-terminated, cr_ui.h:75-80). The bridge refuses to bind on mismatch
+  (scan.rs:124-130). All append-only tails carry explicit "zero-init safe" comments
+  (e.g. trim fields M-076 cr_ui.h:403-415; session_info.label_full N-090 cr_ui.h:879-881).
 
-**Error codes** — same numeric space as `engine/include/cr/cr_error.h:25-121`; families:
-- `0x5002` open/transport: 01 OPEN_FAILED, 02 READ_FAILED, 03 WRITE_FAILED, 04 RANGE_OUT_OF_BOUNDS,
-  05 CANCELLED, 06 RETRY_EXHAUSTED, 07 DEVICE_DISCONNECTED (N-125).
-- `0x5003` format/parse: 01 BAD_MAGIC, 02 BAD_CHECKSUM, 03 BAD_PARAMETER, 04 TRUNCATED,
-  05 FIXUP_FAILED, 06 CYCLE_LIMIT, 07 DEPTH_LIMIT, 08 UNSUPPORTED, 09 NO_MEMORY.
-- `0x5004` session: 01 FORMAT, 02 IO, 03 VERSION. `0x5005` writer/dest: 01 OVERLAP, 02 UNWRITABLE,
-  03 HASH_MISMATCH, 04 FULL, 05 NAME_EXHAUSTED, 06-08 path taxonomy. `0x5006` FVE: 01 LOCKED,
-  02 ELEVATION_REQUIRED. `0x5007` health: 01 UNAVAILABLE. `0x5008` repair/apply: 01-07.
-- `0x5009` INTERNAL, `0x500A` IMAGE_CORRUPT, `0x500C0001` ELEVATION_REQUIRED (fresh value space;
-  the 0x500B driver family was deleted with the driver, cr_error.h:108-120).
+## Exports by domain (92 total)
 
-**Export inventory, grouped** (all `cr_ui_*`):
-- *lifecycle*: `abi_version`, `last_error`, `string_free` (cr_ui.h:105-113).
-- *devices/enumeration*: `open_image(path,offset,bytes)` (bytes==0 → to EOF, exposed as 512-B
-  sector RO device, cr_ui.h:313-316); `open_disk`/`open_volume`/`open_volume_with_key` (Win-only
-  direct `\\.\PhysicalDriveN` I/O; unelevated → ERR_ELEVATION_REQUIRED 0x500C0001; locked volume →
-  ERR_FVE_LOCKED 0x50060001 unless auto-unlock; cr_ui.h:318-353; gate cr_ui.cpp:1424-1439);
-  `unlock_volume_with_dictionary` (consent-only, N-064); `last_transport_error` (advisory,
-  process-global, never cleared, cr_ui.h:340); `device_close/geometry/transport`
-  (transport string "direct"|"image", cr_ui.h:372-388); `enumerate_disks`, `enumerate_disks_ex(flags)`,
-  `enumerate_volumes` (cr_ui.h:447-449).
-- *scan*: `scan_create` (config fill cr_ui.cpp:1294-1369, 2025-2047), `scan_close`,
-  `scan_attach_device` (borrowed; identity card auto-filled on Win, cr_ui.h:615), `scan_run`
-  (one-shot: `started` flag, second run → ERR_BAD_PARAMETER, cr_ui.cpp:2320-2321), `scan_pause/
-  resume/cancel` (token, cr_ui.cpp:2435-2452), `scan_busy`/`scan_stopping` (N-075 synchronous
-  state, cr_ui.cpp:2463-2475), `scan_set_event_fn`, `scan_telemetry`, `scan_get_stats`,
-  `scan_assistant` (S-023 grading), `scan_checkpoint_count`, `scan_repair_save_undo`,
-  `scan_carve_tally_count/_tally` (N-140), `scan_save_session` (atomic tmp+rename, N-060),
-  `scan_save_cancel` (SAVE-scoped, never the scan token, cr_ui.h:835), `scan_snapshot`
-  (mid-scan partial=1 allowed), `scan_verify_identity` (boot-hash CRC32 vs session,
-  ERR_BAD_CHECKSUM on mismatch, cr_ui.cpp:2962-2980).
-- *sessions*: `session_load`, `session_load_with_events` (W1b: caller-owned `cancel_flag`
-  polled per node, torn load never returns partial, cr_ui.h:992-994), `session_close`,
-  `session_resume`, `session_resume_last` (M-154 pointer sidecar `last_scan.info`),
-  `session_get_info`, `session_stats`, `session_snapshot`, `session_regrade`, `session_list`
-  (W1a light-records newest-first, 1024-byte path rows, cr_ui.h:933-955),
-  `session_last_autosave_path` (ERR_RANGE_OUT_OF_BOUNDS 0x50020004 when dead pointer, cr_ui.h:972).
-- *snapshots*: `snapshot_close/node_count/partial/node/dfs` (flat index rows, CR_UI_SNAP_NONE=
-  0xFFFFFFFF, cr_ui.h:996-1052).
-- *query*: `query_run`, `query_rows_free`, `query_apply_buckets` (G-12; sort 0..7, category bits,
-  offset/limit host-side model, default limit 100, cr_ui.h:1054-1141).
-- *carve registry / user signs*: `carve_format_count/_info` (grammar rows then raw-sign rows),
-  `register_user_signs`, `user_sign_count/_info` (cr_ui.h:1143-1221).
-- *disk map*: `disk_map`, `disk_map_free` (allocation/coverage/found/confidence overlays +
-  bad_ranges pairs; free overlay absent for LIVE mid-scan snapshot path, cr_ui.h:1223-1272).
-- *preview*: `preview_open_snapshot/_session`, `preview_close/size/read/metadata/unreadable`,
-  `archive_entry_count/_at` (M-116 inventory cached per handle; read ≤4 MiB/call; unreadable
-  spans zero-filled AND reported, cr_ui.h:1274-1347).
-- *thumbnail*: `thumbnail_generate` (two-call size probe; ERR_NO_MEMORY on small buffer,
-  ERR_TRUNCATED = decode refusal which still promotes grade 2, ERR_UNSUPPORTED; success promotes
-  grade 2, M-083/M-115, cr_ui.h:1349-1418), `thumbnail_format_supported`.
-- *recovery*: `recovery_create/close/set_destination/enqueue_node/enqueue_subtree/
-  enqueue_snapshot/enqueue_subtree_snapshot/queue_count/process/cancel/get_stats/report_json`
-  (cr_ui.h:1424-1492).
-- *health*: `health_read` (§5).
-- *lost-partition apply (S-029)*: `apply_lost_partition` (consent-gated, default-deny),
-  `apply_undo_last`, `apply_save_undo` (cr_ui.h:749-820).
-- *system*: `image_create` (S-040 flat raw + .sha256 sidecar; cancel keeps `<path>.partial`,
-  cr_ui.h:1540-1558), `fsck_volume` (M-075 chkdsk escalation; raw exit code, 15-min timeout
-  yields 259), `turn_off_bitlocker` (M-078 destructive consent twin; OK = accepted not plaintext,
-  cr_ui.h:1560-1596).
+Error column lists the *notable* codes beyond OK/BAD_PARAMETER/INTERNAL; all are cr_error.h values.
 
-**Key structs (fields / units).**
-- `cr_ui_geometry` (cr_ui.h:374-379): `total_bytes` u64; `logical_sector`, `physical_sector` u32 B;
-  `sector_count` u64.
-- `cr_ui_disk_info` (cr_ui.h:392-416): `number` u32; `size_bytes` u64; `logical_sector`/
-  `physical_sector` u32 B; `removable` (1=USB/SD bus); `layout` (0 none, 1 MBR, 2 GPT, 3 EBR —
-  N-057 append); `table_ok`; `model[128]`, `serial[128]` UTF-8; `trim_known` (0=unknown, only
-  filled by `_ex`+`CR_ENUM_FLAG_TRIM`), `trim_on`.
-- `cr_ui_volume_info` (cr_ui.h:418-426): `letter` char (0 when absent); `disk` u32;
-  `offset_on_disk`, `bytes` u64; `fs_name[16]`, `label[64]`; `bitlocker` (1=FVE detected).
-- `cr_ui_scan_config` (cr_ui.h:505-607): `stage_mask` (0=default 7; bits 1 quick/2 deep/4 carve;
-  unknown bits refused, cr_ui.cpp:1296-1298); `whole_disk`; `fs_hint` (serialized FsFamily: 1 NTFS,
-  2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS, 11 UDF; 5/10 never valid hints,
-  cr_ui.h:472-476); `quick/deep/carve_weight` (0 = 40/35/25 percent); `threads` (0=auto hw-1 clamp
-  1..8, 1=serial, cr_scan.cpp:58-68); `volume_label_utf8` (truncated 99), `volume_model/serial/
-  firmware/wwn/interface_utf8` (identity-card overrides; shim fills from enumeration);
-  `checkpoint_path_utf8` (stage-boundary auto-checkpoints); `progress`+`progress_user`;
-  `pre_scan_repair`+`repair_consent`+user (S-008 default-deny); `memory_warn_mb` (0=OFF, N-062);
-  `raw_category_name_utf8` (M-029); `pre_scan_check` (M-041); `autosave_dir_utf8` (W1c);
-  `filter_folders_utf8`+`filter_folder_count` (M-073, NULL/0 = OFF).
-- `cr_ui_event` (cr_ui.h:225-272): `type`, `stage`, `timestamp_ms` (run-elapsed, pause-compensated);
-  progress: `bytes_done/bytes_total` (stage-true bytes where counted), `stage_permille`,
-  `overall_permille`; counters `files_found/deleted_found/carved_found` (cumulative);
-  error-range `err_start_bytes/err_len_bytes`, `error_ranges` (cumulative after append),
-  `err_module/err_operation/err_attempts` (M-049, zero elsewhere); `checkpoint_index`;
-  `candidate_lba`; `repair_actions/repair_outcome`; `check_errors/check_family`; `autosave_rc`.
-- `cr_ui_stage_tel` (cr_ui.h:641-648): `permille` 0..1000 monotonic; `units_done/units_total`
-  (engine work units, 0 total = unknown); `bytes_done` (only stages that count bytes = carve);
-  `elapsed_ms` (stage wall, pause-compensated); `completed`.
-- `cr_ui_telemetry` (cr_ui.h:650-658): `overall_permille` (weighted monotonic); `quick,deep,carve`
-  stage_tel; `files_found,deleted_found,carved_found,lost_partitions`; `bytes_scanned`
-  ("carve-true-bytes"); `elapsed_ms` pause-compensated; `error_ranges` live count;
-  `paused,running,cancelled`.
-- `cr_ui_scan_stats` (cr_ui.h:663-699): `files_found,deleted_found,carved_found,lost_partitions`;
-  `bytes_scanned,elapsed_ms`; `cached_hits/cached_misses`; `error_ranges` final; `repair_ran/
-  planned/applied/denied`; `check_ran/check_errors/check_detected`; `bytes_unreadable` (error-map
-  coverage; Skip-mode zero-fill hides it from engines, never from this field), `probe_unreadable`;
-  `autosaved`. (NOTE: core `ScanStats.bytes_found` — N-167 found-bytes — has NO ABI field.)
-- `cr_ui_recovery_stats` (cr_ui.h:1478-1484): `queued,done,refused,errors,hash_mismatch,resumed,
-  salvaged,dirs,nothing_to_recover` (all u64 counts).
+### Lifecycle / diagnostics (3)
+| Export | Semantics | Blocking | Errors |
+|---|---|---|---|
+| `cr_ui_abi_version()` | returns 4; call first | no | — |
+| `cr_ui_last_error()` | TLS diagnostic of last failing call | no | — |
+| `cr_ui_string_free(char*)` | frees heap strings | no | — |
 
-## 2. The event stream
+### Devices / transport (10)
+| Export | Semantics | Blocking | Errors |
+|---|---|---|---|
+| `cr_ui_open_image(path,off,bytes,out)` | portable image view, 512-byte-sector device bounded [off,off+bytes); bytes==0 = to EOF (cr_ui.h:313-316) | yes | ERR_OPEN_FAILED, ERR_IMAGE_CORRUPT |
+| `cr_ui_open_disk(disk,out)` | `\\.\PhysicalDriveN` direct raw I/O; **non-elevated token refused ERR_ELEVATION_REQUIRED 0x500C0001** (cr_ui.h:318-329; cr_ui.cpp:1433-1435) | yes | ERR_ELEVATION_REQUIRED, ERR_OPEN_FAILED |
+| `cr_ui_open_volume(letter,out)` | volume slice on parent disk; BitLocker probed first — locked → **ERR_FVE_LOCKED 0x50060001** unless auto-unlock succeeds; ACL case ERR_FVE_ELEVATION_REQUIRED (cr_ui.cpp:1456-1474) | yes | ERR_FVE_LOCKED, ERR_FVE_ELEVATION_REQUIRED, ERR_ELEVATION_REQUIRED, ERR_OPEN_FAILED |
+| `cr_ui_open_volume_with_key(letter,hex_fvek,out)` | M-033: 64/128-hex FVEK, in-stack XTS-AES decrypt (cr_ui.h:342-353) | yes | ERR_BAD_PARAMETER, ERR_FVE_LOCKED |
+| `cr_ui_unlock_volume_with_dictionary(letter,pwds,count)` | N-064 consent action: 228-entry dict + user candidates via PowerShell/manage-bde (cr_ui.h:355-370) | yes (2 min/command) | ERR_FVE_LOCKED, ERR_UNSUPPORTED |
+| `cr_ui_device_close(dev)` | device must outlive scans/previews/recovery (borrowed, cr_ui.h:310-311) | no | — |
+| `cr_ui_device_geometry(dev,out)` | total_bytes/logical_sector/physical_sector/sector_count (cr_ui.h:374-381) | no | BAD_PARAMETER |
+| `cr_ui_device_transport(dev,buf,cap,needed)` | "direct" or "image", two-call (cr_ui.h:383-388) | no | TRUNCATED |
+| `cr_ui_last_transport_error()` | M-030 advisory: last open's refusal code; process-global, never clears (cr_ui.h:333-340; cr_ui.cpp:1417) | no | — |
+| `cr_ui_scan_set_event_fn(scan,fn,user)` | subscribe BEFORE run(); mid-run swap = ERR_BAD_PARAMETER; one sink per scan (cr_ui.h:300-303; cr_scan.cpp:380-385) | no | ERR_BAD_PARAMETER |
 
-Wire values (cr_ui.h:151-223). Core emits 1-7 and 10 (cr_scan.h:135-151); 8/9/11/12 are shim-side.
-- **1 CR_EVT_SCAN_STAGE**: stage transitions, in scan order, once each (tel_stage_begin_,
-  cr_scan.cpp:450-466). stage = 0/1/2; counters ride via emit_event_.
-- **2 CR_EVT_SCAN_PROGRESS**: coalesced progress. `emit_progress_event_` fires ONLY when overall
-  permille advanced (CAS on `evt_last_overall_`; stale out-of-order worker deliveries dropped;
-  cr_scan.cpp:623-642) ⇒ ≤ ~1000/scan + stage flips. bytes_done/bytes_total are stage-true bytes
-  for stage 2 only (emit_event_ cr_scan.cpp:596-597), read from live `carve.bytes_done/units_total`.
-  N-166: on each sample the live tree counters' delta over the boundary total is attributed to the
-  active stage (`carved_found` for carve, `files_found` else, cr_scan.cpp:607-618).
-- **3 CR_EVT_FILES_FOUND**: cumulative counters at stage boundaries (emit_boundary_events_
-  cr_scan.cpp:644-648) — but N-166 live refresh means files/carved counters MOVE mid-stage
-  (refresh_live_counts_ cr_scan.cpp:567-575); `deleted_found` stays boundary-only (engines assign
-  deleted-state after attach; cr_scan.cpp:564-566).
-- **4 CR_EVT_ERROR_RANGE**: delta = newest appended span (absolute device bytes) + cumulative
-  count, with `err_module` (CR_ERRMOD_* 0..12, cr_ui.h:283-295), `err_operation` (CR_ERROP_READ),
-  `err_attempts`. Fires only when the count grew (cr_scan.cpp:644-695).
-- **5 CR_EVT_CHECKPOINT**: per committed G-13 checkpoint (emit_checkpoint_ cr_scan.cpp:858-873).
-- **6 CR_EVT_LOST_CANDIDATE**: per discovered candidate, stage=1, `candidate_lba` (cr_scan.cpp:697-718).
-- **7 CR_EVT_REPAIR**: outcome 0 plan-ready-for-consent / 1 applied / 2 denied / 3 failed-or-
-  unavailable; `repair_actions` planned-or-applied count (cr_scan.cpp:1200-1245).
-- **8 CR_EVT_HEARTBEAT** (shim): fired from the watchdog thread every 5000 ms while run() is in
-  flight AND no CR_EVT_SCAN_PROGRESS arrived in the window (cr_ui.cpp:1106-1189); every progress
-  arrival resets the clock (cr_ui.cpp:1095-1102). Payload = STANDING telemetry truth: stage
-  0xFFFFFFFF or first-unclosed stage; `bytes_total=0` (honest unknown); `bytes_done =
-  t.bytes_scanned` — the boundary-stamped stat (see §3); never a synthetic permille advance.
-  Watchdog armed only when an event sink or memory_warn_mb exists (cr_ui.cpp:2364-2374).
-- **9 CR_EVT_SAVE_PROGRESS** (shim): from the thread running `cr_ui_scan_save_session`; coalesced
-  first-tick/permille-step/terminal; stage=0xFFFFFFFF, stage_permille = save 0..1000,
-  overall=1000, bytes = nodes serialized/total (cr_ui.cpp:2828-2855).
-- **10 CR_EVT_FS_CHECK**: once per scan after the check phase; `check_errors` count (0x1001..0x100e
-  taxonomy), `check_family` ('f'/'n'/0) (cr_scan.cpp:1261-1270).
-- **11 CR_EVT_SESSION_LOAD_PROGRESS** (shim): load twin of 9; overall=0xFFFFFFFF; cancel via the
-  caller-owned `cancel_flag` polled per node (cr_ui.h:195-209).
-- **12 CR_EVT_AUTOSAVED** (shim): once after run() completes (or the S-057 stop window) with
-  `autosave_dir` set; `autosave_rc` = 0 or write error (cr_ui.cpp:2305-2312). Gates (S-044): an
-  EMPTY run (no files, no lost partitions), a RESUMED run, or an explicitly-saved run never
-  auto-save (cr_ui.cpp:2258-2260).
+### Enumeration (3) — Windows only, ERR_UNSUPPORTED elsewhere
+`cr_ui_enumerate_disks`, `cr_ui_enumerate_disks_ex` (+flags; unknown bits → ERR_BAD_PARAMETER,
+cr_ui.cpp:1937-1943), `cr_ui_enumerate_volumes`. Two-call pattern; enumeration failure returns its
+error code (never a silent empty list); **no cache — every call re-queries the OS** (N-098,
+cr_ui.h:438-446). See "Enumeration contract".
 
-## 3. Scan lifecycle + telemetry semantics (cr_scan.cpp)
+### Scan (17)
+| Export | Semantics / contract |
+|---|---|
+| `cr_ui_scan_create(cfg,out)` | stage_mask bits 1\|2\|4 (0 = all 7); weights 0 = 40/35/25; threads 0 = auto; identity-card strings optional (auto-filled from enumeration on Windows); checkpoint_path; progress fn; repair consent fn; memory monitor; autosave_dir; folder filter (cr_ui.h:505-607; cr_ui.cpp:1296-1341) |
+| `cr_ui_scan_close(s)` | frees handle |
+| `cr_ui_scan_attach_device(s,dev)` | borrowed device; before run() (cr_ui.h:612-615) |
+| `cr_ui_scan_run(s)` | **synchronous on caller thread**; returns 0, an engine error, or CR_UI_ERR_CANCELLED with the tree intact (cr_ui.h:617-620); second run → ERR_BAD_PARAMETER (cr_ui.cpp:2320-2325) |
+| `cr_ui_scan_pause/_resume/_cancel` | token control from ANY thread; pause "blocks engines cooperatively" (cr_ui.h:622-625) |
+| `cr_ui_scan_busy(s,out)` / `cr_ui_scan_stopping(s,out)` | N-075 synchronous live-state queries; busy=run() executing, stopping=cancel winding down (cr_ui.h:627-639) |
+| `cr_ui_scan_telemetry(s,out)` | live snapshot, any thread: overall_permille + per-stage quick/deep/carve{permille,units_done/total,bytes_done,elapsed_ms,completed} + counters + bytes_scanned + error_ranges + paused/running/cancelled (cr_ui.h:641-661) |
+| `cr_ui_scan_get_stats(s,out)` | final stats incl. repair/check outcome, bytes_unreadable, probe_unreadable, autosaved (cr_ui.h:663-701) |
+| `cr_ui_scan_assistant(s,out)` | S-023 grading stats, valid after run() OK (cr_ui.h:703-730) |
+| `cr_ui_session_regrade(sess,ids,count,out)` | per-selection re-grade, grade-1 only (sticky 0/2) (cr_ui.h:732-737) |
+| `cr_ui_scan_checkpoint_count(s,out)` | G-13 diagnostics (cr_ui.h:738) |
+| `cr_ui_scan_repair_save_undo(s,path)` | S-008 undo container; BAD_PARAMETER when nothing applied (cr_ui.h:740-747) |
+| `cr_ui_scan_save_session(s,path)` | truthful .crsf; valid after run() incl. cancelled; atomic tmp+rename; save-scoped cancel via `cr_ui_scan_save_cancel` (cr_ui.h:822-835; cr_ui.cpp:2862-2904) |
+| `cr_ui_scan_snapshot(s,out)` | immutable value tree; any thread WHILE run() (partial=1) or after (cr_ui.h:837-841) |
+| `cr_ui_scan_verify_identity(s)` | boot-hash check for resumed scans → CR_UI_ERR_BAD_CHECKSUM on mismatch (cr_ui.h:843-849) |
 
-`ScanController::run` (cr_scan.cpp:1101-1588), in order: (a) M-042 disk-truth pass — capture live
-table, compare vs persisted (layout_changed), revalidate restored lost candidates (whole-disk
-resumes only) (:1125-1168); (b) telemetry reset (:1170-1177); (c) pre-scan repair S-008
-(:1190-1247); (d) pre-scan check M-041 (:1257-1271); (e) `build_read_pipe` = slice → SliceShim →
-RetryingDevice (3 attempts, Skip-mode zero-fill, error map) → CachedReader 8 MiB/256 KiB
-(:1298, cr_scan.cpp:164-203); (f) probe_family + probe_unreadable truth (a recorded range covering
-offset 0 = blind probe, :1312-1353); (g) volume facts + boot CRC32 (:1355-1389); (h) stages;
-(i) junk filter M-018 (:1520), grading S-023 (:1527-1542); (j) read-truth gate: fully-blind or
-nothing-read ⇒ REFUSES `ERR_READ_FAILED` instead of fake-completing (:1543-1586); (k) `stamp()`
-finalizes stats/telemetry/events (:1391-1432).
+### Lost-partition apply / repair (3)
+`cr_ui_apply_lost_partition` (S-029: plan → consent callback → transactional write → undo; volume
+slices refused; consent fires once before any write, default-deny — cr_ui.h:749-811),
+`cr_ui_apply_undo_last`, `cr_ui_apply_save_undo`.
 
-**Stage sequence + weights.** Default weights 40/35/25 percent-of-total (cr_scan.h:72-76).
-Quick = one `run_engine_pass` with deep settings when deep will run (single MFT walk,
-cr_scan.cpp:1590-1610). N-181: when quick ran and carve is on, **carve runs BEFORE deep**
-(`carve_before_deep = run_carve && quick_done_`, :1467, 1485-1487); with quick disabled the order
-is deep → carve (:1488-1502). Deep = (engine pass if !quick_done_) + NTFS remnant sweep +
-whole-disk lost discovery + candidate fan-out (insertion cap 10, M-137) (:2150-2446). Carve =
-`run_carve_stage` with 1 MiB windows + 4 KiB overlap (cr_carve.cpp:45-46), occupancy + bitmap
-gates, byte-unit progress (:2512-2681).
+### Sessions (9)
+`cr_ui_session_load`, `_close`, `cr_ui_session_resume_last` (M-154 pointer sidecar `last_scan.info`,
+no directory scan; dead pointer → ERR_OPEN_FAILED, cr_ui.h:860-870), `cr_ui_session_get_info`
+(fs_family, stage_done_mask vs configured_mask, slice offset/bytes, sectors, label[32]+label_full[100],
+scanned_bytes, model[48]/serial[32], boot_hash — cr_ui.h:872-888), `cr_ui_session_stats`,
+`cr_ui_session_snapshot`, `cr_ui_session_resume(sess,original_cfg,out)` (fresh tree, mask validated
+⊆ configured; G-07), `cr_ui_session_list(dir,rows,count)` (W1a light-records-only listing, newest
+first by embedded save time; unreadable files get rows with valid=0; TRUNCATED fills the newest
+prefix — cr_ui.h:900-955), `cr_ui_session_last_autosave_path` (ERR_RANGE_OUT_OF_BOUNDS 0x50020004
+when no live pointer — cr_ui.h:957-973), `cr_ui_session_load_with_events(path,fn,user,cancel_flag,out)`
+(W1b: CR_EVT_SESSION_LOAD_PROGRESS from the calling thread; caller-owned flag polled per node; torn
+load discarded — cr_ui.h:975-994).
 
-**weighted_progress** (cr_scan.cpp:131-146): exact single division
-`Σ(w_i·pm_i)/Σw` with per-stage clamps ≤1000; 500/500/500 @ 40/35/25 = exactly 500. Overall is
-kept monotonic: `tel_publish_`/`tel_stage_end_` only raise it (cr_scan.cpp:518-519, 481-482).
+### Results / snapshot / query / disk map / carve registry (17)
+`cr_ui_snapshot_close/_node_count/_partial/_node/_dfs` (flat index-addressed rows,
+CR_UI_SNAP_NONE=0xFFFFFFFF; name two-call — cr_ui.h:996-1052); `cr_ui_query_run/_rows_free/
+_apply_buckets` (G-12 core-side filter/sort/paging over a STABLE session tree; sort keys 0..7 incl.
+grade and type; category bits; state/origin masks; M-101 version-group + tags axes; buckets map the
+og's Date/Size menu IDs — cr_ui.h:1054-1141); `cr_ui_carve_format_count/_info` (two-layer registry,
+grammar rows then raw-sign rows, deterministic order — cr_ui.h:1143-1170); `cr_ui_scan_carve_tally_
+count/_tally` (N-140 per-format counts + user-sign aggregate slot — cr_ui.h:1172-1191);
+`cr_ui_register_user_signs` (M-048 atomic JSON install — cr_ui.h:1193-1209) + `cr_ui_user_sign_
+count/_info`; `cr_ui_disk_map` (GAP-S6-11 geometry + allocation/coverage/found/confidence overlays
++ bad_ranges u64 pairs; ≥1 overlay required — cr_ui.h:1223-1268) + `cr_ui_disk_map_free`.
 
-**Telemetry plumbing and the live-vs-boundary truth:**
-- `tel_stage_begin_` (:450-466): zeroes the stage's StageTelemetry, stamps stage_t0/pause base,
-  fires ScanStage.
-- `tel_publish_(stage, done, total, bytes_units, cancel)` (:485-520): called from ENGINE WORKER
-  THREADS via `engine_progress_bridge_` (:720-735) and the scan thread. Under `tel_.m`: permille
-  = done*1000/total (monotonic clamp), `units_done/units_total` set when total≠0; **`bytes_done`
-  set only when `bytes_units` — true only for stage 2** (:508-509); pause-compensated stage
-  elapsed; recomputed overall.
-- `tel_stage_end_` (:468-483): permille=1000, completed=true, elapsed final.
-- `tel_counts_` (:522-549): copies `stats.files_found/deleted_found/carved_found/lost_partitions/
-  bytes_scanned` into the snapshot + merges the LIVE retry-pipe error map. Called ONLY at stage
-  ends and in `stamp()` (cr_scan.cpp:1601, 2440, 2675, 1401).
-- **Fields that update LIVE mid-stage:** stage permille; quick/deep `units_done/units_total`
-  (per engine progress callback); carve `bytes_done` + `units_done/units_total` (per carve
-  window); stage elapsed; overall permille; `error_ranges` and the error map (telemetry() merges
-  the live pipe on every read, cr_scan.cpp:744-759); `paused/running` (from the token);
-  `files_found`/`carved_found` on EVENTS (N-166 live atomics, cr_scan.cpp:567-575).
-- **Fields stamped ONLY at stage boundaries (the frozen-bytes defect):** snapshot `bytes_scanned`
-  (`tel_.snap.bytes_scanned = stats.bytes_scanned`, cr_scan.cpp:535) — `stats.bytes_scanned` is
-  incremented only when `carve_slice` returns (`stats.bytes_scanned += cs.bytes_scanned`,
-  cr_scan.cpp:2662), so **`cr_ui_telemetry.bytes_scanned` is 0 for the entire carve and jumps to
-  the final value at the carve boundary**; snapshot `files_found/deleted_found/carved_found/
-  lost_partitions` (N-166 refreshes only the two live ones on the EVENT path, not the pull path);
-  `deleted_found` everywhere (boundary-only by construction); `cr_ui_event.bytes_done` for
-  HEARTBEAT (reads the frozen `t.bytes_scanned`, cr_ui.cpp:1177). Also **found-bytes never cross
-  the ABI**: `ScanStats.bytes_found` (N-167, tree total_logical, stamped at every tel_counts_,
-  cr_scan.cpp:529, cr_scan.h:579-586) exists only on the C++/CLI/JSON surface
-  (rrecov.cpp:2118-2133); no cr_ui struct or event carries it.
-- `stamp(rc)` (:1391-1432): elapsed pause-compensated; error map merged into stats on EVERY exit
-  (save-on-cancel carries it); one boundary-event emit; under the telemetry lock finalizes the
-  snapshot (cancelled flag, paused=false, running=false) and clears `tel_retry_`/`tel_cancel_`
-  before the pipe/token can die.
+### Preview / archive / thumbnail (12)
+`cr_ui_preview_open_snapshot/_open_session/_close/_size/_read` (bounded ≤4 MiB reads; unreadable
+spans zero-filled AND reported; *placed = assembled — cr_ui.h:1274-1297), `cr_ui_preview_metadata`
+(fixed-capacity fields, truncated flag — cr_ui.h:1299-1314), `cr_ui_archive_entry_count/_at`
+(M-116 260-byte names, cached per handle — cr_ui.h:1316-1342), `cr_ui_preview_unreadable`
+(cr_ui.h:1344-1347), `cr_ui_thumbnail_generate` (two-call size probe; 0x50030004 = decode refusal
+also promotes grade to 2 on clean reads — M-115; ≤20-byte nodes refused UNSUPPORTED — cr_ui.h:1349-1418),
+`cr_ui_thumbnail_format_supported`.
 
-**Pause/resume/cancel.** `PausableToken` (cr_device.h:156-242): `pause()`/`resume()`/`cancel()`
-any thread; `checkpoint()` is the cooperative PAUSE+cancel point — blocks while paused, returns
-cancelled; `paused_ms()` compensates elapsed. `cr_ui_scan_pause/resume/cancel` drive it
-(cr_ui.cpp:2435-2452). **Checkpoint sites:** 43 `cancel->checkpoint()` polls across 13 core
-files at engine loop heads (MFT walk ×3, FAT ×7, exFAT ×2, ext4 ×5, HFS+ ×6, Btrfs ×3, ZFS ×5,
-ReFS ×1, carve ×2, lost candidates ×2, orchestrator ×6, safewriter ×1); between stages
-(cr_scan.cpp:1433, 1469, 1489); per whole-disk table target (:2022). **Inside the carve:
-per-window only** — serial loop head once per 1 MiB window (cr_carve.cpp:1530-1536) and once per
-worker per window (:1550); there is NO checkpoint inside `scan_one_window` (no per-byte pause/
-cancel — one window's magic-dispatch/validate runs to completion). `CancelPoolWatcher` polls the
-token every 50 ms and aborts the pool so QUEUED windows/candidates never start (cr_parallel.h:105-127;
-cr_carve.cpp:1579-1586; cr_scan.cpp:2391); running jobs finish to their own poll point — that is
-the drain-after-cancel behavior. After cancel: run() returns ERR_CANCELLED with the tree intact;
-`stamp()` merges/finishes telemetry; saving the session is the caller's explicit choice (CLI saves
-when `--out` was given, exit 3, rrecov.cpp:2041-2065; shim auto-saves on the S-057 stop window if
-the S-044 gates pass, cr_ui.cpp:2398-2413). **Session checkpoints (G-13)** exist only at stage
-boundaries (cr_scan.cpp:1450, 1483, 1497) plus one forced full checkpoint when lost discovery
-first produces candidates (:2281-2282); a failed checkpoint write ABORTS the scan with its error
-(cr_scan.h:363-372); sinks stage to `<path>.tmp` + atomic rename (cr_ui.cpp:2327-2343).
+### Recovery (11)
+`cr_ui_recovery_create` (read_chunk 0=1 MiB, rename_attempts 0=64, conflict 0/1/2 — cr_ui.h:1432-1443),
+`_close`, `cr_ui_recovery_set_destination` (drive-letter destination arms the F12 overlap refusal —
+ERR_DEST_OVERLAP 0x50050001 at enqueue — cr_ui.h:1446-1461), `cr_ui_recovery_enqueue_node/_subtree/
+_enqueue_snapshot/_enqueue_subtree_snapshot`, `cr_ui_recovery_queue_count`,
+`cr_ui_recovery_process` (**caller's thread**; cancel → CR_UI_ERR_CANCELLED, committed items stay),
+`cr_ui_recovery_cancel` (any thread), `cr_ui_recovery_get_stats` (queued/done/refused/errors/
+hash_mismatch/resumed/salvaged/dirs/nothing_to_recover — cr_ui.h:1478-1486),
+`cr_ui_recovery_report_json` (G-09 schema, valid any time — cr_ui.h:1488-1492).
 
-## 4. CLI (`rrecov`, engine/src/app/rrecov.cpp)
+### Health / image / fsck / bitlocker-off (5)
+`cr_ui_health_read` (below), `cr_ui_image_create` (S-040 flat raw image + .sha256 sidecar; cancel
+keeps `<path>.partial`; elevated-token gate — cr_ui.h:1540-1558; cr_ui.cpp:1725-1727),
+`cr_ui_fsck_volume(letter,flags,exit_code)` (M-075 chkdsk; flags 0 check / 1 fix; exit_code raw
+chkdsk verdict, 259 = 15-min timeout; ERR_UNSUPPORTED when not elevated — cr_ui.h:1560-1578;
+cr_fsck.cpp:80-94), `cr_ui_turn_off_bitlocker(letter,progress,user)` (M-078 consented decrypt;
+OK = ACCEPTED, not plaintext — cr_ui.h:1580-1596).
 
-Verbs (rrecov.cpp:4-52, dispatch :3912-3951): `list [--trim]`, `list-carve-formats`,
-`sessions [--dir D] [--json]`, `scan`, `tree --in F [--filter s] [--deleted-only] [--csv] [--json]`,
-`archive-list --in F (--disk N|--image f) --node ID [--json]`, `recover --in F (--disk N|--image f)
---to DIR [--deleted-only] [--filter s] [--report file.json]`, `health --disk N`,
-`fix --disk N [--part P][--apply][--undo f][--undo-apply f]` / `fix --chkdsk C:`,
-`unlock --turn-off C:`, `apply --disk N --session F [--candidate N][--apply][--undo f]
-[--boot-fix lba][--boot-fix-bcd f]`, `bench --disk N [--mode seq|rand|open|read|info] ...`,
-`image --create --disk N --out f.img` (+ .sha256 sidecar).
+## Enumeration contract
 
-`scan` targets `--disk N | --volume C: | --image file` (vmdk/vhd/vhdx/img/dmg-raw). Flags:
-`--whole-disk` (N-044: adds lost-partition discovery; table volumes are ALWAYS scanned — S-051),
-`--deep` (deprecated alias for --whole-disk, prints a note, :1483-1491), `--quick-only`
-(disables deep AND carve, :1493-1496), `--no-carve`, `--threads N`, `--out F` (also the G-13
-checkpoint sink), `--resume F`, `--autosave-dir D`, `--label s`, `--log f`, `--json`, `--csv`,
-`--filter s`, `--deleted-only`, `--pause-stdin` (N-178: 'p'/SPACE pause, 'r'/Enter resume),
-`--filter-folder DIR` (repeatable, M-073), `--repair/--repair-apply/--repair-undo f/--check`,
-`--bitlocker-fvek hex`, `--bitlocker-dict [f]`, `--user-signs f` (:1427-1600). Deep stage is
-always on; --quick-only is the only way off (:1474).
+**Structs.** `cr_ui_disk_info` (cr_ui.h:392-416): `number` (u32, the \\.\PhysicalDriveN index),
+`size_bytes`, `logical_sector`, `physical_sector` (bytes), `removable` (1 = bus USB/SD/MMC),
+`layout` (0 none, 1 MBR, 2 GPT, 3 EBR — N-057 append), `table_ok`, `model[128]`, `serial[128]`
+(UTF-8, may be empty), `trim_known/trim_on` (M-076 append, only filled by `_ex` with
+CR_ENUM_FLAG_TRIM). `cr_ui_volume_info` (cr_ui.h:418-426): `letter` (0 when absent), `disk`,
+`offset_on_disk`, `bytes`, `fs_name[16]`, `label[64]`, `bitlocker` (1 = FVE detected).
+Note the ABI row exposes **only number+model+serial** as identity — the engine's richer axes
+(firmware, WWN, interface_desc — PhysicalDisk, cr_enumerate.h:37-60) never cross the ABI except as
+the scan config's identity-card strings (cr_ui.h:519-529, N-066).
 
-Output: scan completion headline `"scan complete: N file(s) (X GB), D deleted, C carved, L lost
-partition(s) in S s"` where GB = bytes_found/1024³ (rrecov.cpp:2126-2135); `--json` emits
-{files, deleted, carved, lost_partitions, bytes_scanned, bytes_unreadable, bytes_found,
-error_ranges, probe_unreadable, elapsed_ms} (:2116-2124); read-truth warnings always printed
-(:2103-2114). `tree --csv/--json` the result tree; `sessions --json` the light list.
+**The two stacks** (cr_enumerate.cpp:139-159):
+1. **Numbered PhysicalDrive namespace**: loop n = 0..max_disks-1; the shim passes **200**
+   (cr_ui.cpp:1828; `ENUMERATE_DISK_BOUND = 200`, cr_winenv.h:45 — the old driver grammar's
+   disk# ≤ 199 space). Per disk: `open_disk_for_query` (GENERIC_READ, full share; on
+   ERROR_ACCESS_DENIED / ERROR_SHARING_VIOLATION only, retry a **0-access metadata open** and mark
+   busy — N-071 hardening so AV/backup-held disks stay listed — cr_enumerate.cpp:98-113), then
+   `query_disk_handle`: IOCTL_DISK_GET_DRIVE_GEOMETRY_EX (size/sectors), StorageAccessAlignment
+   (logical@+0x10, physical@+0x14, accepted only in [256,65536]), StorageDeviceProperty
+   (decode_device_descriptor with SDK-exact offsets: product@+16, revision@+20, serial@+24, bus@+28
+   — N-080 fixed the pre-fix off-by-fields — cr_enumerate.h:62-91), StorageDeviceIdProperty
+   (first device-associated identifier → WWN/serial-2, cr_enumerate.h:133-178). Table parsed via
+   the pure core (`table::parse_disk_table`). A disk that yields **no geometry is dropped**
+   (cr_enumerate.cpp:26-27,123-124).
+2. **cfgmgr32 device-interface stack** (N-071): CM_Get_Device_Interface_ListW over
+   GUID_DEVINTERFACE_DISK, PRESENT instances only; each opened with the same share/open policy;
+   disk number from IOCTL_STORAGE_GET_DEVICE_NUMBER (else `kUnknownDiskNumber` 0xFFFFFFFF — such
+   entries dedup by instance path and get no table parse); geometry/descriptor via the shared
+   query path. cfgmgr failure degrades silently to stack 1 (cr_enumerate.cpp:168-212).
 
-**Exit codes** (rrecov.cpp:54-68; docs/API.md:72-81): 0 ok; 1 failure (scan failure, unknown
-option, enumeration failure); 2 recover-partial / apply+fix open-plan-execute-undo failure /
-bench open-read failure or zero hits / unlock refusal; 3 scan-cancelled (session saved when
---out given) / health all-sources-unavailable / image cancelled (partial kept as `<out>.partial`);
-4 the ELEVATION prerequisite not met (raw-disk verbs unelevated — image targets exempt); 5 scan
-only: target disconnected mid-scan (N-125, reattach-then-resume, :2072-2083). Ctrl-C is
-cooperative: token polls at loop heads, session saves, exit 3 (:3834-3837).
+**Merge** (pure, header-inline — cr_enumerate.h:228-255): every loop disk kept (richer entry);
+an interface entry appended only if its **number** is absent from the loop set AND its
+**interface_path** unseen (kUnknownDiskNumber entries dedup by path only). Order: loop order then
+pass order.
 
-## 5. Health surface
+**Dedup/identity axes**: disk NUMBER and PnP instance path — **never model/serial**. Two identical
+internal drives get distinct PhysicalDriveN numbers and BOTH surface engine-side; if the shipped UI
+shows one row, the collapse is host-side (the BF-27 note "every Azure VM disk reports model
+'Virtual Disk', serial empty" — worklog.md:2201-2204 — makes model+serial a weak host-side key;
+Agent D audits `ui/src-tauri/src/commands/devices.rs`).
 
-`cr_ui_health_read(disk, rep, attrs, attr_cap, attr_count)` (cr_ui.h:1498-1538; impl
-cr_ui.cpp:4879-4958): opens `\\.\PhysicalDriveN` GENERIC_READ|WRITE; open failure → ERR_OPEN_FAILED
-with text distinguishing "admin rights required" vs "busy/locked even elevated" (:4889-4894).
-Then, per disk:
-- **ATA SMART** via `win::health::read_smart` (cr_health.cpp:216-262): transport chain tried in
-  order — (1) `IOCTL_ATA_PASS_THROUGH` ATA_PASS_THROUGH_EX (:38-64), (2) legacy
-  `SMART_RCV_DRIVE_DATA` 0x7C088 pre-Vista (:66-109), (3) CSMI CC-0x19 SCSI-miniport (Intel RST/
-  AMD rcraid; IOCTL_SCSI_GET_ADDRESS → `\\.\ScsiN:`) (:135-208). First transport that answers
-  IDENTIFY serves the command set. Fills available, transport name, ata/smart version, per-attr
-  rows (id/value/worst/6-vendor-byte raw/failing/name), failing_now, reallocated/pending/
-  uncorrectable sectors, power_on_hours, spin_retry, ssd_wear_level, temperature_c.
-- **NVMe health log page 2** via IOCTL_STORAGE_QUERY_PROPERTY ProtocolTypeNvme (:264-299);
-  fills nvme_available, temperature_c_x10, available_spare(+threshold), percentage_used, data
-  units read/written, power_on_hours_nvme, unsafe_shutdowns, media_errors, critical_warning, and
-  the M-036 tail (host_reads/writes, controller_busy_time, num_error_log_entries, data bytes =
-  units × 512,000).
-- **ssd_like** = seek-penalty heuristic `IOCTL_STORAGE_QUERY_PROPERTY` StorageDeviceSeekPenalty
-  (:325-342). **TRIM** = `query_trim_state` ALWAYS called (cr_ui.cpp:4947-4951).
-- Neither SMART nor NVMe available → `ERR_HEALTH_UNAVAILABLE` 0x50070001 (CLI health exit 3).
+**Every known way a real disk can be MISSING from the result:**
+1. Open failure not in {ACCESS_DENIED, SHARING_VIOLATION} → entry skipped silently
+   (cr_enumerate.cpp:102-109).
+2. Even the 0-access metadata open fails ("cannot even be metadata-opened stays absent — the honest
+   limit, D-85", cr_enumerate.cpp:94-97).
+3. No geometry from the handle (IOCTL_DISK_GET_DRIVE_GEOMETRY_EX fails) → dropped
+   (cr_enumerate.cpp:28-38,123-124).
+4. Interface-stack entry that does not open at all is skipped (cr_enumerate.cpp:166-167,186).
+5. Disk number ≥ 200 misses stack 1 but is caught by stack 2 (device-number IOCTL), so the bound
+   is effectively compensated — a miss requires BOTH stacks to fail.
+6. `busy` is NOT exposed in cr_ui_disk_info — a listed-but-unopenable disk is indistinguishable
+   from a scannable one until `cr_ui_open_disk` fails.
+7. An SD card via USB reader enumerates as its own PhysicalDriveN (bus 7/11/12 → removable=1);
+   it disappears only through 1-4 (e.g., a reader driver rejecting our share modes) — or because
+   no media is present (no disk object at all).
+8. **Volume enumeration wholesale failure**: `GetLogicalDriveStringsW(64, letters)` — the 64-wchar
+   buffer holds ≤15 "X:\" strings; with 16+ drive letters (incl. CD-ROM/network letters, which all
+   appear in the string) the API returns the required size > 64 and the code returns
+   **ERR_BAD_PARAMETER for the entire volume list** (cr_enumerate.cpp:216-218). Card-reader
+   multi-letter machines are the realistic trigger.
+9. Volume rows only for DRIVE_FIXED/DRIVE_REMOVABLE (cr_enumerate.cpp:224-225); only the FIRST
+   extent of VOLUME_DISK_EXTENTS is attributed (spanned/dynamic volumes → first disk only,
+   cr_enumerate.cpp:232-240) and `VolumeEntry.disk` defaults to 0 — a volume whose extents query
+   fails reports disk 0 (cr_enumerate.h:186).
 
-**The `_popen` (cr_health.cpp:306).** `query_trim_state` runs
-`_popen("fsutil behavior query disabledeletenotify 2>nul", "r")`, parses the FIRST "= " line
-(og parity; the HEALTH-6 note records last-line-wins ambiguity on localized output), returns
-ERR_HEALTH_UNAVAILABLE when no line parses (:301-323). Call chain from the UI's health command:
-`cr_ui_health_read` (cr_ui.cpp:4976) → `guarded(health_read_impl)` (:4879) →
-`win::health::query_trim_state` (cr_ui.cpp:4948) → `_popen` (cr_health.cpp:306) — a console
-child process per health read. The SAME primitive is invoked from the enumeration path when
-`cr_ui_enumerate_disks_ex` is called with `CR_ENUM_FLAG_TRIM` (cr_ui.cpp:1845-1846; one query
-per invocation, OS-global datum stamped on every row; failure ⇒ trim_known=0 everywhere) — the
-CLI `list --trim` leg (rrecov.cpp:3912-3924).
+## Health contract
 
-## 6. Enumeration (cr_enumerate.cpp / cr_enumerate.h)
+Exports: `cr_ui_health_read` (the only health export; SMART + NVMe + SSD heuristic + TRIM in one
+call, one struct). `cr_ui_smart_report` (cr_ui.h:1498-1532): available, transport[24]
+("ata-passthrough"/"smart-rcv-drive-data"/"csmi-miniport"/"nvme"/"legacy"), ata/smart versions,
+attribute_count (two-call attrs), failing_now, reallocated/pending/uncorrectable sectors,
+power_on_hours, spin_retry, ssd_wear_level, temperature_c; NVMe block (nvme_available,
+temperature_c_x10, spare + threshold, percentage_used, data_units_read/written, power_on_hours_nvme,
+unsafe_shutdowns, media_errors, critical_warning); M-036 append (host_reads/writes,
+controller_busy_time, num_error_log_entries, data_bytes_read/written — data units ×512,000);
+ssd_like, trim_known/trim_enabled.
 
-**Two-stack merge.** Stack 1: the numbered `\\.\PhysicalDrive0..max-1` loop (max 200 at the ABI,
-cr_ui.cpp:1828) — open, query geometry/alignment/descriptor, parse the on-disk table through the
-pure core (cr_enumerate.cpp:139-159). Stack 2 (N-071): the cfgmgr32 `GUID_DEVINTERFACE_DISK`
-present-instance pass — number from IOCTL_STORAGE_GET_DEVICE_NUMBER (kUnknownDiskNumber 0xFFFFFFFF
-when it fails), same shared query path (:168-212). `merge_disk_enumeration` (pure,
-cr_enumerate.h:228-255): every loop disk kept; an interface entry appended only when its number is
-absent from the loop set AND its instance path unseen; unknown-number entries dedup by path only.
+**Query path** (cr_ui.cpp:4879-4958): opens `\\.\PhysicalDriveN` GENERIC_READ|GENERIC_WRITE
+(unelevated → **ERR_OPEN_FAILED 0x50020001** with an elevate hint — health does NOT use the
+ERR_ELEVATION_REQUIRED gate, unlike open_disk; cr_ui.cpp:4887-4894). SMART via a transport CHAIN,
+first that answers IDENTIFY serves the set (cr_health.cpp:216-262): (1) IOCTL_ATA_PASS_THROUGH
+ATA_PASS_THROUGH_EX (cr_health.cpp:38-64); (2) SMART_RCV_DRIVE_DATA 0x7C088 legacy with the og's
+exact SMART IDEREGS magic (cr_health.cpp:73-109); (3) CSMI CC-0x19 SCSI-miniport for Intel RST /
+AMD rcraid (IOCTL_SCSI_GET_ADDRESS → \\.\ScsiN: port — cr_health.cpp:143-208). NVMe health log page 2
+via IOCTL_STORAGE_QUERY_PROPERTY + ProtocolTypeNvme (cr_health.cpp:264-299). SSD heuristic =
+model-string check ∪ seek-penalty probe (cr_health.cpp:325-342). No source → **ERR_HEALTH_UNAVAILABLE
+0x50070001** (cr_ui.cpp:4953-4956).
 
-**LISTED vs DROPPED.** `open_disk_for_query` (:98-113): data open is `GENERIC_READ` with full
-share; on failure only **ERROR_ACCESS_DENIED (5)** and **ERROR_SHARING_VIOLATION (32)** fall
-through to a **0-access metadata-only open** (FILE_ANY_ACCESS IOCTLs still answer) — disk stays
-LISTED with `busy=true` (scans must re-open later). **Every other GetLastError value returns
-INVALID_HANDLE ⇒ the disk is silently dropped** (query_disk `continue`, :119-124). Also dropped:
-a handle on which `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX` fails entirely (`query_disk_handle` ok=false,
-:28-38, 121-124); interface entries that do not open at all (:186). A disk that cannot even be
-metadata-opened stays absent (honest limit, D-85).
+**Every shell-out in the engine** (grep of engine/src for `_popen|CreateProcess|WinExec|system(`):
 
-**Identity fields.** `removable` = bus type 7 USB / 11 SD / 12 MMC (STORAGE_DEVICE_DESCRIPTOR
-BusType@+28, cr_enumerate.h:88-90); model@+16, firmware@+20, serial@+24 (N-080 SDK-exact decode,
-:70-91); WWN from StorageDeviceIdProperty first device identifier (:141-178); interface text
-`bus_interface_name` (:96-131). Volumes: `GetLogicalDriveStringsW`, only DRIVE_FIXED and
-DRIVE_REMOVABLE, first extent via IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, GetVolumeInformationW
-fs/label, `bitlocker::is_fve_volume` (cr_enumerate.cpp:214-254).
+| Site | Command | Spawn mechanism | Visible console on a GUI desktop today? |
+|---|---|---|---|
+| cr_health.cpp:306 | `fsutil behavior query disabledeletenotify 2>nul` | **`_popen(..., "r")`** | **YES — VISIBLE.** MSVC `_popen` spawns `cmd.exe /c …` WITHOUT CREATE_NO_WINDOW/DETACHED_PROCESS; a GUI-subsystem parent has no console, so the child allocates one — the flash the user reported ("popup shells … probably cmd"). Called UNCONDITIONALLY by `cr_ui_health_read` (cr_ui.cpp:4948) and by `cr_ui_enumerate_disks_ex` only under CR_ENUM_FLAG_TRIM (cr_ui.cpp:1845-1846). This is defect D-CONS (worklog.md:2184-2191). |
+| cr_fsck.cpp:50-51 | chkdsk (via build_chkdsk_command, Wow64-redirection-disabled) | `CreateProcessW(..., CREATE_NO_WINDOW, ...)` | **No — hidden.** Correct in-tree pattern. |
+| cr_bitlocker.cpp:64-65 (`run_command`) | `powershell -NoProfile -NonInteractive -Command "Unlock-BitLocker/Disable-BitLocker …"` primary, `manage-bde …` fallback (cr_bitlocker.cpp:358-381); reached from unlock / dictionary unlock / auto-unlock / turn-off | `CreateProcessW(..., CREATE_NO_WINDOW, ...)` | **No — hidden.** (Both command forms, incl. every dictionary attempt, ride the same hidden spawn; 2-min unlock / 10-min turn-off timeouts.) |
 
-**Unelevated vs elevated.** Enumeration itself needs no elevation: the 0-access metadata open
-works unelevated (the GENERIC_READ first attempt fails ERROR_ACCESS_DENIED unelevated, which is
-exactly the retry path). But the table parse calls `open_physical_drive(n)` (cr_enumerate.cpp:148,
-201) — a raw direct open that requires elevation; unelevated the view is null and `table_ok`
-stays 0 (disks listed, layout unknown). Elevated: geometry + table + identity all filled. Scans
-(`cr_ui_open_disk`), health reads (GENERIC_READ|WRITE open) and the CLI's raw-disk verbs refuse
-unelevated with ERR_ELEVATION_REQUIRED / exit 4. Refresh contract: no cache anywhere — each
-cr_ui_enumerate_* call re-queries the OS (cr_ui.h:434-446, N-098). Capacity semantics: `out==NULL`
-probes *count; `out!=NULL` treats *count as IN capacity; short capacity fills the prefix and
-returns ERR_TRUNCATED (cr_ui.cpp:1847-1878). `_ex` refuses unknown flag bits BEFORE the platform
-check so all lanes see the same grammar (cr_ui.cpp:1932-1944).
+No `WinExec`, no `system()`, no `ShellExecute*` anywhere in engine/src (grep clean; the elevation
+relaunch ShellExecuteW "runas" is host-side, ui/src-tauri/src/commands/system.rs:85). The one
+visibility defect is the single `_popen`; the fix shape (CREATE_NO_WINDOW CreateProcessW or
+`_popen` with `cmd /c` + STARTF_USESHOWWINDOW) already exists in-tree in cr_fsck/cr_bitlocker.
+
+## Scan contract
+
+**Start exports.** One scan lifecycle (`cr_ui_scan_create` → attach → optional event sink → run →
+snapshot/save); whole-disk vs volume is a property of the ATTACHED DEVICE VIEW
+(`cr_ui_open_disk` + `cfg.whole_disk=1` for lost-partition discovery vs `cr_ui_open_volume`'s
+slice — cr_ui.h:505-509), not a separate export. `fs_hint` values = orchestrator::FsFamily
+serialized (0 auto, 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS, 11 UDF;
+5 reserved, 10 BitLocker probe-only — cr_ui.h:472-476; cr_scan.h:37-70).
+
+**Stage model.** Three stages, ids **0 quick / 1 deep / 2 carve** (0xFFFFFFFF none — cr_ui.h:121-122;
+event type values 1..12 — cr_ui.h:151-223). Weights default **quick 40 / deep 35 / carve 25
+percent-of-total** (cr_scan.h:72-76); `weighted_progress = Σ(wᵢ·pmᵢ)/Σw` in permille, exact
+single-division (cr_scan.cpp:131-146). Execution ORDER in run() (cr_scan.cpp:1436-1502):
+pre-scan repair (S-008) → check phase (M-041) → **quick** (the single structured engine pass —
+one MFT walk with deep semantics, "single-walk design", cr_scan.cpp:1592-1595) → **carve**
+(N-181: `carve_before_deep = cfg_.run_carve && quick_done_`, cr_scan.cpp:1467 — landed in v0.7.0,
+commit 75959e8d) → **deep extras** (NTFS MFT-remnant sweep + whole-disk lost-partition discovery
++ ≤10 candidate scans, cr_scan.cpp:2150-2446) → folder-filter/junk/grading passes → read-truth gate
+(a fully-blind scan REFUSES ERR_READ_FAILED instead of fake-completing, cr_scan.cpp:1543-1578).
+
+**Progress surfaces.** (a) Legacy `cr_ui_progress_fn(user, stage, stage_permille, overall_permille,
+bytes_done, bytes_total, error_ranges)` (cr_ui.h:125-127); the shim derives the stage from whichever
+telemetry is nonzero — carve checked FIRST (cr_ui.cpp:1204-1217). (b) Typed event stream
+`cr_ui_event` (cr_ui.h:225-272): stage/permille fields, cumulative files_found/deleted_found/
+carved_found, error-range deltas (err_start/len BYTES + M-049 module/operation/attempts), checkpoint
+index, lost-candidate LBA, repair/check summaries, autosave rc. Events coalesce by overall permille;
+files-found are stage-boundary samples LIVE-refreshed from tree attach counters (N-166,
+cr_scan.cpp:555-575); **bytes_done/bytes_total only meaningful in the carve stage** (cr_ui.h:122-124,
+cr_scan.cpp:596-597). (c) Polling `cr_ui_scan_telemetry` (any thread). (d) **Heartbeat** N-043: the
+shim's watchdog thread fires CR_EVT_HEARTBEAT every 5,000 ms while run() is in flight and no
+progress event arrived in the window — standing truth only, "never a synthetic permille advance"
+(cr_ui.h:163-173; cr_ui.cpp:1150-1188).
+
+**Cancellation / pause / resume.** `cr_ui_scan_cancel` from any thread → run() returns
+CR_UI_ERR_CANCELLED, tree stays browsable, save-on-cancel is the caller's explicit choice;
+`cr_ui_scan_save_cancel` is SAVE-scoped and never touches the scan token (cr_ui.h:827-835).
+Resume: `cr_ui_session_resume` (mask-⊆-configured validation; completed stages skipped,
+cr_scan.cpp:388-438) + `cr_ui_scan_verify_identity` (boot-hash; BAD_CHECKSUM on wrong volume).
+Sessions: `.crsf` container "CRSFMT01" v1, chunked-zlib framing, per-record CRC32, forward-skip on
+corruption (cr_crsf.h:1-35); records SESSION_STATE/VOLUME_INFO/PARTITION_CONTEXT/RESULT_TREE/
+ERROR_MAP + optional 6..10 (assistant, alloc map, disk layout, fs-check, LDM layouts, carve tally —
+cr_crsf.h:44-90). Autosave on completion AND user-stop (S-057), gated by S-044 (empty/resumed/
+already-saved runs never auto-save); auto name `auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf` +
+`last_scan.info` pointer with one-live-auto retention delete (cr_ui.cpp:2258-2314).
+
+### THE ~75% BOUNDARY ANALYSIS (BF-22, the "75% advanced scanning" stall)
+
+The overall permille the UI displays is the ENGINE's `overall_permille` (bridge: events.rs:268
+`overall = evt.overall_permille / 1000.0`; telemetry co-sample events.rs:359-361), and both
+deep-walk and carve map to the UI phase **"Advanced Scanning {{percent}}"** (contract.ts:169-175;
+en.ts:155; stage mapping events.rs:256-262).
+
+The decisive wiring is **`covers_both`**: the quick stage's single engine pass runs with deep
+semantics and its progress bridge publishes **BOTH quick AND deep permilles simultaneously**
+(cr_scan.cpp:722-724 `if (b->covers_both) tel_publish_(1, done, total, …)`; set by run_quick's
+`run_engine_pass(..., 0, deep_coming=true)` at cr_scan.cpp:1597). Therefore, as the MFT walk
+completes, quick_pm = deep_pm = 1000 and
+
+  overall = (40·1000 + 35·1000 + 25·0)/100 = **750‰ = exactly 75.0%** — the end of the engine walk
+  IS the 75% boundary. The orchestrator's own comment pins it: *"with covers_both the walk already
+  fed the deep stage, so the bridge has forwarded values up to 750"* (cr_scan.cpp:1603-1606).
+
+With the default stage set (the bridge zero-inits → mask 7, scan.rs:229-231), N-181 then runs
+**carve as the SECOND stage**, so the displayed percent after 75% is `750 + 0.25·carve_pm` — i.e.
+**75%..100% is the carve stage**, and the UI label at that moment flips to "Advanced Scanning"
+(the CR_EVT_SCAN_STAGE(2) event). The forensic stall values decode exactly: 76.1% ⇒ carve_pm = 44‰
+(4.4% into carve); run 19's stop "0.6% into CARVE" ⇒ carve_pm = 6‰ (worklog.md:1960-1963).
+The old ABI-v2 engine (quick→deep→carve order) showed the same stall at 76.1% = ~1% into its
+carve — both eras stall in EARLY CARVE; the worklog's "76.1% deep-scan stall" name is a misnomer
+for the stage, though "advanced" is the correct UI label.
+
+**What the carve stage does at that boundary and why it stalls** (cr_carve.cpp):
+- The sweep walks **1 MiB windows** (`WINDOW = 1<<20`, +4,096 overlap — cr_carve.cpp:45-46) with a
+  **per-byte dispatch loop** `for (u64 off = 0; off + 12 <= want; ++off)` (cr_carve.cpp:597) —
+  per position: free-map cluster gates, occupancy-interval gates, first-byte magic dispatch,
+  multi-row trial validation, raw-sign KiB-window tail scans.
+- **Progress and bytes only tick at window granularity**: single-thread path reports
+  `progress(wi*WINDOW, total)` per window (cr_carve.cpp:1530-1537); parallel path reports
+  `done*WINDOW` only when a window COMPLETES (cr_carve.cpp:1560-1566); `bytes_scanned` accumulates
+  per completed window (cr_carve.cpp:1388). A window whose candidate validation grinds produces
+  **zero permille advance, zero bytes_scanned advance, zero new files** — the frozen UI.
+- **Reads go quiet while the matcher grinds**: candidate validators read through the
+  window-serving `WindowDevice` — in-window reads are memcpys off the already-read buffer,
+  "zero device traffic" (cr_carve.cpp:445-456). Hence the io-timeline "reads idle from +6 min"
+  (worklog.md:1876-1888) while CPU grinds on stale free-space content — dense on a real disk
+  (used clusters are gated by the $Bitmap/occupancy gates; FREE clusters full of stale file
+  content are scanned byte-by-byte).
+- **No intra-window cancellation checkpoint**: cancel is checked only at window START
+  (cr_carve.cpp:1531,1550); the 50 ms CancelPoolWatcher aborts QUEUED windows only. A running
+  `scan_one_window` grinds to completion — BF-25's unbounded drain ("the carve matcher grinds in
+  memory with no cancellation checkpoint until it finishes", worklog BEHAVIOR-FINDINGS.md:39),
+  `cr_ui_scan_busy` stays 1 until the matcher finishes, and the bridge's save is refused.
+- During the grind the event stream goes **fully silent** (progress events coalesce by permille
+  advance — none; the 5 s heartbeat updates liveness but the bridge does NOT re-emit scan-progress
+  on heartbeats, events.rs:326-329 leaves `emit=false`) — so percent, files, bytes, ETA and
+  throughput all freeze while deviceConnected stays true. That is precisely the user's
+  "jumps to 75% advanced scanning … never moves" presentation.
+
+Secondary presentation defects of the same model (worth Phase 1 instrumentation):
+- With carve disabled (CLI `--no-carve`; the bridge never does this), the deep stage's weighted
+  value maxes at 750 ⇒ the UI sits at **exactly 75.0% for the entire deep stage** (remnant sweep +
+  lost discovery + candidate scans) then jumps to 100%.
+- With carve enabled, the deep stage (which runs LAST) executes at a displayed overall already
+  pinned at 100% (tel_stage_begin_ resets deep telemetry to 0 — cr_scan.cpp:456-459 — but
+  overall_permille is monotonic-max, cr_scan.cpp:481-482/518-519): minutes of real work at "100%".
+- The old-run shape "43%→76.1%" (drive-ui.mjs:648) is the pre-N-181 order's same early-carve stall.
+
+## Results contract (units audit)
+
+- **Snapshot rows** `cr_ui_node_info` (cr_ui.h:1004-1036): link indices; `node_id` (stable,
+  recovery/preview addressing); fs_kind; record_ref (NTFS record number, 0 carved); origin
+  (0 structured/1 carved/2 lost/3 virtual); deleted (0 active/1 deleted/2 partial/3 damaged);
+  confidence 0..4; grade 0..2 (S-023); overlap; logical_size / allocated_size — **BYTES**;
+  created/modified/changed/accessed — **100ns units since 1601** (FILETIME); attributes (0x10 =
+  dir); extent_count/resident_bytes; carve_format/carve_confidence; hash_valid + sha128[16];
+  name two-call. `cr_ui_query_row.size` = logical bytes; `size_min/max`, `modified_from/to`
+  (100ns-1601) in `cr_ui_query` (cr_ui.h:1072-1101). Disk-map bad_ranges = absolute-byte
+  [start,len] pairs; carve-format min/max_size bytes (raw-sign KiB-converted once, S-015).
+- **Every size/offset field in the ABI is BYTES; every progress fraction is permille 0..1000;
+  no sector-unit field crosses the boundary** (image open bounds, geometry, volume extents,
+  node sizes, preview offsets/`placed`, recovery read_chunk, error spans, tally counts). NVMe
+  data-units are converted ×512,000 before crossing (cr_ui.h:1525-1531). **A units-conversion bug
+  at the ABI boundary is ruled out for "0 B".**
+- **"Files found 21 (0 B)" is a MISSING-FIELD gap, not a units bug**: `cr_ui_event` carries
+  files_found/deleted_found/carved_found but **no found-bytes**; `cr_ui_telemetry` and
+  `cr_ui_scan_stats` likewise expose only `bytes_scanned` (carve-true). The engine tracks
+  `stats.bytes_found = tree_.total_logical()` (N-167, cr_scan.cpp:529) and persists it in the
+  session (SessionState.bytes_found, cr_scan.cpp:2699) — but no live ABI surface carries it, so
+  the bridge can only fill `dataFoundBytes` at TERMINAL time by summing the frozen snapshot's
+  metas (scan.rs:419-441; live init 0 at state.rs:136). Mid-scan the headline is structurally
+  "N (0 B)". Additionally `bytes_scanned` counts **only the carve stage's true reads**
+  (cr_scan.h:594-596 "carve-true-bytes only"; only `run_carve_stage` adds to it,
+  cr_scan.cpp:2662) — so "sector progress" (bytesScanned/bytesTotal, total = device geometry,
+  scan.rs:288) is 0 during quick+deep and frozen during a carve grind; and the session-row
+  bridge maps **bytes_scanned → dataFoundBytes** (sessions.rs:217) — a semantic mismatch
+  (scanned ≠ found) on the sessions screen.
+- Mid-scan browse: `cr_ui_scan_snapshot` (partial=1) + client-side filtering; core-side query is
+  session-only (cr_ui.h:1054-1058). Counts: telemetry counters (files/deleted/carved/lost) +
+  `cr_ui_scan_get_stats` at terminal; `cr_ui_scan_assistant` for the recoverability block
+  (small_result heuristic: matched forced 0 when total < 100 — cr_ui.h:718-723).
+
+## Error model
+
+Full enum (cr_error.h:25-121), single numeric space shared by every cr_ui return:
+- 0x5002 transport: **ERR_OPEN_FAILED 0x50020001**, ERR_READ_FAILED …02, ERR_WRITE_FAILED …03,
+  ERR_RANGE_OUT_OF_BOUNDS …04, **ERR_CANCELLED 0x50020005**, ERR_RETRY_EXHAUSTED …06,
+  ERR_DEVICE_DISCONNECTED 0x50020007 (N-125).
+- 0x5003 parse: BAD_MAGIC …01, **ERR_BAD_CHECKSUM 0x50030002** (identity mismatch),
+  BAD_PARAMETER …03, TRUNCATED …04, FIXUP_FAILED …05, CYCLE/DEPTH_LIMIT …06/07,
+  **ERR_UNSUPPORTED 0x50030008**, NO_MEMORY …09.
+- 0x5004 session: SESSION_FORMAT/IO/VERSION …01..03.
+- 0x5005 recovery: **ERR_DEST_OVERLAP 0x50050001**, DEST_UNWRITABLE …02, HASH_MISMATCH …03,
+  DEST_FULL …04, DEST_NAME_EXHAUSTED …05, DEST_PATH_TOO_LONG/INVALID/NETWORK …06..08.
+- 0x5006 bitlocker: **ERR_FVE_LOCKED 0x50060001**, ERR_FVE_ELEVATION_REQUIRED 0x50060002 (M-105 ACL).
+- 0x5007/0x5008: **ERR_HEALTH_UNAVAILABLE 0x50070001**; REPAIR_REFUSED/UNDO_FAILED/VOLUME_LOCK_
+  FAILED 0x50080001..03; APPLY_CONSENT_DENIED/STALE/REFUSED/REFRESH_FAILED 0x50080004..07.
+- 0x500A ERR_IMAGE_CORRUPT; 0x5009 ERR_INTERNAL.
+- **ERR_ELEVATION_REQUIRED = 0x500C0001** (NOT 0x50020001 — that is ERR_OPEN_FAILED; the task
+  brief's guess is corrected here). Fresh value space after the driver-era 0x500B family was
+  removed (session-96); every raw-disk verb fails fast with exactly this code on a non-elevated
+  token (cr_error.h:108-120). Used by cr_ui_open_disk/open_volume*/image_create (cr_ui.cpp:1433,
+  1488, 1575, 1725); `cr_ui_health_read` instead returns ERR_OPEN_FAILED unelevated, and
+  `cr_ui_fsck_volume` returns ERR_UNSUPPORTED unelevated — an inconsistency hosts must absorb.
+- Propagation: engines return codes up through the orchestrator; the shim wraps everything in
+  `guarded()` (catch-all → ERR_INTERNAL) and stamps TLS last_error; two-call truncation uses
+  ERR_TRUNCATED with partial fills; the read-truth gate converts a fully-blind "success" into
+  ERR_READ_FAILED (cr_scan.cpp:1543-1578). Engine codes → UI vocabulary mapping at
+  scan.rs:465-473 (0x500C0001 → "elevation-required", 0x50060001 → "device-permission",
+  0x50020007 → "device-gone").
+
+## CLI
+
+The engine ships ONE console target: `rrecov` (engine/src/app/rrecov.cpp, 3,952 lines;
+engine/tools is build/test tooling, not a CLI). Subcommands (usage block rrecov.cpp:3838-3907,
+dispatch 3910-3951):
+
+| Command | Args (essentials) | Notes |
+|---|---|---|
+| `list` | `[--trim]` | disks; --trim pays the fsutil _popen once (M-076) |
+| `list-carve-formats` | — | the ABI registry projection |
+| `sessions` | `[--dir D] [--json]` | light-record listing |
+| `scan` | `--disk N \| --volume C: \| --image file` + `--quick-only/--no-carve/--whole-disk/--threads/--out/--resume/--log/--autosave-dir/--label/--json/--csv/--filter/--deleted-only/--pause-stdin/--filter-folder/--repair/--repair-apply/--repair-undo/--check/--bitlocker-fvek/--bitlocker-dict/--user-signs` | deep always on; Ctrl-C → exit 3 |
+| `tree` | `--in file.crsf [--filter/--deleted-only/--csv]` | browse a session |
+| `archive-list` | `--in --disk/--image --node ID [--json]` | M-116 inventory |
+| `recover` | `--in (--disk/--image) --to DIR [--deleted-only/--filter/--report]` | G-09 JSON report |
+| `health` | `--disk N` | SMART/NVMe/TRIM; all sources dead → non-zero (FB-H04) |
+| `unlock` | `--turn-off C:` | M-078 consented decrypt |
+| `fix` | `--disk N [--part/--apply/--undo/--undo-apply]` \| `--chkdsk C:` | RawFixer + chkdsk escalation |
+| `apply` | `--disk N --session --candidate N [--apply/--undo/--boot-fix]` | S-029 lost-partition entry |
+| `image` | `--create --disk N --out file.img` | + .sha256 sidecar |
+| `bench` | `--disk N [--mode seq\|rand\|open\|read\|info] …` | direct-transport measurement |
+
+**Exit codes**: 0 success; 1 failure/usage (enumeration failure never exit-0, FB-K01,
+rrecov.cpp:797); 2 image-create failure / open failure (rrecov.cpp:2926,2993); **3 = cancelled**
+(Ctrl-C; distinct from failure — rrecov.cpp:2065); **4 = elevation required**
+(`require_privilege()` prints the ERR_ELEVATION_REQUIRED refusal and returns 4 for every raw-disk
+verb — rrecov.cpp:519-537; image targets exempt, rrecov.cpp:539-547); **5 = device disconnected
+mid-scan** (N-125, rrecov.cpp:2072-2082, with the reattach-then-resume hint). A fully-unreadable
+target refuses with the read-truth text (rrecov.cpp:2084-2097).
+
+---
+
+### Phase-1 hooks this sheet hands forward
+1. Instrument the carve stage's per-window timing (window index, duration, hit density) — the
+   75%→76.1% freeze is early-carve; confirm on real hardware which window class grinds
+   (raw-sign tail scans vs grammar validation vs tree emission).
+2. Add a live found-bytes field (or expose `bytes_found` in telemetry/stats) — the "(0 B)" headline.
+3. Replace `query_trim_state`'s `_popen` with the in-tree CREATE_NO_WINDOW pattern (D-CONS).
+4. Reproduce the 16+ drive-letter volume-enumeration failure (cr_enumerate.cpp:216-218) and the
+   model+serial host-side dedup hypothesis for "1 of 3 disks" (Agent D's surface).
+5. Re-examine the deep-stage display inversion (work at 100% / 75% pinned) — a stage-model
+   presentation defect distinct from the stall itself.

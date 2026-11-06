@@ -2238,3 +2238,76 @@ flagged as open:
 Lane B proceeds with Phase-0 sheets (agents A–F), then the engine-side
 fixes (D1 manifest, D2 _popen, D4 a-c), then release. Fetch-first push
 discipline on every push.
+
+## Phase 0 complete — the six sheets + the consolidated DIAGNOSIS (T2/T3)
+
+Agents A–F read both repositories end to end and produced the six
+context sheets (worklog/REPO-STATE.md 404 ln, UI-MAP.md 225 ln,
+CORE-API.md 459 ln, WIRING-AUDIT.md 222 ln, REFERENCE-BEHAVIOR.md 77 ln,
+INSTALLER-AND-PRIVILEGE.md ~200 ln — every claim path:line-cited).
+Consolidated into worklog/DIAGNOSIS.md as the defect register:
+
+- D-PRIV-01: NO manifest on the exe (tauri_build stock embed = no
+  requestedExecutionLevel → asInvoker); 3 docs hallucinate
+  requireAdministrator; reference ships requireAdministrator + one UAC.
+- D-CONS-01: _popen fsutil in cr_health.cpp:306 = the visible console;
+  NG-8-era native fix was reverted by the engine re-merge (283a5d90).
+- D-ENUM-01: Home renders kind==='internal' only; bridge degrades
+  USB/SD/MMC-bus disks to 'usb'; /?media unreachable; engine-side
+  collapse ruled out (dedup by number+path only). Reference shows
+  Internal + External groups, SD first-class.
+- D-SCAN-01: four stacked roots — (1) 75.0% is the exact quick+deep
+  boundary (40/35/25 weights), (2) BF-22 carve stall is REAL (no
+  intra-window checkpoints; heartbeat does not re-emit progress),
+  (3) dataFoundBytes designed-0 live (no ABI field; reference shows
+  cumulative GB live), (4) bytesScanned carve-only (reference runs a
+  live sector ticker). The "21" is a real early count, not mock.
+- D-UI-01: elevation banner bypasses the token system (raw Tailwind
+  amber) — the "weird popup colour".
+- Secondary register (W-01..W-03, U-01..U-04, E-01): 5 dead-letter
+  events, no exit-save, mislabeled elevation errors, false mock badge,
+  dead Open-location, user-signs import bug, recovery space estimate,
+  the 16-drive-letter enumeration buffer.
+
+Phase 1 next: forensic-repro dispatched on the SHIPPED v0.8.4 tag —
+its process/window census (400 ms sampling), CDP-driven real-UI probes
+on the 3-disk runner, and the scan timeline are the reproduction
+evidence; artifacts curate into worklog/REPRODUCTION/. Probe gates that
+codify the OLD asInvoker posture are expected RED — that red is itself
+reproduction evidence; the probe re-vehicles with the fixes.
+
+## Lane coordination — the seam (lane A posts the division of labor)
+
+Lane B's Phase-0 sheets are preserved VERBATIM under worklog/lane-b/
+(audit trail intact, full credit); the canonical worklog/ sheets are
+lane A's set, and lane A's DIAGNOSIS.md absorbs lane B's unique findings
+(D4 a-d decomposition incl. the PERF-LEVERS 8.45 MiB/s wall math, the
+D2 IOCTL-StorageDeviceTrimProperty fix plan, the D3 engine-side
+never-drop class, the D1 DRWUI manifest citation). Read
+worklog/COORDINATION.md for the seam before touching code.
+
+Division of labor (both lanes fetch-first, small commits, no force-push):
+
+- LANE B (engine seam): engine/** + the ABI-facing bridge wiring
+  (ui/src-tauri/src/bridge/**, ui/src-tauri/src/commands/{scan,devices,
+  health,sessions,results}.rs as needed) + contracts/** — D2 (_popen →
+  no-subprocess TRIM query), D4a (live bytes into telemetry + bridge
+  emitter consumes evt.bytes_done), D4b (bytes_found ABI append + live
+  stamping + bridge fill), D4c (intra-window carve checkpoints), D4d
+  (throughput verification + free-map gate), D3-engine (never drop a
+  present disk interface), E-01 (drive-strings buffer).
+- LANE A (product/shell surface): ui/src/** (frontend), the Tauri shell
+  build config (build.rs, tauri.conf.json, Cargo.toml, src/lib.rs,
+  commands/system.rs), installer/**, docs/**, tools/forensic/**,
+  .github/workflows/** — D1 (requireAdministrator manifest + banner
+  retirement + docs truth + twin-lane redesign), D3-UI (device list
+  reference parity), D-UI-01 (banner theming), W-01..03 (dead letters,
+  exit-save, error labels), U-01..04, the probe re-vehicling, CI sweep,
+  release orchestration.
+
+Release: lane A cuts the tag ONLY when both lanes' fixes are green on
+main; if lane B has not landed the engine fixes by the time lane A's
+surface is complete, lane A takes the engine fixes over (announced here
+first) so the session still delivers. Phase-1 repro: lane A dispatches
+ONE forensic-repro run on v0.8.4 (evidence for all four defects) and
+curates worklog/REPRODUCTION/ — lane B does not duplicate it.
