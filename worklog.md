@@ -2680,3 +2680,22 @@ cannot wait: per the protocol's own principle (the user's mandate
 outranks lane symmetry), lane B cuts v0.9.1. Version lockstep bumped
 (VERSION, tauri.conf.json, Cargo.toml, Cargo.lock); the release notes'
 "What changed" carries the two 0.9.1 items ahead of the 0.9.0 record.
+
+## Lane B — D4f: the 605-second zero-region freeze (the v0.9.1 forensic gate's catch, root-caused)
+
+The v0.9.1 forensic run (42291160236) still failed D-SCAN-01: a 605 s
+stretch frozen on the 64 GiB NTFS scan, with the io-timeline proving
+device reads CEASED (readBytes static at ~12.17 GB) while the process
+ground on in pure CPU. Root cause (from the run's own artifacts + code
+walk): the carve's raw-sign user-sign arm took the registry mutex TWICE
+per 512-byte stride (usersigns::active_count + match_at) and re-scanned
+the disabled-format token list per sign per stride — over the seed's
+~63 GiB mostly-ZERO free space that is ~134M strides × (mutex + 190
+token scans + memcmps), contended across 4 workers: the 10-minute
+all-axes freeze. Fix (output-identical): the set is snapshot ONCE per
+carve; the stride probe is lock-free over the snapshot in set order
+(same first-match semantics, same avail rule); the disabled map is
+precomputed (the M-024 pattern); a fully-zero probe span of an
+all-nonzero-sign set skips the arm outright (the span covers every
+sign's whole byte range — bounded by the same avail rule the probe
+itself enforces). Pin: D4fUserSignProbe.TheStrideLoopIsLockFree.

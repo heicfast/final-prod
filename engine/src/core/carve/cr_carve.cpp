@@ -172,6 +172,23 @@ struct ScanCtx {
     bool trial_disabled[kMaxTrialSlots] = {};
     std::vector<bool> rawsign_disabled;
     const CarveFlags* flags;
+    /* D4f (the debug-and-release session): the per-scan user-sign SNAPSHOT.
+     * The pre-fix stride loop took the registry mutex TWICE per 512-byte
+     * stride (active_count + match_at) and re-scanned the disabled-format
+     * token list per sign per stride; over a 64 GiB mostly-zero region
+     * that is ~134M strides of mutex traffic and ~25B token scans — the
+     * v0.9.1 forensic gate measured a 605 s pure-CPU freeze with device
+     * reads ceased (run 42291160236, io-timeline: readBytes static while
+     * the scan ground on). The set is snapshot ONCE per carve (the
+     * registration API is setup-time by contract); the probe is lock-free;
+     * the disabled map is precomputed exactly like the M-024 trial map.
+     * us_probe_span = the furthest byte any enabled sign can read;
+     * us_zero_safe = no enabled sign is ALL-ZERO (an all-zero sign would
+     *   match inside a zero span — such a set disables the fast skip). */
+    carve::usersigns::UserSignSet usersigns;
+    std::vector<bool> usersign_disabled;
+    u64 us_probe_span = 0;
+    bool us_zero_safe = true;
     tree::ResultTree* tree;
     tree::FullNode* carve_root;
     const tree::ResultTree* dedup_tree;
@@ -1050,12 +1067,42 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * disabled-formats list gates this layer like every other
              * carve source (D-104's registered contract - the same
              * removal-loop semantics the built-in filter above uses). */
-            if (!builtin_matched && usersigns::active_count() != 0 &&
+            if (!builtin_matched && !ctx.usersigns.signs.empty() &&
                 rejected_at.count(start_abs) == 0) {
-                const char* const us_disabled =
-                    ctx.flags->disabled_formats ? ctx.flags->disabled_formats : "";
-                if (const carve::usersigns::UserSign* us =
-                        usersigns::match_at(win + off, want - off, us_disabled)) {
+                /* D4f: the lock-free snapshot probe. Two fast paths first:
+                 * (1) a fully-zero probe span cannot match any sign of an
+                 * us_zero_safe set (every sign has a nonzero byte, and the
+                 * span covers each sign's whole byte range — a sign whose
+                 * offset+len exceeds the window cannot match here anyway,
+                 * exactly the original match_at's own avail rule);
+                 * (2) otherwise the scan of the snapshot in SET ORDER —
+                 * the same first-match semantics as the registry probe. */
+                const carve::usersigns::UserSign* us = nullptr;
+                const u64 avail = want - off;
+                bool zero_skip = false;
+                if (ctx.us_zero_safe && ctx.us_probe_span != 0) {
+                    const u64 span = ctx.us_probe_span < avail ? ctx.us_probe_span : avail;
+                    zero_skip = true;
+                    for (u64 zi = 0; zi < span; ++zi)
+                        if (win[off + zi] != 0) {
+                            zero_skip = false;
+                            break;
+                        }
+                }
+                if (!zero_skip) {
+                    for (size_t si = 0; si < ctx.usersigns.signs.size(); ++si) {
+                        if (!ctx.usersign_disabled.empty() && ctx.usersign_disabled[si])
+                            continue;
+                        const usersigns::UserSign& s = ctx.usersigns.signs[si];
+                        if (u64(s.offset) + s.len > avail)
+                            continue;
+                        if (std::memcmp(win + off + s.offset, s.bytes, s.len) == 0) {
+                            us = &s;
+                            break;
+                        }
+                    }
+                }
+                if (us != nullptr) {
                     const u64 len = ctx.total - start_abs;
                     /* F9 dedup (extent class) - the same shape as the
                      * grammar/raw-sign layers */
@@ -1508,6 +1555,35 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
             for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
                 ctx.rawsign_disabled[fi] =
                     carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
+        }
+        /* D4f: the user-sign snapshot — one registry visit for the whole
+         * carve, then a lock-free probe at stride time */
+        (void)usersigns::snapshot(ctx.usersigns);
+        if (!ctx.usersigns.signs.empty()) {
+            if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
+                ctx.usersign_disabled.assign(ctx.usersigns.signs.size(), false);
+                for (size_t si = 0; si < ctx.usersigns.signs.size(); ++si)
+                    ctx.usersign_disabled[si] = carve_token_listed(
+                        flags.disabled_formats, ctx.usersigns.signs[si].ext, nullptr);
+            }
+            for (size_t si = 0; si < ctx.usersigns.signs.size(); ++si) {
+                if (!ctx.usersign_disabled.empty() && ctx.usersign_disabled[si])
+                    continue;
+                const usersigns::UserSign& s = ctx.usersigns.signs[si];
+                const u64 reach = u64(s.offset) + s.len;
+                if (reach > ctx.us_probe_span)
+                    ctx.us_probe_span = reach;
+                bool all_zero = true;
+                for (u16 bi = 0; bi < s.len; ++bi)
+                    if (s.bytes[bi] != 0) {
+                        all_zero = false;
+                        break;
+                    }
+                if (all_zero && s.len > 0)
+                    ctx.us_zero_safe = false; /* an all-zero sign matches
+                                               * inside zero spans - no fast
+                                               * skip for such a set */
+            }
         }
         /* S-031 residual: stamp the scan time once per run — every carved
          * record carries it (the og's per-record formatted timestamp). */

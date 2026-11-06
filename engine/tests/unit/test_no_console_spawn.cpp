@@ -128,3 +128,34 @@ TEST(BF28ElevationCode, HealthOpenRefusalCarriesTheElevationCode) {
     EXPECT_NE(std::string::npos, body.find("le == ERROR_ACCESS_DENIED"))
         << "only the access-denied class is the elevation gate (not-ready/io stay open-failures)";
 }
+
+TEST(D4fUserSignProbe, TheStrideLoopIsLockFree) {
+    /* D4f: the v0.9.1 forensic gate (run 42291160236) measured a 605 s
+     * pure-CPU freeze with device reads ceased — the user-sign arm took
+     * the registry mutex TWICE per 512-byte stride (active_count +
+     * match_at) and re-scanned the disabled token list per sign; over a
+     * 64 GiB mostly-zero volume that is ~134M strides of mutex traffic.
+     * Source pin: the snapshot is taken once per carve, the stride loop
+     * probes the snapshot with NO registry call, and a fully-zero probe
+     * span of an all-nonzero-sign set skips the arm. */
+    const std::string src = cr_test::read_repo_text("src/core/carve/cr_carve.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t win_at = src.find("u32 scan_one_window(");
+    ASSERT_NE(std::string::npos, win_at) << "scan_one_window moved?";
+    const size_t raw_at = src.find("the raw-sign layer 1");
+    const size_t end = raw_at != std::string::npos ? raw_at : src.size();
+    const std::string body = src.substr(win_at, end - win_at);
+    EXPECT_EQ(std::string::npos, body.find("usersigns::match_at"))
+        << "the stride loop must probe the snapshot, not the mutex-guarded registry (D4f)";
+    EXPECT_EQ(std::string::npos, body.find("usersigns::active_count"))
+        << "the stride loop must not take the registry lock per stride (D4f)";
+    EXPECT_NE(std::string::npos, body.find("ctx.usersigns.signs"))
+        << "the snapshot probe must exist";
+    EXPECT_NE(std::string::npos, body.find("zero_skip"))
+        << "the zero-span fast skip must exist (the 605 s freeze lived in the zero region)";
+    const size_t slice_at = src.find("u32 carve_slice(");
+    ASSERT_NE(std::string::npos, slice_at);
+    const std::string slice_body = src.substr(slice_at, 3000);
+    EXPECT_NE(std::string::npos, slice_body.find("usersigns::snapshot(ctx.usersigns)"))
+        << "the set is snapshot ONCE per carve (D4f)";
+}
