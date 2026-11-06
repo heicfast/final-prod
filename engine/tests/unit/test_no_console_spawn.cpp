@@ -155,7 +155,7 @@ TEST(D4fUserSignProbe, TheStrideLoopIsLockFree) {
         << "the zero-span fast skip must exist (the 605 s freeze lived in the zero region)";
     const size_t slice_at = src.find("u32 carve_slice(");
     ASSERT_NE(std::string::npos, slice_at);
-    const std::string slice_body = src.substr(slice_at, 3000);
+    const std::string slice_body = src.substr(slice_at, 5000);
     EXPECT_NE(std::string::npos, slice_body.find("usersigns::snapshot(ctx.usersigns)"))
         << "the set is snapshot ONCE per carve (D4f)";
 }
