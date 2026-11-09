@@ -131,12 +131,15 @@ inline BOOL DeviceIoControl(HANDLE, DWORD, void*, DWORD, void*, DWORD, DWORD*, O
     return 1;
 }
 
-/* NVMe health-log route (cr_health.cpp read_nvme_health) */
+/* NVMe health-log route (cr_health.cpp read_nvme_health). D-NVME-01:
+ * the enum values follow the SDK's authoritative order (Unknown=0,
+ * Ata=1, Scsi=2, Nvme=3) — the Nvme value is load-bearing for the
+ * protocol-specific query dispatch. */
 typedef enum _STORAGE_PROTOCOL_TYPE {
     ProtocolTypeUnknown = 0,
-    ProtocolTypeNvme = 3,
     ProtocolTypeAta,
-    ProtocolTypeScsi
+    ProtocolTypeScsi,
+    ProtocolTypeNvme
 } STORAGE_PROTOCOL_TYPE;
 typedef enum _STORAGE_PROTOCOL_NVME_DATA_TYPE {
     NVMeDataTypeUnknown = 0,
@@ -155,6 +158,17 @@ typedef struct _STORAGE_PROTOCOL_SPECIFIC_DATA {
     DWORD FixedProtocolReturnData;
     DWORD Reserved[3];
 } STORAGE_PROTOCOL_SPECIFIC_DATA, *PSTORAGE_PROTOCOL_SPECIFIC_DATA;
+
+/* D-NVME-01: the protocol query's OUTPUT descriptor (the single-buffer
+ * pattern's answer shape — the driver rewrites the request buffer as
+ * this descriptor, with ProtocolSpecificData at offset 8 exactly where
+ * the request placed its protocol data). SDK-exact field order; the
+ * static_asserts in cr_health.cpp pin the load-bearing offsets. */
+typedef struct _STORAGE_PROTOCOL_DATA_DESCRIPTOR {
+    DWORD Version;
+    DWORD Size;
+    STORAGE_PROTOCOL_SPECIFIC_DATA ProtocolSpecificData;
+} STORAGE_PROTOCOL_DATA_DESCRIPTOR, *PSTORAGE_PROTOCOL_DATA_DESCRIPTOR;
 #define IOCTL_DISK_UPDATE_PROPERTIES 0x00070140UL
 
 /* N-071 (disk-interface pass): the device-number query. */

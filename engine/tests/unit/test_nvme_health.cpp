@@ -191,3 +191,67 @@ TEST(Health, SmartCommandListMatchesImplementation) {
     EXPECT_EQ(win_src.find("0xD8"), std::string::npos)
         << "the win layer issues no SMART commands of its own - transports only";
 }
+
+/* ---------------------------------------------------------------- */
+/* D-NVME-01: the protocol query's LAYOUT contract (the pack(1)      */
+/* misplacement that killed every real-NVMe health read)             */
+/* ---------------------------------------------------------------- */
+
+TEST(NvmeHealth, ProtocolQueryPlacesProtocolDataAtAdditionalParameters) {
+    /* The Microsoft-documented single-buffer shape ("Working with NVMe
+     * Drives", Microsoft Learn): the STORAGE_PROTOCOL_SPECIFIC_DATA sits
+     * at the STORAGE_PROPERTY_QUERY's AdditionalParameters field -
+     * FIELD_OFFSET(..., AdditionalParameters) == 8 - and the payload at
+     * protocol-data start + ProtocolDataOffset (== 48). The pre-fix
+     * buffer was #pragma pack(push,1)-ed, placing the protocol data at
+     * offset 9: the storage stack read ProtocolType at 8 as 0x00000300
+     * and EVERY real NVMe controller refused the query - NVMe-only
+     * drives surfaced no health at all (the user's "switch to another
+     * disk and it shows nothing"). Invisible on Azure VHDX seeds (no
+     * NVMe passthrough) - this pin is the lane-visible proof the layout
+     * stays doc-exact. Fail-before: the pack(1) tree fails this pin. */
+    const std::string src = cr_test::read_repo_text("src/win/cr_health.cpp");
+    ASSERT_FALSE(src.empty());
+    /* the offset-8 placement, expressed as the doc's own field-offset */
+    EXPECT_NE(src.find("offsetof(STORAGE_PROPERTY_QUERY, AdditionalParameters)"),
+              std::string::npos)
+        << "the protocol data placement must derive from AdditionalParameters";
+    /* the load-bearing offsets are static_asserted in the source itself
+     * (they run on BOTH lanes - the win-stub SDK shapes are byte-exact) */
+    EXPECT_NE(src.find("static_assert(kProtoOff == 8"), std::string::npos)
+        << "the offset-8 pin must stay compiled-in";
+    EXPECT_NE(src.find("static_assert(kPayloadOff == 48"), std::string::npos)
+        << "the payload-offset pin must stay compiled-in";
+    /* the answer is re-derived from the RETURNED descriptor, never
+     * assumed to sit where the request put it (the doc sample's shape) */
+    EXPECT_NE(src.find("answer->ProtocolDataOffset"), std::string::npos)
+        << "the payload pointer must come from the returned descriptor";
+    /* the pack(1) class must never return to this query */
+    EXPECT_EQ(src.find("#pragma pack(push, 1)"), std::string::npos)
+        << "packing the protocol query misplaces the protocol data by one "
+           "byte - the SDK structs must stay naturally aligned";
+}
+
+TEST(NvmeHealth, WinStubSdkShapesAreLayoutFaithful) {
+    /* D-NVME-01's Linux-lane half: the parse gate's SDK stub must carry
+     * the byte-exact shapes the static_asserts need (the pre-fix stub
+     * typed DWORD as `unsigned long` - 8 bytes on LP64 Linux vs 4 on
+     * every Windows target - so no layout assert could ever run here).
+     * The stub's own sizes are pinned THROUGH the win layer's compile:
+     * if the stub drifts, cr_health.cpp's static_asserts fail the
+     * win_syntax_check gate; this pin keeps the stub's fixed-width
+     * contract visible in the test suite. */
+    const std::string stub = cr_test::read_repo_text("tests/win-stub/windows.h");
+    ASSERT_FALSE(stub.empty());
+    EXPECT_NE(stub.find("typedef unsigned int DWORD;"), std::string::npos)
+        << "the stub's DWORD must be 4 bytes (LLP64 truth), not unsigned long";
+    EXPECT_NE(stub.find("typedef unsigned int ULONG;"), std::string::npos)
+        << "the stub's ULONG must be 4 bytes";
+    EXPECT_NE(stub.find("typedef unsigned long long ULONG_PTR;"), std::string::npos)
+        << "ULONG_PTR stays 8 bytes on x64";
+    const std::string ioctl = cr_test::read_repo_text("tests/win-stub/winioctl.h");
+    ASSERT_FALSE(ioctl.empty());
+    EXPECT_NE(ioctl.find("_STORAGE_PROTOCOL_DATA_DESCRIPTOR"), std::string::npos)
+        << "the output descriptor shape must exist in the stub (the "
+           "single-buffer pattern's answer side)";
+}

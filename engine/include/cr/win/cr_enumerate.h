@@ -41,7 +41,20 @@ struct PhysicalDisk {
     u64 size_bytes = 0;
     u32 logical_sector = 0;
     u32 physical_sector = 0;
-    bool removable = false; /* BusType USB/SD */
+    /* removable: the descriptor's OWN RemovableMedia flag (offset +10) -
+     * the OS's authoritative answer, the same datum the reference's
+     * five-stack metadata fan-in reads (D-ENUM-02: the pre-fix derive
+     * from bus numbers shipped a SHIFTED enum table that flagged every
+     * SATA disk removable - see decode_device_descriptor). */
+    bool removable = false;
+    /* D-ENUM-02: the raw STORAGE_BUS_TYPE value from the device
+     * descriptor (+28), 0 = unknown - the axis behind the UI's
+     * internal/usb/sd kind split (BF-02/BF-31 closure). SDK values:
+     * 0 Unknown, 1 SCSI, 2 ATAPI, 3 ATA, 4 1394, 5 SSA, 6 Fibre,
+     * 7 USB, 8 RAID, 9 iSCSI, 10 SAS, 11 SATA, 12 SD, 13 MMC,
+     * 14 Virtual, 15 FileBackedVirtual, 16 Spaces, 17 NVMe, 18 SCM,
+     * 19 UFS. */
+    u32 bus_type = 0;
     bool busy = false;      /* N-071: metadata-only open (share-blocked data
                                open) - listed, scans re-open later */
     table::DiskTable table; /* parsed layout */
@@ -64,9 +77,21 @@ struct PhysicalDisk {
  * ProductRevisionOffset@+20, SerialNumberOffset@+24, BusType@+28 (the
  * pre-fix code read the product at +24 — the SERIAL offset — and the serial
  * at +36, inside RawDeviceProperties). PURE (Linux-lane testable): fills
- * model/serial/firmware/removable from the buffer's packed strings, each
- * bounded by `len`. Returns false when the buffer cannot hold the fixed
- * header (36 bytes). */
+ * model/serial/firmware/removable/bus_type from the buffer's packed strings,
+ * each bounded by `len`. Returns false when the buffer cannot hold the fixed
+ * header (36 bytes).
+ *
+ * D-ENUM-02 (the debug-and-release session's second pass): `removable` is
+ * the descriptor's RemovableMedia BYTE at +10 — the OS's own classification
+ * (the same axis the reference's WMI/SetupAPI stacks read as their device
+ * kind). The pre-fix derive `bus == 7 || 11 || 12` was built on a SHIFTED
+ * enum table (11 is SATA, not SD; 12 is SD, 13 is MMC — the SDK order is
+ * ...10 SAS, 11 SATA, 12 SD, 13 MMC, 14 Virtual...), so every SATA disk
+ * shipped removable=true and the UI sorted internal SATA drives into the
+ * external/USB group — the user's "not all of my disks are visible" (the
+ * disk was listed, in the wrong group, wearing the wrong kind). The bus
+ * number is still captured (bus_type) for the UI's sd-vs-usb split; the
+ * removable flag itself comes from the OS. */
 inline bool decode_device_descriptor(const u8* buf, size_t len, PhysicalDisk& d) {
     if (buf == nullptr || len < 36)
         return false;
@@ -85,18 +110,25 @@ inline bool decode_device_descriptor(const u8* buf, size_t len, PhysicalDisk& d)
     put_str(d.model, u32at(16));    /* ProductIdOffset */
     put_str(d.firmware, u32at(20)); /* ProductRevisionOffset */
     put_str(d.serial, u32at(24));   /* SerialNumberOffset */
-    const u32 bus = u32at(28);      /* BusType */
-    d.removable = (bus == 7 /*Usb*/ || bus == 11 /*Sd*/ || bus == 12 /*Mmc*/);
+    d.bus_type = u32at(28);         /* BusType (STORAGE_BUS_TYPE) */
+    /* RemovableMedia@+10: BOOLEAN, the OS's own removable classification.
+     * The bus-class fallback (USB/SD/MMC) covers descriptors that report
+     * the flag clear while sitting on a removable-only bus — belt and
+     * braces, the flag stays the authority. */
+    d.removable = (buf[10] != 0) || d.bus_type == 7 /*Usb*/ ||
+                  d.bus_type == 12 /*Sd*/ || d.bus_type == 13 /*Mmc*/;
     return true;
 }
 
 /* N-066: the bus-type text for the interface axis (the og record-3's
  * +0x414 "USB Device" family — census-level strings, the standard bus
- * names). PURE. */
+ * names). PURE. D-ENUM-02: the table was SHIFTED BY ONE from bus 11 up
+ * (the SDK order is ...10 SAS, 11 SATA, 12 SD, 13 MMC, 14 Virtual,
+ * 15 FileBackedVirtual, 16 Spaces, 17 NVMe...) — a SATA disk labeled
+ * "SD", an SD card "MMC", NVMe happened to land right only because the
+ * shift wrapped past it. Re-numbered to the SDK's STORAGE_BUS_TYPE. */
 inline const wchar_t* bus_interface_name(u32 bus) {
     switch (bus) {
-    case 7:
-        return L"USB Device";
     case 0:
         return L"Unknown";
     case 1:
@@ -107,24 +139,36 @@ inline const wchar_t* bus_interface_name(u32 bus) {
         return L"ATA";
     case 4:
         return L"1394";
+    case 5:
+        return L"SSA";
     case 6:
         return L"Fibre Channel";
+    case 7:
+        return L"USB Device";
     case 8:
         return L"RAID";
+    case 9:
+        return L"iSCSI";
     case 10:
         return L"SAS";
     case 11:
-        return L"SD";
+        return L"SATA";
     case 12:
-        return L"MMC";
+        return L"SD";
     case 13:
-        return L"Virtual";
+        return L"MMC";
     case 14:
-        return L"File-Backed Virtual";
+        return L"Virtual";
     case 15:
+        return L"File-Backed Virtual";
+    case 16:
         return L"Storage Spaces";
     case 17:
         return L"NVMe";
+    case 18:
+        return L"SCM";
+    case 19:
+        return L"UFS";
     default:
         return L"";
     }

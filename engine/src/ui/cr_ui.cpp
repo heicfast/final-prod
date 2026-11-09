@@ -1860,6 +1860,9 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count, uint32_t flags) 
         o.logical_sector = d.logical_sector;
         o.physical_sector = d.physical_sector;
         o.removable = d.removable ? 1u : 0u;
+        /* D-ENUM-02: the raw bus-type axis (the SDK's STORAGE_BUS_TYPE
+         * values - see cr_ui_disk_info.bus_type). */
+        o.bus_type = d.bus_type;
         o.table_ok = d.table_ok ? 1u : 0u;
         if (d.table_ok) {
             if (d.table.layout == table::TableLayout::Gpt)
@@ -4883,7 +4886,7 @@ namespace {
 #ifdef _WIN32
 
 u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
-                     uint32_t attr_cap, uint32_t* attr_count) {
+                     uint32_t attr_cap, uint32_t* attr_count, bool ex2) {
     if (!rep || !attr_count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: rep/attr_count");
     std::memset(rep, 0, sizeof(*rep));
@@ -4942,6 +4945,9 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
                            (u64(a.raw[3]) << 24) | (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
             attrs[i].failing = a.failing ? 1u : 0u;
             copy_bstr(attrs[i].name, sizeof(attrs[i].name), a.name);
+            /* BF-03 closure: the 0xD1 vendor threshold - ex2 only (the
+             * base export's frozen row grammar stays threshold==0). */
+            attrs[i].threshold = ex2 ? u32(a.vendor_threshold) : 0u;
         }
         *attr_count = rep->attribute_count; /* needed size either way */
     }
@@ -4965,6 +4971,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
         rep->num_error_log_entries = nv.num_error_log_entries;
         rep->data_bytes_read = nv.data_bytes_read;
         rep->data_bytes_written = nv.data_bytes_written;
+        rep->power_cycles_nvme = nv.power_cycles;
     }
     rep->ssd_like = win::health::looks_like_ssd(h) ? 1u : 0u;
     bool trim = false;
@@ -4986,12 +4993,13 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
 #else
 
 u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
-                     uint32_t attr_cap, uint32_t* attr_count) {
+                     uint32_t attr_cap, uint32_t* attr_count, bool ex2) {
     (void)disk;
     (void)rep;
     (void)attrs;
     (void)attr_cap;
     (void)attr_count;
+    (void)ex2;
     return ret_(ERR_UNSUPPORTED, "cr_ui_health_read requires the Windows platform layer");
 }
 
@@ -5002,7 +5010,16 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
 extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
-    return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
+    return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count, false);
+}
+
+/* BF-03 closure: the threshold-bearing twin (see the header's ex2
+ * contract note - same read, same errors, the vendor-threshold axis
+ * stamped). */
+extern "C" CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
+                                                    cr_ui_smart_attr* attrs, uint32_t attr_cap,
+                                                    uint32_t* attr_count) {
+    return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count, true);
 }
 
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */

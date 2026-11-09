@@ -24,11 +24,17 @@
 #include <cstddef>
 #include <cstdio>
 
-typedef unsigned long DWORD;
+/* D-NVME-01: the 4-byte fixed-width core types. The SDK's DWORD/ULONG/
+ * LONG are 4 bytes on every Windows target (LLP64); `unsigned long` on
+ * the Linux lane is 8 bytes (LP64), which made the stub LAYOUT-unfaithful
+ * for any struct whose byte offsets matter (the NVMe protocol query's
+ * static_asserts pin them). Fixed widths keep the parse gate honest:
+ * structure AND layout now match the MSVC lane. ULONG_PTR stays 8 (x64). */
+typedef unsigned int DWORD;
 typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
-typedef unsigned long ULONG;
+typedef unsigned int ULONG;
 typedef unsigned long long ULONG_PTR;
-typedef long LONG;
+typedef int LONG;
 typedef LONG LSTATUS; /* M-105's FVE diagnosis: RegOpenKeyExW's return type
                          (the SDK's LONG status; the APE/SIT windows are
                          the parse gate's own charter - a new SDK symbol in

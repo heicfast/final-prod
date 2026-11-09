@@ -266,36 +266,92 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-        /* NVMe health log (log page 2) through the protocol-specific storage
-         * query (Windows 10 storage stack; the corpus DiskHealth uses the
-         * same route through its NVMe transport). */
-#pragma pack(push, 1)
-    struct {
-        STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */
-        STORAGE_PROTOCOL_SPECIFIC_DATA proto;
-        u8 data[512];
-    } req;
-#pragma pack(pop)
-    std::memset(&req, 0, sizeof(req));
-    req.header.PropertyId = StorageDeviceProtocolSpecificProperty;
-    req.header.QueryType = PropertyStandardQuery;
-    req.proto.ProtocolType = ProtocolTypeNvme;
-    req.proto.DataType = NVMeDataTypeLogPage;
-    req.proto.ProtocolDataRequestValue = 2; /* health log page */
-    req.proto.ProtocolDataRequestSubValue = 0;
-    req.proto.ProtocolDataOffset = sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA);
-    req.proto.ProtocolDataLength = 512;
+    /* NVMe health log (log page 2) through the protocol-specific storage
+     * query (Windows 10 storage stack; the corpus DiskHealth uses the
+     * same route through its NVMe transport).
+     *
+     * D-NVME-01 (the debug-and-release session's second pass): the
+     * request buffer is the MICROSOFT-DOCUMENTED single-buffer shape
+     * ("Working with NVMe Drives", Microsoft Learn): the
+     * STORAGE_PROTOCOL_SPECIFIC_DATA lives at the STORAGE_PROPERTY_QUERY's
+     * AdditionalParameters field — FIELD_OFFSET(STORAGE_PROPERTY_QUERY,
+     * AdditionalParameters) == 8 — NOT at sizeof(STORAGE_PROPERTY_QUERY).
+     * The pre-fix buffer was `#pragma pack(push,1)`-ed, which placed the
+     * protocol data at offset 9: the storage stack then read ProtocolType
+     * at offset 8 as 0x00000300 (the AdditionalParameters byte merged
+     * under the little-endian ProtocolTypeNvme=3), the query failed on
+     * EVERY real NVMe controller, and NVMe-only drives surfaced no health
+     * at all — the user's "switch to another disk and it shows nothing"
+     * (disk 0 SATA answered ATA passthrough; the NVMe sibling never
+     * answered). The misplacement is invisible on Azure VHDX seeds (no
+     * NVMe passthrough to test against) — the class the forensic probe
+     * now pins by layout contract (test_nvme_health's source-truth pins).
+     *
+     * Layout (natural alignment, no packing - the SDK structs verbatim):
+     *   [0..7]   STORAGE_PROPERTY_QUERY fixed header (PropertyId+QueryType)
+     *   [8..47]  STORAGE_PROTOCOL_SPECIFIC_DATA (AdditionalParameters)
+     *   [48..559] the 512-byte log-page payload (ProtocolDataOffset=40
+     *            relative to the protocol-data start, per the doc sample)
+     * The same buffer serves as the output descriptor
+     * (STORAGE_PROTOCOL_DATA_DESCRIPTOR also places its
+     * ProtocolSpecificData at offset 8), and the payload is re-derived
+     * from the RETURNED descriptor's ProtocolDataOffset — never assumed
+     * to sit where the request put it. */
+    static_assert(offsetof(STORAGE_PROPERTY_QUERY, AdditionalParameters) == 8,
+                  "the SDK header moved - the protocol data placement must follow it");
+    static_assert(sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA) == 40,
+                  "the SDK header moved - the payload offset math must follow it");
+    /* The doc sample's own shape: one byte buffer, the query header at 0,
+     * the protocol data at AdditionalParameters (offset 8). A member-of-
+     * enclosing-struct layout CANNOT express this (sizeof(STORAGE_PROPERTY_
+     * QUERY) is 12 - the AdditionalParameters byte plus 3 tail padding -
+     * and a following member lands at 12, four bytes past the driver's
+     * parse offset). Explicit placement into an aligned byte buffer is
+     * the only shape that satisfies both the documented contract and the
+     * C layout rules. */
+    constexpr size_t kQueryOff = 0;
+    constexpr size_t kProtoOff = offsetof(STORAGE_PROPERTY_QUERY, AdditionalParameters); /* 8 */
+    constexpr size_t kPayloadOff = kProtoOff + sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA);   /* 48 */
+    constexpr size_t kBufSize = kPayloadOff + 512;                                       /* 560 */
+    static_assert(kProtoOff == 8, "protocol data must sit at AdditionalParameters");
+    static_assert(kPayloadOff == 48, "payload must sit at proto + ProtocolDataOffset");
+
+    alignas(STORAGE_PROPERTY_QUERY) u8 buf[kBufSize];
+    std::memset(buf, 0, sizeof(buf));
+    auto* query = reinterpret_cast<STORAGE_PROPERTY_QUERY*>(buf + kQueryOff);
+    auto* proto = reinterpret_cast<STORAGE_PROTOCOL_SPECIFIC_DATA*>(buf + kProtoOff);
+    query->PropertyId = StorageDeviceProtocolSpecificProperty;
+    query->QueryType = PropertyStandardQuery;
+    proto->ProtocolType = ProtocolTypeNvme;
+    proto->DataType = NVMeDataTypeLogPage;
+    proto->ProtocolDataRequestValue = 2; /* health log page */
+    proto->ProtocolDataRequestSubValue = 0;
+    proto->ProtocolDataOffset = sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA);
+    proto->ProtocolDataLength = 512; /* >= 512: the doc's log-page minimum */
 
     DWORD br = 0;
-    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &req, sizeof(req), &req, sizeof(req), &br,
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, buf, sizeof(buf), buf, sizeof(buf), &br,
                          nullptr))
         return ERR_HEALTH_UNAVAILABLE;
 
-    const u8* d = req.data;
+    /* Validate the returned descriptor (the doc sample's own checks) and
+     * re-derive the payload pointer from the ANSWER's ProtocolDataOffset. */
+    const auto* descr = reinterpret_cast<const STORAGE_PROTOCOL_DATA_DESCRIPTOR*>(buf);
+    if (descr->Version != sizeof(STORAGE_PROTOCOL_DATA_DESCRIPTOR) ||
+        descr->Size < sizeof(STORAGE_PROTOCOL_DATA_DESCRIPTOR))
+        return ERR_HEALTH_UNAVAILABLE;
+    const auto* answer = &descr->ProtocolSpecificData; /* also offset 8 */
+    if (answer->ProtocolDataOffset < sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA) ||
+        answer->ProtocolDataLength < 512)
+        return ERR_HEALTH_UNAVAILABLE;
+    if (size_t(reinterpret_cast<const u8*>(answer) - buf) + answer->ProtocolDataOffset + 512 >
+        kBufSize)
+        return ERR_HEALTH_UNAVAILABLE; /* the answer must land inside the buffer */
+    const u8* d = reinterpret_cast<const u8*>(answer) + answer->ProtocolDataOffset;
     /* pure-core parser (spec offsets — PARITY-AUDIT F-A4-17: the previous
      * inline mapping read power_cycles/hours/unsafe/media at 64/80/96/112,
      * i.e. Host Reads / Host Writes / Controller Busy Time / Power Cycles) */
-    return cr::health::parse_nvme_health_page(d, sizeof(req.data), out);
+    return cr::health::parse_nvme_health_page(d, 512, out);
 }
 
 u32 query_trim_state(bool& enabled) {

@@ -422,6 +422,17 @@ typedef struct cr_ui_disk_info {
                             value below is valid */
     uint32_t trim_on;    /* valid only when trim_known == 1: 1 = TRIM enabled (recovery-chance
                             warning applies on SSDs), 0 = disabled */
+    /* D-ENUM-02 (append-only, ABI policy section 9 - the M-076 trim-tail
+     * precedent): the raw STORAGE_BUS_TYPE from the device descriptor
+     * (+28), the axis behind the host's internal/usb/sd kind split
+     * (BF-02/BF-31 closure - the removable flag alone merges SD cards
+     * into USB). 0 = unknown (descriptor unavailable). SDK values:
+     * 0 Unknown, 1 SCSI, 2 ATAPI, 3 ATA, 4 1394, 5 SSA, 6 Fibre, 7 USB,
+     * 8 RAID, 9 iSCSI, 10 SAS, 11 SATA, 12 SD, 13 MMC, 14 Virtual,
+     * 15 FileBackedVirtual, 16 Spaces, 17 NVMe, 18 SCM, 19 UFS.
+     * Zero-init = unknown; pre-existing hosts see 0 and degrade to the
+     * removable flag exactly as before. */
+    uint32_t bus_type;
 } cr_ui_disk_info;
 
 typedef struct cr_ui_volume_info {
@@ -1516,6 +1527,14 @@ typedef struct cr_ui_smart_attr {
     uint64_t raw; /* 6 vendor bytes */
     uint32_t failing;
     char name[40];
+    /* BF-03 closure (append-only, ABI policy section 9): the vendor
+     * threshold from SMART READ THRESHOLDS (0xD1) - the pure seam has
+     * parsed it since N-032 (SmartAttrInfo::vendor_threshold), the base
+     * export never carried it (the bridge nulled the column). 0 =
+     * unknown/absent (the honest default; never fabricated). Filled by
+     * cr_ui_health_read_ex2 only - the base v4 export's rows stay
+     * threshold==0 so the frozen grammar is unchanged. */
+    uint32_t threshold;
 } cr_ui_smart_attr;
 
 typedef struct cr_ui_smart_report {
@@ -1544,6 +1563,10 @@ typedef struct cr_ui_smart_report {
     uint64_t host_reads, host_writes, controller_busy_time;
     uint64_t num_error_log_entries;
     uint64_t data_bytes_read, data_bytes_written;
+    /* NVMe health log's Power Cycles (append-only; the M-036 family's
+     * missing row - the log's spec offset 128, parsed by the pure core,
+     * surfaced for the ex2 KPI set). 0 = unknown/absent. */
+    uint64_t power_cycles_nvme;
 } cr_ui_smart_report;
 
 /* One call fills the report AND (when attrs != NULL) up to attr_cap
@@ -1551,6 +1574,22 @@ typedef struct cr_ui_smart_report {
 CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                      cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                      uint32_t* attr_count);
+
+/* BF-03 closure (the ex2 surface - additive export, ABI policy section 9,
+ * no version bump): the SAME health read with the vendor-threshold axis
+ * stamped on every attribute row (cr_ui_smart_attr.threshold - 0 stays
+ * "unknown", never fabricated) and the report's power_cycles_nvme
+ * filled. The reference's S.M.A.R.T. table renders the Threshold column
+ * (UIUX/19: ID/Attribute/Current/Worst/Threshold/RawValue/Status - the
+ * 0xD1 READ_THRESHOLDS datum the pure seam already parses); the base v4
+ * export cannot carry it without breaking its frozen row grammar, so the
+ * ex2 twin is the threshold surface. Identical error contract to
+ * cr_ui_health_read (same codes, same two-call attr pattern, same
+ * elevation gate); callers that tolerate a threshold-less engine fall
+ * back to the base export on CR_UI_ERR_UNSUPPORTED. */
+CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
+                                         cr_ui_smart_attr* attrs, uint32_t attr_cap,
+                                         uint32_t* attr_count);
 
 /* S-040 (R-93): create a flat raw disk image of physical disk N at
  * utf8_path (the og home page's "Create Image" producer - the safe-scan

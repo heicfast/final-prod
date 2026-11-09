@@ -195,6 +195,82 @@ TEST(Enumerate, DeviceDescriptorBoundedAndAbsent) {
     EXPECT_FALSE(decode_device_descriptor(nullptr, 0, d2));
 }
 
+/* ---------------------------------------------------------------- */
+/* D-ENUM-02: the SHIFTED bus-type table (SATA flagged removable)    */
+/* and the RemovableMedia flag the decode never read                 */
+/* ---------------------------------------------------------------- */
+
+TEST(Enumerate, SataDiskIsNotRemovable) {
+    /* THE fail-before pin: the pre-fix derive was
+     *   bus == 7 || bus == 11 || bus == 12
+     * built on a table shifted by one from the SDK's STORAGE_BUS_TYPE
+     * (11 is SATA, 12 is SD, 13 is MMC) - so a SATA disk (bus 11)
+     * shipped removable=true and the UI sorted every internal SATA
+     * drive into the external/USB group: the user's "not all of my
+     * disks are visible" (listed, wrong group, wrong kind). The
+     * fail-before run: this pin fails on the pre-fix tree. */
+    PhysicalDisk d;
+    auto buf = build_descriptor(11 /* BusTypeSata */);
+    ASSERT_TRUE(decode_device_descriptor(buf.data(), buf.size(), d));
+    EXPECT_FALSE(d.removable) << "SATA (bus 11) must not be removable";
+    EXPECT_EQ(11u, d.bus_type);
+
+    auto buf_nvme = build_descriptor(17 /* BusTypeNvme */);
+    PhysicalDisk d_nvme;
+    ASSERT_TRUE(decode_device_descriptor(buf_nvme.data(), buf_nvme.size(), d_nvme));
+    EXPECT_FALSE(d_nvme.removable) << "NVMe (bus 17) must not be removable";
+    EXPECT_EQ(17u, d_nvme.bus_type);
+
+    /* the truly-removable buses keep the class */
+    auto buf_sd = build_descriptor(12 /* BusTypeSd */);
+    PhysicalDisk d_sd;
+    ASSERT_TRUE(decode_device_descriptor(buf_sd.data(), buf_sd.size(), d_sd));
+    EXPECT_TRUE(d_sd.removable) << "SD (bus 12) must be removable";
+    auto buf_mmc = build_descriptor(13 /* BusTypeMmc */);
+    PhysicalDisk d_mmc;
+    ASSERT_TRUE(decode_device_descriptor(buf_mmc.data(), buf_mmc.size(), d_mmc));
+    EXPECT_TRUE(d_mmc.removable) << "MMC (bus 13 - missed by the pre-fix table) must be removable";
+}
+
+TEST(Enumerate, RemovableMediaFlagIsTheAuthority) {
+    /* The descriptor's OWN RemovableMedia byte (+10) is the OS's
+     * classification - the axis the reference's WMI/SetupAPI stacks
+     * read. A removable-flagged device on an internal-numbered bus
+     * (e.g. a hot-plug SAS/SCSI enclosure) must decode removable
+     * even though the bus alone would say internal. */
+    auto buf = build_descriptor(10 /* BusTypeSas - not a removable bus class */);
+    buf[10] = 1; /* RemovableMedia = TRUE */
+    PhysicalDisk d;
+    ASSERT_TRUE(decode_device_descriptor(buf.data(), buf.size(), d));
+    EXPECT_TRUE(d.removable) << "the OS's RemovableMedia flag must be honored";
+    EXPECT_EQ(10u, d.bus_type);
+
+    /* and the clear flag on an internal bus stays internal */
+    auto buf2 = build_descriptor(10);
+    buf2[10] = 0;
+    PhysicalDisk d2;
+    ASSERT_TRUE(decode_device_descriptor(buf2.data(), buf2.size(), d2));
+    EXPECT_FALSE(d2.removable);
+}
+
+TEST(Enumerate, BusInterfaceNamesFollowTheSdkOrder) {
+    /* the pre-fix table labeled a SATA disk "SD", an SD card "MMC",
+     * a Virtual disk "File-Backed Virtual"... everything from 11 up
+     * shifted by one (NVMe only landed right because the shift
+     * wrapped past it). The SDK order: ...10 SAS, 11 SATA, 12 SD,
+     * 13 MMC, 14 Virtual, 15 FileBackedVirtual, 16 Spaces, 17 NVMe. */
+    EXPECT_STREQ(L"SATA", bus_interface_name(11));
+    EXPECT_STREQ(L"SD", bus_interface_name(12));
+    EXPECT_STREQ(L"MMC", bus_interface_name(13));
+    EXPECT_STREQ(L"Virtual", bus_interface_name(14));
+    EXPECT_STREQ(L"File-Backed Virtual", bus_interface_name(15));
+    EXPECT_STREQ(L"Storage Spaces", bus_interface_name(16));
+    EXPECT_STREQ(L"NVMe", bus_interface_name(17));
+    /* the pre-fix gaps: SSA(5) and iSCSI(9) now named */
+    EXPECT_STREQ(L"SSA", bus_interface_name(5));
+    EXPECT_STREQ(L"iSCSI", bus_interface_name(9));
+}
+
 TEST(Enumerate, DeviceIdWwnDecode) {
     /* N-066: the WWN/serial-2 axis — the first DEVICE-associated
      * identifier from STORAGE_DEVICE_ID_DESCRIPTOR; ascii passes through,
