@@ -99,3 +99,33 @@ local gate — it is the same check CI runs:
     # fix: clang-format -i <files>   (pip install clang-format==18.1.8)
 
 Main must be green at every push — a red main blocks the release cut.
+
+## Lane D — the defect lane re-opens (2026-11-12, this session)
+
+The debug-and-release defect lane re-opens as **Lane D** (`heicfast
+<heicfast@users.noreply.github.com>`; the prior A/B lanes ended at the
+v0.9.1 cut — their territories fold into lane D). Mandate: the user's
+reported breakages (scan stuck in sector scanning, SMART first-disk-only,
+disks missing, everything-broken sweep) + the two strata in the refreshed
+DIAGNOSIS.md — the user's stale-build triad AND the unreleased bridge ABI
+drift (BF-ABI-01: CrUiDiskInfo 296≠304 heap-overflow row collapse,
+CrUiSmartReport 224≠240 stack smash, bus_type/threshold unconsumed).
+
+Lane D territory (per the A/B seam table, now consolidated): `engine/**`,
+`ui/src-tauri/src/bridge/**` (incl. abi.rs), the defect-screen frontend
+files, `.github/workflows/bridge-integration.yml` (new — the missing
+real-bridge CI gate), `worklog/REPRODUCTION/**`, canonical worklog sheets.
+
+Seam crossings announced (additive, per the rule):
+- `contracts/type-maps.md` + `command-surface.json` — the ABI re-pin's
+  documentation rows (struct field appends consummated).
+- `ui/src/i18n/**` — new keys for the honest-state surfaces (SD page real
+  card, health no-SMART state, dead elevation string cleanup).
+- `ui/src/connector/contract.ts` — ONLY if the health payload gains the
+  threshold axis (a field add, no shape break).
+- `ui/src-tauri/src/commands/mod.rs` / `lib.rs` — registration lines only
+  if a new command is needed; none planned.
+
+Lane C's two deferred crossings (the `img-` scan-target arm, the TRIM
+chip) stay deferred until lane D's defect train is green; lane D will
+post here when the files stabilize.
