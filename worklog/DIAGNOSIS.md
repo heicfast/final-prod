@@ -1,231 +1,151 @@
-# DIAGNOSIS — the entry-point consolidation (Phase 0 → Phase 1)
+# DIAGNOSIS — the consolidated Phase 0 picture (this session, T3)
 
-The six Phase 0 context sheets are the picture of the product as it exists
-(REPO-STATE, UI-MAP, CORE-API, WIRING-AUDIT, REFERENCE-BEHAVIOR,
-INSTALLER-AND-PRIVILEGE — all evidence-cited path:line). This sheet
-consolidates them into the defect register that Phase 1 reproduces and
-Phase 2 fixes at the root. Defect IDs are stable across the session.
+> Six refreshed context sheets feed this document (REPO-STATE, UI-MAP,
+> CORE-API, WIRING-AUDIT, REFERENCE-BEHAVIOR, INSTALLER-AND-PRIVILEGE).
+> Every claim below is evidenced in those sheets with file:line. This is
+> the entry-point diagnosis for Phase 1 reproduction.
 
-## The user's report, mapped to root causes
+## 0. The headline finding — TWO defect strata, not one
 
-### D-PRIV-01 — the app does not request administrator at launch
+The user's machine and the current main tree carry DIFFERENT bugs that
+produce the SAME symptoms:
 
-**Root cause (verified, three sheets agree):** the shipped exe carries NO
-application manifest of its own. `ui/src-tauri/build.rs:38` calls bare
-`tauri_build::build()`; upstream tauri-build's stock embed contains only
-the Common-Controls dependency — no `requestedExecutionLevel` at all →
-the loader default `asInvoker`. Elevation today = the in-app banner +
-`ShellExecuteW "runas"` relaunch (`commands/system.rs:84-124`) — the
-lazy, secondary flow the user rejects.
+**Stratum 1 — the user's installed build (v0.9.1, released Nov 6).** Its
+symptom triad is fully explained by three defects that are FIXED on main
+but were NEVER RELEASED (no v0.9.2 tag exists; the newest tag is v0.9.1
+at cdf66ff8; RELEASE-RUN.md ends at v0.9.1):
 
-**Documentation hallucination (3 sites):** `recoverywizard.nsi:27-29`,
-`docs/INTEGRATION-PLAN.md:943` (§7.4 "ADOPTED requireAdministrator"),
-`docs/INSTALL-FOOTPRINT-CURRENT.md:205` all claim the app runs elevated.
-Only the release notes tell the truth.
+- D-ENUM-02: the bus-type text table was shifted by one from bus 11 up —
+  every SATA disk decoded `removable` via the mislabeled bus and landed in
+  the wrong home-page group ("not all of my disks are visible" — they are
+  present but misclassified/misgrouped, and the SD page can never match).
+- D-NVMe-01: the NVMe health query's `pack(1)` buffer placed protocol
+  data at offset 9 instead of 8 (`offsetof(STORAGE_PROPERTY_QUERY,
+  AdditionalParameters)`) — every real NVMe controller refused the query,
+  so health data existed only for the first (SATA) disk. "as I switch to
+  other it shows nothing" — the exact D-NVMe-01 signature.
+- D4f: the carve's user-sign probe took a registry mutex twice per
+  512-byte stride over ~134M zero strides — a 605-second all-axes freeze
+  ("stuck in sector scanning"). Fixed lock-free at 0e87689d, validated
+  engine-side, never shipped.
 
-**Why the gates never caught it:** the forensic probe launches the app
-pre-elevated (`launch-app.ps1:50-54`), the installer finish-page launches
-it as an elevated child (`nsi:164-165`), and the unelevated twin EXPECTS
-the banner — the gates codify asInvoker as correct.
+**Stratum 2 — the current tree (post-eb4bb5f3, unreleased 0.9.2 state).**
+The engine-side fixes above ARE in-tree, but commit eb4bb5f3 appended
+fields to two frozen-grammar C structs (`cr_ui_disk_info.bus_type`,
+`cr_ui_smart_report.power_cycles_nvme`, `cr_ui_smart_attr.threshold`) and
+THE RUST BRIDGE WAS NEVER RE-PINNED. The bridge's abi.rs still asserts
+"v4 carries NO bus_type" (abi.rs:184-186) — a comment that documents the
+world BEFORE the append. This creates memory-corruption-class defects
+that are WORSE than the user's current symptoms:
 
-**Reference standard (corpus):** DRW.exe ships `requireAdministrator`;
-UAC fires ONCE at launch; the loader then spawns DRWUI elevated with
-inherited handles — no second prompt, no restart-as-admin flow anywhere
-in the reference decompile.
+- `CrUiDiskInfo` is 296 B in Rust vs 304 B in the engine → the
+  two-call enumeration (util.rs:156-171) allocates a `Vec` with the Rust
+  stride while the engine writes with the C stride: an 8×N-byte heap
+  overflow AND every row ≥1 decodes shifted — all rows collapse toward
+  garbage `disk-0` duplicates (React key collapse drops them).
+- `CrUiSmartReport` is 224 B in Rust vs 240 B in the engine → the
+  engine's `memset(rep, 0, sizeof(*rep))` (cr_ui.cpp:4892) overwrites 16
+  bytes of the caller's stack on EVERY health read (health.rs:32 local).
+- `bus_type` is never consumed → `kind` can never be `'sd'` → the SD
+  card page's `kind==='sd'` filter can never match (devices.rs:215).
+- `cr_ui_health_read_ex2` (93rd export, the threshold axis + NVMe power
+  cycles) exists but is unbound → the SMART threshold column is nulled.
+- The startup ABI gate (lib.rs:98-107) only LOGS a version mismatch —
+  a stale kit serves scrambled data without refusal.
 
-**Fix direction:** embed a `requireAdministrator` manifest in the Tauri
-exe (custom manifest through the build, verified in the artifact), retire
-the banner to a true edge case, re-truth the three lying docs, and
-re-vehicle the forensic twin lane to the new posture.
+**The systemic root cause behind Stratum 2:** no CI gate links the
+bridge against the real engine. ui-ci runs `cargo check` (no link step);
+the engine lane never touches Rust. A C header field append is
+structurally invisible to every gate on the repo. This is the exact
+class of seam the session prompt's "the thousand small seams" names.
 
-### D-CONS-01 — visible console shells when opening disk health
+## 1. The user's five reported defects — diagnosis table
 
-**Root cause (verified):** `engine/src/win/cr_health.cpp:306` —
-`_popen("fsutil behavior query disabledeletenotify 2>nul", "r")`. In a
-GUI-subsystem process `_popen` spawns `cmd.exe` with a VISIBLE console
-window — one flash per health read, on every drive queried
-(`cr_ui_health_read` calls it unconditionally, `cr_ui.cpp:4948`).
+| ID | Symptom (user words) | Stratum-1 cause (their build) | Stratum-2 cause (current tree) | Verdict |
+|---|---|---|---|---|
+| R1 | "on opening its not requesting or opening as administrator" | pre-0.9.0 build class (v0.8.x asInvoker) | manifest IS embedded (app.manifest:25 → build.rs:45-48 → D1 gate) | User's build predates 0.9.0 OR stale-bundle installer hazard (build.ps1:211-213 picks bundle by LastWriteTime) |
+| R2 | "popup shells are appearing, probably cmd or powershell" | v0.8.x `_popen(fsutil)` per health read | 0 spawn sites lack CREATE_NO_WINDOW (all 3 audited: cr_health.cpp:393, cr_fsck.cpp:50, cr_bitlocker.cpp:64) | Same stale-build class; re-verify on clean install |
+| R3 | "only one disk is appearing" (2 internal + 1 SD) | D-ENUM-02 SATA-mislabeled-removable + SD-never-'sd' | ABI stride drift → disk-0 row collapse (heap overflow) | BOTH strata must be fixed; release cut must carry both |
+| R4 | "jumps directly to 75% advanced scanning, files found 21 (0 B), no sector progress, all stuck" | D4f 605s freeze + D4b-unshipped live bytes + deep phase has NO byte axis by design | bytes_scanned is carve-true only (cr_scan.cpp:510-518); bridge swallows the 5s heartbeat (events.rs:337-340) and only refreshes counters on file events | 75% is exact math (weights 40/35/25; quick+deep mid = 75%); "Advanced Scanning" spans deep+carve (contract.ts:171-176) |
+| R5 | "restart as administrator... weird popup colour and background" | v0.8.x amber ElevationBanner (removed 0.9.0) | no elevation UI exists; dead `errors.elevationRequired` string (en.ts:543) + stale installer text (nsi:331) | Stale-build class; dead vocabulary to clean |
 
-**It is a regression:** the 0.6.x era fixed this natively (NG-8); the
-engine re-merge (283a5d90) swapped in core_recovery's `_popen` version.
+## 2. Beyond the reported five — the session's extended defect register
 
-**No other visible spawn exists (verified census):** chkdsk
-(`cr_fsck.cpp:50-51`) and PowerShell/manage-bde (`cr_bitlocker.cpp:64-65`)
-already use `CREATE_NO_WINDOW` — the correct in-tree pattern to copy.
+Refreshed from the sheets, ranked by user-visible severity:
 
-**Fix direction:** replace `_popen` with `CreateProcessW` +
-`CREATE_NO_WINDOW` + piped stdout, identical parsing; add a regression
-gate (app-lifetime console-window census in the probe).
+- **BF-ABI-01 (NEW, this session): the bridge struct drift** — Stratum 2
+  above. THE blocker: nothing may ship until abi.rs is re-pinned and a
+  layout gate exists.
+- **BF-ABI-02 (NEW): no real-bridge CI lane** — the missing gate that let
+  BF-ABI-01 land. Fix: an integration job that builds the engine, links
+  the bridge, and runs bridge-level tests against the real DLL
+  (multi-disk where possible).
+- **S-SD-01: SD cards are not a first-class surface** — kind 'sd' never
+  emitted; the SD page renders a hard-coded fake card (en.ts:131-134,
+  "58 GB/Disk2"). Reference: SD is a first-class sidebar page (atlas:143).
+- **H-EX2-01: threshold column dead** — ex2 unbound; the reference's
+  table renders ID/Attribute/Current/Worst/Threshold/Raw/Status
+  (UIUX/19:26-28).
+- **P-DEEP-01: deep phase has no byte axis** — "Reading sector: 0/N"
+  frozen through quick+deep (the D4e coverage counter exists engine-side
+  for the remnant sweep but does not stamp bytes_scanned for deep).
+- **P-TICK-01 (BF-29): the "Searching:" ticker is dead** — currentPath
+  always null (events.rs:193); reference shows a live path ticker
+  (scan-phase-captured.md:56-107).
+- **P-HB-01: the 5s heartbeat is swallowed** — events.rs:337-340
+  (emit=false); the UI refreshes counters only on file events → any
+  cadence gap reads as a hang.
+- **F-REPAIR-01: the repair page's dropzone/Repair-All is local-state
+  theater** — fake paths, no engine call (repair-page.tsx:121-124).
+- **F-HLT-02: the health page synthesizes values** — wear '2%', '· 512B',
+  hard-coded 512 B divisor, gauge computed UI-side from partial fields
+  (health-page.tsx:100-106).
+- **F-ACT-01: activation paste inserts a fake license key** — theater.
+- **BF-30: the carve throughput wall** — 8.45 MiB/s (76-124 s/GiB):
+  multi-TB scans take hours-to-days even with every D4 fix. Performance
+  defect, engine-side.
+- **BF-32: scan-emitter teardown race** — latent UAF in events.rs/state.rs
+  (recorded with a two-phase fix design; deliberately deferred by the
+  prior session).
+- **I-STALE-01: the installer lane's bundle pick is LastWriteTime-based**
+  (build.ps1:211-213) — can wrap a stale app exe.
+- **I-CLEAN-01: app.log survives uninstall** (nsi:537-541).
+- **CI-STALE-01: forensic-repro.yml default tag is v0.8.4**;
+  engine-ci.yml:60 carries a false workflow_call claim.
 
-### D-ENUM-01 — only one of three disks appears
+## 3. What is NOT broken (re-verified this session)
 
-**Root cause (verified, host-side):** the Home device list renders ONLY
-`kind==='internal'` rows (`home-page.tsx:80-83`), while the bridge
-degrades every removable-bus disk (USB/SD/MMC) to `kind:'usb'`
-(`devices.rs:215`, BF-02), and the removable view (`/?media`) is
-unreachable — no navigation exists to it. Engine-side collapse is ruled
-out (merge dedups by disk number + PnP path only, `cr_enumerate.h:228-255`).
-Any disk the bus mapper calls non-internal — an SD card, an external,
-and any internal drive whose bus reports as removable/unknown — is
-present in the payload but INVISIBLE in the default Home view. On the
-user's machine (2 internal + 1 SD), the visible count depends on the bus
-classification of each drive: the symptom "only one disk" follows
-directly.
+- The engine's enumeration core is now genuinely robust (D3 keep-present,
+  N-071 share-blocked, E-01 exact-size volume retry — CORE-API.md §D).
+- All 43 manifest commands are implemented; all 10 events emit↔listen with
+  payload parity (W-01 held).
+- The privilege posture as built is correct end to end (manifest → D1
+  byte-scan gate → forensic gate → OS-refusal twin).
+- The shipped connector is REAL (connector/index.ts:23-26 defaults to
+  tauri; mock is dev/test-only).
 
-**Reference standard (corpus):** the landing page groups
-"Internal drives (N)" / "External drives (%1)" — BOTH groups visible,
-cards with icon + name + used/total capacity; SD cards are first-class
-(a dedicated sidebar page); enumeration = WMI Win32_DiskDrive + mountmgr
-volume extents.
+## 4. The plan (Phase 1 → 5)
 
-**Fix direction:** reference-parity device list — both groups rendered,
-SD/removable first-class, kind mapping audited against real bus types,
-and a probe gate that asserts the UI's rows match the OS's disk census.
+1. **Reproduce Stratum 2 on a real runner** (fail-before evidence for the
+   ABI drift: bridge integration harness against the real DLL, multi-disk
+   via VHD attach).
+2. **Fix train A (correctness blockers):** re-pin abi.rs (bus_type,
+   power_cycles_nvme, threshold), bind ex2, map bus_type→kind (sd!),
+   refuse-on-ABI-mismatch, rebuild.
+3. **Fix train B (scan truth):** deep-phase bytes_scanned, heartbeat
+   emission, current-path ticker, live counter refresh on poll.
+4. **Fix train C (surface truth):** SD page real, health page real (no
+   synthesized wear/sector-size), thresholds, honest no-SMART state,
+   repair/activation theater removed or made real, dead strings cleaned.
+5. **The new gate:** engine+bridge integration CI lane (link + run
+   against the real DLL; ABI layout manifest cross-check; multi-disk
+   enumeration pin).
+6. **BF-30 investigation** (bounded: profile the carve, land safe wins,
+   document the wall honestly if structural).
+7. **Release 0.9.3** (0.9.2 was announced but never tagged; the version
+   files already carry 0.9.2 — bump to 0.9.3 to keep the train honest),
+   full forensic validation, clean-install exercise, uninstall check.
 
-### D-SCAN-01 — "jumps to 75% advanced scanning, files found 21 (0 B),
-no sector progress, all stuck"
-
-Four stacked root causes, each verified:
-
-1. **75% is exact math, not a fake number:** engine stage weights are
-   40/35/25 (quick/deep/carve, `cr_scan.h:72-75`); quick+deep complete ⇒
-   overall = 750‰ exactly. The quick pass runs `covers_both=true` and
-   publishes quick AND deep permilles together (`cr_scan.cpp:722-724,
-   1597`). The UI maps deep+carve to the same "Advanced Scanning" label
-   (`contract.ts:171-175`, `scan-progress-page.tsx:179-181`). So a
-   healthy scan shows exactly "Advanced Scanning 75%" at the carve
-   boundary — and a stalled carve shows it FOREVER.
-
-2. **The stall is real engine behavior (BF-22, upgraded from
-   "environmental" to defect):** the carve matcher grinds per-byte over
-   1 MiB windows (`cr_carve.cpp:45,597`) with progress/bytes ticking only
-   per COMPLETED window (`cr_carve.cpp:1530-1566`), no intra-window
-   checkpoint, and in-window reads served by memcpy — device IO idles,
-   percent/files/bytes freeze, and the 5 s heartbeat does NOT re-emit
-   progress (`events.rs:326-329`). The user's machine and the Azure
-   runner show the identical signature (75%→76.1% over 15+ min).
-
-3. **"21 (0 B)" — the count is real, the bytes are a designed-in seam
-   gap:** `filesFound` is the live engine counter (events.rs:275/361);
-   `dataFoundBytes` is pinned 0 for the entire live scan (G-3,
-   `state.rs:107-109`) and only latched at completion by walking the
-   frozen snapshot (`scan.rs:416-443`) — NO ABI event carries found-bytes
-   (the engine computes `stats.bytes_found`, `cr_scan.cpp:529`, but only
-   the session persists it). The reference shows cumulative GB live
-   (corpus: status bar `Files Found: %2` count + GB).
-
-4. **"No sector progress":** `bytesScanned` is carve-true-bytes ONLY —
-   zeroed for stages 0/1 (`cr_scan.cpp:596-597`) — so the
-   "Reading sector" row reads 0/N through quick+deep, then freezes in
-   the carve stall. The reference runs a live "Reading sector: X/Y"
-   ticker throughout.
-
-**Reference standard (corpus):** Quick Scan auto-continues into Advanced
-Scan which runs its OWN 0–100% (moving), with files-found count +
-cumulative GB, remaining-time estimate, sector ticker, "Searching:"
-path ticker, Pause/Stop, and a live-growing results tree
-(browse-while-scan; the Reconstructed/carved branch grows in real time).
-
-**Fix direction (root, no fake values):** intra-window carve progress +
-cancellation checkpoints (kills both the frozen percent and BF-25's
-unbounded drain); found-bytes telemetry through the ABI (live, real);
-bytes-scanned across all read stages; percent/stage semantics aligned to
-the reference's moving advanced-phase display; results tree growth while
-scanning.
-
-### D-UI-01 — the restart-as-admin prompt is visually unacceptable
-
-**Root cause (verified):** `elevation-banner.tsx:25-45` hardcodes raw
-Tailwind amber classes (`bg-amber-50/border-amber-300/text-amber-900`),
-bypassing the semantic `--warning` tokens (`styles/tokens.css:71-73`)
-every other banner uses — clashing with the `#EBF2FF`/`#1677FF` chrome.
-With D-PRIV-01 fixed the banner becomes a true edge case; any residual
-prompt is re-styled on tokens.
-
-## Secondary defects (Phase 0-found, to validate and fix)
-
-From WIRING-AUDIT + UI-MAP (all file:line-cited in the sheets):
-
-- **W-01 dead-letter events:** 5 bridge events have NO frontend listener
-  (scan-finished, save-progress, lost-candidate, session-load-progress,
-  scan-autosaved).
-- **W-02 no exit-save:** window close mid-scan saves nothing (no exit
-  handler in `lib.rs`).
-- **W-03 mislabeled errors:** health/open failures label
-  `device-permission`, never `elevation-required` (engine returns
-  ERR_OPEN_FAILED unelevated at one site vs ERR_ELEVATION_REQUIRED at
-  others — inconsistent gate, `cr_ui.cpp` sites in CORE-API).
-- **U-01 false "mock" badge:** About dialog shows a mock badge because
-  real `system_app_info` lacks `connectorMode`.
-- **U-02 dead "Open location":** context item never calls `openPath`.
-- **U-03 user-signs import:** passes `file.name` instead of contents.
-- **U-04 recovery space estimate:** broken by the live 0 B
-  (recovery-page.tsx:75-82).
-- **E-01 volume enumeration buffer:** 64-wchar
-  `GetLogicalDriveStringsW` buffer fails wholesale at 16+ letters
-  (`cr_enumerate.cpp:216-218`).
-
-## Phase 1 plan (reproduction on real Windows)
-
-The forensic-repro lane is the reproduction vehicle: it installs the
-SHIPPED v0.8.4 release on a windows-2022 runner with 3 physical disks
-(OS + seeded 64GB NTFS + 8GB exFAT vdisks), captures every child
-process + top-level window at 400 ms (D-CONS-01 evidence), drives the
-real UI via CDP (D-ENUM-01 DOM evidence vs the OS disk census), and
-records the full scan timeline (D-SCAN-01 percent/sector/counter
-evidence). Dispatch on v0.8.4; curate artifacts into
-`worklog/REPRODUCTION/<defect-id>/`.
-
-One known gap: the v0.7.0-era probe asserts the OLD posture (banner
-expected, pre-elevated launch) — reproduction runs are expected RED on
-the gates that codify asInvoker; the raw evidence artifacts are what
-Phase 1 needs. The probe is re-vehicled in Phase 2 to gate the NEW
-posture (manifest elevation, no console, complete device rows, moving
-scan progress).
-
-## Addendum — lane B's Phase-0 findings absorbed (both lanes, one register)
-
-Lane B's independent read (worklog/lane-b/, verbatim) confirms the
-register above and adds four root-cause details the canonical sheets
-now carry as their fix directions:
-
-- **D-SCAN-01 / D4a (frozen sector counter):** `tel_.snap.bytes_scanned`
-  is stamped into the telemetry snapshot ONLY at stage boundaries
-  (cr_scan.cpp tel_counts_; carve bytes land in stats at cr_scan.cpp:2662
-  after carve_slice returns). The event stream DOES carry live carve
-  bytes (`e.bytes_done`, cr_scan.cpp:596) — the bridge's emitter reads
-  only the permilles and drops them (events.rs:266-273). Fix: bridge
-  consumes evt.bytes_done/bytes_total; engine stamps live bytes at every
-  publish.
-- **D-SCAN-01 / D4b (0 B found size):** no bytes_found in any ABI struct;
-  engine has the live datum (`ScanStats.bytes_found = tree_.total_logical()`,
-  N-167) crossing only at terminal (scan.rs:419-434 re-sums the snapshot).
-  Fix: ABI append (cr_ui_event + cr_ui_telemetry gain bytes_found), live
-  stamping, bridge fill, live UI render.
-- **D-SCAN-01 / D4c (cancel latency) + D4d (the wall):** intra-window
-  checkpoints at bounded cadence; the carve is validation-CPU-bound —
-  8.45 MiB/s effective vs a 544 MiB/s device (PERF-LEVERS wall math,
-  run 41140212296), 76-124 s/GiB — on consumer multi-TB disks the last
-  25% runs hours-to-days. The 75% jump itself is legitimate (quick 40 +
-  deep 35 complete fast); the freeze and the wall are the defects.
-- **D-CONS-01 fix upgraded:** replace _popen with a per-device
-  `IOCTL_STORAGE_QUERY_PROPERTY` / `StorageDeviceTrimProperty` query —
-  NO subprocess at all, no localized-output parsing (kills HEALTH-6's
-  fragility). A deliberate divergence from the og's hidden-fsutil
-  (corpus DRWUI_decompiled.c:178726-178733 runs it hidden via
-  CreatePipe+SW_HIDE) — same user-visible truth, stronger vehicle; to be
-  documented in PARITY-DELTAS.
-- **D-ENUM-01 second layer (engine-side):** both enumeration stacks
-  silently DROP a present disk whose open fails with anything other
-  than ACCESS_DENIED/SHARING_VIOLATION, or whose geometry query fails
-  (cr_enumerate.cpp:98-127). The reference lists devices WITHOUT opening
-  them (five-stack fan-in, corpus mom-module-system architecture). Fix:
-  never drop a PRESENT disk interface — list with cfgmgr-sourced
-  identity, table_ok=0, honest "unavailable" status; the scan attempt
-  then reports the truthful open error. Stacks with the UI-side fix
-  (Home internal-only filter + kind degradation) — both layers ship.
-- **D-PRIV-01 reference citation:** DRW.exe AND DRWUI.exe embed
-  requireAdministrator (corpus rev/DRWUI.exe/strings_ascii.txt:41023);
-  privileged work rides a LocalSystem service so no mid-session UAC.
-
-Fix ownership per the seam: worklog/COORDINATION.md.
+The register is deliberately larger than the user's five: "everything
+seems broken" is the standard, and the fake/theater surfaces are exactly
+the "script kiddie slop" the user refuses.

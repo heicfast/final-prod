@@ -1,225 +1,582 @@
-# UI-MAP — Phase 0 Audit, Agent B (read-only)
+# UI-MAP — Phase 0 surface map, Agent B (full refresh, session T1)
 
-Repo: `/home/z/my-project/final-prod`. UI = React 19 + Tauri 2, frontend `ui/src`, Rust shell `ui/src-tauri`.
-All citations `file:line` relative to repo root unless noted. Rust bridge/engine citations are included where the UI rendering chain terminates there.
+Repo: `/home/z/my-project/work/final-prod` @ `8f3bedd1` (main; v0.9.2 train + the
+unreleased `eb4bb5f3` D-ENUM-02/D-NVMe-01 engine fix). UI = React 19 + react-router
+7 (hash) + TanStack Query + zustand, in `ui/src`; Tauri 2 shell + cr_ui bridge in
+`ui/src-tauri`; C++ engine behind the `cr_ui` C ABI in `engine/`.
+All citations `file:line` relative to repo root. Read-only audit — no file was
+modified except this one.
+
+**Framing fact for every defect below:** the user's installed product is the
+v0.9.2 release; `eb4bb5f3` (the D-ENUM-02 + D-NVMe-01 engine fixes) landed
+*after* the v0.9.2 tag (git order: `1ef7aa7c` v0.9.2 → `12d824a3` → `eb4bb5f3`
+→ `0c80036f` → `8f3bedd1`). Anything fixed only in `eb4bb5f3` is NOT in the
+user's build, and — critically — half of `eb4bb5f3` never reached the UI anyway
+(see DEFECT TRACE #1/#2: the Rust bridge was never updated to consume the new
+ABI fields).
 
 ---
 
-## Screens
+## 1. UI tree inventory (every file under `ui/src`)
 
-Router: `ui/src/app/router.tsx:22-45` — `createHashRouter`, `WizardShell` (`ui/src/app/shell.tsx:102`) wraps all routes inside `ErrorBoundary` (`ui/src/app/error-boundary.tsx:14`). Shell chrome: custom title bar + 3-group sidebar + `ElevationBanner` above `<Outlet/>` (`shell.tsx:350`), global `ConsentModal`/`AboutDialog`/`ActivationDialog` (`shell.tsx:357-359`), `DevPanel`+`PerfOverlay` only under `import.meta.env.DEV` (`shell.tsx:356`).
+| Path | Role |
+|---|---|
+| `src/main.tsx` | Entry: StrictMode → Providers → App (`main.tsx:7-14`) |
+| `src/app/router.tsx` | Hash router, route table `:22-45`; `App` `:47-49` |
+| `src/app/shell.tsx` | WizardShell: custom title bar, Buy-Now pill `:150-157`, key/language/menu buttons `:159-227`, `WindowControls` `:227`, 3-group sidebar `:56-100` (Data Recovery / Advanced / File Backup), results-flow sidebar variant `:265-301`, global modals `ConsentModal`/`AboutDialog`/`ActivationDialog`/`ExitGuard` `:356-360`, DevPanel only in DEV `:355` |
+| `src/app/providers.tsx` | ThemeProvider → QueryClientProvider → TooltipProvider → Toaster (`:21-28`); dev watchdog `:14-19` |
+| `src/app/theme.tsx` | Theme context: mode `system/light/dark/ember/tide/blossom/high-contrast` (`:27`), localStorage `rw.ui.theme`/`rw.ui.density` (`:41-42`), `data-theme`+`data-scheme` attrs via `applyThemeAttributes` (`:89`), forced-colors tracking `:92-96` |
+| `src/app/error-boundary.tsx` | Class ErrorBoundary `:14-34`; `ErrorScreen` (reason + Home/Retry, never a stack) `:37-75` |
+| `src/app/exit-guard.tsx` | W-02 close-requested save guard: fresh `readScanState` on close `:62-76`, save-and-exit / keep / exit-without-saving dialog `:113-147` |
+| `src/connector/contract.ts` | The 36-op / 9-domain connector contract + `scanPhaseOf` `:171-176`, `ScanProgressEvent` `:206-226`, Device/Volume/DiskHealth/RepairDryRun types |
+| `src/connector/index.ts` | Connector factory: `VITE_CONNECTOR` unset/≠mock → **tauri (real)** (`:23-26`); mock only for `pnpm dev`, vitest (`vite.config.ts:67-69` pins `mock`), and the e2e lane (`.github/workflows/ui-e2e.yml` builds with `n: mock`) |
+| `src/connector/tauri/tauri-connector.ts` | Real adapter: every op → `invoke('…')`; error map `REASON_KEYS` `:69-96`, engine numeric map `:99-139`, event names `scan-progress:{id}` `:240`, `scan-finished:{id}` `:254`, `save-progress:{id}` `:266`, `lost-candidate:{id}` `:278`, `scan-autosaved:{id}` `:290`, `consent-request:{id}` `:306`, `recovery-progress/finished:{id}` `:420/:432`, `session-load-progress:{path}` `:375`, `apply-consent-request:{id}` `:491` |
+| `src/connector/mock/mock-connector.ts` | Test-double simulator (2,074 lines); stage weights 0.14/0.42/0.24 (`:149-153`) — **different from the real engine's 40/35/25**, so the mock never reproduces the "Advanced Scanning 75%" presentation |
+| `src/connector/mock/fixtures.ts` | Mock devices (`dev-sys`, `dev-sdcard` kind `'sd'` `:393-394`, virtual targets `:331/:357`) |
+| `src/connector/mock/node-space.ts`, `rng.ts` | Mock filesystem / seeded RNG |
+| `src/features/device-selection/home-page.tsx` | Home / disks page (see §3) |
+| `src/features/device-selection/sd-card-page.tsx` | SD-card page (see §3 — hard-coded card row) |
+| `src/features/device-selection/unlock-volume-dialog.tsx` | N-064 BitLocker dictionary unlock dialog |
+| `src/features/health/health-page.tsx` | Disk Health & S.M.A.R.T. surface (see §4) |
+| `src/features/scan-progress/scan-progress-page.tsx` | Live scan surface (see §5) |
+| `src/features/results-explorer/results-route.tsx` | `/results/:scanId` guard: fallback `:26/:41-43`, partial-results banner for cancelled scans `:45-59`, rescan CTA `:62-102` |
+| `src/features/results-explorer/results-explorer.tsx` | 3-pane explorer (tree / virtualized list / preview), toolbar, 6-item context menu, smart-select `:158-183`, save-session with live fraction `:79-80`; used live during scan (`liveMode`) |
+| `src/features/results-explorer/filter-bar.tsx` | Type/Date/Size filter popovers + Existing / Hide-0KB toggles |
+| `src/features/results-explorer/page-fallback.tsx` | Not-found fallback → Home |
+| `src/features/preview/preview-pane.tsx` | Preview pane: thumbnail, confidence badge, per-kind bounded render, hex/text in worker (`hex-worker-client`), expand modal `:49` |
+| `src/features/recovery-queue/recovery-page.tsx` | Destination card (Local/Cloud tabs), source-drive overlap warning, space estimate from live avg (`:74-82`), options, live queue + report, recovery-finished bridge |
+| `src/features/backup/backup-page.tsx` | Scan Snapshot page: sessions list, open (with load fraction), scan resume with targetId handoff `:51-69` |
+| `src/features/repair/repair-page.tsx` | File Repair page: **mock dropzone/queue flow** (see §7) + the REAL `VolumeRepairWorkbench` (dry-run/apply/undo-log/undo, consent-gated) behind "Advanced Repair" |
+| `src/features/lost-partition/lost-partition-page.tsx` | S-029 real-data surface: pick disk → whole-disk scan → live candidate rows from scan state `:77-83` → consent-gated apply/undo/undo-file |
+| `src/features/settings-about/settings-page.tsx` | Theme/density/scale/locale, diagnostics log copy, user-signs import, About |
+| `src/features/settings-about/about-dialog.tsx` | Version/engine/connector-mode rows |
+| `src/features/settings-about/activation-dialog.tsx` | License modal (decorative — shows `activation.providerUnavailable`; paste fallback inserts fake key `DRW26-…` `:54`) |
+| `src/features/consent/consent-modal.tsx` | Global non-dismissable consent modal (repair + lost-partition apply), mounted in shell |
+| `src/features/dev-panel/dev-panel.tsx` | DEV-only scenario/seed/language/density panel + PerfOverlay; returns null when the real connector is active (`:50`) |
+| `src/hooks/use-physical-devices.ts` | Picker hook: `?device=` search-param selection + first-device fallback (`:19-32`) |
+| `src/queries/*.ts` | Query layer (the only legal connector consumer): `client.ts` (keys `:18-41`, staleTime 5 s default), `devices`, `scan` (progress external-store `:20-84`), `results`, `recovery`, `health`, `repair`, `lost-partition`, `preview`, `sessions`, `system`, `dev` |
+| `src/stores/ui-store.ts` | zustand: viewMode/previewPaneWidth/sidebarCollapsed/devPanel, persisted `rw.ui.*` (`:8-10`) |
+| `src/stores/scan-session-store.ts` | Active-scan registry + celebration-seen flag (memory only) |
+| `src/stores/selection-store.ts` | Results selection (all/ids/exclusions + anchor) |
+| `src/stores/filter-store.ts` | Results filter/sort/tree-mode state |
+| `src/stores/consent-store.ts` | Pending repair/apply consent events for the global modal |
+| `src/i18n/{index,en,zh-CN}.ts` | i18next, `rw.ui.locale` persistence, en + zh-CN |
+| `src/lib/{format,hex-format,logger,runtime,utils}.ts` | Formatters, ring-buffer logger + watchdog, `isTauriRuntime` |
+| `src/components/ui/*` | 24 primitives (button/dialog/table/results-tree/virtual-file-list/progress/window-controls/toaster…) |
+| `src/theme/adopted/{themes,tokens}.css` | Two-layer token theme system (ADR-007) |
+| `src/styles/{index,tokens}.css` | Token layer + base styles |
+| `src/workers/hex.worker.ts` + `hex-worker-client.ts` | Off-main-thread hex/text preview |
+| `src/assets/interim/chrome/*` | 4-state title-bar SVG glyphs (light/dark) |
 
-| Route | Feature dir | Component |
+Rust shell (`ui/src-tauri/src`): `lib.rs` (builder, command registry `:33-90`,
+ABI gate log-only `:98-107`), `bridge/abi.rs` (the 92-export cr_ui binding),
+`bridge/{state,events,error,util,consent,logging,filefilter}.rs`,
+`commands/{devices,scan,results,preview,sessions,recovery,health,repair,lost_partition,system}.rs`.
+`app.manifest` (`requireAdministrator` `:25`), wired through
+`build.rs:45-47` (`WindowsAttributes::app_manifest`).
+
+---
+
+## 2. Screens, states, controls, data
+
+| Route (router.tsx:31-42) | Screen | States | Key controls | Data requirements |
+|---|---|---|---|---|
+| `/` | Home / disks (`home-page.tsx:63`) | loading skeleton `:155-166`; devices error `:168-186`; no physical devices `:188-200`; permission/disconnected banners `:202-248`; success | refresh button `:225-234`, device cards (select/dbl-click scan) `:537-705`, volume chips `:676-702`, quick targets `:304-323`, folder dialog `:403-532`, "Search for Lost Data" `:391-399`, recent sessions `:325-355`, continue-last `:734-757` | `devices.listDevices`, `refreshDevices`, `startScan`, `pickDirectory`, `sessions.*` |
+| `/sd-card` | SD card (`sd-card-page.tsx:20`) | (no loading/error states — the card row is static) | static card row `:78-111`, "show all external" `:114-144`, Scan Card `:191-198` | `devices.listDevices` (only for the hidden external list + scan target resolution) |
+| `/tools`, `/health` | Disk health (`health-page.tsx:39`) | device loading `:69-84`; no devices `:86-98`; health loading `:210-214`; health error EmptyState `:215-222`; success (gauge + 4 KPI + SMART table) | disk radio cards `:138-208`, refresh `:123-134`, "Search for Lost Data" `:315-323` | `devices.listDevices`, `health.getHealth(deviceId)` |
+| `/backup` | Scan snapshots (`backup-page.tsx:22`) | loading `:139-143`; empty `:144-156`; list | open (with live % `:190-193`), resume `:174-183`, start-search CTA `:125-131` | `sessions.list/load/resume`, load-progress event |
+| `/scan/:deviceId/live` | Live scan (`scan-progress-page.tsx:53`) | no scanId → fallback `:127-129`; starting/running/paused/stopping (footer cluster `:166-313`); completed → celebration modal `:412-470`; deviceLost → reconnect modal `:317-347`; stop-confirm `:350-407` | pause/resume `:210-232`, stop `:233-248`, Recover-All CTA (gated on `recoverableDuringScan`) `:296-312` | `scan.getScanState` (500 ms poll `queries/scan.ts:105-121`), `scan-progress` event, `results.*` (liveMode), consent bridge |
+| `/results/:scanId` | Results (`results-route.tsx:22` → `results-explorer.tsx:66`) | loading `:28-39`; missing → fallback `:41-43`; partial (cancelled) banner `:49-59`; success | tree/path-type-raw tabs, view toggle, filter bar, search, context menu, smart-select `:158-183`, save session `:79-80`, recover CTA | `results.getResultTree/queryResults/countResults/getNodeDetail`, `preview.*`, `sessions.save/cancelSave` |
+| `/recover/:scanId` | Recovery (`recovery-page.tsx:60`) | destination card; validating; validation refused (overlap/unwritable/invalid); out-of-space modal; running queue; finished report | Local/Cloud tabs, drive radio rows, path input + browse, options (collision/folders/repair/verify), start/cancel | `system.listMountPoints/validateDestination/pickDirectory`, `recovery.*`, `scan.getScanState` |
+| `/repair` | File repair (`repair-page.tsx:61`) | dropzone `:128-204`; queue `:206-…`; advanced workbench (real queries) | Add Files, Repair All (**local-only fake** `:121-124`), Advanced Repair toggle `:253-266` | `devices.listDevices`, `repair.dryRun/apply/undoLog/undo` (workbench only) |
+| `/lost-partition` | Lost partition (`lost-partition-page.tsx:63`) | pick-disk; scanning (live candidates `:77-83`); has-candidates; apply consent | refresh, per-disk search, candidate select, Apply/Undo/Save-undo | `devices`, `scan.startScan/getScanState`, `lostPartition.*`, consent store |
+| `/settings` | Settings (`settings-page.tsx:61`) | — | theme `:96-113`, scale `:115-…`, density, locale, log copy, user-signs import, About | `system.getAppInfo`, `system.loadUserSigns` |
+
+Global surfaces: ErrorBoundary (any route), ConsentModal (shell `:356`),
+AboutDialog/ActivationDialog (shell `:357-358`), ExitGuard (shell `:360`),
+Toaster (top-right, token-themed `components/ui/toaster.tsx:13-34`),
+ErrorScreen.
+
+---
+
+## 3. THE DISKS PAGE — full chain
+
+**Mount → render chain**
+
+1. `HomePage` mounts; `useDevices()` (`queries/devices.ts:5-10`) → query key
+   `['devices']` → `connector.devices.listDevices()` (`tauri-connector.ts:196`)
+   → `invoke('devices_list')`.
+2. Rust `devices_list` (`commands/devices.rs:426-434`) → `spawn_blocking(list_devices)`
+   (`:107-232`):
+   - `enumerate_disks()` / `enumerate_volumes()` (`bridge/util.rs:156-184`) —
+     two-call cr_ui protocol, `buf.truncate(cap)`.
+   - Per disk: fresh open probe `cr_ui_open_disk` (`:129-134`) → status
+     ok/permission-denied (`:84-90`); per-lettered-volume usage via
+     `GetDiskFreeSpaceExW` (`:52-80`, unlettered contributes 0); BitLocker
+     probe only when FVE detected (`:149-158`).
+   - Row composition: `id = disk-{n}` (`:20-22`), `kind = removable ? "usb" :
+     "internal"` (**`:215`** — the only kind axis), label from first lettered
+     volume else model else `Hard Disk #N` (`:186-201`), capacity
+     total/used/free (`:219-223`), volume rows (`:167-183`) with
+     `quickScanAvailable: true` always (`:180`), `canScanWholeDisk: true`
+     (`:228`).
+3. Engine: `cr_ui_enumerate_disks` → `enumerate_disks_impl`
+   (`engine/src/ui/cr_ui.cpp:1938`, copies `bus_type` at `:1865`) →
+   `win::enumerate_disks` (`engine/src/win/cr_enumerate.cpp`) — numbered
+   PhysicalDrive namespace + cfgmgr interface pass, merged; **never-drop fix
+   (D3)**: a present-but-unopenable disk stays listed with `busy` + honest
+   empties (`cr_enumerate.cpp:110-175`); `open_disk_for_query` 0-access retry
+   (`:85-106`); bus/removable decode `cr_enumerate.h:107-119` — after
+   `eb4bb5f3`: `removable = RemovableMedia(+10) || bus∈{7 USB,12 SD,13 MMC}`
+     and `bus_type` captured at +28.
+4. React: `devicesQuery.data` → `physical = kind !== 'virtual'` (`:83`),
+   `internal = kind === 'internal'` (`:84`), `external = kind !== 'internal'`
+   (`:90`), `visible = physical` (`:91`). Groups rendered: "Internal drives
+   (N)" `:250-270` + "External drives (N)" when `external.length > 0`
+   `:276-298`. Selection: local `selectedId`, effective default = first
+   physical (`:93`).
+5. Per-card rendered fields (`DeviceCard` `:537-705`): compact label `:579`,
+   lost-partition badge `:630`, lock/disconnect icons `:631-650`, capacity
+   bar (used/total, min 2%) `:653-672`, free/total GB text `:664-672`, volume
+   chips (click = scan that volume) `:676-702`, unlock dialog for locked
+   volumes `:596-604`.
+
+**Filtering/dedup**: UI drops only `kind === 'virtual'` (never produced by the
+real bridge). No dedup in UI or bridge. Engine merge dedups by disk number +
+PnP path (`cr_enumerate.h:228-255` per the Phase-0 diagnosis). Refresh =
+re-enumeration (engine has no cache — `cr_ui.h` refresh contract, "each call
+RE-QUERIES the OS", `engine/include/cr/cr_ui.h:452-460`); the React query
+cache is overwritten by `refreshDevices.onSuccess`
+(`queries/devices.ts:16-19`). No race window: both `devices_list` and
+`devices_refresh` run the identical `list_devices` (`devices.rs:426-444`).
+
+**Where disks can get dropped / hidden (ranked)**
+
+1. **(Historical, in the user's v0.9.2 build) The shifted bus table** — every
+   SATA disk decoded `removable=1` → `kind:'usb'` → internal drives landed in
+   the *External* group and "Internal drives (N)" under-counted; the page
+   "looked incomplete". Fixed engine-side only in `eb4bb5f3`
+   (`cr_enumerate.h:118-119`). **Not in the user's build.**
+2. **(Current tree, unfixed) The bus_type ABI axis is dead at the bridge** —
+   engine appends `bus_type` to `cr_ui_disk_info` (`cr_ui.h:422-436`) and
+   stamps it (`cr_ui.cpp:1865`), but the Rust `CrUiDiskInfo`
+   (`bridge/abi.rs:172-189`) has no such field and `devices.rs:215`/`:382`
+   still derive kind solely from `removable`. Consequences: SD cards are
+   `kind:'usb'` forever → the **/sd-card page's `kind === 'sd'` filter can
+   never match** (`sd-card-page.tsx:30-33`) and the kind axis the fix was
+   sold on never reaches the UI. (Struct sizes happen to stay equal —
+   engine 304 B, Rust 300→304 B padded — so no corruption, just an unread
+   field.)
+3. Engine never-drop discrimination (fixed v0.9.0, `cr_enumerate.cpp:110-175`)
+   — pre-0.9.0 builds dropped present-but-unopenable disks; not in the user's
+   build.
+4. E-01 volume-buffer wholesale failure at 16+ letters (fixed v0.9.1,
+   `62fb7670`).
+5. UI-side swallow: none — errors surface as the EmptyState `:168-186`; a
+   partial engine list cannot be produced by the bridge (one `check()` fails
+   the whole call).
+
+---
+
+## 4. THE SMART/HEALTH SURFACE — full chain
+
+**Selection propagation**: `usePhysicalDevices` keeps the selected disk in the
+URL search param `?device=` (`hooks/use-physical-devices.ts:19-32`;
+`setParams(..., { replace: true })`), falling back to the first physical
+device. `HealthPage` feeds `deviceId` into `useHealth(deviceId || null)`
+(`health-page.tsx:51`). **The health query IS keyed on the selected disk**:
+`queryKey: ['health', deviceId]` (`queries/health.ts:7`), `staleTime 60 s`,
+`retry: false`. Switching disks = new key = fresh fetch; no shared cache, no
+stale-selection path. The KPI header, however, uses
+`selectedDevice = list.find(...) ?? list[0]` (`:52`) — cosmetic fallback only.
+
+**Per-disk query chain**: `connector.health.getHealth(deviceId)`
+(`tauri-connector.ts:445-447`) → `invoke('health_read', { deviceId })` → Rust
+`health_read` (`commands/health.rs:19-157`): parse `disk-N` (`:21-29`) →
+two-call `cr_ui_health_read` (`:32-67`) → availability gate "both sources
+absent → HEALTH_UNAVAILABLE" (`:54-59`) → status grading (`:91-102`, no
+invented percentage) → attribute rows with `threshold: null` on the base
+export (`:119-135`) → JSON. Engine `health_read_impl`
+(`engine/src/ui/cr_ui.cpp:4888-4995`): opens `\\.\PhysicalDriveN` RW
+(`:4896-4900`), BF-28 elevation gate (`:4903-4916`), `read_smart` (ATA
+passthrough → SMART_RCV_DRIVE_DATA → CSMI; `engine/src/win/cr_health.cpp:216+`),
+`read_nvme_health` (`:4954`), per-device TRIM via
+`query_trim_state_handle` (no subprocess; `:4980`), both-absent →
+`ERR_HEALTH_UNAVAILABLE` (`:4987-4990`). Stateless per call — no handle cache,
+no first-disk stickiness in engine or bridge.
+
+**UI render**: synthesized circular gauge score
+`good ? max(88, 100−(wearPercent ?? 4)) : caution 72 : 38` (`health-page.tsx:100-106`);
+SMART table `:458-534` (threshold column renders `—` because the bridge nulls
+it, `health.rs:127-131`); error state = EmptyState "Health data is not
+available for this device" + the raw English bridge message
+(`:215-222`, i18n `en.ts:402`).
+
+**Where "first disk works, others show NOTHING" comes from (ranked)**
+
+1. **D-NVMe-01 (in the user's v0.9.2 build, unfixed there)**:
+   `read_nvme_health`'s query buffer was `#pragma pack(push,1)`-ed, placing
+   `STORAGE_PROTOCOL_SPECIFIC_DATA` at offset 9 instead of the storage
+   stack's expected offset 8 → every real NVMe controller refused →
+   `nvme_available = 0`. An NVMe-only disk with no ATA table then trips the
+   both-absent gate (`health.rs:54-59`) → error EmptyState = "nothing".
+   Disk 0 (SATA, ATA passthrough) works. Fixed only in `eb4bb5f3`
+   (`engine/src/win/cr_health.cpp`, offset-8 + static_asserted layout).
+   Invisible on CI seeds (Azure VHDX has no NVMe passthrough). **This exactly
+   matches "only the FIRST disk shows data".**
+2. **(Current tree, NEW memory-safety hazard) ABI size drift on
+   `cr_ui_smart_report`**: `eb4bb5f3` appended `uint64_t power_cycles_nvme`
+   (`cr_ui.h:1569` → engine struct 240 B) but the Rust
+   `CrUiSmartReport` (`abi.rs:646-681`) still ends at `data_bytes_written`
+   (232 B). The engine's `health_read_impl` does
+   `std::memset(rep, 0, sizeof(*rep))` (`cr_ui.cpp:4892`) → **8-byte stack
+   overwrite past the Rust buffer on EVERY health_read** once the bridge is
+   linked against the `eb4bb5f3` engine. Unpredictable local corruption
+   (`needed`, `n`, vec state) → exactly the class of "works once then
+   nothing/weird" symptom. Must be fixed before the next build.
+3. **(Current tree, cosmetic gap) threshold column dead**: even post-ex2, the
+   bridge calls base `cr_ui_health_read` only (`abi.rs:939-940` declares no
+   `cr_ui_health_read_ex2`; `health.rs:34-35,127-131` nulls thresholds), so
+   `eb4bb5f3`'s BF-03 threshold datum never reaches the SMART table.
+4. UI-side stale-selection/staleTime: ruled out (per-device keys, §4 above).
+5. Honest unavailability (USB bridges rejecting ATA passthrough) — real
+   possibility on the SD card via a reader; renders the same EmptyState.
+
+---
+
+## 5. THE SCAN SURFACE — full chain
+
+**Click → start**: Home "Search for Lost Data" (`home-page.tsx:391-399`) or a
+card double-click/volume chip → `beginScan(targetId)` `:97-110` →
+`useStartScan` (`queries/scan.ts:88-98`) → `connector.scan.startScan` →
+`invoke('scan_start', …)` → Rust `scan_start` (`commands/scan.rs:91-110`) →
+`scan_start_blocking` (`:116-332`): ABI gate `:123-130` → `resolve_target`
+(`devices.rs:246-321`; virtual quick-targets mapped to system volume +
+implicit scope `:252-259`) → scope normalization `:46-80` → open
+(plain/FVEK; FVE-locked refusal `:191-197`; elevation refusal `:198-205`) →
+zero-init config (stage_mask 7, **weights 40/35/25**, autosave dir =
+sessions store) `:218-241` → `scan_create`/`attach` `:243-252` → event
+channel (bounded 512) + sink `:254-268` → registry `:321-325` →
+`launch_run_thread` `:339-460` (run thread + emitter thread). On success the
+UI navigates to `/scan/{targetId}/live?scanId={id}` (`home-page.tsx:102`).
+
+**Progress events → UI**: engine emits through the trampoline
+(`engine/src/ui/cr_ui.cpp:1064-1107`, field-for-field incl. `bytes_found`
+D4b `:1085`) → Rust sink `try_send` (`events.rs:45-56`) → emitter thread
+(`events.rs:241-411`): `CR_EVT_SCAN_STAGE` → stage label `:256-267`;
+`CR_EVT_SCAN_PROGRESS` → monotonic overall + live `data_found_bytes`
+`:266-275`; `CR_EVT_FILES_FOUND` `:281-287`; error ranges `:288-295`; lost
+candidates `:299-330`; heartbeat (liveness only, never advances permille)
+`:337-…`; save progress `:341-348`; autosaved `:357-…`. On every emit a
+telemetry poll refreshes `bytes_scanned` / `files_found` / `bytes_found` /
+throughput / ETA (`:353-396`) and emits `scan-progress:{scanId}` with the
+contract payload (`compose_scan_progress` `:146-197`). Terminal: run thread
+latches `Terminal{files_found, data_found_bytes}` (exact snapshot re-sum,
+`scan.rs:416-443`), emits final progress + `scan-finished:{scanId}`
+`:446-458`.
+
+**UI consumption**: `useScanProgress` external store
+(`queries/scan.ts:20-84`) + `useScanState` 500 ms poll as fallback
+(`:100-123`) + `useScanFinishedBridge` instant-completion invalidation
+(`:219-231`). Display (`scan-progress-page.tsx`): circular gauge of
+`overallProgress` `:168-173`; status line
+`Quick/Advanced Scanning {percent} , Files Found: {n} ({size})` `:181-195`
+(i18n `en.ts:161-163`; phase from `scanPhaseOf` — deep-walk AND carve both →
+"Advanced", `contract.ts:171-176`); pause/resume/stop `:210-248`;
+remaining-time + **"Reading sector: X/Y"** `:253-269` where
+`sectorsScanned = bytesScanned/512` (**hard-coded 512**, `:131-132`);
+autosave stamp `:272-285`; "Searching: <path>" ticker `:155-164` — **dead on
+the real backend** (`currentPath` always null, `events.rs:193`, G-2);
+Recover-All CTA disabled until completed or `recoverableDuringScan`
+(`:296-312`); celebration modal `:412-470`; results tree live (liveMode +
+lost-candidate bridge, `queries/scan.ts:266-287`).
+
+**Engine truth axes (current tree)**: live carve bytes (D4a,
+`engine/src/core/orchestrator/cr_scan.cpp:510-518` — **only stage 2** stamps
+`bytes_scanned` live), live found-size (D4b, `refresh_live_counts_`
+`:576-597` + `emit_event_` `:609`), 16 MiB bytes-axis event trigger
+(`emit_progress_event_` `:637-668`), intra-window cancel checkpoints (D4c,
+`engine/src/core/carve/cr_carve.cpp:622-627`), deep remnant tick (D4e,
+v0.9.1), lock-free user-sign probe (D4f, v0.9.2).
+
+**Where "75% Advanced Scanning, 21 files (0 B), no sector progress, stuck"
+comes from (ranked)**
+
+1. **The 75% number is exact math, by design**: engine weights 40/35/25;
+   quick+deep complete ⇒ overall = 0.750 exactly, and the UI labels the
+   carve "Advanced Scanning" (`contract.ts:175`) — a healthy scan *shows*
+   75% at the carve boundary (documented divergence D-P6,
+   `docs/PARITY-DELTAS.md:55`). The defect is the freeze after it.
+2. **(User's v0.9.2 build) The 0 B size axis**: D4b (live `bytes_found`
+   through the ABI + bridge fill `events.rs:276/284/375-376`) shipped in
+   v0.9.0 — but the user's report predates/dates from v0.8.4 originally; if
+   their installed build is v0.8.4, `dataFoundBytes` was pinned 0 until
+   completion (the old `state.rs` G-3 latch). Verify the installed version
+   before re-diagnosing.
+3. **"No sector progress" persists even in the current tree**:
+   `tel_publish_` stamps live `bytes_scanned` **only for stage 2 (carve)**
+   (`cr_scan.cpp:510-518`); `stats.bytes_scanned` is only ever incremented
+   by the carve (`:2704`) and boundary stamps copy `stats` (`:545`). So
+   "Reading sector: 0/N" through the whole quick+deep phase (0→75%), then
+   moves only during the carve — at the validation-bound carve rate this
+   reads as "stuck in sector scanning" on multi-TB disks. The bytes-axis
+   D4a fix deliberately covered the carve only.
+4. **Stall classes fixed but possibly incomplete**: D4e (655 s deep remnant
+   freeze, fixed v0.9.1), D4f (605 s zero-region user-sign freeze, fixed
+   v0.9.2). If the user's machine runs v0.9.0, both are present; v0.9.1
+   carries D4e only; v0.9.2 carries both. **Any residual stall on v0.9.2 is
+   a NEW class** — the heartbeat proves liveness without progress
+   (`events.rs:337-…`, engine `cr_ui.cpp:1142-1204`), so the forensic
+   io-timeline is the discriminator.
+5. **Files-found counter**: `filesFound` = quick+deep+carved cumulative from
+   telemetry (`events.rs:361-363`); "21" was the real engine counter on the
+   user's earlier run (DIAGNOSIS.md:109). The live tree (browse-while-scan)
+   requires the lost-candidate/tree invalidations (`queries/scan.ts:51-56`)
+   — present.
+
+---
+
+## 6. ELEVATION SURFACES + SUBPROCESS CENSUS
+
+**Privilege model (current tree)**: launch-time only. `app.manifest:25`
+`requireAdministrator`, embedded via `build.rs:45-47`; NO runtime posture
+probe, NO relaunch command, NO banner (`commands/system.rs:4-13`;
+`contract.ts:826-832`; `queries/system.ts:41-43`). The historical banner
+(`ui/src/features/consent/elevation-banner.tsx`, amber hard-coded → re-themed
+in `c6ff7c10` → **deleted in `68460a4c`**) no longer exists. The only
+"restart as administrator" text reachable today is the error toast
+`errors.elevationRequired` (`i18n/en.ts:543-544`) shown when `scan_start`
+fails with engine `0x500C0001` (`tauri-connector.ts:138`;
+`home-page.tsx:104-107`). Note `Cargo.toml:29-33` still advertises
+"TokenElevation posture, the relaunch-as-admin verb" windows-sys features —
+a stale comment; no code uses them (grep: zero `ShellExecute`/`TokenElevation`
+in `src-tauri/src`).
+
+**Subprocess spawn sites (complete census)**
+
+| Site | Trigger | Window posture |
 |---|---|---|
-| `/` | `features/device-selection` | `home-page.tsx:57` |
-| `/sd-card` | `features/device-selection` | `sd-card-page.tsx:20` |
-| `/tools`, `/health` | `features/health` | `health-page.tsx:39` (both routes map to the same page, router.tsx:33,38) |
-| `/backup` | `features/backup` | `backup-page.tsx:17` |
-| `/scan/:deviceId/live` | `features/scan-progress` | `scan-progress-page.tsx:50` |
-| `/results/:scanId` | `features/results-explorer` | `results-route.tsx:22` → `results-explorer.tsx:63` |
-| `/recover/:scanId` | `features/recovery-queue` | `recovery-page.tsx:58` |
-| `/repair` | `features/repair` | `repair-page.tsx` |
-| `/settings` | `features/settings-about` | `settings-page.tsx` |
-| `/lost-partition` | `features/lost-partition` | `lost-partition-page.tsx` |
-| `*` | `features/results-explorer` | `page-fallback.tsx:8` |
+| `engine/src/win/cr_health.cpp:357-429` `query_trim_state` (fsutil) | **NOT called by health reads anymore** — health uses the per-device `query_trim_state_handle` (`:431-459`, no subprocess; called from `cr_ui.cpp:4981`). The fsutil path remains for the `_ex` enumeration TRIM flag (`cr_ui.cpp:1851`), which the bridge never sets (`util.rs:158/165` plain calls) | Direct `CreateProcessW`, `CREATE_NO_WINDOW` + `SW_HIDE` + pipes (`:384-394`) — the D2 fix |
+| `engine/src/win/cr_bitlocker.cpp:62-65` | BitLocker unlock/apply (PowerShell primary `:358/:376`, manage-bde fallback `:360/:381`) — only from the unlock dialog / apply flows | `CREATE_NO_WINDOW` |
+| `engine/src/win/cr_fsck.cpp` (chkdsk launcher, M-075) | Not reachable from the UI (no `cr_ui_fsck_volume` consumer) | `CREATE_NO_WINDOW` per header |
+| Rust shell (`ui/src-tauri/src`) | **None** — zero `Command::new`/`powershell`/`fsutil` anywhere | — |
+| Frontend | None | — |
 
-### Home / device list (`features/device-selection/home-page.tsx`)
-- States: loading skeletons (`:147-158`); device-list error EmptyState (`:160-178`); no-physical-devices EmptyState (`:180-192`); permission-denied banner (`:229-234`); disconnected banner (`:235-240`); success = internal drive cards + quick targets + sessions.
-- **Device visibility filter**: `physical = kind !== 'virtual'` (`:80`), `internal = kind === 'internal'` (`:81`), `visible = showRemovable ? removable : internal` (`:83`) where `showRemovable = params.has('media')` (`:77`). **Nothing in the app ever navigates to `/?media`** (grep: zero matches; the SD-card page's "show all external devices" toggle is local state only, `sd-card-page.tsx:26,176`). So Home lists *only* `kind === 'internal'` rows. The bridge classifies every removable disk as `'usb'` (`ui/src-tauri/src/commands/devices.rs:215` `kind: removable ? "usb" : "internal"`). **"Only 1 of 3 disks shown" is explained at the UI layer whenever 2 of 3 disks enumerate as removable** (or by engine-side enumeration loss — Agent C's sheet). Note the 'locked' volume still renders with an unlock dialog (`unlock-volume-dialog.tsx:23`).
-- Ops: `listDevices` (`devices_list`), `refreshDevices`, `startScan`, `pickDirectory` (`:66`), `listSessions`, `loadSession`, `resumeLastSession` (`:64,19`). Quick targets hardcode mock-era volume ids `vol-recycle-bin`/`vol-desktop` (`:54-55`) — the bridge resolves them via implicit pathScope (`devices.rs:252-258`).
-- Sessions list shows `filesFound` count (`:310`); `ContinueLastBanner` renders when sessions exist (`:292`).
-
-### Disk health (`features/health/health-page.tsx`)
-- Device picker via `usePhysicalDevices` (`hooks/use-physical-devices.ts:11-37`, `?device=` param, default first physical).
-- States: loading (`:69-84`), empty (`:86-98`), health loading (`:210-214`), health error EmptyState showing the raw bridge `error.message` — English, untranslated (`:215-222`), success = gauge + KPI tiles + SMART table.
-- Health score is **synthesized UI-side**: `status==='good' ? max(88, 100−wearPercent) : caution→72 : 38` (`:101-106`) — the bridge truthfully refuses to invent a percentage (`commands/health.rs:9-10,142`) but the UI invents one anyway.
-- Ops: `getHealth` → `health_read` (`commands/health.rs:19`), `listDevices`, `startScan` (`:56-66`).
-- **The console-popup symptom**: health reads trigger the engine's TRIM probe `cr_health.cpp:306` `_popen("fsutil behavior query disabledeletenotify 2>nul","r")` — `_popen` from a GUI-subsystem process flashes a **visible cmd.exe console** per call. (Other engine subprocesses use `CREATE_NO_WINDOW`: `cr_fsck.cpp:50-51`, `cr_bitlocker.cpp:63-64`.) See "OS/subprocess touches".
-
-### Scan live progress (`features/scan-progress/scan-progress-page.tsx`)
-- Full state machine below in "The scan-progress chain". States: no scanId → `ResultsPageFallback` (`:120-122`); starting/running/paused/stopping (footer cluster); completed → celebration modal (`:389-447`); deviceLost (paused + `deviceConnected===false`) → non-dismissable reconnect modal (`:294-324`); stop-confirm dialog (`:327-384`).
-- Renders `ResultsExplorer` in `liveMode` (browse-while-scan, `:139-143`).
-- The "Searching: <path>" ticker (`:148-157`) is **dead on the real backend**: the bridge never fabricates `currentPath` (`bridge/events.rs:191-193` G-2 comment — always `null`), so the strip never renders outside the mock.
-
-### Scan results (`features/results-explorer/results-route.tsx:22`)
-- Guard: `getScanState` fails/missing → `ResultsPageFallback` (`:41-43`); `status === 'cancelled'` → partial-results banner with rescan CTA (`:45-54,62-102`).
-- `results-explorer.tsx:63` — 3-pane (tree / virtualized list / preview); ops: `getResultTree`, `queryResults` (infinite, 200/page, `queries/results.ts:11,41-55`), `countResults`, `getNodeDetail`, `requestPreview`, `getThumbnail`, `saveSession`/`cancelSave`.
-- Dead surface: context-menu "Open location" item has **no onClick** (`results-explorer.tsx:476-484`) — the `openPath` contract op (`contract.ts:785`) is never invoked by any component; its enable-gate `connectorMode === 'mock'` reads `data?.connectorMode` which the real `system_app_info` never returns (`commands/system.rs:131-147` — no `connectorMode` key) so the value is stuck at `'loading'` (`queries/dev.ts:12`).
-
-### Recovery (`features/recovery-queue/recovery-page.tsx:58`)
-- Destination card + validation + live queue. Ops: `getScanState`, `listMountPoints`, `startRecovery`, `getRecoveryState/Items/Report`, `onRecoveryProgress`, `cancelRecovery`, `validateDestination`, `pickDirectory` (`:84-90,114,555,594,639,683`).
-- **Downstream casualty of the 0 B gap**: `avgFileBytes = dataFoundBytes/filesFound` else 2,400,000 (`:75-78`) — during a *live* scan `dataFoundBytes` is always 0 (see chain), so `neededBytes` collapses to 1 (`:79-82`) and the out-of-space gate can never trip from live-scan state.
-- Hardcoded English placeholder `"D:\\Recovered Files"` (`:382`).
-
-### Sessions / backup (`features/backup/backup-page.tsx:17`)
-- Ops: `listSessions`, `loadSession`, `resumeSession` (scan resume with targetId handoff `:47-49`). States: loading skeletons (`:123-127`), empty (`:128-140`), success list.
-
-### Settings (`features/settings-about/settings-page.tsx`)
-- Theme/density controls (`:63`), diagnostics log copy (in-memory buffer, `lib/logger.ts`), user-signs import via hidden `<input type=file>` → `loadUserSigns` **passes the file NAME, not content** (`:253` `loadUserSigns.mutate(file.name…)`) while the bridge's `system_load_user_signs` expects the document **text** (`commands/system.rs:198-210` — the comment explicitly says "the webview's file input hands over the DOCUMENT text"). The import is therefore broken end-to-end (reads a path as JSON).
-- "Data source" badge (`:204-217`): on the real backend `appInfo.data?.connectorMode` is `undefined` → badge renders **"tauri" with success styling regardless** (`'mock' ? warning : success`), and the About dialog's mirrored logic (`about-dialog.tsx:35-39`) renders **"mock" with warning styling** because it tests `=== 'tauri'` on the same undefined field. Two contradictory indicators of the same missing field.
-
-### Repair (`features/repair/repair-page.tsx`)
-- Device picker + dry-run card + apply/undo trio (`:69-74`). Ops: `repair_dry_run`, `repair_apply`, `repair_undo_log`, `repair_undo`. States: loading (`:408-413`), dry-run loading/error/success (`:448-452`), no-findings EmptyState (`:536`).
-
-### Lost partition (`features/lost-partition/lost-partition-page.tsx`)
-- Ops: `listDevices`, `startScan`, `applyLostPartition`, `undoLastApply`, `saveApplyUndo`, `apply_consent_pending` (4 s poll, `queries/lost-partition.ts:48`), `onApplyConsent` bridge (`:87`), `getScanState` (`:77`).
-- Live candidate rows come from the scan event stream (`ScanState.lostCandidates`, `contract.ts:236-242`; bridge join in `events.rs:287-313`).
-
-### Banner/dialog surfaces (global)
-- `ElevationBanner` — `features/consent/elevation-banner.tsx:16` (see dedicated section).
-- `ConsentModal` — `features/consent/consent-modal.tsx:30`: non-dismissable (Escape/outside prevented `:79-81`), both consent families, "Decline/Approve". Uses `text-amber-500` raw Tailwind (`:85`) — another off-token amber.
-- `ActivationDialog` (`settings-about/activation-dialog.tsx`) + orange "Buy Now" pill (`shell.tsx:150-157`).
-- Toasts: `sonner` via `components/ui/toaster.tsx`.
+**Defect reading**: on v0.9.0+ the "console flash when opening disk health"
+cannot come from the in-tree code (health reads spawn nothing; the remaining
+spawns are all `CREATE_NO_WINDOW`). See DEFECT TRACE #5.
 
 ---
 
-## State & query map
+## 7. Hard-coded / mocked / synthesized value census (real-connector build)
 
-**Stores (`ui/src/stores`, zustand):**
-- `scan-session-store.ts:20` — active/known scans, celebration-seen flag. Sidebar "scanning…" link keyed off `active` (`shell.tsx:279-299`).
-- `consent-store.ts:24` — global pending repair/apply consent events (navigation-safe).
-- `selection-store.ts` — results selection (all/ids/exclusions).
-- `filter-store.ts` — results filter/sort.
-- `ui-store.ts:41` — view mode, preview width, sidebar collapse (persisted `rw.ui.sidebarCollapsed`).
-
-**QueryClient defaults** (`queries/client.ts:4-16`): retry 1, staleTime 5 s, gcTime 5 min, **`refetchOnWindowFocus: false`**.
-
-**Queries (`ui/src/queries`)** — keys in `client.ts:18-42`:
-| Query | Hook | Poll/refresh |
+| Surface | Value | Citation |
 |---|---|---|
-| devices | `devices.ts:5` | none (staleTime 5 s default) |
-| scanState | `scan.ts:100-123` | **500 ms poll while running/starting/stopping** (`:118-120`); the 'stopping' poll is load-bearing (v0.8.0 forensic comment `:107-117`) |
-| scanProgress | `scan.ts:129-142` | **event stream, no polling** — `useSyncExternalStore` over `connector.scan.onScanProgress` (store per scanId, `scan.ts:22-84`) |
-| tree/results/count | `results.ts:21,34,58` | invalidated by the progress store every 10 % bucket (`scan.ts:37,51-56`) and on terminal status (`scan.ts:41-50`) |
-| preview/thumbnail | `preview.ts:7`, `results.ts:76` | staleTime 60 s / ∞ |
-| sessions | `sessions.ts:5` | default |
-| job/jobItems/report | `recovery.ts:95,103,122` | event-driven invalidation (`recovery.ts:34-45`) |
-| health | `health.ts:5` | staleTime 60 s, `retry: false` |
-| securityPosture | `system.ts:42-51` | staleTime 60 s, `retry: false`; comment claims refetch-on-focus keeps it truthful but `client.ts:10` disables focus refetches — **the comment is wrong; posture never refreshes after the first read** |
-| appInfo | `system.ts:5` | staleTime ∞ |
-| mounts | `system.ts:13` | staleTime 30 s |
-| repairDryRun/undoLog | `repair.ts:5,25` | default |
-| apply-consent pending | `lost-partition.ts:41-50` | 4 s poll |
+| SD-card page main card | "SD/MMC/MS PRO", "Others", "58 GB", "Disk2" — pure i18n strings, no device data; default selection id `'dev-sd'` (a mock id; the mock fixture is `dev-sdcard`) | `sd-card-page.tsx:27,:96-110`; `i18n/en.ts:131-134`; `fixtures.ts:393` |
+| SD-card "Scan Card" fallback | `beginScan(sdDevice?.id ?? 'dev-sd')` → `device-gone` refusal on the real bridge | `sd-card-page.tsx:37-38` |
+| Home "Select Folder" dialog | Hard-coded subfolder lists (`Users\Documents`…/`Projects`…) and `'C'` letter fallback — a mock-shaped browser, though `pickDirectory` (native) is what actually feeds the scan | `home-page.tsx:424-433,:510-513` |
+| Repair page dropzone/queue | `SAMPLE_REPAIR_FILES` with fake user paths (`C:\Users\umar0\…`), fake save path, **"Repair All" flips local state to 'repaired' + success toast — no backend call** | `repair-page.tsx:35-54,:78-80,:121-124` |
+| Repair "browse" button | `toast.info(savePath)` — dead button | `repair-page.tsx:343-350` |
+| Activation dialog | Fake license key on paste failure; activate → `providerUnavailable` (honest dead end) | `activation-dialog.tsx:54,:63` |
+| Health gauge score | Synthesized 88-100 / 72 / 38 from status+wear (UI invents the % the bridge refuses to) | `health-page.tsx:100-106` |
+| Health KPI extras | `· 512B` sector text; wear fallback `'2%'`; temperature bar fallback 35/36 °C | `health-page.tsx:403,:434,:348-353` |
+| Scan sector count | Hard-coded 512 B divisor (volume `sectorSize` exists in device data) | `scan-progress-page.tsx:131-132` |
+| "Searching:" ticker | Never renders on the real backend (`currentPath` always null) | `events.rs:193`; `scan-progress-page.tsx:155` |
+| SMART threshold column | Always `—` (bridge nulls it; ex2 never wired) | `health.rs:127-131`; `abi.rs:939-940` |
+| Quick-target ids | `vol-recycle-bin` / `vol-desktop` — resolved bridge-side to system volume + implicit scope (real) | `home-page.tsx:60-61`; `devices.rs:252-259` |
 
-**Stale/divergence notes:**
-- The scan-progress external store is ref-counted and torn down when the last subscriber leaves (`scan.ts:75-79`); progress events that fire while nobody is subscribed are lost, but `getScanState` priming (`scan.ts:60-68`) re-seeds one snapshot on remount.
-- `useScanState`'s 500 ms poll coexists with the event store; terminal transitions invalidate tree/results/count/sessions (`scan.ts:41-50`).
-- Device rows carry a fresh open-probe status each `devices_list` (`commands/devices.rs:128-134`) — an unelevated launch marks raw disks `permission-denied`, which feeds Home's amber banner (`home-page.tsx:229-234`) but does **not** hide the disks.
-- The found-files counters rendered during a live scan come exclusively from the event/telemetry path (below); they are exact engine counters, not UI-estimated.
-
----
-
-## The scan-progress chain (75 % / "Files Found: 21 (0 B)")
-
-**Contract types**: `ScanProgressEvent` `ui/src/connector/contract.ts:192-213` — `stage: ScanStage` (`:165-166`), `stageProgress`, `overallProgress` ("weighted across stages; monotonic", `:198-199`), `bytesScanned/bytesTotal`, `filesFound`, `dataFoundBytes`, `etaSeconds`, `currentPath`.
-
-**Full chain, engine → pixel:**
-
-1. **Engine** computes the overall permille as `weighted_progress(w, quick_pm, deep_pm, carve_pm)` = `(40·quick + 35·deep + 25·carve)/100` (`engine/src/core/orchestrator/cr_scan.cpp:131-146`; weights 40/35/25 set by the bridge's zero-init scan config, `ui/src-tauri/src/commands/scan.rs:5-6` doc + `cr_scan.cpp` stage weights). Stage permilles are clamped monotonic (`cr_scan.cpp:494-520` `tel_publish_`, `:464-482` `tel_stage_end_`). **When quick=1000 and deep=1000 and carve=0, overall is exactly 750 permille = 75 %** — the instant deep-walk ends, overall locks at 75 % until carve starts publishing. A stuck-at-75 % display therefore means the engine's carve stage is not advancing its permille (or the scan genuinely sits at the deep→carve boundary) — the UI merely renders it.
-2. **Bridge** consumes `CR_EVT_SCAN_PROGRESS` (`ui/src-tauri/src/bridge/events.rs:266-272`): `live.overall = evt.overall_permille/1000`, clamped monotonic (`:269-270`); `CR_EVT_SCAN_STAGE` maps engine stage ids `0→quick-index, 1→deep-walk, 2→carve` (`:256-262`); `CR_EVT_FILES_FOUND` sets `live.files_found = files+deleted+carved` (`:274-277`); telemetry snapshot overwrites counters at emit time (`:357-377`, `bytes_scanned` at `:360`, files at `:361`, throughput/ETA at `:362-376`).
-   **`live.data_found_bytes` is NEVER updated during the scan** — it is zero-initialized (`bridge/state.rs:136`) and only filled when `run()` returns, by walking the frozen snapshot's metas (`commands/scan.rs:416-443`; grep for `data_found` shows no other writer). The ABI event struct carries no found-bytes field (`bridge/abi.rs:125-150`). **So every live progress event says `dataFoundBytes: 0` → the UI renders "(0 B)" for the whole scan.** (The engine itself tracks `stats.bytes_found` internally, `cr_scan.cpp: tel_counts_` — it just never crosses the ABI during the run.)
-3. **Compose/emit**: `compose_scan_progress` (`events.rs:155-195`) emits `scan-progress:{scanId}` (`events.rs:234,398`) with `"overallProgress": overall` (`:180`), `"stage"` (`:178`), `"bytesScanned"` (`:181`), `"filesFound"` (`:183`), `"dataFoundBytes"` (`:184`), `"currentPath": null` always (`:193`).
-4. **TS connector**: `ui/src/connector/tauri/tauri-connector.ts:229-239` — `listen('scan-progress:${scanId}')`.
-5. **React layer**: `queries/scan.ts:22-84` external store; `useScanProgress` (`:129-142`).
-6. **Render** (`features/scan-progress/scan-progress-page.tsx`):
-   - Percentage driver: `const overall = progress?.overallProgress ?? 0` (`:80`) → `ProgressGauge value={overall}` (`:161-166`, circle + text at `components/ui/progress.tsx:50-108`, hardcodes `#1677FF`/`#D0E2FF`) **and** the label `t('scan.advancedScanning', { percent: formatPercent(overall) })` (`:179-181`; `formatPercent` at `lib/format.ts:127-131`; string `'Advanced Scanning {{percent}}'` at `i18n/en.ts:155`, zh `'高级扫描 {{percent}}'` `zh-CN.ts:153`).
-   - Stage-label driver: `const phase = scanPhaseOf(progress?.stage ?? 'volume-analysis')` (`:83`) — `scanPhaseOf` (`contract.ts:171-175`): `deep-walk|carve → 'advanced'`. So "Advanced Scanning 75 %" requires `stage ∈ {deep-walk, carve}` and `overallProgress = 0.75`.
-   - **"Files Found: 21 (0 B)"**: `t('scan.filesFoundWithSize', { count: progress?.filesFound ?? 0, size: formatBytes(progress?.dataFoundBytes ?? 0) })` (`:183-188`; string at `en.ts:153`). `filesFound=21` is genuine engine counter data (files+deleted+carved, `events.rs:275/361`); `(0 B)` is the bridge gap in step 2. `formatBytes(0)` → `"0 B"` (`lib/format.ts:13-31`).
-   - **Sector progress**: `sectorsScanned = floor(bytesScanned/512)`, `sectorsTotal = floor(bytesTotal/512)` (`:124-125`) — **hardcoded 512** despite `Volume.sectorSize` existing in the contract (`contract.ts:116`); rendered as "Reading sector: X/Y" (`:258-262`, `en.ts:157`). "No sector progress" = `tel.bytes_scanned` not advancing in the engine telemetry (bridge merely forwards, `events.rs:360`).
-   - ETA "Remaining time" (`:246-252`), pause/resume/stop (`:203-241`), used-time on completion (`:264-268`).
-7. **Terminal correction**: when `run()` returns, `commands/scan.rs:428-443` latches exact `files_found`/`data_found_bytes` into `Terminal` + `live`, and the final emit (`:446-453`) plus `compose_scan_progress`'s terminal branch (`events.rs:166-169`) snap `overall=1.0`, `stage=done`, exact counters — the numbers only become truthful at scan end. `getScanState` during the live scan returns the same 0-byte progress (`commands/scan.rs:610-618`).
-
-**Mock behavior for contrast** (`connector/mock/mock-connector.ts`): stage weights 0.04/0.14/0.42/0.24/0.16 (`:143-149`), overall computed per tick (`:589-596`), found-file curve `floor(stats.files · (1−e^(−3.4·overall)))` (`:615-625`), dataFound follows the same curve — the mock **never** produces "21 (0 B)" nor a 75 % plateau.
+**Which connector is active in the shipped build**: the REAL one. The factory
+defaults to `tauri` when `VITE_CONNECTOR` is unset (`connector/index.ts:23-26`);
+`build.ps1:165` runs `pnpm tauri build` → `beforeBuildCommand: pnpm build`
+(`tauri.conf.json`) with no env override; no `.env` file exists. Mock is pinned
+only for `pnpm dev` (`package.json:12`), vitest (`vite.config.ts:67-69`), and
+the e2e lane (`.github/workflows/ui-e2e.yml` builds with `n: mock`). The
+`__rwInjectConsent` window hook and DevPanel are mock-only and absent in
+shipped builds (`connector/index.ts:50-65`; `dev-panel.tsx:50`).
 
 ---
 
-## The elevation prompt surface
+## 8. State management summary
 
-**Component**: `ui/src/features/consent/elevation-banner.tsx:16-47`, mounted once in the shell above every page's `<Outlet/>` (`app/shell.tsx:350`).
-
-**Visibility logic** (`elevation-banner.tsx:21-22`): render only when the posture query has data AND `posture.data.administrator === false`. `isLoading || isError || !data → null`. Because `useSecurityPosture` sets `retry: false` (`queries/system.ts:49`), **any invoke failure silently suppresses the banner** — no error surface exists for a failed posture probe.
-
-**Unelevated decision chain**: `connector.system.getSecurityPosture()` (`queries/system.ts:44-45`) → `invoke('system_security_posture')` (`tauri-connector.ts:425-427`) → Rust `commands/system.rs:70-79` → Win32 TokenElevation probe `is_elevated()` (`system.rs:37-60`, OpenProcessToken/GetTokenInformation/TokenElevation). Registered at `lib.rs:84`. Non-Windows → always false (`system.rs:62-68`).
-
-**Relaunch action**: `useRelaunchElevated` (`queries/system.ts:53-57`) → `invoke('system_relaunch_elevated')` (`tauri-connector.ts:428`) → `commands/system.rs:84-124`: `ShellExecuteW(hwnd=null, "runas", <own exe>, null, null, SW_SHOWNORMAL)` (`:88-103`); rc ≤ 32 → bridge error `DEVICE_PERMISSION` "the elevation request was refused…" (`:105-111`); on success `app.exit(0)` (`:113`). The only OS-visible subprocess from this flow is the standard UAC consent prompt (by design).
-
-**"No elevation request at launch" context**: the app exe has **no requireAdministrator manifest** anywhere in the repo (grep over `installer/`, `src-tauri` finds only NSIS comments; the NSIS *installer* is `RequestExecutionLevel admin`, `installer/recoverywizard.nsi:151`, but the installed Tauri app exe itself is asInvoker). The design is user-mode + banner + manual relaunch (`system.rs:1-9` doc); the banner is the only launch-time elevation signal, and it depends entirely on the fragile query above. (The portable lane is explicitly "no install — run as administrator", `build.ps1:216`.)
-
-**Styling — the "ugly/off-theme" root cause** (`elevation-banner.tsx:25-45`):
-- Banner div: `border-b border-amber-300 bg-amber-50 px-4 py-2 text-[13px] text-amber-900` + dark `amber-500/40`, `amber-500/10`, `amber-200` (`:27`).
-- Button: `variant="secondary"` + overrides `border-amber-400 bg-transparent text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/20` (`:31-34`).
-- These are **raw Tailwind amber palette classes** — they bypass the app's entire semantic token system. The token layer defines the sanctioned warning surfaces: `--warning/--warning-vivid/--warning-muted` (`styles/tokens.css:71-73`, dark `:157`, HC `:212-214,263-265`) and Tailwind maps them to `bg-warning-muted`/`text-warning` utilities (`styles/index.css:41-43`). Every other banner in the app uses them (Home permission banner `home-page.tsx:230`; disconnected `:236`; partial-results `results-route.tsx:75`). The amber literals also clash with both identity palettes in play (see Theming) and with `#EBF2FF` ice-blue window frame (`shell.tsx:130`). Same disease in `consent-modal.tsx:85` (`text-amber-500`).
-
----
-
-## OS/subprocess touches from the UI
-
-Frontend (webview) side — only two Tauri API import sites beyond the connector: `getCurrentWindow` in `shell.tsx:4` (title-bar drag/double-click maximize `:123-127`) and `window-controls.tsx:2` (min/max/close on the custom chrome; hidden in browser runtime via `lib/runtime.ts:18`). No `@tauri-apps/plugin-*` imports in `ui/src` — plugins are Rust-side only (`lib.rs:30-31` dialog + opener).
-
-Rust shell/bridge (spawn/execute inventory):
-| Site | What | Visible window? |
-|---|---|---|
-| `commands/system.rs:88-103` | `ShellExecuteW "runas"` own exe (elevation relaunch) | Standard UAC prompt only (intended) |
-| `commands/system.rs:368-388` | `system_pick_directory` → `tauri_plugin_dialog` blocking folder picker | Native dialog (intended) |
-| `commands/system.rs:390-412` | `system_open_path` → `tauri_plugin_opener` (`open_path` dirs / `reveal_item_in_dir` files) | Explorer window — **currently unreachable from the UI** (dead context item, `results-explorer.tsx:476-484`) |
-| `bridge/events.rs:250,418`, `commands/scan.rs:362`, `commands/recovery.rs:318`, `bridge/logging.rs:233` | plain `std::thread::spawn` emitter/run/log threads | none |
-| engine `cr_fsck.cpp:50-51` `live_spawn` (chkdsk/fsck) | `CreateProcessW` with **`CREATE_NO_WINDOW`** | no |
-| engine `cr_bitlocker.cpp:63-64` `run_command` (manage-bde / powershell Unlock/Disable-BitLocker, `:358,376`) | `CreateProcessW` with **`CREATE_NO_WINDOW`** | no |
-| engine `cr_health.cpp:306` `query_trim_state` | **`_popen("fsutil behavior query disabledeletenotify 2>nul","r")`** | **YES — `_popen` from a GUI-subsystem parent (main.rs:2 hides the app's own console only in release) spawns a visible cmd.exe console per health read. This is the "console popups when opening disk health" symptom.** |
-
-Also note `commands/system.rs:321-334`: destination validation writes+deletes a real probe file `.rw-probe-<pid>` in the target dir (not a subprocess, but a filesystem touch from a UI-initiated command).
+- **zustand stores**: `ui-store` (view/preview-width/sidebar; persisted
+  `rw.ui.*` in localStorage), `scan-session-store` (active scan + known ids +
+  celebration flag; memory only), `selection-store` (results selection;
+  memory), `filter-store` (results filter/sort/tree; memory),
+  `consent-store` (pending consent events; memory).
+- **TanStack Query** is the server-state layer; keys in `queries/client.ts:18-41`.
+  Scan progress is an external store over the event stream (not query cache).
+- **localStorage keys**: `rw.ui.theme`, `rw.ui.density`, `rw.ui.locale`,
+  `rw.ui.sidebarCollapsed`, `rw.ui.viewMode`, `rw.ui.previewPaneWidth`,
+  `rw.ui.scale`.
+- **Source of truth per screen**: devices/health/scan/results/recovery/sessions
+  = the engine through the bridge (poll + events); selection/filters/theme =
+  local stores. The engine is authoritative for scan status (ExitGuard
+  re-reads it on close, `exit-guard.tsx:62-76`).
 
 ---
 
-## Theming system + bypasses
+## 9. DEFECT TRACE (per user-reported defect)
 
-**Architecture** (ADR-007, 3 layers):
-1. Adopted raw palettes: `ui/src/theme/adopted/tokens.css` (immutable) — `:root` light = Apple-system neutrals (`#ffffff/#f5f5f7`, text `#1d1d1f/#6e6e73`) with **coral ink `#ff6b4a`** brand + `--cta-gradient` blue override; `[data-scheme=dark]` graphite; `[data-theme=ember|tide|blossom]` custom families (`adopted/themes.ts:33,46-52`).
-2. Semantic mapping: `ui/src/styles/tokens.css:26-139` — surfaces/text/status/focus/radius/motion + a11y-darkened text grades (`--accent:#b83410`, `--warning:#a84c07`, `--danger:#d70015`), CTA gradient `#1f7dff→#0066ff` (`:60-62`), dark-family lifts (`:148-169`), derived `.hc` high-contrast layer (`:185-278`), density (`:281-286`).
-3. Tailwind v4 `@theme inline` mapping: `ui/src/styles/index.css:18-86` (`--color-primary: var(--accent)` etc.), dark variant keyed off `[data-scheme='dark']` (`:15`).
-ThemeProvider: `app/theme.tsx:100-155` — modes system/light/dark/ember/tide/blossom/high-contrast, persisted `rw.ui.theme` (note: adopted module's own `diskgenie.theme` key `themes.ts:78` is unused by the app).
+### D1 — disks page does not show all disks (2 internal + 1 SD)
 
-**The product's *actual* visual identity is a second, hardcoded palette** — the EaseUS-style chrome baked inline: window frame `bg-[#EBF2FF]` (`shell.tsx:130`), primary blue `#1677FF` (+hover `#0958D9`, pressed `#003EB3`), borders `#DCE8FF/#C8DAF5/#E2E8F0`, text `#1E293B/#334155/#64748B/#7A8BA8`, orange buy pill `#FF7A2F→#FF4D00` (`shell.tsx:153`), plus alternate blues `#0066FF/#0052CC` in scan dialogs (`scan-progress-page.tsx:377,437`). `ProgressGauge` hardcodes `#1677FF/#D0E2FF` (`components/ui/progress.tsx:72,80`).
+Chain: `home-page.tsx:66` → `queries/devices.ts:5-10` → `tauri-connector.ts:196`
+→ `devices.rs:426-434` → `list_devices :107-232` → `util.rs:156-169` →
+`engine cr_ui.cpp:1937-1938` → `engine cr_enumerate.cpp` → rows → group render
+`home-page.tsx:250-298`.
 
-**Bypass inventory (theme-token violations):**
-- `elevation-banner.tsx:27,34` — raw `amber-*` (the user's complaint; worst offender, see above).
-- `consent-modal.tsx:85` — `text-amber-500` icon (raw amber).
-- Hundreds of inline hex utilities across pages (`shell.tsx`, `home-page.tsx`, `health-page.tsx`, `backup-page.tsx`, `sd-card-page.tsx`, `scan-progress-page.tsx:150,160,183,276,360,377,427,437` …) — they bypass `--accent`/`--warning`/etc., so switching to ember/tide/blossom changes only the mapped utilities, not the hardcoded chrome: the "premium, theme-consistent" bar is structurally unmet for any non-default palette.
-- SVG illustration literals (`scan-progress-page.tsx:453-527`, `sd-card-page.tsx:205-232`) — off-token decoration colors.
+Candidates ranked:
+1. **v0.9.2 build carries the shifted bus table** (fixed only in `eb4bb5f3`,
+   unreleased): SATA disks → `removable=1` → `kind:'usb'` → wrong group,
+   "Internal drives (N)" undercounts, page reads as incomplete
+   (`engine/include/cr/win/cr_enumerate.h:113-119` pre-fix; commit eb4bb5f3).
+2. **Current-tree integration gap**: `bus_type` appended to the engine ABI but
+   never consumed by the bridge (`cr_ui.h:435` vs `abi.rs:172-189`;
+   `devices.rs:215`) → SD remains `kind:'usb'`; `/sd-card` page's
+   `kind==='sd'` filter is permanently empty; the visible "SD card" card is a
+   hard-coded fake (`sd-card-page.tsx:30-33,96-110`).
+3. Engine-side present-but-unopenable drop — fixed in v0.9.0
+   (`cr_enumerate.cpp:110-175`); only relevant if the installed build is
+   older.
+4. UI filtering — ruled out for the current tree (both groups render).
+5. Refresh race — ruled out (no engine cache; `devices.rs:426-444` identical
+   paths).
+
+### D2 — SMART/health only shows the FIRST disk; switching shows NOTHING
+
+Chain: `health-page.tsx:51` → `queries/health.ts:5-13` (per-device key) →
+`tauri-connector.ts:445-447` → `health.rs:19-157` → `cr_ui_health_read` →
+`engine cr_ui.cpp:4888-4995`.
+
+Candidates ranked:
+1. **D-NVMe-01 in the user's v0.9.2 build**: the packed NVMe query buffer
+   (offset-9 `STORAGE_PROTOCOL_SPECIFIC_DATA`) made every real NVMe
+   controller refuse → NVMe-only disks hit the both-absent gate
+   (`health.rs:54-59`) → error EmptyState = "nothing". First disk (SATA/ATA)
+   works. Fixed in `eb4bb5f3` only.
+2. **Current-tree stack overflow** (introduced by `eb4bb5f3` + stale bridge):
+   engine `cr_ui_smart_report` = 240 B (appended `power_cycles_nvme`,
+   `cr_ui.h:1569`) vs Rust `CrUiSmartReport` = 232 B (`abi.rs:646-681`);
+   the engine's `memset(rep, 0, sizeof(*rep))` (`cr_ui.cpp:4892`) writes 8
+   bytes past the Rust stack buffer on every health read. Any next build will
+   ship UB on the health path. **Fix the bridge struct before anything else.**
+3. Threshold/ex2 not wired (cosmetic): `abi.rs:939-940`, `health.rs:127-131`.
+4. UI-side keying/staleness — ruled out (per-device query keys, §4).
+
+### D3 — scan jumps to 75% "advanced scanning", "files found 21 (0 B)", no
+sector progress, stuck
+
+Chain: `home-page.tsx:97-110` → `queries/scan.ts:88-98` → `scan.rs:91-110 →
+116-332 → 339-460` → `events.rs:241-411` → `scan-progress:{id}` →
+`queries/scan.ts:20-84` → `scan-progress-page.tsx:166-313`.
+
+Candidates ranked:
+1. **75% is the designed weight boundary** (40/35/25; quick+deep = exactly
+   750‰) combined with the single "Advanced" label for deep+carve
+   (`contract.ts:171-176`) — the number itself is legitimate; the stall is
+   the defect.
+2. **The bytes axis is carve-only in the current tree**: `tel_publish_`
+   stamps live `bytes_scanned` only for stage 2 (`cr_scan.cpp:510-518`);
+   `stats.bytes_scanned` accrues only from the carve (`:2704`). "Reading
+   sector: 0/N" for the entire quick+deep phase, then carve-crawl — the
+   user-visible "no sector-scanning progress / stuck" persists even with all
+   D4 fixes in.
+3. **Version skew**: "21 (0 B)" is the v0.8.4-era symptom (dataFoundBytes
+   pinned 0 until terminal). v0.9.0+ fills it live (`events.rs:276,284,375`).
+   Confirm the installed version; if the user still sees 0 B on v0.9.2, the
+   engine's `tree_.live_logical()` counter is the suspect (engine lane).
+4. **Residual stall class on v0.9.2**: D4e/D4f fixed the two known freezes;
+   any remaining multi-minute freeze is new — the heartbeat event
+   (liveness-without-progress) + forensic io-timeline discriminate.
+5. UI event loss — ruled out (external store + poll fallback + terminal
+   bridge; coalescing channel only drops superseded samples).
+
+### D4 — restart-as-admin prompt with broken theme/colors when not elevated
+
+Chain (current tree): none — no elevation UI exists; the only reachable text
+is the toast `errors.elevationRequired` on `scan_start` refusal
+(`home-page.tsx:104-107`; `tauri-connector.ts:138`), and toasts are
+token-themed (`toaster.tsx:13-34`).
+
+Candidates ranked:
+1. **The installed build predates v0.9.0** (v0.8.x): that tree carried
+   `elevation-banner.tsx` with the raw-amber Tailwind classes (D-UI-01,
+   `worklog/DIAGNOSIS.md:136-143`) — the *exact* "broken theme/colors"
+   symptom. The banner was re-themed in `c6ff7c10` and deleted in `68460a4c`.
+   A stale installed artifact explains the report with zero code changes
+   needed.
+2. **Manifest not embedded in the artifact the user runs** (portable zip /
+   cached exe / different lane): then the app runs asInvoker, the engine's
+   BF-28 gate returns `ERR_ELEVATION_REQUIRED` on first scan, and the user
+   sees the toast — but a toast would be correctly themed, so this only
+   explains the *prompt*, not the *colors*.
+3. The launch-time UAC consent (OS chrome) being read as "the prompt" —
+   possible but OS-styled, not "broken theme".
+
+### D5 — visible console windows flash when opening disk health
+
+Chain (current tree): health read spawns **no** subprocess
+(`cr_ui.cpp:4981` per-device TRIM; `cr_health.cpp:431-459`). Census in §6.
+
+Candidates ranked:
+1. **The installed build predates the D2 fix** (`68460a4c`, v0.9.0): the
+   v0.8.x engine's `cr_health.cpp:306` used `_popen("fsutil …")` — one
+   visible cmd.exe flash per health read (`worklog/DIAGNOSIS.md:41-58`).
+   Same stale-artifact hypothesis as D4.
+2. **Stale `cr_ui.dll` beside the exe**: the ABI gate in `lib.rs:98-107` only
+   LOGS a version mismatch (does not refuse to serve devices/health); the
+   exe's static imports bind whatever same-named DLL is beside it. An old DLL
+   (with `_popen`, old enumeration) can be loaded and serve `health_read` →
+   flash returns. Verify the deployed DLL's ABI stamp.
+3. BitLocker/repair flows (PowerShell `CREATE_NO_WINDOW`) — correctly hidden;
+   not reachable from "opening disk health".
 
 ---
 
-## Localization
+## 10. Other broken-looking surfaces noticed
 
-- Two locales: `en`, `zh-CN` (`i18n/index.ts:5,17-20`); detection = stored `rw.ui.locale` → `navigator.language` zh-prefix → en (`:11-22`); language switcher in the title-bar dropdown (`shell.tsx:183-190`); `document.documentElement.lang` maintained (`:38,42`).
-- Practically complete translation coverage in the two dictionaries (en.ts 534+ keys, zh-CN.ts mirrored).
-- **User-visible untranslated English:**
-  - All bridge/engine error **messages** rendered raw: health error EmptyState (`health-page.tsx:219`), scan start toasts (`home-page.tsx:98` renders `t(reasonKey)` when present but `err.message` otherwise), consent/toast errors across pages. The Rust messages are English literals (`commands/system.rs:108-110,402`; `devices.rs:27,499`; …).
-  - `recovery-page.tsx:382` placeholder `"D:\\Recovered Files"`.
-  - `shell.tsx:61` `ariaLabel: 'Hardware Disk (Internal Drives)'` hardcoded English.
-  - About/settings "Data source" badges mislabel on the real backend (see Settings section).
-- Formatting is locale-aware via Intl (`lib/format.ts`) with tabular numerals enforced (`styles/index.css:110-117`).
+- **Repair page is a fake product surface**: the dropzone/queue/Repair-All
+  flow never touches the backend (`repair-page.tsx:121-124`); only the hidden
+  "Advanced Repair" workbench is real. A user "repairing files" there is
+  watching local state flip.
+- **SD-card page is a fake product surface** (§7) — static card row, mock
+  default id, dead "Get Help" toast.
+- **`devices.rs` kind axis**: even post-D-ENUM-02, SD→'usb' merge persists at
+  the bridge (BF-02/BF-31 only half-closed).
+- **`abi.rs` header-pin discipline broken by `eb4bb5f3`**: two engine ABI
+  appends (bus_type, smart-report tail) are missing from the Rust binding;
+  one causes the §9-D2-2 stack overflow. The stated process
+  ("this file gains it in the same position", `abi.rs:10-12`) was not
+  followed; `contracts/validate.mjs` phase 2 checks commands, not struct
+  layouts.
+- **Mock/test blind spots**: mock stage weights (0.14/0.42/0.24,
+  `mock-connector.ts:149-153`) never reproduce the real 40/35/25 "75%"
+  presentation; e2e runs only against the mock connector
+  (`.github/workflows/ui-e2e.yml`); the real chain is exercised only by the
+  forensic-repro lane.
+- **`lib.rs:98-107` ABI gate is log-only** at startup (scan_start refuses
+  per-scan; devices/health do not) — a mismatched engine kit degrades
+  silently on the exact surfaces the user reports.
+- **Stale doc comment**: `Cargo.toml:29-33` claims a TokenElevation probe +
+  relaunch verb that no code implements.
+- **Hard-coded 512 B sector divisor** for the "Reading sector" display
+  (`scan-progress-page.tsx:131-132`) — wrong on 4Kn drives.
+- **Health KPI fabrications** (gauge score, '2%' wear fallback, '· 512B')
+  contradict the bridge's no-fabrication discipline
+  (`health-page.tsx:100-106,403,434`).
 
----
+## 11. Recommended next actions (for the lead agent)
 
-## Mock-vs-real connector selection
-
-- Factory: `ui/src/connector/index.ts:23-37` — `VITE_CONNECTOR === 'mock'` (exact string) → `MockConnector`; **anything else, including undefined, → the real Tauri connector**. Default is tauri (`index.ts:4-11` doc; flipped at P4).
-- Mock entry points: `pnpm dev` script pins `VITE_CONNECTOR=mock` (`ui/package.json:12`); vitest pins it via `vite.config.ts:67-69` (`test.env`); `ui-e2e.yml:48-50` builds with `env: VITE_CONNECTOR: mock`.
-- **Shipped builds do NOT set it**: `build.ps1` ui lane → `pnpm tauri build` (`build.ps1:165`) → `tauri.conf.json` `beforeBuildCommand: "pnpm build"` (`ui/src-tauri/tauri.conf.json`) → plain `vite build` (`package.json:13`) with no env → tauri. `release.yml` runs `./build.ps1 -Target all` with only `CR_UI_LIB_DIR` manipulation (release.yml:62-66) — no `VITE_CONNECTOR` anywhere in the release lane. `ui-ci.yml:91` `pnpm build` — also unpinned → tauri. No `.env` files exist under `ui/`.
-- Mock fixtures contain **no "21"** as a files-found value and no 75 % plateau: the only near-miss is `21_000` fileCount for the USB device (`connector/mock/fixtures.ts:563`) and a "~21 s" quick-pass comment (`mock-connector.ts:141`); the mock's live `dataFound` is a nonzero saturating curve (`mock-connector.ts:622-625`) and its overall spans 0→1 across 5 weighted stages (`:143-149,589-596`). **The user's observed "21 (0 B)" at 75 % cannot come from mock leakage — it is real-bridge data** (engine counters + the `dataFoundBytes` live-gap + the engine's 40/35/25 weighted overall, see the chain).
-- Mock-only side effects guarded: `window.__rwInjectConsent` e2e hook exists only when the mock backend is active (`index.ts:50-65`); dev-panel scenario controls return null on the real connector (`index.ts:71-80`).
-
----
-
-### Cross-cutting defects surfaced by this map (candidate work items)
-1. Live `dataFoundBytes` is always 0 (bridge gap, no ABI event field) → "(0 B)" during the entire scan + corrupted recovery space-estimate (`recovery-page.tsx:75-82`).
-2. Engine weighted overall mathematically parks at exactly 75 % between deep-walk completion and carve progress (cr_scan.cpp:131-146) → "stuck at 75 %, Advanced Scanning".
-3. Sector counter hardcodes 512-byte sectors (`scan-progress-page.tsx:124-125`).
-4. "Searching: <path>" ticker can never render on the real backend (`events.rs:193`).
-5. `_popen` fsutil in health path flashes consoles (engine `cr_health.cpp:306`).
-6. Home page's `?media` removable view is unreachable; internal-only filter hides removable disks.
-7. Elevation banner + consent icon use raw amber Tailwind classes, bypassing tokens; broad hardcoded-blue chrome undermines the multi-palette token system.
-8. `connectorMode` missing from real `system_app_info` → About shows "mock" warning badge, Settings shows "tauri" success badge (both wrong), context-menu "Open location" gate stuck at 'loading' and the item has no onClick (dead `openPath` op).
-9. Posture query `retry:false` + no focus refetch → a transient invoke failure permanently hides the elevation banner for the session.
-10. Settings user-signs import passes `file.name` instead of file contents (`settings-page.tsx:253` vs `commands/system.rs:198-210`).
+1. Re-pin `ui/src-tauri/src/bridge/abi.rs` to the current `cr_ui.h` (add
+   `bus_type`, `threshold`, `power_cycles_nvme`, declare
+   `cr_ui_health_read_ex2`) — this removes the 8-byte stack overflow AND
+   unlocks the D-ENUM-02 kind split + BF-03 threshold column.
+2. Update `commands/devices.rs:215/:382` to derive `kind` from `bus_type`
+   (USB/SD/MMC classes; NVMe/SATA/… → internal) with `removable` as the
+   documented fallback.
+3. Verify the version of the user's installed build + the ABI stamp of the
+   deployed `cr_ui.dll` (D4/D5 stale-artifact hypothesis decides half the
+   register).
+4. Engine lane: extend the live `bytes_scanned` stamp to stages 0/1 (D4a-2)
+   so "Reading sector" moves during quick+deep.
+5. Replace the fake SD-card and Repair surfaces with real flows or gate them
+   behind the workbench until real.
