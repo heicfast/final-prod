@@ -228,7 +228,7 @@ export interface ScanProgressEvent {
   readonly currentSector?: number | null;
   readonly currentSectorTotal?: number | null;
   /** The target's logical sector size (the "Reading sector" divisor —
-  * never a hard-coded 512). */
+   * never a hard-coded 512). */
   readonly sectorSize?: number;
 }
 
