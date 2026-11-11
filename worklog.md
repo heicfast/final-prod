@@ -2890,3 +2890,16 @@ Remaining in lane C's scope: the deferred img- scan-target arm + the
 TRIM chip (both wait on lane D's defect-train green per COORDINATION),
 and the maintenance screens (fsck verdict + bitlocker confirm) once the
 SD/health surfaces stabilize.
+
+## Lane C — T-C5: the e2e coverage + the visual record
+
+Three new e2e specs (e2e/lane-c-surfaces.spec.ts, all green locally
+against the mock-mode preview and on CI's ui-e2e): the sector map's
+collapsed→open→overlay-switch flow with the legend vocabulary; the
+completion celebration's engine verdict (the percentage form + the
+matched/total line + the category row); and the Create Image flow's
+truthful no-cancel posture (dialog → destination → running note +
+"continue in background", the stop-button absence asserted, completion).
+Four screenshots captured as the visual record (create-image dialog, the
+map on coverage + allocation mid-scan, the celebration with the
+recoverability card): 1280×832, content-verified.
