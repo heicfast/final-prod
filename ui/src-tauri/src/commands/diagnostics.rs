@@ -40,6 +40,8 @@
 
 use serde_json::{json, Value};
 
+use std::sync::Arc;
+
 use crate::bridge::abi;
 use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 use crate::bridge::state::{BridgeState, ScanKind};

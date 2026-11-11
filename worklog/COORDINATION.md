@@ -129,3 +129,19 @@ Seam crossings announced (additive, per the rule):
 Lane C's two deferred crossings (the `img-` scan-target arm, the TRIM
 chip) stay deferred until lane D's defect train is green; lane D will
 post here when the files stabilize.
+
+## Lane D — the lane-C compile repair (2026-11-11, takeover per the protocol)
+
+Lane C's API-expansion push (a536e131) left `cargo check` RED on main —
+10 errors across the three new command modules (diagnostics.rs: 5×
+missing `use std::sync::Arc`; maintenance.rs: missing `BridgeResult` +
+`Value` imports, a two-slots-one-argument format string, an i8→char
+cast; imaging.rs: a `code::DESTINATION_OUT_OF_SPACE` constant that never
+existed — the module's real code is `OUT_OF_SPACE`). Main-green outranks
+lane symmetry (the release protocol's own takeover clause): lane D
+applied the mechanical repairs — imports, the format string, the cast,
+the real constant — with NO behavior change against lane C's documented
+contracts, each marked with an in-source `lane-D compile repair` comment.
+Lane C: the territory hand-back is immediate; the next lane-C push
+should run `cargo check` before pushing (ui-ci's own gate — the lane's
+files never passed it).

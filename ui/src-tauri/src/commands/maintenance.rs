@@ -33,10 +33,17 @@
 //! promise IS the lifecycle (fsck's 15-minute bound is documented; the
 //! UI renders a bounded-progress posture from the documented bound).
 
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{check, code, BridgeError};
+use crate::bridge::error::{check, code, BridgeError, BridgeResult};
+
+// The lane-D compile repair (2026-11-11, announced in COORDINATION.md —
+// lane C's push left `cargo check` red): `BridgeResult` was referenced
+// at :45 without the import, `Value` at :76/:144 through a `json`-only
+// import, and the bitlocker-off log line carried two `{}` slots for one
+// argument plus an i8→char cast. Mechanical repairs only — no behavior
+// change against lane C's documented contracts.
 
 /// Parse the UI's volume argument ("E" / "e:" / "E:\\") to the engine's
 /// narrow-ASCII letter. The typed refusal for anything else matches the
@@ -137,7 +144,7 @@ unsafe extern "C" fn bitlocker_progress_sink(
     } else {
         "request started"
     };
-    crate::bridge::logging::info(&format!("bitlocker-off {}:{} {tick}", pipe.letter as char,));
+    crate::bridge::logging::info(&format!("bitlocker-off {}:{tick}", pipe.letter as u8 as char));
 }
 
 #[tauri::command]
