@@ -41,6 +41,8 @@ import {
 import { ResultsExplorer } from '@/features/results-explorer/results-explorer';
 import { toast } from 'sonner';
 import { ResultsPageFallback } from '@/features/results-explorer/page-fallback';
+import { SectorMapPanel } from '@/features/scan-progress/sector-map-panel';
+import { RecoverabilityCard } from '@/features/scan-progress/recoverability-card';
 
 /**
  * Scan Progress — the 3-pane results layout live during the scan, plus the
@@ -149,6 +151,11 @@ export function ScanProgressPage(): React.JSX.Element {
           recoverableDuringScan={progress?.recoverableDuringScan ?? false}
         />
       </div>
+
+      {/* Sector map (lane C — the reference's AnalysisGridWidget surface):
+          the engine's own per-cell overlays, collapsible, refreshed while
+          the scan runs. */}
+      <SectorMapPanel scanId={scanId} live={!completed} />
 
       {/* "Searching: <path>" ticker — full-width light-blue strip above the
           control cluster (matching scan-midscan-210s.png; hidden when completed). */}
@@ -453,6 +460,10 @@ export function ScanProgressPage(): React.JSX.Element {
               {t('scan.completedVerdict')}
             </DialogDescription>
           </div>
+          {/* The engine's own grading verdict + the RecoveryAssistant
+              category block (lane C; hides itself when the grading pass
+              has no answer). */}
+          <RecoverabilityCard scanId={scanId} completed={completed} />
           <div className="mt-5 flex justify-center">
             <Button
               variant="primary"

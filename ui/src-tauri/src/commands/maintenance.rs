@@ -51,7 +51,7 @@ use crate::bridge::error::{check, code, BridgeError, BridgeResult};
 /// clearer message.
 fn volume_letter(letter: &str) -> BridgeResult<i8> {
     let b = letter.trim().as_bytes();
-    if b.len() >= 1 && b[0].is_ascii_alphabetic() {
+    if !b.is_empty() && b[0].is_ascii_alphabetic() {
         Ok(b[0].to_ascii_uppercase() as i8)
     } else {
         Err(BridgeError::bridge(
@@ -99,11 +99,11 @@ pub async fn volume_fsck(letter: String, fix: Option<bool>) -> Result<Value, Bri
         };
         level(&format!(
             "fsck {}:{} exit {exit_code} ({verdict})",
-            l as char,
+            l as u8 as char,
             if flags == 1 { "/f" } else { "" }
         ));
         Ok(json!({
-            "letter": format!("{}:", l as char),
+            "letter": format!("{}:", l as u8 as char),
             "exitCode": exit_code,
             "verdict": verdict,
             "verdictKey": verdict_key,
@@ -144,7 +144,10 @@ unsafe extern "C" fn bitlocker_progress_sink(
     } else {
         "request started"
     };
-    crate::bridge::logging::info(&format!("bitlocker-off {}:{tick}", pipe.letter as u8 as char));
+    crate::bridge::logging::info(&format!(
+        "bitlocker-off {}:{tick}",
+        pipe.letter as u8 as char
+    ));
 }
 
 #[tauri::command]
@@ -163,7 +166,7 @@ pub async fn volume_bitlocker_off(letter: String) -> Result<Value, BridgeError> 
                                               // sink can never fire past this point
         check(rc, "cr_ui_turn_off_bitlocker")?;
         Ok(json!({
-            "letter": format!("{}:", l as char),
+            "letter": format!("{}:", l as u8 as char),
             // OK means ACCEPTED, not plaintext — the OS decrypt continues
             // in the background (the honest contract; the UI's completion
             // copy says exactly this).

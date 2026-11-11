@@ -13,9 +13,11 @@ import {
   PlugZapIcon,
   LockOpenIcon,
   RefreshCcwIcon,
+  SaveIcon,
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
 import { UnlockVolumeDialog } from './unlock-volume-dialog';
+import { CreateImageDialog } from '@/features/imaging/create-image-dialog';
 import { useLoadSession, useResumeLastSession, useSessions } from '@/queries/sessions';
 import { useStartScan } from '@/queries/scan';
 import { usePickDirectory } from '@/queries/system';
@@ -549,6 +551,7 @@ function DeviceCard({
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const [unlockFor, setUnlockFor] = React.useState<string | null>(null);
+  const [imageOpen, setImageOpen] = React.useState(false);
   const lockedVolume = device.volumes.find((v) => v.status === 'locked');
   const locked =
     device.status === 'permission-denied' ||
@@ -603,6 +606,11 @@ function DeviceCard({
         />
       ) : null}
 
+      {/* Create Image (lane C — the reference's home-page DiskBackup flow,
+          strings:14534): the per-card entry into the byte-for-byte image
+          dialog. */}
+      <CreateImageDialog device={device} open={imageOpen} onOpenChange={setImageOpen} />
+
       {/* Top-right blue checkmark circle on selected card */}
       {selected ? (
         <span
@@ -612,6 +620,23 @@ function DeviceCard({
           <CheckIcon className="size-3 stroke-[3]" />
         </span>
       ) : null}
+
+      {/* Create-image action (hover-revealed; always keyboard-focusable) */}
+      <button
+        type="button"
+        aria-label={t('imaging.action')}
+        title={t('imaging.action')}
+        onClick={() => setImageOpen(true)}
+        disabled={locked || offline}
+        className={cn(
+          'absolute right-2 top-2 z-10 inline-flex size-6 items-center justify-center rounded-xs text-[#64748B] transition-all',
+          'opacity-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100',
+          'hover:bg-[#DCE8FF] hover:text-[#1677FF] disabled:pointer-events-none disabled:opacity-0',
+          'dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary',
+        )}
+      >
+        <SaveIcon className="size-3.5" aria-hidden />
+      </button>
 
       <button
         type="button"

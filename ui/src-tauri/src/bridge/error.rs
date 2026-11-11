@@ -19,7 +19,7 @@
 //! posture — cr_ui.h's host-triggers-its-own-UAC contract).
 //!
 //! Lane C append (the API-surface session): DESTINATION_OVERLAP and
-//! OUT_OF_SPACE join the bridge-minted set — the imaging pre-gate is the
+//! DESTINATION_OUT_OF_SPACE join the bridge-minted set — the imaging pre-gate is the
 //! first bridge-side surface that can DETECT those conditions before the
 //! engine is ever asked (cr_ui_image_create writes a file; it cannot know
 //! the destination volume's free space or its disk mapping). The engine's
@@ -56,7 +56,7 @@ pub mod code {
     // detector of these two conditions; the engine codes stay the
     // recovery-path sources — see the module doc above):
     pub const DESTINATION_OVERLAP: &str = "destination-overlap";
-    pub const OUT_OF_SPACE: &str = "out-of-space";
+    pub const DESTINATION_OUT_OF_SPACE: &str = "out-of-space";
     pub const IMAGE_NOT_FOUND: &str = "image-not-found";
     pub const UNKNOWN: &str = "unknown";
 }

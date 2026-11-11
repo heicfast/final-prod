@@ -38,9 +38,9 @@
 //! swaps serialize on that mutex, so the handle cannot be closed
 //! mid-pass — the never-mid-pass rule the metadata build follows).
 
-use serde_json::{json, Value};
-
 use std::sync::Arc;
+
+use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::error::{check, code, BridgeError, BridgeResult};
@@ -509,7 +509,9 @@ fn run_disk_map(
         }
         check(rc, "cr_ui_disk_map")?;
         let bad_ranges: Vec<Value> = bad_pairs[..(bad_count as usize) * 2]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| json!({ "startByte": pair[0], "sizeBytes": pair[1] }))
             .collect();
         return Ok(json!({

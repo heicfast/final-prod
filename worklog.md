@@ -2814,3 +2814,50 @@ field-exact). abi.rs is lane D's territory (their re-pin train) — lane
 C's commands compile unchanged through the appends (zero-init-safe by
 the ABI policy) and become fully truthful the moment the re-pin lands.
 Recorded here so the seam is explicit; no crossing made.
+
+## Lane C — T-C3: the UI surfaces + the CI-red fix (the local Rust gate unlocked)
+
+The first CI round caught my lane's own seam (the lane-B lesson relearned
+in lane C's colors): three import-level mistakes cargo check surfaced on
+the Windows runner — Arc wrongly removed from diagnostics.rs (my grep
+missed `tauri::State<'_, Arc<BridgeState>>` param types), Value wrongly
+removed from maintenance.rs (the pattern missed `Result<Value,`), and the
+DESTINATION_OUT_OF_SPACE name never matched between error.rs and
+imaging.rs — plus an i8→char cast Rust refuses. All fixed.
+
+The durable win: the sandbox now runs the FULL local Rust gate. Tauri's
+Linux -sys build scripts only VERIFY pkg-config presence (the FFI crates
+are pure-Rust extern blocks; my crate never compiles GTK C code) — a stub
+.pc directory unblocks `cargo check --tests`, `cargo clippy --tests
+-D warnings` and `cargo fmt` end to end. Every lane-C Rust push is now
+compiler-proven BEFORE the runner sees it. (The pre-existing fmt drift in
+build.rs/sessions.rs was reverted both times — lane D's files, not mine.)
+
+The UI wave (every surface consuming the T-C2 API):
+
+- SectorMapPanel (the AnalysisGridWidget parity, UIUX/08:11): collapsible
+  strip on the scan page, four overlay tabs (coverage / allocation /
+  found density / confidence), the engine's own cells merged to a 1024-
+  cell display bound with ranked folding (bad > used > scanned), the bad-
+  range count on the collapsed strip, refetch only while open+live.
+- RecoverabilityCard (S-023 / UIUX/30:19): the completion celebration
+  gains the engine's grading verdict — a circular gauge over matched/
+  total with the og's three-tier vocabulary, the < 100 small-result rule
+  mirrored (gauge hides, count shows), and the RecoveryAssistant
+  category row. Renders nothing when the grading pass has no answer.
+- CreateImageDialog (the DiskBackup chain parity): per-card entry on the
+  home page (the reference's own placement), destination folder via the
+  connector's picker (source-excluding hint) + default file name, live
+  progress with throughput/ETA from the engine's cumulative-bytes
+  callback, the truthful no-cancel contract in copy and controls (a
+  "continue in background" exit, never a dead stop button), completion +
+  reveal. State rehydration wired through useImageState (the event store
+  dies with the last listener; a reopened dialog reads the query).
+- queries/imaging.ts: the external-store pattern from queries/scan.ts
+  (per-imageId progress store, finished-bridge invalidation, state poll).
+
+Five new component tests (207 total green): the panel's collapsed/
+open/tab flow against a real mock scan, the merge bound with a 4096-cell
+payload, the verdict from a completed scan, the dialog's start → running
+no-cancel posture through the singleton connector. i18n: scan.map.* +
+scan.recoverability.* + the imaging.* namespace in both locales.

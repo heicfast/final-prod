@@ -247,11 +247,15 @@ pub async fn image_create_start(
     Ok(json!({ "imageId": image_id }))
 }
 
+/// The blocking-start result: the registered job + its id + the sample
+/// receiver the emitter drains (recovery.rs's JobStart shape).
+type ImageStart = (Arc<ImageEntry>, String, Receiver<(u64, u64)>);
+
 fn image_create_start_blocking(
     imaging: &Arc<ImagingState>,
     device_id: &str,
     path: String,
-) -> BridgeResult<(Arc<ImageEntry>, String, Receiver<(u64, u64)>)> {
+) -> BridgeResult<ImageStart> {
     let trimmed = path.trim().to_string();
     if trimmed.is_empty() {
         return Err(BridgeError::bridge(
@@ -295,7 +299,7 @@ fn image_create_start_blocking(
                 // lane-D compile repair: the module's existing out-of-space
                 // code (recovery's DESTINATION_OVERLAP family) — the
                 // imagined DESTINATION_OUT_OF_SPACE name never existed.
-                code::OUT_OF_SPACE,
+                code::DESTINATION_OUT_OF_SPACE,
                 format!(
                     "insufficient destination space: {free} bytes free, {needed} needed \
                      (byte-for-byte image + sidecar headroom)"
