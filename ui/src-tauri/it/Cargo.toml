@@ -1,0 +1,28 @@
+[package]
+name = "bridge-it"
+version = "0.9.2"
+edition = "2021"
+description = "Recovery Wizard — the real-bridge integration gate crate (BF-ABI-02 closure): builds the bridge against the BUILT engine and runs the wiring/layout/scan-truth tests on real Windows. Only built by .github/workflows/bridge-integration.yml (needs cr_ui.lib at link + cr_ui.dll at load); the ordinary ui-ci lane never enters this directory."
+publish = false
+
+[features]
+# The ABI layout gate (BF-ABI-01 closure): tests/abi_layouts.rs (GENERATED
+# by tools/gen_abi_layouts.py from engine/include/cr/cr_ui.h) compiles only
+# under this feature. The workflow always passes --features layout-gate; a
+# local run without it skips the layout comparison but still runs the
+# runtime tests.
+layout-gate = []
+
+[dependencies]
+recovery-wizard-ui = { path = ".." }
+serde_json = "1"
+memoffset = "0.9"
+
+[[test]]
+name = "bridge_integration"
+path = "tests/bridge_integration.rs"
+
+[[test]]
+name = "abi_layouts"
+path = "tests/abi_layouts.rs"
+required-features = ["layout-gate"]

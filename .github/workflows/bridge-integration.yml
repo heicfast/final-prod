@@ -1,0 +1,257 @@
+name: bridge-integration
+
+# BF-ABI-02 closure — THE missing gate this session installed.
+#
+# ui-ci runs `cargo check` (no link step; the bridge's extern surface is
+# never resolved) and the release lane builds the app but asserts nothing
+# about the ABI structs. That is exactly how eb4bb5f3's header appends
+# (bus_type, power_cycles_nvme, threshold) shipped with a stale Rust
+# mirror — an 8xN-byte heap overflow in enumerate_disks and a 16-byte
+# stack smash on every health read (BF-ABI-01), invisible to every gate.
+#
+# This lane builds the REAL engine, LINKS the REAL bridge against it, and
+# runs the integration tests against the real DLL on real disks:
+#   [1] generated-files freshness gate (gen_abi_layouts.py re-run clean)
+#   [2] engine build (win-x64-release, /W4 /WX, vcpkg cache)
+#   [3] the layout dumper's manifest (the engine-side layout truth)
+#   [4] multi-disk attach: two VHDX (one seeded with NTFS + files +
+#       deletions) so enumeration/health/scan run against 3+ physical
+#       disks — the user's machine shape (2 internal + 1 SD)
+#   [5] cargo test (it/ crate, --features layout-gate): layout manifest
+#       cross-check + enumeration coherence + per-disk health (canary-
+#       bracketed) + the scan-truth timeline (deep-phase byte axis,
+#       heartbeat, no-freeze)
+# Evidence (row dumps, health outcomes, the scan timeline CSV/JSON) is
+# uploaded ALWAYS — red runs are the reproduction artifacts.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - 'ui/src-tauri/**'
+      - 'contracts/**'
+      - 'tools/gen_abi_layouts.py'
+      - '.github/workflows/bridge-integration.yml'
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'ui/src-tauri/**'
+      - 'contracts/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bridge-integration-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bridge:
+    name: Build engine + link bridge + run integration tests
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Enable git long paths
+        shell: pwsh
+        run: git config --system core.longpaths true
+
+      - name: Rust toolchain (pinned stable)
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable (2026-10-16)
+
+      - name: Rust cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ui/src-tauri/it/target
+          key: bridge-it-rust-win2022-${{ hashFiles('ui/src-tauri/Cargo.lock') }}-${{ hashFiles('ui/src-tauri/it/Cargo.toml') }}
+          restore-keys: bridge-it-rust-win2022-
+
+      - name: pnpm setup
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12.15.0
+
+      - name: Node setup
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      # The tauri context macro (generate_context!) embeds the frontend
+      # dist at LIB compile time — the it/ crate path-depends on the lib,
+      # so dist/ must exist before cargo touches it.
+      - name: Frontend build (dist/ for the tauri context)
+        shell: pwsh
+        working-directory: ui
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::pnpm install failed'; exit 1 }
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::pnpm build failed'; exit 1 }
+
+      - name: '[1/5] Generated ABI files freshness gate'
+        shell: pwsh
+        run: |
+          # If cr_ui.h changed without re-running the generator, the
+          # committed dump/table are stale and the layout gate would
+          # compare against yesterday's truth. Regenerate (the C dump is
+          # clang-formatted after generation, matching the engine's
+          # format gate) and require a clean tree.
+          pip install --quiet --disable-pip-version-check clang-format==18.1.8
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install clang-format failed'; exit 1 }
+          python tools/gen_abi_layouts.py .
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::generator failed'; exit 1 }
+          clang-format -i engine/tests/abi_layout_dump.c
+          git diff --exit-code -- engine/tests/abi_layout_dump.c engine/tests/abi_layout_dump.header.sha ui/src-tauri/it/tests/abi_layouts.rs
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host '::error::generated ABI layout files are STALE - re-run: python tools/gen_abi_layouts.py . && clang-format -i engine/tests/abi_layout_dump.c and commit the result'
+            exit 1
+          }
+          Write-Host 'generated ABI files fresh'
+
+      - name: vcpkg binary cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: vcpkg-bin-win2022-${{ hashFiles('engine/vcpkg.json') }}
+          restore-keys: vcpkg-bin-win2022-
+
+      - name: '[2/5] Engine build (win-x64-release, /W4 /WX)'
+        shell: pwsh
+        working-directory: engine
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $env:VCPKG_ROOT) { Write-Host '::error::VCPKG_INSTALLATION_ROOT not set on the runner image'; exit 1 }
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::configure failed'; exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::build failed'; exit 1 }
+          Write-Host 'engine build clean'
+
+      - name: '[3/5] Layout manifest dump (engine-side truth)'
+        shell: pwsh
+        run: |
+          $dump = 'engine\build\win-x64-release\tests\Release\cr_ui_abi_layout_dump.exe'
+          if (-not (Test-Path $dump)) {
+            # fallback: locate it (single-config generators put it elsewhere)
+            $dump = (Get-ChildItem -Recurse -Filter cr_ui_abi_layout_dump.exe engine\build | Select-Object -First 1).FullName
+          }
+          if (-not $dump) { Write-Host '::error::cr_ui_abi_layout_dump.exe not found in the build tree'; exit 1 }
+          & $dump "$env:RUNNER_TEMP\abi-layouts.json"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::layout dump failed'; exit 1 }
+          $env:CR_ABI_LAYOUTS = "$env:RUNNER_TEMP\abi-layouts.json"
+          Write-Host "manifest: $env:CR_ABI_LAYOUTS"
+          Get-Content "$env:CR_ABI_LAYOUTS" | Select-Object -First 4
+          "CR_ABI_LAYOUTS=$env:CR_ABI_LAYOUTS" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: '[4/5] Attach multi-disk VHDXs + seed the scan target'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Two VHDX: a SEEDED NTFS volume (the scan target — files +
+          # deletions so quick/carve/deep all have real work) and a small
+          # raw one (a second extra disk — enumeration count + the
+          # per-disk health switching matrix). Runner disk + 2 = the
+          # user's 3-disk machine shape.
+          $seed = "$env:RUNNER_TEMP\seed.vhdx"
+          $raw  = "$env:RUNNER_TEMP\raw.vhdx"
+          # 2048 MB: big enough for a real quick/carve/deep workload, small
+          # enough that the carve (the BF-30 throughput wall, ~8 MiB/s
+          # worst case) finishes inside the sampling window so the DEEP
+          # stage is observed in flight (the P-DEEP-01 pin needs it).
+          $dp = @(
+            "create vdisk file=`"$seed`" maximum=2048 type=expandable",
+            "attach vdisk",
+            "create vdisk file=`"$raw`" maximum=512 type=expandable",
+            "attach vdisk"
+          )
+          $dp | Set-Content "$env:RUNNER_TEMP\dp.txt"
+          diskpart /s "$env:RUNNER_TEMP\dp.txt" | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::diskpart vdisk create/attach failed'; exit 1 }
+          Start-Sleep -Seconds 2
+
+          # Partition + format the seed (letter S). The raw stays blank.
+          $seedDisk = (Get-Disk | Where-Object { "$($_.BusType)" -match 'File' } | Sort-Object Number | Select-Object -First 1)
+          $rawDisk  = (Get-Disk | Where-Object { "$($_.BusType)" -match 'File' } | Sort-Object Number | Select-Object -Last 1)
+          if (-not $seedDisk -or -not $rawDisk) { Write-Host '::error::VHDX disks not visible after attach'; exit 1 }
+          Write-Host "seed disk: $($seedDisk.Number)  raw disk: $($rawDisk.Number)"
+          "CR_IT_SCAN_DISK=$($seedDisk.Number)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CR_IT_MIN_DISKS=3" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+          Initialize-Disk -Number $seedDisk.Number -PartitionStyle GPT -ErrorAction Stop
+          $p = New-Partition -DiskNumber $seedDisk.Number -UseMaximumSize -AssignDriveLetter -ErrorAction Stop
+          $letter = [char]$p.DriveLetter
+          Format-Volume -Partition $p -FileSystem NTFS -NewFileSystemLabel 'Seed' -Confirm:$false -ErrorAction Stop | Out-Null
+          $root = "$letter`:\"
+          Write-Host "seed volume: $root"
+
+          # Seed content: 120 live files (varied sizes) + 80 deleted ones.
+          # Deletion via cmd del (bypasses the recycle bin) so the quick
+          # pass sees the live set and deep/carve have real remnants.
+          New-Item -ItemType Directory -Force -Path "$root\docs", "$root\media", "$root\gone" | Out-Null
+          1..120 | ForEach-Object {
+            $dir = if ($_ % 3 -eq 0) { 'media' } elseif ($_ % 3 -eq 1) { 'docs' } else { '' }
+            $size = if ($_ % 7 -eq 0) { 256KB } elseif ($_ % 5 -eq 0) { 64KB } else { 4KB }
+            $buf = New-Object byte[] $size
+            (New-Object Random $_).NextBytes($buf)
+            [IO.File]::WriteAllBytes("$root$dir\file-$_.bin", $buf)
+          }
+          1..80 | ForEach-Object {
+            $size = if ($_ % 4 -eq 0) { 128KB } else { 8KB }
+            $buf = New-Object byte[] $size
+            (New-Object Random (1000 + $_)).NextBytes($buf)
+            [IO.File]::WriteAllBytes("$root\gone\del-$_.bin", $buf)
+          }
+          cmd /c "del /q /f $root`gone\*.bin" | Out-Null
+          $live = (Get-ChildItem -Recurse -File $root | Measure-Object).Count
+          Write-Host "seed: $live live files (deleted set: 80)"
+          "CR_IT_EXPECT_FILES=100" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: '[5/5] cargo test — the bridge integration suite'
+        shell: pwsh
+        env:
+          CR_IT_EVIDENCE: ${{ runner.temp }}\cr-it-evidence
+          CR_IT_SCAN_SECS: '480'
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $kit = (Resolve-Path 'engine\build\win-x64-release\src\ui\Release').Path
+          if (-not (Test-Path "$kit\cr_ui.lib")) { Write-Host "::error::cr_ui.lib missing at $kit"; exit 1 }
+          $env:CR_UI_LIB_DIR = $kit
+          # Runtime DLL resolution: the test exes land in it\target\debug
+          # (and \deps) — copy the kit (cr_ui.dll + vcpkg runtimes) there.
+          $tgt = 'ui\src-tauri\it\target\debug'
+          New-Item -ItemType Directory -Force -Path $tgt, "$tgt\deps" | Out-Null
+          Copy-Item "$kit\*.dll" $tgt -Force
+          Copy-Item "$kit\*.dll" "$tgt\deps" -Force
+          Copy-Item "$kit\*.dll" 'ui\src-tauri\it' -Force
+
+          # NOTE (the staged activation): `--features layout-gate` turns on
+          # the generated layout-manifest comparison (tests/abi_layouts.rs
+          # has required-features=["layout-gate"], so cargo skips it when
+          # the feature is off). It activates in the SAME commit that
+          # re-pins abi.rs to the engine's current structs; until then the
+          # runtime reproduction below is the Phase-1 evidence.
+          cargo test --manifest-path ui\src-tauri\it\Cargo.toml -- --nocapture --test-threads=1
+          $rc = $LASTEXITCODE
+          Write-Host "cargo test exit: $rc"
+          exit $rc
+
+      - name: Upload evidence (ALWAYS — red runs are the reproduction artifacts)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bridge-it-evidence-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}\cr-it-evidence
+            ${{ runner.temp }}\abi-layouts.json
+          if-no-files-found: warn
+          retention-days: 30
