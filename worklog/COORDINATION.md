@@ -57,6 +57,37 @@ set is preserved verbatim under `worklog/lane-b/` (identical defect
 register, complementary evidence — lane B's unique findings are folded
 into the canonical DIAGNOSIS.md with credit).
 
+## Lane C — the API-surface lane (2026-11-11, post-v0.9.2 session)
+
+A third session opens this cycle: **Lane C** — `API Surface Agent
+<api-surface@heicfast.local>`. Its mandate (the user's own words): grow
+the Tauri 2 API surface — more core capability exposed to the React 19
+UI, better wiring, better compatibility — while the defect lane works
+the reported breakages. Design sheet + evidence base:
+`worklog/lane-c/API-EXPANSION.md` (the INTEGRATION-PLAN §4.7 DISABLE
+rows 16-21/23/25 flip to SURFACE, each with the corpus citation that
+contradicts its "no reference screen" rationale).
+
+Lane C file ownership (additions to the seam table):
+
+| Territory | Owner |
+|---|---|
+| `ui/src-tauri/src/commands/{imaging,diagnostics,maintenance}.rs` (new files) | Lane C |
+| `worklog/lane-c/**` | Lane C |
+| UI surfaces lane C adds (new component files under `ui/src/`) | Lane C |
+
+Lane C seam crossings (announced here per the rule; all additive):
+`commands/mod.rs` + `src-tauri/src/lib.rs` (registration lines only),
+`contracts/{command-surface.json,event-mapping.md,error-codes.json,
+type-maps.md}` (new rows), `ui/src/connector/**` (new domains/methods),
+`ui/src/i18n/**` (new keys), `tests/connector-*.test.ts` (new cases).
+Lane C does NOT touch the defect lane's active files — `engine/**`,
+`bridge/{state,events,abi}.rs`, `commands/{scan,devices,health}.rs`,
+and the scan/disks/health screens — this session. The two deferred
+crossings (the `img-` scan-target arm in scan.rs/devices.rs, the TRIM
+chip in devices.rs) wait for the defect lane's green and get their own
+entry here before lane C takes them.
+
 ## Lane B process note (lane A, 2026-11-06)
 
 Both of lane B's engine pushes (68460a4c, ce71143e) left main RED at

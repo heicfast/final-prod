@@ -2728,3 +2728,36 @@ claims are hypotheses, not facts, until re-proven on a real Windows runner
 with the installed product. The defect register resets to the user's
 report; the six context sheets get refreshed against the CURRENT tree; the
 reproduction runs target the v0.9.2-era build as installed.
+
+## Lane C — T-C1: the API-surface lane opens (2026-11-11)
+
+The user split this session two ways: the defect lane keeps the reported
+breakages (scan stuck, SMART first-disk-only, disks missing); lane C
+(the third lane, `API Surface Agent`) takes the API-surface mandate —
+"expose more core to api so ui interface can utilize it more better."
+
+Phase C0 (read-before-write) complete: the full cr_ui.h ABI diffed
+against the bridge's declared-and-used surface; the INTEGRATION-PLAN
+§4.7 DISABLE register (rows 16-27) is the gap map; the research corpus
+contradicts the "no reference screen" rationale on rows 16-21, 23 and 25
+(the evidence table with citations lives in
+worklog/lane-c/API-EXPANSION.md). Tauri 2 IPC research (official docs,
+tauri-apps/tauri sources, current 2.12.x): the existing event-emitter
+bridge pattern is sound for this codebase (channels would re-architect
+a proven surface for no user-visible gain — the coalescing emitter
+already provides the ordering/backpressure properties channels give);
+the expansion follows the house pattern (async commands, spawn_blocking,
+BridgeResult, scoped `domain-verb` event names).
+
+Lane C territory + seam crossings announced in COORDINATION.md (the
+defect lane's active files — engine/**, bridge/{state,events}.rs,
+commands/{scan,devices,health}.rs, the three defect screens — are NOT
+touched). Engine-side gap found and registered, not papered over:
+cr_ui_image_create exports no cancel (the win layer's CancelToken is
+not ABI-visible) — the bridge surfaces the truthful no-cancel contract
+and the divergence from the reference's stop-confirm is PARITY-DELTAS
+material, not a fake stop button.
+
+Next: the three new bridge modules (imaging, diagnostics, maintenance)
++ the connector/contract/mock/tests/i18n wave, in one coherent push per
+the validate.mjs two-directional manifest gate.
