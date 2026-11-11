@@ -5,7 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/app/theme';
 import { SectorMapPanel } from '@/features/scan-progress/sector-map-panel';
 import { RecoverabilityCard } from '@/features/scan-progress/recoverability-card';
-import { CreateImageDialog } from '@/features/imaging/create-image-dialog';
+import { CreateImageDialog } from '@/features/device-selection/create-image-dialog';
 import { connector } from '@/connector';
 import type { Device, DiskMapPayload } from '@/connector/contract';
 import '@/i18n';

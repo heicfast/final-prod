@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
 import { UnlockVolumeDialog } from './unlock-volume-dialog';
-import { CreateImageDialog } from '@/features/imaging/create-image-dialog';
+import { CreateImageDialog } from './create-image-dialog';
 import { useLoadSession, useResumeLastSession, useSessions } from '@/queries/sessions';
 import { useStartScan } from '@/queries/scan';
 import { usePickDirectory } from '@/queries/system';

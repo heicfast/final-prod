@@ -2,13 +2,13 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpenIcon, HardDriveIcon, SaveIcon } from 'lucide-react';
 import type { Device } from '@/connector/contract';
-import { connector } from '@/connector';
 import {
   useImageFinishedBridge,
   useImageProgress,
   useImageState,
   useStartImageCreation,
 } from '@/queries/imaging';
+import { useOpenPath, usePickDirectory } from '@/queries/system';
 import { formatBytes, formatDuration } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,8 @@ export function CreateImageDialog({
   const [fileName, setFileName] = React.useState('');
   const [imageId, setImageId] = React.useState<string | null>(null);
   const start = useStartImageCreation();
+  const pickDirectory = usePickDirectory();
+  const openPath = useOpenPath();
   const progressEvent = useImageProgress(imageId);
   // Rehydration + the fallback poll: the event store lives only while a
   // listener subscribes (closing the dialog drops it), and a FINISHED job
@@ -82,11 +84,14 @@ export function CreateImageDialog({
     folder !== null && fileName.trim() !== '' ? `${folder}\\${fileName.trim()}` : null;
 
   const onPickFolder = (): void => {
-    void connector.system
-      .pickDirectory({ excludeDeviceId: device?.id ?? null })
-      .then((picked) => {
-        if (picked !== null) setFolder(picked);
-      });
+    pickDirectory.mutate(
+      { excludeDeviceId: device?.id ?? null },
+      {
+        onSuccess: (picked) => {
+          if (picked !== null) setFolder(picked);
+        },
+      },
+    );
   };
 
   const onStart = (): void => {
@@ -110,9 +115,7 @@ export function CreateImageDialog({
   };
 
   const onReveal = (): void => {
-    if (folder !== null) {
-      void connector.system.openPath(folder).catch(() => undefined);
-    }
+    if (folder !== null) openPath.mutate(folder);
   };
 
   return (
