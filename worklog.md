@@ -2699,3 +2699,32 @@ precomputed (the M-024 pattern); a fully-zero probe span of an
 all-nonzero-sign set skips the arm outright (the span covers every
 sign's whole byte range — bounded by the same avail rule the probe
 itself enforces). Pin: D4fUserSignProbe.TheStrideLoopIsLockFree.
+
+## The debug-and-release session re-opens (post-v0.9.2 — the user's machine still says NO)
+
+T1. Session opens. Repos recorded at start: final-prod@main
+eb4bb5f3 (v0.9.2 train), easeus-drw-research@main be0cfe9 (the CORRECTIONS.md
+#9 errata state). Session prompt re-saved with this session's addendum
+(`worklog/session-debug-and-release-prompt.md`), token redacted.
+
+The user's report this session: the scan is STILL broken (stuck in sector
+scanning, proper files not shown), SMART is broken (little shown, only for
+the FIRST disk, switching to any other disk shows NOTHING), not all disks
+visible on the disks page (2 internal + 1 SD), "everything is broken or not
+working properly", missing API surface, and an independent-research
+inventory of Windows recovery engines to consult (SectorForge, TestDisk/
+PhotoRec, ntfs-recover, ColinFinck/ntfs, libyal, etc.). Past enumeration
+fixes (D-ENUM-01, D-ENUM-02) are explicitly called out as failed
+implementations on the user's real machine.
+
+First act — main was RED at session open: engine-ci #34 failed the
+clang-format gate on eb4bb5f3's own two files (cr_enumerate.h:118-119,
+test_nvme_health.cpp:216). Fixed mechanically (zero behavior change,
+whitespace only) as 0c80036f — the lane-A style pre-commit discipline
+re-applied. No diagnosis touched before Phase 0.
+
+Standing interpretation for this session: the prior sessions' "FIXED"
+claims are hypotheses, not facts, until re-proven on a real Windows runner
+with the installed product. The defect register resets to the user's
+report; the six context sheets get refreshed against the CURRENT tree; the
+reproduction runs target the v0.9.2-era build as installed.

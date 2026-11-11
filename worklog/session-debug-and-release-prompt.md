@@ -174,3 +174,52 @@ Cut a new release tag; run the release workflow end to end (no continue-on-error
 **Prompt Summary (verbatim):** "wiring and driver removal is done, but still lot of bugs, errors, nothing is working as expected, few things im mentioning below: on opening its not requesting or opening as administrator, bydefault request it , on opening disk health some kind of popup shells are appearing, probably cmd or powershell i dont know, i mean wtf this is production grade commercial app, not some kind of script kiddie slop project, only one disk is appearing , i have two, ( actually 3 but 3rd is sd card so two internal drives, 1 external drive) , when i click scan for lost data, it jumps directly to 75% advanced scanning 75% ,files found 21 (0 B) ,no progress in sector scanning, all stuck ,in short if i tell you everything seem broken or not working, so i want you to browse the final prod repo line by line, get current stage, last commits, action workfows, and all and after getting all context, fix all of these issues, bugs, errors, refer to research corpus for architecture docs, to know whwt should work and how, and the popup of restart as administrator works if not opened as administrator but it has very weird popup colour and background if possible replace it with something matching theme and good looking, premium rich , anyways we dont even need it a we will request open on admin only by default, similarly there are thousands of bugs , errors, inconsisitencies, mismatch in re documentation architectecture, apis ,wiring, hallucinations, this everything is going to be fixed in this session,and after that new release tag is going to be addded and new release will be released and tested live on windows runners workflow with ui interface and all functions, features will be verified on real windows to ensure everything is working properly and as expected, use parallel agents and work in long horizon, proper state management and connection with core, local database, responsiveness, refresh rate,all production grade polishes, detailing, attention to details, instruct agents to verify and validate and then fix"
 
 Good luck. I believe in you.
+
+---
+
+## Session addendum (this session — recorded verbatim, token redacted)
+
+The same base prompt governs this session. The user's opening message
+appended the following (in addition to re-asserting the base prompt):
+
+```
+Fix everything, add missing api surface, scan is still broken, doens't works,
+doesn't shows proper files, stuck in sector scanning, everything is broken ,
+or not working properly, debug in-depth , test on real windows runners, add
+missing api features/functions , test them, test the wiring , find out bugs
+and issues that are causing this or missing implementation, refer research
+corpus, research and analysis independently on these :
+(### GitHub research: Windows data recovery tools, CLIs, libraries, and
+engines — an inventory of TestDisk/PhotoRec, SectorForge, Halim Recovery,
+FileRecoveryTool, NullVeil, BreadCrumb, ZRecover, mft-rescue, MFT-Recover,
+Sediment, ntfs-recover, ColinFinck/ntfs, libyal ecosystem, Sleuth Kit,
+Autopsy, ddrescue, Foremost, Scalpel, bulk_extractor, ntfs-3g, dislocker,
+pytsk, dfVFS — with priorities: 1) SectorForge architecture, 2) TestDisk/
+PhotoRec, 3) ntfs-recover + ColinFinck/ntfs MFT handling, 4)
+FileRecoveryTool + Halim Recovery scan strategies, 5) libyal parser
+references. Full inventory text preserved in the session transcript.)
+
+The SMART is pretty much broken too, fix it or refer to any open-source
+available tool of library or project to re-write it properly, I know you
+can't test it on windows runners since virtual disk don't have any SMART,
+but atleast keep everything working, it doens't shows much as if now and
+whatever it shows it only for first disk , as I switch to other it shows
+nothing , also not all of my disks are visible on disks page, if you check
+past commits we have tried to fix this but looks like failed implementation,
+so again do everything perfectly this time, and act smartly and make
+everything final production grade and working, work for long hours
+```
+
+**This session's defect register seed (from the addendum):**
+
+1. Scan STILL broken after v0.9.2 — stuck in sector scanning, does not show
+   proper files. The D4a–D4f fixes did not cure the user-visible break.
+2. SMART/health broken — shows little; whatever it shows is only for the
+   FIRST disk; switching to another disk shows NOTHING.
+3. Disk enumeration STILL incomplete on the user's machine (2 internal + 1
+   SD; not all visible) — the D-ENUM-01/D-ENUM-02 fixes did not cure it.
+4. "Everything is broken or not working properly" — treat as literal;
+   every surface re-validated from zero, no prior "FIXED" claim is trusted
+   without fresh evidence.
+5. Missing API surface — audit the engine ABI vs the UI connector contract
+   vs the reference corpus; close the gaps.
