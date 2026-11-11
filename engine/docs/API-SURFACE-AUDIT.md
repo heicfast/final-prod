@@ -30,8 +30,9 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 92 exports (re-derived 2026-10-30, session-96: 95
-CR_UI_API lines - 3 #defines; the cr_ui_driver_status export was REMOVED
+`libcr_ui.so`): 93 exports (re-derived 2026-11-11, post-v0.9.2: 96
+CR_UI_API lines - 3 #defines; the 93rd is the BF-03 ex2 threshold twin
+appended at eb4bb5f3; the cr_ui_driver_status export was REMOVED
 with the driver-era kernel component - the ABI bumped v3 -> v4 for the
 removal; the
 doc_truth_gate count invariants hold these in CI now - the "as of

@@ -89,6 +89,11 @@ export type ConnectorErrorCode =
 export interface Device {
   readonly id: string;
   readonly kind: DeviceKind;
+  /** The OS bus-type name ("SATA", "NVMe", "USB", "SD", ...) — the
+   * real interface axis behind the kind split (D-ENUM-02). Absent on
+   * connectors that cannot see the bus ("Unknown" when the descriptor
+   * was unavailable). */
+  readonly busType?: string;
   /** e.g. "NVMe SSD" or "USB Mass Storage". */
   readonly model: string;
   /** Friendly label, e.g. "Local Disk (C:)". */
@@ -100,6 +105,11 @@ export interface Device {
   readonly volumes: Volume[];
   /** Whole-disk entry point exists (deep search on raw device). */
   readonly canScanWholeDisk: boolean;
+  /** Logical sector size (bytes) — the real geometry axis for the
+   * sector-position displays (health class line, scan "Reading sector").
+   * Volume rows carry the per-volume view; the device row carries the
+   * disk-wide truth. */
+  readonly sectorSize?: number;
 }
 
 export interface Volume {
@@ -967,6 +977,13 @@ export interface DiskHealth {
   readonly reallocatedSectors: number | null;
   readonly pendingSectors: number | null;
   readonly attributes: readonly SmartAttribute[];
+  /** The transport that produced the data ("ata-passthrough" |
+   * "nvme" | "legacy") — null when unknown. Truthful provenance. */
+  readonly transport?: string | null;
+  /** NVMe health-log power cycles — null when absent (never fabricated). */
+  readonly powerCycles?: number | null;
+  /** A readable but empty ATA table — "unknown", never "good". */
+  readonly tableEmpty?: boolean;
 }
 
 export interface HealthDomain {

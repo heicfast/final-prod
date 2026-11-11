@@ -10,8 +10,8 @@
 
 **Headline counts** (re-derived 2026-10-30, session-96 — the
 doc_truth_gate count invariants guard these in CI): C++ public headers 94
-under `include/cr/**` (29 module directories); C ABI **92 exports** (95 `CR_UI_API` lines minus 3
-`#define` macros in cr_ui.h = 92 `extern "C" CR_UI_API` definitions in
+under `include/cr/**` (29 module directories); C ABI **93 exports** (96 `CR_UI_API` lines minus 3
+`#define` macros in cr_ui.h = 93 `extern "C" CR_UI_API` definitions in
 src/ui/cr_ui.cpp, recount matches; the v3->v4 bump REMOVED the
 driver-era `cr_ui_driver_status` export with the kernel driver); CLI **13 verbs** (rrecov.cpp — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
@@ -52,7 +52,7 @@ ABI event types **12** (the CR_EVT_* census).
 > `cr_ui_device_transport` reports "direct"/"image", the elevation gate
 > (ERR_ELEVATION_REQUIRED) replaced the driver-era gate, and §(e)/§(f) stand as
 > the historical census of both ended eras. Current
-> counts: 92 exports / 13 verbs / 40+OK error codes / 12 ABI event types> (re-derived 2026-10-30, session-96 - the driver removal recount: the
+> counts: 93 exports / 13 verbs / 40+OK error codes / 12 ABI event types> (re-derived 2026-11-11, post-v0.9.2: the BF-03 ex2 append (eb4bb5f3) raised the export count 92 -> 93; the earlier session-96 recount: the
 > cr_ui_driver_status export and the `driver` verb died with the kernel
 > driver, the five ERR_DRIVER_* members with it, ERR_ELEVATION_REQUIRED
 > added - the
@@ -183,7 +183,7 @@ ABI event types **12** (the CR_EVT_* census).
 
 ---
 
-## (b) The C UI ABI — every export (92 at the current tree; `CR_UI_ABI_VERSION 4`, cr_ui.h:81)
+## (b) The C UI ABI — every export (93 at the current tree; `CR_UI_ABI_VERSION 4`, cr_ui.h:81 — the 93rd is the BF-03 `cr_ui_health_read_ex2` twin)
 
 > **Census honesty note (2026-10-30, session-96 recount):** the tables below enumerate the
 > surface as it stood at the v0.4.1-parity census — a historical count

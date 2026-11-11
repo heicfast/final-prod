@@ -2063,6 +2063,9 @@ ${lines.join('')}
         reallocatedSectors: reallocated,
         pendingSectors: pending,
         attributes,
+        transport: 'ata-passthrough',
+        powerCycles: null,
+        tableEmpty: false,
       };
     },
   };

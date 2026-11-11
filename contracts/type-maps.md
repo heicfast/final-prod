@@ -14,9 +14,11 @@ boundary.
 | `cr_ui_disk_info.serial[128]` | `Device.serial` | |
 | `cr_ui_disk_info.size_bytes` | `Device.capacity.totalBytes` | per-disk totals |
 | (Win32 `GetDiskFreeSpaceExW` per volume, summed) | `Device.capacity.usedBytes` / `freeBytes` | engine gives totals only; the bridge fills usage from the OS for lettered volumes; volumes without letters contribute 0 usage |
-| `cr_ui_disk_info.removable` | `Device.kind`: `removable → 'usb'`, else `'internal'` | **G-9**: no bus type in the engine struct — 'sd'/'optical' are indistinguishable; recorded in INTEGRATION-GAPS |
+| `cr_ui_disk_info.removable` + `cr_ui_disk_info.bus_type` | `Device.kind`: bus 12/13 → `'sd'`; bus 14/15/16 → `'virtual'`; bus 7 → `'usb'`; else `removable → 'usb'` / `'internal'` | **D-ENUM-02 (0.9.3)**: the bus-type axis is live — 'sd' fires for SD/MMC-bus cards (BF-02/BF-31 closed), 'virtual' for file-backed images; bus 0 (descriptor unavailable) degrades to the removable flag exactly as the ABI documents |
+| `cr_ui_disk_info.bus_type` | `Device.busType`: the SDK bus name ("SATA", "NVMe", "USB", "SD", ...) | the census-level interface axis (the og's record-3 "USB Device" family); "Unknown" for bus 0 |
 | (bridge state: scan registry) | `Device.isSourceOfActiveScan` | |
 | `cr_ui_disk_info.layout` (0 none/1 MBR/2 GPT/3 EBR), `table_ok` | `Device.canScanWholeDisk` = `true` | whole-disk entry point exists whenever a disk view is openable |
+| `cr_ui_disk_info.logical_sector` | `Device.sectorSize` | the real geometry axis for the sector-position displays (health class line, scan "Reading sector") |
 | (fresh open probe result) | `Device.status`: open OK → `'ok'`; `0x50020001` → `'device-permission'` (refined `'device-gone'` when enumeration dropped it); `0x50060001` on a volume → `'locked'` | |
 
 | Engine | UI | Notes |
@@ -164,7 +166,10 @@ true` (the mock's truncation contract, now backed by the engine's own report);
 | `ssd_wear_level` (ATA) / `percentage_used` (NVMe) | `wearPercent` |
 | `trim_known ? trim_enabled : null` | `trimEnabled` |
 | `reallocated_sectors` / `pending_sectors` | `reallocatedSectors` / `pendingSectors` |
-| `cr_ui_smart_attr{id,name,value,worst,raw,failing}` | `SmartAttribute{id,name,current:value,worst,threshold:null,raw,status: failing?'failing':'ok'}` — **the engine carries no threshold field; null is truth** |
+| `cr_ui_smart_attr{id,name,value,worst,raw,failing,threshold}` | `SmartAttribute{id,name,current:value,worst,threshold,raw,status: failing?'failing':'ok'}` — **BF-03 (0.9.3)**: `cr_ui_health_read_ex2` stamps the vendor threshold (0xD1 READ_THRESHOLDS); 0 → `null` (unknown, never invented); a threshold-less engine (base-export fallback) leaves every row null |
+| `transport[24]` | `transport` — truthful provenance ("ata-passthrough" / "nvme" / "legacy"); empty → null |
+| `power_cycles_nvme` (ex2) | `powerCycles` — NVMe health-log power cycles; 0/non-NVMe → null |
+| `available==1 && attrs empty` | `tableEmpty` — "unknown", never "good" |
 
 ## 8. Preview — `cr_ui_metadata` + `cr_ui_preview_*` → `PreviewPayload`
 

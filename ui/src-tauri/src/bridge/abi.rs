@@ -1,24 +1,40 @@
 //! bridge/abi.rs — the cr_ui C-ABI binding.
 //!
-//! Pinned 1:1 from `engine/include/cr/cr_ui.h` (ABI version 4, the 92-export
-//! surface). Every struct mirrors the header's DECLARATION ORDER under
-//! `#[repr(C)]` — natural alignment reproduces the MSVC layout for both
-//! sides, so no manual padding is ever written here. When the header gains
-//! an appended field (the ABI policy is append-only within a version), this
-//! file gains it in the same position and `contracts/validate.mjs` phase 2
-//! keeps the command surface honest.
+//! Pinned 1:1 from `engine/include/cr/cr_ui.h` (ABI version 4, the
+//! 93-export surface — the 93rd is `cr_ui_health_read_ex2`, the BF-03
+//! threshold closure). Every struct mirrors the header's DECLARATION ORDER
+//! under `#[repr(C)]` — natural alignment reproduces the MSVC layout for
+//! both sides, so no manual padding is ever written here. When the header
+//! gains an appended field (the ABI policy is append-only within a
+//! version), this file gains it in the same position AND the layout gate
+//! holds: `tools/gen_abi_layouts.py` regenerates
+//! `ui/src-tauri/it/tests/abi_layouts.rs` from the header, the
+//! bridge-integration lane diffs the engine's own `abi_layout_dump.c`
+//! manifest against this mirror, and a stale pin FAILS CI (BF-ABI-01:
+//! the eb4bb5f3 appends — bus_type, power_cycles_nvme, threshold —
+//! shipped without this file for three commits: an 8×N-byte heap
+//! overflow in enumerate_disks and a 16-byte stack smash per health
+//! read). Never edit the structs here without the header in the other
+//! hand.
 //!
-//! v2 -> v4 re-pin (the consolidation session): disk_info loses bus_type and
-//! gains the TRIM tail; the event POD gains autosave_rc (+ event types 11
-//! load-progress and 12 autosaved); scan_config gains the autosave dir +
-//! folder-filter tail; scan_stats gains the read-truth + autosaved tail;
-//! session_info/session_row gain label_full; node_info/query/query_row gain
-//! the M-101 branch axes; query gains the M-072 path-substring/state atoms;
-//! apply_candidate gains the M-137 presentation tail; user_sign is the
-//! v3/M-067 width; the NEW struct families are session_row, archive_entry,
-//! thumbnail_caps/thumbnail_info, carve_format, disk_map_geometry;
-//! health_read_ex2/SmartAttrEx are GONE (BF-03); cr_ui_set_log_sink is GONE
-//! — the log seam binds the MSVC-mangled C++ symbol (cr_ui_exports.def:19).
+//! v2 -> v4 re-pin (the consolidation session): disk_info loses bus_type
+//! and gains the TRIM tail; the event POD gains autosave_rc (+ event
+//! types 11 load-progress and 12 autosaved); scan_config gains the
+//! autosave dir + folder-filter tail; scan_stats gains the read-truth +
+//! autosaved tail; session_info/session_row gain label_full;
+//! node_info/query/query_row gain the M-101 branch axes; query gains the
+//! M-072 path-substring/state atoms; apply_candidate gains the M-137
+//! presentation tail; user_sign is the v3/M-067 width; the NEW struct
+//! families are session_row, archive_entry, thumbnail_caps/thumbnail_info,
+//! carve_format, disk_map_geometry; cr_ui_set_log_sink is GONE
+//! — the log seam binds the MSVC-mangled C++ symbol
+//! (cr_ui_exports.def:19).
+//!
+//! The 0.9.3 re-pin (this session, BF-ABI-01): disk_info regains
+//! bus_type (D-ENUM-02's axis — appended at the header's tail),
+//! smart_report gains power_cycles_nvme, smart_attr gains threshold
+//! (size-neutral 72==72), and health_read_ex2 binds (the threshold +
+//! NVMe power-cycle surface).
 //!
 //! Threading contract honored throughout the bridge (cr_ui.h ABI RULES):
 //! scan/recovery run on the caller's thread; pause/cancel/telemetry and
@@ -182,10 +198,15 @@ pub struct CrUiDiskInfo {
     pub model: [u8; 128],
     pub serial: [u8; 128],
     /// M-076 tail: the per-row TRIM datum (fsutil). Only filled by the _ex
-    /// enumeration with CR_ENUM_FLAG_TRIM; trim_known == 0 = unknown. NOTE
-    /// (BF-02): v4 carries NO bus_type — the kind degrades to `removable`.
+    /// enumeration with CR_ENUM_FLAG_TRIM; trim_known == 0 = unknown.
     pub trim_known: u32,
     pub trim_on: u32,
+    /// D-ENUM-02 tail (the 0.9.3 re-pin, BF-ABI-01): the raw
+    /// STORAGE_BUS_TYPE from the device descriptor — the axis behind the
+    /// internal/usb/sd/virtual kind split (BF-02/BF-31 closure). 0 =
+    /// unknown (descriptor unavailable); the kind mapping degrades to the
+    /// removable flag for bus 0 exactly as before.
+    pub bus_type: u32,
 }
 
 #[repr(C)]
@@ -641,6 +662,11 @@ pub struct CrUiSmartAttr {
     pub raw: u64,
     pub failing: u32,
     pub name: [u8; 40],
+    /// BF-03 tail (size-neutral: 72 == 72 — the u64 `raw` forces the
+    /// trailing pad that `threshold` now occupies): the vendor threshold
+    /// from SMART READ THRESHOLDS (0xD1). 0 = unknown/absent. Filled by
+    /// `cr_ui_health_read_ex2` only; the base export's rows stay 0.
+    pub threshold: u32,
 }
 
 #[repr(C)]
@@ -679,9 +705,13 @@ pub struct CrUiSmartReport {
     pub num_error_log_entries: u64,
     pub data_bytes_read: u64,
     pub data_bytes_written: u64,
+    /// BF-03 tail (the 0.9.3 re-pin, BF-ABI-01): the NVMe health log's
+    /// Power Cycles (spec offset 128). 0 = unknown/absent. Filled by
+    /// `cr_ui_health_read_ex2`; the base export leaves it 0.
+    pub power_cycles_nvme: u64,
 }
 
-// ---- extern declarations (92-export surface, ABI v4) -----------------------------------
+// ---- extern declarations (93-export surface, ABI v4) -----------------------------------
 
 extern "C" {
     // version & diagnostics
@@ -936,8 +966,16 @@ extern "C" {
         json_out: *mut *mut i8,
     ) -> u32;
 
-    // health (base only — no ex2 on v4, BF-03)
+    // health (the ex2 twin is the threshold surface — BF-03 closure; the
+    // base export stays for threshold-less engines and the size probe)
     pub fn cr_ui_health_read(
+        disk: u32,
+        rep: *mut CrUiSmartReport,
+        attrs: *mut CrUiSmartAttr,
+        attr_cap: u32,
+        attr_count: *mut u32,
+    ) -> u32;
+    pub fn cr_ui_health_read_ex2(
         disk: u32,
         rep: *mut CrUiSmartReport,
         attrs: *mut CrUiSmartAttr,

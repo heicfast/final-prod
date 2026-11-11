@@ -1,12 +1,13 @@
 //! commands/health.rs — health_read (type-maps §7). The engine call fills
-//! the report + attributes (two-call on attrs) through the BASE ABI
-//! (cr_ui_health_read — v4 carries no ex2/threshold variant, BF-03: the
-//! vendor threshold column is truthfully null until the ex2 wrapper
-//! returns upstream). Availability truth (NG-6/NG-9, breaking-change fix):
-//! `available` is the ATA-SMART-table flag ONLY — a report with
-//! `nvme_available == 1` is VALID health data (the engine returns OK with
-//! no ATA table on NVMe drives); a readable-but-EMPTY ATA table (zero
-//! attribute rows) grades "unknown" with a truthful empty table, never a
+//! the report + attributes (two-call on attrs) through the EX2 ABI
+//! (cr_ui_health_read_ex2 — BF-03 closure: the vendor threshold axis on
+//! every attribute row + the report's power_cycles_nvme; identical error
+//! contract to the base export). A threshold-less engine (ex2 returns
+//! CR_UI_ERR_UNSUPPORTED) falls back to the base export with the column
+//! truthfully null. Availability truth (NG-6/NG-9): `available` is the
+//! ATA-SMART-table flag ONLY — a report with `nvme_available == 1` is
+//! VALID health data; a readable-but-EMPTY ATA table (zero attribute
+//! rows) grades "unknown" with a truthful empty table, never a
 //! fabricated "good". No percentage is invented anywhere in this file.
 
 use serde_json::{json, Value};
@@ -28,12 +29,19 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
                 )
             })?;
 
-        // Size probe: attrs == null returns the needed row count.
+        // Size probe: attrs == null returns the needed row count. The ex2
+        // twin first (threshold + NVMe power cycles); a threshold-less
+        // engine refuses with UNSUPPORTED and the base export stands in.
         let mut report: abi::CrUiSmartReport = unsafe { std::mem::zeroed() };
         let mut needed: u32 = 0;
-        let rc = unsafe {
-            abi::cr_ui_health_read(n, &mut report, std::ptr::null_mut(), 0, &mut needed)
+        let mut rc = unsafe {
+            abi::cr_ui_health_read_ex2(n, &mut report, std::ptr::null_mut(), 0, &mut needed)
         };
+        if rc == abi::CR_UI_ERR_UNSUPPORTED {
+            rc = unsafe {
+                abi::cr_ui_health_read(n, &mut report, std::ptr::null_mut(), 0, &mut needed)
+            };
+        }
         if rc == abi::CR_UI_ERR_UNSUPPORTED {
             return Err(BridgeError::bridge(
                 code::HEALTH_UNAVAILABLE,
@@ -60,9 +68,10 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
 
         let mut attrs = vec![unsafe { std::mem::zeroed::<abi::CrUiSmartAttr>() }; needed as usize];
         let mut cap = needed;
-        let rc = unsafe {
-            abi::cr_ui_health_read(n, &mut report, attrs.as_mut_ptr(), cap, &mut cap)
-        };
+        let mut rc = unsafe { abi::cr_ui_health_read_ex2(n, &mut report, attrs.as_mut_ptr(), cap, &mut cap) };
+        if rc == abi::CR_UI_ERR_UNSUPPORTED {
+            rc = unsafe { abi::cr_ui_health_read(n, &mut report, attrs.as_mut_ptr(), cap, &mut cap) };
+        }
         check(rc, "cr_ui_health_read")?;
         attrs.truncate(cap as usize);
 
@@ -124,10 +133,11 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
                     "name": fixed_str(&a.name),
                     "current": (if a.value != 0 { json!(a.value) } else { Value::Null }),
                     "worst": (if a.worst != 0 { json!(a.worst) } else { Value::Null }),
-                    // BF-03: the v4 base ABI carries no vendor threshold —
-                    // null (not zero, not invented) until the ex2 surface
-                    // returns upstream.
-                    "threshold": Value::Null,
+                    // BF-03 closed: the ex2 axis — the vendor threshold
+                    // from SMART READ THRESHOLDS (0xD1). 0 = unknown →
+                    // null (never zero, never invented); a threshold-less
+                    // engine (base-export fallback) leaves every row null.
+                    "threshold": (if a.threshold != 0 { json!(a.threshold) } else { Value::Null }),
                     "raw": a.raw,
                     "status": (if a.failing != 0 { "failing" } else { "ok" }),
                 })
@@ -150,6 +160,10 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
             "attributes": rows,
             "transport": (if transport.is_empty() { Value::Null } else { json!(transport) }),
             "tableEmpty": table_empty,
+            // BF-03 (the ex2 axis): the NVMe health log's Power Cycles —
+            // null when absent (0) or on non-NVMe transports, never a
+            // fabricated counter.
+            "powerCycles": (if has_nvme && report.power_cycles_nvme != 0 { json!(report.power_cycles_nvme) } else { Value::Null }),
         }))
     })
     .await

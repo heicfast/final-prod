@@ -102,6 +102,61 @@ fn bitlocker_state(detected: u32, probe_rc: u32) -> Value {
     }
 }
 
+/// The STORAGE_BUS_TYPE table (cr_ui.h's D-ENUM-02 axis, SDK values) —
+/// the census-level interface names the og's record-3 carries
+/// ("USB Device" et al, UIUX/07). 0 = unknown.
+fn bus_type_name(bus: u32) -> &'static str {
+    match bus {
+        1 => "SCSI",
+        2 => "ATAPI",
+        3 => "ATA",
+        4 => "1394",
+        5 => "SSA",
+        6 => "Fibre",
+        7 => "USB",
+        8 => "RAID",
+        9 => "iSCSI",
+        10 => "SAS",
+        11 => "SATA",
+        12 => "SD",
+        13 => "MMC",
+        14 => "Virtual",
+        15 => "FileBackedVirtual",
+        16 => "Spaces",
+        17 => "NVMe",
+        18 => "SCM",
+        19 => "UFS",
+        _ => "Unknown",
+    }
+}
+
+/// The DeviceKind axis (type-maps §1) from the bus type + the removable
+/// flag — BF-02/BF-31 closure, D-ENUM-02's consumer side:
+///   - SD/MMC bus → 'sd' (the dedicated SD-card surface's population;
+///     native SDHCI readers report BusType Sd — the merged-into-USB
+///     misclassification is dead)
+///   - Virtual / FileBackedVirtual / Spaces → 'virtual' (mounted images,
+///     storage-space aggregates — not user-scannable "drives" on the
+///     landing page's physical groups)
+///   - USB bus → 'usb'
+///   - everything else (ATA/SATA/NVMe/SAS/RAID/...) → the removable flag
+///     decides 'usb' vs 'internal' — bus 0 (descriptor unavailable)
+///     degrades exactly as the ABI documents.
+pub fn map_kind(bus_type: u32, removable: u32) -> &'static str {
+    match bus_type {
+        12 | 13 => "sd",
+        14 | 15 | 16 => "virtual",
+        7 => "usb",
+        _ => {
+            if removable != 0 {
+                "usb"
+            } else {
+                "internal"
+            }
+        }
+    }
+}
+
 /// Compose the contract-shaped Device rows. `active_sources` feeds
 /// `isSourceOfActiveScan` from the bridge's scan registry.
 pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
@@ -207,12 +262,12 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
         });
         out.push(json!({
             "id": disk_id(d.number),
-            // BF-02 (v4 truth): disk_info carries NO bus_type — the kind
-            // degrades to the removable flag (USB/SD merged into 'usb')
-            // until the axis returns upstream. — the kind degrades
-            // to the removable flag (usb/sd merged; the SD-card surface
-            // reads 'usb' until the axis returns upstream).
-            "kind": (if d.removable != 0 { "usb" } else { "internal" }),
+            // D-ENUM-02's consumer: the kind split is bus-driven now
+            // (BF-02/BF-31 closed) — 'sd' fires for SD/MMC-bus cards,
+            // 'virtual' for file-backed images, USB stays USB, and the
+            // removable flag only decides the unknown-bus fallback.
+            "kind": map_kind(d.bus_type, d.removable),
+            "busType": bus_type_name(d.bus_type),
             "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
             "label": label,
             "serial": serial,
@@ -226,6 +281,9 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
             "volumes": vol_rows,
             // Whole-disk entry point exists whenever a disk view opens.
             "canScanWholeDisk": true,
+            // The real geometry axis (the health page's sector-size line;
+            // volume rows already carried it per-volume).
+            "sectorSize": d.logical_sector,
         }));
     }
     Ok(out)
@@ -379,7 +437,8 @@ fn compose_single_disk(
     };
     Ok(json!({
         "id": disk_id(d.number),
-        "kind": (if d.removable != 0 { "usb" } else { "internal" }),
+        "kind": map_kind(d.bus_type, d.removable),
+        "busType": bus_type_name(d.bus_type),
         "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
         "label": label,
         "serial": serial,
@@ -392,6 +451,7 @@ fn compose_single_disk(
         "isSourceOfActiveScan": true, // it is about to be
         "volumes": vol_rows,
         "canScanWholeDisk": true,
+        "sectorSize": d.logical_sector,
     }))
 }
 

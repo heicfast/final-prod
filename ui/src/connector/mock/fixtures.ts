@@ -268,17 +268,35 @@ function deviceBase(p: {
   cap: { totalBytes: number; usedBytes: number; freeBytes: number };
   status?: Device['status'];
   canScanWholeDisk?: boolean;
+  busType?: string;
+  sectorSize?: number;
 }): Omit<Device, 'volumes' | 'isSourceOfActiveScan'> {
   return {
     id: p.id,
     kind: p.kind,
+    busType: p.busType ?? mockBusType(p.kind, p.model),
     model: p.model,
     label: p.label,
     serial: p.serial,
     capacity: p.cap,
     status: p.status ?? 'ok',
     canScanWholeDisk: p.canScanWholeDisk ?? true,
+    sectorSize: p.sectorSize ?? (p.kind === 'sd' || p.kind === 'usb' ? 512 : 4096),
   };
+}
+
+/** The mock's honest bus axis: derives a plausible STORAGE_BUS_TYPE name
+ * from the kind + model the fixture already declares (the tauri connector
+ * reads the real one from the descriptor; the mock never claims a bus the
+ * fixture contradicts). */
+function mockBusType(kind: Device['kind'], model: string): string {
+  if (kind === 'usb') return 'USB';
+  if (kind === 'sd') return 'SD';
+  if (kind === 'virtual') return 'FileBackedVirtual';
+  if (kind === 'optical') return 'ATAPI';
+  const m = model.toLowerCase();
+  if (m.includes('nvme') || m.includes('evo')) return 'NVMe';
+  return 'SATA';
 }
 
 /** Shared system-volume base (differs only by node seed + counts). */

@@ -234,13 +234,12 @@ jobs:
           Copy-Item "$kit\*.dll" "$tgt\deps" -Force
           Copy-Item "$kit\*.dll" 'ui\src-tauri\it' -Force
 
-          # NOTE (the staged activation): `--features layout-gate` turns on
-          # the generated layout-manifest comparison (tests/abi_layouts.rs
-          # has required-features=["layout-gate"], so cargo skips it when
-          # the feature is off). It activates in the SAME commit that
-          # re-pins abi.rs to the engine's current structs; until then the
-          # runtime reproduction below is the Phase-1 evidence.
-          cargo test --manifest-path ui\src-tauri\it\Cargo.toml -- --nocapture --test-threads=1
+          # `--features layout-gate`: the generated layout-manifest
+          # comparison (tests/abi_layouts.rs has
+          # required-features=["layout-gate"]). ACTIVE since the 0.9.3
+          # re-pin — abi.rs carries bus_type / power_cycles_nvme /
+          # threshold and the engine manifest must match field-for-field.
+          cargo test --manifest-path ui\src-tauri\it\Cargo.toml --features layout-gate -- --nocapture --test-threads=1
           $rc = $LASTEXITCODE
           Write-Host "cargo test exit: $rc"
           exit $rc
