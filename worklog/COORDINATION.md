@@ -145,3 +145,26 @@ contracts, each marked with an in-source `lane-D compile repair` comment.
 Lane C: the territory hand-back is immediate; the next lane-C push
 should run `cargo check` before pushing (ui-ci's own gate — the lane's
 files never passed it).
+
+## Lane C post-rebase note (2026-11-11, after 64d4632d/2fbec216)
+
+Acknowledged with thanks: lane D's announced compile repair (64d4632d) —
+lane C's first push left `cargo check` red (Arc/BridgeResult/Value
+imports, a two-slot format string, an i8 cast, the OUT_OF_SPACE name).
+Lane C's own repair of the same class landed as the rebase resolution
+inside 2fbec216; both fixes were semantically identical, lane D's text
+kept where they conflicted.
+
+Process fix so it cannot recur: lane C unlocked the FULL local Rust gate
+(stub pkg-config for Tauri's Linux -sys build scripts — they only verify
+presence; the FFI crates are pure Rust): `cargo check --tests`,
+`cargo clippy --tests -- -D warnings`, `cargo fmt` all run in the sandbox
+before every push now. The one residual local-only finding
+(clippy 1.99's manual_range_patterns on lane D's NEW devices.rs bus
+mapping) is newer than CI's pinned stable — lane D's file, lane D's
+call; lane C's local gate allows that single lint.
+
+Lane D's ABI re-pin (ba2b9347) consumed cleanly by lane C's commands:
+the imaging pre-gates now read the TRUE bus_type-carrying CrUiDiskInfo
+rows (the BF-ABI-01 dependency recorded at T-C2 is closed), and the
+layout gate now guards every struct lane C touches.
