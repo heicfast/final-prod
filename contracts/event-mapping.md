@@ -107,3 +107,27 @@ repairable plan exists, before any engine read). The bridge
    after `cr_ui_scan_run()` returns. An APPROVED repair executes
    transactionally through the shim-opened write view; the run tail
    persists the undo log for `rrecov fix --undo-apply <file>` (G-1 (c)).
+
+## Imaging progress (lane C — bridge surface)
+
+`image-progress:<imageId>` / `image-finished:<imageId>` follow the recovery
+job's exact marshaling shape (commands/imaging.rs):
+
+1. the engine's own cumulative-bytes callback (`cr_ui_recovery_progress_fn`
+   — `cr_ui_image_create` takes the same form) `try_send`s into the job
+   entry's bounded 64-sample channel;
+2. one emitter thread per job drains the channel (freshest wins), keeps
+   the live cell current (EMA throughput, clamped-monotonic fraction,
+   ETA), and emits `image-progress:<imageId>`;
+3. the worker thread (the synchronous `cr_ui_image_create` call) latches
+   the terminal state FIRST, then emits the terminal progress +
+   `image-finished:<imageId>` itself — the single-writer rule; the
+   emitter stops composing once the `finished` flag is set;
+4. NO cancel event exists: the ABI exports no cancel (the win layer's
+   CancelToken is not ABI-visible) — `cancelSupported` is always false on
+   the state surface, the documented divergence from the reference's
+   stop-confirm dialog.
+
+`partialKept` on the terminal event (and on `image_create_state`) is a
+filesystem truth probe — `<path>.partial` exists after a failed/cancelled
+stream — never a guess parsed from engine message text.

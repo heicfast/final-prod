@@ -30,6 +30,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(BridgeState::new()))
+        // Lane C: the imaging registry — its own managed state (image jobs
+        // address a physical disk, not a scan tree; the seam note is in
+        // COORDINATION.md).
+        .manage(Arc::new(commands::imaging::ImagingState::new()))
         .invoke_handler(tauri::generate_handler![
             // devices (+ the N-064 dictionary unlock)
             commands::devices::devices_list,
@@ -87,6 +91,22 @@ pub fn run() {
             commands::system::system_pick_directory,
             commands::system::system_list_mounts,
             commands::system::system_open_path,
+            // imaging (lane C — the Create Image flow): start + state; NO
+            // cancel at the ABI (cr_ui_image_create runs cancel=nullptr —
+            // the documented divergence, PARITY-DELTAS-registered)
+            commands::imaging::image_create_start,
+            commands::imaging::image_create_state,
+            // diagnostics (lane C — the observability surface)
+            commands::diagnostics::scan_telemetry,
+            commands::diagnostics::scan_assistant_stats,
+            commands::diagnostics::carve_catalog,
+            commands::diagnostics::scan_carve_tally,
+            commands::diagnostics::disk_map,
+            commands::diagnostics::device_transport,
+            commands::diagnostics::session_regrade,
+            // maintenance (lane C — the privileged one-shots)
+            commands::maintenance::volume_fsck,
+            commands::maintenance::volume_bitlocker_off,
         ])
         .setup(|app| {
             // Reference the main window so the builder cannot strip it; the

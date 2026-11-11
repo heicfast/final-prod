@@ -24,12 +24,22 @@ import type {
   AppInfo,
   ApplyConsentEvent,
   ApplyResult,
+  BitlockerOffResult,
+  CarveFormatRow,
+  CarveTallyRow,
   ConsentRequestEvent,
   ConnectorError,
   ConnectorErrorCode,
   Device,
   DestinationValidation,
+  DeviceTransportInfo,
   DiskHealth,
+  DiskMapOptions,
+  DiskMapPayload,
+  FsckResult,
+  ImageFinishedEvent,
+  ImageJobState,
+  ImageProgressEvent,
   LostCandidateRow,
   MountPoint,
   NodeDetail,
@@ -47,10 +57,12 @@ import type {
   ResultsFilter,
   ResultsPage,
   ResultTreeMode,
+  ScanAssistantStats,
   ScanAutosavedEvent,
   ScanFinishedEvent,
   ScanParams,
   ScanProgressEvent,
+  ScanTelemetry,
   SaveProgressEvent,
   LostCandidateEvent,
   ScanState,
@@ -81,6 +93,7 @@ export const REASON_KEYS: Readonly<Record<ConnectorErrorCode, string>> = {
   'destination-invalid': 'errors.destinationInvalid',
   'destination-unwritable': 'errors.destinationUnwritable',
   'out-of-space': 'recovery.insufficientSpaceBody',
+  'image-not-found': 'errors.imageNotFound',
   'preview-unsupported': 'preview.reason.unsupportedKind',
   'preview-too-large': 'preview.reason.tooLarge',
   'preview-damaged': 'preview.reason.damaged',
@@ -185,6 +198,21 @@ function normalizePreview(p: PreviewPayload | null): PreviewPayload | null {
   }
   return p;
 }
+
+/**
+ * Lane C: the fsck verdict -> i18n key map (the bridge emits these exact
+ * keys; this map is the TS-side guard so a mismatched bridge build can
+ * never put a raw key on screen — the unknown-verdict fallback is the
+ * honest generic error).
+ */
+const FSCK_VERDICT_KEYS: Readonly<Record<string, string>> = {
+  clean: 'maintenance.fsckClean',
+  fixed: 'maintenance.fsckFixed',
+  scheduled: 'maintenance.fsckScheduled',
+  'errors-remain': 'maintenance.fsckErrorsRemain',
+  'timeout-still-running': 'maintenance.fsckTimeout',
+  'spawn-failed': 'maintenance.fsckSpawnFailed',
+};
 
 // ---------------------------------------------------------------------------
 // The connector
@@ -313,6 +341,27 @@ export function createTauriConnector(): RecoveryConnector {
 
       respondToConsent: async (requestId: string, allow: boolean): Promise<void> =>
         bridge(invoke('consent_respond', { requestId, allow })),
+
+      // ---- Lane C: the observability surface ----------------------------
+
+      getScanTelemetry: async (scanId: string): Promise<ScanTelemetry> =>
+        bridge(invoke('scan_telemetry', { scanId })),
+
+      getScanAssistantStats: async (scanId: string): Promise<ScanAssistantStats> =>
+        bridge(invoke('scan_assistant_stats', { scanId })),
+
+      listCarveFormats: async (): Promise<readonly CarveFormatRow[]> =>
+        bridge<{ formats: readonly CarveFormatRow[] }>(invoke('carve_catalog')).then(
+          (v) => v.formats,
+        ),
+
+      getCarveTally: async (scanId: string): Promise<readonly CarveTallyRow[]> =>
+        bridge<{ slots: readonly CarveTallyRow[] }>(
+          invoke('scan_carve_tally', { scanId }),
+        ).then((v) => v.slots),
+
+      getDiskMap: async (scanId: string, options?: DiskMapOptions): Promise<DiskMapPayload> =>
+        bridge(invoke('disk_map', { scanId, options: options ?? null })),
     },
 
     results: {
@@ -335,6 +384,12 @@ export function createTauriConnector(): RecoveryConnector {
 
       countResults: async (scanId: string, filter: ResultsFilter): Promise<number> =>
         bridge(invoke('results_count', { scanId, filter })),
+
+      regradeNodes: async (
+        scanId: string,
+        nodeIds: readonly string[],
+      ): Promise<{ regraded: number }> =>
+        bridge(invoke('session_regrade', { scanId, nodeIds })),
     },
 
     preview: {
@@ -527,6 +582,64 @@ export function createTauriConnector(): RecoveryConnector {
 
       openPath: async (path: string): Promise<void> =>
         bridge(invoke('system_open_path', { path })),
+
+      getDeviceTransport: async (deviceId: string): Promise<DeviceTransportInfo> =>
+        bridge(invoke('device_transport', { deviceId })),
+    },
+
+    // ---- Lane C: imaging (the reference's Create Image flow) --------------
+
+    imaging: {
+      startImageCreation: async (
+        deviceId: string,
+        path: string,
+      ): Promise<{ imageId: string }> =>
+        bridge(invoke('image_create_start', { deviceId, path })),
+
+      getImageState: async (imageId: string): Promise<ImageJobState> =>
+        bridge(invoke('image_create_state', { imageId })),
+
+      onImageProgress: (
+        imageId: string,
+        cb: (event: ImageProgressEvent) => void,
+      ): (() => void) => {
+        const pending = listen<ImageProgressEvent>(`image-progress:${imageId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      onImageFinished: (
+        imageId: string,
+        cb: (event: ImageFinishedEvent) => void,
+      ): (() => void) => {
+        const pending = listen<ImageFinishedEvent>(`image-finished:${imageId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+    },
+
+    // ---- Lane C: maintenance (the privileged one-shots) -------------------
+
+    maintenance: {
+      runFsck: async (letter: string, fix?: boolean): Promise<FsckResult> => {
+        const raw = await bridge<Omit<FsckResult, 'verdictKey'> & { verdictKey: string }>(
+          invoke('volume_fsck', { letter, fix: fix ?? false }),
+        );
+        // The verdict -> i18n key guard: the bridge emits these keys, and
+        // this map makes a stale bridge build (an unknown verdict) render
+        // the honest fallback instead of a raw key on screen.
+        const verdictKey = FSCK_VERDICT_KEYS[raw.verdict] ?? 'errors.unknown';
+        return { ...raw, verdictKey };
+      },
+
+      turnOffBitlocker: async (letter: string): Promise<BitlockerOffResult> =>
+        bridge(invoke('volume_bitlocker_off', { letter })),
     },
   };
 }

@@ -531,6 +531,7 @@ export const zhCN: TranslationSchema = {
     scanNotRunning: '扫描未在运行。',
     destinationInvalid: '目标路径无效。',
     destinationUnwritable: '无法向该目标写入文件。',
+    imageNotFound: '该磁盘镜像创建任务已关闭。',
     repairFailed: '修复操作失败。',
     healthUnavailable: '该设备的健康数据不可用。',
     notImplemented: '此构建不提供该功能。',
@@ -545,6 +546,14 @@ export const zhCN: TranslationSchema = {
     selectRow: '选择行',
     gauge: '总体完成度',
     resizePreview: '调整预览窗格宽度',
+  },
+  maintenance: {
+    fsckClean: '未发现文件系统错误。',
+    fsckFixed: '已发现并修复文件系统错误。',
+    fsckScheduled: '检查已计划，将在下次重启时运行。',
+    fsckErrorsRemain: '卷上仍存在错误。请先执行修复，然后再次检查。',
+    fsckTimeout: '检查已超出时间限制，仍在后台继续运行。',
+    fsckSpawnFailed: '无法启动系统检查工具。',
   },
   devPanel: {
     title: '开发者面板',

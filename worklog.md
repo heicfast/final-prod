@@ -2761,3 +2761,56 @@ material, not a fake stop button.
 Next: the three new bridge modules (imaging, diagnostics, maintenance)
 + the connector/contract/mock/tests/i18n wave, in one coherent push per
 the validate.mjs two-directional manifest gate.
+
+## Lane C — T-C2: the API-expansion train lands (11 commands, 2 events, full connector + mock parity)
+
+The §4.7 DISABLE register flips eight rows to SURFACE — every one backed
+by an engine export that already existed and a corpus citation that
+contradicts the row's original "no reference screen" rationale (the
+evidence table: worklog/lane-c/API-EXPANSION.md):
+
+- imaging.rs (rows 19, 23's producer half): image_create_start /
+  image_create_state + image-progress:<id> / image-finished:<id>. The
+  bridge pre-gates the engine cannot express (same-disk destination →
+  destination-overlap; free < byte-for-byte + 64 MiB headroom →
+  out-of-space). NO cancel — the ABI exports none (cr_ui_image_create
+  runs its CancelToken as nullptr); cancelSupported is always false, the
+  truthful contract (the reference's stop-confirm dialog is the
+  registered divergence, never a faked stop button). partialKept is a
+  filesystem probe, never message-text parsing.
+- diagnostics.rs (rows 16, 17, 18, 25, 26): scan_telemetry (the full
+  stage axes + best-effort companions behind availability flags),
+  scan_assistant_stats (the S-023 gauge axes verbatim — matched/total,
+  the og's <100 forced-zero rule; the UI renders the verdict),
+  carve_catalog + scan_carve_tally (the analyser-list surface + the
+  found-N-.jpg report + the user-sign aggregate slot), disk_map (the
+  AnalysisGridWidget producer: four overlays + bad ranges, bridge-bounded
+  cell budget 4096/65536/64KiB-floor, two-call bad-pair sizing),
+  device_transport (the [transport] truth + the M-030 advisory),
+  session_regrade (grade-1-only, sticky 0/2, via the metadata cache).
+- maintenance.rs (rows 20, 21): volume_fsck (chkdsk check/fix, hidden
+  vehicle, raw exit code + the final i18n verdictKey), 
+  volume_bitlocker_off (the destructive decrypt twin — accepted ≠
+  plaintext, start/settle ticks logged, never a fabricated percentage).
+
+The governance wave (validate.mjs's two-directional gate): 11 new
+command-surface rows (43 → 54 commands), 2 event rows, 3 bridge-only
+error-code rows (destination-overlap/out-of-space gain their first
+bridge-side detector — the imaging pre-gate; image-not-found joins the
+vocabulary), type-maps §11-§13, event-mapping's imaging section,
+i18n-sweep's namespace list grows (maintenance). The connector contract
+gains ImagingDomain + MaintenanceDomain + the Scan/Results/System
+extensions; full mock parity (deterministic tick engine for imaging,
+derived-from-runtime observability, the same typed refusals); 14 new
+test cases across both connector suites (202 total green).
+
+Lane coordination (BF-ABI-01, seen at push time): lane D's refreshed
+DIAGNOSIS names the unreleased bridge ABI drift — abi.rs's CrUiDiskInfo
+misses bus_type (296≠304) and CrUiSmartReport misses power_cycles_nvme
+(224≠240). Lane C's exposure is confined to imaging's enumerate-derived
+pre-gates (disk presence + size); every other lane-C surface consumes
+pinned structs (carve_format, disk_map_geometry, stage_tel verified
+field-exact). abi.rs is lane D's territory (their re-pin train) — lane
+C's commands compile unchanged through the appends (zero-init-safe by
+the ABI policy) and become fully truthful the moment the re-pin lands.
+Recorded here so the seam is explicit; no crossing made.

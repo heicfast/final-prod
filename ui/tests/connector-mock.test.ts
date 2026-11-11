@@ -588,3 +588,154 @@ describe('Tauri real adapter shape', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Lane C — the API-expansion surface (imaging, observability, maintenance)
+// ---------------------------------------------------------------------------
+
+describe('MockConnector — lane C surface parity', () => {
+  it('runs an image-creation job to completion with progress + terminal events', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const devices = await c.devices.listDevices();
+    const disk = devices.find((d) => d.canScanWholeDisk) ?? devices[0];
+    const seen: string[] = [];
+    const { imageId } = await c.imaging.startImageCreation(disk.id, 'E:\\backup.img');
+    const off = c.imaging.onImageProgress(imageId, (e) => {
+      if (!seen.includes(e.status)) seen.push(e.status);
+    });
+    const finished = new Promise<boolean>((resolve) => {
+      c.imaging.onImageFinished(imageId, (e) => resolve(e.status === 'completed'));
+    });
+    const ok = await finished;
+    off();
+    expect(ok).toBe(true);
+    const state = await c.imaging.getImageState(imageId);
+    expect(state.status).toBe('completed');
+    expect(state.cancelSupported).toBe(false); // the truthful contract
+    expect(state.overallProgress).toBe(1);
+    expect(seen[0]).toBe('running');
+  });
+
+  it('refuses image creation onto the imaged disk (the same-disk pre-gate)', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const devices = await c.devices.listDevices();
+    const disk = devices.find((d) => d.canScanWholeDisk) ?? devices[0];
+    const letter = disk.volumes.find((v) => v.letter)?.letter;
+    if (!letter) return; // no lettered volume on the fixture disk
+    const err = (await c.imaging
+      .startImageCreation(disk.id, `${letter}:\\self.img`)
+      .catch((e: unknown) => e)) as { code: string; reasonKey: string };
+    expect(err.code).toBe('destination-overlap');
+    expect(err.reasonKey).toBe('recovery.overlapReason');
+  });
+
+  it('throws image-not-found for an unknown image job', async () => {
+    const c = new MockConnector();
+    const err = (await c.imaging.getImageState('img-404').catch((e: unknown) => e)) as {
+      code: string;
+      reasonKey: string;
+    };
+    expect(err.code).toBe('image-not-found');
+    expect(err.reasonKey).toBe('errors.imageNotFound');
+  });
+
+  it('serves telemetry + assistant + carve tally + disk map from a completed scan', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const target = (await c.devices.listDevices())[0]?.volumes[0];
+    if (!target) return;
+    const { scanId } = await c.scan.startScan({ targetId: target.id });
+    await waitForScanCompletion(c, scanId);
+
+    const telemetry = await c.scan.getScanTelemetry(scanId);
+    expect(telemetry.scanId).toBe(scanId);
+    expect(telemetry.statsAvailable).toBe(true);
+    expect(telemetry.stages.carve.permille).toBe(1000);
+    expect(telemetry.finalStats?.filesFound ?? 0).toBeGreaterThan(0);
+
+    const assistant = await c.scan.getScanAssistantStats(scanId);
+    expect(assistant.totalFileCount).toBeGreaterThan(0);
+    expect(assistant.smallResult).toBe(false);
+    expect(assistant.matched).toBeGreaterThan(0);
+
+    const tally = await c.scan.getCarveTally(scanId);
+    expect(tally.length).toBeGreaterThan(0);
+    expect(tally[tally.length - 1].userSigns).toBe(true); // the aggregate slot
+
+    const map = await c.scan.getDiskMap(scanId, { maxCells: 128 });
+    expect(map.geometry.cellCount).toBeGreaterThan(0);
+    expect(map.geometry.cellCount).toBeLessThanOrEqual(128);
+    expect(map.allocation?.length).toBe(map.geometry.cellCount);
+    expect(map.coverage?.every((v) => v === 1)).toBe(true); // completed scan
+  });
+
+  it('refuses assistant statistics for an uncompleted scan (the honest typed answer)', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const target = (await c.devices.listDevices())[0]?.volumes[0];
+    if (!target) return;
+    const { scanId } = await c.scan.startScan({ targetId: target.id });
+    const err = (await c.scan.getScanAssistantStats(scanId).catch((e: unknown) => e)) as {
+      code: string;
+    };
+    expect(err.code).toBe('scan-not-running');
+    await c.scan.cancelScan(scanId);
+  });
+
+  it('regrades only eligible nodes (the sticky-grade rule mirrored)', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const target = (await c.devices.listDevices())[0]?.volumes[0];
+    if (!target) return;
+    const { scanId } = await c.scan.startScan({ targetId: target.id });
+    await waitForScanCompletion(c, scanId);
+    const page = await c.results.queryResults(
+      scanId,
+      { ...BASE_FILTER, origins: null },
+      { field: 'name', direction: 'asc' },
+      { offset: 0, limit: 200 },
+    );
+    const ids = page.nodes.map((n) => n.id);
+    expect(ids.length).toBeGreaterThan(50); // enough for the fair mix to land
+    const first = await c.results.regradeNodes(scanId, ids);
+    expect(first.regraded).toBeGreaterThan(0);
+    // Sticky after promotion: a second pass over the same set regrades
+    // strictly fewer (only never-promoted eligible nodes remain).
+    const second = await c.results.regradeNodes(scanId, ids);
+    expect(second.regraded).toBeLessThan(first.regraded);
+  });
+
+  it('serves the transport truth for known devices', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const devices = await c.devices.listDevices();
+    const info = await c.system.getDeviceTransport(devices[0].id);
+    expect(info.transport).toBe('direct');
+    expect(info.lastTransportError).toBeNull();
+    const err = (await c.system.getDeviceTransport('disk-404').catch((e: unknown) => e)) as {
+      code: string;
+    };
+    expect(err.code).toBe('device-gone');
+  });
+
+  it('runs fsck with the final verdict keys', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const result = await c.maintenance.runFsck('C');
+    expect(result.letter).toBe('C:');
+    expect(result.verdictKey).toBe('maintenance.fsckClean');
+    expect(result.exitCode).toBe(0);
+    const fixed = await c.maintenance.runFsck('C:', true);
+    expect(fixed.verdictKey).toBe('maintenance.fsckFixed');
+    const malformed = (await c.maintenance.runFsck('12').catch((e: unknown) => e)) as {
+      code: string;
+    };
+    expect(malformed.code).toBe('scan-scope-invalid');
+    const unmounted = (await c.maintenance.runFsck('Z').catch((e: unknown) => e)) as {
+      code: string;
+    };
+    expect(unmounted.code).toBe('device-gone'); // the loud refusal, never silent
+  });
+});

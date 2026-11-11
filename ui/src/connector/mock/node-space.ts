@@ -677,6 +677,45 @@ export class NodeSpace {
     return total;
   }
 
+  // -------------------------------------------------- lane C: observability
+
+  /** Per-category file counts (the assistant block's category axis). */
+  categoryCounts(scope: Uint8Array | null = null): Partial<Record<FileCategoryId, number>> {
+    const counts: Partial<Record<FileCategoryId, number>> = {};
+    for (let i = 0; i < this.fileCount; i++) {
+      if (!this.inScope(i, scope)) continue;
+      const c = this.categoryOf(i);
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /** Per-extension counts for RAW-carved files (the carve tally axis). */
+  carveTally(scope: Uint8Array | null = null): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < this.fileCount; i++) {
+      if (this.originOf(i) !== 'raw') continue;
+      if (!this.inScope(i, scope)) continue;
+      const e = this.extensionOf(i);
+      counts[e] = (counts[e] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /**
+   * The re-grade eligibility model (the engine's grade-1-only rule,
+   * mirrored on the confidence mix): only "fair" nodes are eligible
+   * (the sticky 0/2 rule — excellent/poor verdicts never move), and the
+   * re-grade promotes to "good". Returns whether the node moved.
+   */
+  regradeNode(id: string): boolean {
+    const idx = Number(id.replace(/^[fd]/, ''));
+    if (!Number.isInteger(idx) || idx < 0 || idx >= this.fileCount) return false;
+    const eligible = CONFIDENCES[this.fConf[idx]] === 'fair';
+    if (eligible) this.fConf[idx] = 2; // 'good' — the promotion
+    return eligible;
+  }
+
   // ------------------------------------------------------------------ trees
 
   /** Path-mode tree children (directories + special groups at top level). */
@@ -831,6 +870,11 @@ export class NodeSpace {
       });
     }
     return out;
+  }
+
+  /** The RAW-origin file count (the assistant block's rawCount axis). */
+  rawCount(scope: Uint8Array | null = null): number {
+    return this.countByOrigin('raw', scope);
   }
 
   private countByOrigin(origin: ResultOrigin, scope: Uint8Array | null = null): number {

@@ -548,6 +548,7 @@ export const en = {
     scanNotRunning: 'The scan is not running.',
     destinationInvalid: 'That destination path is not valid.',
     destinationUnwritable: 'Files cannot be written to that destination.',
+    imageNotFound: 'That image-creation job is no longer open.',
     repairFailed: 'The repair operation failed.',
     healthUnavailable: 'Health data is unavailable for this device.',
     notImplemented: 'This capability is not available in this build.',
@@ -562,6 +563,15 @@ export const en = {
     selectRow: 'Select row',
     gauge: 'Overall completion gauge',
     resizePreview: 'Resize preview pane',
+  },
+  maintenance: {
+    fsckClean: 'No file system errors were found.',
+    fsckFixed: 'File system errors were found and fixed.',
+    fsckScheduled: 'The check was scheduled — it will run at the next restart.',
+    fsckErrorsRemain: 'Errors remain on the volume. Run the fix, then check again.',
+    fsckTimeout:
+      'The check is still running past its time bound. It will finish in the background.',
+    fsckSpawnFailed: 'The system check tool could not be started.',
   },
   devPanel: {
     title: 'Developer panel',

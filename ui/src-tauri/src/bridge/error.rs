@@ -17,6 +17,14 @@
 //! ERR_ELEVATION_REQUIRED (0x500C0001) crosses as an engine code and maps to
 //! the elevation-required banner + relaunch flow (the user-mode product's
 //! posture — cr_ui.h's host-triggers-its-own-UAC contract).
+//!
+//! Lane C append (the API-surface session): DESTINATION_OVERLAP and
+//! OUT_OF_SPACE join the bridge-minted set — the imaging pre-gate is the
+//! first bridge-side surface that can DETECT those conditions before the
+//! engine is ever asked (cr_ui_image_create writes a file; it cannot know
+//! the destination volume's free space or its disk mapping). The engine's
+//! own 0x50050001/0x50050004 remain the recovery-path sources; the bridge
+//! codes exist in parallel, mapped to the same UI vocabulary.
 
 use serde::Serialize;
 
@@ -40,11 +48,16 @@ pub mod code {
     pub const NOT_IMPLEMENTED: &str = "not-implemented";
     pub const HEALTH_UNAVAILABLE: &str = "health-unavailable";
     pub const REPAIR_CONSENT_REQUIRED: &str = "repair-consent-required";
-    // No ELEVATION_REQUIRED / DESTINATION_INVALID / DESTINATION_OVERLAP
-    // here: those three cross as ENGINE numeric codes (0x500C0001 and the
-    // 0x5005xxxx destination family the engine itself arms — F12/M-074) and
-    // the TS connector maps them through its numeric table; the bridge
-    // never classifies them itself (clippy dead-code proof, run 42109647269).
+    // No ELEVATION_REQUIRED here: it crosses as an ENGINE numeric code
+    // (0x500C0001) and the TS connector maps it through its numeric table;
+    // the bridge never classifies it itself (clippy dead-code proof, run
+    // 42109647269).
+    // Lane C appends (the imaging pre-gate is the first bridge-side
+    // detector of these two conditions; the engine codes stay the
+    // recovery-path sources — see the module doc above):
+    pub const DESTINATION_OVERLAP: &str = "destination-overlap";
+    pub const OUT_OF_SPACE: &str = "out-of-space";
+    pub const IMAGE_NOT_FOUND: &str = "image-not-found";
     pub const UNKNOWN: &str = "unknown";
 }
 

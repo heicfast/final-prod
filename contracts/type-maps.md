@@ -214,3 +214,40 @@ error-codes.json session rules.
   write probe fails → `'unwritable'`.
 - `MountPoint`: per lettered volume: `{id:"vol-<L>", label, path:"L:\\",
   freeBytes, totalBytes}`.
+
+## 11. Imaging — `cr_ui_image_create` + bridge registry → `ImageJobState` (lane C)
+
+| Source | UI | Notes |
+|---|---|---|
+| `image_create_start` arg `deviceId` ("disk-N") | `ImagingDomain.startImageCreation(deviceId, path)` | the connector speaks device ids; the bridge parses the physical disk number |
+| (bridge: `enumerate_disks` presence + `size_bytes`) | pre-gates: absent disk → `device-gone` | the disk's total is the byte-for-byte need |
+| (bridge: `enumerate_volumes` letter → disk mapping) | destination on the imaged disk → `destination-overlap` (bridge-minted) | the engine writes a file; it cannot know the destination's disk mapping |
+| (Win32 `GetDiskFreeSpaceExW`) | free < total + 64 MiB headroom → `out-of-space` (bridge-minted) | the reference's "Need additional %1" gate (strings:11645-11731) |
+| progress callback `(bytes_done, bytes_total)` | `image-progress:<imageId>` event: `bytesDone/bytesTotal/overallProgress/throughputBytesPerSecond/etaSeconds` | the engine's own cumulative-bytes callback (the recovery sink reused); bridge EMA throughput + clamped-monotonic fraction |
+| worker rc: `CR_UI_OK` / `CR_UI_ERR_CANCELLED` / other | `status`: `'completed'` / `'cancelled'` / `'failed'`; `image-finished:<imageId>` = `{status, partialKept}` | single-writer rule: the worker latches + emits the terminal pair |
+| (filesystem probe: `<path>.partial` exists) | `partialKept: boolean` | a filesystem truth probe, never parsed from engine message text |
+| (ABI carries no cancel) | `cancelSupported: false` | the truthful contract; the reference's stop-confirm is a PARITY-DELTAS-registered divergence |
+| registry row | `image_create_state` → `ImageJobState` | live counters + terminal latch, answerable after the terminal event |
+
+## 12. Diagnostics — the observability surface (lane C)
+
+| Engine | UI | Notes |
+|---|---|---|
+| `cr_ui_telemetry` (+ `stage_tel` ×3) | `ScanTelemetry` (`stages.quick/deep/carve: StageTelemetry`) | permille/units/bytes/elapsed per stage, pause-compensated |
+| `cr_ui_scan_get_stats` (best-effort) | `finalStats` + `statsAvailable` | included only when the engine answered (never silent zeros) |
+| `cr_ui_scan_checkpoint_count` (best-effort) | `checkpoints` + `checkpointsAvailable` | the autosave-adjacent internal axis |
+| (session-kind registry entries) | typed `scan-not-running` refusal | telemetry is a live-scan surface; sessions carry final stats on session_meta |
+| `cr_ui_assistant_stats` | `ScanAssistantStats` | category_counts[8] → keyed `categoryCounts` (image..bookmarks); matched/total/smallResult cross verbatim (the og's < 100 forced-zero rule); the UI renders the verdict |
+| `cr_ui_carve_format_count/_info` | `CarveFormatRow[]` (`listCarveFormats`) | both layers, deterministic order |
+| `cr_ui_scan_carve_tally_count/_tally` + format info | `CarveTallyRow[]` (`getCarveTally`); trailing `userSigns: true` row = the aggregate slot | live scans only |
+| `cr_ui_disk_map` geometry + overlays | `DiskMapPayload` (`getDiskMap`) | allocation: 0 unknown/1 used/2 free/3 bad; coverage: 0/1; found: capped 255; confidence: 0..4; cell budget default 4096 cap 65536 (floor: the engine's 64 KiB granularity); bad_ranges two-call (TRUNCATED → exact size) |
+| `cr_ui_session_get_info.slice_bytes` | session-path default `totalBytes` | sessions default to their scanned slice |
+| `cr_ui_device_transport` (two-call) + `cr_ui_last_transport_error` | `DeviceTransportInfo` = `{transport, lastTransportError}` | "direct"/"image"; the advisory is hex or null, never gating |
+| `cr_ui_session_regrade` (node ids via the snapshot metadata cache) | `results.regradeNodes(scanId, nodeIds)` → `{requested, regraded}` | grade-1-only eligibility, sticky 0/2 — the engine's own rule |
+
+## 13. Maintenance — the privileged one-shots (lane C)
+
+| Engine | UI | Notes |
+|---|---|---|
+| `cr_ui_fsck_volume(letter, flags)` + raw exit code | `FsckResult` = `{letter, exitCode, verdict, verdictKey, fix}` | verdict map: 0 clean / 1 fixed / 2 scheduled / 3 errors-remain / 259 STILL_ACTIVE (the 15-min bound) / -1 spawn-failed; verdictKey is the FINAL i18n key (the connector guards it through its known-verdict map) |
+| `cr_ui_turn_off_bitlocker(letter)` | `BitlockerOffResult` = `{letter, accepted}` | OK means ACCEPTED, not plaintext (the OS decrypt continues); ERR_FVE_LOCKED crosses as device-permission when both command forms failed; the sink logs start/settle ticks only (no fabricated percentage) |

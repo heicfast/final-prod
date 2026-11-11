@@ -18,13 +18,26 @@ import type {
   AppInfo,
   ApplyConsentEvent,
   ApplyResult,
+  AssistantCategoryKey,
   BadSectorRange,
+  BitlockerOffResult,
+  CarveFormatRow,
+  CarveTallyRow,
   ConsentRequestEvent,
   ConnectorError,
   ConnectorErrorCode,
   DestinationValidation,
   Device,
+  DeviceTransportInfo,
   DiskHealth,
+  DiskMapGeometry,
+  DiskMapOptions,
+  DiskMapPayload,
+  FsckResult,
+  ImageFinishedEvent,
+  ImageJobState,
+  ImageJobStatus,
+  ImageProgressEvent,
   LostCandidateEvent,
   LostCandidateRow,
   MockScenarioId,
@@ -44,18 +57,21 @@ import type {
   ResultsFilter,
   ResultsPage,
   ResultTreeMode,
+  ScanAssistantStats,
   ScanAutosavedEvent,
   ScanFinishedEvent,
   ScanParams,
   ScanProgressEvent,
   ScanStage,
   ScanState,
+  ScanTelemetry,
   SaveProgressEvent,
   SessionLoadProgressEvent,
   SessionMeta,
   SmartAttribute,
   SortDirection,
   SortField,
+  StageTelemetry,
   SystemDomain,
   TreeNode,
   TreePage,
@@ -199,6 +215,112 @@ interface ScanRuntime {
   autosaved: boolean;
 }
 
+/**
+ * Lane C: the mock imaging runtime — the Create Image flow's simulator
+ * (deterministic ticks, the same emitter-registry discipline the scan and
+ * recovery runtimes use). NO cancel is simulated: the contract's truthful
+ * cancelSupported=false posture is mirrored verbatim.
+ */
+interface ImageRuntime {
+  imageId: string;
+  disk: number;
+  path: string;
+  status: ImageJobStatus;
+  bytesDone: number;
+  bytesTotal: number;
+  throughput: number;
+  tick: number;
+  timer: ReturnType<typeof setInterval> | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+/** The mock carve catalog: a deterministic sample of the engine's two
+ * layers (grammar validators + raw-sign prefilters) — shape-exact, a
+ * fixture not a mirror of the engine's real table. */
+const MOCK_CARVE_CATALOG: readonly CarveFormatRow[] = [
+  {
+    index: 0,
+    layer: 0,
+    ext: 'jpg',
+    minSizeBytes: 134,
+    maxSizeBytes: 0,
+    baseConfidence: 900,
+    magicLen: 3,
+    magicOffset: 0,
+  },
+  {
+    index: 1,
+    layer: 0,
+    ext: 'png',
+    minSizeBytes: 45,
+    maxSizeBytes: 0,
+    baseConfidence: 900,
+    magicLen: 8,
+    magicOffset: 0,
+  },
+  {
+    index: 2,
+    layer: 0,
+    ext: 'pdf',
+    minSizeBytes: 85,
+    maxSizeBytes: 0,
+    baseConfidence: 800,
+    magicLen: 5,
+    magicOffset: 0,
+  },
+  {
+    index: 3,
+    layer: 0,
+    ext: 'zip',
+    minSizeBytes: 30,
+    maxSizeBytes: 0,
+    baseConfidence: 700,
+    magicLen: 4,
+    magicOffset: 0,
+  },
+  {
+    index: 4,
+    layer: 1,
+    ext: 'mp4',
+    minSizeBytes: 1024,
+    maxSizeBytes: 4_294_967_296,
+    baseConfidence: 600,
+    magicLen: 0,
+    magicOffset: 0,
+  },
+  {
+    index: 5,
+    layer: 1,
+    ext: 'mov',
+    minSizeBytes: 1024,
+    maxSizeBytes: 4_294_967_296,
+    baseConfidence: 550,
+    magicLen: 0,
+    magicOffset: 0,
+  },
+  {
+    index: 6,
+    layer: 1,
+    ext: 'docx',
+    minSizeBytes: 512,
+    maxSizeBytes: 1_073_741_824,
+    baseConfidence: 650,
+    magicLen: 0,
+    magicOffset: 0,
+  },
+  {
+    index: 7,
+    layer: 1,
+    ext: 'heic',
+    minSizeBytes: 1024,
+    maxSizeBytes: 1_073_741_824,
+    baseConfidence: 600,
+    magicLen: 0,
+    magicOffset: 0,
+  },
+];
+
 interface JobRuntime {
   jobId: string;
   scanId: string;
@@ -249,6 +371,10 @@ export class MockConnector {
   private repairApplied = new Map<string, number>();
   private nextScanId = 1;
   private nextJobId = 1;
+  private imageJobs = new Map<string, ImageRuntime>();
+  private imageProgressListeners = new Map<string, Set<(e: ImageProgressEvent) => void>>();
+  private imageFinishedListeners = new Map<string, Set<(e: ImageFinishedEvent) => void>>();
+  private nextImageId = 1;
 
   // ------------------------------------------------------------------
   // W-01: the event-emitter registry — the mock mirrors the bridge's
@@ -603,6 +729,211 @@ export class MockConnector {
       pending.resolve(allow);
       await latency(120);
     },
+
+    // ---- Lane C: the observability surface (derived from the runtime,
+    // never fabricated beyond what the simulator itself knows) ----------
+
+    getScanTelemetry: async (scanId: string): Promise<ScanTelemetry> => {
+      await latency(40, 20);
+      const rt = this.requireScan(scanId);
+      const stageOf = (name: ScanStage): StageTelemetry => {
+        const idx = rt.stages.indexOf(name);
+        const curIdx = rt.stages.indexOf(rt.stage);
+        if (idx >= 0 && curIdx > idx) {
+          return {
+            permille: 1000,
+            unitsDone: 1,
+            unitsTotal: 1,
+            bytesDone: rt.bytesTotal,
+            elapsedMs: 0,
+            completed: true,
+          };
+        }
+        if (rt.stage === name) {
+          return {
+            permille: Math.round(rt.stageProgress * 1000),
+            unitsDone: 1,
+            unitsTotal: 1,
+            bytesDone: Math.round(rt.bytesScanned * rt.stageProgress),
+            elapsedMs: Math.round(rt.tick * 80),
+            completed: false,
+          };
+        }
+        return {
+          permille: 0,
+          unitsDone: 0,
+          unitsTotal: 1,
+          bytesDone: 0,
+          elapsedMs: 0,
+          completed: false,
+        };
+      };
+      const terminal =
+        rt.status === 'completed' || rt.status === 'cancelled' || rt.status === 'failed';
+      return {
+        scanId,
+        overallPermille: Math.round(rt.overall * 1000),
+        running: rt.status === 'running',
+        paused: rt.status === 'paused',
+        cancelled: rt.status === 'cancelled',
+        elapsedMs: Math.round(rt.tick * 80),
+        filesFound: rt.filesFound,
+        deletedFound: Math.round(rt.filesFound * 0.72),
+        carvedFound: Math.round(rt.filesFound * 0.14),
+        lostPartitions: rt.lostCandidates.length,
+        bytesScanned: rt.bytesScanned,
+        bytesFound: rt.dataFound,
+        errorRanges: rt.errors,
+        stages: {
+          quick: stageOf('quick-index'),
+          deep: stageOf('deep-walk'),
+          carve: stageOf('carve'),
+        },
+        ...(terminal
+          ? {
+              finalStats: {
+                filesFound: rt.filesFound,
+                deletedFound: Math.round(rt.filesFound * 0.72),
+                carvedFound: Math.round(rt.filesFound * 0.14),
+                lostPartitions: rt.lostCandidates.length,
+                bytesScanned: rt.bytesScanned,
+                bytesUnreadable: rt.badSectors.reduce((a, r) => a + r.sizeBytes, 0),
+                elapsedMs: Math.round(rt.tick * 80),
+                errorRanges: rt.errors,
+                checkRan: true,
+                checkErrors: this.scenario === 'bad-sectors' ? 2 : 0,
+                repairRan: false,
+                repairApplied: 0,
+                autosaved: rt.autosaved,
+              },
+              statsAvailable: true,
+              checkpoints: 3,
+              checkpointsAvailable: true,
+            }
+          : { statsAvailable: false, checkpointsAvailable: false }),
+      };
+    },
+
+    getScanAssistantStats: async (scanId: string): Promise<ScanAssistantStats> => {
+      await latency(60, 30);
+      const rt = this.requireScan(scanId);
+      if (rt.status !== 'completed') {
+        throw connError(
+          'scan-not-running',
+          'assistant statistics exist at scan completion (the grading pass)',
+          'errors.scanNotRunning',
+        );
+      }
+      const counts = rt.space.categoryCounts(rt.scopeMask);
+      // FileCategoryId ('graphics') -> the assistant's category axis
+      // ('image' — cr_ui.h's RecoveryAssistant slot order).
+      const image = counts.graphics ?? 0;
+      const raw = rt.space.rawCount(rt.scopeMask);
+      const total = rt.filesFound;
+      const smallResult = total < 100;
+      // The og's rule: matched is FORCED to 0 under total < 100 (the
+      // gauge never shows) — mirrored, never invented.
+      const matched = smallResult ? 0 : Math.round(total * 0.82);
+      const categories = {
+        image,
+        video: counts.video ?? 0,
+        audio: counts.audio ?? 0,
+        document: counts.document ?? 0,
+        archive: counts.archive ?? 0,
+        other: counts.other ?? 0,
+        email: counts.email ?? 0,
+        bookmarks: counts.bookmarks ?? 0,
+      } satisfies Record<AssistantCategoryKey, number>;
+      return {
+        scanId,
+        totalFileCount: total,
+        rawCount: raw,
+        lostPartitionExistFileCount: 0,
+        lostPartitionDeleteFileCount: rt.lostCandidates.length,
+        quickScanExistFileCount: Math.round(total * 0.28),
+        quickScanDeleteFileCount: Math.round(total * 0.58),
+        deepScanFileCount: Math.round(total * 0.14),
+        quickScanDeleteExtend: 0,
+        categoryCounts: categories,
+        matched,
+        total,
+        smallResult,
+        gradedCount: total,
+      };
+    },
+
+    listCarveFormats: async (): Promise<readonly CarveFormatRow[]> => {
+      await latency(30, 10);
+      return MOCK_CARVE_CATALOG;
+    },
+
+    getCarveTally: async (scanId: string): Promise<readonly CarveTallyRow[]> => {
+      await latency(40, 20);
+      const rt = this.requireScan(scanId);
+      const extCounts = rt.space.carveTally(rt.scopeMask);
+      const rows: CarveTallyRow[] = [];
+      for (const f of MOCK_CARVE_CATALOG) {
+        rows.push({
+          formatIndex: f.index,
+          layer: f.layer,
+          ext: f.ext,
+          userSigns: false,
+          count: extCounts[f.ext] ?? 0,
+        });
+      }
+      const userTotal = this.userSigns.reduce((a, s) => a + (extCounts[s.ext] ?? 0), 0);
+      rows.push({
+        formatIndex: null,
+        layer: null,
+        ext: null,
+        userSigns: true,
+        count: userTotal,
+      });
+      return rows;
+    },
+
+    getDiskMap: async (scanId: string, options?: DiskMapOptions): Promise<DiskMapPayload> => {
+      await latency(50, 25);
+      const rt = this.requireScan(scanId);
+      const total = options?.totalBytes ?? rt.bytesTotal;
+      const start = options?.startByte ?? 0;
+      const maxCells = Math.min(Math.max(options?.maxCells ?? 512, 64), 65536);
+      const cellBytes = Math.max(
+        options?.cellBytes ?? Math.ceil(total / maxCells / 65536) * 65536,
+        65536,
+      );
+      const cellCount = Math.min(Math.ceil(total / cellBytes), 65536);
+      // Derive the overlays from the simulator's own truth: coverage from
+      // the scan fraction, allocation from a deterministic fill, found
+      // from file density, confidence from the grade mix. Deterministic
+      // per cell index — never random per call.
+      const covered = Math.round(cellCount * rt.overall);
+      const fill = Math.min(0.85, Math.max(0.1, rt.filesFound / 4000));
+      const allocation: number[] = [];
+      const coverage: number[] = [];
+      const found: number[] = [];
+      const confidence: number[] = [];
+      for (let i = 0; i < cellCount; i++) {
+        const scanned = i < covered ? 1 : 0;
+        coverage.push(scanned);
+        const used = (i * 2654435761) % 1000 < fill * 1000 ? 1 : 2;
+        allocation.push(used);
+        found.push(scanned && used === 1 ? ((i * 40503) % 7) + 1 : 0);
+        confidence.push(scanned && used === 1 ? ((i * 12289) % 3) + 2 : 0);
+      }
+      const badRanges = rt.badSectors.filter(
+        (r) => r.startByte + r.sizeBytes > start && r.startByte < start + total,
+      );
+      const geometry: DiskMapGeometry = {
+        startByte: start,
+        totalBytes: total,
+        cellBytes,
+        cellCount,
+        clusterBytes: 4096,
+        fsFamily: 1,
+      };
+      return { scanId, geometry, allocation, coverage, found, confidence, badRanges };
+    },
   };
 
   private requireScan(scanId: string): ScanRuntime {
@@ -627,6 +958,53 @@ export class MockConnector {
     return rt.status === 'completed' || rt.status === 'cancelled'
       ? 1
       : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
+  }
+
+  /**
+   * Lane C: the imaging tick — advances the byte stream at the runtime's
+   * throughput (scaled down so a simulated multi-GB image completes in
+   * seconds, exactly like the scan/recovery tick engines), emits the
+   * coalesced progress, and latches the terminal state (the single-writer
+   * rule mirrored).
+   */
+  private imageTick(rt: ImageRuntime): void {
+    rt.tick++;
+    // The simulated clock: ~90 MB/s at 90 ms ticks would take minutes for
+    // a disk-sized total — scale to a ~4 s run (44 ticks), the same
+    // compression the scan engine applies to its stages.
+    const isTest = import.meta.env?.MODE === 'test';
+    const perTick = Math.ceil(rt.bytesTotal / (isTest ? 12 : 44));
+    rt.bytesDone = Math.min(rt.bytesTotal, rt.bytesDone + perTick);
+    const frac = rt.bytesTotal > 0 ? rt.bytesDone / rt.bytesTotal : 0;
+    if (rt.bytesDone >= rt.bytesTotal) {
+      rt.status = 'completed';
+      rt.finishedAt = new Date().toISOString();
+      if (rt.timer) {
+        clearInterval(rt.timer);
+        rt.timer = null;
+      }
+    }
+    this.emitTo(this.imageProgressListeners, rt.imageId, {
+      imageId: rt.imageId,
+      status: rt.status,
+      bytesDone: rt.bytesDone,
+      bytesTotal: rt.bytesTotal,
+      overallProgress: rt.status === 'completed' ? 1 : frac,
+      throughputBytesPerSecond: rt.throughput,
+      etaSeconds:
+        rt.status === 'running'
+          ? Math.round((rt.bytesTotal - rt.bytesDone) / rt.throughput)
+          : rt.status === 'completed'
+            ? 0
+            : null,
+    });
+    if (rt.status === 'completed') {
+      this.emitTo(this.imageFinishedListeners, rt.imageId, {
+        imageId: rt.imageId,
+        status: rt.status,
+        partialKept: false,
+      });
+    }
   }
 
   private scanTick(rt: ScanRuntime): void {
@@ -893,6 +1271,21 @@ export class MockConnector {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
       return Math.floor(rt.space.count(filter, rt.scopeMask) * this.visibleFraction(rt));
+    },
+
+    regradeNodes: async (
+      scanId: string,
+      nodeIds: readonly string[],
+    ): Promise<{ regraded: number }> => {
+      await latency(90, 40);
+      const rt = this.requireScan(scanId);
+      // Session-tree semantics mirrored: only grade-1 ("average") nodes
+      // are eligible; the simulator's grade model is the node-space's own.
+      let regraded = 0;
+      for (const id of nodeIds) {
+        if (rt.space.regradeNode(id)) regraded += 1;
+      }
+      return { regraded };
     },
   };
 
@@ -2049,6 +2442,186 @@ ${lines.join('')}
         'opening paths requires the desktop shell',
         'errors.openPathMock',
       );
+    },
+
+    getDeviceTransport: async (deviceId: string): Promise<DeviceTransportInfo> => {
+      await latency(60, 25);
+      const known =
+        this.deviceList.some((d) => d.id === deviceId) ||
+        this.deviceList.some((d) => d.volumes.some((v) => v.id === deviceId));
+      if (!known) {
+        throw connError('device-gone', `device ${deviceId} not found`, 'errors.deviceGone');
+      }
+      // The session-96 truth: every raw-disk device is a direct
+      // \\.\PhysicalDriveN view; the simulator has no image devices.
+      return { deviceId, transport: 'direct', lastTransportError: null };
+    },
+  };
+
+  // ------------------------------------------------------------ lane C: imaging
+
+  readonly imaging = {
+    startImageCreation: async (
+      deviceId: string,
+      path: string,
+    ): Promise<{ imageId: string }> => {
+      await latency(420, 120);
+      const trimmed = path.trim();
+      if (trimmed === '') {
+        throw connError(
+          'scan-scope-invalid',
+          'image destination path is empty',
+          'errors.scanScopeInvalid',
+        );
+      }
+      // Whole-disk semantics: the mock's own device namespace (dev-*)
+      // plays the disk-N role; volume ids are refused the same way the
+      // real bridge refuses them (imaging addresses whole disks).
+      if (/^vol-/.test(deviceId)) {
+        throw connError(
+          'scan-scope-invalid',
+          `imaging addresses whole disks: '${deviceId}' is a volume id`,
+          'errors.scanScopeInvalid',
+        );
+      }
+      const diskIdx = this.deviceList.findIndex((d) => d.id === deviceId);
+      if (diskIdx < 0) {
+        throw connError('device-gone', `device ${deviceId} not found`, 'errors.deviceGone');
+      }
+      const device = this.deviceList[diskIdx];
+      // The same-disk pre-gate: the destination letter must not live on
+      // the imaged device (mirrors the bridge's typed refusal).
+      const destLetter = /^[A-Za-z]:/.exec(trimmed)?.[0]?.[0]?.toUpperCase();
+      if (destLetter && device.volumes.some((v) => v.letter?.toUpperCase() === destLetter)) {
+        throw connError(
+          'destination-overlap',
+          'the image destination is on the imaged disk itself',
+          'recovery.overlapReason',
+        );
+      }
+      const imageId = `img-${this.nextImageId++}`;
+      const rt: ImageRuntime = {
+        imageId,
+        disk: diskIdx + 1,
+        path: trimmed,
+        status: 'running',
+        bytesDone: 0,
+        bytesTotal: device.capacity.totalBytes,
+        throughput: 96 * 1024 * 1024,
+        tick: 0,
+        timer: null,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+      };
+      this.imageJobs.set(imageId, rt);
+      rt.timer = setInterval(() => this.imageTick(rt), 90);
+      return { imageId };
+    },
+
+    getImageState: async (imageId: string): Promise<ImageJobState> => {
+      await latency(30, 15);
+      const rt = this.imageJobs.get(imageId);
+      if (!rt) {
+        throw connError(
+          'image-not-found',
+          `image job ${imageId} not found`,
+          'errors.imageNotFound',
+        );
+      }
+      const frac = rt.bytesTotal > 0 ? rt.bytesDone / rt.bytesTotal : 0;
+      return {
+        imageId,
+        status: rt.status,
+        bytesDone: rt.bytesDone,
+        bytesTotal: rt.bytesTotal,
+        overallProgress: rt.status === 'completed' ? 1 : frac,
+        throughputBytesPerSecond: rt.throughput,
+        etaSeconds:
+          rt.status === 'running' && rt.bytesTotal > rt.bytesDone
+            ? Math.round((rt.bytesTotal - rt.bytesDone) / rt.throughput)
+            : rt.status === 'completed'
+              ? 0
+              : null,
+        disk: rt.disk,
+        path: rt.path,
+        startedAt: rt.startedAt,
+        finishedAt: rt.finishedAt,
+        cancelSupported: false, // the truthful contract, mirrored verbatim
+        partialKept: false, // the simulator never simulates a failed stream
+      };
+    },
+
+    onImageProgress: (imageId: string, cb: (event: ImageProgressEvent) => void): (() => void) =>
+      this.subscribeTo(this.imageProgressListeners, imageId, cb),
+
+    onImageFinished: (imageId: string, cb: (event: ImageFinishedEvent) => void): (() => void) =>
+      this.subscribeTo(this.imageFinishedListeners, imageId, cb),
+  };
+
+  // ------------------------------------------------------------ lane C: maintenance
+
+  readonly maintenance = {
+    runFsck: async (letter: string, fix?: boolean): Promise<FsckResult> => {
+      await latency(700, 150);
+      const l = /^[A-Za-z]:?/.exec(letter.trim())?.[0]?.[0]?.toUpperCase();
+      if (!l) {
+        throw connError(
+          'scan-scope-invalid',
+          `volume '${letter}' is not a drive letter`,
+          'errors.scanScopeInvalid',
+        );
+      }
+      // The loud refusal mirrored: no volume mounted at the letter is
+      // device-gone (the engine's ERR_OPEN_FAILED class), never a silent
+      // skip.
+      const mounted = this.deviceList
+        .flatMap((d) => d.volumes)
+        .some((v) => v.letter?.toUpperCase() === l);
+      if (!mounted) {
+        throw connError('device-gone', `no volume is mounted at ${l}:`, 'errors.deviceGone');
+      }
+      // The simulator's verdict truth: the bad-sectors scenario models a
+      // volume with remaining errors (the raw exit code crosses verbatim;
+      // the verdictKey is the final i18n key, same as the bridge's).
+      const errorsRemain = this.scenario === 'bad-sectors';
+      const exitCode = errorsRemain ? 3 : fix ? 1 : 0;
+      const verdict = errorsRemain ? 'errors-remain' : fix ? 'fixed' : 'clean';
+      const verdictKeys: Record<typeof verdict, string> = {
+        clean: 'maintenance.fsckClean',
+        fixed: 'maintenance.fsckFixed',
+        'errors-remain': 'maintenance.fsckErrorsRemain',
+      };
+      return {
+        letter: `${l}:`,
+        exitCode,
+        verdict,
+        verdictKey: verdictKeys[verdict],
+        fix: fix ?? false,
+      };
+    },
+
+    turnOffBitlocker: async (letter: string): Promise<BitlockerOffResult> => {
+      await latency(900, 200);
+      const l = /^[A-Za-z]:?/.exec(letter.trim())?.[0]?.[0]?.toUpperCase();
+      if (!l) {
+        throw connError(
+          'scan-scope-invalid',
+          `volume '${letter}' is not a drive letter`,
+          'errors.scanScopeInvalid',
+        );
+      }
+      const volume = this.deviceList
+        .flatMap((d) => d.volumes)
+        .find((v) => v.letter?.toUpperCase() === l);
+      if (volume?.bitlocker !== true && volume?.bitlocker !== 'locked') {
+        throw connError(
+          'device-permission',
+          `volume ${l}: is not BitLocker-protected`,
+          'errors.devicePermission',
+        );
+      }
+      // OK means ACCEPTED, not plaintext (the honest contract).
+      return { letter: `${l}:`, accepted: true };
     },
   };
 

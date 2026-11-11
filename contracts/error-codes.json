@@ -397,6 +397,21 @@
       "uiCode": "consent-not-found",
       "origin": "the G-1 (a) consent surface (re-added for the P4 bridge)",
       "notes": "unknown requestId / double-respond / a cancel that force-denied first — the typed stale answer for BOTH consent families."
+    },
+    {
+      "uiCode": "destination-overlap",
+      "origin": "lane C: the imaging pre-gate (image_create_start)",
+      "notes": "the image destination is on the disk being imaged - a byte-for-byte image of the source cannot land on the source (the engine's F12 0x50050001 stays the recovery-path source; this is the first bridge-side detector of the same condition class)"
+    },
+    {
+      "uiCode": "out-of-space",
+      "origin": "lane C: the imaging pre-gate (image_create_start)",
+      "notes": "the destination volume's free space is below the byte-for-byte need + sidecar/headroom (the reference's 'Insuffcient disk space / Need additional %1' gate, strings:11645-11731; the engine's 0x50050004 stays the recovery-path source)"
+    },
+    {
+      "uiCode": "image-not-found",
+      "origin": "lane C: the imaging registry (image_create_state)",
+      "notes": "imageId not in the imaging registry (unknown or never-started id) - the imaging twin of scan-not-found"
     }
   ],
   "uiCodesWithNoEngineSource": [],

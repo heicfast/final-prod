@@ -643,6 +643,183 @@
         "path"
       ],
       "notes": "tauri-plugin-opener: folders open, files are revealed with selection."
+    },
+    {
+      "name": "image_create_start",
+      "threading": "async-job",
+      "abiRefs": [
+        "cr_ui_image_create",
+        "cr_ui_enumerate_disks",
+        "cr_ui_enumerate_volumes"
+      ],
+      "serves": [
+        "imaging.startImageCreation"
+      ],
+      "args": [
+        "deviceId",
+        "path"
+      ],
+      "returns": "{imageId}",
+      "notes": "The Create Image flow (S-040/R-93; corpus UIUX/07:36-37, the DiskBackupDialog chain UIUX/03:125). The connector speaks device ids (disk-N -> the physical disk number). Bridge pre-gates the engine cannot express: same-disk destination refusal (destination-overlap) and the byte-for-byte free-space gate (out-of-space, disk total + 64 MiB sidecar/headroom). Progress on image-progress:<id> (the recovery progress sink reused verbatim - image_create takes the same cumulative-bytes callback); terminal image-finished:<id> from the worker thread (the single-writer rule). NO cancel: the ABI exports none (cr_ui_image_create runs its win-layer CancelToken as nullptr) - the reference's stop-confirm dialog is a PARITY-DELTAS-registered divergence, never a fake stop. On failure the engine keeps <path>.partial (reported via the state probe, never parsed from message text)."
+    },
+    {
+      "name": "image_create_state",
+      "threading": "spawn-join",
+      "abiRefs": [],
+      "serves": [
+        "imaging.getImageState"
+      ],
+      "args": [
+        "imageId"
+      ],
+      "returns": "ImageJobState (type-maps 12)",
+      "notes": "The registry query: live counters + terminal latch + the filesystem-truth partialKept probe (<path>.partial exists). cancelSupported is always false - the truthful ABI contract the UI renders as a documented runs-to-completion posture."
+    },
+    {
+      "name": "scan_telemetry",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_scan_telemetry",
+        "cr_ui_scan_get_stats",
+        "cr_ui_scan_checkpoint_count"
+      ],
+      "serves": [
+        "scan.getScanTelemetry"
+      ],
+      "args": [
+        "scanId"
+      ],
+      "returns": "ScanTelemetry (type-maps 13)",
+      "notes": "The live stage axes (quick/deep/carve permille, units, bytes, pause-compensated elapsed) + the live counters - the axes behind the og's Reading-sector/Advanced-Scanning status family (UIUX dynamic-ground-truth:88-105). statsAvailable/checkpointsAvailable flag the best-effort companions (never silent zeros). Live scans only - a loaded session's final counters ride session_meta (scan-not-running for session entries: the honest typed answer)."
+    },
+    {
+      "name": "scan_assistant_stats",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_scan_assistant"
+      ],
+      "serves": [
+        "scan.getScanAssistantStats"
+      ],
+      "args": [
+        "scanId"
+      ],
+      "returns": "ScanAssistantStats (type-maps 13)",
+      "notes": "The S-023 scan-completion grading statistics - the og's RecoveryAssistant block (per-category counts) + the CRecoverability gauge axes (matched/total, the small-result heuristic the og forces to zero under total < 100). The bridge passes the numbers verbatim; the UI renders the verdict. Live scans only (the ABI derives them at run completion)."
+    },
+    {
+      "name": "carve_catalog",
+      "threading": "sync",
+      "abiRefs": [
+        "cr_ui_carve_format_count",
+        "cr_ui_carve_format_info"
+      ],
+      "serves": [
+        "scan.listCarveFormats"
+      ],
+      "returns": "{formats: CarveFormatRow[], count}",
+      "notes": "The static carve-format registry - the og's EUGetAnalyserList surface (RAWSearchDLL exports): both layers (grammar validators, raw-sign prefilters), deterministic stable order, immutable for the library lifetime (any thread, no handle)."
+    },
+    {
+      "name": "scan_carve_tally",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_scan_carve_tally_count",
+        "cr_ui_scan_carve_tally",
+        "cr_ui_carve_format_info"
+      ],
+      "serves": [
+        "scan.getCarveTally"
+      ],
+      "args": [
+        "scanId"
+      ],
+      "returns": "{scanId, slots: TallyRow[], slotCount}",
+      "notes": "The per-format found counts - the og's GetRawUserInfoMap (the post-scan found-N-.jpg report, DRWUI :227538-227625): slots over the unified format-id space plus the aggregate user-sign slot at the end (formatIndex null, userSigns true). Live scans only (the tally rides the scan handle)."
+    },
+    {
+      "name": "disk_map",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_disk_map",
+        "cr_ui_disk_map_free",
+        "cr_ui_session_get_info"
+      ],
+      "serves": [
+        "scan.getDiskMap"
+      ],
+      "args": [
+        "scanId",
+        "options?"
+      ],
+      "returns": "DiskMapPayload (type-maps 13)",
+      "notes": "The AnalysisGridWidget data producer (UIUX/08:11, UIUX/13:47): allocation/coverage/found/confidence overlays + bad ranges. Sessions map their scanned slice (caller window passes through); live scans map their snapshot (want REQUIRED - snapshots carry no view; entry.snap is held across the call per state.rs's never-mid-pass rule). The bridge bounds the cell budget (default 4096, hard cap 65536, floor the engine's own 64 KiB granularity) - payload honesty: a 1 TiB volume at the raw default would be 16 M cells/array. Bad ranges use the two-call pattern (TRUNCATED -> exact size -> one re-run)."
+    },
+    {
+      "name": "device_transport",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_open_disk",
+        "cr_ui_open_volume",
+        "cr_ui_device_transport",
+        "cr_ui_last_transport_error",
+        "cr_ui_device_close"
+      ],
+      "serves": [
+        "system.getDeviceTransport"
+      ],
+      "args": [
+        "deviceId"
+      ],
+      "returns": "{deviceId, transport, lastTransportError?}",
+      "notes": "The CLI's [transport] truth (direct | image - session-96) via the two-call device query, plus the M-030 last-transport-error advisory (process-global, never cleared, never gating an open's own rc). Transient open/close - no registry entry, no retained handle."
+    },
+    {
+      "name": "session_regrade",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_session_regrade"
+      ],
+      "serves": [
+        "results.regradeNodes"
+      ],
+      "args": [
+        "scanId",
+        "nodeIds"
+      ],
+      "returns": "{requested, regraded}",
+      "notes": "The per-selection re-grade (S-023, the og's FUN_1401d7110): only grade-1 nodes are eligible, grades 0/2 are sticky - the engine's own rule, regraded counts what actually moved. Session trees only (not-implemented for live scans: their grades are the completion pass's own). Node ids resolve through the snapshot metadata cache (the recovery enqueue path's mapping)."
+    },
+    {
+      "name": "volume_fsck",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_fsck_volume"
+      ],
+      "serves": [
+        "maintenance.runFsck"
+      ],
+      "args": [
+        "letter",
+        "fix?"
+      ],
+      "returns": "{letter, exitCode, verdict, verdictKey, fix}",
+      "notes": "The check-phase escalation rung (M-075; the FileSystemCheck.mo ladder lineage): chkdsk check (flags 0) or fix (flags 1) posture on the volume at letter. The engine's spawn vehicle is the D-CONS-01 hidden-subprocess discipline (CREATE_NO_WINDOW + piped stdio) - no console ever reaches the desktop. The RAW exit code crosses verbatim (0 clean / 1 fixed / 2 scheduled / 3 errors-remain / -1 spawn failed / 259 STILL_ACTIVE at the engine's documented 15-minute bound)."
+    },
+    {
+      "name": "volume_bitlocker_off",
+      "threading": "spawn-join",
+      "abiRefs": [
+        "cr_ui_turn_off_bitlocker"
+      ],
+      "serves": [
+        "maintenance.turnOffBitlocker"
+      ],
+      "args": [
+        "letter"
+      ],
+      "returns": "{letter, accepted}",
+      "notes": "The CBitlockerTurnOffOperation endpoint (M-078) - the DESTRUCTIVE decrypt twin of the unlock surface: explicit opt-in only (the UI gates it behind a confirmation dialog; nothing in the scan/open path ever calls it - D-16's legitimate-unlock-only register is untouched). OK means ACCEPTED, not plaintext: the OS decrypt continues in the background (the honest unobservable-percentage contract; the sink logs the/settle ticks as operational evidence only). ERR_FVE_LOCKED crosses when both command forms failed."
     }
   ],
   "events": [
@@ -695,6 +872,16 @@
       "name": "scan-autosaved:<scanId>",
       "source": "CR_EVT_AUTOSAVED (12)",
       "payload": "{rc}"
+    },
+    {
+      "name": "image-progress:<imageId>",
+      "source": "the imaging progress sink (recovery_progress_sink reused) -> channel -> the lane-C emitter",
+      "payload": "{imageId, status, bytesDone, bytesTotal, overallProgress, throughputBytesPerSecond, etaSeconds}"
+    },
+    {
+      "name": "image-finished:<imageId>",
+      "source": "the image worker thread (terminal latch; the single-writer rule)",
+      "payload": "{imageId, status, partialKept}"
     }
   ],
   "removed": [

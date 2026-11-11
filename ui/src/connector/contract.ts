@@ -68,6 +68,7 @@ export type ConnectorErrorCode =
   | 'destination-invalid'
   | 'destination-unwritable'
   | 'out-of-space'
+  | 'image-not-found'
   | 'preview-unsupported'
   | 'preview-too-large'
   | 'preview-damaged'
@@ -303,6 +304,276 @@ export interface ScanDomain {
   onConsentRequest(scanId: string, cb: (event: ConsentRequestEvent) => void): () => void;
   /** Answer a consent request (unknown/double ids throw consent-not-found). */
   respondToConsent(requestId: string, allow: boolean): Promise<void>;
+  /**
+   * Lane C (the observability surface): the live stage telemetry — the
+   * axes behind the reference's Reading-sector / Advanced-Scanning
+   * status family (corpus UIUX dynamic-ground-truth:88-105). Live scans
+   * only; a loaded session's final counters ride getSessionMeta.
+   */
+  getScanTelemetry(scanId: string): Promise<ScanTelemetry>;
+  /**
+   * Lane C: the scan-completion grading statistics — the reference's
+   * RecoveryAssistant block + the CRecoverability gauge axes. The UI
+   * renders the verdict; the connector never invents one.
+   */
+  getScanAssistantStats(scanId: string): Promise<ScanAssistantStats>;
+  /**
+   * Lane C: the static carve-format registry (the reference's
+   * analyser-list surface — both layers, deterministic order).
+   */
+  listCarveFormats(): Promise<readonly CarveFormatRow[]>;
+  /**
+   * Lane C: the per-format carve tally (the reference's found-N-.jpg
+   * post-scan report) + the aggregate user-sign slot. Live scans only.
+   */
+  getCarveTally(scanId: string): Promise<readonly CarveTallyRow[]>;
+  /**
+   * Lane C: the sector-map data (the reference's AnalysisGridWidget
+   * producer): allocation/coverage/found/confidence overlays + bad
+   * ranges over a bounded cell grid. `options` selects the byte window
+   * and granularity (defaults: whole scan, ~4096 cells).
+   */
+  getDiskMap(scanId: string, options?: DiskMapOptions): Promise<DiskMapPayload>;
+}
+
+// ---------------------------------------------------------------------------
+// Lane C — the observability + imaging + maintenance payloads
+// (type-maps §12-§14; the bridge commands' response shapes)
+// ---------------------------------------------------------------------------
+
+/** One stage's telemetry (cr_ui_stage_tel: permille, engine work units,
+ * pause-compensated elapsed). */
+export interface StageTelemetry {
+  readonly permille: number;
+  readonly unitsDone: number;
+  readonly unitsTotal: number;
+  readonly bytesDone: number;
+  readonly elapsedMs: number;
+  readonly completed: boolean;
+}
+
+/** The full live telemetry snapshot (cr_ui_telemetry + flagged companions). */
+export interface ScanTelemetry {
+  readonly scanId: string;
+  readonly overallPermille: number;
+  readonly running: boolean;
+  readonly paused: boolean;
+  readonly cancelled: boolean;
+  readonly elapsedMs: number;
+  readonly filesFound: number;
+  readonly deletedFound: number;
+  readonly carvedFound: number;
+  readonly lostPartitions: number;
+  readonly bytesScanned: number;
+  readonly bytesFound: number;
+  readonly errorRanges: number;
+  readonly stages: Readonly<Record<'quick' | 'deep' | 'carve', StageTelemetry>>;
+  /** Present only when the engine answered the final-stats query. */
+  readonly finalStats?: Readonly<{
+    readonly filesFound: number;
+    readonly deletedFound: number;
+    readonly carvedFound: number;
+    readonly lostPartitions: number;
+    readonly bytesScanned: number;
+    readonly bytesUnreadable: number;
+    readonly elapsedMs: number;
+    readonly errorRanges: number;
+    readonly checkRan: boolean;
+    readonly checkErrors: number;
+    readonly repairRan: boolean;
+    readonly repairApplied: number;
+    readonly autosaved: boolean;
+  }>;
+  readonly statsAvailable: boolean;
+  readonly checkpointsAvailable: boolean;
+  /** Present only when the engine answered the checkpoint query. */
+  readonly checkpoints?: number;
+}
+
+/** The scan-completion grading statistics (S-023; the og's
+ * RecoveryAssistant block — category order: image, video, audio,
+ * document, archive, other, email, bookmarks). */
+export type AssistantCategoryKey =
+  'image' | 'video' | 'audio' | 'document' | 'archive' | 'other' | 'email' | 'bookmarks';
+
+export interface ScanAssistantStats {
+  readonly scanId: string;
+  readonly totalFileCount: number;
+  readonly rawCount: number;
+  readonly lostPartitionExistFileCount: number;
+  readonly lostPartitionDeleteFileCount: number;
+  readonly quickScanExistFileCount: number;
+  readonly quickScanDeleteFileCount: number;
+  readonly deepScanFileCount: number;
+  readonly quickScanDeleteExtend: number;
+  readonly categoryCounts: Readonly<Record<AssistantCategoryKey, number>>;
+  /** The recoverability gauge axes: the reference forces matched to 0
+   * under total < 100 (smallResult true — the gauge never shows). */
+  readonly matched: number;
+  readonly total: number;
+  readonly smallResult: boolean;
+  readonly gradedCount: number;
+}
+
+/** One carve-format registry row (layer 0 grammar validator, 1 raw-sign
+ * prefilter). */
+export interface CarveFormatRow {
+  readonly index: number;
+  readonly layer: 0 | 1;
+  readonly ext: string;
+  readonly minSizeBytes: number;
+  readonly maxSizeBytes: number;
+  /** 0..1000 before validator deltas. */
+  readonly baseConfidence: number;
+  readonly magicLen: number;
+  readonly magicOffset: number;
+}
+
+/** One per-format found-count slot; the trailing user-sign aggregate row
+ * carries formatIndex/ext null and userSigns true. */
+export interface CarveTallyRow {
+  readonly formatIndex: number | null;
+  readonly layer: number | null;
+  readonly ext: string | null;
+  readonly userSigns: boolean;
+  readonly count: number;
+}
+
+/** The map view selector: startByte/totalBytes select the byte window,
+ * cellBytes the granularity (0 = auto against maxCells), maxCells the
+ * payload bound (default 4096, hard cap 65536). */
+export interface DiskMapOptions {
+  readonly startByte?: number;
+  readonly totalBytes?: number;
+  readonly cellBytes?: number;
+  readonly maxCells?: number;
+}
+
+export interface DiskMapGeometry {
+  readonly startByte: number;
+  readonly totalBytes: number;
+  readonly cellBytes: number;
+  readonly cellCount: number;
+  readonly clusterBytes: number;
+  readonly fsFamily: number;
+}
+
+/** The sector-map payload (the AnalysisGridWidget producer): per-cell
+ * overlays, each null when the engine declined it. allocation: 0 unknown,
+ * 1 used, 2 free, 3 bad. coverage: 0 unscanned, 1 scanned. found: distinct
+ * covering files (capped 255). confidence: max Confidence ordinal 0..4. */
+export interface DiskMapPayload {
+  readonly scanId: string;
+  readonly geometry: DiskMapGeometry;
+  readonly allocation: readonly number[] | null;
+  readonly coverage: readonly number[] | null;
+  readonly found: readonly number[] | null;
+  readonly confidence: readonly number[] | null;
+  readonly badRanges: readonly BadSectorRange[];
+}
+
+/** The transport truth for a device ("direct" | "image") plus the
+ * advisory last-transport-error code (hex, null when none). */
+export interface DeviceTransportInfo {
+  readonly deviceId: string;
+  readonly transport: string;
+  readonly lastTransportError: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Imaging (lane C — the reference's Create Image flow)
+// ---------------------------------------------------------------------------
+
+export type ImageJobStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface ImageProgressEvent {
+  readonly imageId: string;
+  readonly status: ImageJobStatus;
+  readonly bytesDone: number;
+  readonly bytesTotal: number;
+  readonly overallProgress: number;
+  readonly throughputBytesPerSecond: number;
+  readonly etaSeconds: number | null;
+}
+
+export interface ImageFinishedEvent {
+  readonly imageId: string;
+  readonly status: ImageJobStatus;
+  /** True when the engine kept `<path>.partial` (a filesystem truth
+   * probe, never parsed from message text). */
+  readonly partialKept: boolean;
+}
+
+export interface ImageJobState extends ImageProgressEvent {
+  readonly disk: number;
+  readonly path: string;
+  readonly startedAt: Iso8601;
+  readonly finishedAt: Iso8601 | null;
+  /** Always false — the ABI exports no cancel (the documented divergence
+   * from the reference's stop-confirm; the UI renders a truthful
+   * runs-to-completion posture, never a dead stop button). */
+  readonly cancelSupported: boolean;
+  readonly partialKept: boolean;
+}
+
+export interface ImagingDomain {
+  /**
+   * Start a byte-for-byte image of the whole physical disk (`deviceId`
+   * must be a disk-N id) to `path` (the engine streams to
+   * `<path>.crimg-tmp`, renames on completion + writes a `.sha256`
+   * sidecar). Bridge pre-gates: destination on the imaged disk refuses
+   * destination-overlap; free space below the byte-for-byte need refuses
+   * out-of-space. NO cancel exists (cancelSupported is always false).
+   */
+  startImageCreation(deviceId: string, path: string): Promise<{ imageId: string }>;
+  getImageState(imageId: string): Promise<ImageJobState>;
+  /** The progress stream (`image-progress:<imageId>`, coalesced). */
+  onImageProgress(imageId: string, cb: (event: ImageProgressEvent) => void): () => void;
+  /** The terminal event (`image-finished:<imageId>`). */
+  onImageFinished(imageId: string, cb: (event: ImageFinishedEvent) => void): () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance (lane C — the privileged one-shots)
+// ---------------------------------------------------------------------------
+
+export type FsckVerdict =
+  'clean' | 'fixed' | 'scheduled' | 'errors-remain' | 'timeout-still-running' | 'spawn-failed';
+
+export interface FsckResult {
+  /** The volume letter, normalized "E:". */
+  readonly letter: string;
+  /** The RAW chkdsk exit code (259 = STILL_ACTIVE at the engine's
+   * documented 15-minute bound; -1 = the spawn itself failed). */
+  readonly exitCode: number;
+  readonly verdict: FsckVerdict;
+  readonly verdictKey: string;
+  readonly fix: boolean;
+}
+
+export interface BitlockerOffResult {
+  readonly letter: string;
+  /** OK means ACCEPTED, not plaintext — the OS decrypt continues in the
+   * background (the honest unobservable-percentage contract). */
+  readonly accepted: boolean;
+}
+
+export interface MaintenanceDomain {
+  /**
+   * The check-phase escalation rung: chkdsk on the volume at `letter`
+   * ("E" or "E:\"), check posture by default or fix with `fix: true`.
+   * The spawn is hidden (CREATE_NO_WINDOW — no console ever reaches the
+   * desktop). Bounded: the engine's internal synchronous bound is 15
+   * minutes (exitCode 259 = still running past it).
+   */
+  runFsck(letter: string, fix?: boolean): Promise<FsckResult>;
+  /**
+   * The DESTRUCTIVE decrypt twin of the unlock surface: turn BitLocker
+   * OFF on the volume at `letter`. Explicit opt-in only — callers gate
+   * this behind a confirmation dialog; nothing in the scan/open path
+   * ever calls it. Resolves when the request was ACCEPTED.
+   */
+  turnOffBitlocker(letter: string): Promise<BitlockerOffResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +718,14 @@ export interface ResultsDomain {
   ): Promise<ResultsPage>;
   getNodeDetail(scanId: string, nodeId: string): Promise<NodeDetail>;
   countResults(scanId: string, filter: ResultsFilter): Promise<number>;
+  /**
+   * Lane C (S-023, the reference's per-selection re-grade): re-run the
+   * grading rules on the given session-tree nodes. Only grade-1 nodes
+   * are eligible (grades 0/2 are sticky) — `regraded` counts what
+   * actually moved. Session trees only (a live scan's grades are the
+   * completion pass's own).
+   */
+  regradeNodes(scanId: string, nodeIds: readonly string[]): Promise<{ regraded: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -852,6 +1131,12 @@ export interface SystemDomain {
   }): Promise<string | null>;
   listMountPoints(): Promise<readonly MountPoint[]>;
   openPath(path: string): Promise<void>;
+  /**
+   * Lane C: the transport truth for a device ("direct" | "image") plus
+   * the advisory last-transport-error code — the diagnostics axis behind
+   * open failures (never gating anything by itself).
+   */
+  getDeviceTransport(deviceId: string): Promise<DeviceTransportInfo>;
 }
 
 // ---------------------------------------------------------------------------
@@ -869,6 +1154,8 @@ export interface RecoveryConnector {
   readonly repair: RepairDomain;
   readonly lostPartition: LostPartitionDomain;
   readonly system: SystemDomain;
+  readonly imaging: ImagingDomain;
+  readonly maintenance: MaintenanceDomain;
 }
 
 /** Dev-panel scenario control (mock-only surface; real connector throws). */

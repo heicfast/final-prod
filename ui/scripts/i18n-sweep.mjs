@@ -180,7 +180,7 @@ export function analyze() {
   // regression shipped scan.quickScanning once — the e2e caught it on
   // Windows; the unit suite could not).
   const NAMESPACES =
-    'app|about|common|nav|sidebar|home|categories|scan|results|preview|recovery|health|repair|settings|errors|a11y|devPanel|lostPartition';
+    'app|about|common|nav|sidebar|home|categories|scan|results|preview|recovery|health|repair|settings|errors|a11y|devPanel|lostPartition|maintenance|imaging';
   for (const { s } of corpus) {
     for (const m of s.matchAll(new RegExp(`'((${NAMESPACES})\\.[A-Za-z0-9_.]+)'`, 'g')))
       used.add(m[1]);

@@ -391,3 +391,148 @@ describe('the tauri connector subscriptions', () => {
     expect(err.code).toBe('preview-missing-data');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Lane C — the API-expansion surface (imaging, diagnostics, maintenance)
+// ---------------------------------------------------------------------------
+
+describe('the tauri connector lane C surface (the manifest)', () => {
+  it('imaging invokes the manifest commands', async () => {
+    await conn.imaging.startImageCreation('disk-1', 'E:\\backup.img');
+    expect(lastCall()).toEqual({
+      cmd: 'image_create_start',
+      args: { deviceId: 'disk-1', path: 'E:\\backup.img' },
+    });
+    await conn.imaging.getImageState('img-1');
+    expect(lastCall()).toEqual({
+      cmd: 'image_create_state',
+      args: { imageId: 'img-1' },
+    });
+  });
+
+  it('the observability methods invoke the manifest commands', async () => {
+    await conn.scan.getScanTelemetry('scan-1');
+    expect(lastCall()).toEqual({ cmd: 'scan_telemetry', args: { scanId: 'scan-1' } });
+    await conn.scan.getScanAssistantStats('scan-1');
+    expect(lastCall()).toEqual({
+      cmd: 'scan_assistant_stats',
+      args: { scanId: 'scan-1' },
+    });
+    invokeImpl = (cmd: string, args: Record<string, unknown>) => {
+      calls.push({ cmd, args });
+      return { formats: [], count: 0 };
+    };
+    await conn.scan.listCarveFormats();
+    expect(lastCall()).toEqual({ cmd: 'carve_catalog', args: {} });
+    invokeImpl = (cmd: string, args: Record<string, unknown>) => {
+      calls.push({ cmd, args });
+      return { slots: [], slotCount: 0 };
+    };
+    await conn.scan.getCarveTally('scan-1');
+    expect(lastCall()).toEqual({ cmd: 'scan_carve_tally', args: { scanId: 'scan-1' } });
+    await conn.scan.getDiskMap('scan-1', { maxCells: 1024 });
+    expect(lastCall()).toEqual({
+      cmd: 'disk_map',
+      args: { scanId: 'scan-1', options: { maxCells: 1024 } },
+    });
+    await conn.scan.getDiskMap('scan-1');
+    expect(lastCall().args).toEqual({ scanId: 'scan-1', options: null });
+    await conn.results.regradeNodes('scan-1', ['f1', 'f2']);
+    expect(lastCall()).toEqual({
+      cmd: 'session_regrade',
+      args: { scanId: 'scan-1', nodeIds: ['f1', 'f2'] },
+    });
+  });
+
+  it('system.getDeviceTransport + maintenance invoke the manifest commands', async () => {
+    await conn.system.getDeviceTransport('disk-1');
+    expect(lastCall()).toEqual({
+      cmd: 'device_transport',
+      args: { deviceId: 'disk-1' },
+    });
+    invokeImpl = (cmd: string, args: Record<string, unknown>) => {
+      calls.push({ cmd, args });
+      return {
+        letter: 'E:',
+        exitCode: 0,
+        verdict: 'clean',
+        verdictKey: 'maintenance.fsckClean',
+        fix: true,
+      };
+    };
+    await conn.maintenance.runFsck('E', true);
+    expect(lastCall()).toEqual({
+      cmd: 'volume_fsck',
+      args: { letter: 'E', fix: true },
+    });
+    await conn.maintenance.turnOffBitlocker('E');
+    expect(lastCall()).toEqual({
+      cmd: 'volume_bitlocker_off',
+      args: { letter: 'E' },
+    });
+  });
+
+  it('guards the fsck verdictKey through the known-verdict map', async () => {
+    invokeImpl = () => ({
+      letter: 'E:',
+      exitCode: 3,
+      verdict: 'errors-remain',
+      verdictKey: 'maintenance.fsckErrorsRemain',
+      fix: false,
+    });
+    const known = await conn.maintenance.runFsck('E');
+    expect(known.verdictKey).toBe('maintenance.fsckErrorsRemain');
+    invokeImpl = () => ({
+      letter: 'E:',
+      exitCode: 7,
+      verdict: 'verdict-from-the-future',
+      verdictKey: 'maintenance.fsckErrorsRemain',
+      fix: false,
+    });
+    const unknown = await conn.maintenance.runFsck('E');
+    // a stale bridge build never puts a raw key on screen
+    expect(unknown.verdictKey).toBe('errors.unknown');
+  });
+
+  it('subscribes to the image events and unsubscribes', async () => {
+    const off1 = conn.imaging.onImageProgress('img-1', () => undefined);
+    const off2 = conn.imaging.onImageFinished('img-1', () => undefined);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(listeners.has('image-progress:img-1')).toBe(true);
+    expect(listeners.has('image-finished:img-1')).toBe(true);
+    off1();
+    off2();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(listeners.has('image-progress:img-1')).toBe(false);
+    expect(listeners.has('image-finished:img-1')).toBe(false);
+  });
+
+  it('maps the lane C bridge codes (image-not-found, overlap, out-of-space)', async () => {
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'image-not-found', message: 'no such job' };
+    };
+    const err = (await conn.imaging
+      .getImageState('img-9')
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(err.code).toBe('image-not-found');
+    expect(err.reasonKey).toBe('errors.imageNotFound');
+
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'destination-overlap', message: 'on the source disk' };
+    };
+    const overlap = (await conn.imaging
+      .startImageCreation('disk-1', 'C:\\x.img')
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(overlap.code).toBe('destination-overlap');
+    expect(overlap.reasonKey).toBe('recovery.overlapReason');
+
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'out-of-space', message: 'not enough room' };
+    };
+    const space = (await conn.imaging
+      .startImageCreation('disk-1', 'E:\\x.img')
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(space.code).toBe('out-of-space');
+    expect(space.reasonKey).toBe('recovery.insufficientSpaceBody');
+  });
+});
