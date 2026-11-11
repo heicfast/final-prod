@@ -2861,3 +2861,32 @@ open/tab flow against a real mock scan, the merge bound with a 4096-cell
 payload, the verdict from a completed scan, the dialog's start → running
 no-cancel posture through the singleton connector. i18n: scan.map.* +
 scan.recoverability.* + the imaging.* namespace in both locales.
+
+## Lane C — T-C4: green at 7a9def3a + the documentation truth
+
+CI record: 7a9def3a — ui-ci GREEN, ui-e2e GREEN, contracts-ci GREEN (the
+full lane-C train on lane D's re-pinned tree). The path there crossed two
+announced mechanical repairs, both the lane-A/B precedent applied
+symmetrically: lane D repaired lane C's first-push compile errors
+(64d4632d, acknowledged); lane C repaired lane D's clippy findings on
+their scan-truth/re-pin code (unused doc comments on expression fields +
+the devices.rs OR-pattern) after both lanes' pushes had left ui-ci red.
+
+The docs trued to the delivered surface:
+
+- INTEGRATION-PLAN §4.7: rows 16-21, 25-26 flip DISABLE → SURFACE (23
+  SURFACE / 4 DISABLE). Every flip carries its corpus citation; rows 22
+  (TRIM chip) + 23 (img- scan targets) stay deferred to lane D's green
+  per COORDINATION; row 24's posture stands.
+- BEHAVIOR-FINDINGS: BF-08/09/10/11/17 closed as Surfaced (lane C), with
+  BF-10 carrying the engine gap for next session (no
+  cr_ui_image_cancel export — the win-layer CancelToken is not
+  ABI-visible).
+- docs/PARITY-DELTAS: the imaging-era divergences registered (D-IMG-1
+  the no-cancel truth, D-IMG-2 .img-vs-.edisk, D-IMG-3 the sector-range
+  option, D-MAP-1 the map's rendering-rules form).
+
+Remaining in lane C's scope: the deferred img- scan-target arm + the
+TRIM chip (both wait on lane D's defect-train green per COORDINATION),
+and the maintenance screens (fsck verdict + bitlocker confirm) once the
+SD/health surfaces stabilize.

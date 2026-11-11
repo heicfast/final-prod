@@ -702,21 +702,28 @@ Agent D §3.2 (+14) + Agent B §6.3 (25 unused v2) + the fresh UI's screens.
 | 13 | User-taught signatures — defaults + file import (`register_user_signs`, `user_sign_count/_info`) | **SURFACE** | startup `userdata-defaults.json` load + Settings import-file action; count in About |
 | 14 | Health (`health_read` base) | **SURFACE** | S6 health page; threshold column degraded (BF-03) |
 | 15 | Pre-scan repair consent (volume targets) | **SURFACE** | consent modal; whole-disk targets disabled (§4.6) |
-| 16 | Carve format catalog (`carve_format_count/_info`) | **DISABLE** | no reference screen; classification truth is the filefilter mirror; `rrecov list-carve-formats` covers (BF-08) |
-| 17 | Live carve tally (`scan_carve_tally_count/_tally`) | **DISABLE** | type-tree counts cover the need from real rows (BF-08) |
-| 18 | Disk map (`disk_map`, `disk_map_free`) | **DISABLE** | no visualization screen; net-new surface scoped in BF-09 |
-| 19 | Image create (`image_create`) | **DISABLE** | no screen; long-running elevated producer; CLI `rrecov image --create` covers (BF-10) |
-| 20 | fsck escalation (`fsck_volume`) | **DISABLE** | privileged OS-tool launcher, no reference screen; in-scan `pre_scan_check` audit covers the product flow (BF-11) |
-| 21 | BitLocker off (`turn_off_bitlocker`) | **DISABLE** | destructive irreversible decrypt with unobservable background progress; CLI `unlock --turn-off` covers (BF-11) |
+| 16 | Carve format catalog (`carve_format_count/_info`) | **SURFACE** (lane C) | `scan.listCarveFormats()` — the og's EUGetAnalyserList surface; no dedicated screen yet (data surface for the results/diagnostics consumers); the corpus citation: RAWSearchDLL exports (rawsearch-carving--deep-dive.md §1) |
+| 17 | Live carve tally (`scan_carve_tally_count/_tally`) | **SURFACE** (lane C) | `scan.getCarveTally(scanId)` — the og's GetRawUserInfoMap (the found-N-.jpg report, DRWUI :227538); no dedicated screen yet (the data surface feeds the completion report) |
+| 18 | Disk map (`disk_map`, `disk_map_free`) | **SURFACE** (lane C) | SectorMapPanel on the scan page — the AnalysisGridWidget parity (UIUX/08:11): four overlays + bad ranges, cell-budget bounded, collapsible |
+| 19 | Image create (`image_create`) | **SURFACE** (lane C) | CreateImageDialog from the home page — the reference's own DiskBackup chain placement (strings:14534); bridge pre-gates (same-disk overlap, byte-for-byte space); NO cancel (the ABI exports none — PARITY-DELTAS) |
+| 20 | fsck escalation (`fsck_volume`) | **SURFACE** (lane C) | `maintenance.runFsck` — the check/fix posture, hidden vehicle (CREATE_NO_WINDOW), raw exit code + final i18n verdictKey; no dedicated screen yet (the connector surface is the escalation rung for the defect-screen consumers) |
+| 21 | BitLocker off (`turn_off_bitlocker`) | **SURFACE** (lane C) | `maintenance.turnOffBitlocker` — the destructive decrypt twin, explicit opt-in only, accepted-not-plaintext contract; no dedicated screen yet (gated for the SD/unlock surfaces' consumers) |
 | 22 | TRIM chip at enumerate (`enumerate_disks_ex`) | **DISABLE** | one fsutil spawn per refresh; health already carries trim truth |
 | 23 | Image targets (`open_image`) | **DISABLE** | no image-file scan surface (would also enable unelevated scans — future feature, BF-12) |
 | 24 | Core-side query engine (`query_run`, `query_rows_free`, `query_apply_buckets`) | **DISABLE** | bridge-side filter implemented over real rows; engine-side adoption needs T14 cost re-measure (BF-16) |
-| 25 | Assistant stats + regrade (`scan_assistant`, `session_regrade`) | **DISABLE** | no reference surface in the fresh UI (BF-17) |
-| 26 | Transport diagnostics (`device_transport`, `last_transport_error`) | **DISABLE** (internal) | used for error refinement/advisory only; no UI surface |
+| 25 | Assistant stats + regrade (`scan_assistant`, `session_regrade`) | **SURFACE** (lane C) | RecoverabilityCard on the completion celebration (the S-023 verdict + gauge + category row — UIUX/30:19) + `results.regradeNodes` (the per-selection re-grade) |
+| 26 | Transport diagnostics (`device_transport`, `last_transport_error`) | **SURFACE** (lane C) | `system.getDeviceTransport(deviceId)` — the [transport] truth + the M-030 advisory; no dedicated screen (the diagnostics axis for error surfaces) |
 | 27 | Checkpoint count (`scan_checkpoint_count`) | **DISABLE** (internal) | checkpoints are internal; autosave surfaces instead |
 
-**Counts: 15 SURFACE / 12 DISABLE** (27 capability rows; rows 26-27 are
-internal-use diagnostics with no UI surface by design).
+**Counts: 23 SURFACE / 4 DISABLE** (27 capability rows; the lane C
+API-expansion session flipped rows 16-21, 25-26 — every flip backed by a
+corpus citation contradicting the original "no reference screen"
+rationale; the evidence table lives in worklog/lane-c/API-EXPANSION.md).
+Still DISABLE: 22 (the TRIM chip — deferred to lane D's green per
+COORDINATION), 23 (image targets — the `img-` scan-target arm, same
+deferral), 24 (core-side query engine — the T14 re-measure posture
+stands). Row 27 (checkpoint count) now crosses as a flagged companion on
+`scan_telemetry` (internal axis, surfaced as data not screen).
 
 ### 4.8 i18n + mock demotion + test strategy
 

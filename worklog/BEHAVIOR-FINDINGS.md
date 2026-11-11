@@ -19,16 +19,16 @@ bridge-side or docs-side measure; **open** = a real gap a user can hit;
 | BF-05 | No mid-sweep progress ticks in core's RemnantCtx | Deep-stage progress stays stage-level | **Mitigated** — UI shows stage-level truthfully |
 | BF-06 | **NG-21 engine-side guard missing (safety-critical)** | Whole-disk pre-scan repair unguarded at LBA 0 in core | **Mitigated bridge-side** (§4.6: pre_scan_repair=0 on whole-disk targets) + forensic S3 keeps probing the consent gate; **upstream re-port is the real fix** |
 | BF-07 | ERR_DEVICE_DISCONNECTED reattach-then-resume flow | UI surfaces device-gone + user restarts; dedicated resume affordance deferred | **Open** — documented UX gap |
-| BF-08 | Carve catalog + live tally unsurfaced | No reference screen | **Open** — scoped, CLI covers |
-| BF-09 | Disk map unsurfaced | Net-new visualization screen | **Open** — scoped for a future session |
-| BF-10 | image_create unsurfaced | Needs a Tools screen + progress | **Open** — CLI covers today |
-| BF-11 | fsck_volume + turn_off_bitlocker unsurfaced | Privileged/destructive volume ops need consent + outcome UX | **Open** — escalation ladder documented |
+| BF-08 | Carve catalog + live tally unsurfaced | No reference screen | **Surfaced (lane C)** — `scan.listCarveFormats` + `scan.getCarveTally` (the connector surface; the corpus CONTRADICTS the no-reference rationale: GetRawAnalyserList/GetRawUserInfoMap) |
+| BF-09 | Disk map unsurfaced | Net-new visualization screen | **Surfaced (lane C)** — SectorMapPanel (the AnalysisGridWidget parity) on the scan page |
+| BF-10 | image_create unsurfaced | Needs a Tools screen + progress | **Surfaced (lane C)** — CreateImageDialog (the reference's home-page placement, progress + the honest no-cancel contract). NOTE the engine gap: no `cr_ui_image_cancel` export (the win-layer CancelToken is not ABI-visible) — the stop-confirm divergence is PARITY-DELTAS-registered; a handle-ized engine export is the next-session engine scope |
+| BF-11 | fsck_volume + turn_off_bitlocker unsurfaced | Privileged/destructive volume ops need consent + outcome UX | **Surfaced (lane C, connector layer)** — `maintenance.runFsck` (final i18n verdictKey, raw exit code) + `maintenance.turnOffBitlocker` (accepted-not-plaintext); the consent/outcome SCREENS await the defect screens' stabilization (COORDINATION) |
 | BF-12 | Image targets unsurfaced | `open_image` → unelevated scans of VMDK/VHD/VHDX | **Open** — also the ABI-check surface |
 | BF-13 | Live-scan thumbnails use preview-read fallback | `thumbnail_generate` is session/node_id-addressed only | **Mitigated** — live scans degrade to preview-read |
 | BF-14 | RecoveryOptions truth gaps | keepEmptyFolders/fileRepair have no engine equivalent | **Mitigated (truthful-disabled with reasonKey)** |
 | BF-15 | M-074 destination taxonomy umbrella | path-too-long/invalid/network all → destination-invalid | **Mitigated** — distinct reasonKeys deferred |
 | BF-16 | Core-side query engine unused | `query_run`/`apply_buckets` deferred behind a T14 re-measure | **Open** — the NodeMeta port carries the UI today |
-| BF-17 | Assistant stats + regrade unsurfaced | S-023 grading stats; no reference screen | **Open** |
+| BF-17 | Assistant stats + regrade unsurfaced | S-023 grading stats; no reference screen | **Surfaced (lane C)** — RecoverabilityCard (the completion verdict + gauge + category row) + `results.regradeNodes`; the corpus CONTRADICTS the no-reference rationale (UIUX/30:19, DRWUI-subsystems:9-52) |
 | BF-18 | Windows build fixes are final-prod-local | testPreset `-C`, VCPKG_APPLOCAL_DEPS=OFF, deploy retries | **Mitigated** — re-applied in 01d39b33; upstreaming recommended |
 | BF-19 | Engine version-stamp drift | Core CMake VERSION 0.6.1 vs v0.7.1 notes | **Mitigated** — the product gates on `cr_ui_abi_version()` only |
 | BF-20 | Health grading duplicated at the bridge | The 4-status model re-implemented in bridge/health.rs | **Mitigated** — keep-in-sync note; upstream export recommended |
