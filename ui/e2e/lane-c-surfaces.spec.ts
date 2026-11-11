@@ -27,7 +27,10 @@ async function startScanAndAwaitCompletion(page: Page): Promise<void> {
 test('sector map: opens during/after the scan and switches overlays', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('radio').first().click();
-  await page.getByRole('button', { name: /search for lost data/i }).first().click();
+  await page
+    .getByRole('button', { name: /search for lost data/i })
+    .first()
+    .click();
   await expect(page.getByRole('button', { name: /sector map/i })).toBeVisible({
     timeout: 30_000,
   });
@@ -77,9 +80,9 @@ test('create image: the truthful no-cancel running posture', async ({ page }) =>
   // The running posture: the no-cancel note + "continue in background" —
   // never a stop button (the ABI exports no cancel).
   await expect(page.getByText(/runs to completion/i)).toBeVisible({ timeout: 10_000 });
-  await expect(
-    page.getByRole('button', { name: /continue in background/i }),
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: /continue in background/i })).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(page.getByRole('button', { name: /^(stop|cancel)/i })).toBeHidden();
 
   // The job completes (the mock's compressed clock): the done copy shows.
