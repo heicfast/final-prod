@@ -103,6 +103,9 @@ pub struct ScanLive {
     pub overall: f64, // clamped monotonic (engine guarantee + bridge defense)
     pub bytes_scanned: u64,
     pub bytes_total: u64,
+    /// The target's logical sector size (geometry-truth; 512 fallback
+    /// only when the engine reported 0 — the honest floor).
+    pub sector_size: u32,
     pub files_found: u64,
     /// G-3: no live found-bytes counter exists in telemetry — 0 live,
     /// exact value latched at completion.
@@ -120,18 +123,26 @@ pub struct ScanLive {
     /// Token-call transient ('pausing' | 'resuming') with an expiry —
     /// cleared by the emitter when telemetry reflects the new state.
     pub transient: Option<(&'static str, u64 /*expiry_unix_ms*/)>,
+    /// P-TICK-01 (BF-29): the live read cursor + denominator (the
+    /// Searching ticker's real data; 0/0 = not sweeping).
+    pub current_offset: u64,
+    pub current_offset_total: u64,
     pub last_throughput: f64,
     pub last_eta_seconds: Option<u64>,
 }
 
 impl ScanLive {
-    pub fn new(bytes_total: u64) -> Self {
+    pub fn new(bytes_total: u64, sector_size: u32) -> Self {
         ScanLive {
             stage: "volume-analysis",
             stage_progress: 0.0,
             overall: 0.0,
             bytes_scanned: 0,
             bytes_total,
+            /// The real geometry axis (P-DEEP-01's consumer): the
+            /// "Reading sector: X/Y" line divides by the TARGET's actual
+            /// logical sector size — never a hard-coded 512.
+            sector_size: if sector_size == 0 { 512 } else { sector_size },
             files_found: 0,
             data_found_bytes: 0,
             errors: 0,
@@ -144,6 +155,12 @@ impl ScanLive {
             save_permille: 0,
             autosave_rc: None,
             transient: None,
+            /// P-TICK-01 (BF-29): the live cursor + its denominator, from
+            /// telemetry (current_offset_bytes / the active stage's
+            /// units_total). 0 = no byte-denominated sweep in flight — the
+            /// ticker renders nothing rather than a fabricated position.
+            current_offset: 0,
+            current_offset_total: 0,
             last_throughput: 0.0,
             last_eta_seconds: None,
         }

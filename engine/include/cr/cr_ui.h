@@ -671,16 +671,28 @@ typedef struct cr_ui_telemetry {
     uint32_t overall_permille; /* weighted, monotonic */
     cr_ui_stage_tel quick, deep, carve;
     uint64_t files_found, deleted_found, carved_found, lost_partitions;
-    uint64_t bytes_scanned; /* carve-true-bytes (honest fill-rate); LIVE
-                               during the carve (D4a: stage base + done,
-                               clamped monotonic - the "Reading sector:
-                               X/Y" counter moves through the sweep) */
+    uint64_t bytes_scanned; /* the LIVE reading position of the ACTIVE
+                               byte-denominated stage (P-DEEP-01: the deep
+                               sweep + discovery now count too — "Reading
+                               sector: X/Y" moves through quick+carve+deep,
+                               not just the carve; per-stage position
+                               semantics: the sequential stage model
+                               re-covers the disk per stage, so the counter
+                               reflects what is being read NOW; carve keeps
+                               the D4a base+done cumulative form) */
     uint64_t elapsed_ms;    /* pause-compensated run time */
     uint32_t error_ranges;  /* live read-failure count */
     uint32_t paused, running, cancelled;
     /* D4b append: the live found-data size in bytes (the tree's atomic
      * live-logical sum; the og's "Files Found: N (X GB)" size axis). */
     uint64_t bytes_found;
+    /* P-TICK-01 append (0.9.3, BF-29 closure): the CURRENT byte offset
+     * being read by the active stage's sweep — the real data behind the
+     * reference's "Searching: …" ticker (the og's cursor position; ours
+     * is phase-true: the carve window / the remnant-sweep block / the
+     * discovery window). 0 = not currently sweeping (quick's metadata
+     * pass, stage transitions) — never fabricated, never extrapolated. */
+    uint64_t current_offset_bytes;
 } cr_ui_telemetry;
 
 /* Live snapshot of the running (or finished) scan; any thread, any time. */

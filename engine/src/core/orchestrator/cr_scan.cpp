@@ -507,14 +507,29 @@ void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_uni
     }
     if (bytes_units) {
         st.bytes_done = done;
-        /* D4a: the live carve-bytes stamp — snap.bytes_scanned moves at
-         * publish cadence (base + done) instead of freezing until the
-         * stage-boundary count stamp. Clamped monotonic (a racing worker's
-         * late lower sample can never regress the truth). */
+        /* P-TICK-01 (BF-29): the live cursor — the byte offset the active
+         * sweep is reading RIGHT NOW (the ticker's real data). Direct
+         * assignment; 0 only when no byte-denominated pass is in flight. */
+        tel_.snap.current_offset_bytes = done;
         if (stage == 2) {
+            /* D4a: the live carve-bytes stamp — snap.bytes_scanned moves at
+             * publish cadence (base + done) instead of freezing until the
+             * stage-boundary count stamp. Clamped monotonic (a racing worker's
+             * late lower sample can never regress the truth). */
             const u64 live_total = carve_bytes_base_ + done;
             if (live_total > tel_.snap.bytes_scanned)
                 tel_.snap.bytes_scanned = live_total;
+        } else if (stage == 1) {
+            /* P-DEEP-01: the deep position — the sub-pass's own coverage of
+             * the target. DIRECT assignment (not clamped): our sequential
+             * stage model re-covers the disk per sub-pass (the sweep, then
+             * discovery), so the honest "Reading sector: X/Y" during deep
+             * is the CURRENT sub-pass's position; a clamp would freeze the
+             * counter at the sweep's end through the whole discovery walk
+             * — exactly the stuck presentation this closes. The boundary
+             * stamps (tel_counts_) remain the authoritative close-of-stage
+             * cumulative truth. */
+            tel_.snap.bytes_scanned = done;
         }
     }
     /* stage elapsed, pause-compensated (RE parity) */
@@ -612,8 +627,11 @@ void ScanController::emit_event_(event::Type type, u32 stage) const {
                                    : stage == 1 ? tel_.snap.deep
                                                 : tel_.snap.carve;
         e.stage_permille = st.permille;
-        e.bytes_done = stage == 2 ? st.bytes_done : 0;
-        e.bytes_total = stage == 2 ? st.units_total : 0;
+        /* P-DEEP-01: the byte axes now carry the deep sub-passes too
+         * ("stage-true bytes where counted" — deep counts now); quick's
+         * metadata pass still reports 0/0. */
+        e.bytes_done = stage == 0 ? 0 : st.bytes_done;
+        e.bytes_total = stage == 0 ? 0 : ((stage == 2 || st.bytes_done != 0) ? st.units_total : 0);
         /* N-166: live counter refresh on PROGRESS samples - the og's
          * results grid tracks the live tree (~2 s cadence; the live
          * capture's Reconstructed branch grows mid-scan); the core's
@@ -750,7 +768,7 @@ void ScanController::emit_lost_candidate_(const lost::Candidate& cand) const {
 
 bool ScanController::engine_progress_bridge_(u64 done, u64 total, void* user) {
     StageBridge* b = static_cast<StageBridge*>(user);
-    b->self->tel_publish_(b->stage, done, total, b->stage == 2, b->cancel);
+    b->self->tel_publish_(b->stage, done, total, b->bytes_units, b->cancel);
     if (b->covers_both)
         b->self->tel_publish_(1, done, total, false, b->cancel);
     b->self->emit_progress_event_(b->stage); /* GAP-S6-10 */
@@ -1917,7 +1935,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
      * overall permille to the caller's callback. The bridge returns the
      * user callback's verdict so engines that honour progress-false still
      * cancel through it (NTFS walk, carve, lost discovery). */
-    StageBridge bridge{this, progress, pu, bridge_stage, covers_both, cancel};
+    StageBridge bridge{this, progress, pu, bridge_stage, covers_both, false, cancel};
     auto engine_cb = +[](u64 done, u64 total, void* user) -> bool {
         return ScanController::engine_progress_bridge_(done, total, user);
     };
@@ -2204,8 +2222,14 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
         pass_deep_done_ = true;
     }
 
-    /* deep-stage progress bridge for the sweep/discovery/candidates */
-    StageBridge dbridge{this, progress, pu, 1, false, cancel};
+    /* deep-stage progress bridge for the sweep/discovery/candidates.
+     * P-DEEP-01: BOTH byte-denominated sub-passes (the remnant sweep's
+     * slice->size() coverage, lost::discover's byte-window walk) flag
+     * bytes_units — the deep stage's position feeds the live
+     * bytes_scanned/current_offset axes ("Reading sector: X/Y" moves
+     * through the deep phase now, and the Searching ticker carries the
+     * real sweep block). */
+    StageBridge dbridge{this, progress, pu, 1, false, true, cancel};
     auto deep_cb = +[](u64 done, u64 total, void* user) -> bool {
         return ScanController::engine_progress_bridge_(done, total, user);
     };
@@ -2561,7 +2585,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     publish_owner_module_(errmod::kCarve);
     /* carve progress counts BYTES (G-05) - the bridge flags stage 2 as
      * byte-units so telemetry reports honest bytes_done */
-    StageBridge cbridge{this, progress, pu, 2, false, cancel};
+    StageBridge cbridge{this, progress, pu, 2, false, true, cancel};
     auto carve_cb = +[](u64 done, u64 total, void* user) -> bool {
         return ScanController::engine_progress_bridge_(done, total, user);
     };

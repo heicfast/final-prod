@@ -285,7 +285,7 @@ pub fn scan_start_blocking(
         "pathScope": scope_raw,
         "bitlockerFvek": Value::Null, // echoed shape only — never the key
     });
-    let live = Arc::new(Mutex::new(ScanLive::new(geom.total_bytes)));
+    let live = Arc::new(Mutex::new(ScanLive::new(geom.total_bytes, geom.logical_sector)));
     let terminal: Arc<Mutex<Option<Terminal>>> = Arc::new(Mutex::new(None));
     let snapshot_exists = Arc::new(std::sync::atomic::AtomicBool::new(false));
 

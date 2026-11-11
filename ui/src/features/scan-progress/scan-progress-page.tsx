@@ -130,8 +130,19 @@ export function ScanProgressPage(): React.JSX.Element {
     return <ResultsPageFallback />;
   }
 
-  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / 512);
-  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / 512);
+  // P-DEEP-01: the sector divisor is the TARGET's real logical sector
+  // size (the device row the scan started from; the progress payload
+  // carries the bridge's own copy). Never a hard-coded 512 — a 4Kn drive
+  // rendered eightfold-wrong sector numbers before.
+  const sectorSize = scanState.data?.target.sectorSize ?? progress?.sectorSize ?? 512;
+  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / sectorSize);
+  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / sectorSize);
+  // P-TICK-01 (BF-29): the live read cursor — the byte offset the active
+  // sweep is reading NOW (deep remnant sweep / carve window / discovery
+  // walk), in true sectors. Rendered only while a byte-denominated pass
+  // is in flight; null otherwise (never a fabricated position).
+  const currentSector = progress?.currentSector ?? null;
+  const currentSectorTotal = progress?.currentSectorTotal ?? null;
 
   const onRecover = (): void => {
     if (selection.mode === 'all' || selection.ids.size === 0) {
@@ -158,7 +169,10 @@ export function ScanProgressPage(): React.JSX.Element {
       <SectorMapPanel scanId={scanId} live={!completed} />
 
       {/* "Searching: <path>" ticker — full-width light-blue strip above the
-          control cluster (matching scan-midscan-210s.png; hidden when completed). */}
+          control cluster (matching scan-midscan-210s.png; hidden when
+          completed). P-TICK-01: the REAL cursor when a byte-denominated
+          sweep is in flight (the sector being read right now); the path
+          form renders only when the connector carries one. */}
       {!completed && progress?.currentPath ? (
         <div
           className="flex h-7 shrink-0 items-center gap-2 border-t border-[#9FC1F7] bg-[#BBD5FF] px-4 text-xs font-medium text-[#0B4F9E] dark:border-border dark:bg-primary-muted dark:text-primary"
@@ -166,6 +180,23 @@ export function ScanProgressPage(): React.JSX.Element {
         >
           <span className="truncate">
             {t('scan.searchingFor', { path: progress.currentPath })}
+          </span>
+        </div>
+      ) : null}
+      {!completed && !progress?.currentPath && currentSector != null ? (
+        <div
+          className="flex h-7 shrink-0 items-center gap-2 border-t border-[#9FC1F7] bg-[#BBD5FF] px-4 text-xs font-medium text-[#0B4F9E] dark:border-border dark:bg-primary-muted dark:text-primary"
+          role="status"
+        >
+          <span className="truncate tabular">
+            {currentSectorTotal != null
+              ? t('scan.readingSectorTicker', {
+                  current: currentSector.toLocaleString(i18n.language),
+                  total: currentSectorTotal.toLocaleString(i18n.language),
+                })
+              : t('scan.readingSectorAt', {
+                  current: currentSector.toLocaleString(i18n.language),
+                })}
           </span>
         </div>
       ) : null}

@@ -2535,6 +2535,7 @@ u32 scan_telemetry_impl(cr_ui_scan* scan, cr_ui_telemetry* out) {
     out->lost_partitions = t.lost_partitions;
     out->bytes_scanned = t.bytes_scanned;
     out->bytes_found = t.bytes_found; /* D4b: the live found-size axis */
+    out->current_offset_bytes = t.current_offset_bytes; /* P-TICK-01 (BF-29) */
     out->elapsed_ms = t.elapsed_ms;
     out->error_ranges = u32(t.errors.ranges().size());
     out->paused = t.paused ? 1u : 0u;

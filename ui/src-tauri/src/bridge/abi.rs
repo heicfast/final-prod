@@ -302,6 +302,10 @@ pub struct CrUiTelemetry {
     /// D4b append: the live found-data size in bytes (the tree's live
     /// logical sum — "Files Found: N (X GB)"'s size axis).
     pub bytes_found: u64,
+    /// P-TICK-01 append (0.9.3, BF-29 closure): the byte offset the
+    /// active sweep is reading right now — the Searching ticker's real
+    /// data. 0 = no byte-denominated pass in flight.
+    pub current_offset_bytes: u64,
 }
 
 #[repr(C)]

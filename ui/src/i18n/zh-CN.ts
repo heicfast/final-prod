@@ -234,6 +234,8 @@ export const zhCN: TranslationSchema = {
     reconnect: '已重新连接',
     recoverNowUnsafe: '当前阶段完成前暂不能恢复文件。',
     searchingFor: '正在搜索：{{path}}',
+    readingSectorTicker: '正在扫描扇区 {{current}} / {{total}}',
+    readingSectorAt: '正在扫描扇区 {{current}}',
     congratulations: '恭喜！',
   },
   results: {

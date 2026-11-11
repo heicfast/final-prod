@@ -221,6 +221,15 @@ export interface ScanProgressEvent {
   readonly deviceConnected: boolean;
   /** The item currently being examined — the live "Searching: ..." ticker. */
   readonly currentPath: string | null;
+  /** P-TICK-01: the live read cursor in SECTORS (the real data behind the
+   * Searching ticker — the byte offset the active sweep is reading now,
+   * divided by the target's true sector size). Null when no
+   * byte-denominated pass is in flight. */
+  readonly currentSector?: number | null;
+  readonly currentSectorTotal?: number | null;
+  /** The target's logical sector size (the "Reading sector" divisor —
+  * never a hard-coded 512). */
+  readonly sectorSize?: number;
 }
 
 export interface BadSectorRange {

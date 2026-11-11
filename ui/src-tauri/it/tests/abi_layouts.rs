@@ -418,6 +418,7 @@ pub fn rust_layouts() -> Vec<StructLayout> {
             FieldOff { name: "running", offset: offset_of!(CrUiTelemetry, running) },
             FieldOff { name: "cancelled", offset: offset_of!(CrUiTelemetry, cancelled) },
             FieldOff { name: "bytes_found", offset: offset_of!(CrUiTelemetry, bytes_found) },
+            FieldOff { name: "current_offset_bytes", offset: offset_of!(CrUiTelemetry, current_offset_bytes) },
         ] },
         StructLayout { name: "cr_ui_thumbnail_caps", size: std::mem::size_of::<CrUiThumbnailCaps>(), fields: vec![
             FieldOff { name: "max_edge", offset: offset_of!(CrUiThumbnailCaps, max_edge) },

@@ -612,3 +612,67 @@ TEST(Telemetry, DeepRemnantSweepTicksPerBlock) {
     EXPECT_EQ(std::string::npos, scan_body.find("done_chunks"))
         << "the per-chunk completion tick is superseded by the per-block seam";
 }
+
+/* ---- P-DEEP-01 + P-TICK-01: the deep byte axis + the live cursor ---------- */
+
+TEST(Telemetry, DeepStageCarriesTheByteAxes) {
+    /* P-DEEP-01 (0.9.3): the user's "stuck in sector scanning" presentation
+     * — bytes_scanned was carve-true ONLY, so "Reading sector: X/Y" froze
+     * through the entire deep phase (quick+deep = 75% of the weighted
+     * progress bar with a dead sector counter; the forensic deep window on
+     * the 64 GiB seed showed bytes_scanned static while the sweep ground
+     * on). The wiring pin: the deep stage bridge flags byte units (BOTH
+     * byte-denominated sub-passes — the remnant sweep's slice coverage and
+     * lost::discover's byte-window walk), and tel_publish_ carries a
+     * stage-1 branch that stamps the LIVE position. The behavioral proof
+     * is the bridge-integration lane's scan_progress_axes_move deep-window
+     * assertion (real NTFS seed, real timing); this pin guards the wiring
+     * mechanically. */
+    const std::string src = cr_test::read_repo_text("src/core/orchestrator/cr_scan.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* the deep bridge flags byte units */
+    const size_t dbridge_at =
+        src.find("StageBridge dbridge{this, progress, pu, 1, false, true, cancel}");
+    ASSERT_NE(std::string::npos, dbridge_at)
+        << "the deep StageBridge must construct with bytes_units = true (P-DEEP-01)";
+
+    /* the carve bridge keeps its byte units (G-05, unchanged) */
+    EXPECT_NE(std::string::npos,
+              src.find("StageBridge cbridge{this, progress, pu, 2, false, true, cancel}"))
+        << "the carve StageBridge keeps byte units (G-05)";
+
+    /* the engine-pass bridge stays record-denominated */
+    EXPECT_NE(
+        std::string::npos,
+        src.find(
+            "StageBridge bridge{this, progress, pu, bridge_stage, covers_both, false, cancel}"))
+        << "the engine-pass StageBridge stays record-denominated";
+
+    /* the bridge honors the flag (not the hardcoded stage == 2) */
+    const size_t bridge_fn = src.find("bool ScanController::engine_progress_bridge_");
+    ASSERT_NE(std::string::npos, bridge_fn) << "engine_progress_bridge_ moved?";
+    const std::string fn_body = src.substr(bridge_fn, 700);
+    EXPECT_NE(std::string::npos, fn_body.find("b->bytes_units"))
+        << "the progress bridge must honor StageBridge::bytes_units (P-DEEP-01)";
+
+    /* tel_publish_ stamps the deep position (the stage-1 branch) */
+    const size_t publish_fn = src.find("void ScanController::tel_publish_(");
+    ASSERT_NE(std::string::npos, publish_fn) << "tel_publish_ moved?";
+    const std::string pub_body = src.substr(publish_fn, 2400);
+    EXPECT_NE(std::string::npos, pub_body.find("} else if (stage == 1) {"))
+        << "tel_publish_ must carry the deep byte branch (P-DEEP-01)";
+    EXPECT_NE(std::string::npos, pub_body.find("tel_.snap.bytes_scanned = done;"))
+        << "the deep branch stamps the live position (direct, per-sub-pass)";
+
+    /* P-TICK-01 (BF-29): the live cursor — the Searching ticker's real
+     * data, stamped wherever byte-denominated progress publishes */
+    EXPECT_NE(std::string::npos, pub_body.find("tel_.snap.current_offset_bytes = done;"))
+        << "tel_publish_ must stamp the live cursor offset (P-TICK-01)";
+
+    /* the ABI copy carries the cursor (the shim's field-by-field fill) */
+    const std::string shim = cr_test::read_repo_text("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(shim.empty());
+    EXPECT_NE(std::string::npos, shim.find("out->current_offset_bytes = t.current_offset_bytes"))
+        << "scan_telemetry_impl must copy the cursor axis (P-TICK-01)";
+}

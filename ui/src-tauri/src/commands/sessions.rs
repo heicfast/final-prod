@@ -323,7 +323,7 @@ fn load_session_entry_inner(
         params_json: json!({ "targetId": path }),
         path_scope: None,
         started_at: now_iso(),
-        live: Arc::new(Mutex::new(ScanLive::new(info.slice_bytes))),
+        live: Arc::new(Mutex::new(ScanLive::new(info.slice_bytes, info.logical_sector))),
         terminal: Arc::new(Mutex::new(Some(Terminal {
             status: if completed { "completed" } else { "cancelled" },
             engine_code: 0,
@@ -577,7 +577,7 @@ fn session_resume_blocking(
     let mut geom: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
     let _ = unsafe { abi::cr_ui_device_geometry(dev_ptr, &mut geom) };
 
-    let live = Arc::new(Mutex::new(ScanLive::new(geom.total_bytes)));
+    let live = Arc::new(Mutex::new(ScanLive::new(geom.total_bytes, geom.logical_sector)));
     let terminal: Arc<Mutex<Option<Terminal>>> = Arc::new(Mutex::new(None));
     let snapshot_exists = Arc::new(std::sync::atomic::AtomicBool::new(false));
 

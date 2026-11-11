@@ -238,6 +238,8 @@ export const en = {
     reconnect: 'I reconnected it',
     recoverNowUnsafe: 'Recovery will be available once this stage completes safely.',
     searchingFor: 'Searching: {{path}}',
+    readingSectorTicker: 'Scanning sector {{current}} of {{total}}',
+    readingSectorAt: 'Scanning sector {{current}}',
     congratulations: 'Congratulations!',
   },
   results: {

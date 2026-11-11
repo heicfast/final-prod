@@ -616,10 +616,14 @@ struct ScanTelemetrySnapshot {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
-    u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate); live
-                              during the carve (D4a: base + done, clamped
-                              monotonic) */
+    u64 bytes_scanned = 0; /* the LIVE reading position of the ACTIVE
+                              byte-denominated stage (P-DEEP-01: deep counts
+                              now; carve keeps the D4a base+done form) */
     u64 bytes_found = 0;   /* D4b: live found-data size (tree live_logical) */
+    u64 current_offset_bytes = 0; /* P-TICK-01 (BF-29): the byte offset the
+                                      active sweep is reading right now — the
+                                      Searching ticker's real data; 0 when no
+                                      byte-denominated pass is in flight */
     ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
     u64 elapsed_ms = 0;    /* pause-compensated run time so far */
     /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
@@ -814,6 +818,11 @@ private:
         void* user;
         u32 stage;        /* 0 quick, 1 deep, 2 carve */
         bool covers_both; /* the pass runs deep semantics for quick+deep */
+        /* P-DEEP-01: the callback's (done,total) are BYTES of the target
+         * (the deep remnant sweep, the lost-partition discovery, the carve
+         * windows). The engine pass's own progress is record-denominated
+         * and stays false. */
+        bool bytes_units;
         const CancelToken* cancel;
     };
     static bool engine_progress_bridge_(u64 done, u64 total, void* user);

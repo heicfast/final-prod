@@ -1165,6 +1165,19 @@ export class MockConnector {
           : rt.overall > 0.4,
       deviceConnected: !rt.disconnectFired,
       currentPath: rt.currentPath,
+      // P-TICK-01 parity: the mock simulates the cursor with its own
+      // bytesScanned curve during the byte-denominated stages (the real
+      // connector reads telemetry's current_offset_bytes — same shape,
+      // same null-when-not-sweeping rule).
+      currentSector:
+        rt.stage === 'deep-walk' || rt.stage === 'carve'
+          ? Math.floor(rt.bytesScanned / (rt.target.sectorSize ?? 512))
+          : null,
+      currentSectorTotal:
+        rt.stage === 'deep-walk' || rt.stage === 'carve'
+          ? Math.floor(rt.bytesTotal / (rt.target.sectorSize ?? 512))
+          : null,
+      sectorSize: rt.target.sectorSize ?? 512,
     };
   }
 

@@ -188,9 +188,25 @@ pub fn compose_scan_progress(
         "throughputBytesPerSecond": live.last_throughput,
         "recoverableDuringScan": snapshot_exists,
         "deviceConnected": device_connected(live, terminal, now),
-        // G-2: no ABI event carries the item being scanned — the UI hides
-        // the ticker; the bridge never fabricates a path.
+        // G-2 stands for PATHS: no ABI event carries the item being
+        // scanned, so currentPath stays null — but P-TICK-01 (BF-29)
+        // replaced the dead ticker with the REAL cursor: the byte
+        // offset the active sweep is reading now (telemetry's
+        // current_offset_bytes), expressed in the target's true
+        // sectors. Null when no byte-denominated pass is in flight —
+        // never a fabricated position.
         "currentPath": serde_json::Value::Null,
+        "currentSector": (if live.current_offset > 0 {
+            serde_json::json!(live.current_offset / live.sector_size.max(1) as u64)
+        } else {
+            serde_json::Value::Null
+        }),
+        "currentSectorTotal": (if live.current_offset_total > 0 {
+            serde_json::json!(live.current_offset_total / live.sector_size.max(1) as u64)
+        } else {
+            serde_json::Value::Null
+        }),
+        "sectorSize": live.sector_size,
     })
 }
 
@@ -252,6 +268,11 @@ pub fn spawn_scan_emitter(
         for evt in rx {
             let Ok(mut live) = live.lock() else { break };
             let mut emit = false;
+            // P-HB-01: a heartbeat requests a telemetry refresh + payload
+            // emission WITHOUT counting as progress (last_progress_ms is
+            // untouched — disconnect detection stays honest) and WITHOUT
+            // synthesizing any permille movement.
+            let mut refresh = false;
             match evt.r#type {
                 abi::CR_EVT_SCAN_STAGE => {
                     live.stage = match evt.stage {
@@ -335,8 +356,20 @@ pub fn spawn_scan_emitter(
                     ));
                 }
                 abi::CR_EVT_HEARTBEAT => {
-                    // Liveness ONLY — never a synthetic permille advance.
+                    // Liveness ONLY — never a synthetic permille advance
+                    // (the N-043 honest-variant rule stands). P-HB-01
+                    // (0.9.3): the heartbeat ALSO refreshes the telemetry
+                    // counters and emits the payload — pre-fix, the 5 s
+                    // watchdog tick was swallowed (emit=false), and with
+                    // it every counter the UI renders (bytes, files,
+                    // throughput, ETA, the cursor) froze until the next
+                    // file/progress event: a healthy long sub-pass was
+                    // indistinguishable from a hang (the exact
+                    // "stuck" presentation the user reported). The
+                    // refresh carries ONLY standing truth — permille
+                    // moves when the engine moves it, never here.
                     live.last_heartbeat_ms = Some(now_unix_ms() as u64);
+                    refresh = true;
                 }
                 abi::CR_EVT_SAVE_PROGRESS => {
                     live.save_permille = evt.stage_permille.min(1000);
@@ -361,8 +394,12 @@ pub fn spawn_scan_emitter(
                 }
                 _ => { /* unknown type: ignored (cr_ui.h forward compat) */ }
             }
-            if emit {
-                live.last_progress_ms = now_unix_ms() as u64;
+            if emit || refresh {
+                live.last_progress_ms = if emit {
+                    now_unix_ms() as u64
+                } else {
+                    live.last_progress_ms // heartbeats are not progress
+                };
                 // Coalesced telemetry snapshot at emit time (event-mapping §2):
                 // bytes_scanned is carve-true-bytes the event cannot carry.
                 if !scan_ptr.is_null() {
@@ -375,6 +412,24 @@ pub fn spawn_scan_emitter(
                         if tel.bytes_found > live.data_found_bytes {
                             live.data_found_bytes = tel.bytes_found;
                         }
+                        // P-TICK-01 (BF-29): the live cursor + denominator —
+                        // the active stage's true read position (the stage
+                        // entry whose permille is in flight carries the
+                        // units; the cursor itself is telemetry-truth).
+                        live.current_offset = tel.current_offset_bytes;
+                        live.current_offset_total = if tel.current_offset_bytes > 0 {
+                            let (q, d, c) = (&tel.quick, &tel.deep, &tel.carve);
+                            let active = if d.permille > 0 && d.completed == 0 {
+                                d
+                            } else if c.permille > 0 && c.completed == 0 {
+                                c
+                            } else {
+                                q
+                            };
+                            if active.units_total > 0 { active.units_total } else { live.bytes_total }
+                        } else {
+                            0
+                        };
                         let elapsed_s = (tel.elapsed_ms as f64) / 1000.0;
                         if elapsed_s > 0.5 {
                             let bps = tel.bytes_scanned as f64 / elapsed_s;
