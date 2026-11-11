@@ -60,14 +60,26 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.getByRole('button', { name: /buy a license now/i })).toBeVisible();
   });
 
-  it('renders the SD Card page with SD/MMC/MS PRO row, SDR/SSR/DVR columns, and Search for Lost Data CTA', () => {
+  it('renders the SD Card page with the REAL card row, SDR/SSR/DVR columns, and Search for Lost Data CTA', async () => {
     wrap(<SdCardPage />, '/sd-card');
     expect(
       screen.getByRole('heading', {
         name: /connect your memory card to recover lost photos & videos/i,
       }),
     ).toBeVisible();
-    expect(screen.getByText('SD/MMC/MS PRO')).toBeVisible();
+    // F-SD-01 (0.9.3 truth pass): the card row renders the REAL SD-bus
+    // device from the connector (the mock's standard scenario now carries
+    // the SD fixture: "Memory Card (E:)" on dev-sdcard) — its label, its
+    // capacity, and the disk number derived from the id. The fabricated
+    // "SD/MMC/MS PRO · Others · 58 GB · Disk2" hard-coded card is dead.
+    // (findByText: the devices query resolves async.)
+    expect(await screen.findByText('Memory Card (E:)')).toBeVisible();
+    // the row's capacity line (one focused assertion on the card row;
+    // the SDR/SSR/DVR card below carries other GB texts)
+    expect(screen.getAllByText(/GB/).length).toBeGreaterThanOrEqual(1);
+    // mock ids are dev-* (no disk-N) — the row shows the real bus name
+    // for them; the bridge's disk-N ids render "Disk N".
+    expect(screen.getByText(/^SD$/)).toBeVisible();
     expect(screen.getByText('Fix SD card access')).toBeVisible();
     expect(screen.getByText('Photos that open')).toBeVisible();
     expect(screen.getByText('Video that play')).toBeVisible();

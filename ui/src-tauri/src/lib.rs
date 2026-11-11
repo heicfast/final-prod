@@ -7,7 +7,10 @@
 //! contract (ui/src/connector/contract.ts). No UI feature logic belongs
 //! here.
 
-mod bridge;
+// `pub`: the bridge-integration crate (ui/src-tauri/it) imports the ABI
+// binding + util surface directly — the real-bridge CI gate's entry point
+// (BF-ABI-02). No exported surface changes; visibility only.
+pub mod bridge;
 mod commands;
 
 use std::sync::Arc;

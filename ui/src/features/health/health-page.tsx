@@ -98,14 +98,17 @@ export function HealthPage(): React.JSX.Element {
   }
 
   const status = health.data?.status ?? 'good';
-  const healthScore =
-    status === 'good'
-      ? Math.max(88, 100 - (health.data?.wearPercent ?? 4))
-      : status === 'caution'
-        ? 72
-        : 38;
+  // F-HLT-02 (the 0.9.3 truth pass): the ring shows the STATUS, not a
+  // synthesized percentage — the pre-fix "healthScore" (max(88, 100-wear),
+  // 72, 38) was an invented number wearing a gauge. The reference's
+  // DiskHealth renders status words; wear/trust data lives in the KPI
+  // tiles where the real fields already are. The ring fills by status
+  // class (good = full, caution = two-thirds, bad = one-third — a visual
+  // state, explicitly NOT a numeric claim).
+  const ringFill = status === 'good' ? 1 : status === 'caution' ? 0.66 : 0.34;
   const ringCircumference = 2 * Math.PI * 34;
-  const ringOffset = ringCircumference * (1 - healthScore / 100);
+  const ringOffset = ringCircumference * (1 - ringFill);
+  const sectorSize = selectedDevice?.sectorSize ?? null;
 
   return (
     <div className="h-full overflow-y-auto px-8 py-6">
@@ -267,8 +270,24 @@ export function HealthPage(): React.JSX.Element {
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-[18px] font-bold text-[#1E293B] tabular dark:text-foreground">
-                        {healthScore}%
+                      <span
+                        className={cn(
+                          'text-[13px] font-bold leading-tight dark:text-foreground',
+                          status === 'good'
+                            ? 'text-[#15803D]'
+                            : status === 'caution'
+                              ? 'text-[#B45309]'
+                              : 'text-[#B91C1C]',
+                        )}
+                      >
+                        {status === 'good'
+                          ? t('health.statusGood')
+                          : status === 'caution'
+                            ? t('health.statusCaution')
+                            : t('health.statusBad')}
+                      </span>
+                      <span className="text-[10px] font-medium text-[#64748B] dark:text-foreground-secondary">
+                        {t('health.ringLabel')}
                       </span>
                     </div>
                   </div>
@@ -400,7 +419,8 @@ export function HealthPage(): React.JSX.Element {
                           : '—'}
                     </div>
                     <div className="mt-1 text-[11px] text-[#64748B] uppercase dark:text-foreground-secondary">
-                      {selectedDevice?.volumes[0]?.fs ?? 'NTFS'} · 512B
+                      {(selectedDevice?.volumes[0]?.fs ?? '—') +
+                        (sectorSize != null ? ` · ${sectorSize}B` : '')}
                     </div>
                   </div>
                 </div>
@@ -431,7 +451,7 @@ export function HealthPage(): React.JSX.Element {
                       {t('health.wear')}:{' '}
                       {health.data.wearPercent != null
                         ? formatPercent(health.data.wearPercent / 100, i18n.language)
-                        : '2%'}
+                        : '—'}
                     </div>
                   </div>
                 </div>

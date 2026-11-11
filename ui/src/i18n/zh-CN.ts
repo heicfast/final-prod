@@ -129,10 +129,11 @@ export const zhCN: TranslationSchema = {
     bannerOr: '或',
     getHelp: '获取帮助',
     helpToast: '请确认读卡器已稳固连接且未处于写保护状态。',
-    cardName: 'SD/MMC/MS PRO',
-    cardPartition: '其它',
-    cardSize: '58 GB',
-    cardDiskNo: '磁盘 2',
+    cardSize: '{{size}}',
+    cardDiskNo: '磁盘 {{number}}',
+    emptyTitle: '未检测到存储卡',
+    emptyBody:
+      '请通过读卡器或内置卡槽连接 SD/MMC 卡后刷新。内置 SD 卡槽的卡会自动显示在这里；USB 读卡器中的卡会显示在主页的外置驱动器分组中（两者均可完整扫描）。',
   },
   tools: {
     providerBody: '此专用模块可为复杂的存储拓扑准备只读恢复环境。',
@@ -414,6 +415,7 @@ export const zhCN: TranslationSchema = {
     title: '磁盘健康',
     pickDisk: '选择磁盘',
     statusGood: '良好',
+    ringLabel: '磁盘状态',
     statusCaution: '警告',
     statusBad: '较差',
     temperature: '温度',
@@ -571,7 +573,8 @@ export const zhCN: TranslationSchema = {
     sessionNotFound: '找不到该搜索会话。',
     openPathMock: '打开位置需要系统文件管理器权限。',
     sessionCorrupt: '无法读取已保存的搜索。',
-    elevationRequired: '直接磁盘访问需要管理员权限。请以管理员身份重新启动应用。',
+    elevationRequired:
+      '直接磁盘访问需要管理员权限。应用正常情况下会自动以管理员身份启动；若本次未以管理员身份运行，请关闭后右键选择“以管理员身份运行”再次启动。',
     consentNotFound: '该确认已被应答或已不再等待。',
     scanNotFound: '该扫描已关闭。',
     scanNotPaused: '扫描未处于暂停状态。',

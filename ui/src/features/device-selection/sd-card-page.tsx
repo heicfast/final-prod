@@ -24,18 +24,23 @@ export function SdCardPage(): React.JSX.Element {
   const refresh = useRefreshDevices();
   const startScan = useStartScan();
   const [showExternal, setShowExternal] = React.useState(false);
-  const [selectedCardId, setSelectedCardId] = React.useState<string>('dev-sd');
+  const [selectedCardId, setSelectedCardId] = React.useState<string | null>(null);
 
   const devices = devicesQuery.data ?? [];
+  // REAL population (F-SD-01, the 0.9.3 truth pass): 'sd' now fires from
+  // the bus-type axis (SD/MMC-bus cards — native slots + SDHCI readers);
+  // USB reader-backed cards stay in the External group (bus USB) and the
+  // honest-bridge note below points there. No fabricated "58 GB Disk2"
+  // card ever renders again.
+  const cards = devices.filter((d) => d.kind === 'sd');
   const externalDevices = devices.filter((d) => d.kind === 'sd' || d.kind === 'usb');
-  const sdDevice =
-    externalDevices.find((d) => d.id === selectedCardId) ??
-    externalDevices.find((d) => d.kind === 'sd') ??
-    externalDevices[0] ??
-    devices[0];
+  const selectedCard =
+    cards.find((d) => d.id === selectedCardId) ?? cards[0] ?? externalDevices[0] ?? null;
+  const effectiveSelectedId = selectedCard?.id ?? null;
 
   const beginScan = (targetId?: string): void => {
-    const resolvedId = targetId ?? sdDevice?.id ?? 'dev-sd';
+    const resolvedId = targetId ?? effectiveSelectedId;
+    if (!resolvedId) return; // nothing real to scan — no fabricated target
     startScan.mutate(
       { targetId: resolvedId },
       {
@@ -73,42 +78,91 @@ export function SdCardPage(): React.JSX.Element {
           {t('sdCard.subtitle')}
         </p>
 
-        {/* Connected SD/MMC/MS PRO Card Row (matching Screenshot_2026-10-25_015201_2a9dc07f.png) */}
+        {/* Connected card rows — REAL devices (F-SD-01). One row per
+            SD-bus card, selectable; the label/partitions/size/disk number
+            are the enumeration's own fields. */}
         <div className="mt-5 space-y-2.5">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => {
-              if (sdDevice) setSelectedCardId(sdDevice.id);
-            }}
-            onDoubleClick={() => beginScan(sdDevice?.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                beginScan(sdDevice?.id);
-              }
-            }}
-            className="group flex w-full cursor-pointer items-center justify-between rounded-[10px] border-2 border-[#1677FF] bg-[#EDF4FF] px-5 py-3.5 transition-all hover:bg-[#E4EFFE] focus-visible:ring-2 focus-visible:ring-ring dark:border-primary dark:bg-surface-selected"
-          >
-            <div className="flex items-center gap-4">
-              <SdCardSlotIcon />
-              <div>
-                <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">
-                  {t('sdCard.cardName')}
+          {cards.length > 0 ? (
+            cards.map((card) => {
+              const selected = effectiveSelectedId === card.id;
+              const volumes = card.volumes;
+              const volLine = volumes
+                .map(
+                  (v) =>
+                    `${v.letter ?? '—'} · ${v.fs.toUpperCase()} · ${formatBytes(
+                      v.capacity.totalBytes,
+                      i18n.language,
+                    )}`,
+                )
+                .join('   ');
+              return (
+                <div
+                  key={card.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected}
+                  onClick={() => setSelectedCardId(card.id)}
+                  onDoubleClick={() => beginScan(card.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      beginScan(card.id);
+                    }
+                  }}
+                  className={cn(
+                    'group flex w-full cursor-pointer items-center justify-between rounded-[10px] border-2 px-5 py-3.5 transition-all focus-visible:ring-2 focus-visible:ring-ring',
+                    selected
+                      ? 'border-[#1677FF] bg-[#EDF4FF] hover:bg-[#E4EFFE] dark:border-primary dark:bg-surface-selected'
+                      : 'border-[#DCE8FF] bg-[#F8FAFD] hover:border-[#93C5FD] dark:border-border dark:bg-surface dark:hover:border-border-strong',
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <SdCardSlotIcon />
+                    <div>
+                      <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">
+                        {card.label}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-4 text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
+                        <span className="truncate">
+                          {volLine || `${card.model} · ${card.busType ?? 'SD'}`}
+                        </span>
+                        <span>
+                          {t('sdCard.cardSize', {
+                            size: formatBytes(card.capacity.totalBytes, i18n.language),
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <span className="text-[13px] font-medium text-[#64748B] tabular dark:text-foreground-secondary">
+                      {/* the real disk number when the id carries one
+                         (the bridge's disk-N scheme); the bus name
+                         otherwise (mock ids, exotic hosts) — never a
+                         fabricated "Disk2". */}
+                      {/^disk-(\d+)$/.test(card.id)
+                        ? t('sdCard.cardDiskNo', { number: card.id.replace('disk-', '') })
+                        : (card.busType ?? 'SD')}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-0.5 flex items-center gap-4 text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
-                  <span>{t('sdCard.cardPartition')}</span>
-                  <span>{t('sdCard.cardSize')}</span>
-                </div>
+              );
+            })
+          ) : (
+            /* Honest empty state (F-SD-01): no SD-bus card is present —
+             * guidance, not a fabricated card. USB reader-backed cards
+             * land in the home page's External group (bus USB) and the
+             * note says exactly that. */
+            <div className="rounded-[10px] border border-dashed border-[#B9CFF0] bg-[#F8FAFD] px-5 py-4 dark:border-border dark:bg-surface">
+              <div className="text-[13.5px] font-semibold text-[#1E293B] dark:text-foreground">
+                {t('sdCard.emptyTitle')}
+              </div>
+              <div className="mt-1 text-[12.5px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
+                {t('sdCard.emptyBody')}
               </div>
             </div>
-
-            <div className="flex items-center gap-4">
-              <span className="text-[13px] font-medium text-[#64748B] dark:text-foreground-secondary">
-                {t('sdCard.cardDiskNo')}
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Optional expanded external devices list when user clicks "Show all external devices" */}
           {showExternal && externalDevices.length > 0 ? (

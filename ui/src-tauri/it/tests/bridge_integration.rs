@@ -451,7 +451,7 @@ fn scan_progress_axes_move() {
 
     // (d) no all-axes freeze > 15 s while in flight (regression guard for
     // the D4e/D4f class).
-    let mut frozen_run_s = 0u64;
+    let mut frozen_run_s = 0.0f64;
     let mut last_moving: Option<&Sample> = None;
     for s in &samples {
         let moving = s.overall_pm != last_moving.map(|m| m.overall_pm).unwrap_or(1)

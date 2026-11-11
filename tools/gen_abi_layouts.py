@@ -51,6 +51,19 @@ FIELD_RE = re.compile(
 SCALARS = {"char": 1, "uint8_t": 1, "uint16_t": 2, "uint32_t": 4,
            "uint64_t": 8, "int": 4, "int64_t": 8, "size_t": 8, "bool": 1}
 
+# Rust raw-identifier keywords among C field names (cr_ui_event.type is
+# the live one): the offset_of! path must carry the r# prefix while the
+# C-side name (and the JSON key) stays bare.
+RUST_KEYWORDS = {"type", "ref", "box", "fn", "in", "if", "else", "for",
+                  "while", "loop", "match", "move", "mut", "pub", "static",
+                  "struct", "enum", "trait", "impl", "self", "super", "as",
+                  "break", "continue", "const", "crate", "dyn", "extern",
+                  "false", "true", "let", "mod", "unsafe", "use", "where"}
+
+
+def rust_field(path: str) -> str:
+    return ".".join("r#" + p if p in RUST_KEYWORDS else p for p in path.split("."))
+
 STRUCTS = {}
 
 
@@ -300,7 +313,7 @@ def gen_rust_table() -> str:
         )
         for path, _kind in paths:
             L.append(
-                f'            FieldOff {{ name: "{path}", offset: offset_of!({rust_name(name)}, {path}) }},'
+                f'            FieldOff {{ name: "{path}", offset: offset_of!({rust_name(name)}, {rust_field(path)}) }},'
             )
         L.append("        ] },")
     L += [

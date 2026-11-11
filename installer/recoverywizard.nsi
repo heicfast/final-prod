@@ -328,7 +328,7 @@ Function PrivilegePageCreate
 
   ${NSD_CreateLabel} 0 0 100% 40u "${PRODUCT_NAME} is a user-mode application. It reads and writes disks and volumes directly from user mode (no kernel driver, no service, no certificate changes - nothing is loaded into the operating system)."
   Pop $0
-  ${NSD_CreateLabel} 0 44u 100% 40u "Raw-disk access requires the application to run as administrator. When it is not elevated it says so plainly (a clear elevation-required notice and a restart-as-administrator action) - it never runs in a degraded mode and never pretends to work."
+  ${NSD_CreateLabel} 0 44u 100% 40u "Raw-disk access requires the administrator token, so the application requests elevation AT LAUNCH through the standard Windows flow (one UAC prompt when it starts - the same posture the installed product carries). It never runs in a degraded mode and never pretends to work: an operation that cannot run elevated refuses with a clear elevation-required error instead."
   Pop $0
   ${NSD_CreateLabel} 0 88u 100% 40u "This installer itself runs elevated (one UAC prompt) because it installs for all users and prepares the shared sessions and logs area. Uninstalling removes everything it placed - the recovery sessions you saved are kept unless you explicitly ask for them to be deleted."
   Pop $0
@@ -535,6 +535,12 @@ Section "Uninstall"
   ; sessions which are user data behind explicit consent above. The logs
   ; dir itself removes when empty.
   Delete "${PROGRAMDATA_LOGS}\install.log"
+  ; I-CLEAN-01 (0.9.3): the RUNTIME logs the app itself wrote go too -
+  ; app.log/app.log.old are our artifacts exactly like install.log, and
+  ; leaving them made RMDir fail non-empty (the round-31 leftover-files
+  ; finding). REBOOTOK covers a still-running app holding the handle.
+  Delete /REBOOTOK "${PROGRAMDATA_LOGS}\app.log"
+  Delete /REBOOTOK "${PROGRAMDATA_LOGS}\app.log.old"
   RMDir "${PROGRAMDATA_LOGS}"
   Delete /REBOOTOK "$INSTDIR\HeicFastUninstall.exe"
   RMDir "$INSTDIR"

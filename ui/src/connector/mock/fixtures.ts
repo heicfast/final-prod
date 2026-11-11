@@ -581,6 +581,34 @@ function fixturesForScenario(scenario: MockScenarioId): readonly DeviceFixture[]
           fileCount: 21_000,
           directoryCount: 260,
         },
+        {
+          // F-SD-01: the standard scenario carries an SD-bus card — the
+          // user's machine shape (2 internal + SD) and the SD page's real
+          // population in the default mock world (the same fixture the
+          // 'sd-card' scenario isolates).
+          device: deviceBase({
+            id: 'dev-sdcard',
+            kind: 'sd',
+            model: 'SDXC Card',
+            label: 'Memory Card (E:)',
+            serial: 'SD-9042-C',
+            cap: capacity(64 * GB, 0.71),
+          }),
+          volumes: [
+            mkVolume({
+              id: 'vol-sdcard',
+              deviceId: 'dev-sdcard',
+              label: 'Memory Card (E:)',
+              letter: 'E',
+              fs: 'exfat',
+              capacity: capacity(64 * GB, 0.71),
+              status: 'ok',
+            }),
+          ],
+          nodeSeed: 1102,
+          fileCount: 24_000,
+          directoryCount: 120,
+        },
       ];
   }
 }

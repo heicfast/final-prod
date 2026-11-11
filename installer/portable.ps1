@@ -54,10 +54,11 @@ This is the no-installer build. Differences from the installed product:
   * RUN AS ADMINISTRATOR. The product is a pure user-mode application:
     it reads raw disks directly from user mode (\\.\PhysicalDriveN), and
     every raw-disk operation (scan, recover, health, repair) requires an
-    elevated (administrator) process. Launch from an elevated prompt, or
-    use the app's restart-as-administrator action when it reports the
-    elevation-required state. A non-elevated process gets a clear refusal
-    - never a degraded mode.
+    elevated (administrator) process. The executable carries the same
+    requireAdministrator manifest as the installed product: launching it
+    from Explorer raises the one standard UAC prompt at start. Launch
+    from an elevated prompt when scripting. A process that somehow runs
+    non-elevated gets a clear refusal - never a degraded mode.
 
   * Sessions and logs are written BESIDE THIS EXECUTABLE (.\\sessions,
     .\\logs) — nothing is written to ProgramData or the registry.

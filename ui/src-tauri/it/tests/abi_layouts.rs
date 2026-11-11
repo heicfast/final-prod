@@ -112,7 +112,7 @@ pub fn rust_layouts() -> Vec<StructLayout> {
             FieldOff { name: "fs_family", offset: offset_of!(CrUiDiskMapGeometry, fs_family) },
         ] },
         StructLayout { name: "cr_ui_event", size: std::mem::size_of::<CrUiEvent>(), fields: vec![
-            FieldOff { name: "type", offset: offset_of!(CrUiEvent, type) },
+            FieldOff { name: "type", offset: offset_of!(CrUiEvent, r#type) },
             FieldOff { name: "stage", offset: offset_of!(CrUiEvent, stage) },
             FieldOff { name: "timestamp_ms", offset: offset_of!(CrUiEvent, timestamp_ms) },
             FieldOff { name: "bytes_done", offset: offset_of!(CrUiEvent, bytes_done) },

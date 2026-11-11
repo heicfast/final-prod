@@ -128,10 +128,11 @@ export const en = {
     bannerOr: 'or',
     getHelp: 'Get Help',
     helpToast: 'Ensure the card reader is firmly connected and unlocked.',
-    cardName: 'SD/MMC/MS PRO',
-    cardPartition: 'Others',
-    cardSize: '58 GB',
-    cardDiskNo: 'Disk2',
+    cardSize: '{{size}}',
+    cardDiskNo: 'Disk {{number}}',
+    emptyTitle: 'No memory card detected',
+    emptyBody:
+      'Connect an SD/MMC card through a card reader or the built-in slot, then refresh. Cards on native SD slots appear here automatically; a card behind a USB reader shows in the External drives group on the home page (both are fully scannable).',
   },
   tools: {
     providerBody:
@@ -423,6 +424,7 @@ export const en = {
     title: 'Disk health',
     pickDisk: 'Which disk?',
     statusGood: 'Good',
+    ringLabel: 'disk status',
     statusCaution: 'Caution',
     statusBad: 'Poor',
     temperature: 'Temperature',
@@ -588,7 +590,7 @@ export const en = {
     openPathMock: 'Opening locations requires system file explorer access.',
     sessionCorrupt: 'The saved search could not be read.',
     elevationRequired:
-      'Administrator privileges are required for direct disk access. Restart the app as administrator.',
+      'Administrator privileges are required for direct disk access. The app normally starts elevated automatically; if it was launched without elevation, close it and start it again with Run as administrator.',
     consentNotFound: 'That confirmation has already been answered or is no longer pending.',
     scanNotFound: 'That scan is no longer open.',
     scanNotPaused: 'The scan is not paused.',

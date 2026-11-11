@@ -208,9 +208,20 @@ function Find-Makensis {
 
 function Invoke-Installer {
     Write-Host '[installer] NSIS combined installer (engine + app)'
-    $appBundle = Get-ChildItem (Join-Path $RepoRoot 'ui\src-tauri\target\release\bundle\nsis') -Filter '*-setup.exe' |
+    # I-STALE-01 (0.9.3): pick the bundle by the VERSION-locked product
+    # version, NOT LastWriteTime - a stale bundle from an earlier build
+    # sitting in the tree would otherwise be wrapped silently (the
+    # validation round-13 hazard class). No silent fallback: a missing
+    # version-matching bundle is a hard stop.
+    $bundleDir = Join-Path $RepoRoot 'ui\src-tauri\target\release\bundle\nsis'
+    $appBundle = Get-ChildItem $bundleDir -Filter "*$Version*-setup.exe" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $appBundle) { throw 'no Tauri NSIS app bundle found; run the ui lane first' }
+    if (-not $appBundle) {
+        $any = Get-ChildItem $bundleDir -Filter '*-setup.exe' -ErrorAction SilentlyContinue
+        $names = ($any | ForEach-Object Name) -join ', '
+        throw "no NSIS app bundle matching version $Version in $bundleDir (found: $names). Run the ui lane for the CURRENT version; a stale-bundle wrap is refused (I-STALE-01)."
+    }
+    Write-Host "[installer] app bundle: $($appBundle.Name) (version-locked to $Version)" 
     $makensis = Find-Makensis
     # NATIVE (backslash) define paths + /DPATHSEP=\\ — the Tauri-bundled
     # Windows makensis rejects forward-slash File filespecs ('no files found'

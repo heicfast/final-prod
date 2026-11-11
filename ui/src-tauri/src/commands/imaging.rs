@@ -296,9 +296,10 @@ fn image_create_start_blocking(
         }
         DestGate::OutOfSpace { free, needed } => {
             return Err(BridgeError::bridge(
-                // lane-D compile repair: the module's existing out-of-space
-                // code (recovery's DESTINATION_OVERLAP family) — the
-                // imagined DESTINATION_OUT_OF_SPACE name never existed.
+                // The bridge-minted out-of-space code (lane C's error-set
+                // row; lane D's compile repair landed the same line against
+                // the pre-constant tree — the constant exists now and this
+                // is the dedicated imaging-refusal vocabulary).
                 code::DESTINATION_OUT_OF_SPACE,
                 format!(
                     "insufficient destination space: {free} bytes free, {needed} needed \
