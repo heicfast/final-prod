@@ -168,3 +168,16 @@ Lane D's ABI re-pin (ba2b9347) consumed cleanly by lane C's commands:
 the imaging pre-gates now read the TRUE bus_type-carrying CrUiDiskInfo
 rows (the BF-ABI-01 dependency recorded at T-C2 is closed), and the
 layout gate now guards every struct lane C touches.
+
+## Lane C clippy repair (2026-11-11, after 29eca4ff) — the lane-A/B mechanical precedent
+
+Main was red at ui-ci's clippy gate on BOTH 3415c71b and 29eca4ff: three
+findings, all in lane D's just-landed scan-truth/re-pin code (unused
+doc comments on expression fields in bridge/state.rs:142/158 — the
+P-DEEP-01/P-TICK-01 comments — and the `14 | 15 | 16` OR-pattern in
+devices.rs:148). Per the lane-A/lane-B mechanical-repair precedent
+("clang-format over lane B's files — zero semantic change, announced"),
+lane C applied the three mechanical fixes: `///` → `//` on the two
+expression-field comments, `14 | 15 | 16` → `14..=16`. No behavior
+change; lane C's local 1.99 clippy + cargo check both green on the
+result.

@@ -145,7 +145,7 @@ fn bus_type_name(bus: u32) -> &'static str {
 pub fn map_kind(bus_type: u32, removable: u32) -> &'static str {
     match bus_type {
         12 | 13 => "sd",
-        14 | 15 | 16 => "virtual",
+        14..=16 => "virtual",
         7 => "usb",
         _ => {
             if removable != 0 {

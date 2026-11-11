@@ -139,9 +139,9 @@ impl ScanLive {
             overall: 0.0,
             bytes_scanned: 0,
             bytes_total,
-            /// The real geometry axis (P-DEEP-01's consumer): the
-            /// "Reading sector: X/Y" line divides by the TARGET's actual
-            /// logical sector size — never a hard-coded 512.
+            // The real geometry axis (P-DEEP-01's consumer): the
+            // "Reading sector: X/Y" line divides by the TARGET's actual
+            // logical sector size — never a hard-coded 512.
             sector_size: if sector_size == 0 { 512 } else { sector_size },
             files_found: 0,
             data_found_bytes: 0,
@@ -155,10 +155,10 @@ impl ScanLive {
             save_permille: 0,
             autosave_rc: None,
             transient: None,
-            /// P-TICK-01 (BF-29): the live cursor + its denominator, from
-            /// telemetry (current_offset_bytes / the active stage's
-            /// units_total). 0 = no byte-denominated sweep in flight — the
-            /// ticker renders nothing rather than a fabricated position.
+            // P-TICK-01 (BF-29): the live cursor + its denominator, from
+            // telemetry (current_offset_bytes / the active stage's
+            // units_total). 0 = no byte-denominated sweep in flight — the
+            // ticker renders nothing rather than a fabricated position.
             current_offset: 0,
             current_offset_total: 0,
             last_throughput: 0.0,
