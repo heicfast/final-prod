@@ -115,8 +115,8 @@ inline bool decode_device_descriptor(const u8* buf, size_t len, PhysicalDisk& d)
      * The bus-class fallback (USB/SD/MMC) covers descriptors that report
      * the flag clear while sitting on a removable-only bus — belt and
      * braces, the flag stays the authority. */
-    d.removable = (buf[10] != 0) || d.bus_type == 7 /*Usb*/ ||
-                  d.bus_type == 12 /*Sd*/ || d.bus_type == 13 /*Mmc*/;
+    d.removable = (buf[10] != 0) || d.bus_type == 7 /*Usb*/ || d.bus_type == 12 /*Sd*/ ||
+                  d.bus_type == 13 /*Mmc*/;
     return true;
 }
 

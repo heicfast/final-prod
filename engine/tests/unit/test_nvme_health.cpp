@@ -213,8 +213,7 @@ TEST(NvmeHealth, ProtocolQueryPlacesProtocolDataAtAdditionalParameters) {
     const std::string src = cr_test::read_repo_text("src/win/cr_health.cpp");
     ASSERT_FALSE(src.empty());
     /* the offset-8 placement, expressed as the doc's own field-offset */
-    EXPECT_NE(src.find("offsetof(STORAGE_PROPERTY_QUERY, AdditionalParameters)"),
-              std::string::npos)
+    EXPECT_NE(src.find("offsetof(STORAGE_PROPERTY_QUERY, AdditionalParameters)"), std::string::npos)
         << "the protocol data placement must derive from AdditionalParameters";
     /* the load-bearing offsets are static_asserted in the source itself
      * (they run on BOTH lanes - the win-stub SDK shapes are byte-exact) */
