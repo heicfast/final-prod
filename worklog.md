@@ -2903,3 +2903,33 @@ truthful no-cancel posture (dialog → destination → running note +
 Four screenshots captured as the visual record (create-image dialog, the
 map on coverage + allocation mid-scan, the celebration with the
 recoverability card): 1280×832, content-verified.
+
+---
+
+## 2026-11-13 — SESSION START: SMART subsystem rebuild, scan pipeline repair & reference parity
+
+Session prompt (authoritative, token redacted): worklog/session-smart-scan-rebuild-prompt.md —
+read twice before T1. Mandate: (1) SMART/disk-health rebuild for every disk class (NVMe, SATA
+SSD/HDD, USB, SD) across Win7/10/11 with correct per-transport APIs and the reference's
+presentation model; (2) scan pipeline rebuild (quick scan → real-time streaming → automatic
+deep scan, weighted monotonic progress, non-stalling sector reads, working filters,
+deleted-tree reconstruction); (3) gap closure vs the og-codebase reference on installer
+footprint, disk-health presentation, scan flow, filtering, prioritization, preview.
+
+### T1 — baseline recorded
+
+- Product repo cloned: final-prod @ e119cc71 (main, clean). Research corpus cloned:
+  easeus-drw-research @ be0cfe9 (main, clean; 1.7 GB, 11,495 tracked files).
+- Prior session history present and preserved: lanes A–D worklogs, PARITY-DELTAS register,
+  BEHAVIOR-FINDINGS (BF-01..17 with 08/09/10/11/17 closed), REPRODUCTION evidence dirs,
+  RELEASE-VALIDATION sheets, context-sheets/ (CORE-SURFACE, UI-SURFACE, REFERENCE-LAYOUT,
+  REFERENCE-INSTALLER, DRIVER-DEPLOYMENT). Audit trail rule honored: nothing overwritten.
+- GitHub token hygiene: token supplied in the session prompt stored only in a local
+  git-ignored file (.github-token, mode 600) outside the product tree; passed per-command
+  via `git -c http.extraheader`; never written into any repo file, remote URL, or log
+  output. Bearer auth works for api.github.com but git smart-HTTP requires Basic —
+  resolved by using the basic extraheader form.
+- Phase 0 launched: parallel agents A–E (product state, reference SMART, reference scan,
+  reference footprint, independent verification) reading both repositories end to end.
+  Their five context sheets (PRODUCT-STATE / REFERENCE-SMART / REFERENCE-SCAN /
+  REFERENCE-FOOTPRINT / VERIFICATION) are due before any code change, per the mandate.
