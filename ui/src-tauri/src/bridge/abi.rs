@@ -671,6 +671,11 @@ pub struct CrUiSmartAttr {
     /// from SMART READ THRESHOLDS (0xD1). 0 = unknown/absent. Filled by
     /// `cr_ui_health_read_ex2` only; the base export's rows stay 0.
     pub threshold: u32,
+    /// D-P4 tail: the per-attribute 4-state grade from the engine's S-024
+    /// pass (the og DiskHealth per-row chain). Encoding = cr::health::
+    /// HealthGrade: 0 Unknown / 1 Good / 2 Caution / 3 Bad. The engine
+    /// stamps it on every row of BOTH exports; the bridge maps it 1:1.
+    pub grade: u32,
 }
 
 #[repr(C)]
@@ -713,6 +718,11 @@ pub struct CrUiSmartReport {
     /// Power Cycles (spec offset 128). 0 = unknown/absent. Filled by
     /// `cr_ui_health_read_ex2`; the base export leaves it 0.
     pub power_cycles_nvme: u64,
+    /// D-P4 tail: the DISK's 4-state grade — the og DiskHealth verdict
+    /// (Unknown/Good/Caution/Bad). The engine grades family-first (NVMe
+    /// health log via grade_nvme, else the ATA table's S-024 worst-of-
+    /// attr pass, else Unknown). Encoding = cr::health::HealthGrade.
+    pub grade: u32,
 }
 
 // ---- extern declarations (93-export surface, ABI v4) -----------------------------------

@@ -1954,6 +1954,27 @@ ${lines.join('')}
       await latency(280, 120);
       const device = this.deviceList.find((d) => d.id === deviceId);
       if (!device) throw connError('device-gone', 'device not found', 'errors.deviceGone');
+      // The reference model (REFERENCE-SMART §5): SD cards expose no
+      // SMART transport — they stay listed and grade Unknown with an
+      // EMPTY table, never a fabricated green. The mock mirrors that
+      // truth for the SD fixture.
+      if (device.kind === 'sd') {
+        return {
+          deviceId,
+          status: 'unknown',
+          temperatureC: null,
+          powerOnHours: null,
+          diskClass: 'unknown',
+          wearPercent: null,
+          trimEnabled: null,
+          reallocatedSectors: null,
+          pendingSectors: null,
+          attributes: [],
+          transport: null,
+          powerCycles: null,
+          tableEmpty: true,
+        };
+      }
       const rng = mulberry32(this.seed ^ device.serial.length ^ 0xea17);
       const isSsd =
         device.model.toLowerCase().includes('ssd') ||
@@ -1988,7 +2009,7 @@ ${lines.join('')}
           100 - Math.min(80, Math.floor(reallocated / 4)),
           36,
           reallocated,
-          reallocated > 36 ? 'failing' : 'ok',
+          reallocated > 36 ? 'failing' : reallocated > 0 ? 'caution' : 'ok',
         ),
         mkAttr(9, 'Power-On Hours', 98, 98, 0, hours, 'ok'),
         mkAttr(

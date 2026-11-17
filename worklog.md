@@ -3010,3 +3010,48 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
 - The M-055 win-stub grew: SCSI_PASS_THROUGH_DIRECT/SCSI_ADDRESS (load-bearing
   layout documented), the two SCSI ioctls, and a declaration-only wbemidl.h
   (the COM/WMI surface the fallback touches). win_syntax_check: 20/20 files parse.
+
+### T5d (D-P4 reversal) — the grade truth chain + the separate disk-health window
+
+- The grade truth chain (the D-P4 substance): the engine's og-faithful 4-state
+  grade (cr_grade.cpp, V8-verified byte-level) NEVER crossed the ABI — the bridge
+  re-derived status with its own rules (wear >= 80 -> caution — NOT the og rule;
+  the og: life = 100 - wear, life > 10 Good / == 10 Caution / < 10 Bad). Fixed
+  end to end: cr_ui_smart_attr.grade + cr_ui_smart_report.grade appended (ABI
+  policy §9, append-only), stamped in health_read_impl (NVMe family-first via
+  grade_nvme incl. the Parallels product-string special case through the new
+  win::health::query_product_string; else the ATA S-024 worst-of-attrs; else
+  Unknown), layouts regenerated (363 field paths), abi.rs re-pinned, health.rs
+  maps the grade 1:1 (the wear>=80 re-derivation deleted), contract.ts gains the
+  truthful fourth state 'unknown' + per-row 'caution', the mock models the SD
+  card as Unknown/empty/no-transport (the reference's §5 model).
+- The separate disk-health window (the reference's DiskHealth.exe companion
+  equivalent): ui/src/features/health/disk-health-window.tsx — 840x590 frameless,
+  custom titlebar, all-disks selector ("Which disk do you care about?"), the
+  firstCautionIndex auto-jump on open, 4-state banner, temperature + powered-on
+  card, the reference's S.M.A.R.T. columns ID/Attribute/Current/Threshold/
+  RawValue/ST with per-row status colors, truthful transport line, manual
+  refresh + the 5-minute poll (documented divergence: the reference's interval
+  is corpus-UNKNOWN; CrystalDiskInfo-lineage default). Launched from the
+  /health page header (openDiskHealthWindow: single-instance, focus-on-reopen,
+  diskHealthIndex= parity via the disk query param + the disk-health:select
+  event). Capabilities: disk-health.json (the window's chrome cluster) + the
+  main window's create/focus/emit-to permissions.
+- A real component bug the new test caught: the all-disks first-caution probe
+  (one health read per disk, ~0.5-3 s on real hardware) completed AFTER the
+  user's dropdown choice and OVERWROTE it. Fixed with userSelectedRef (user
+  intent + re-open retargets win over the in-flight probe; the probe still
+  clears the loading state).
+- Tests: 4 new vitest (tests/health-window.test.tsx) — the mock SD truth pin
+  (unknown/empty/no-transport), the first-caution jump, the never-fake-green
+  SD state, the reference column set; 211/211 UI tests green, typecheck +
+  eslint clean, 10/10 new engine tests green, win_syntax_check 20/20 (one
+  real catch: strnlen_s is MSVC-only — replaced with memchr), clang-format 0.
+  knip could not run locally (oxc-parser allocation vs the sandbox memory cap
+  — CI runs it on proper hardware).
+- CI gate fixes landed alongside (commit 72fad8c2): the Win7 import allowlist
+  gained ole32/oleaut32 (the WMI fallback's COM pair — Win7-safe, reason trail
+  in the file), and the bridge deep-window gate pinned its config to
+  quick|deep (the first real execution never reached deep: carve at 8.45 MiB/s
+  ate the whole 480 s window on the 2 GiB seed; the predicate's carve_done
+  condition dropped WITH the stage — a skipped stage never completes).

@@ -595,6 +595,38 @@ bool looks_like_ssd(void* disk_handle) {
     return false;
 }
 
+bool query_product_string(void* disk_handle, std::string& out) {
+    /* D-P4: the device's product/model string straight from the storage
+     * descriptor — the NVMe grader's Parallels special case and the
+     * companion surface's identification. The same source of truth the
+     * og's WMI cross-check reads (Win32_DiskDrive Model). Empty string =
+     * honestly unavailable (never a fabricated name). */
+    out.clear();
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
+        return false;
+    STORAGE_PROPERTY_QUERY q = {};
+    q.PropertyId = StorageDeviceProperty;
+    q.QueryType = PropertyStandardQuery;
+    u8 buf[2048] = {};
+    DWORD br = 0;
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
+                         nullptr))
+        return false;
+    if (br < sizeof(STORAGE_DEVICE_DESCRIPTOR))
+        return false;
+    const auto* d = reinterpret_cast<const STORAGE_DEVICE_DESCRIPTOR*>(buf);
+    if (d->ProductIdOffset == 0 || d->ProductIdOffset >= sizeof(buf))
+        return false;
+    const char* s = reinterpret_cast<const char*>(buf + d->ProductIdOffset);
+    /* NUL-terminated ASCII per the descriptor contract; bounded without
+     * strnlen_s (MSVC-only — the Linux parse gate parses this file too) */
+    const size_t cap = sizeof(buf) - d->ProductIdOffset;
+    const void* nul = memchr(s, 0, cap);
+    out.assign(s, nul != nullptr ? size_t(static_cast<const char*>(nul) - s) : cap);
+    return true;
+}
+
 } // namespace health
 } // namespace win
 } // namespace cr

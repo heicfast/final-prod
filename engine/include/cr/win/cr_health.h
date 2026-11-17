@@ -112,6 +112,12 @@ u32 query_trim_state_handle(void* disk_handle, bool& enabled);
  * (bus type NVMe => SSD; HDD registry + rotation rate 0 => SSD). */
 bool looks_like_ssd(void* disk_handle);
 
+/* The device's product/model string from the storage descriptor (the same
+ * source the og's WMI cross-check reads via Win32_DiskDrive). Feeds the
+ * NVMe grader's Parallels-virtual-disk special case and the companion
+ * surface's identification; empty string = honestly unavailable. */
+bool query_product_string(void* disk_handle, std::string& out);
+
 /* Human-readable attribute names for the well-known IDs. */
 const char* smart_attr_name(u8 id);
 

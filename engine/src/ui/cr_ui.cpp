@@ -4949,6 +4949,9 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
             /* BF-03 closure: the 0xD1 vendor threshold - ex2 only (the
              * base export's frozen row grammar stays threshold==0). */
             attrs[i].threshold = ex2 ? u32(a.vendor_threshold) : 0u;
+            /* D-P4: the per-row 4-state grade from the S-024 pass - the
+             * og's per-attribute chain, not a bridge-side re-derivation. */
+            attrs[i].grade = u32(a.grade);
         }
         *attr_count = rep->attribute_count; /* needed size either way */
     }
@@ -4975,6 +4978,22 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
         rep->power_cycles_nvme = nv.power_cycles;
     }
     rep->ssd_like = win::health::looks_like_ssd(h) ? 1u : 0u;
+    /* D-P4: the disk's 4-state grade, the og DiskHealth's family-first
+     * order (REFERENCE-SMART.md section 4): the NVMe health log (family
+     * 0x13) grades through cr::health::grade_nvme - critical_warning ->
+     * Bad, life = 100 - percentage_used with the >10/==10 cutoffs, the
+     * "Parallels Virtual NVMe Disk" special case; otherwise the ATA
+     * table's S-024 worst-of-attr grade; neither source -> Unknown. The
+     * bridge consumes this 1:1 - no UI-side re-derivation anywhere. */
+    rep->grade = u32(cr::health::HealthGrade::Unknown);
+    if (src_rc == OK && sm.available)
+        rep->grade = u32(sm.grade);
+    if (nv_rc == OK && nv.available) {
+        std::string product;
+        const bool parallels = win::health::query_product_string(h, product) &&
+                               product.find("Parallels") != std::string::npos;
+        rep->grade = u32(cr::health::grade_nvme(nv, parallels));
+    }
     bool trim = false;
     /* D2: the per-device TRIM truth from the open handle (no subprocess,
      * no console — the pre-fix global fsutil pipe-spawn was the reported

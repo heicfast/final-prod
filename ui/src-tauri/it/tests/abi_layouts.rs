@@ -342,6 +342,7 @@ pub fn rust_layouts() -> Vec<StructLayout> {
             FieldOff { name: "failing", offset: offset_of!(CrUiSmartAttr, failing) },
             FieldOff { name: "name", offset: offset_of!(CrUiSmartAttr, name) },
             FieldOff { name: "threshold", offset: offset_of!(CrUiSmartAttr, threshold) },
+            FieldOff { name: "grade", offset: offset_of!(CrUiSmartAttr, grade) },
         ] },
         StructLayout { name: "cr_ui_smart_report", size: std::mem::size_of::<CrUiSmartReport>(), fields: vec![
             FieldOff { name: "available", offset: offset_of!(CrUiSmartReport, available) },
@@ -378,6 +379,7 @@ pub fn rust_layouts() -> Vec<StructLayout> {
             FieldOff { name: "data_bytes_read", offset: offset_of!(CrUiSmartReport, data_bytes_read) },
             FieldOff { name: "data_bytes_written", offset: offset_of!(CrUiSmartReport, data_bytes_written) },
             FieldOff { name: "power_cycles_nvme", offset: offset_of!(CrUiSmartReport, power_cycles_nvme) },
+            FieldOff { name: "grade", offset: offset_of!(CrUiSmartReport, grade) },
         ] },
         StructLayout { name: "cr_ui_stage_tel", size: std::mem::size_of::<CrUiStageTel>(), fields: vec![
             FieldOff { name: "permille", offset: offset_of!(CrUiStageTel, permille) },

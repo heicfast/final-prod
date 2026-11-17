@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; the window-chrome cluster (title bar controls + drag region) needs the explicit window permissions below. Keep this minimal until the real bridge session expands it.",
+  "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; the window-chrome cluster (title bar controls + drag region) needs the explicit window permissions below, plus the disk-health-window cluster (D-P4: creating the separate disk-health webview window, focusing it on re-open, and the disk-health:select emitTo that retargets its selector). Keep this minimal.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,6 +11,10 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "core:event:allow-emit-to",
+    "core:event:allow-listen"
   ]
 }

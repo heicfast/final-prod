@@ -16,6 +16,7 @@ import {
 import { useHealth } from '@/queries/health';
 import { useStartScan } from '@/queries/scan';
 import { usePhysicalDevices } from '@/hooks/use-physical-devices';
+import { openDiskHealthWindow } from '@/lib/disk-health-window';
 import { formatDriveGb, formatInteger, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Drive3dIcon } from '@/components/ui/brand-icons';
@@ -97,15 +98,42 @@ export function HealthPage(): React.JSX.Element {
     );
   }
 
-  const status = health.data?.status ?? 'good';
+  const status = health.data?.status ?? 'unknown';
   // F-HLT-02 (the 0.9.3 truth pass): the ring shows the STATUS, not a
   // synthesized percentage — the pre-fix "healthScore" (max(88, 100-wear),
   // 72, 38) was an invented number wearing a gauge. The reference's
   // DiskHealth renders status words; wear/trust data lives in the KPI
   // tiles where the real fields already are. The ring fills by status
-  // class (good = full, caution = two-thirds, bad = one-third — a visual
-  // state, explicitly NOT a numeric claim).
-  const ringFill = status === 'good' ? 1 : status === 'caution' ? 0.66 : 0.34;
+  // class (good = full, caution = two-thirds, bad = one-third, unknown =
+  // a hollow sixth — visual states, explicitly NOT numeric claims).
+  // D-P4: 'unknown' is the reference's fourth state — a disk whose SMART
+  // cannot be read grades Unknown (gray), never a fabricated green.
+  const ringFill =
+    status === 'good' ? 1 : status === 'caution' ? 0.66 : status === 'bad' ? 0.34 : 0.15;
+  const ringColor =
+    status === 'good'
+      ? '#10B981'
+      : status === 'caution'
+        ? '#F59E0B'
+        : status === 'bad'
+          ? '#EF4444'
+          : '#94A3B8';
+  const ringTextColor =
+    status === 'good'
+      ? 'text-[#15803D]'
+      : status === 'caution'
+        ? 'text-[#B45309]'
+        : status === 'bad'
+          ? 'text-[#B91C1C]'
+          : 'text-[#64748B]';
+  const ringLabel =
+    status === 'good'
+      ? t('health.statusGood')
+      : status === 'caution'
+        ? t('health.statusCaution')
+        : status === 'bad'
+          ? t('health.statusBad')
+          : t('health.statusUnknown');
   const ringCircumference = 2 * Math.PI * 34;
   const ringOffset = ringCircumference * (1 - ringFill);
   const sectorSize = selectedDevice?.sectorSize ?? null;
@@ -113,7 +141,10 @@ export function HealthPage(): React.JSX.Element {
   return (
     <div className="h-full overflow-y-auto px-8 py-6">
       <div className="mx-auto w-full max-w-5xl space-y-6 pb-6">
-        {/* Top Header + Circular Refresh Button */}
+        {/* Top Header + Refresh + the separate Disk Health window launcher
+            (D-P4: the reference delegates the SMART deep-dive to its
+            separate DiskHealth companion — ours opens the disk-health
+            webview window pre-targeted at the selected disk) */}
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
@@ -123,18 +154,36 @@ export function HealthPage(): React.JSX.Element {
               {t('health.pickDisk')}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              refetch();
-              void health.refetch();
-            }}
-            aria-label={t('home.refreshDevices')}
-            title={t('home.refreshDevices')}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#475569] shadow-2xs transition-all hover:border-[#93C5FD] hover:bg-[#EBF2FF] hover:text-[#1677FF] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface dark:text-foreground-secondary dark:hover:border-primary dark:hover:bg-surface-hover dark:hover:text-primary"
-          >
-            <RefreshCcwIcon className="size-4" aria-hidden />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const idx = list.findIndex((d) => d.id === deviceId);
+                void openDiskHealthWindow(idx >= 0 ? idx : 0, (message) => {
+                  toast.error(message || t('errors.unknown'));
+                });
+              }}
+              aria-label={t('diskhealth.openWindow')}
+              title={t('diskhealth.openWindow')}
+              data-testid="open-disk-health-window"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-3 text-[12px] font-semibold text-[#475569] shadow-2xs transition-all hover:border-[#93C5FD] hover:bg-[#EBF2FF] hover:text-[#1677FF] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface dark:text-foreground-secondary dark:hover:border-primary dark:hover:bg-surface-hover dark:hover:text-primary"
+            >
+              <HeartPulseIcon className="size-4" aria-hidden />
+              {t('diskhealth.openWindow')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                refetch();
+                void health.refetch();
+              }}
+              aria-label={t('home.refreshDevices')}
+              title={t('home.refreshDevices')}
+              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#475569] shadow-2xs transition-all hover:border-[#93C5FD] hover:bg-[#EBF2FF] hover:text-[#1677FF] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface dark:text-foreground-secondary dark:hover:border-primary dark:hover:bg-surface-hover dark:hover:text-primary"
+            >
+              <RefreshCcwIcon className="size-4" aria-hidden />
+            </button>
+          </div>
         </div>
 
         {/* Physical Disk Selector Cards (matching Home page drive cards) */}
@@ -235,7 +284,9 @@ export function HealthPage(): React.JSX.Element {
                     ? 'border-[#DCE8FF] bg-gradient-to-br from-[#F4F8FF] via-white to-[#EEF5FF] dark:border-border dark:from-surface-elevated dark:via-surface dark:to-surface-tint'
                     : status === 'caution'
                       ? 'border-warning/40 bg-warning-muted/60'
-                      : 'border-danger/40 bg-danger-muted/60',
+                      : status === 'bad'
+                        ? 'border-danger/40 bg-danger-muted/60'
+                        : 'border-border bg-surface-elevated/60',
                 )}
               >
                 <div className="flex items-center gap-4">
@@ -255,13 +306,7 @@ export function HealthPage(): React.JSX.Element {
                         cx="40"
                         cy="40"
                         r="34"
-                        stroke={
-                          status === 'good'
-                            ? '#10B981'
-                            : status === 'caution'
-                              ? '#F59E0B'
-                              : '#EF4444'
-                        }
+                        stroke={ringColor}
                         strokeWidth="6.5"
                         strokeLinecap="round"
                         strokeDasharray={ringCircumference}
@@ -271,20 +316,9 @@ export function HealthPage(): React.JSX.Element {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span
-                        className={cn(
-                          'text-[13px] font-bold leading-tight dark:text-foreground',
-                          status === 'good'
-                            ? 'text-[#15803D]'
-                            : status === 'caution'
-                              ? 'text-[#B45309]'
-                              : 'text-[#B91C1C]',
-                        )}
+                        className={cn('text-[13px] font-bold leading-tight dark:text-foreground', ringTextColor)}
                       >
-                        {status === 'good'
-                          ? t('health.statusGood')
-                          : status === 'caution'
-                            ? t('health.statusCaution')
-                            : t('health.statusBad')}
+                        {ringLabel}
                       </span>
                       <span className="text-[10px] font-medium text-[#64748B] dark:text-foreground-secondary">
                         {t('health.ringLabel')}
@@ -301,15 +335,13 @@ export function HealthPage(): React.JSX.Element {
                             ? 'bg-[#DCFCE7] text-[#15803D] dark:bg-success/20 dark:text-success'
                             : status === 'caution'
                               ? 'bg-[#FEF3C7] text-[#B45309] dark:bg-warning/20 dark:text-warning'
-                              : 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger',
+                              : status === 'bad'
+                                ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
+                                : 'bg-surface-muted text-[#64748B] dark:bg-surface-tint dark:text-foreground-secondary',
                         )}
                       >
                         <ShieldCheckIcon className="size-3.5" aria-hidden />
-                        {status === 'good'
-                          ? t('health.statusGood')
-                          : status === 'caution'
-                            ? t('health.statusCaution')
-                            : t('health.statusBad')}
+                        {ringLabel}
                       </span>
                     </div>
                     <div className="mt-1.5 truncate text-[15px] font-bold text-[#1E293B] dark:text-foreground">
@@ -321,9 +353,13 @@ export function HealthPage(): React.JSX.Element {
                   </div>
                 </div>
 
-                {status !== 'good' ? (
+                {status === 'caution' || status === 'bad' ? (
                   <p className="mt-3 text-[12px] leading-relaxed text-[#B45309] dark:text-warning">
                     {t('health.cautionNote')}
+                  </p>
+                ) : status === 'unknown' ? (
+                  <p className="mt-3 text-[12px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
+                    {t('health.unknownNote')}
                   </p>
                 ) : null}
 
@@ -531,21 +567,27 @@ export function HealthPage(): React.JSX.Element {
                             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
                             a.status === 'ok'
                               ? 'bg-[#DCFCE7] text-[#15803D] dark:bg-success/20 dark:text-success'
-                              : a.status === 'failing'
-                                ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
-                                : 'bg-[#F1F5F9] text-[#64748B] dark:bg-surface-tint dark:text-foreground-secondary',
+                              : a.status === 'caution'
+                                ? 'bg-[#FEF3C7] text-[#B45309] dark:bg-warning/20 dark:text-warning'
+                                : a.status === 'failing'
+                                  ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
+                                  : 'bg-[#F1F5F9] text-[#64748B] dark:bg-surface-tint dark:text-foreground-secondary',
                           )}
                         >
                           {a.status === 'ok' ? (
                             <CheckCircle2Icon className="size-3" aria-hidden />
+                          ) : a.status === 'caution' ? (
+                            <CircleAlertIcon className="size-3" aria-hidden />
                           ) : a.status === 'failing' ? (
                             <CircleAlertIcon className="size-3" aria-hidden />
                           ) : null}
                           {a.status === 'ok'
                             ? t('health.smartOk')
-                            : a.status === 'failing'
-                              ? t('health.smartFailing')
-                              : '—'}
+                            : a.status === 'caution'
+                              ? t('health.smartCaution')
+                              : a.status === 'failing'
+                                ? t('health.smartFailing')
+                                : t('health.smartUnknown')}
                         </span>
                       </TableCell>
                     </TableRow>

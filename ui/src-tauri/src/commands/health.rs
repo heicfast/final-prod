@@ -82,32 +82,28 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
         // null when the table is empty (0 would be a fabrication).
         let table_empty = report.available != 0 && attrs.is_empty();
 
-        // Status grading (type-maps §7, reference grading list
-        // Unknown/Good/Caution/Bad): failing-now/critical → bad; failing
-        // attributes, high wear, or low spare → caution; data present and
-        // clean → good; NO data basis → unknown.
+        // D-P4: the DISK status is the ENGINE's 4-state grade, mapped 1:1 —
+        // the og DiskHealth verdict (Unknown/Good/Caution/Bad). The engine
+        // grades family-first (NVMe health log via grade_nvme: critical_
+        // warning → Bad, life = 100 − percentage_used with the >10/==10
+        // cutoffs, Parallels → Good; else the ATA table's S-024 worst-of-
+        // attrs pass; else Unknown). The pre-D-P4 bridge re-derived a
+        // simplified status HERE (wear >= 80 → caution — not the og rule);
+        // the engine is the single grading authority now, and the contract's
+        // HealthStatus carries the truthful fourth state 'unknown'.
+        let status = match report.grade {
+            1 => "good",
+            2 => "caution",
+            3 => "bad",
+            _ => "unknown", // 0 = Unknown: no grading basis (the og's gray)
+        };
+
         let wear = if has_nvme {
             Some(report.percentage_used)
         } else if report.ssd_wear_level > 0 {
             Some(report.ssd_wear_level)
         } else {
             None
-        };
-        let any_attr_failing = attrs.iter().any(|a| a.failing != 0);
-        let low_spare = has_nvme
-            && report.available_spare_threshold != 0
-            && report.available_spare <= report.available_spare_threshold;
-        let status = if report.failing_now != 0 || report.critical_warning != 0 {
-            "bad"
-        } else if any_attr_failing
-            || wear.map(|w| w >= 80).unwrap_or(false)
-            || low_spare
-        {
-            "caution"
-        } else if has_ata_table || has_nvme {
-            "good"
-        } else {
-            "unknown" // empty table: honest absence of data
         };
 
         let temperature = if has_nvme {
@@ -139,7 +135,15 @@ pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
                     // engine (base-export fallback) leaves every row null.
                     "threshold": (if a.threshold != 0 { json!(a.threshold) } else { Value::Null }),
                     "raw": a.raw,
-                    "status": (if a.failing != 0 { "failing" } else { "ok" }),
+                    // D-P4: the per-row grade from the engine's S-024 pass
+                    // (the og per-attr chain: 194/184 forced Good, 5/197/198
+                    // threshold+count rules, SSD-wear life rules), mapped 1:1.
+                    "status": (match a.grade {
+                        3 => "failing",
+                        2 => "caution",
+                        1 => "ok",
+                        _ => "unknown", // 0 = Unknown (no grading basis)
+                    }),
                 })
             })
             .collect();

@@ -1547,6 +1547,15 @@ typedef struct cr_ui_smart_attr {
      * cr_ui_health_read_ex2 only - the base v4 export's rows stay
      * threshold==0 so the frozen grammar is unchanged. */
     uint32_t threshold;
+    /* D-P4 closure (append-only, ABI policy section 9): the per-attribute
+     * 4-state grade from the engine's S-024 pass (cr_grade.cpp - the og
+     * DiskHealth per-row chain: 194/184 forced Good, 5/197/198 threshold
+     * + count rules, SSD-wear life rules, else threshold<=value Good).
+     * Encoding = cr::health::HealthGrade: 0 Unknown / 1 Good / 2 Caution
+     * / 3 Bad. The pre-D-P4 surface carried only `failing`, so the bridge
+     * re-derived a simplified status of its own - the og-faithful grade
+     * now crosses the ABI and the bridge maps it 1:1. */
+    uint32_t grade;
 } cr_ui_smart_attr;
 
 typedef struct cr_ui_smart_report {
@@ -1579,6 +1588,17 @@ typedef struct cr_ui_smart_report {
      * missing row - the log's spec offset 128, parsed by the pure core,
      * surfaced for the ex2 KPI set). 0 = unknown/absent. */
     uint64_t power_cycles_nvme;
+    /* D-P4 closure (append-only, ABI policy section 9): the DISK's 4-state
+     * grade - the og DiskHealth verdict (Unknown/Good/Caution/Bad, stored
+     * at disk+0x1800 in the reference; REFERENCE-SMART.md section 4). The
+     * engine grades with the og's family-first order: an NVMe health log
+     * (family 0x13) grades via cr::health::grade_nvme (critical_warning
+     * -> Bad; life = 100 - percentage_used with the 10/10 cutoffs;
+     * "Parallels Virtual NVMe Disk" -> Good); otherwise the ATA table
+     * grades via the S-024 worst-of-attr pass; neither source -> Unknown.
+     * Encoding = cr::health::HealthGrade (0/1/2/3). The bridge maps this
+     * 1:1 to the UI status - no bridge-side re-derivation. */
+    uint32_t grade;
 } cr_ui_smart_report;
 
 /* One call fills the report AND (when attrs != NULL) up to attr_cap

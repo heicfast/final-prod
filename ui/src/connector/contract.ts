@@ -963,7 +963,14 @@ export interface RecoveryDomain {
 // Health
 // ---------------------------------------------------------------------------
 
-export type HealthStatus = 'good' | 'caution' | 'bad';
+/**
+ * The reference's 4-state disk verdict (REFERENCE-SMART §4:
+ * Unknown/Good/Caution/Bad — no percentage anywhere). 'unknown' is a
+ * first-class state: a disk whose SMART cannot be read (SD cards,
+ * unsupported bridges) stays listed and grades unknown — never a
+ * fabricated 'good'. The bridge maps the engine's grade 1:1 (D-P4).
+ */
+export type HealthStatus = 'good' | 'caution' | 'bad' | 'unknown';
 
 export interface SmartAttribute {
   readonly id: number;
@@ -972,7 +979,9 @@ export interface SmartAttribute {
   readonly worst: number | null;
   readonly threshold: number | null;
   readonly raw: number;
-  readonly status: 'ok' | 'failing' | 'unknown';
+  /** Per-row grade from the engine's S-024 pass (the og's per-attribute
+   * chain), mapped 1:1 — 'caution' joined the vocabulary with D-P4. */
+  readonly status: 'ok' | 'caution' | 'failing' | 'unknown';
 }
 
 export interface DiskHealth {

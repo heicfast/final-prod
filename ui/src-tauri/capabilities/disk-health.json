@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "disk-health",
+  "description": "The separate disk-health window (D-P4 reversal — the reference's DiskHealth.exe companion equivalent, created on demand by the main window's launcher). Same minimal chrome cluster as the main window: the custom title bar's drag region + controls. Everything else goes through the connector layer, which needs no window permissions.",
+  "windows": ["disk-health"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:event:allow-listen"
+  ]
+}

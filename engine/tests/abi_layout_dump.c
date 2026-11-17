@@ -616,7 +616,9 @@ int main(int argc, char** argv) {
     fprintf(out, "\"%s\": %llu%s ", "name", (unsigned long long)offsetof(cr_ui_smart_attr, name),
             ",");
     fprintf(out, "\"%s\": %llu%s ", "threshold",
-            (unsigned long long)offsetof(cr_ui_smart_attr, threshold), "");
+            (unsigned long long)offsetof(cr_ui_smart_attr, threshold), ",");
+    fprintf(out, "\"%s\": %llu%s ", "grade", (unsigned long long)offsetof(cr_ui_smart_attr, grade),
+            "");
     fputs("}},\n", out);
     fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_smart_report",
             (unsigned long long)sizeof(cr_ui_smart_report));
@@ -687,7 +689,9 @@ int main(int argc, char** argv) {
     fprintf(out, "\"%s\": %llu%s ", "data_bytes_written",
             (unsigned long long)offsetof(cr_ui_smart_report, data_bytes_written), ",");
     fprintf(out, "\"%s\": %llu%s ", "power_cycles_nvme",
-            (unsigned long long)offsetof(cr_ui_smart_report, power_cycles_nvme), "");
+            (unsigned long long)offsetof(cr_ui_smart_report, power_cycles_nvme), ",");
+    fprintf(out, "\"%s\": %llu%s ", "grade",
+            (unsigned long long)offsetof(cr_ui_smart_report, grade), "");
     fputs("}},\n", out);
     fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_stage_tel",
             (unsigned long long)sizeof(cr_ui_stage_tel));
