@@ -1,3 +1,140 @@
+# DIAGNOSIS — session 2026-11-17 (SMART rebuild, scan pipeline repair, reference parity)
+
+> **This session's Phase-0 is complete before this diagnosis**: five context
+> sheets, committed and pushed before any code change — `worklog/PRODUCT-STATE.md`
+> (agent A), `worklog/REFERENCE-SMART.md` (agent B), `worklog/REFERENCE-SCAN.md`
+> (agent C), `worklog/REFERENCE-FOOTPRINT.md` (agent D), `worklog/VERIFICATION.md`
+> (agent E). Every claim below cites those sheets; they cite the corpus and the
+> source tree. The PRIOR session's diagnosis (2026-11-06) is preserved verbatim
+> at the bottom of this file — most of its fix trains have since landed on main
+> (ABI re-pin ba2b9347, scan-truth 693d4d60, surface-truth eb4bb5f3) and its
+> strata are carried forward into §0 below.
+
+## 0. Three defect strata, not one
+
+**Stratum 1 — the user's installed build (v0.9.1, tag cdf66ff8, 2026-11-06).**
+Every symptom the user reported is explained by defects that are FIXED on main
+but were NEVER RELEASED (no tag after v0.9.1; 26 commits unreleased):
+D-NVMe-01 (mis-packed NVMe query → only the first SATA disk had health),
+D-ENUM-02 (shifted bus table), F-HLT-02 (UI-invented `healthScore` — the exact
+"fake green percentage"), BF-31 (kind 'sd' never fired → hard-coded fake SD
+card), D4f (the 605 s carve freeze), P-DEEP-01/P-HB-01/P-TICK-01 (deep stage
+had no byte axis; heartbeat swallowed). PRODUCT-STATE §1.2, §7.1, §7.2.
+
+**Stratum 2 — the current tree's residual breakage.** The ABI drift
+(BF-ABI-01) is fixed in-tree (ba2b9347 + the bridge-integration layout gate),
+BUT the integration lane itself is RED at HEAD: `it/tests/bridge_integration.rs:461`
+assigns integer `0` to the `f64 frozen_run_s` (E0308) — commit e119cc71 fixed
+only the declaration at :454. `ui-ci` clippy-strict is RED on the lib surface
+(run 43108277889). `engine-ci` last ran (and failed) at 3415c71b — the
+deliberate RED Phase-1 reproduction of the prior session; it has not run since
+because no engine/** path was touched. Main is not green at HEAD. PRODUCT-STATE §5.
+
+**Stratum 3 — registered divergences this session REVERSES (the structural
+"works nothing like the reference").** Two rows of docs/PARITY-DELTAS.md that
+recorded deliberate divergences are now mandated to match the reference:
+- **D-P4**: ours = in-app `/health` page showing ONE selected disk at a time;
+  the reference = a SEPARATE disk-health surface (DiskHealth.exe, Qt 5.15.2 QML,
+  840×590 frameless, "EaseUS DiskHealth", drive selector "Which disk do you care
+  about?", per-disk 4-state grade, ID/Attribute/Current/Threshold/RawValue/ST
+  table, temperature card, tray-resident, launched from the home "Disk Health"
+  card with `diskHealthIndex=<n>`). REFERENCE-SMART §1, §10; VERIFICATION V3/V4.
+- **D-P6**: ours = one global 40/35/25-weighted curve (engine
+  cr_scan.h:72-76 — location corrected by VERIFICATION V2; NOT contract.ts);
+  the reference = per-phase 0-100% restart ("Quick Scanning %1, Files Found:"
+  → "Advanced Scanning%1, Files Found:", gauge restarts at the phase boundary).
+  REFERENCE-SCAN §1-§5; VERIFICATION V5 (byte-exact templates).
+Plus two missing transports (below) and the unreleased-fix release gap.
+
+## 1. Every reported defect → evidenced root cause → stratum → phase
+
+| ID | Symptom (user words) | Root cause (evidenced) | Stratum | Fixed by |
+|---|---|---|---|---|
+| R1 | "reports only one disk" | D-NVMe-01: every real NVMe controller refused the mis-packed query → health only for the first SATA disk (cr_health.cpp:277-288); D-ENUM-02 misgrouping; ABI drift row-collapse (fixed ba2b9347) | 1+2 | RELEASE the train (Phase 4); the fixes exist in-tree |
+| R2 | "fake green percentage with no attributes" | v0.9.1 UI computed `healthScore = max(88, 100-wear)` (F-HLT-02, health-page.tsx:100-107 pre-fix); NVMe disks have no ATA table and pre-NG-6/9 rendered empty; ex2 threshold axis unbound pre-ba2b9347 | 1 | RELEASE; current tree computes NO percentage anywhere (engine grades 4-state only, REFERENCE-SMART §4 parity) |
+| R3 | "sometimes shows for the SD card" | kind 'sd' never fired pre-ba2b9347 (BF-31); SD page rendered a hard-coded fake card; reference: SD = no transport, stays in list, grades Unknown (gray) — never fake-green | 1 | RELEASE + Phase 1 truthful Unknown state in the new surface |
+| R4 | "works nothing like the reference" (SMART) | D-P4 structural divergence (one-disk in-app page vs separate all-disks surface) + missing transports: SAT via \\.\SCSI%d: ABSENT, WMI MSStorageDriver_FailurePredict{Data,Thresholds} fallback ABSENT (comment-only cr_health.h:21), USB VID/PID quirk ladder ABSENT, SMART_GET_VERSION never called | 3 | Phase 1: separate disk-health surface + SAT + WMI fallback + truthful not-supported |
+| R5 | "jumps directly to 30–75% advanced scanning" | exact math of the global 40/35/25 curve: quick (40%) + deep (35%) complete in seconds, so the first sample lands at 75.0% (carve boundary); "advanced" phase label spans deep+carve (contract.ts ScanPhase) | 3 (D-P6) | Phase 2: per-phase 0-100% restart, quick phase rendered with its own gauge |
+| R6 | "never shows a quick-scan phase" | quick is one metadata pass finishing in seconds; no distinct quick-phase presentation exists; reference shows "Quick Scanning %1, Files Found:" with its own 0-100% gauge (strings @0001d7d6) | 3 | Phase 2 |
+| R7 | "stalls in sector reading" / "very slow" | D4f 605 s freeze (registry mutex 2×/512B stride × 134M strides; fixed 0e87689d UNRELEASED) + pre-693d4d60 no deep byte axis + swallowed heartbeat; residual wall: BF-30 carve matcher 8.45 MiB/s | 1 (+perf) | RELEASE + Phase 2 bounded perf work on BF-30 |
+| R8 | "produces no real results" | scan never passed the frozen carve window on the user's build; results surface only after stages emit; read-truth gate (post-fix) refuses fully-blind scans | 1 | RELEASE; Phase 2 validation on seeded fixture |
+| R9 | "filters do not work" / "images, documents, archives are not found" | HYPOTHESIS (high confidence, needs runtime evidence): filters are bridge-side over the NodeMeta cache (results.rs, D-B3); carve populates those categories; the stalled scan left the cache empty — the filter is not dead, it has no data | 1 | RELEASE + Phase 2 per-filter validation against the seeded manifest |
+| R10 | "deleted directory structure is not reconstructed" | engine DOES reconstruct (MFT parent-chain emit_parents, cr_mftwalk.cpp:1033-1098) — the user's scan never completed; reference model = 3 roots (existing / File Path Lost / Reconstructed) + viability gate 0x3ff strict + orphans grouped | 1 | RELEASE + Phase 2 deleted-tree validation vs expected tree |
+| R11 | "product ships far fewer files than og" | 8 files / 8.2 MiB vs reference live tree 1,276 files / 494.7 MiB — registered consolidation (everything claimed ships inside cr_ui.dll) + REAL functional gaps: preview stack, repair workbench (G-1(b)), partition-apply UI, diskhealth companion content; rest is out-of-scope (WinPE 175.6 MiB, cloud/telemetry, 37 language packs, 200 UCRT shims) | registered | Phase 3: close functional gaps, document consolidations in FOOTPRINT-DELTA.md |
+
+## 2. Verification corrections folded into the plan (agent E)
+
+- Weights 40/35/25 live in `engine/include/cr/orchestrator/cr_scan.h:72-76` (+ bridge comment scan.rs:6) — PRODUCT-STATE's contract.ts:177-184 location was PARTIAL; that area holds ScanStage/ScanPhase types. (V2)
+- Status-bar byte-exact templates: `Quick Scanning%1, Files Found:` / `Advanced Scanning%1, Files Found:` (no space before comma), `Reading Sector:` (capital S), `Estimated time remaining: %1s` (not "Remaining time"). Phase 2 must render these byte-exact. (V5)
+- The reference's WMI fallback is `MSStorageDriver_FailurePredict{Data,Thresholds}` from root\WMI (VERIFIED in DiskHealth.exe UTF-16 strings) — NOT MSFT_PhysicalDisk. Phase 1 implements the reference's route. (V10-resolution)
+- USB quirk ladder: 23 distinct `AddDisk - USB*` strings (not 28); the vendor NVMe route NAMES are verified but their IOCTL payloads are UNVERIFIED — we implement the generic STORAGE_QUERY NVMe route (as today) + SAT, and do NOT fabricate vendor routes. (V9a/V9b)
+- RAWSearchDLL does NO device I/O (no CreateFile/DeviceIoControl imports) — carving rides the caller's buffers; our architecture (engine reads, carve analyses windows) matches. (V5)
+- 840×590 verified via extracted main.qml (`width: blur === 0?840:856`). (V3/V4)
+
+## 3. The plan (this session's phases)
+
+**Phase 0 — DONE**: five sheets pushed (this commit train). No code change
+before them (mandate honored).
+
+**Phase 0.5 — make main green again (precondition for every gate):**
+fix `frozen_run_s = 0;` → `0.0` (E0308), fix the ui-ci clippy findings (fetch
+the run log — no cargo in this sandbox, CI is the only Rust gate), push, all
+lanes green. Evidence: workflow run links.
+
+**Phase 1 — SMART rebuild (T5/T6):**
+1. Engine: add SAT transport (ATA pass-through via IOCTL_SCSI_PASS_THROUGH on
+   \\.\SCSI%d:, the reference's SAT route) for USB-bridged disks; add the WMI
+   fallback (MSStorageDriver_FailurePredict{Data,Thresholds}, root\WMI) as the
+   last-resort attribute source; SMART_GET_VERSION support check on the legacy
+   path; truthful per-disk "not supported" → grade Unknown with the reason.
+   NO vendor NVMe routes (payloads unverified — recorded as DEFERRED in
+   PARITY-DELTAS with precise scope). NO fabricated values anywhere.
+2. Surface: the D-P4 REVERSAL — a separate disk-health window (Tauri
+   WebviewWindow) matching the reference model: all-disks selector, per-disk
+   4-state grade (Unknown/Good/Caution/Bad, no percentage), SMART table
+   ID/Attribute/Current/Worst/Threshold/Raw/Status, temperature card, refresh
+   (manual + interval), no-SMART disks stay listed with Unknown. Tray-residency
+   and schtasks autostart: evaluated, likely DELIBERATE-DIVERGENCE (recorded
+   with rationale) — the guardian/autostart behaviors are companion-app
+   packaging, not health reading.
+3. worklog/SMART-MATRIX.md: platform capability × product behavior per OS and
+   transport (Win7/8.1/10/11 rows; NVMe protocol-query is Win10+; Win7 NVMe =
+   truthful Unknown unless the vendor driver exposes it).
+
+**Phase 2 — scan pipeline (T7–T12):** per-phase 0-100% progress (D-P6
+reversal) with byte-exact status grammar; quick phase visibly rendered with
+its own gauge; automatic quick→advanced transition (already ADR-008, keep);
+filters validated per-dimension against the seeded manifest during AND after
+scan; deleted-tree validation vs the expected tree on the seeded VHD fixture
+(bridge-integration lane already attaches 2 VHDs and seeds — extend its
+assertions); bounded BF-30 perf work (profile first, land safe wins, document
+the wall honestly if structural).
+
+**Phase 3 — preview + footprint (T13/T14):** close the preview gaps per
+REFERENCE-FOOTPRINT §3.2 (bundled decode set, bounded workers, no console);
+FOOTPRINT-DELTA.md reconciling every module; PARITY-DELTAS rows updated
+(CLOSED / DELIBERATE-DIVERGENCE / DEFERRED with precise scope).
+
+**Phase 4 — validation + release (T15–T20):** full CI green for the right
+reason; forensic-repro run on the release candidate; release tag (0.9.3 per
+the prior session's train — 0.9.2 was announced but never tagged; bump to
+keep the train honest); installer exercised on a clean CI Windows machine;
+worklog.md handoff with every SHA, run link, artifact, deferred item.
+
+## 4. What is NOT broken (re-verified, do not re-break)
+
+- Engine enumeration core (D3 keep-present, exact-size volume retry).
+- The 4-state grading model already mirrors the og decoder (V8 verified
+  byte-level: NVMe life=100−pct_used, >10 Good / =10 Caution / <10 Bad;
+  critical_warning→Bad; attrs 194/184 never graded).
+- Deleted-tree reconstruction exists engine-side (MFT parent chains).
+- Privilege posture end-to-end (requireAdministrator manifest + D1 byte-scan).
+- Contracts lane, ui-e2e lane green at HEAD.
+
+---
+
+# PRIOR SESSION'S DIAGNOSIS (2026-11-06, preserved verbatim)
+
 # DIAGNOSIS — the consolidated Phase 0 picture (this session, T3)
 
 > Six refreshed context sheets feed this document (REPO-STATE, UI-MAP,

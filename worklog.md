@@ -2933,3 +2933,43 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
   reference footprint, independent verification) reading both repositories end to end.
   Their five context sheets (PRODUCT-STATE / REFERENCE-SMART / REFERENCE-SCAN /
   REFERENCE-FOOTPRINT / VERIFICATION) are due before any code change, per the mandate.
+
+### T2 — Phase 0 complete: the five context sheets (commits d558ee84 + this train)
+
+- Turn boundary note: the first agent-E run was cut off by the harness subagent
+  inactivity timeout (600 s) after finishing its evidence gathering, before writing
+  its sheet. The rerun used an incremental-write protocol (skeleton first, append per
+  verification) and delivered. All five sheets are now committed:
+  PRODUCT-STATE (d558ee84), REFERENCE-SMART (d558ee84), REFERENCE-SCAN (d558ee84),
+  REFERENCE-FOOTPRINT (d558ee84), VERIFICATION (this train).
+- Agent-E verdicts that corrected the sibling sheets: the 40/35/25 weights live in
+  engine/include/cr/orchestrator/cr_scan.h:72-76 (NOT contract.ts:177-184 — that is
+  ScanStage/ScanPhase types); the status-bar templates are byte-exact
+  `Quick Scanning%1, Files Found:` / `Advanced Scanning%1, Files Found:` /
+  `Reading Sector:` / `Estimated time remaining: %1s`; the reference WMI fallback is
+  MSStorageDriver_FailurePredict{Data,Thresholds} (root\WMI) — NOT MSFT_PhysicalDisk;
+  USB quirk ladder = 23 distinct AddDisk-USB* strings (not 28); vendor NVMe route
+  NAMES verified, payloads UNVERIFIED; 840x590 verified via extracted main.qml;
+  RAWSearchDLL does NO device I/O (caller-provided buffers); FileFilter.xml exactly
+  8 categories / 1489 <Extention>; raw_signs.json 139 formats / 261 signs, grammar
+  offset,hex,score 0.5–1.0.
+- Headline Phase-0 conclusions (details in the sheets): (1) the user's SMART/scan
+  symptoms match the SHIPPED v0.9.1 — the NVMe mis-pack, bus-table, fake-healthScore,
+  SD-fake-card, 605 s carve-freeze and scan-truth fixes all sit on main UNRELEASED
+  (no tag since cdf66ff8); (2) the structural gaps are the registered D-P4 (in-app
+  one-disk health page vs the reference's separate all-disks DiskHealth surface) and
+  D-P6 (global 40/35/25 curve vs per-phase 0-100% restart) — this session's mandate
+  reverses both; (3) engine transports today: 3-route ATA ladder + NVMe
+  STORAGE_QUERY + CSMI; SAT and the WMI fallback are ABSENT (V1); (4) footprint
+  delta 1,276 live files vs our 8 is registered consolidation + four real functional
+  gaps (preview stack, repair workbench, partition-apply UI, diskhealth content).
+
+### T3 — DIAGNOSIS.md consolidated (this train)
+
+- worklog/DIAGNOSIS.md: this session's diagnosis PREPENDED (three-strata model,
+  R1-R11 defect table mapping every user-reported symptom to its evidenced root
+  cause and fix phase, agent-E corrections folded in, the Phase 0.5-4 plan); the
+  prior session's 2026-11-06 diagnosis preserved verbatim below it (audit trail).
+- Phase 0.5 defined as a precondition: main must go green (bridge-integration
+  E0308 frozen_run_s at it/tests/bridge_integration.rs:461; ui-ci clippy) before
+  any feature work, per the leave-main-green discipline.
