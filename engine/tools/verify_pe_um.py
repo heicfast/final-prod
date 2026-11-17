@@ -218,6 +218,19 @@ ALLOWED_DLLS = {
     # "unexpected import DLL 'SHLWAPI.dll'" on rrecov.exe, the FIRST PE,
     # not the third as that commit message claimed).
     "shlwapi.dll": "strict",
+    # T5c/D-P4 (smart-scan session): the WMI SMART fallback
+    # (MSStorageDriver_FailurePredict{Data,Thresholds} from root\WMI - the
+    # og DiskHealth companion's own last route). ole32: CoInitializeEx /
+    # CoCreateInstance / CoSetProxyBlanket / CoUninitialize; oleaut32:
+    # SysAllocString / SysFreeString / VariantInit / VariantClear /
+    # SafeArray* - every export available since Windows 2000, Win7 SP1
+    # x64-safe. NOTE the gate's own layering lesson (three misses on this
+    # row): the DLL-NAME gate here fires BEFORE the function-level JSON
+    # check - a3bac453 added the JSON rows only and run 44094503551 still
+    # failed with "unexpected import DLL 'OLEAUT32.dll'" (the linker's
+    # case; the .lower() here handles it). BOTH layers move together.
+    "ole32.dll": "strict",
+    "oleaut32.dll": "strict",
     "ucrtbase.dll": "name-only",
     "ucrtbased.dll": "name-only",
     "vcruntime140.dll": "name-only",
