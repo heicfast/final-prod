@@ -3153,3 +3153,50 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
   real metadata (duration/codec, office metadata), never a fabricated render.
   Bundling third-party media renderers is a supply-chain + installer-size
   decision recorded in PARITY-DELTAS (D-P8) with precise scope.
+
+### T20 handoff — the session state at cutoff (2026-11-17, ~24h of lane time)
+
+THE CODE STATE (all pushed): 24 commits this session, HEAD 93389402. The major
+landings, in order: Phase 0 (d558ee84/37287b86/f95e74a9), main-green fixes
+(64790fef/794ff72b/385d206e), SAT+WMI (0bfc634a), the grade chain + the
+disk-health window (2a4b02ed), SMART-MATRIX + PARITY (74534282), the phase
+model engine (b48898dd) + presentation (9618d9ed), the it-gate reframes
+(e1988e6c, 72fad8c2, a3bac453), filters/deleted-tree gate (f8415b72),
+preview gate (71bdc9d7), FOOTPRINT-DELTA + D-P6/D-P8 (95dbd0fe),
+BEHAVIOR-FINDINGS (cae79db6), v0.9.3 bump (948164bc), the Win7-gate layer
+chain (d24c1cab, 93389402), the seed honesty fixes (55278e7b).
+
+CI STATE AT CUTOFF: GREEN — ui-ci + ui-e2e + contracts on the code frontier
+(f84809bc/948164bc); engine-ci GREEN at 385d206e, then the WMI import gate
+taught its three layers (name dict, function JSON, ordinal imports) — the
+final form runs on 93389402 (in flight at cutoff). bridge-integration: the
+axes/health gates PASS on every recent run; the TWO NEW gates
+(results_filters_and_deleted_tree, preview_surfaces) are on their
+first-execution cycle — two seed lies already caught and fixed (MFT record
+recycling -> write-before-delete; content-parsed metadata -> real JPEGs);
+run 44102634559 (the seed-fix cycle) then hit a NULL-POINTER PANIC inside
+results_filters_and_deleted_tree (core/ptr/mod.rs:554 — a row pointer
+deref; the sites: run_query's from_raw_parts / node_of_category's (*rows) /
+the deleted rows' path reads). THE NEXT SESSION'S FIRST DEBUG: pull run
+44102634559's full log + artifact, guard the row-pointer handling (likely
+count>0 with a null rows pointer, or a null path in a specific row), rerun.
+
+THE RELEASE: v0.9.3 is bumped (948164bc) but NOT YET TAGGED — the tag waits
+for a green frontier (the mandate's leave-main-green discipline). When the
+bridge run on 93389402 (or its successor) is green: git tag v0.9.3 && git
+push origin v0.9.3 -> release.yml builds the installer; then the forensic
+validation pass on the RC + worklog/VALIDATION/RELEASE/.
+
+THE GATES' SCOREBOARD (what this session's evidence added):
+- SMART: SAT stamps byte-exact (10 tests), WMI fallback, the grade chain,
+  the separate window — all landed; the truthful no-source path proven on
+  windows-2022. Physical-class validation remains deferred (no hardware).
+- Scan: the phase model pinned at three levels (pure, controller, real
+  Windows terminal pins); deep's true nature established (metadata-fast on
+  partition scans — carve is the byte phase); filters + deleted-tree +
+  preview gates written, mid first-execution.
+- The Win7 import gate's full layering documented in-file (a four-part
+  lesson this session paid for in full).
+
+EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
+(this session's section) and PARITY-DELTAS (D-P4c, D-P8, G-1(b)).
