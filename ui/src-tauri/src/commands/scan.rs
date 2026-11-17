@@ -592,14 +592,14 @@ pub async fn scan_state(
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let entry = state.scan_entry_arc(&scan_id)?;
-        let (busy, stopping, paused) = scan_flags(entry.scan_handle());
+        let probe = crate::bridge::events::probe_scan(entry.scan_handle());
         let term = entry.terminal.lock().ok().and_then(|t| t.clone());
         let live = entry
             .live
             .lock()
             .map_err(|_| BridgeError::bridge(code::UNKNOWN, "live lock"))?;
         let now = now_unix_ms();
-        let status = scan_status(&live, term.as_ref(), busy, stopping, paused, now);
+        let status = scan_status(&live, term.as_ref(), probe.busy, probe.stopping, probe.paused, now);
         let failure = term.as_ref().and_then(|t| {
             if t.status == "failed" {
                 Some(json!({ "code": engine_failure_code(t.engine_code) }))
@@ -607,17 +607,15 @@ pub async fn scan_state(
                 None
             }
         });
-        let (phase, phase_permille) = crate::bridge::events::scan_phase(entry.scan_handle());
         let progress = crate::bridge::events::compose_scan_progress(
             &scan_id,
             &live,
             term.as_ref(),
             entry.snapshot_exists.load(Ordering::Relaxed),
-            busy,
-            stopping,
-            paused,
-            phase,
-            phase_permille,
+            probe.busy,
+            probe.stopping,
+            probe.paused,
+            &probe,
         );
         // G-1 (a) re-hydration: the pending consent payload (null when none)
         // — the prompt renders from this when the event fired before the

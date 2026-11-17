@@ -180,8 +180,7 @@ pub fn compose_scan_progress(
     busy: bool,
     stopping: bool,
     paused: bool,
-    phase: u32,
-    phase_permille: u32,
+    probe: &ScanProbe,
 ) -> serde_json::Value {
     let now = now_unix_ms();
     let status = scan_status(live, terminal, busy, stopping, paused, now);
@@ -235,7 +234,7 @@ pub fn compose_scan_progress(
         // stage-based done/organizing vocabulary stands there).
         "phase": (if terminal.is_some() {
             serde_json::Value::Null
-        } else if phase == 1 {
+        } else if probe.phase == 1 {
             serde_json::json!("advanced")
         } else {
             serde_json::json!("quick")
@@ -243,24 +242,50 @@ pub fn compose_scan_progress(
         "phaseProgress": (if terminal.is_some() {
             serde_json::json!(1.0)
         } else {
-            serde_json::json!(f64::from(phase_permille) / 1000.0)
+            serde_json::json!(f64::from(probe.phase_permille) / 1000.0)
         }),
     })
 }
 
-/// D-P6: the engine's per-phase axes (the restarting gauge) — a fresh
-/// telemetry probe alongside scan_flags (any-thread safe per cr_ui.h).
-/// (0, 0) when the probe fails: honest "no data yet", never fabricated.
-pub(crate) fn scan_phase(scan_ptr: *mut abi::CrUiScan) -> (u32, u32) {
+/// One telemetry probe of the live scan handle: the busy/stopping/paused
+/// flags AND the D-P6 phase axes (the restarting gauge) in a single call
+/// (any-thread safe per cr_ui.h). All-zero on a null handle or a refused
+/// probe: honest "no data yet", never fabricated.
+pub(crate) struct ScanProbe {
+    pub busy: bool,
+    pub stopping: bool,
+    pub paused: bool,
+    /// D-P6: 0 = quick phase, 1 = advanced (deep+carve as one phase).
+    pub phase: u32,
+    /// D-P6: the ACTIVE phase's own 0..1000.
+    pub phase_permille: u32,
+}
+
+pub(crate) fn probe_scan(scan_ptr: *mut abi::CrUiScan) -> ScanProbe {
+    let mut probe = ScanProbe {
+        busy: false,
+        stopping: false,
+        paused: false,
+        phase: 0,
+        phase_permille: 0,
+    };
     if scan_ptr.is_null() {
-        return (0, 0);
+        return probe;
     }
+    let mut b: u32 = 0;
+    let mut st: u32 = 0;
     let mut tel: abi::CrUiTelemetry = unsafe { std::mem::zeroed() };
-    let rc = unsafe { abi::cr_ui_scan_telemetry(scan_ptr, &mut tel) };
-    if rc != abi::CR_UI_OK {
-        return (0, 0);
+    unsafe {
+        let _ = abi::cr_ui_scan_busy(scan_ptr, &mut b);
+        let _ = abi::cr_ui_scan_stopping(scan_ptr, &mut st);
+        let _ = abi::cr_ui_scan_telemetry(scan_ptr, &mut tel);
     }
-    (tel.phase, tel.phase_permille)
+    probe.busy = b != 0;
+    probe.stopping = st != 0;
+    probe.paused = tel.paused != 0;
+    probe.phase = tel.phase;
+    probe.phase_permille = tel.phase_permille;
+    probe
 }
 
 /// Fresh busy/stopping/paused probe (all any-thread safe, cr_ui.h).
@@ -292,8 +317,10 @@ pub fn emit_scan_progress(
     snapshot_exists: &AtomicBool,
     scan_ptr: *mut abi::CrUiScan,
 ) {
-    let (busy, stopping, paused) = scan_flags(scan_ptr);
-    let (phase, phase_permille) = scan_phase(scan_ptr);
+    let probe = probe_scan(scan_ptr);
+    let busy = probe.busy;
+    let stopping = probe.stopping;
+    let paused = probe.paused;
     let term = terminal.lock().ok().and_then(|t| t.clone());
     if let Ok(l) = live.lock() {
         let payload = compose_scan_progress(
@@ -304,8 +331,7 @@ pub fn emit_scan_progress(
             busy,
             stopping,
             paused,
-            phase,
-            phase_permille,
+            &probe,
         );
         let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);
     }
@@ -516,18 +542,16 @@ pub fn spawn_scan_emitter(
                         }
                     }
                 }
-                let (busy, stopping, paused) = scan_flags(scan_ptr);
-                let (phase, phase_permille) = scan_phase(scan_ptr);
+                let probe = probe_scan(scan_ptr);
                 let payload = compose_scan_progress(
                     &scan_id,
                     &live,
                     None, // terminal latching is the run thread's business
                     snapshot_exists.load(Ordering::Relaxed),
-                    busy,
-                    stopping,
-                    paused,
-                    phase,
-                    phase_permille,
+                    probe.busy,
+                    probe.stopping,
+                    probe.paused,
+                    &probe,
                 );
                 let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);
             }
