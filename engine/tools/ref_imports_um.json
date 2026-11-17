@@ -1,5 +1,5 @@
 {
- "_comment": "Win7 import baseline for core_recovery user-mode binaries - the strict-gated DLL function sets OUR code chooses (source-census 2026-10-23, extended 2026-10-26/30 for the M-118/N-178/M-074/S-060/M-075 landings; every entry available on Windows 7 SP1 x64). New imports FAIL tools/verify_pe_um.py until consciously added there (ALLOWLIST_ADDITIONS with a reason) or here. Extended 2026-11-06 (debug-and-release session, D2): CreatePipe + SetHandleInformation \u2014 the hidden-window fsutil vehicle (corpus DRWUI_decompiled.c:178726-178733 parity); both kernel32 exports available since Windows 2000, verified Win7 SP1 x64-safe. CRT/runtime/zlib DLLs are name-gated only (shipped binaries).",
+ "_comment": "Win7 import baseline for core_recovery user-mode binaries - the strict-gated DLL function sets OUR code chooses (source-census 2026-10-23, extended 2026-10-26/30 for the M-118/N-178/M-074/S-060/M-075 landings; every entry available on Windows 7 SP1 x64). New imports FAIL tools/verify_pe_um.py until consciously added there (ALLOWLIST_ADDITIONS with a reason) or here. Extended 2026-11-06 (debug-and-release session, D2): CreatePipe + SetHandleInformation \u2014 the hidden-window fsutil vehicle (corpus DRWUI_decompiled.c:178726-178733 parity); both kernel32 exports available since Windows 2000, verified Win7 SP1 x64-safe. CRT/runtime/zlib DLLs are name-gated only (shipped binaries). Extended 2026-11-17 (smart-scan session, T5c/D-P4): ole32 + oleaut32 \u2014 the WMI SMART fallback (MSStorageDriver_FailurePredict{Data,Thresholds} from root\\WMI, the og DiskHealth companion's own last route): CoInitializeEx/CoCreateInstance/CoSetProxyBlanket/CoUninitialize (ole32) + SysAllocString/SysFreeString/Variant*/SafeArray* (oleaut32); every export available since Windows 2000, Win7 SP1 x64-safe. NOTE: commit 72fad8c2's message claimed this extension but its Edit never landed (the file was unchanged on main \u2014 engine-ci runs 44084452349+ stayed red on the gate); this is the actual edit.",
  "dlls": {
   "advapi32.dll": [
    "GetTokenInformation",
@@ -16,6 +16,22 @@
   "cfgmgr32.dll": [
    "CM_Get_Device_Interface_List_SizeW",
    "CM_Get_Device_Interface_ListW"
+  ],
+  "ole32.dll": [
+   "CoCreateInstance",
+   "CoInitializeEx",
+   "CoSetProxyBlanket",
+   "CoUninitialize"
+  ],
+  "oleaut32.dll": [
+   "SafeArrayAccessData",
+   "SafeArrayGetLBound",
+   "SafeArrayGetUBound",
+   "SafeArrayUnaccessData",
+   "SysAllocString",
+   "SysFreeString",
+   "VariantClear",
+   "VariantInit"
   ],
   "kernel32.dll": [
    "CloseHandle",

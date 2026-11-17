@@ -164,12 +164,18 @@ jobs:
           # user's 3-disk machine shape.
           $seed = "$env:RUNNER_TEMP\seed.vhdx"
           $raw  = "$env:RUNNER_TEMP\raw.vhdx"
-          # 2048 MB: big enough for a real quick/carve/deep workload, small
-          # enough that the carve (the BF-30 throughput wall, ~8 MiB/s
-          # worst case) finishes inside the sampling window so the DEEP
-          # stage is observed in flight (the P-DEEP-01 pin needs it).
+          # 6144 MB: the deep-sweep observability fixture. The deep gate
+          # (P-DEEP-01) runs quick|deep (no carve — BF-30's ~8 MiB/s would
+          # eat the window), so the deep sweep's DURATION must come from
+          # REAL allocated bytes: sparse/zero regions of an expandable
+          # VHDX read at memory speed and the whole 2 GiB sparse fixture
+          # finished inside the first 500 ms sample tick (run 44084452441:
+          # 'too few telemetry samples captured (1)'). The big deleted
+          # file below allocates ~3 GiB of real blocks for the sweep to
+          # read (~1-6 s at runner-disk speeds) — deleted so the live-file
+          # count (CR_IT_EXPECT_FILES) stays the seeded manifest's.
           $dp = @(
-            "create vdisk file=`"$seed`" maximum=2048 type=expandable",
+            "create vdisk file=`"$seed`" maximum=6144 type=expandable",
             "attach vdisk",
             "create vdisk file=`"$raw`" maximum=512 type=expandable",
             "attach vdisk"
@@ -212,6 +218,18 @@ jobs:
             [IO.File]::WriteAllBytes("$root\gone\del-$_.bin", $buf)
           }
           cmd /c "del /q /f $root`gone\*.bin" | Out-Null
+          # The deep-sweep workload: one ~3 GiB DELETED file of real
+          # allocated blocks (a 64 MiB random block repeated 48x — fast to
+          # write, real to read). Deleted so quick counts it in the deleted
+          # set (not the live manifest) while the deep sweep must still
+          # physically read every block it occupied.
+          $blk = New-Object byte[] (64MB)
+          (New-Object Random 7777).NextBytes($blk)
+          $fs = [IO.File]::Create("$root`gone\bulk.bin")
+          try {
+            1..48 | ForEach-Object { $fs.Write($blk, 0, $blk.Length) }
+          } finally { $fs.Close() }
+          cmd /c "del /q /f $root`gone\bulk.bin" | Out-Null
           $live = (Get-ChildItem -Recurse -File $root | Measure-Object).Count
           Write-Host "seed: $live live files (deleted set: 80)"
           "CR_IT_EXPECT_FILES=100" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

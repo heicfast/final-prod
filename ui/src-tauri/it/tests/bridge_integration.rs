@@ -333,7 +333,13 @@ fn scan_progress_axes_move() {
     let mut samples: Vec<Sample> = Vec::new();
     let deadline = Duration::from_secs(window_secs);
     while t0.elapsed() < deadline {
-        std::thread::sleep(Duration::from_millis(500));
+        // 100 ms cadence: the seeded volume's REAL 3 GiB keeps the deep
+        // sweep in flight for seconds, but quick and the sub-second phases
+        // of deep are only observable at this resolution (the first real
+        // execution at 500 ms captured exactly ONE sample — the whole
+        // quick|deep scan of the sparse 2 GiB fixture finished inside the
+        // first tick; run 44084452441).
+        std::thread::sleep(Duration::from_millis(100));
         // SAFETY: telemetry is any-thread-safe per the header.
         let mut tel: abi::CrUiTelemetry = unsafe { std::mem::zeroed() };
         let rc = unsafe { abi::cr_ui_scan_telemetry(scan, &mut tel) };
@@ -483,7 +489,13 @@ fn scan_progress_axes_move() {
             frozen_run_s = 0.0;
             last_moving = Some(s);
         } else {
-            frozen_run_s += 0.5;
+            // time-based (the 0.5 s/sample form assumed the 500 ms cadence;
+            // at 100 ms it would undercount fourfold)
+            let since_move_ms = match last_moving {
+                Some(m) => s.t_ms.saturating_sub(m.t_ms),
+                None => 0,
+            };
+            frozen_run_s = f64::from(since_move_ms as u32) / 1000.0;
             assert!(
                 frozen_run_s <= 15.0,
                 "all progress axes frozen for {frozen_run_s}s at t={}ms — the D4e/D4f \
