@@ -55,3 +55,46 @@ New rows from this session's audits (the register's honest ledger):
 | BF-30 | The carve matcher's absolute throughput wall (8.45 MiB/s effective validation vs 544 MiB/s device, PERF-LEVERS; 76-124 s/GiB) | With D4a-d landed the scan MOVES (progress ticks intra-window, cancel bounded, counters live) - a multi-TB free-space scan still takes hours, now visibly and cancellably | **Open, upstream bench scope** - matcher throughput work is core's PERF-LEVERS frontier; the product's obligation (visible, honest, bounded progress) is met |
 | BF-31 | SD-card fidelity: the bridge maps every USB/SD/MMC-bus disk to kind 'usb' (BF-02's degraded bus axis) - the landing page now renders them (the D-ENUM-01 UI fix) but the dedicated 'sd' kind never fires from real hardware | The /sd-card page's device-aware tile relies on 'sd' kind detection | **Open, bridge scope** - needs the bus-type axis upstream (BF-02's re-append) or a removable-media heuristic; the landing page is complete regardless |
 | BF-32 | The scan emitter holds a RAW scan pointer (SendPtr), not the entry Arc — a narrow use-after-free window at teardown: the run thread drops the last entry Arc after its final emits, ScanEntry::Drop unsubscribes + cr_ui_scan_close frees the engine scan handle, while the emitter may be draining the channel's last events (cr_ui_scan_telemetry / cr_ui_scan_flags on the freed handle) | Latent (never observed in 29 forensic runs; the window is between the run tail's final emit and the emitter's last drain iteration). WIRING-AUDIT #9/#10's finding, verified at bridge/state.rs:291-327 + events.rs:349-398 (the emitter's telemetry poll) | **Open, bridge lane (session-2 scope)** — the fix is a two-phase teardown: the sink box moves to a shared cell freed at the run-tail (mirroring the consent-pipe discipline, commands/scan.rs:374-377) so the channel closes BEFORE the last Arc drops; the emitter holds the Arc<ScanEntry> so Drop (and scan_close's free) cannot run until the emitter has exited its drain loop. NOT rushed into the 0.9.0 release: a concurrency restructure this late would destabilize the validated train; the register carries the design sketch for the next bridge session |
+
+---
+
+## Session 2026-11-17 (smart-scan rebuild) — additions and closures
+
+**Closed by this session (annotating the register above):**
+- **BF-20 — health grading duplicated at the bridge: FIXED** (commit 2a4b02ed):
+  the engine's 4-state grade now crosses the ABI (cr_ui_smart_report.grade +
+  per-attr grade), the bridge maps it 1:1, and the bridge-side wear>=80
+  re-derivation is deleted. One grading authority: the engine.
+- **BF-23 — SMART environmentally absent on runners: unchanged** (still the
+  honest-refusal proof only; see the physical-host scope below).
+
+**This session's deferred register (precise scope each):**
+1. **Physical-disk-class SMART validation** — hosted runners have no NVMe
+   passthrough, USB bridges, or SD slots; VHDs cannot answer SMART. The
+   truthful no-source path is proven on windows-2022. Scope: a bare-metal host
+   with NVMe + SATA SSD/HDD + USB-bridged + SD classes; capture per-disk
+   grade/transport/attributes under worklog/VALIDATION/SMART/.
+2. **D-P4c — vendor bridge dialects** (Si SCSIDISK SRB, ASM1352R, the
+   AddDisk-USB ladder, 7 vendor NVMe routes): generic SAT + STORAGE_QUERY
+   cover standards bridges; payloads only partially decoded (VERIFICATION V9).
+   Scope: decode FUN_00419280 cases 5-10 + the NVMe routes, then per-bridge.
+3. **D-P8 — rendered video/document previews** (ffmpeg ~99 MiB, pdfium): the
+   truthful metadata + not-rendered hint ships. PARITY-DELTAS D-P8 has the
+   full scope (renderer set, provenance decision, bounded workers, caps).
+4. **G-1(b) — the file-repair workbench** (EUFileRepair, 45.6 MiB): a separate
+   product surface; deferred.
+5. **BF-30 — the carve throughput wall (8.45 MiB/s)**: untouched this session;
+   the it-gate excludes carve for lane cost. Scope: profile the matcher, land
+   safe wins, re-add a carve-inclusive gate when it improves.
+6. **BF-32 — the scan-emitter teardown race**: carried, still deferred.
+7. **Deep in-flight observability on partition scans** — NOT a defect (the
+   44090904420 evidence: deep is the metadata-structured full pass, <1 s on the
+   fixture class; carve is the byte-denominated phase). Recorded so the next
+   session does not re-chase it.
+
+**Process limitations of this session (honesty about the evidence):**
+- No local cargo: every Rust change verified only via CI (two clippy
+  iterations, e8edb09f → f84809bc, were the cost).
+- knip not runnable in this sandbox (oxc-parser allocation vs the memory cap).
+- Two sandbox recycles emptied the clones mid-session; recovery was always
+  from the pushed state — push discipline held and nothing was lost.
