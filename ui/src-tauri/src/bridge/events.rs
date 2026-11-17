@@ -172,18 +172,15 @@ fn device_connected(live: &ScanLive, terminal: Option<&Terminal>, now_ms: i64) -
 }
 
 /// Compose the contract-shaped `ScanProgressEvent` payload (camelCase).
-pub fn compose_scan_progress(
+pub(crate) fn compose_scan_progress(
     scan_id: &str,
     live: &ScanLive,
     terminal: Option<&Terminal>,
     snapshot_exists: bool,
-    busy: bool,
-    stopping: bool,
-    paused: bool,
     probe: &ScanProbe,
 ) -> serde_json::Value {
     let now = now_unix_ms();
-    let status = scan_status(live, terminal, busy, stopping, paused, now);
+    let status = scan_status(live, terminal, probe.busy, probe.stopping, probe.paused, now);
     let (overall, files_found, data_found) = match terminal {
         Some(t) => (1.0_f64, t.files_found, t.data_found_bytes),
         None => (live.overall, live.files_found, live.data_found_bytes),
@@ -318,9 +315,6 @@ pub fn emit_scan_progress(
     scan_ptr: *mut abi::CrUiScan,
 ) {
     let probe = probe_scan(scan_ptr);
-    let busy = probe.busy;
-    let stopping = probe.stopping;
-    let paused = probe.paused;
     let term = terminal.lock().ok().and_then(|t| t.clone());
     if let Ok(l) = live.lock() {
         let payload = compose_scan_progress(
@@ -328,9 +322,6 @@ pub fn emit_scan_progress(
             &l,
             term.as_ref(),
             snapshot_exists.load(Ordering::Relaxed),
-            busy,
-            stopping,
-            paused,
             &probe,
         );
         let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);
@@ -548,9 +539,6 @@ pub fn spawn_scan_emitter(
                     &live,
                     None, // terminal latching is the run thread's business
                     snapshot_exists.load(Ordering::Relaxed),
-                    probe.busy,
-                    probe.stopping,
-                    probe.paused,
                     &probe,
                 );
                 let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);

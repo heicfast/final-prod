@@ -612,9 +612,6 @@ pub async fn scan_state(
             &live,
             term.as_ref(),
             entry.snapshot_exists.load(Ordering::Relaxed),
-            probe.busy,
-            probe.stopping,
-            probe.paused,
             &probe,
         );
         // G-1 (a) re-hydration: the pending consent payload (null when none)
