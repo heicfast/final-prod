@@ -3097,3 +3097,26 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
 - Gates: engine build clean, OrchestratorPhase/Telemetry/HealthCsmi 15/15,
   clang-format 0, win_syntax_check 0 FAIL; UI typecheck/eslint/arch-lint/prettier
   clean, 211/211 vitest.
+
+### T8/T9 evidence + the it-gate's honest reframe — deep is metadata-fast on partition scans
+
+- The artifact forensics (run 44090904420, scan-timeline.csv): quick|deep over the
+  6 GiB fixture with the 3 GiB deleted bulk COMPLETED inside one 100 ms tick —
+  deep_pm=1000/deep_done=1, bytes_found=3,238,953,060 (~3.01 GiB, 293 files). THE
+  ENGINE'S DEEP STAGE IS THE METADATA-STRUCTURED FULL PASS (MFT/$Bitmap/USN/
+  orphans): it processes the bulk file's extents from metadata in milliseconds —
+  it is NOT a slow byte sweep on partition scans. The byte-denominated advanced
+  work is CARVE. The it-gate's 'deep in flight for >=4 samples' premise was wrong
+  for this fixture class — three runs of evidence (44071105301 carve-ate-the-
+  window; 44084452441 sub-500ms completion; 44090904420 sub-100ms with 3 GiB real
+  bytes) close the question.
+- The it-gate now pins what is REAL on Windows: quick+deep ran and completed;
+  phase==1 at terminal; phase_permille==1000 (the restarting gauge completes at
+  100%); overall_pm==750 exactly (the global quick|deep cap — the 'jumps directly
+  to 75% advanced scanning' presentation D-P6 closes, pinned as a number). The
+  timeline CSV carries the phase columns (the validation artifact).
+- Engine-side (deterministic): PauseResume.PhaseModelCompletesAt1000WhereThe-
+  GlobalCurveCapsAt750 — through the live controller on the FAT fixture: phase 0
+  observed while quick ran; terminal phase 1 / phase_permille 1000 / overall
+  exactly 750. The mid-flight restart cases stay pinned by OrchestratorPhase.*
+  (b48898dd).

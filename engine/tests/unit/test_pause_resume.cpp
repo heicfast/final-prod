@@ -276,6 +276,40 @@ TEST(PauseResume, ScanPauseFreezesAndElapsedExcludesPause) {
     EXPECT_LE(stats.elapsed_ms + tok.paused_ms(), wall + u64(60));
 }
 
+TEST(PauseResume, PhaseModelCompletesAt1000WhereTheGlobalCurveCapsAt750) {
+    /* D-P6: the reference's per-phase gauge, pinned through the live
+     * controller. The og's gauge RESTARTS per phase and completes at 100%;
+     * our single global curve for a quick|deep scan (the it-gate's shape)
+     * caps at exactly 750 permille — the presentation the user reported as
+     * "jumps directly to 75% advanced scanning". The phase axes (quick's
+     * own permille, then the advanced phase re-normalized over its ACTIVE
+     * sub-stages) complete at 1000 for the same run. */
+    MemDevice dev(build_fat16());
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_carve = false; /* the quick|deep shape */
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    struct Ctx {
+        ScanController* ctrl;
+        bool saw_quick_phase = false;
+    };
+    Ctx c{&ctrl, false};
+    auto probe = [](u32, void* user) -> bool {
+        Ctx* ctx = static_cast<Ctx*>(user);
+        const auto t = ctx->ctrl->telemetry();
+        if (!t.quick.completed && t.phase == 0)
+            ctx->saw_quick_phase = true;
+        return true;
+    };
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, probe, &c, stats));
+    const auto t = ctrl.telemetry();
+    EXPECT_TRUE(c.saw_quick_phase);      /* phase 0 while quick ran */
+    EXPECT_EQ(1u, t.phase);              /* terminal: the advanced phase */
+    EXPECT_EQ(1000u, t.phase_permille);  /* re-normalized completion */
+    EXPECT_EQ(750u, t.overall_permille); /* the global curve's cap (D-P6) */
+}
+
 TEST(PauseResume, SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick) {
     const std::string path = tmp_session_path();
     ScanConfig cfg;
