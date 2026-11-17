@@ -669,8 +669,7 @@ TEST(Telemetry, DeepStageCarriesTheByteAxes) {
     const size_t deep_branch = pub_body.find("} else if (stage == 1) {");
     ASSERT_NE(std::string::npos, deep_branch)
         << "tel_publish_ must carry the deep byte branch (P-DEEP-01)";
-    EXPECT_NE(std::string::npos,
-              pub_body.find("tel_.snap.bytes_scanned = done;", deep_branch))
+    EXPECT_NE(std::string::npos, pub_body.find("tel_.snap.bytes_scanned = done;", deep_branch))
         << "the deep branch stamps the live position (direct, per-sub-pass)";
 
     /* P-TICK-01 (BF-29): the live cursor — the Searching ticker's real
