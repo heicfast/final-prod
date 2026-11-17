@@ -3138,3 +3138,18 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
       parent path — the 'reconstruct them as they were before deletion'
       standard; the full deleted tree is written to the evidence artifact
       (deleted-tree.txt).
+
+### T13 — the preview surfaces, pinned + honestly scoped
+
+- it-gate preview_surfaces: image nodes classify through the engine's metadata
+  (kind 'image') and the REAL zip's browse-inside inventory walks its central
+  directory (>= 5 entries; the seed's backup-1.zip is now a genuine
+  Compress-Archive of the docs folder). Both ABI halves (M-102 metadata /
+  M-116 inventory) exercised end to end on real Windows; evidence lands in
+  preview.txt.
+- The remaining reference gap — RENDERED video/document previews (the og's
+  ffmpeg-class video stack ~99 MiB + pdfium documents) — stays a registered
+  divergence: our surfaces show the truthful 'preview not rendered' hint with
+  real metadata (duration/codec, office metadata), never a fabricated render.
+  Bundling third-party media renderers is a supply-chain + installer-size
+  decision recorded in PARITY-DELTAS (D-P8) with precise scope.

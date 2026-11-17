@@ -628,3 +628,94 @@ fn results_filters_and_deleted_tree() {
     unsafe { abi::cr_ui_session_close(sess) };
     let _ = std::fs::remove_file(&path);
 }
+
+
+// ---------------------------------------------------------------------------
+// T13: the preview surfaces on real Windows — image metadata + the archive
+// browse-inside inventory (M-102/M-116's ABI halves, exercised end to end).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn preview_surfaces() {
+    let disk: u32 = std::env::var("CR_IT_SCAN_DISK")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    assert!(
+        disk != 0,
+        "CR_IT_SCAN_DISK not set — this gate runs under the bridge-integration workflow"
+    );
+
+    let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_open_disk(disk, &mut dev) };
+    assert_eq!(rc, abi::CR_UI_OK, "open_disk 0x{rc:08X}");
+    let mut cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
+    cfg.stage_mask = 1 | 2;
+    let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
+    assert_eq!(abi::CR_UI_OK, unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) });
+    assert_eq!(abi::CR_UI_OK, unsafe { abi::cr_ui_scan_attach_device(scan, dev) });
+    let rc = unsafe { abi::cr_ui_scan_run(scan) };
+    assert_eq!(rc, abi::CR_UI_OK, "run 0x{rc:08X}");
+    let path = std::env::temp_dir().join("cr-it-preview.crsf");
+    let cpath = std::ffi::CString::new(path.to_string_lossy().as_bytes()).unwrap();
+    let rc = unsafe { abi::cr_ui_scan_save_session(scan, cpath.as_ptr()) };
+    assert_eq!(rc, abi::CR_UI_OK, "save_session 0x{rc:08X}");
+    unsafe { abi::cr_ui_scan_close(scan) };
+    /* dev STAYS OPEN — preview_open_session needs the device + session. */
+    let mut sess: *mut abi::CrUiSession = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_session_load(cpath.as_ptr(), &mut sess) };
+    assert_eq!(rc, abi::CR_UI_OK, "session_load 0x{rc:08X}");
+
+    let node_of_category = |mask: u32| -> u64 {
+        let mut q: abi::CrUiQuery = unsafe { std::mem::zeroed() };
+        q.category_mask = mask;
+        q.limit = 10;
+        let mut rows: *mut abi::CrUiQueryRow = std::ptr::null_mut();
+        let mut count: u32 = 0;
+        let mut total: u64 = 0;
+        let rc = unsafe { abi::cr_ui_query_run(sess, &q, &mut rows, &mut count, &mut total) };
+        assert_eq!(rc, abi::CR_UI_OK, "query_run 0x{rc:08X}");
+        assert!(count > 0, "no rows for category mask 0x{mask:x}");
+        let id = unsafe { (*rows).node_id };
+        if !rows.is_null() {
+            unsafe { abi::cr_ui_query_rows_free(rows, count) };
+        }
+        id
+    };
+
+    /* (a) IMAGE: the preview metadata classifies the .jpg node (the kind
+     * dispatch the preview pane renders from). */
+    let image_node = node_of_category(1u32 << 1);
+    let mut pv: *mut abi::CrUiPreview = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_preview_open_session(dev, sess, image_node, &mut pv) };
+    assert_eq!(rc, abi::CR_UI_OK, "preview_open_session(image) 0x{rc:08X}");
+    let mut meta: abi::CrUiMetadata = unsafe { std::mem::zeroed() };
+    let rc = unsafe { abi::cr_ui_preview_metadata(pv, &mut meta) };
+    assert_eq!(rc, abi::CR_UI_OK, "preview_metadata(image) 0x{rc:08X}");
+    let kind = fixed_str(&meta.kind);
+    assert!(kind.contains("image"), "image node metadata kind is '{kind}'");
+    unsafe { abi::cr_ui_preview_close(pv) };
+
+    /* (b) ARCHIVE: the real zip's browse-inside inventory (M-116: the
+     * central-directory walk, the 512-entry hostile bound) — the seed's
+     * backup-1.zip is a genuine zip of the 43-entry docs folder. */
+    let archive_node = node_of_category(1u32 << 5);
+    let mut pv: *mut abi::CrUiPreview = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_preview_open_session(dev, sess, archive_node, &mut pv) };
+    assert_eq!(rc, abi::CR_UI_OK, "preview_open_session(archive) 0x{rc:08X}");
+    let mut meta: abi::CrUiMetadata = unsafe { std::mem::zeroed() };
+    let rc = unsafe { abi::cr_ui_preview_metadata(pv, &mut meta) };
+    assert_eq!(rc, abi::CR_UI_OK, "preview_metadata(archive) 0x{rc:08X}");
+    let kind = fixed_str(&meta.kind);
+    assert!(kind.contains("archive"), "archive node metadata kind is '{kind}'");
+    let mut entries: u32 = 0;
+    let rc = unsafe { abi::cr_ui_archive_entry_count(pv, &mut entries) };
+    assert_eq!(rc, abi::CR_UI_OK, "archive_entry_count 0x{rc:08X}");
+    assert!(entries >= 5, "the real zip's inventory has {entries} entries (< 5)");
+    unsafe { abi::cr_ui_preview_close(pv) };
+    write_evidence("preview.txt", format!("image kind: {kind:?} (node {image_node}); archive entries: {entries}\n"));
+
+    unsafe { abi::cr_ui_session_close(sess) };
+    unsafe { abi::cr_ui_device_close(dev) };
+    let _ = std::fs::remove_file(&path);
+}

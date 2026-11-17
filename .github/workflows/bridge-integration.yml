@@ -248,6 +248,11 @@ jobs:
             (New-Object Random (4000 + $_)).NextBytes($buf)
             [IO.File]::WriteAllBytes("$root\backup-$_.zip", $buf)
           }
+          # ONE real archive for the browse-inside pin: backup-1.zip is a
+          # genuine zip of the docs folder (43 entries) — the engine's
+          # archive inventory has a real central directory to walk.
+          Remove-Item "$root\backup-1.zip" -Force
+          Compress-Archive -Path "$root`docs\*" -DestinationPath "$root\backup-1.zip" -Force
           $live = (Get-ChildItem -Recurse -File $root | Measure-Object).Count
           Write-Host "seed: $live live files (deleted set: 80)"
           "CR_IT_EXPECT_FILES=100" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
