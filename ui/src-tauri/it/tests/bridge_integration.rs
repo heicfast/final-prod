@@ -273,8 +273,19 @@ fn scan_progress_axes_move() {
         }
     }
 
-    // SAFETY: zeroed config = the documented safe default (quick|deep|carve).
-    let cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
+    // SAFETY: zeroed config = the documented safe default EXCEPT the stage
+    // mask, which this gate pins to quick|deep (bits 1|2 = 3). First real
+    // execution evidence (run 44071105301): with the default quick|deep|carve
+    // the carve stage — 8.45 MiB/s, BF-30 — consumed the whole 480 s window
+    // on the 2 GiB seeded VHD and the scan was cancelled mid-carve, so the
+    // deep stage was NEVER reached and the deep-window gate below panicked
+    // vacuously ("never observed the deep stage in flight"). The carve axes
+    // have their own coverage (the D4a live-bytes stamp + the engine unit
+    // suite); THIS gate pins the P-DEEP-01 deep-bytes axis, so the deep
+    // stage must actually run inside the window: quick|deep reaches deep
+    // seconds after quick, deterministically.
+    let mut cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
+    cfg.stage_mask = 1 | 2; /* quick|deep — carve disabled in this gate */
     let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
     let rc = unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) };
     assert_eq!(rc, abi::CR_UI_OK, "scan_create 0x{rc:08X}");
@@ -423,13 +434,16 @@ fn scan_progress_axes_move() {
     // (c) THE DEEP-BYTES PIN (P-DEEP-01): during the deep stage the
     // bytes_scanned axis must advance. Identify the deep window as
     // samples where deep is in flight (permille in (0,1000), not yet
-    // completed) while quick AND carve are both completed (the standard
-    // quick→carve→deep order).
+    // completed) after quick has completed. The carve condition of the
+    // original predicate is dropped WITH the carve stage: this gate's
+    // config pins quick|deep (see the config comment — the first real
+    // execution never reached deep because carve ate the window), and a
+    // skipped stage never marks completed, so requiring carve_done would
+    // be vacuously false forever.
     let deep_window: Vec<&Sample> = samples
         .iter()
         .filter(|s| {
             s.quick_done != 0
-                && s.carve_done != 0
                 && s.deep_done == 0
                 && s.deep_pm > 0
                 && s.deep_pm < 1000
