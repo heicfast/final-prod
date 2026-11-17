@@ -3120,3 +3120,21 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
   observed while quick ran; terminal phase 1 / phase_permille 1000 / overall
   exactly 750. The mid-flight restart cases stay pinned by OrchestratorPhase.*
   (b48898dd).
+
+### T10-T12 — filters + the deleted-tree reconstruction, pinned on the seeded disk
+
+- A new it-crate gate (results_filters_and_deleted_tree) exercises the REAL
+  user-facing surfaces end to end on the CI fixture: a quick|deep scan (<1 s on
+  this fixture), session save + reload (the results explorer's own path), then
+  cr_ui_query_run assertions:
+  (a) the whole manifest returns rows (R9 'filters are dead' — pinned ALIVE);
+  (b) the CATEGORY filters through the engine's FileFilter table (image 1<<1,
+      document 1<<4, archive 1<<5 — the seed now carries 5 .jpg + 3 .pdf +
+      2 .zip live files for exactly this);
+  (c) the SIZE filter (a 250 KiB floor admits the 17 x 256 KiB live rows + the
+      3 GiB deleted bulk, and nothing else);
+  (d) THE DELETED-TREE RECONSTRUCTION (T12): deleted_only returns >= 81 rows
+      (80 del-*.bin + the bulk) and >= 80 carry their ORIGINAL 'gone\...'
+      parent path — the 'reconstruct them as they were before deletion'
+      standard; the full deleted tree is written to the evidence artifact
+      (deleted-tree.txt).

@@ -502,3 +502,129 @@ fn scan_progress_axes_move() {
         }
     }
 }
+
+
+// ---------------------------------------------------------------------------
+// T10-T12: the filter axes + the deleted-tree reconstruction, on the real
+// seeded disk (quick|deep completes in <1 s on this fixture — run 44090904420).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn results_filters_and_deleted_tree() {
+    let disk: u32 = std::env::var("CR_IT_SCAN_DISK")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let expect_files: u64 = std::env::var("CR_IT_EXPECT_FILES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1);
+    assert!(
+        disk != 0,
+        "CR_IT_SCAN_DISK not set — this gate runs under the bridge-integration workflow"
+    );
+
+    let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_open_disk(disk, &mut dev) };
+    assert_eq!(rc, abi::CR_UI_OK, "open_disk 0x{rc:08X}");
+    let mut cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
+    cfg.stage_mask = 1 | 2; /* quick|deep — the fixture's proven shape */
+    let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) };
+    assert_eq!(rc, abi::CR_UI_OK, "scan_create 0x{rc:08X}");
+    let rc = unsafe { abi::cr_ui_scan_attach_device(scan, dev) };
+    assert_eq!(rc, abi::CR_UI_OK, "attach 0x{rc:08X}");
+    let rc = unsafe { abi::cr_ui_scan_run(scan) }; /* synchronous — <1 s here */
+    assert_eq!(rc, abi::CR_UI_OK, "run 0x{rc:08X}");
+
+    /* Save + reload as a session — the query surface is session-scoped
+     * (exactly the path the results explorer takes after a scan). */
+    let path = std::env::temp_dir().join("cr-it-query.crsf");
+    let cpath = std::ffi::CString::new(path.to_string_lossy().as_bytes()).unwrap();
+    let rc = unsafe { abi::cr_ui_scan_save_session(scan, cpath.as_ptr()) };
+    assert_eq!(rc, abi::CR_UI_OK, "save_session 0x{rc:08X}");
+    unsafe { abi::cr_ui_scan_close(scan) };
+    unsafe { abi::cr_ui_device_close(dev) };
+    let mut sess: *mut abi::CrUiSession = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_session_load(cpath.as_ptr(), &mut sess) };
+    assert_eq!(rc, abi::CR_UI_OK, "session_load 0x{rc:08X}");
+
+    let cstr_of = |p: *mut i8| -> String {
+        if p.is_null() {
+            String::new()
+        } else {
+            unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().into_owned()
+        }
+    };
+    let run_query = |q: &mut abi::CrUiQuery| -> (u64, Vec<abi::CrUiQueryRow>) {
+        q.offset = 0;
+        q.limit = 500;
+        let mut rows: *mut abi::CrUiQueryRow = std::ptr::null_mut();
+        let mut count: u32 = 0;
+        let mut total: u64 = 0;
+        let rc = unsafe { abi::cr_ui_query_run(sess, q, &mut rows, &mut count, &mut total) };
+        assert_eq!(rc, abi::CR_UI_OK, "query_run 0x{rc:08X}");
+        let v = if !rows.is_null() && count > 0 {
+            unsafe { std::slice::from_raw_parts(rows, count as usize).to_vec() }
+        } else {
+            Vec::new()
+        };
+        if !rows.is_null() {
+            unsafe { abi::cr_ui_query_rows_free(rows, count) };
+        }
+        (total, v)
+    };
+
+    /* (a) the whole manifest (R9 "filters are dead": the query returns rows). */
+    let mut q: abi::CrUiQuery = unsafe { std::mem::zeroed() };
+    q.count_only = 1;
+    let (total, _) = run_query(&mut q);
+    assert!(total >= expect_files, "query total {total} < manifest {expect_files}");
+
+    /* (b) THE CATEGORY FILTERS (the engine's FileFilter table — the og's 8
+     * categories; mask bit = 1 << category value: image 1<<1, document
+     * 1<<4, archive 1<<5). The seed carries 5 .jpg + 3 .pdf + 2 .zip live. */
+    for (mask, want, label) in [
+        (1u32 << 1, 5u64, "image"),
+        (1u32 << 4, 3u64, "document"),
+        (1u32 << 5, 2u64, "archive"),
+    ] {
+        let mut q: abi::CrUiQuery = unsafe { std::mem::zeroed() };
+        q.category_mask = mask;
+        let (total, rows) = run_query(&mut q);
+        assert!(total >= want, "{label}: {total} < {want} (the category filter is dead)");
+        assert!(!rows.is_empty(), "{label}: no rows materialized");
+    }
+
+    /* (c) the SIZE filter: the 17 live 256 KiB files + the 3 GiB deleted
+     * bulk clear a 250 KiB floor (the 4-128 KiB rows must not). */
+    let mut q: abi::CrUiQuery = unsafe { std::mem::zeroed() };
+    q.size_min = 250 * 1024;
+    let (total, _) = run_query(&mut q);
+    assert!(total >= 18, "size_min filter: {total} < 18");
+
+    /* (d) THE DELETED-TREE RECONSTRUCTION (T12): deleted_only returns the
+     * seeded deleted set (80 del-*.bin + the 3 GiB bulk) with their
+     * ORIGINAL parent path — "gone\del-N.bin" — the "reconstruct them as
+     * they were before deletion" standard. */
+    let mut q: abi::CrUiQuery = unsafe { std::mem::zeroed() };
+    q.deleted_only = 1;
+    let (total, rows) = run_query(&mut q);
+    assert!(total >= 81, "deleted_only: {total} < 81 (80 del + the bulk)");
+    let in_gone = rows
+        .iter()
+        .filter(|r| cstr_of(r.path).to_ascii_lowercase().contains("gone"))
+        .count();
+    assert!(
+        in_gone >= 80,
+        "deleted rows under the reconstructed gone\\ parent: {in_gone} < 80"
+    );
+    let evidence: String = rows
+        .iter()
+        .map(|r| format!("{}\t{}\t{}\n", cstr_of(r.path), r.size, r.deleted))
+        .collect();
+    write_evidence("deleted-tree.txt", evidence);
+
+    unsafe { abi::cr_ui_session_close(sess) };
+    let _ = std::fs::remove_file(&path);
+}
