@@ -105,9 +105,7 @@ function deviceDisplayName(device: Device): string {
   return device.model ?? device.label;
 }
 
-export function DiskHealthWindowApp(props: {
-  initialDiskIndex: number;
-}): React.JSX.Element {
+export function DiskHealthWindowApp(props: { initialDiskIndex: number }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const devicesQuery = useDevices();
   const devices = (devicesQuery.data ?? []).filter((d) => d.kind !== 'virtual');
@@ -254,9 +252,7 @@ export function DiskHealthWindowApp(props: {
                 data-testid="disk-health-selector"
                 className="h-8 min-w-[220px] rounded-[6px] border border-[#DCE6F5] bg-white px-2.5 text-[12.5px] font-medium text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface dark:text-foreground"
               >
-                {devices.length === 0 ? (
-                  <option value="">{t('home.emptyTitle')}</option>
-                ) : null}
+                {devices.length === 0 ? <option value="">{t('home.emptyTitle')}</option> : null}
                 {devices.map((d, idx) => (
                   <option key={d.id} value={d.id}>
                     {t('diskhealth.diskEntry', {
@@ -351,7 +347,10 @@ export function DiskHealthWindowApp(props: {
                     </span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
-                    <TimerIcon className="size-6 text-[#1677FF] dark:text-primary" aria-hidden />
+                    <TimerIcon
+                      className="size-6 text-[#1677FF] dark:text-primary"
+                      aria-hidden
+                    />
                     <span className="text-[18px] font-bold tabular text-[#1E293B] dark:text-foreground">
                       {health.data?.powerOnHours != null
                         ? formatInteger(health.data.powerOnHours, i18n.language)

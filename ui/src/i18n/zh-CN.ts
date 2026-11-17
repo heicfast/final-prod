@@ -419,7 +419,8 @@ export const zhCN: TranslationSchema = {
     statusCaution: '警告',
     statusBad: '较差',
     statusUnknown: '未知',
-    unknownNote: '该磁盘的传输通道无法读取 S.M.A.R.T.——状态保持“未知”，绝不虚构。可尝试刷新，或打开磁盘健康窗口查看详情。',
+    unknownNote:
+      '该磁盘的传输通道无法读取 S.M.A.R.T.——状态保持“未知”，绝不虚构。可尝试刷新，或打开磁盘健康窗口查看详情。',
     temperature: '温度',
     powerOnHours: '通电时间',
     class: '类型',
@@ -455,7 +456,8 @@ export const zhCN: TranslationSchema = {
     refresh: '刷新',
     diskEntry: '磁盘 {{index}}（{{name}}，{{size}}）',
     cautionCard: '该磁盘可能存在物理故障。请立即备份数据，然后对该磁盘运行恢复扫描。',
-    emptyTable: '该磁盘的传输通道无法读取 S.M.A.R.T.——没有可显示的属性。状态保持“未知”，绝不虚构数据。',
+    emptyTable:
+      '该磁盘的传输通道无法读取 S.M.A.R.T.——没有可显示的属性。状态保持“未知”，绝不虚构数据。',
     noTransport: '无传输通道',
   },
   repair: {

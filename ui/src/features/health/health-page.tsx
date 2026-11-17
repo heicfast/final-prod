@@ -316,7 +316,10 @@ export function HealthPage(): React.JSX.Element {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span
-                        className={cn('text-[13px] font-bold leading-tight dark:text-foreground', ringTextColor)}
+                        className={cn(
+                          'text-[13px] font-bold leading-tight dark:text-foreground',
+                          ringTextColor,
+                        )}
                       >
                         {ringLabel}
                       </span>

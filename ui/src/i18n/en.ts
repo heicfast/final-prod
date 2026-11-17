@@ -428,7 +428,8 @@ export const en = {
     statusCaution: 'Caution',
     statusBad: 'Poor',
     statusUnknown: 'Unknown',
-    unknownNote: 'S.M.A.R.T. is not readable on this disk transport — the status stays Unknown rather than guessing. Try refreshing or open the Disk Health window for detail.',
+    unknownNote:
+      'S.M.A.R.T. is not readable on this disk transport — the status stays Unknown rather than guessing. Try refreshing or open the Disk Health window for detail.',
     temperature: 'Temperature',
     powerOnHours: 'Powered on',
     class: 'Type',
@@ -463,8 +464,10 @@ export const en = {
     pickDisk: 'Which disk do you care about?',
     refresh: 'Refresh',
     diskEntry: 'Disk {{index}} ({{name}}, {{size}})',
-    cautionCard: 'Your disk may have a physical failure. Copy important data off it now, then run a recovery scan on this disk.',
-    emptyTable: 'S.M.A.R.T. is not readable on this disk transport — no attributes to show. The status stays Unknown; nothing is fabricated.',
+    cautionCard:
+      'Your disk may have a physical failure. Copy important data off it now, then run a recovery scan on this disk.',
+    emptyTable:
+      'S.M.A.R.T. is not readable on this disk transport — no attributes to show. The status stays Unknown; nothing is fabricated.',
     noTransport: 'no transport',
   },
   repair: {

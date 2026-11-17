@@ -65,6 +65,6 @@ export async function openDiskHealthWindow(
     });
   }
   void win; /* the constructor promise: creation proceeds in the background,
-             * failures surface through the once() handler above */
+   * failures surface through the once() handler above */
   return true;
 }

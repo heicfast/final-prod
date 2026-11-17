@@ -101,7 +101,9 @@ describe('the disk-health window', () => {
       { timeout: 4000 },
     );
     // user picks the SD card
-    fireEvent.change(screen.getByTestId('disk-health-selector'), { target: { value: 'dev-sdcard' } });
+    fireEvent.change(screen.getByTestId('disk-health-selector'), {
+      target: { value: 'dev-sdcard' },
+    });
     // the settled state: the empty-table note renders (the SD query resolved
     // with zero attributes) — truthful, no fabricated rows anywhere
     await waitFor(
