@@ -217,26 +217,22 @@ jobs:
             (New-Object Random (1000 + $_)).NextBytes($buf)
             [IO.File]::WriteAllBytes("$root\gone\del-$_.bin", $buf)
           }
-          cmd /c "del /q /f $root`gone\*.bin" | Out-Null
-          # The deep-sweep workload: one ~3 GiB DELETED file of real
-          # allocated blocks (a 64 MiB random block repeated 48x — fast to
-          # write, real to read). Deleted so quick counts it in the deleted
-          # set (not the live manifest) while the deep sweep must still
-          # physically read every block it occupied.
-          $blk = New-Object byte[] (64MB)
-          (New-Object Random 7777).NextBytes($blk)
-          $fs = [IO.File]::Create("$root`gone\bulk.bin")
-          try {
-            1..48 | ForEach-Object { $fs.Write($blk, 0, $blk.Length) }
-          } finally { $fs.Close() }
-          cmd /c "del /q /f $root`gone\bulk.bin" | Out-Null
-          # Categorized live files for the it-gate's category-filter pins
-          # (the engine's FileFilter table categorizes by extension):
-          # 5 images, 3 documents, 2 archives.
+          # ALL LIVE WRITES FIRST (categorized files + the real zip) —
+          # anything written AFTER a delete can RECYCLE the freed MFT record
+          # slots (run 44099373025: 11 of the 81 deleted records were
+          # reused by the post-delete categorized writes -> deleted count 70).
+          # Categorized live files for the it-gate's category-filter pins:
+          # REAL JPEGs (the engine's preview metadata parses CONTENT — random
+          # bytes in a .jpg are honestly classified 'unsupported'), plus
+          # documents and archives.
+          Add-Type -AssemblyName System.Drawing
           1..5 | ForEach-Object {
-            $buf = New-Object byte[] 4KB
-            (New-Object Random (2000 + $_)).NextBytes($buf)
-            [IO.File]::WriteAllBytes("$root`media\photo-$_.jpg", $buf)
+            $bmp = New-Object System.Drawing.Bitmap 40, 40
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb($_ * 40, 100, 200))
+            $g.Dispose()
+            $bmp.Save("$root`media\photo-$_.jpg", [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            $bmp.Dispose()
           }
           1..3 | ForEach-Object {
             $buf = New-Object byte[] 4KB
@@ -253,6 +249,20 @@ jobs:
           # archive inventory has a real central directory to walk.
           Remove-Item "$root\backup-1.zip" -Force
           Compress-Archive -Path "$root`docs\*" -DestinationPath "$root\backup-1.zip" -Force
+          # The deep-sweep workload: one ~3 GiB DELETED file of real
+          # allocated blocks (a 64 MiB random block repeated 48x — fast to
+          # write, real to read). Deleted so quick counts it in the deleted
+          # set (not the live manifest) while the deep sweep must still
+          # physically read every block it occupied.
+          $blk = New-Object byte[] (64MB)
+          (New-Object Random 7777).NextBytes($blk)
+          $fs = [IO.File]::Create("$root`gone\bulk.bin")
+          try {
+            1..48 | ForEach-Object { $fs.Write($blk, 0, $blk.Length) }
+          } finally { $fs.Close() }
+          # The deletions come LAST so nothing recycles their MFT records.
+          cmd /c "del /q /f $root`gone\*.bin" | Out-Null
+          cmd /c "del /q /f $root`gone\bulk.bin" | Out-Null
           $live = (Get-ChildItem -Recurse -File $root | Measure-Object).Count
           Write-Host "seed: $live live files (deleted set: 80)"
           "CR_IT_EXPECT_FILES=100" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
