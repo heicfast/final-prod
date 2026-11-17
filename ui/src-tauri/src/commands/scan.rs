@@ -607,6 +607,7 @@ pub async fn scan_state(
                 None
             }
         });
+        let (phase, phase_permille) = crate::bridge::events::scan_phase(entry.scan_handle());
         let progress = crate::bridge::events::compose_scan_progress(
             &scan_id,
             &live,
@@ -615,6 +616,8 @@ pub async fn scan_state(
             busy,
             stopping,
             paused,
+            phase,
+            phase_permille,
         );
         // G-1 (a) re-hydration: the pending consent payload (null when none)
         // — the prompt renders from this when the event fired before the

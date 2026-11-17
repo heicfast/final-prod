@@ -3077,3 +3077,23 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
   timeline, and the page's gauge/status-line switch from overallProgress to
   phaseProgress. The status-line i18n keys (quickScanning/advancedScanning with
   {{percent}}) already exist and take the phase percent unchanged.
+
+### T7 presentation half (D-P6) — the phase axes cross the ABI to the gauge
+
+- ABI (append-only, policy §9): cr_ui_telemetry.phase + phase_permille; stamped in
+  scan_telemetry_impl from the snapshot; layouts regenerated (365 field paths);
+  abi.rs re-pinned in the same change.
+- Bridge: scan_phase() probe (any-thread telemetry, (0,0) on miss — honest no-data)
+  + compose_scan_progress carries phase ('quick'|'advanced', null at terminal) and
+  phaseProgress (0..1, 1.0 at terminal); all three compose call sites wired.
+- Contract: ScanProgressEvent.phase + phaseProgress (optional, null at terminal,
+  documented fallback to overallProgress).
+- Mock: the timeline models the phase model (quick = quick's own %, advanced =
+  weighted deep+carve over the stages actually present — restarts at the boundary).
+- Page: the gauge + the status-line percent now render phaseProgress (the og's
+  RESTARTING gauge) with the overall curve as fallback; the label prefers
+  progress.phase. This is the user-visible D-P6 reversal: 'jumps to 30-75%' is
+  gone — quick shows 0-100%, then advanced restarts at 0.
+- Gates: engine build clean, OrchestratorPhase/Telemetry/HealthCsmi 15/15,
+  clang-format 0, win_syntax_check 0 FAIL; UI typecheck/eslint/arch-lint/prettier
+  clean, 211/211 vitest.

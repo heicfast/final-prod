@@ -306,6 +306,14 @@ pub struct CrUiTelemetry {
     /// active sweep is reading right now — the Searching ticker's real
     /// data. 0 = no byte-denominated pass in flight.
     pub current_offset_bytes: u64,
+    /// D-P6 append (ABI policy section 9, append-only): the reference's
+    /// per-phase progress — the og's gauge RESTARTS at the phase boundary.
+    /// phase: 0 = quick, 1 = advanced (deep+carve as one phase).
+    /// phase_permille: the ACTIVE phase's own 0..1000 (re-normalized
+    /// deep+carve when both run — a quick|deep scan's advanced phase
+    /// reaches 1000). Mapped 1:1 by the bridge; no UI re-derivation.
+    pub phase: u32,
+    pub phase_permille: u32,
 }
 
 #[repr(C)]

@@ -771,7 +771,11 @@ int main(int argc, char** argv) {
     fprintf(out, "\"%s\": %llu%s ", "bytes_found",
             (unsigned long long)offsetof(cr_ui_telemetry, bytes_found), ",");
     fprintf(out, "\"%s\": %llu%s ", "current_offset_bytes",
-            (unsigned long long)offsetof(cr_ui_telemetry, current_offset_bytes), "");
+            (unsigned long long)offsetof(cr_ui_telemetry, current_offset_bytes), ",");
+    fprintf(out, "\"%s\": %llu%s ", "phase", (unsigned long long)offsetof(cr_ui_telemetry, phase),
+            ",");
+    fprintf(out, "\"%s\": %llu%s ", "phase_permille",
+            (unsigned long long)offsetof(cr_ui_telemetry, phase_permille), "");
     fputs("}},\n", out);
     fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_thumbnail_caps",
             (unsigned long long)sizeof(cr_ui_thumbnail_caps));

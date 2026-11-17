@@ -187,6 +187,10 @@ interface ScanRuntime {
   stage: ScanStage;
   stageProgress: number;
   overall: number;
+  /** D-P6: the reference's per-phase gauge — 'quick' then 'advanced'. */
+  phase: 'quick' | 'advanced';
+  /** D-P6: the ACTIVE phase's own 0..1 (restarts at the boundary). */
+  phaseProgress: number;
   bytesScanned: number;
   bytesTotal: number;
   filesFound: number;
@@ -609,6 +613,8 @@ export class MockConnector {
         stage: 'volume-analysis',
         stageProgress: 0,
         overall: 0,
+        phase: 'quick',
+        phaseProgress: 0,
         bytesScanned: 0,
         bytesTotal,
         filesFound: 0,
@@ -1052,6 +1058,26 @@ export class MockConnector {
     const curWeight = (STAGE_WEIGHTS[rt.stage] ?? 0) / activeWeightTotal;
     rt.overall = Math.min(1, before + curWeight * rt.stageProgress);
 
+    // D-P6: the reference's per-phase gauge — quick's own 0-100%, then the
+    // advanced phase RESTARTS at 0 (deep+carve as one phase, weighted over
+    // the stages actually present in this scan's list).
+    if (rt.stage === 'volume-analysis' || rt.stage === 'quick-index') {
+      rt.phase = 'quick';
+      rt.phaseProgress = rt.stageProgress;
+    } else {
+      rt.phase = 'advanced';
+      const dw = stages.includes('deep-walk') ? (STAGE_WEIGHTS['deep-walk'] ?? 0) : 0;
+      const cw = stages.includes('carve') ? (STAGE_WEIGHTS['carve'] ?? 0) : 0;
+      const deepFrac =
+        rt.stage === 'deep-walk'
+          ? rt.stageProgress
+          : stages.indexOf(rt.stage) > stages.indexOf('deep-walk')
+            ? 1
+            : 0;
+      const carveFrac = rt.stage === 'carve' ? rt.stageProgress : 0;
+      rt.phaseProgress = dw + cw > 0 ? (dw * deepFrac + cw * carveFrac) / (dw + cw) : 0;
+    }
+
     if (rt.stageProgress >= 1) {
       const next = stages[curIdx + 1];
       if (next) {
@@ -1151,6 +1177,9 @@ export class MockConnector {
       stage: rt.stage,
       stageProgress: rt.stageProgress,
       overallProgress: rt.overall,
+      // D-P6: the per-phase axes (the reference's restarting gauge).
+      phase: rt.phase,
+      phaseProgress: rt.phaseProgress,
       bytesScanned: rt.bytesScanned,
       bytesTotal: rt.bytesTotal,
       filesFound: rt.filesFound,

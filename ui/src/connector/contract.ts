@@ -230,6 +230,14 @@ export interface ScanProgressEvent {
   /** The target's logical sector size (the "Reading sector" divisor —
    * never a hard-coded 512). */
   readonly sectorSize?: number;
+  /** D-P6: the reference's phase model — 'quick' then 'advanced'
+   * (deep+carve as one phase). Null at terminal states (the done/
+   * organizing vocabulary stands there). */
+  readonly phase?: 'quick' | 'advanced' | null;
+  /** D-P6: the ACTIVE phase's own 0..1 — the reference's gauge RESTARTS
+   * at the phase boundary (quick 0-100%, then advanced back at 0). Falls
+   * back to overallProgress on bridges without the phase axes. */
+  readonly phaseProgress?: number | null;
 }
 
 export interface BadSectorRange {

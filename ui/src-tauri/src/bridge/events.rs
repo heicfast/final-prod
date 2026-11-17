@@ -180,6 +180,8 @@ pub fn compose_scan_progress(
     busy: bool,
     stopping: bool,
     paused: bool,
+    phase: u32,
+    phase_permille: u32,
 ) -> serde_json::Value {
     let now = now_unix_ms();
     let status = scan_status(live, terminal, busy, stopping, paused, now);
@@ -227,7 +229,38 @@ pub fn compose_scan_progress(
             serde_json::Value::Null
         }),
         "sectorSize": live.sector_size,
+        // D-P6: the reference's per-phase gauge — quick's own 0-100%, then
+        // the advanced phase RESTARTS at 0 (deep+carve as one phase). The
+        // label maps the engine's 0/1; terminal carries no phase (the
+        // stage-based done/organizing vocabulary stands there).
+        "phase": (if terminal.is_some() {
+            serde_json::Value::Null
+        } else if phase == 1 {
+            serde_json::json!("advanced")
+        } else {
+            serde_json::json!("quick")
+        }),
+        "phaseProgress": (if terminal.is_some() {
+            serde_json::json!(1.0)
+        } else {
+            serde_json::json!(f64::from(phase_permille) / 1000.0)
+        }),
     })
+}
+
+/// D-P6: the engine's per-phase axes (the restarting gauge) — a fresh
+/// telemetry probe alongside scan_flags (any-thread safe per cr_ui.h).
+/// (0, 0) when the probe fails: honest "no data yet", never fabricated.
+pub(crate) fn scan_phase(scan_ptr: *mut abi::CrUiScan) -> (u32, u32) {
+    if scan_ptr.is_null() {
+        return (0, 0);
+    }
+    let mut tel: abi::CrUiTelemetry = unsafe { std::mem::zeroed() };
+    let rc = unsafe { abi::cr_ui_scan_telemetry(scan_ptr, &mut tel) };
+    if rc != abi::CR_UI_OK {
+        return (0, 0);
+    }
+    (tel.phase, tel.phase_permille)
 }
 
 /// Fresh busy/stopping/paused probe (all any-thread safe, cr_ui.h).
@@ -260,6 +293,7 @@ pub fn emit_scan_progress(
     scan_ptr: *mut abi::CrUiScan,
 ) {
     let (busy, stopping, paused) = scan_flags(scan_ptr);
+    let (phase, phase_permille) = scan_phase(scan_ptr);
     let term = terminal.lock().ok().and_then(|t| t.clone());
     if let Ok(l) = live.lock() {
         let payload = compose_scan_progress(
@@ -270,6 +304,8 @@ pub fn emit_scan_progress(
             busy,
             stopping,
             paused,
+            phase,
+            phase_permille,
         );
         let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);
     }
@@ -481,6 +517,7 @@ pub fn spawn_scan_emitter(
                     }
                 }
                 let (busy, stopping, paused) = scan_flags(scan_ptr);
+                let (phase, phase_permille) = scan_phase(scan_ptr);
                 let payload = compose_scan_progress(
                     &scan_id,
                     &live,
@@ -489,6 +526,8 @@ pub fn spawn_scan_emitter(
                     busy,
                     stopping,
                     paused,
+                    phase,
+                    phase_permille,
                 );
                 let _ = app.emit(&format!("scan-progress:{scan_id}"), payload);
             }

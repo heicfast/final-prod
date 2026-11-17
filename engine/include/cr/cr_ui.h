@@ -693,6 +693,19 @@ typedef struct cr_ui_telemetry {
      * discovery window). 0 = not currently sweeping (quick's metadata
      * pass, stage transitions) — never fabricated, never extrapolated. */
     uint64_t current_offset_bytes;
+    /* D-P6 append (append-only, ABI policy section 9): the reference's
+     * per-phase progress model — the og's gauge RESTARTS at the phase
+     * boundary ("Quick Scanning %1" -> "Advanced Scanning %1", the gauge
+     * back to 0; REFERENCE-SCAN section 5). phase: 0 = quick, 1 =
+     * advanced (deep+carve as one phase, the og's m_iScanType 2).
+     * phase_permille: the ACTIVE phase's own 0..1000 (quick's permille
+     * while quick runs; the deep+carve weighted combination over the
+     * ACTIVE sub-stages only — re-normalized, so a quick|deep scan's
+     * advanced phase reaches 1000). Computed by the engine's
+     * phase_progress() beside overall_permille (cr_scan.h); the bridge
+     * maps it 1:1 — no UI-side re-derivation. */
+    uint32_t phase;
+    uint32_t phase_permille;
 } cr_ui_telemetry;
 
 /* Live snapshot of the running (or finished) scan; any thread, any time. */

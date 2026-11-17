@@ -89,7 +89,14 @@ export function ScanProgressPage(): React.JSX.Element {
   const overall = progress?.overallProgress ?? 0;
   const completed = status === 'completed';
   const deviceLost = progress?.deviceConnected === false && status === 'paused';
-  const phase = scanPhaseOf(progress?.stage ?? 'volume-analysis');
+  // D-P6: the reference's per-phase gauge — quick's own 0-100%, then the
+  // advanced phase RESTARTS at 0 (the og's RadiusProgressBar, REFERENCE-SCAN
+  // section 5: 'Quick Scanning %1, Files Found:' -> 'Advanced Scanning %1,
+  // Files Found:' with the gauge back to 0 — the observed 'jumps to 30-75%'
+  // was our single global 40/35/25 curve, divergence D-P6). Falls back to
+  // the global curve on bridges without the phase axes.
+  const gaugeValue = progress?.phaseProgress ?? overall;
+  const phase = progress?.phase ?? scanPhaseOf(progress?.stage ?? 'volume-analysis');
 
   const selectedCount = selectedCountOf({
     mode: selection.mode,
@@ -204,7 +211,7 @@ export function ScanProgressPage(): React.JSX.Element {
       {/* Unified bottom scan status cluster (matching scan-midscan-210s.png, scan-paused.png, and complete-celebration-modal.png) */}
       <div className="flex h-[68px] shrink-0 items-center gap-4 border-t border-[#C8DAF5] bg-[#E2ECFA] px-4 dark:border-border dark:bg-surface">
         <ProgressGauge
-          value={overall}
+          value={gaugeValue}
           completed={completed}
           size={52}
           label={t('a11y.gauge')}
@@ -222,7 +229,7 @@ export function ScanProgressPage(): React.JSX.Element {
                 : completed
                   ? `${t('scan.completedStatus')},`
                   : `${t(phase === 'quick' ? 'scan.quickScanning' : 'scan.advancedScanning', {
-                      percent: formatPercent(overall, i18n.language),
+                      percent: formatPercent(gaugeValue, i18n.language),
                     })} ,`}
             </span>
             <span className="font-semibold tabular text-[#1677FF] dark:text-primary">
