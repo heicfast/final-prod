@@ -12,8 +12,7 @@ import {
   TimerIcon,
 } from 'lucide-react';
 import { useDevices } from '@/queries/devices';
-import { useHealth } from '@/queries/health';
-import { connector } from '@/connector';
+import { useHealth, fetchHealth } from '@/queries/health';
 import type { Device, DiskHealth } from '@/connector/contract';
 import { formatDriveGb, formatInteger } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -135,9 +134,7 @@ export function DiskHealthWindowApp(props: { initialDiskIndex: number }): React.
     jumpedRef.current = true;
     let cancelled = false;
     (async () => {
-      const results = await Promise.allSettled(
-        devices.map((d) => connector.health.getHealth(d.id)),
-      );
+      const results = await Promise.allSettled(devices.map((d) => fetchHealth(d.id)));
       setInitialScan(false);
       /* the user (or a re-open event) already chose — their choice stands. */
       if (cancelled || userSelectedRef.current) return;
