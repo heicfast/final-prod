@@ -129,6 +129,11 @@ quick→deep→carve with weights 40/35/25 (`engine/include/cr/orchestrator/cr_s
    (default **96%**), `caution → 72`, `bad → 38`. The SMART table renders
    `health.data.attributes` (`health-page.tsx:485`) with a count badge (`:454`). Error ⇒
    EmptyState "S.M.A.R.T. not available" (`health-page.tsx:215-222`).
+   > **[SUPERSEDED 2026-11-17, smart-scan session]** The fabricated healthScore was
+   > removed (6e12f167, prior session) and the status is now the ENGINE's 4-state
+   > grade mapped 1:1 through the ABI (commit 2a4b02ed: cr_ui_smart_report.grade;
+   > 'unknown' is a first-class state). The separate disk-health window (D-P4) is
+   > the full surface; this page is the in-window summary.
 
 ### A.3 Scan start → progress → partial results → completion → results tree
 
@@ -328,6 +333,10 @@ at every open (`cr_transport.cpp:376-394`, `cr_ui.cpp:1158-1183`).
    default wear 4), 72 (caution), 38 (bad). It renders whenever `health.data` exists — even
    with `attributes: []`. The engine NEVER produces a percentage for ATA disks; the bridge
    produces only status/telemetry fields (`health.rs:111-122`).
+   > **[FIXED]** The fabricated percentage is gone (6e12f167 + the D-P4 grade chain,
+   > 2a4b02ed): no percentage exists anywhere in the chain — the 4-state verdict is
+   > the engine's, and a no-SMART disk grades Unknown (gray), never fake-green.
+   > This appendix row is preserved as the historical diagnosis.
 8. **`available==0` gate throws away healthy NVMe data** — `health.rs:43-48` refuses when
    `report.available==0` even though the engine returned OK with `nvme_available=1`
    (`cr_ui.cpp:3697-3701`). Every NVMe-only drive (most modern laptops) shows the
