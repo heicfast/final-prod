@@ -83,6 +83,15 @@ struct NvmeHealth : cr::health::NvmeHealthInfo {};
  * required). Returns ERR_HEALTH_UNAVAILABLE when the transport rejects. */
 u32 read_smart(void* disk_handle, SmartReport& out);
 
+/* The og's LAST route (REFERENCE-SMART.md §2): the WMI
+ * MSStorageDriver_FailurePredict{Data,Thresholds} class pair from
+ * root\WMI, tied to this disk by serial/model tokens from the storage
+ * descriptor. Called by read_smart after the whole transport chain
+ * (ATA passthrough -> legacy -> SAT -> CSMI) misses — the same
+ * last-fallback position the reference gives it. No IDENTIFY on this
+ * route: model from the descriptor, ata_version honestly 0. */
+u32 read_smart_wmi(void* disk_handle, SmartReport& out);
+
 /* NVMe: identify + health log page through IOCTL_STORAGE_QUERY_PROPERTY /
  * NVMe passthrough. */
 u32 read_nvme_health(void* disk_handle, NvmeHealth& out);

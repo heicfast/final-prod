@@ -4,16 +4,25 @@
  * (cr::health::read_smart_ata); this file provides the transports:
  *   1. IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX)
  *   2. SMART_RCV_DRIVE_DATA 0x7C088 (pre-Vista legacy)
- *   3. CSMI CC-0x19 SCSI-miniport pass-through (the og DiskHealth
+ *   3. SAT 12-byte ATA PASS-THROUGH over IOCTL_SCSI_PASS_THROUGH_DIRECT
+ *      (USB/IEEE1394 bridges - the og DiskHealth companion's
+ *      GetSmartAttributeSat route; CDB stamps byte-exact from
+ *      DiskHealth_decompiled.c FUN_00419280/:9124, see cr_sat.h)
+ *   4. CSMI CC-0x19 SCSI-miniport pass-through (the og DiskHealth
  *      companion's GetSmartAttributeCsmi route for Intel RST /
  *      AMD rcraid arrays) - wire-decoded from the corpus decompile
  *      (DiskHealth_decompiled.c FUN_00425450; see cr_csmi.h).
+ * Chain order: the standards routes first (ATA passthrough, legacy,
+ * SAT), the vendor array route last (CSMI) - the og pre-selects one
+ * accessor per disk class at AddDisk time (N-032 model); ours tries in
+ * order with the same per-disk outcome.
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/win/cr_health.h"
 #include "cr/health/cr_csmi.h"
+#include "cr/health/cr_sat.h"
 #include "cr/health/cr_smart_ata.h"
 #include "cr/cr_error.h"
 #include <windows.h>
@@ -207,6 +216,103 @@ public:
     }
 };
 
+/* --- transport 3: SAT 12-byte ATA PASS-THROUGH over
+ * IOCTL_SCSI_PASS_THROUGH_DIRECT (USB/IEEE1394 bridges) ---
+ *
+ * The og companion's GetSmartAttributeSat route. Request geometry byte-
+ * decoded from DiskHealth_decompiled.c FUN_00419280: one allocation with
+ * SCSI_PASS_THROUGH_DIRECT at the base, the 0x18-byte sense buffer at
+ * SenseInfoOffset, the 512-byte data buffer after it (DataBuffer points
+ * inside the same allocation), DataIn, TimeOutValue 2, and the response
+ * accepted only when the ioctl succeeds AND the 512 data bytes are not
+ * all zero (the reference's byte-sum check — a bridge that answers a
+ * CHECK CONDITION leaves the data untouched/zeros). The CDB stamps are
+ * cr::health::sat::build_cdb12 (the primary 0x08 stamp, then the
+ * reference's -1A retry encoding 0x1C — its "GetSmartAttributeSat - 1A"
+ * ladder for bridges that only answer that encoding).
+ *
+ * Divergence from the reference, documented: it zeroes PathId/TargetId/
+ * Lun (its \\.\Scsi%d: context pre-resolves the target); we issue on the
+ * disk handle and fill the REAL SCSI address from IOCTL_SCSI_GET_ADDRESS
+ * first (the same probe our CSMI channel uses) so a storport-backed disk
+ * can never serve ANOTHER LUN's data. When the address probe itself
+ * fails (single-LUN class stacks like usbstor, which ignore the address
+ * fields), the zeros stand — exactly the reference's request. */
+class SatPassThroughChannel final : public cr::health::AtaChannel {
+    HANDLE h_;
+    u8 path_ = 0;
+    u8 target_ = 0;
+    u8 lun_ = 0;
+
+    bool sat_issue(const u8 cdb[12], u8* out512) {
+        struct SatRequest {
+            SCSI_PASS_THROUGH_DIRECT sptd;
+            u8 sense[0x18]; /* SenseInfoLength 0x18 (the reference) */
+            alignas(16) u8 data[512];
+        } req;
+        static_assert(sizeof(req.sense) == 0x18, "sense length is the reference's");
+
+        std::memset(&req, 0, sizeof(req));
+        req.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+        req.sptd.PathId = path_;
+        req.sptd.TargetId = target_;
+        req.sptd.Lun = lun_;
+        req.sptd.CdbLength = 12;
+        req.sptd.SenseInfoLength = sizeof(req.sense);
+        req.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+        req.sptd.DataTransferLength = sizeof(req.data);
+        req.sptd.TimeOutValue = 2;
+        req.sptd.DataBuffer = req.data;
+        req.sptd.SenseInfoOffset = offsetof(SatRequest, sense);
+        std::memcpy(req.sptd.Cdb, cdb, 12);
+
+        DWORD br = 0;
+        if (!DeviceIoControl(h_, IOCTL_SCSI_PASS_THROUGH_DIRECT, &req, sizeof(req), &req,
+                             sizeof(req), &br, nullptr))
+            return false;
+        /* the reference's acceptance rule: the 512 data bytes must not be
+         * all zero (FUN_00419280's byte-sum loop before the memcpy) */
+        u64 sum = 0;
+        for (u8 b : req.data)
+            sum += b;
+        if (sum == 0)
+            return false;
+        std::memcpy(out512, req.data, 512);
+        return true;
+    }
+
+public:
+    explicit SatPassThroughChannel(HANDLE h) : h_(h) {
+        if (h_ == nullptr || h_ == INVALID_HANDLE_VALUE)
+            return;
+        SCSI_ADDRESS addr;
+        std::memset(&addr, 0, sizeof(addr));
+        DWORD br = 0;
+        if (DeviceIoControl(h_, IOCTL_SCSI_GET_ADDRESS, nullptr, 0, &addr, sizeof(addr), &br,
+                            nullptr) &&
+            br >= sizeof(addr)) {
+            path_ = addr.PathId;
+            target_ = addr.TargetId;
+            lun_ = addr.Lun;
+        }
+    }
+
+    const char* name() const override { return "sat-passthrough"; }
+    bool issue(u8 feature, u8 count, u8 command, u8* out512) override {
+        if (h_ == nullptr || h_ == INVALID_HANDLE_VALUE)
+            return false;
+        u8 cdb[12];
+        if (!cr::health::sat::build_cdb12(feature, count, command, 0xA0, false, cdb))
+            return false;
+        if (sat_issue(cdb, out512))
+            return true;
+        /* the reference's -1A retry encoding (some bridges answer only it) */
+        if (!cr::health::sat::build_cdb12(feature, count, command, 0xA0, true, cdb))
+            return false;
+        return sat_issue(cdb, out512);
+    }
+};
+
 } // namespace
 
 const char* smart_attr_name(u8 id) {
@@ -219,16 +325,28 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
         return ERR_BAD_PARAMETER;
 
     /* The og CAtaSmart model: try the transports in order; the first
-     * that answers IDENTIFY serves the whole command set (N-032). */
+     * that answers IDENTIFY serves the whole command set (N-032). SAT
+     * (bridge route) before CSMI (vendor array route): for an RST member
+     * both may answer, but the standards route is preferred; for a USB
+     * bridge only SAT can. */
     AtaPassthroughChannel ch_ata(h);
     SmartRcvLegacyChannel ch_legacy(h);
+    SatPassThroughChannel ch_sat(h);
     CsmiMiniportChannel ch_csmi(h);
-    const std::vector<cr::health::AtaChannel*> chain{&ch_ata, &ch_legacy, &ch_csmi};
+    const std::vector<cr::health::AtaChannel*> chain{&ch_ata, &ch_legacy, &ch_sat, &ch_csmi};
 
     cr::health::SmartInfo info;
-    const u32 rc = cr::health::read_smart_ata(chain, info);
-    if (rc != OK)
-        return rc;
+    u32 rc = cr::health::read_smart_ata(chain, info);
+    if (rc != OK) {
+        /* The og's last route: the WMI MSStorageDriver_FailurePredict
+         * fallback (REFERENCE-SMART.md §2). No transport answered, so
+         * try the storage driver's own SMART classes before declaring
+         * the disk health-unavailable. */
+        rc = read_smart_wmi(h, out);
+        if (rc != OK)
+            return rc;
+        return OK;
+    }
 
     out.available = true;
     out.transport = info.transport;

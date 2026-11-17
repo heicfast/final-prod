@@ -2973,3 +2973,40 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
 - Phase 0.5 defined as a precondition: main must go green (bridge-integration
   E0308 frozen_run_s at it/tests/bridge_integration.rs:461; ui-ci clippy) before
   any feature work, per the leave-main-green discipline.
+
+### T5b/T5c (engine) — SAT transport + WMI fallback: the two missing SMART routes
+
+- SAT (the USB/IEEE1394 bridge route, REFERENCE-SMART §2 "GetSmartAttributeSat"):
+  implemented with the reference's BYTE-EXACT CDB stamps, decoded this session from
+  the corpus decompile (DiskHealth_decompiled.c FUN_00419280 = SMART READ DATA,
+  FUN_0041a440 = THRESHOLDS, the :9124 sibling = IDENTIFY):
+    SMART READ DATA    A1 08 0E D0 01 01 4F C2 <dev> B0 00 00
+    SMART THRESHOLDS   A1 08 0E D1 01 01 4F C2 <dev> B0 00 00
+    IDENTIFY DEVICE    A1 08 0E 00 01 00 00 00 <dev> EC 00 00
+    the -1A retry      CDB[1] 0x08 -> 0x1C (FUN_00419280 case 0xb)
+  Geometry: IOCTL_SCSI_PASS_THROUGH_DIRECT (0x4D004 — the decompile's own constant),
+  one allocation, sense 0x18 @ SenseInfoOffset, data 512 after it, DataIn, timeout 2s,
+  response accepted only when the ioctl succeeds AND the 512 bytes are not all zero
+  (the reference's byte-sum rule). Pure builder cr::health::sat::build_cdb12 (new
+  src/core/health/cr_sat.cpp) + SatPassThroughChannel in cr_health.cpp; chain order
+  ata-passthrough -> smart-rcv -> SAT -> CSMI (standards routes before the vendor
+  array route). Divergence documented in-source: we fill the real SCSI address from
+  IOCTL_SCSI_GET_ADDRESS (the reference zeroes P/T/L — its \\.\Scsi%d: context
+  pre-resolves; on a disk handle zeros could serve another LUN's data).
+- WMI fallback (the reference's LAST route): MSStorageDriver_FailurePredict{Data,
+  Thresholds} from root\WMI (cr_health_wmi.cpp, new). Instance-to-disk tie by
+  serial (STORAGE_DEVICE_DESCRIPTOR, space-stripped) with model fallback; no tie ->
+  truthful unavailable, never another disk's table. Shared parse extracted:
+  read_smart_ata_buffers() now serves BOTH the chain path and the WMI path — one
+  parser, two sources, zero grading divergence. ata_version honestly 0 on the WMI
+  route (IDENTIFY-only datum).
+- Tests: test_sat_stamps.cpp (new) — byte-exact stamp assertions (all three commands
+  + the -1A flip + refusal of uncited commands) and the shared-buffer parse
+  (thresholds carried, missing-thresholds non-fatal, WMI-path ata_version 0).
+  10/10 pass locally; full Linux suite green except two sandbox artifacts
+  (FatChain.CycleGuardPerf: a 3.4 GB zeroed fixture vs the sandbox memory cap —
+  it PASSED on Windows CI run 44023463712 forty minutes earlier; win_syntax_check
+  via ctest looks for an in-tree build dir — direct run green).
+- The M-055 win-stub grew: SCSI_PASS_THROUGH_DIRECT/SCSI_ADDRESS (load-bearing
+  layout documented), the two SCSI ioctls, and a declaration-only wbemidl.h
+  (the COM/WMI surface the fallback touches). win_syntax_check: 20/20 files parse.

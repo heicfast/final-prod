@@ -81,6 +81,19 @@ struct AtaChannel {
  * are skipped. */
 u32 read_smart_ata(const std::vector<AtaChannel*>& chain, SmartInfo& out);
 
+/* Parse already-fetched 512-byte SMART payloads: the READ DATA table
+ * (required) and the READ THRESHOLDS table (optional, null = missing),
+ * with the model string supplied by the caller. The WMI fallback's path
+ * (cr_health_wmi.cpp): MSStorageDriver_FailurePredict{Data,Thresholds}
+ * serve the same 512-byte payloads but no IDENTIFY, so the model comes
+ * from the storage stack (STORAGE_DEVICE_DESCRIPTOR — the same source
+ * the og's WMI cross-check reads via Win32_DiskDrive) and ata_version
+ * stays 0 (an IDENTIFY-only datum, honestly unavailable there). The
+ * attribute parse, derived verdicts and S-024 grading are IDENTICAL to
+ * the chain path — one parser, two sources, no divergence. */
+u32 read_smart_ata_buffers(const u8* table, const u8* thresholds_or_null, const std::string& model,
+                           SmartInfo& out);
+
 /* Human-readable attribute names for the well-known IDs (pure table;
  * the win header re-exports). */
 const char* smart_attr_name(u8 id);

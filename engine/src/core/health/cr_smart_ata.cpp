@@ -121,12 +121,30 @@ u32 read_smart_ata(const std::vector<AtaChannel*>& chain, SmartInfo& out) {
     u8 table[512];
     if (!active->issue(0xD0, 0, 0xB0, table))
         return ERR_HEALTH_UNAVAILABLE;
-    out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
 
     /* 2b. SMART READ_THRESHOLDS (feature 0xD1, S-024): vendor
      * thresholds for the Bad rule; failure is non-fatal. */
     u8 thr[512];
     const bool got_thr = active->issue(0xD1, 0, 0xB0, thr);
+
+    /* drive model string: IDENTIFY words 27-46 (byte-swapped pairs);
+     * the og's is-SSD flag and vendor family derive from it. */
+    std::string model;
+    for (u32 w = 27; w <= 46; ++w) {
+        const char c1 = char(identify[w * 2 + 1]);
+        const char c2 = char(identify[w * 2]);
+        if (c1 != ' ')
+            model.push_back(c1);
+        if (c2 != ' ')
+            model.push_back(c2);
+    }
+    return read_smart_ata_buffers(table, got_thr ? thr : nullptr, model, out);
+}
+
+u32 read_smart_ata_buffers(const u8* table, const u8* thresholds_or_null, const std::string& model,
+                           SmartInfo& out) {
+    out.model = model;
+    out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
 
     /* The 362-byte attribute table holds 30 twelve-byte entries at +2.
      * Entry layout (ATA-ATAPI-7): id@+0, flags(u16)@+1, value@+3,
@@ -141,8 +159,8 @@ u32 read_smart_ata(const std::vector<AtaChannel*>& chain, SmartInfo& out) {
         a.value = p[3];
         a.worst = p[4];
         std::memcpy(a.raw, p + 5, 6);
-        if (got_thr) {
-            const u8* tp = thr + 2 + e * 12;
+        if (thresholds_or_null != nullptr) {
+            const u8* tp = thresholds_or_null + 2 + e * 12;
             if (tp[0] == a.id)
                 a.vendor_threshold = tp[1];
         }
@@ -183,16 +201,6 @@ u32 read_smart_ata(const std::vector<AtaChannel*>& chain, SmartInfo& out) {
         }
     }
 
-    /* drive model string: IDENTIFY words 27-46 (byte-swapped pairs);
-     * the og's is-SSD flag and vendor family derive from it. */
-    for (u32 w = 27; w <= 46; ++w) {
-        const char c1 = char(identify[w * 2 + 1]);
-        const char c2 = char(identify[w * 2]);
-        if (c1 != ' ')
-            out.model.push_back(c1);
-        if (c2 != ' ')
-            out.model.push_back(c2);
-    }
     out.model_says_ssd = model_says_ssd(out.model);
 
     /* S-024: the 4-status grading pass (pure rules; the og DiskHealth

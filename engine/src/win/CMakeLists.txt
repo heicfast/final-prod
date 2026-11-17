@@ -7,6 +7,7 @@ add_library(cr_win STATIC
     cr_enumerate.cpp
     cr_bitlocker.cpp
     cr_health.cpp
+    cr_health_wmi.cpp
     cr_destio.cpp
     cr_elevate.cpp
     cr_bootfix.cpp
@@ -16,3 +17,5 @@ target_include_directories(cr_win PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../inclu
 target_link_libraries(cr_win PUBLIC cr::core)
 # advance.sys / cfgmgr32 for bus types + setup APIs
 target_link_libraries(cr_win PUBLIC cfgmgr32 Advapi32 Shlwapi) # Shlwapi: PathIsNetworkPathW (N-013)
+# wbemuuid: the WMI SMART fallback (cr_health_wmi.cpp — CLSID_WbemLocator/IID_IWbemLocator)
+target_link_libraries(cr_win PUBLIC wbemuuid)
