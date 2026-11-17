@@ -456,6 +456,12 @@ pub struct PendingConsent {
     pub gate: Arc<crate::bridge::consent::ConsentGate>,
 }
 
+impl Default for BridgeState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BridgeState {
     pub fn new() -> Self {
         BridgeState {

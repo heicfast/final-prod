@@ -34,6 +34,12 @@ unsafe impl<T> Sync for SendPtr<T> {}
 
 /// Read a NUL-terminated UTF-8 C string (lossy: the engine guarantees UTF-8;
 /// lossy is defense in depth so a malformed byte can never poison a payload).
+///
+/// # Safety
+///
+/// `p` must be null or point to a NUL-terminated buffer the caller owns
+/// for the duration of the call. Null returns the empty string; the walk
+/// is defensively capped at 1 MiB so a missing terminator cannot run away.
 pub unsafe fn cstr_to_string_lossy(p: *const i8) -> String {
     if p.is_null() {
         return String::new();
@@ -184,7 +190,11 @@ pub fn enumerate_volumes() -> BridgeResult<Vec<abi::CrUiVolumeInfo>> {
 }
 
 /// Two-call DFS order of a snapshot (parents precede children — pre-order).
-pub fn snapshot_dfs(snap: *mut abi::CrUiSnapshot) -> BridgeResult<Vec<u32>> {
+///
+/// Internal helper (not part of the crate's public surface): `snap` must be
+/// null-free and point to a live CrUiSnapshot the bridge owns (the two-call
+/// protocol on the engine's own handle).
+pub(crate) fn snapshot_dfs(snap: *mut abi::CrUiSnapshot) -> BridgeResult<Vec<u32>> {
     let mut needed: u32 = 0;
     let rc = unsafe { abi::cr_ui_snapshot_dfs(snap, std::ptr::null_mut(), &mut needed) };
     check(rc, "cr_ui_snapshot_dfs(size)")?;
@@ -201,7 +211,10 @@ pub fn snapshot_dfs(snap: *mut abi::CrUiSnapshot) -> BridgeResult<Vec<u32>> {
 
 /// One row of the snapshot: node info + full (never silently truncated) name.
 /// Single call with a generous buffer; re-fetch with exact size on TRUNCATED.
-pub fn snapshot_node(
+///
+/// Internal helper (not part of the crate's public surface): `snap` must be
+/// null-free and point to a live CrUiSnapshot the bridge owns.
+pub(crate) fn snapshot_node(
     snap: *mut abi::CrUiSnapshot,
     index: u32,
 ) -> BridgeResult<(abi::CrUiNodeInfo, String)> {
@@ -230,6 +243,13 @@ pub struct OwnedCrString(*mut i8);
 impl OwnedCrString {
     /// Take ownership of a `char**` out-param; `None` when the engine handed
     /// back NULL (which it never does on success — defensive only).
+    ///
+    /// # Safety
+    ///
+    /// `p` must be null or a heap string the engine allocated with its
+    /// `cr_ui_free` allocator — ownership transfers to this wrapper, whose
+    /// Drop returns it the same way. Never construct two wrappers for one
+    /// pointer.
     pub unsafe fn from_raw(p: *mut i8) -> Option<Self> {
         if p.is_null() {
             None

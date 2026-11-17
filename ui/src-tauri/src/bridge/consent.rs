@@ -123,6 +123,13 @@ pub struct ConsentPipe {
 /// registry, or an emit failure all still register + block + return the
 /// gate's answer; when registration itself fails the only safe answer is
 /// deny (the request would be unanswerable).
+///
+/// # Safety
+///
+/// Called only by the engine inside `cr_ui_scan_run` (cr_ui.h S-008):
+/// `user` must be the leaked ConsentPipe box the scan-start path handed
+/// the engine — valid until the run tail frees it, and the callback never
+/// outlives the run. Both pointers null-checked; null is default-deny.
 pub unsafe extern "C" fn consent_sink(
     user: *mut std::ffi::c_void,
     plan: *const abi::CrUiRepairPlan,
@@ -176,6 +183,13 @@ pub struct ApplyConsentPipe {
 /// The apply consent callback — the apply thread, exactly once per apply.
 /// Same gate design as the repair family (§4.5); default-deny on every
 /// failure shape.
+///
+/// # Safety
+///
+/// Called only by the engine inside `cr_ui_apply_lost_partition`
+/// (cr_ui.h S-029): `user` must be the leaked ApplyConsentPipe box the
+/// apply command handed the engine — valid until the apply tail frees it.
+/// Both pointers null-checked; null is default-deny.
 pub unsafe extern "C" fn apply_consent_sink(
     user: *mut std::ffi::c_void,
     plan: *const abi::CrUiApplyPlan,

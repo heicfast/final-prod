@@ -43,6 +43,13 @@ use super::state::{
 /// SyncSender::try_send is the STABLE never-block send (std's unbounded
 /// Sender::try_send is nightly-only); the bounded channel gives the
 /// coalescing semantics event-mapping.md mandates.
+///
+/// # Safety
+///
+/// Called only by the engine (cr_ui.h event_fn contract): `user` must be
+/// the boxed sender the scan-start path handed the engine and `evt` a valid
+/// CrUiEvent for the duration of the call. Both are null-checked; a null
+/// either side is a silent no-op (the engine never does).
 pub unsafe extern "C" fn scan_event_sink(user: *mut std::ffi::c_void, evt: *const abi::CrUiEvent) {
     if user.is_null() || evt.is_null() {
         return;
@@ -53,6 +60,12 @@ pub unsafe extern "C" fn scan_event_sink(user: *mut std::ffi::c_void, evt: *cons
 }
 
 /// The recovery bytes-progress sink: only the freshest sample matters.
+///
+/// # Safety
+///
+/// Called only by the engine on a recovery worker thread: `user` must be
+/// the boxed sender the recovery-start path handed the engine. Null-checked;
+/// null is a silent no-op.
 pub unsafe extern "C" fn recovery_progress_sink(
     user: *mut std::ffi::c_void,
     bytes_done: u64,
@@ -74,6 +87,13 @@ pub struct SessionLoadPipe {
     pub last_permille: u32,
 }
 
+/// Fires on the CALLING thread (cr_ui.h W1b) — see the doc above.
+///
+/// # Safety
+///
+/// Called only by `cr_ui_session_load_with_events` on the calling thread:
+/// `user` must be the leaked SessionLoadPipe box the load path passed in,
+/// valid for the duration of the load call. Both pointers null-checked.
 pub unsafe extern "C" fn session_load_sink(
     user: *mut std::ffi::c_void,
     evt: *const abi::CrUiEvent,
@@ -211,7 +231,11 @@ pub fn compose_scan_progress(
 }
 
 /// Fresh busy/stopping/paused probe (all any-thread safe, cr_ui.h).
-pub fn scan_flags(scan_ptr: *mut abi::CrUiScan) -> (bool, bool, bool) {
+///
+/// Internal helper (not part of the crate's public surface): `scan_ptr` is
+/// null or points to a live cr_ui_scan handle owned by the bridge's
+/// ScanEntry/SendPtr discipline — the crate controls every producer.
+pub(crate) fn scan_flags(scan_ptr: *mut abi::CrUiScan) -> (bool, bool, bool) {
     if scan_ptr.is_null() {
         return (false, false, false);
     }

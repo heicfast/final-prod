@@ -200,6 +200,11 @@ pub fn error(msg: &str) {
 
 /// The engine sink (cr_log.h levels: 0 Error, 1 Warn, 2 Info). Fires on ANY
 /// engine thread under the seam's mutex — one channel send, nothing else.
+///
+/// # Safety
+///
+/// Registered once at bridge init: `line` must be a NUL-terminated UTF-8
+/// C string owned by the engine for the duration of the call. Null-checked.
 pub unsafe extern "system" fn engine_sink(level: u32, line: *const i8, _user: *mut c_void) {
     if line.is_null() {
         return;

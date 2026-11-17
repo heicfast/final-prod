@@ -458,7 +458,7 @@ fn scan_progress_axes_move() {
             || s.bytes_scanned != last_moving.map(|m| m.bytes_scanned).unwrap_or(1)
             || s.files != last_moving.map(|m| m.files).unwrap_or(1);
         if moving {
-            frozen_run_s = 0;
+            frozen_run_s = 0.0;
             last_moving = Some(s);
         } else {
             frozen_run_s += 0.5;

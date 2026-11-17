@@ -616,16 +616,16 @@ struct ScanTelemetrySnapshot {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
-    u64 bytes_scanned = 0; /* the LIVE reading position of the ACTIVE
-                              byte-denominated stage (P-DEEP-01: deep counts
-                              now; carve keeps the D4a base+done form) */
-    u64 bytes_found = 0;   /* D4b: live found-data size (tree live_logical) */
+    u64 bytes_scanned = 0;        /* the LIVE reading position of the ACTIVE
+                                     byte-denominated stage (P-DEEP-01: deep counts
+                                     now; carve keeps the D4a base+done form) */
+    u64 bytes_found = 0;          /* D4b: live found-data size (tree live_logical) */
     u64 current_offset_bytes = 0; /* P-TICK-01 (BF-29): the byte offset the
                                       active sweep is reading right now — the
                                       Searching ticker's real data; 0 when no
                                       byte-denominated pass is in flight */
-    ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
-    u64 elapsed_ms = 0;    /* pause-compensated run time so far */
+    ReadErrorMap errors;          /* live bad-sector map snapshot (G-06) */
+    u64 elapsed_ms = 0;           /* pause-compensated run time so far */
     /* M-126: the og's ETA model outputs (FUN_1401af410) - computed live
      * from (overall_permille, elapsed_ms) through the whole-run leg
      * with the EMA-smoothed rate carried between snapshots; -1 = no
