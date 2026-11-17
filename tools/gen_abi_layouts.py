@@ -18,9 +18,13 @@ re-pinned, producing an 8xN-byte heap overflow in enumerate_disks and a
 
   2) ui/src-tauri/it/tests/abi_layouts.rs
      The Rust mirror side: a generated `rust_layouts()` returning the
-     same shape, with offsets computed by memoffset::offset_of! on the
+     same shape, with offsets computed by std::mem::offset_of! on the
      actual #[repr(C)] structs in the bridge, plus the comparison test
      (struct set, size, every field offset) against the engine manifest.
+     (std::mem::offset_of! is stable since Rust 1.77 and, unlike the
+     memoffset crate's macro, accepts NESTED paths like `deep.completed`
+     — the scan-truth train's nested telemetry fields made half the
+     table nested and memoffset 0.9.1 could not expand them.)
 
 When the header gains a field: re-run this script, re-pin
 ui/src-tauri/src/bridge/abi.rs to match, and both sides go green
@@ -275,7 +279,7 @@ def gen_rust_table() -> str:
         "//!",
         "//! The Rust half of the bridge ABI layout gate (BF-ABI-01",
         "//! closure): `rust_layouts()` reports every mirrored struct's size",
-        "//! and every field's offset (memoffset on the actual #[repr(C)]",
+        "//! and every field's offset (std::mem::offset_of on the actual #[repr(C)]",
         "//! mirrors in the bridge). The test below compares this against",
         "//! the ENGINE's abi_layout_dump.c manifest — drift on either side",
         "//! fails the gate.",
@@ -288,7 +292,7 @@ def gen_rust_table() -> str:
         "",
         "#![allow(dead_code)]",
         "",
-        "use memoffset::offset_of;",
+        "use std::mem::offset_of;",
         "",
         "use recovery_wizard_ui_lib::bridge::abi::*;",
         "",

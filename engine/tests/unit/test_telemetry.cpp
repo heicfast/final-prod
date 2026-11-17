@@ -656,13 +656,21 @@ TEST(Telemetry, DeepStageCarriesTheByteAxes) {
     EXPECT_NE(std::string::npos, fn_body.find("b->bytes_units"))
         << "the progress bridge must honor StageBridge::bytes_units (P-DEEP-01)";
 
-    /* tel_publish_ stamps the deep position (the stage-1 branch) */
+    /* tel_publish_ stamps the deep position (the stage-1 branch). The search
+     * is ANCHORED at the branch marker: the stamp must sit inside the deep
+     * branch (the carve branch stamps a clamped base+done instead). The
+     * original fixed 2400-byte window was 30 bytes too tight for the real
+     * function and had never executed anywhere — engine-ci never reached
+     * ctest between the scan-truth train landing and this fix (run
+     * 44023463712 was its first execution, 1760/1761 green). */
     const size_t publish_fn = src.find("void ScanController::tel_publish_(");
     ASSERT_NE(std::string::npos, publish_fn) << "tel_publish_ moved?";
-    const std::string pub_body = src.substr(publish_fn, 2400);
-    EXPECT_NE(std::string::npos, pub_body.find("} else if (stage == 1) {"))
+    const std::string pub_body = src.substr(publish_fn, 4000);
+    const size_t deep_branch = pub_body.find("} else if (stage == 1) {");
+    ASSERT_NE(std::string::npos, deep_branch)
         << "tel_publish_ must carry the deep byte branch (P-DEEP-01)";
-    EXPECT_NE(std::string::npos, pub_body.find("tel_.snap.bytes_scanned = done;"))
+    EXPECT_NE(std::string::npos,
+              pub_body.find("tel_.snap.bytes_scanned = done;", deep_branch))
         << "the deep branch stamps the live position (direct, per-sub-pass)";
 
     /* P-TICK-01 (BF-29): the live cursor — the Searching ticker's real

@@ -16,7 +16,9 @@ layout-gate = []
 [dependencies]
 recovery-wizard-ui = { path = ".." }
 serde_json = "1"
-memoffset = "0.9"
+# NOTE: no memoffset — the generated abi_layouts.rs uses std::mem::offset_of!
+# (stable 1.77) because memoffset 0.9.1's macro cannot expand nested paths
+# like `deep.completed` (run 44023463816: 18 expansion errors).
 
 [[test]]
 name = "bridge_integration"

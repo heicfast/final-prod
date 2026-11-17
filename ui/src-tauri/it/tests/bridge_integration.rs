@@ -291,8 +291,16 @@ fn scan_progress_axes_move() {
 
     struct SendPtr(*mut abi::CrUiScan);
     unsafe impl Send for SendPtr {}
+    // Method call, not field access: edition-2021 precise capture moves the
+    // whole Send wrapper into the closure — a bare `sp.0` capture moves the
+    // raw pointer field itself, which is not Send (E0277, run 44023463816).
+    impl SendPtr {
+        fn get(self) -> *mut abi::CrUiScan {
+            self.0
+        }
+    }
     let sp = SendPtr(scan);
-    let run_handle = std::thread::spawn(move || unsafe { abi::cr_ui_scan_run(sp.0) });
+    let run_handle = std::thread::spawn(move || unsafe { abi::cr_ui_scan_run(sp.get()) });
 
     // Sample telemetry at 500 ms.
     #[derive(Clone, Copy)]
