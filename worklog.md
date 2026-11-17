@@ -3055,3 +3055,25 @@ footprint, disk-health presentation, scan flow, filtering, prioritization, previ
   quick|deep (the first real execution never reached deep: carve at 8.45 MiB/s
   ate the whole 480 s window on the 2 GiB seed; the predicate's carve_done
   condition dropped WITH the stage — a skipped stage never completes).
+
+### T7 (engine half, D-P6) — the per-phase progress model, engine-side
+
+- phase_progress(): the pure function beside weighted_progress (cr_scan.cpp) — the
+  reference's RESTARTING gauge (REFERENCE-SCAN §5: "Quick Scanning %1, Files Found:"
+  → "Advanced Scanning %1" with the gauge back to 0). Quick phase = quick's own
+  permille; advanced = deep+carve weighted over the ACTIVE sub-stages ONLY
+  (re-normalized — unlike weighted_progress, a disabled stage drops its weight, so
+  a quick|deep scan's advanced phase reaches 1000 instead of stalling at 750‰).
+- Wired into BOTH overall-update sites (tel_stage_end_ + the publish-path twin) —
+  same lock, same inputs, one truth with overall. ScanTelemetrySnapshot carries
+  phase (0 quick / 1 advanced) + phase_permille.
+- Tests: 3 new (OrchestratorPhase.*) — quick-is-own-permille, the restart at the
+  boundary (quick done + deep 0 → advanced 0), the re-normalization cases
+  (deep-only reaches 1000; quick-disabled starts advanced; nothing-active honest
+  zero). 4/4 with WeightedProgress; format gate 0.
+- NOT YET LANDED (next turn, precise scope): the ABI exposure (cr_ui_telemetry
+  phase fields + layouts + abi.rs), the bridge emission (phase/phaseProgress in
+  compose_scan_progress via the telemetry poll), the contract fields, the mock
+  timeline, and the page's gauge/status-line switch from overallProgress to
+  phaseProgress. The status-line i18n keys (quickScanning/advancedScanning with
+  {{percent}}) already exist and take the phase percent unchanged.

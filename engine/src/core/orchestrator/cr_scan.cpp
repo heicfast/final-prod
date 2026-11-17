@@ -145,6 +145,33 @@ u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carv
     return permille > 1000 ? 1000 : permille;
 }
 
+std::pair<u32, u32> phase_progress(const StageWeights& w, bool run_quick, bool run_deep,
+                                   bool run_carve, bool quick_completed, u32 quick_pm, u32 deep_pm,
+                                   u32 carve_pm) {
+    /* D-P6: the og's gauge RESTARTS at the phase boundary (REFERENCE-SCAN
+     * §5). Quick phase = quick's own permille; advanced = deep+carve
+     * weighted over the ACTIVE sub-stages ONLY (re-normalized — unlike
+     * weighted_progress, a disabled stage drops its weight entirely, so a
+     * quick|deep scan's advanced phase is deep alone and reaches 1000). */
+    if (quick_pm > 1000)
+        quick_pm = 1000;
+    if (deep_pm > 1000)
+        deep_pm = 1000;
+    if (carve_pm > 1000)
+        carve_pm = 1000;
+    if (run_quick && !quick_completed)
+        return {0, quick_pm};
+    const u32 dw = run_deep ? w.deep : 0;
+    const u32 cw = run_carve ? w.carve : 0;
+    if (dw + cw == 0)
+        return {1, 0};
+    const u64 num = u64(dw) * deep_pm + u64(cw) * carve_pm;
+    u32 pm = u32(num / (dw + cw));
+    if (pm > 1000)
+        pm = 1000;
+    return {1, pm};
+}
+
 std::u16string ScanController::raw_root_name_() const {
     /* M-029: the configured display name when present (the og's
      * "filter_generalraw" naming surface), the default role otherwise.
@@ -480,6 +507,11 @@ void ScanController::tel_stage_end_(u32 stage, const CancelToken* cancel) {
                                           tel_.snap.deep.permille, tel_.snap.carve.permille);
     if (overall > tel_.snap.overall_permille)
         tel_.snap.overall_permille = overall;
+    /* D-P6: the per-phase axes (the og's restarting gauge) — same inputs,
+     * same lock, one truth with overall. */
+    std::tie(tel_.snap.phase, tel_.snap.phase_permille) = phase_progress(
+        cfg_.weights, cfg_.run_quick, cfg_.run_deep, cfg_.run_carve, tel_.snap.quick.completed,
+        tel_.snap.quick.permille, tel_.snap.deep.permille, tel_.snap.carve.permille);
 }
 
 void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units,
@@ -542,6 +574,11 @@ void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_uni
                                           tel_.snap.deep.permille, tel_.snap.carve.permille);
     if (overall > tel_.snap.overall_permille)
         tel_.snap.overall_permille = overall;
+    /* D-P6: the per-phase axes (the og's restarting gauge) — same inputs,
+     * same lock, one truth with overall. */
+    std::tie(tel_.snap.phase, tel_.snap.phase_permille) = phase_progress(
+        cfg_.weights, cfg_.run_quick, cfg_.run_deep, cfg_.run_carve, tel_.snap.quick.completed,
+        tel_.snap.quick.permille, tel_.snap.deep.permille, tel_.snap.carve.permille);
 }
 
 void ScanController::tel_counts_(ScanStats& stats, const CancelToken* cancel) {

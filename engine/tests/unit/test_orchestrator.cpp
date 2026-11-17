@@ -3510,3 +3510,44 @@ TEST(ScanEvents, DeepFirstWhenQuickDisabledForTheCarveDedup) {
     EXPECT_EQ(begins[0], 1u) << "deep first: the engine pass rides inside it";
     EXPECT_EQ(begins[1], 2u) << "carve after: the F9 dedup has the engine nodes";
 }
+
+/* D-P6: the reference's per-phase progress (the restarting gauge,
+ * REFERENCE-SCAN section 5). Quick shows its own 0-100%, then the
+ * advanced phase RESTARTS at 0 over deep+carve. */
+TEST(OrchestratorPhase, QuickPhaseIsQuicksOwnPermille) {
+    const StageWeights w{};
+    EXPECT_EQ((phase_progress(w, true, true, true, false, 0, 0, 0)), (std::pair<u32, u32>(0u, 0u)));
+    EXPECT_EQ((phase_progress(w, true, true, true, false, 500, 999, 999)),
+              (std::pair<u32, u32>(0u, 500u)));
+    EXPECT_EQ((phase_progress(w, true, true, true, false, 1000, 0, 0)),
+              (std::pair<u32, u32>(0u, 1000u)));
+}
+
+TEST(OrchestratorPhase, AdvancedRestartsAtZeroWhenQuickCompletes) {
+    const StageWeights w{};
+    /* quick completed, deep just began: the gauge RESTARTS (0, not 40%+) */
+    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 0, 0)),
+              (std::pair<u32, u32>(1u, 0u)));
+    /* both advanced sub-stages half-done: 500 (weights 35/25) */
+    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 500, 500)),
+              (std::pair<u32, u32>(1u, 500u)));
+    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 1000, 1000)),
+              (std::pair<u32, u32>(1u, 1000u)));
+}
+
+TEST(OrchestratorPhase, DisabledStagesRenormalizeNotStall) {
+    const StageWeights w{};
+    /* quick|deep only (the it-gate's config): advanced = deep alone -
+     * deep done REACHES 1000 (overall would cap at 750) */
+    EXPECT_EQ((phase_progress(w, true, true, false, true, 1000, 1000, 0)),
+              (std::pair<u32, u32>(1u, 1000u)));
+    EXPECT_EQ((phase_progress(w, true, true, false, true, 1000, 400, 0)),
+              (std::pair<u32, u32>(1u, 400u)));
+    /* quick disabled entirely: advanced from the start (deep-only config,
+     * so deep's 250 IS the advanced permille) */
+    EXPECT_EQ((phase_progress(w, false, true, false, false, 0, 250, 0)),
+              (std::pair<u32, u32>(1u, 250u)));
+    /* nothing active: honest zero */
+    EXPECT_EQ((phase_progress(w, true, false, false, true, 1000, 0, 0)),
+              (std::pair<u32, u32>(1u, 0u)));
+}

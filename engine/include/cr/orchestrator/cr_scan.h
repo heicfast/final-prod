@@ -637,10 +637,33 @@ struct ScanTelemetrySnapshot {
     bool paused = false;
     bool running = false;
     bool cancelled = false;
+    /* D-P6: the reference's per-phase progress model. The og's gauge
+     * RESTARTS at the phase boundary ("Quick Scanning %1, Files Found:"
+     * -> "Advanced Scanning %1, Files Found:" with the gauge back to 0 —
+     * REFERENCE-SCAN §5, strings @0001d7d6/@00007825). phase: 0 = quick,
+     * 1 = advanced (deep+carve as one phase — the og's m_iScanType 2).
+     * phase_permille: the ACTIVE PHASE's own 0..1000 — quick's permille
+     * while quick runs; the deep+carve weighted combination over the
+     * ACTIVE sub-stages only (re-normalized: a quick|deep scan's advanced
+     * phase is the deep stage alone; the default 35/25 pair when both
+     * run). Computed beside overall_permille in tel_counts_. */
+    u32 phase = 0;
+    u32 phase_permille = 0;
 };
 
 /* Monotonic weighted progress: per-stage permille -> overall 0..1000. */
 u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carve_pm);
+
+/* D-P6: the reference's per-phase progress (pure, tested like
+ * weighted_progress). Returns the active phase (0 quick, 1 advanced) and
+ * its own 0..1000: quick's permille while quick runs (and is configured);
+ * once quick completes (or is disabled) the advanced phase = deep+carve
+ * weighted over the ACTIVE sub-stages only (re-normalized — unlike
+ * weighted_progress, a disabled stage contributes neither weight nor
+ * permille). quick_pm/deep_pm/carve_pm are clamped 0..1000 internally. */
+std::pair<u32, u32> phase_progress(const StageWeights& w, bool run_quick, bool run_deep,
+                                   bool run_carve, bool quick_completed, u32 quick_pm, u32 deep_pm,
+                                   u32 carve_pm);
 
 /* stage_done_mask bit assignments (SessionState + VolumeInfo.flags share
  * these; G-07 resume consumes them). */
