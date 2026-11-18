@@ -1,0 +1,58 @@
+{
+  "count": 4,
+  "min_expected": 3,
+  "rows": [
+    {
+      "layout": 2,
+      "logical_sector": 512,
+      "model": "Virtual Disk    ",
+      "number": 0,
+      "physical_sector": 4096,
+      "removable": 0,
+      "serial": "",
+      "size_bytes": 274877906944,
+      "table_ok": 1,
+      "trim_known": 0,
+      "trim_on": 0
+    },
+    {
+      "layout": 1,
+      "logical_sector": 512,
+      "model": "Virtual Disk    ",
+      "number": 1,
+      "physical_sector": 4096,
+      "removable": 0,
+      "serial": "",
+      "size_bytes": 161061273600,
+      "table_ok": 1,
+      "trim_known": 0,
+      "trim_on": 0
+    },
+    {
+      "layout": 2,
+      "logical_sector": 512,
+      "model": "Virtual Disk    ",
+      "number": 2,
+      "physical_sector": 4096,
+      "removable": 0,
+      "serial": "",
+      "size_bytes": 6442450944,
+      "table_ok": 1,
+      "trim_known": 0,
+      "trim_on": 0
+    },
+    {
+      "layout": 0,
+      "logical_sector": 512,
+      "model": "Virtual Disk    ",
+      "number": 3,
+      "physical_sector": 4096,
+      "removable": 0,
+      "serial": "",
+      "size_bytes": 536870912,
+      "table_ok": 1,
+      "trim_known": 0,
+      "trim_on": 0
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "outcomes": [
+    {
+      "available": 0,
+      "canary_intact": true,
+      "disk": 0,
+      "needed_attrs": 0,
+      "nvme_available": 0,
+      "rc_size_probe": "0x50070001",
+      "transport": ""
+    },
+    {
+      "available": 0,
+      "canary_intact": true,
+      "disk": 1,
+      "needed_attrs": 0,
+      "nvme_available": 0,
+      "rc_size_probe": "0x50070001",
+      "transport": ""
+    },
+    {
+      "available": 0,
+      "canary_intact": true,
+      "disk": 2,
+      "needed_attrs": 0,
+      "nvme_available": 0,
+      "rc_size_probe": "0x50070001",
+      "transport": ""
+    },
+    {
+      "available": 0,
+      "canary_intact": true,
+      "disk": 3,
+      "needed_attrs": 0,
+      "nvme_available": 0,
+      "rc_size_probe": "0x50070001",
+      "transport": ""
+    }
+  ]
+}
