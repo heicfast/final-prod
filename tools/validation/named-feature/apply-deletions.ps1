@@ -163,8 +163,29 @@ if (Test-Path -LiteralPath $stash) {
     Add-Action 'remove-stash' '.nffx' 'ok'
 }
 
-# flush AFTER all deletions (metadata flush)
-$flushAfter = Flush-Volume $Root
+# flush AFTER all deletions (metadata flush).
+# Truth from runs 44354788432/44355793332: the Storage-module Write-VolumeCache
+# misbound DriveLetter ':' on the SECOND invocation (identical first call
+# succeeded; both the -DriveLetter char form and the piped-volume form), so the
+# after-flush is best-effort by construction and NEVER fatal to the evidence:
+#   (a) a WriteThrough create+flush+delete probe forces the write-through path
+#       (durability before the diskpart detach, which flushes again itself);
+#   (b) one -ErrorAction SilentlyContinue Write-VolumeCache attempt, outcome
+#       recorded truthfully in the apply-log.
+$flushAfter = 'not attempted'
+try {
+    $probe = Join-Path $Root '.nffx-flush-probe'
+    $fs = [System.IO.File]::Open($probe, [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write, [System.IO.FileOptions]::WriteThrough)
+    try { $fs.WriteByte(0); $fs.Flush($true) } finally { $fs.Close() }
+    Remove-Item -LiteralPath $probe -Force
+    $letter = Get-VolumeLetter $Root
+    Write-VolumeCache -DriveLetter $letter -ErrorAction SilentlyContinue
+    $flushAfter = "write-through probe ok; volume-cache best-effort (letter $letter)"
+}
+catch {
+    $flushAfter = "flush-failed: $($_.Exception.Message)"
+}
 Write-Log "flush-after: $flushAfter"
 
 $log = [ordered]@{
