@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/app/theme';
@@ -93,19 +93,25 @@ describe('reference UI surfaces and sidebar', () => {
     expect(await screen.findByText(/s\.m\.a\.r\.t\. attributes/i)).toBeVisible();
   });
 
-  it('renders File Repair directly on Add Files Dropzone -> Queue & Repair All', () => {
+  it('renders File Repair truthfully — no canned queue, the volume workbench is the surface (M31)', async () => {
     wrap(<RepairPage />, '/repair');
     expect(
       screen.getByRole('heading', {
         name: /repair corrupted videos, photos and documents/i,
       }),
     ).toBeVisible();
+    // The per-file truth: a separate product line, stated plainly —
+    // never a fabricated queue (NG-12 closed).
     expect(
-      screen.getByText(/click or drag files from your local disk to start the repair/i),
+      screen.getByText(/separate capability that this build does not include/i),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /add files/i }));
-    expect(screen.getByText('WinMemoryCleaner (1).exe')).toBeVisible();
-    expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
+    expect(screen.queryByText(/WinMemoryCleaner/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /repair all/i })).toBeNull();
+    // The volume workbench renders over the REAL device list (the mock's
+    // disks with no findings → the truthful empty state + the undo-log
+    // section — the workbench is present, not the fake queue).
+    expect(await screen.findByText(/no repairable problems were found/i)).toBeVisible();
+    expect(screen.getByText(/undo log/i)).toBeVisible();
   });
 
   it('renders Lost Partition Recovery with the REAL disk list (the demo fixtures are gone)', async () => {

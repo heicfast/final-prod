@@ -254,6 +254,9 @@ export const zhCN: TranslationSchema = {
     smartSelectDone: '智能选择保留了 {{count}} 个最佳文件。',
     filterExisting: '仅现有文件',
     filterHideEmpty: '隐藏 0 KB 文件',
+    filterHideSystem: '隐藏系统文件',
+    filterHideTemp: '隐藏临时文件',
+    filterHideCache: '隐藏浏览器缓存',
     typeCustom: '自定义',
     typeCustomHint: '输入文件类型后缀，例如 *.doc; *.xlsx',
     typeCustomActive: '类型筛选：{{list}}',
@@ -481,14 +484,11 @@ export const zhCN: TranslationSchema = {
   },
   repair: {
     title: '修复损坏的视频、照片和文档',
-    introBody: '添加损坏的文件即可轻松修复。',
-    dropzoneHint: '点击或将文件从本地磁盘拖放到此处即可开始修复。',
-    addFiles: '添加文件',
-    advancedRepair: '高级修复',
-    repaired: '已修复',
-    addFile: '添加文件',
-    clearFiles: '清空文件',
-    repairAll: '全部修复',
+    // M31/NG-12（W8）：诚实的介绍——卷修复工作台是真实表面；
+    // 逐文件修复是独立产品线。
+    introBody: '下方卷修复对所选磁盘的结构性问题进行检查与修复。',
+    perFileNote:
+      '逐文件内容修复（损坏的视频、照片和文档）是本构建未包含的独立能力——下方的卷修复才是本产品随附的修复功能。该能力将随文件修复产品线提供。',
     findings: '发现的问题',
     noFindings: '未发现可修复的问题。',
     fix: '修复 {{count}} 个问题',

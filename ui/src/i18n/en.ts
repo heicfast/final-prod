@@ -258,6 +258,9 @@ export const en = {
     smartSelectDone: 'Smart select kept the best {{count}} files.',
     filterExisting: 'Existing files',
     filterHideEmpty: 'Hide 0 KB files',
+    filterHideSystem: 'Hide System files',
+    filterHideTemp: 'Hide Temp files',
+    filterHideCache: 'Hide Browser Cache',
     typeCustom: 'Custom',
     typeCustomHint: 'Enter file type suffixes, such as *.doc; *.xlsx',
     typeCustomActive: 'Type filter: {{list}}',
@@ -492,14 +495,12 @@ export const en = {
   },
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',
-    introBody: 'Add corrupted files to easily repair them.',
-    dropzoneHint: 'Click or drag files from your Local Disk to start the repair.',
-    addFiles: 'Add Files',
-    advancedRepair: 'Advanced Repair',
-    repaired: 'Repaired',
-    addFile: 'Add file',
-    clearFiles: 'Clear files',
-    repairAll: 'Repair All',
+    // M31/NG-12 (W8): the truthful intro — the volume workbench is the
+    // real surface; the per-file queue is a separate product line.
+    introBody:
+      'The volume repair below checks and fixes structural problems on a selected disk.',
+    perFileNote:
+      'Per-file content repair (corrupted videos, photos and documents) is a separate capability that this build does not include — the volume repair below is the repair this product ships. It will land with the file-repair product line.',
     findings: 'Findings',
     noFindings: 'No repairable problems were found.',
     fix: 'Repair {{count}} problem',
