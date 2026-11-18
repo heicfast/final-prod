@@ -167,7 +167,7 @@ pub async fn image_target_import(
                 ),
             ));
         }
-        let meta = std::fs::metadata(&p).map_err(|e| {
+        let meta = std::fs::metadata(p).map_err(|e| {
             BridgeError::bridge(
                 code::DEVICE_GONE,
                 format!("cannot read image file '{trimmed}': {e}"),
