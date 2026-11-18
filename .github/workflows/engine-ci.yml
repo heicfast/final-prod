@@ -87,8 +87,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~\AppData\Local\pip\Cache
-          key: pip-clangformat-win2022
-          restore-keys: pip-clangformat-win2022
+          key: pip-clangformat-win2022-18.1.8
+          restore-keys: pip-clangformat-win2022-
 
       # ci-local.ps1 component [1]. clang-format is PINNED to 18.1.8 - the
       # version the active lanes' containers and the last-green CI era used

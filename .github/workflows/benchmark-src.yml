@@ -38,6 +38,11 @@ on:
         type: boolean
         default: true
 
+env:
+  # shared with the engine-ci lane: the vcpkg binary cache
+  # (gtest/zstd/zlib/lz4 ports) restored before build.ps1 runs
+  VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-binary-cache
+
 permissions:
   contents: read
 

@@ -3980,3 +3980,20 @@ The 15:46 batch is commit `9352c81d`'s CI — three workflows red on the default
 - `worklog/CI-FAILURES.md` — every current + recent failure with root cause per run (engine-ci/bridge: regenerated `abi_layout_dump.c` committed without clang-format 18.1.8; benchmark-src: ctest step runs from repo root but `CMakePresets.json` lives under `engine/`; older benchmark failures already fixed on main).
 - `worklog/PIPELINE-AUDIT.md` — engine built 2×/push (~18.4 min duplicated), release reuses nothing (~23 min serial), vcpkg ports rebuilt uncached in 3 lanes, `web-dist` artifact has zero consumers.
 - `worklog/CACHE-AUDIT.md` — 5 caches/1.4 GB (duplicate 584 MB rust entry), 220 artifacts/327 MB (14 orphaned rda-wdk from deleted driver-ci), 12/12 recent cache events primary-key full hits.
+
+
+**T4-T13 — the optimization batch (one push, evidence-citing).**
+Root-cause fixes landed: `7d196cda` (benchmark ctest working-directory; the
+abi format drift was already closed by the concurrent lane's a19afb56 —
+verified locally: pinned clang-format 18.1.8 reports 0 remaining violations).
+Batch adds: concurrency groups on all 6 workflows that lacked them
+(evidence/queue lanes never cancel in progress), explicit timeouts on the 3
+workflows on the 360-min default, the shared vcpkg binary-cache key +
+`VCPKG_DEFAULT_BINARY_CACHE` wiring on release/benchmark/validation (the
+three build.ps1 lanes that rebuilt the ports from scratch — "Restored 0
+package(s)" in their logs), pnpm + cargo caches on release, cargo cache on
+ui-ci (204 crates re-downloaded per run before), the versioned pip key on
+engine-ci. Matrix reduction N/A (no matrices exist). Version bumped to
+0.9.5 in lockstep for the release cut; notes updated truthfully.
+Detail: worklog/OPTIMIZATION.md. Cleanup: duplicate rust cache entry and the
+14 orphaned rda-wdk artifacts deleted via the API (see below).

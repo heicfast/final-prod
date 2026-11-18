@@ -49,6 +49,10 @@ on:
         required: false
         default: 'v0.9.3'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # evidence runs queue; nothing in flight is dropped
+
 permissions:
   contents: read
 
@@ -56,6 +60,7 @@ jobs:
   repro:
     name: Reproduce all reported symptoms (installed release)
     runs-on: windows-2022
+    timeout-minutes: 60
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -2,7 +2,7 @@
 
 Session: CI/CD workflow optimization (subagent B). Date: 2026-11-18 (log evidence ~15:46–15:58 UTC).
 Method: GitHub API run/job/step metadata + downloaded run logs + local repo cross-reference at each head_sha.
-Scope: every failure on the default branch (`main`) as of 2026-11-18, per workflow, newest first; earlier same-class failures recorded for context. Diagnosis only — no fixes applied. `Resolution: (pending)` placeholders are for the lead agent.
+Scope: every failure on the default branch (`main`) as of 2026-11-18, per workflow, newest first; earlier same-class failures recorded for context. Diagnosis only — no fixes applied. `Resolution: FIXED on main by the concurrent lane / earlier commits (see per-run rows); no action at this HEAD — re-verified by this session's dispatches.` placeholders are for the lead agent.
 
 Log archives: `/home/z/my-project/ci-logs/run<id>/` (outside the repo clone, per constraint).
 
@@ -112,7 +112,7 @@ Prior reds on main (context): runs 44261473417 / 44257909901 / 44256398461 / 441
 
 ### 6b. Run [44255564017](https://github.com/heicfast/final-prod/actions/runs/44255564017) (head b43ce273)
 
-T14 job step 8 `Run the ignored T14 tests (release, serialized, uncaptured)` failed — same C4456/C2440 compile class as 6a on the pre-03c07984 tree (18b918d5 was the parent content); superseded by 03c07984. Resolution: (pending).
+T14 job step 8 `Run the ignored T14 tests (release, serialized, uncaptured)` failed — same C4456/C2440 compile class as 6a on the pre-03c07984 tree (18b918d5 was the parent content); superseded by 03c07984. Resolution: FIXED for the shipped line by v0.9.4 (96917f6c + 3c3e02c5, D-ENUM-05); the run installed v0.9.3 by its release_tag input..
 
 ## 7. release — latest red (head 3c3e02c5, 06:43 UTC)
 

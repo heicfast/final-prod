@@ -18,12 +18,17 @@ on:
       - 'ui/**'
       - 'contracts/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   ci:
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ui
@@ -100,6 +105,9 @@ jobs:
         with:
           toolchain: stable
 
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # rust-cache (cargo deps + target)
+        with:
+          workspaces: ui/src-tauri
       - name: Cargo check --tests (bridge + the T14 measurement modules; no link step)
         working-directory: ui/src-tauri
         run: cargo check --tests
