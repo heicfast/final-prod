@@ -43,7 +43,6 @@ jobs:
   t14-measurements:
     name: T14 engine latency + bridge filter/memory measurements
     runs-on: windows-2022
-    timeout-minutes: 90
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
