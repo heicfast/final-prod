@@ -1,6 +1,6 @@
 [package]
 name = "bridge-it"
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 description = "Recovery Wizard — the real-bridge integration gate crate (BF-ABI-02 closure): builds the bridge against the BUILT engine and runs the wiring/layout/scan-truth tests on real Windows. Only built by .github/workflows/bridge-integration.yml (needs cr_ui.lib at link + cr_ui.dll at load); the ordinary ui-ci lane never enters this directory."
 publish = false
