@@ -777,7 +777,9 @@ fn image_create_ex_range_and_cancel() {
 
     // (a) D-IMG-3: a 4 MiB range from sector 1024 — file length == the
     // range bytes exactly, and the .sha256 sidecar of the RANGE exists
-    // beside the committed image
+    // beside the committed image. NOTE: the engine's disposition APPENDS
+    // the suffixes to the full image path (`<final>.img` -> `<final>.img.sha256`);
+    // with_extension() would REPLACE `.img` — a different file.
     let first: u64 = 1024;
     let count: u64 = (4 * 1024 * 1024) / u64::from(g.logical_sector);
     let expect_len = count * u64::from(g.logical_sector);
@@ -797,7 +799,8 @@ fn image_create_ex_range_and_cancel() {
     assert_eq!(rc, abi::CR_UI_OK, "image_create_ex(range) 0x{rc:08X}");
     let len = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
     assert_eq!(len, expect_len, "ranged image length {len} != {expect_len}");
-    let sidecar = std::fs::read_to_string(out.with_extension("sha256")).unwrap_or_default();
+    let sidecar =
+        std::fs::read_to_string(format!("{}.sha256", out.to_string_lossy())).unwrap_or_default();
     assert!(
         sidecar.len() == 67 + out.file_name().unwrap().to_string_lossy().len()
             && sidecar.starts_with(|c: char| c.is_ascii_hexdigit()),
@@ -825,7 +828,7 @@ fn image_create_ex_range_and_cancel() {
         "pre-cancelled image_create_ex 0x{rc:08X}"
     );
     assert!(
-        out2.with_extension("partial").exists(),
+        std::path::Path::new(&format!("{}.partial", out2.to_string_lossy())).exists(),
         "the cancelled create must keep the .partial"
     );
     assert!(!out2.exists(), "a cancelled create must NOT commit the image");
@@ -850,8 +853,8 @@ fn image_create_ex_range_and_cancel() {
 
     unsafe { abi::cr_ui_device_close(dev) };
     let _ = std::fs::remove_file(&out);
-    let _ = std::fs::remove_file(out.with_extension("sha256"));
-    let _ = std::fs::remove_file(out2.with_extension("partial"));
+    let _ = std::fs::remove_file(format!("{}.sha256", out.to_string_lossy()));
+    let _ = std::fs::remove_file(format!("{}.partial", out2.to_string_lossy()));
     write_evidence(
         "image-create-ex.txt",
         format!(

@@ -521,13 +521,13 @@ fn spawn_image_worker(app: tauri::AppHandle, entry: Arc<ImageEntry>, finished: A
             let _ =
                 tauri::Emitter::emit(&app, &format!("image-progress:{}", entry.image_id), payload);
         }
-        // Filesystem truth: the engine keeps `<path>.partial` when any
-        // bytes were committed before a failure/cancel — probed, never
-        // parsed out of the engine's message text.
+        // Filesystem truth: the engine keeps `<path>.partial` (the suffix
+        // APPENDED to the full image path — `image.img` -> `image.img.partial`;
+        // with_extension would REPLACE `.img` and probe a different file)
+        // when any bytes were committed before a failure/cancel — probed,
+        // never parsed out of the engine's message text.
         let partial_kept = status != "completed"
-            && std::path::PathBuf::from(&entry.path)
-                .with_extension("partial")
-                .exists();
+            && std::path::Path::new(&format!("{}.partial", entry.path)).exists();
         let level: fn(&str) = if status == "completed" {
             crate::bridge::logging::info
         } else {
@@ -567,9 +567,7 @@ pub async fn image_create_state(
             .map_err(|_| BridgeError::bridge(code::UNKNOWN, "image live lock"))?;
         let partial_kept = finished_at.is_some()
             && status != "completed"
-            && std::path::PathBuf::from(&entry.path)
-                .with_extension("partial")
-                .exists();
+            && std::path::Path::new(&format!("{}.partial", entry.path)).exists();
         Ok(json!({
             "imageId": entry.image_id,
             "disk": entry.disk,
