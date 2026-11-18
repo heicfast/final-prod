@@ -1,0 +1,64 @@
+**********************
+PowerShell transcript start
+Start time: 20261118171625
+Username: runnervmm7ud1\runneradmin
+RunAs User: runnervmm7ud1\runneradmin
+Configuration Name: 
+Machine: runnervmm7ud1 (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -command . 'D:\a\_temp\c15b1ed7-d419-4264-b49c-4171e0192ef0.ps1'
+Process ID: 9872
+PSVersion: 7.6.9
+PSEdition: Core
+GitCommitId: 7.6.9
+OS: Microsoft Windows 10.0.26100
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+
+Microsoft DiskPart version 10.0.26100.1150
+
+Copyright (C) Microsoft Corporation.
+On computer: runnervmm7ud1
+
+
+    0 percent completed
+  100 percent completed
+
+
+DiskPart successfully created the virtual disk file.
+
+DiskPart successfully selected the virtual disk file.
+
+  100 percent completed
+
+
+DiskPart successfully attached the virtual disk file.
+
+DiskPart successfully converted the selected disk to GPT format.
+
+DiskPart succeeded in creating the specified partition.
+
+    0 percent completed
+  100 percent completed
+
+
+DiskPart successfully formatted the volume.
+
+DiskPart successfully assigned the drive letter or mount point.
+
+
+determinism PROOF: two generations byte-identical (modulo _meta)
+
+selftest good       PASS
+selftest missing    PASS
+selftest live-leak  PASS
+selftest bad-hash   PASS
+selftest extra      PASS
+self-test PASSED
+**********************
+PowerShell transcript end
+End time: 20261118171635
+**********************

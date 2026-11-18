@@ -1,0 +1,6 @@
+selftest good       PASS
+selftest missing    PASS
+selftest live-leak  PASS
+selftest bad-hash   PASS
+selftest extra      PASS
+self-test PASSED

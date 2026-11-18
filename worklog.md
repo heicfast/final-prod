@@ -4030,6 +4030,79 @@ files with original directory structure preserved, deleted only, as a
 post-scan option — matching SectorForge's behavior**. Nothing is implemented
 until the feature matrix (T3) is committed and pushed.
 
+**T2 — agents A-G context sheets** (commit `d7b8ad65`, pushed as `22dcfddb`
+after rebase over the concurrent lane's `795f5328`). Seven sheets, every
+claim file:line-cited by the agents; spot-checks at consolidation verified:
+SectorForge named-feature paths (`crates/sf-core/src/ntfs/extract.rs:14`,
+`sf-cli/src/recover.rs:241`), ntfs-recover `patch_record_data_runs`
+(`repairer.rs:467`), TestDisk's 353 `file_*.c` count, mft-rescue
+$LogFile/$UsnJrnl absence, product `CR_UI_ABI_VERSION 4`.
+- `worklog/PRODUCT-STATE.md` — 95-export ABI v4 baseline; per-domain
+  EXISTS/PARTIAL/MISSING; imaging producer and carve-fragmentation the top
+  gaps; prior perf-lens sheet archived to context-sheets.
+- `worklog/SECTORFORGE-FEATURES.md` — named feature FOUND+FULLY IMPLEMENTED
+  (extract.rs plan/Writer, `_orphaned/`, ` (id N)` collisions, never-overwrite,
+  per-item notes); two-pass ddrescue-style imager + mapfile; 94-type carve
+  registry; same-drive guard.
+- `worklog/HALIM-FEATURES.md` — evidence-weighted health 55/35/10;
+  FAT/exFAT orphan-directory harvesting; exFAT bitmap authority; VHD testlab
+  lessons (double flush, no remount).
+- `worklog/TESTDISK-FEATURES.md` — 353-signature PhotoRec registry (285
+  default-on, 930 registered signatures); deep-scan lattice + hint list;
+  backup-BS workflows; MFT-mirror adjudication; bounded fragmentation
+  brute-force (≤5 frags, ≤5000-block skips, paranoid=2 only).
+- `worklog/SLEUTHKIT-FEATURES.md` — fs abstraction (name/meta/attr with
+  independent alloc flags, ~20-pointer plug-in table); mmls; fls/icat/blkls
+  grammar; NTFS index-slack deleted names; orphan pipeline; NO $LogFile
+  parser, USN V2-only.
+- `worklog/NTFS-RECOVER-FEATURES.md` — delta-grouping $MFT run-list
+  reconstruction + in-place record-0 patch (battle-tested 2 TB); the
+  ntfs-3g sign-extension encoding lesson; parent-sequence NOT validated
+  (their gap, must not become ours).
+- `worklog/MFT-RESCUE-FEATURES.md` — truth table: $LogFile, $UsnJrnl, MFT
+  slack all NOT FOUND IN CODE; single-pass imager with progress.json (failed
+  ranges never retried — superseded by SectorForge's design).
+
+**T3 — the feature matrix** (commit `aa4d87ea`). `worklog/FEATURE-MATRIX.md`:
+58 rows, every row citing its sheet; P0 = F-01 (the named feature, Wave 5)
++ F-33/F-34 (two-pass imaging + ddrescue mapfile, Wave 6); 8 P1s; decision
+register: $LogFile NOT-ADOPTED (no reference implements it; I-049 stands),
+MFT-slack carving NOT-APPLICABLE (mission assumption falsified by the truth
+tables), mft-rescue imager SUPERSEDED; UNVERIFIED rows resolve inside their
+wave before implementation.
+
+**T4 — licensing** (commit `f0fe9155`). `worklog/LICENSING.md`: licenses
+verified at pinned HEADs (SF/HR/MR MIT, NR 0BSD, TD GPLv2+, SK IPL 1.0 core
++ bundled matrix incl. GPL/RSA/Unicode files never used as copy sources);
+standing policy stricter than MIT requires (no verbatim code from ANY
+reference); GPL/IPL rows re-implemented from documented behavior only;
+format facts free and cited; thresholds re-derived.
+
+**T5 — seeded validation fixture, proven on real Windows**
+(commits aabc1ffa → 6544953e; canonical green run
+[44356754104](https://github.com/heicfast/final-prod/actions/runs/44356754104)).
+`tools/validation/named-feature/` + dispatch-only lane
+`.github/workflows/named-feature-fixture.yml`: deterministic generator
+(salted path-hash PRNG, fixed timestamps/attributes, real signature magics),
+deletion-matrix applier (double flush, double-delete recreate dance,
+tree deletes), byte-for-byte verifier with 5 invariants + 5-case self-test,
+built and captured on a real 2 GB GPT/NTFS VHDX with a determinism proof
+(two generations byte-identical modulo `_meta`). Evidence committed at
+`worklog/VALIDATION/fixtures/named-feature/` (manifest 24 rows / 22 deleted
+/ 20 EXACT + 2 COLLISION-SET, apply-log 19/19 actions ok, self-test 5/5;
+VHDX artifact SHA-256 `fb9f4835…fe82d3bd`, regenerable via lane dispatch).
+Four failing runs root-caused from logs and fixed in-tree (empty-array
+pipeline unrolling; the runner's second-invocation Write-VolumeCache
+DriveLetter ':' misbind, worked around non-fatally; a File.Open overload
+mistake) — full run table in the evidence README. Lane is dispatch-only:
+push lanes untouched, main green throughout.
+
+**State after T5**: Phase 0 + Phase 1 complete (matrix, licensing, fixture).
+Waves 1-9 (T6-T20) are the implementation backlog, row by row from
+`worklog/FEATURE-MATRIX.md` — the matrix's UNVERIFIED rows resolve to
+EXISTS/MISSING verdicts by reading the cited product files inside their
+wave before any code is written.
+
 ---
 
 ## Session 2026-11-18 — sector-scan rebuild (Phase 0 + Phase 1): read, baseline, diagnose
