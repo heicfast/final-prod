@@ -18,6 +18,10 @@
 #include "cr/win/cr_rescue_win.h"
 #include "cr/cr_log.h"
 
+/* windows.h's min/max macros break std::max at map_max_finished_end
+ * (MSVC C2589, run 44375809024) - the repo convention is NOMINMAX
+ * before windows.h (test_extractplan.cpp:38). */
+#define NOMINMAX
 #include <windows.h>
 
 namespace cr {
