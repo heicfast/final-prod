@@ -31,10 +31,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false # evidence runs queue; nothing in flight is dropped
 
-env:
-  # shared with engine-ci/build lanes: the vcpkg binary cache
-  # (ports gtest/zstd/zlib/lz4) restored before build.ps1 runs
-  VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}\vcpkg-binary-cache
 
 permissions:
   contents: read
