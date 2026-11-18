@@ -3200,3 +3200,29 @@ THE GATES' SCOREBOARD (what this session's evidence added):
 
 EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
 (this session's section) and PARITY-DELTAS (D-P4c, D-P8, G-1(b)).
+
+## Installer Integration & API Surface Expansion session (2026-11-18) — Phase 0 begin
+
+### T1 — clone, records, the charter, the integration boundary
+
+- Product: heicfast/final-prod cloned at bf2e9755, fast-forwarded to 8217bc26
+  (three commits landed mid-clone: c2c91315 the it-gate evidence from the first
+  all-green bridge run 44244567592 @ be3b8256; 1b9a4408 the forensic-repro
+  default-tag fix v0.8.4 → v0.9.3; 8217bc26 the T19 footprint reconciliation).
+  v0.9.3 tagged; the handoff's named first debug (run 44102634559's query-gate
+  panic) is already closed by be3b8256 — this session starts from the green
+  v0.9.3 frontier.
+- Corpus: heicfast/easeus-drw-research cloned at
+  be0cfe95ecf22ac67e0f3a823dd003163b196d38 (11,495 tracked files;
+  og-codebase/ is the extracted EaseUS DRW install, ~660 MB of proprietary
+  binaries — read-only research artifacts).
+- Charter saved, token redacted: worklog/session-installer-api-prompt.md
+  (read twice before any code touched).
+- THE INTEGRATION BOUNDARY (binding, recorded in the charter): no file from
+  og-codebase/ is ever copied into, shipped by, or redistributed through this
+  product's installer. Integration = capability parity in this product's own
+  original code — the discipline docs/PARITY-DELTAS.md already runs on. The
+  product tree carries zero proprietary binaries today (git ls-files census:
+  no exe/dll/sys tracked) and it stays that way.
+- Phase 0 next: agents A–E produce INSTALLER-CURRENT / REFERENCE-FOOTPRINT /
+  REFERENCE-API / PRODUCT-API / INTEGRATION-MATRIX; pushed before any code.
