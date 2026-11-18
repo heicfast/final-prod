@@ -1,8 +1,10 @@
 //! bridge/abi.rs — the cr_ui C-ABI binding.
 //!
 //! Pinned 1:1 from `engine/include/cr/cr_ui.h` (ABI version 4, the
-//! 93-export surface — the 93rd is `cr_ui_health_read_ex2`, the BF-03
-//! threshold closure). Every struct mirrors the header's DECLARATION ORDER
+//! 94-export surface — the 94th is `cr_ui_image_create_ex`, the
+//! D-IMG-1/D-IMG-3 ranged+cancel twin; the 93rd is
+//! `cr_ui_health_read_ex2`, the BF-03 threshold closure). Every struct
+//! mirrors the header's DECLARATION ORDER
 //! under `#[repr(C)]` — natural alignment reproduces the MSVC layout for
 //! both sides, so no manual padding is ever written here. When the header
 //! gains an appended field (the ABI policy is append-only within a
@@ -43,7 +45,7 @@
 //! semantics. See contracts/event-mapping.md.
 
 // The ABI surface is PINNED 1:1 to engine/include/cr/cr_ui.h (the whole
-// 93-export surface, not just the calls the bridge makes today). Unconsumed
+// 94-export surface, not just the calls the bridge makes today). Unconsumed
 // declarations are therefore EXPECTED: exports the product has no surface
 // for yet (carve catalog/tally, disk map, image create, fsck escalation,
 // BitLocker-off, the core-side query engine, assistant/regrade — the
@@ -733,7 +735,7 @@ pub struct CrUiSmartReport {
     pub grade: u32,
 }
 
-// ---- extern declarations (93-export surface, ABI v4) -----------------------------------
+// ---- extern declarations (94-export surface, ABI v4) -----------------------------------
 
 extern "C" {
     // version & diagnostics
@@ -1009,6 +1011,21 @@ extern "C" {
     pub fn cr_ui_image_create(
         disk: u32,
         utf8_path: *const i8,
+        progress: CrUiRecoveryProgressFn,
+        user: *mut c_void,
+    ) -> u32;
+    // D-IMG-1/D-IMG-3 (the installer-integration session): the ranged +
+    // cancellable twin — first_sector/sector_count in SECTORS (0/0 = the
+    // whole disk, byte-identical to the base export); cancel_flag is the
+    // CALLER-OWNED volatile flag (the session_load_with_events idiom: set
+    // from any thread; the producer's loop head consults it every 64 KiB
+    // chunk; on cancel the partial image is KEPT as `<path>.partial`).
+    pub fn cr_ui_image_create_ex(
+        disk: u32,
+        utf8_path: *const i8,
+        first_sector: u64,
+        sector_count: u64,
+        cancel_flag: *mut u32,
         progress: CrUiRecoveryProgressFn,
         user: *mut c_void,
     ) -> u32;

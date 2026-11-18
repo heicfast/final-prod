@@ -149,6 +149,22 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
                         ImageCreateProgressFn progress, void* progress_user,
                         ImageCreateStats* stats);
 
+/* D-IMG-3 (the installer-integration session, INTEGRATION-MATRIX M02): the
+ * RANGED twin - copy the byte range [first_byte, first_byte + length) of
+ * the device into the sink (the ABI speaks SECTORS; this seam speaks
+ * bytes). first_byte 0 + length == src.size() is byte-identical to
+ * create_image_stream over the same device (the whole-disk twin above
+ * delegates here). length == 0 produces the empty stream (the
+ * empty-device parity); a range that exceeds the device (first_byte >=
+ * size, or first_byte + length > size) refuses with ERR_BAD_PARAMETER -
+ * never a silent truncation. Identical cancel/progress/truth contract:
+ * progress reports (done, length) with done counted from the range head;
+ * stats.bytes_written is the committed prefix length of the range. */
+u32 create_image_stream_range(IStorageDevice& src, u64 first_byte, u64 length,
+                               ImageCreateSink& sink, CancelToken* cancel,
+                               ImageCreateProgressFn progress, void* progress_user,
+                               ImageCreateStats* stats);
+
 } // namespace storage
 } // namespace cr
 

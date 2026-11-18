@@ -3416,6 +3416,61 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   GREEN — the full suite incl. the new check (exports=93, seam=12/67 = 55
   RR + 12 subscriptions, zero FAILs).
 
+### T11/W4-A — imaging ABI completion: cr_ui_image_create_ex (range + cancel)
+
+- D-IMG-1 + D-IMG-3 closed at the ABI in ONE additive export (no version
+  bump — append-only, ABI-CONTRACT §9): cr_ui_image_create_ex(disk,
+  path, first_sector, sector_count, volatile uint32_t* cancel_flag,
+  progress, user). Sector range per the og's "More Option" from/to pair
+  (first 0-based; count 0 = to the END of the disk; 0/0 = the whole disk
+  = BYTE-IDENTICAL legacy behavior); cancel via the caller-owned flag
+  (the cr_ui_session_load_with_events idiom) consulted at every 64 KiB
+  loop head; on cancel the partial is KEPT as '<path>.partial' (the S-040
+  truth contract, the og's "You need to re-create the disk image if you
+  stop it" semantics).
+- The layering, all byte-identical-preserving: storage::
+  create_image_stream_range (the ranged copy loop; the whole-disk twin
+  now DELEGATES to it with [0, size) — one loop, identical arithmetic);
+  win::create_image_file_range (create_image_file delegates) +
+  win::create_disk_image_ex (the sector-denominated form; geometry-opened
+  validation: first_sector beyond the disk or a range past the end
+  refuses ERR_BAD_PARAMETER — the og's "Invalid sector" posture, never a
+  silent truncation); image_create_ex_impl (the same elevation gate, the
+  same error/disposition contract as image_create_impl; FlagCancelToken
+  adapts the volatile flag into a CancelToken).
+- CLI: image --create --disk N --out F [--from-sector A --to-sector B] —
+  both edges or neither, the og's [0-9]{1,15} grammar + "Invalid sector"
+  refusals, inclusive [from, to]; the no-range path stays the literal
+  legacy create_disk_image call. Usage/-h/parse/header updated (the
+  five-site surface discipline).
+- Tests: 7 new ImageCreateRange.* (whole-range == whole-stream
+  byte/digest/stats equality — the no-regression proof; middle-slice
+  content equality; zero-length empty-stream digest; beyond-device
+  ERR_BAD_PARAMETER refusals + the exactly-to-end legal form;
+  range-relative progress; mid-range cancel prefix truth; the grammar
+  probe) + 3 ui_abi_check.c probes (argument gate + the honest
+  non-Windows refusal). Portable-suite: they run on BOTH engine lanes.
+- The same-commit invariants held: tools/gen_abi_layouts.py re-run (29
+  structs / 365 paths — ZERO struct drift, the pinned abi_layouts.rs is
+  byte-identical; the dump C restored to its clang-formatted committed
+  form — the raw generator output is pre-format; the .header.sha re-stamped
+  for the new header content); abi.rs re-pinned (the 94th extern —
+  rg -c 'pub fn cr_ui_' = 94 == the header's 94 exports, 1:1).
+- Doc truths re-trued in the SAME commit (the doc_truth_gate caught all
+  six 93-claims on first run — the W3 guard proving itself): engine/docs/
+  API.md + CORE-API-CURRENT.md (3 sites) + API-SURFACE-AUDIT.md +
+  contracts/README.md now carry 94 with the append history;
+  worklog/PRODUCT-API.md §0 gains the dated W4 addendum (93 counted
+  pre-append, point-in-time).
+- Validation (L-class, local): doc_truth_gate GREEN (exports=94; the
+  contracts README row matches); contracts validate.mjs GREEN. The
+  compile + the full suite run on engine-ci (Windows) on push.
+- NEXT (W4-B, same session): the bridge half — commands/imaging.rs
+  cancelImageCreation + the worker's switch to the ex call + the
+  registry's cancel flag + image_create_state's cancelSupported=true +
+  command-surface.json row + event-mapping note; the TS connector +
+  UI stop-confirm/More-Option fields stay W9's recorded scope.
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)

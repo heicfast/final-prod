@@ -1553,24 +1553,59 @@ std::unique_ptr<IStorageDevice> open_image(ImageFileIo& io, const std::u16string
 u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken* cancel,
                         ImageCreateProgressFn progress, void* progress_user,
                         ImageCreateStats* stats) {
-    ImageCreateStats local{};
-    crypto::Sha256 hash;
-    std::vector<u8> buf;
     const u64 total = src.size();
-    constexpr u32 kChunk = 64 * 1024;
     if (total == 0) {
         /* an empty device produces an empty image (the reader side's
          * ERR_TRUNCATED on empty files keeps scans honest; creating one
          * is still a legal no-op stream - the digest is the well-known
          * empty-stream SHA-256) */
+        ImageCreateStats local{};
+        crypto::Sha256 hash;
         hash.final(local.sha256);
         if (stats)
             *stats = local;
         return OK;
     }
+    /* D-IMG-3: the whole-disk form is the [0, size) range form - ONE loop,
+     * byte-identical arithmetic (the delegated twin's done/total/bytes_
+     * written values are the whole-disk values by construction). */
+    return create_image_stream_range(src, 0, total, sink, cancel, progress, progress_user,
+                                     stats);
+}
+
+/* D-IMG-3 (the installer-integration session, INTEGRATION-MATRIX M02): the
+ * ranged copy loop - the og's "More Option" from/to sector fields at the
+ * engine seam (DiskBackupSaveDlg fromLabel/toLabel, [0-9]{1,15}
+ * validation, "Invalid sector" errors - rev/strings_ascii.txt:11640-11760).
+ * Same loop shape as the whole-disk twin: 64 KiB stride ascending reads,
+ * SHA-256 over the emitted stream, cooperative cancel at chunk heads,
+ * cumulative progress after every chunk; progress/stats are
+ * RANGE-relative (done counts from the range head, total is the range
+ * length, bytes_written is the committed prefix of the range). */
+u32 create_image_stream_range(IStorageDevice& src, u64 first_byte, u64 length,
+                               ImageCreateSink& sink, CancelToken* cancel,
+                               ImageCreateProgressFn progress, void* progress_user,
+                               ImageCreateStats* stats) {
+    ImageCreateStats local{};
+    crypto::Sha256 hash;
+    std::vector<u8> buf;
+    const u64 total = src.size();
+    if (length == 0) {
+        /* the empty-range no-op stream: the whole-disk twin's empty-device
+         * parity (the well-known empty-stream SHA-256) */
+        hash.final(local.sha256);
+        if (stats)
+            *stats = local;
+        return OK;
+    }
+    if (first_byte >= total || length > total - first_byte)
+        return ERR_BAD_PARAMETER; /* the range exceeds the device: refuse,
+                                      never a silent truncation */
+    const u64 end = first_byte + length;
+    constexpr u32 kChunk = 64 * 1024;
     buf.resize(kChunk);
-    u64 off = 0;
-    while (off < total) {
+    u64 off = first_byte;
+    while (off < end) {
         if (cancel && cancel->cancelled()) {
             local.cancelled = true;
             hash.final(local.sha256);
@@ -1579,8 +1614,8 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
             return ERR_CANCELLED;
         }
         u32 want = kChunk;
-        if (want > total - off)
-            want = u32(total - off);
+        if (want > end - off)
+            want = u32(end - off);
         const u32 rc = src.read_at(off, buf.data(), want);
         if (rc != OK) {
             /* the failed chunk is not emitted: the committed prefix is
@@ -1598,10 +1633,10 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
             return wrc;
         }
         hash.update(buf.data(), want);
-        local.bytes_written = off + want;
+        local.bytes_written = (off - first_byte) + want;
         off += want;
         if (progress)
-            progress(progress_user, local.bytes_written, total);
+            progress(progress_user, local.bytes_written, length);
     }
     hash.final(local.sha256);
     if (stats)

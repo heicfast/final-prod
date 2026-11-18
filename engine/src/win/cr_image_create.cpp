@@ -122,6 +122,18 @@ u32 write_sidecar(const std::u16string& final_path, const u8 sha256[32]) {
 u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
                       CancelToken* cancel, storage::ImageCreateProgressFn progress,
                       void* progress_user, storage::ImageCreateStats* stats) {
+    /* D-IMG-3: the whole-disk form is the [0, size) range form - one
+     * disposition body, byte-identical behavior (the range twin's
+     * first=0/length=size arithmetic produces exactly the whole-disk
+     * values). */
+    return create_image_file_range(src, 0, src.size(), out_path_utf16, cancel, progress,
+                                   progress_user, stats);
+}
+
+u32 create_image_file_range(IStorageDevice& src, u64 first_byte, u64 length,
+                             const std::u16string& out_path_utf16, CancelToken* cancel,
+                             storage::ImageCreateProgressFn progress, void* progress_user,
+                             storage::ImageCreateStats* stats) {
     if (out_path_utf16.empty())
         return ERR_BAD_PARAMETER;
     const std::u16string temp = out_path_utf16 + u".crimg-tmp";
@@ -132,7 +144,9 @@ u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
         return ERR_OPEN_FAILED;
 
     storage::ImageCreateStats local{};
-    const u32 rc = storage::create_image_stream(src, sink, cancel, progress, progress_user, &local);
+    const u32 rc =
+        storage::create_image_stream_range(src, first_byte, length, sink, cancel, progress,
+                                          progress_user, &local);
     if (rc == OK) {
         if (!sink.flush()) {
             sink.close();
@@ -179,6 +193,33 @@ u32 create_disk_image(u32 disk, const std::u16string& out_path_utf16, CancelToke
     if (!dev)
         return err;
     return create_image_file(*dev, out_path_utf16, cancel, progress, progress_user, stats);
+}
+
+u32 create_disk_image_ex(u32 disk, const std::u16string& out_path_utf16, u64 first_sector,
+                         u64 sector_count, CancelToken* cancel,
+                         storage::ImageCreateProgressFn progress, void* progress_user,
+                         storage::ImageCreateStats* stats) {
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> dev = open_disk(disk, &err);
+    if (!dev)
+        return err;
+    const Geometry& g = dev->geometry();
+    if (g.logical_sector == 0 || g.sector_count == 0)
+        return ERR_BAD_PARAMETER; /* degenerate geometry: refuse rather than
+                                      divide by a zero sector size (never
+                                      seen on real disks; the guard keeps the
+                                      byte math total) */
+    if (first_sector >= g.sector_count)
+        return ERR_BAD_PARAMETER; /* the og's "Invalid sector": beyond the
+                                     end of the disk */
+    const u64 avail = g.sector_count - first_sector;
+    const u64 count = sector_count == 0 ? avail : sector_count;
+    if (count > avail)
+        return ERR_BAD_PARAMETER; /* the range runs past the end: refuse,
+                                     never silently truncate */
+    return create_image_file_range(*dev, first_sector * u64(g.logical_sector),
+                                   count * u64(g.logical_sector), out_path_utf16, cancel,
+                                   progress, progress_user, stats);
 }
 
 } // namespace win

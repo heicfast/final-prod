@@ -1190,6 +1190,149 @@ TEST(ImageCreate, EmptyDeviceIsEmptyStream) {
     EXPECT_EQ(0, std::memcmp(kEmptySha, st.sha256, 32));
 }
 
+/* ---- D-IMG-3 (the installer-integration session): the ranged twin ---- */
+
+namespace {
+/* the og's [0-9]{1,15} sector grammar probe (CLI-side truth, mirrored
+ * here as documentation of the seam the engine validates against) */
+bool digits_only_1_15(const std::string& s) {
+    if (s.empty() || s.size() > 15)
+        return false;
+    for (const char c : s)
+        if (c < '0' || c > '9')
+            return false;
+    return true;
+}
+} // namespace
+
+TEST(ImageCreateRange, GrammarMirrorsTheOgsDigitsOnlyForm) {
+    EXPECT_TRUE(digits_only_1_15("0"));
+    EXPECT_TRUE(digits_only_1_15("123456789012345")); /* 15 digits: the cap */
+    EXPECT_FALSE(digits_only_1_15("1234567890123456")); /* 16: refused */
+    EXPECT_FALSE(digits_only_1_15(""));
+    EXPECT_FALSE(digits_only_1_15("12a4"));
+    EXPECT_FALSE(digits_only_1_15("-1"));
+    EXPECT_FALSE(digits_only_1_15("0x10"));
+}
+
+TEST(ImageCreateRange, WholeRangeMatchesWholeStream) {
+    /* the no-regression proof: [0, size) through the ranged twin is
+     * byte-for-byte the whole-disk twin's image, digest, and stats */
+    SrcDevice src(2 * 64 * 1024 + 7168, 512);
+    MemSink whole_sink;
+    ImageCreateStats whole{};
+    ASSERT_EQ(OK, create_image_stream(src, whole_sink, nullptr, nullptr, nullptr, &whole));
+    MemSink range_sink;
+    ImageCreateStats ranged{};
+    ASSERT_EQ(OK,
+              create_image_stream_range(src, 0, src.size(), range_sink, nullptr, nullptr,
+                                        nullptr, &ranged));
+    ASSERT_EQ(whole_sink.bytes().size(), range_sink.bytes().size());
+    EXPECT_EQ(0, std::memcmp(whole_sink.bytes().data(), range_sink.bytes().data(),
+                             whole_sink.bytes().size()));
+    EXPECT_EQ(0, std::memcmp(whole.sha256, ranged.sha256, 32));
+    EXPECT_EQ(whole.bytes_written, ranged.bytes_written);
+}
+
+TEST(ImageCreateRange, MiddleSliceMatchesSourceBytes) {
+    /* a range that starts past a chunk boundary and ends mid-chunk: the
+     * emitted stream is exactly the source's [first, first+len) bytes */
+    SrcDevice src(5 * 64 * 1024 + 12345, 512);
+    const u64 first = 64 * 1024 + 123; /* deliberately unaligned head */
+    const u64 length = 2 * 64 * 1024 + 4567; /* deliberately unaligned tail */
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK,
+              create_image_stream_range(src, first, length, sink, nullptr, nullptr, nullptr,
+                                        &st));
+    ASSERT_EQ(size_t(length), sink.bytes().size());
+    EXPECT_EQ(0, std::memcmp(src.bytes().data() + first, sink.bytes().data(), size_t(length)));
+    expect_digest_of(sink.bytes(), st.sha256);
+    EXPECT_EQ(length, st.bytes_written);
+}
+
+TEST(ImageCreateRange, ZeroLengthIsEmptyStream) {
+    /* length 0: the empty-device parity (the well-known empty digest) */
+    SrcDevice src(64 * 1024, 512);
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK, create_image_stream_range(src, 123, 0, sink, nullptr, nullptr, nullptr, &st));
+    EXPECT_EQ(u64(0), st.bytes_written);
+    EXPECT_TRUE(sink.bytes().empty());
+    static const u8 kEmptySha[32] = {0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14,
+                                     0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24,
+                                     0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c,
+                                     0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55};
+    EXPECT_EQ(0, std::memcmp(kEmptySha, st.sha256, 32));
+}
+
+TEST(ImageCreateRange, BeyondDeviceRefused) {
+    /* the og's "Invalid sector" posture: a range past the end refuses -
+     * never a silent truncation, never a padded short image */
+    SrcDevice src(3 * 64 * 1024, 512);
+    MemSink sink;
+    ImageCreateStats st{};
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              create_image_stream_range(src, src.size(), 1, sink, nullptr, nullptr, nullptr,
+                                        &st));
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              create_image_stream_range(src, src.size() + 1, 8, sink, nullptr, nullptr,
+                                        nullptr, &st));
+    /* the exactly-to-the-end range is legal (the inclusive to-sector) */
+    MemSink ok_sink;
+    ImageCreateStats ok_st{};
+    ASSERT_EQ(OK, create_image_stream_range(src, 64 * 1024, src.size() - 64 * 1024, ok_sink,
+                                            nullptr, nullptr, nullptr, &ok_st));
+    ASSERT_EQ(size_t(src.size() - 64 * 1024), ok_sink.bytes().size());
+}
+
+TEST(ImageCreateRange, ProgressTotalIsRangeLength) {
+    /* range-relative progress: done counts from the range head, total is
+     * the RANGE length (never the device size) */
+    SrcDevice src(4 * 64 * 1024, 512);
+    struct Pctx2 {
+        u32 calls = 0;
+        u64 last_done = 0;
+        u64 total_seen = 0;
+    } ctx;
+    auto fn = +[](void* user, u64 done, u64 total) {
+        auto* c = static_cast<Pctx2*>(user);
+        ++c->calls;
+        EXPECT_GE(done, c->last_done) << "progress must be monotonic from the range head";
+        c->last_done = done;
+        c->total_seen = total;
+    };
+    const u64 length = 2 * 64 * 1024 + 512;
+    MemSink sink;
+    ImageCreateStats st{};
+    ASSERT_EQ(OK,
+              create_image_stream_range(src, 64 * 1024, length, sink, nullptr, fn, &ctx, &st));
+    EXPECT_EQ(3u, ctx.calls) << "one callback per chunk (2 full + 1 short tail)";
+    EXPECT_EQ(length, ctx.total_seen);
+    EXPECT_EQ(length, ctx.last_done);
+}
+
+TEST(ImageCreateRange, CancelMidRangeKeepsTruthfulPrefix) {
+    /* cancel after the first in-range chunk: the committed prefix is one
+     * 64 KiB chunk OF THE RANGE, digest and stats truthful */
+    SrcDevice src(6 * 64 * 1024, 512);
+    FlagToken tok;
+    /* flip inside the first chunk's progress callback; the second chunk's
+     * loop-head check then refuses */
+    auto progress = +[](void* user, u64, u64) { static_cast<FlagToken*>(user)->flip(); };
+    const u64 length = 3 * 64 * 1024;
+    MemSink sink;
+    ImageCreateStats st{};
+    const u32 rc = create_image_stream_range(src, 64 * 1024, length, sink, &tok, progress,
+                                             &tok, &st);
+    ASSERT_EQ(ERR_CANCELLED, rc);
+    EXPECT_TRUE(st.cancelled);
+    EXPECT_EQ(u64(64 * 1024), st.bytes_written) << "exactly one range chunk committed";
+    ASSERT_EQ(size_t(64 * 1024), sink.bytes().size());
+    expect_digest_of(sink.bytes(), st.sha256);
+    EXPECT_EQ(0, std::memcmp(src.bytes().data() + 64 * 1024, sink.bytes().data(), 64 * 1024));
+}
+
 } // namespace test
 } // namespace storage
 } // namespace cr

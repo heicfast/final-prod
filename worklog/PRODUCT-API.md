@@ -4,6 +4,13 @@
 > READ-ONLY census: every count below was re-derived from source at the working
 > tree (no doc claim was taken on faith; doc-vs-code drift found during the
 > census is recorded in §9). Written before any code changes, per the charter.
+>
+> **W4 addendum (2026-11-18, later the same session):** the D-IMG-1/D-IMG-3
+> closure appended `cr_ui_image_create_ex` (the ranged + cancellable
+> image-producer twin). The ABI export count is now **94** — the counts in
+> this sheet were taken at 93, pre-append (point-in-time census); the live
+> number is carried by contracts/README.md + engine/docs/API.md and enforced
+> by the doc_truth_gate (both re-trued in the same commit).
 
 ## 0. Header
 

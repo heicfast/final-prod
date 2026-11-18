@@ -45,7 +45,7 @@
  * auto-mount is a registered host contract, PARITY-DELTAS D-90/N-121).
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
- *   image --create --disk N --out file.img
+ *   image --create --disk N --out file.img [--from-sector F --to-sector T]
  *                                         the og home page's Create Image
  *                                         flow (UIUX/07:36-37): flat raw
  *                                         producer + .sha256 sidecar; cancel
@@ -2847,6 +2847,14 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     bool have_disk = false;
     std::wstring out;
     bool have_out = false;
+    /* D-IMG-3 (the installer-integration session): the og's "More Option"
+     * from/to sector range (DiskBackupSaveDlg fromLabel/toLabel,
+     * [0-9]{1,15} validation, "Invalid sector" errors - strings:11640-
+     * 11760). Both flags together; inclusive [from, to]. */
+    std::wstring from_sector_txt;
+    std::wstring to_sector_txt;
+    bool have_from = false;
+    bool have_to = false;
     while (i < argc) {
         if (has_flag(argc, argv, i, L"--create")) {
             /* S-040's documented invocation form (the usage header above,
@@ -2872,12 +2880,54 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
             have_out = true;
             continue;
         }
+        if (get_opt(argc, argv, i, L"--from-sector", &v)) {
+            from_sector_txt = v;
+            have_from = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--to-sector", &v)) {
+            to_sector_txt = v;
+            have_to = true;
+            continue;
+        }
         wprintf(L"unknown image option: %s\n", argv[i]);
         return 1;
     }
     if (!have_disk || !have_out) {
         wprintf(L"image needs --disk N and --out file.img\n");
         return 1;
+    }
+    /* D-IMG-3: the sector range - both edges or neither; the og's
+     * [0-9]{1,15} grammar with its "Invalid sector" refusal; to >= from;
+     * the engine's create_disk_image_ex refuses anything past the disk's
+     * end (the second-layer guard). */
+    u64 first_sector = 0;
+    u64 sector_count = 0;
+    const bool ranged = have_from || have_to;
+    if (ranged) {
+        const auto digits_only = [](const std::wstring& s) {
+            if (s.empty() || s.size() > 15)
+                return false;
+            for (const wchar_t c : s)
+                if (c < L'0' || c > L'9')
+                    return false;
+            return true;
+        };
+        if (!have_from || !have_to) {
+            wprintf(L"a sector range needs both --from-sector and --to-sector\n");
+            return 1;
+        }
+        if (!digits_only(from_sector_txt) || !digits_only(to_sector_txt)) {
+            wprintf(L"Invalid sector\n");
+            return 1;
+        }
+        first_sector = u64(wcstoull(from_sector_txt.c_str(), nullptr, 10));
+        const u64 to_sector = u64(wcstoull(to_sector_txt.c_str(), nullptr, 10));
+        if (to_sector < first_sector) {
+            wprintf(L"Invalid sector: --to-sector is below --from-sector\n");
+            return 1;
+        }
+        sector_count = to_sector - first_sector + 1; /* inclusive [from, to] */
     }
     if (!ends_with_ci(out, L".img") && !ends_with_ci(out, L".raw") && !out.empty()) {
         /* the og's create ships FLAT images; vhd/vhdx/vmdk writers are out
@@ -2907,7 +2957,14 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
 
     const std::u16string out16(out.begin(), out.end());
     storage::ImageCreateStats stats{};
-    const u32 rc = win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx, &stats);
+    /* the no-range path stays the literal legacy call (byte-identical); the
+     * ranged path takes the ex twin (which ALSO answers Ctrl-C through the
+     * same g_cancel_token). */
+    const u32 rc = ranged
+                       ? win::create_disk_image_ex(disk, out16, first_sector, sector_count,
+                                                   &g_cancel_token, progress, &ctx, &stats)
+                       : win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx,
+                                                 &stats);
     const std::string hex = crypto::to_hex(stats.sha256, 32);
     if (rc == OK) {
         wprintf(L"image complete: %llu bytes, sha256 %hs\n",
@@ -3881,12 +3938,15 @@ int wmain(int argc, wchar_t** argv) {
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov image --create --disk N --out file.img\n"
+            L"             [--from-sector F --to-sector T]\n"
             L"             (the og home page's Create Image flow, UIUX/07:36-37 -\n"
             L"              the safe-scan posture's producer: scan the image\n"
             L"              instead of the live disk on damaged drives, UIUX/11:17;\n"
             L"              flat raw only, VHD/VHDX writers out of scope -\n"
             L"              docs/PARITY-DELTAS.md D-147; a .sha256 sidecar is\n"
-            L"              written; cancel keeps '<out>.partial', never a\n"
+            L"              written; the optional sector range is the og's\n"
+            L"              'More Option' from/to pair (D-IMG-3, inclusive\n"
+            L"              [from, to]); cancel keeps '<out>.partial', never a\n"
             L"              silent success)\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
             L"  rrecov fix --chkdsk C:  (launch Windows chkdsk /f on the volume -\n"

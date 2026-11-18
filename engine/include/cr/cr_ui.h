@@ -1656,6 +1656,31 @@ CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
 CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                       cr_ui_recovery_progress_fn progress, void* user);
 
+/* D-IMG-1/D-IMG-3 closure (the installer-integration session, additive
+ * export, ABI policy section 9, no version bump): the SAME flat-raw image
+ * producer with the two surfaces the base export cannot carry:
+ *   - SECTOR RANGE: the og's "More Option" from/to sector fields
+ *     (DiskBackupSaveDlg fromLabel/toLabel, [0-9]{1,15} validation,
+ *     "Invalid sector" errors - rev/strings_ascii.txt:11640-11760).
+ *     first_sector is 0-based; sector_count 0 = from first_sector to the
+ *     END of the disk. first_sector 0 + sector_count 0 = the whole disk =
+ *     BYTE-IDENTICAL legacy behavior (the base export's twin path).
+ *   - CANCEL: a CALLER-OWNED cancel flag (the cr_ui_session_load_with_
+ *     events idiom) - zero-init safe, set from any thread; the producer's
+ *     loop head consults it every 64 KiB chunk. On cancel the partial
+ *     image is KEPT as `<path>.partial` exactly like a mid-stream failure
+ *     (the S-040 truth contract; the reference's stop-confirm truth:
+ *     "You need to re-create the disk image if you stop it",
+ *     rev/strings_ascii.txt:11672-11673).
+ * Identical error contract to cr_ui_image_create (same codes, same
+ * elevation gate, same disposition policy); a range beyond the disk's end
+ * refuses with ERR_BAD_PARAMETER - never a silent truncation; the digest
+ * sidecar covers the ranged image exactly. */
+CR_UI_API uint32_t cr_ui_image_create_ex(uint32_t disk, const char* utf8_path,
+                                         uint64_t first_sector, uint64_t sector_count,
+                                         volatile uint32_t* cancel_flag,
+                                         cr_ui_recovery_progress_fn progress, void* user);
+
 /* M-075 (diff-to-fix): the check-phase escalation endpoint — launch
  * Windows chkdsk on the volume mounted at `letter` ('A'..'Z'; the
  * narrow ASCII form of the win layer's wide seam).

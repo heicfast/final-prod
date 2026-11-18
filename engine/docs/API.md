@@ -107,10 +107,11 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**4**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C except for the v4 removal: 93 exported functions in
-the current header (the count re-derived 2026-11-11, post-v0.9.2: 96
-`CR_UI_API` lines minus 3 `#define` macros; the 93rd is
-`cr_ui_health_read_ex2`, the BF-03 threshold closure appended at
+append-only-flat-C except for the v4 removal: 94 exported functions in
+the current header (the count re-derived 2026-11-18, installer-integration
+session: 97 `CR_UI_API` lines minus 3 `#define` macros; the 94th is
+`cr_ui_image_create_ex`, the D-IMG-1/D-IMG-3 ranged+cancel twin; the
+93rd is `cr_ui_health_read_ex2`, the BF-03 threshold closure appended at
 eb4bb5f3; the v3->v4 bump REMOVED the
 driver-era `cr_ui_driver_status` export with the kernel driver itself -
 the one sanctioned removal, documented in ABI-CONTRACT §4/§7e;

@@ -1718,6 +1718,14 @@ void image_create_progress_bridge(void* user, u64 done, u64 total) {
     if (b && b->progress)
         b->progress(b->user, done, total);
 }
+
+/* D-IMG-1: the caller-owned cancel flag as a CancelToken (the session-
+ * load_with_events idiom - the flag is zero-init safe, set from any
+ * thread, consulted at every loop head of the producer). */
+struct FlagCancelToken final : public CancelToken {
+    volatile uint32_t* flag = nullptr;
+    bool cancelled() const override { return flag && *flag != 0; }
+};
 #endif
 
 u32 image_create_impl(uint32_t disk, const char* utf8_path, cr_ui_recovery_progress_fn progress,
@@ -1756,6 +1764,52 @@ u32 image_create_impl(uint32_t disk, const char* utf8_path, cr_ui_recovery_progr
     (void)progress;
     (void)user;
     return ret_(ERR_UNSUPPORTED, "cr_ui_image_create requires the Windows platform layer");
+#endif
+}
+
+u32 image_create_ex_impl(uint32_t disk, const char* utf8_path, uint64_t first_sector,
+                         uint64_t sector_count, volatile uint32_t* cancel_flag,
+                         cr_ui_recovery_progress_fn progress, void* user) {
+    if (!utf8_path || !*utf8_path)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path");
+#ifdef _WIN32
+    /* the class-(a) gate: a non-elevated token is a classified refusal
+     * (the same gate as open_disk_impl / image_create_impl) */
+    if (!win::is_elevated()) {
+        set_last_transport_error_(ERR_ELEVATION_REQUIRED);
+        return ret_(ERR_ELEVATION_REQUIRED,
+                    "raw disk access requires an elevated process - relaunch elevated and "
+                    "retry");
+    }
+    const std::u16string path = u8_to_u16(utf8_path);
+    if (path.empty())
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_path (empty after decode)");
+    FlagCancelToken token{};
+    token.flag = cancel_flag;
+    ImageCreateProgressBridge bridge{progress, user};
+    storage::ImageCreateStats stats{};
+    const u32 rc = win::create_disk_image_ex(
+        disk, path, first_sector, sector_count, cancel_flag ? &token : nullptr,
+        image_create_progress_bridge, &bridge, &stats);
+    if (rc == OK)
+        return ret_ok();
+    if (rc == ERR_CANCELLED)
+        return ret_(rc,
+                    "image create cancelled: %llu bytes committed (partial kept as "
+                    "'%s.partial')",
+                    static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+    return ret_(rc,
+                "image create failed at %llu bytes (partial kept as '%s.partial' when "
+                "any bytes committed)",
+                static_cast<unsigned long long>(stats.bytes_written), utf8_path);
+#else
+    (void)disk;
+    (void)first_sector;
+    (void)sector_count;
+    (void)cancel_flag;
+    (void)progress;
+    (void)user;
+    return ret_(ERR_UNSUPPORTED, "cr_ui_image_create_ex requires the Windows platform layer");
 #endif
 }
 
@@ -5088,6 +5142,18 @@ extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_si
 extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8_path,
                                                  cr_ui_recovery_progress_fn progress, void* user) {
     return guarded(image_create_impl, disk, utf8_path, progress, user);
+}
+
+/* D-IMG-1/D-IMG-3 (the installer-integration session): the ranged +
+ * cancellable twin. */
+extern "C" CR_UI_API uint32_t cr_ui_image_create_ex(uint32_t disk, const char* utf8_path,
+                                                    uint64_t first_sector,
+                                                    uint64_t sector_count,
+                                                    volatile uint32_t* cancel_flag,
+                                                    cr_ui_recovery_progress_fn progress,
+                                                    void* user) {
+    return guarded(image_create_ex_impl, disk, utf8_path, first_sector, sector_count,
+                   cancel_flag, progress, user);
 }
 
 /* ---- M-075: the chkdsk escalation endpoint (the ladder's fix rung) ----

@@ -1173,6 +1173,15 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_image_create(0, NULL, NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
         CHECK_EQ_U64(cr_ui_image_create(0, "", NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
         CHECK_EQ_U64(cr_ui_image_create(0, "out.img", NULL, NULL), CR_UI_ERR_UNSUPPORTED);
+        /* D-IMG-1/D-IMG-3 (the installer-integration session): the ranged +
+         * cancellable twin - the same argument gate (platform-independent)
+         * and the same honest unsupported answer on this lane */
+        CHECK_EQ_U64(cr_ui_image_create_ex(0, NULL, 0, 0, NULL, NULL, NULL),
+                     CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create_ex(0, "", 0, 0, NULL, NULL, NULL),
+                     CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create_ex(0, "out.img", 0, 0, NULL, NULL, NULL),
+                     CR_UI_ERR_UNSUPPORTED);
         CHECK(strstr(cr_ui_last_error(), "Windows platform layer") != NULL);
     }
 #endif

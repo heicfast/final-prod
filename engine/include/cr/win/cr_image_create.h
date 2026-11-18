@@ -53,6 +53,33 @@ u32 create_disk_image(u32 disk, const std::u16string& out_path_utf16, CancelToke
                       storage::ImageCreateProgressFn progress, void* progress_user,
                       storage::ImageCreateStats* stats);
 
+/* D-IMG-3 (the installer-integration session, INTEGRATION-MATRIX M02): the
+ * RANGED producer. create_image_file_range copies the byte range
+ * [first_byte, first_byte + length) of src (first_byte 0 + length ==
+ * src.size() is byte-identical to create_image_file over the same device -
+ * create_image_file delegates here); the disposition policy is identical
+ * (temp / atomic commit + sidecar / the truthful .partial). A range that
+ * exceeds the device refuses with ERR_BAD_PARAMETER (never a silent
+ * truncation). */
+u32 create_image_file_range(IStorageDevice& src, u64 first_byte, u64 length,
+                             const std::u16string& out_path_utf16, CancelToken* cancel,
+                             storage::ImageCreateProgressFn progress, void* progress_user,
+                             storage::ImageCreateStats* stats);
+
+/* The SECTOR-denominated disk form (the ABI's twin, D-IMG-3): produce the
+ * flat raw image of physical disk N's SECTOR RANGE [first_sector,
+ * first_sector + sector_count). sector_count 0 = from first_sector to the
+ * END of the disk; 0/0 = the whole disk = byte-identical to
+ * create_disk_image. The sector validation happens HERE (the geometry
+ * exists after the open): first_sector beyond the disk, or a range that
+ * runs past the end, refuses with ERR_BAD_PARAMETER - the og's "Invalid
+ * sector" posture at the engine layer (DiskBackupSaveDlg
+ * fromLabel/toLabel, strings:11640-11760). */
+u32 create_disk_image_ex(u32 disk, const std::u16string& out_path_utf16, u64 first_sector,
+                         u64 sector_count, CancelToken* cancel,
+                         storage::ImageCreateProgressFn progress, void* progress_user,
+                         storage::ImageCreateStats* stats);
+
 } // namespace win
 } // namespace cr
 
