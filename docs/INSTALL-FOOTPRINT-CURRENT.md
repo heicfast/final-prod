@@ -1,6 +1,9 @@
 # INSTALL-FOOTPRINT-CURRENT.md — what the current product places on a Windows machine, and how it is built
 
 > **STALE-BY-CONSTRUCTION ERRATUM (debug-and-release session, D-PRIV-01):**
+> [2026-11-17] The current-truth reconciliation for v0.9.3 is
+> worklog/FOOTPRINT-DELTA.md (the per-module sheet against the re-measured
+> reference census); this sheet remains the 0.6-era audit trail below.
 > this sheet froze at the **v0.6.0-rc1 driver era** (RDA kernel driver,
 > inner Tauri setup, `driver/` tree — all retired in 0.7.0). It does NOT
 > describe the v0.8.x/v0.9.x product. In particular its elevation claims

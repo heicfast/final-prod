@@ -8,6 +8,11 @@ per artifact, whether that difference is (a) legitimate consolidation,
 `docs/REFERENCE-MODULES.md` (the reference: 1,470 files / ~670 MiB /
 ~114 modules, every count corpus-cited).
 
+> **SUPERSEDED for the reconciliation by worklog/FOOTPRINT-DELTA.md**
+> (2026-11-17, the smart-scan session's per-module sheet against the
+> re-measured reference census). This sheet stays as the 0.6/0.7-era audit
+> trail; its per-artifact categorization fed the new sheet.
+
 > **Status correction (2026-11-05, consolidation session).** The kernel
 > driver is REMOVED from our product (commit 318b9655) — our footprint is
 > now the flat 8-file install dir + ProgramData, with no service, no
