@@ -114,19 +114,27 @@ repairable plan exists, before any engine read). The bridge
 job's exact marshaling shape (commands/imaging.rs):
 
 1. the engine's own cumulative-bytes callback (`cr_ui_recovery_progress_fn`
-   — `cr_ui_image_create` takes the same form) `try_send`s into the job
+   — `cr_ui_image_create_ex` takes the same form; its totals are
+   RANGE-relative when a sector range is given) `try_send`s into the job
    entry's bounded 64-sample channel;
 2. one emitter thread per job drains the channel (freshest wins), keeps
    the live cell current (EMA throughput, clamped-monotonic fraction,
    ETA), and emits `image-progress:<imageId>`;
-3. the worker thread (the synchronous `cr_ui_image_create` call) latches
+3. the worker thread (the synchronous `cr_ui_image_create_ex` call —
+   D-IMG-1/D-IMG-3, the installer-integration session) latches
    the terminal state FIRST, then emits the terminal progress +
    `image-finished:<imageId>` itself — the single-writer rule; the
    emitter stops composing once the `finished` flag is set;
-4. NO cancel event exists: the ABI exports no cancel (the win layer's
-   CancelToken is not ABI-visible) — `cancelSupported` is always false on
-   the state surface, the documented divergence from the reference's
-   stop-confirm dialog.
+4. CANCEL IS REAL (D-IMG-1 closed): `image_create_cancel` sets the entry's
+   caller-owned volatile flag from any thread; the engine producer's loop
+   head refuses within one 64 KiB chunk and returns ERR_CANCELLED, the
+   worker latches `"cancelled"`, and `<path>.partial` is KEPT (the S-040
+   disposition — the reference's "You need to re-create the disk image if
+   you stop it" truth, strings:11672-11673). There is NO separate
+   cancel-ack event — the terminal `image-finished:<imageId>` payload
+   (status `"cancelled"` + partialKept true) IS the cancel acknowledgment;
+   `cancelRequested` on `image_create_state` reports the flag's live state
+   between the request and the terminal event.
 
 `partialKept` on the terminal event (and on `image_create_state`) is a
 filesystem truth probe — `<path>.partial` exists after a failed/cancelled

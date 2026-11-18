@@ -3471,6 +3471,45 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   command-surface.json row + event-mapping note; the TS connector +
   UI stop-confirm/More-Option fields stay W9's recorded scope.
 
+### T11/W4-B — the bridge half: cancel is real, the range is real, the wiring recorded
+
+- commands/imaging.rs: ImageEntry gains the sector range (first_sector/
+  sector_count) + the Arc<AtomicU32> cancel flag; the worker now rides
+  cr_ui_image_create_ex for EVERY image (whole-disk included — 0/0 is
+  byte-identical legacy output, the flag is LIVE for all images);
+  image_create_cancel is the new command (typed image-not-found for
+  unknown ids; an honest no-op for terminal jobs; the flag write is
+  from-any-thread); image_create_state flips to cancelSupported: true +
+  reports cancelRequested; the space gate sizes to the RANGE's bytes when
+  a range is given (an out-of-bounds pair has no gate truth — the
+  engine's own ERR_BAD_PARAMETER refusal owns validation).
+- lib.rs: image_create_cancel registered; the "NO cancel" comment
+  replaced with the closure truth. contracts/command-surface.json: the
+  start row's args/abiRefs/notes trued (firstSector?/sectorCount?,
+  cr_ui_image_create_ex, the ranged space gate), the state row's note
+  (cancelSupported true), + the image_create_cancel row (55 commands
+  now; serves: [] honestly — the connector method imaging.cancelImageCreation
+  + the stop-confirm dialog land in the W9 UI wave; the bridge + engine
+  halves are the shipped parts). contracts/event-mapping.md: the imaging
+  section's cancel truth (no separate cancel-ack event — the terminal
+  image-finished payload IS the acknowledgment; partialKept stays the
+  filesystem probe).
+- The it-gate gains image_create_ex_range_and_cancel: a bounded 4 MiB
+  sector range on the REAL seeded disk (exact length + the .sha256
+  sidecar shape), the pre-cancelled flag (ERR_CANCELLED + the truthful
+  .partial + no committed image), and the out-of-range refusal
+  (ERR_BAD_PARAMETER) — real-Windows evidence for both halves.
+- Validation (L-class, local): contracts validate.mjs GREEN (55
+  commands, both cross-checks — the new row passes the serves-empty
+  rule); json.tool OK. Rust + the it-gate compile/run on the runners
+  (bridge-integration) on push; TS untouched this wave (no pnpm surface
+  changed).
+- Honest scope: the CONNECTOR surface (contract.ts
+  ImagingDomain.cancelImageCreation + firstSector/sectorCount on
+  startImageCreation + mock + the create-image-dialog stop-confirm and
+  More-Option fields) stays the W9 wave's recorded scope — the bridge
+  command, engine flag, and CLI flags are the shipped halves today.
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)

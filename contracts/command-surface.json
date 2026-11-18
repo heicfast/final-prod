@@ -648,7 +648,7 @@
       "name": "image_create_start",
       "threading": "async-job",
       "abiRefs": [
-        "cr_ui_image_create",
+        "cr_ui_image_create_ex",
         "cr_ui_enumerate_disks",
         "cr_ui_enumerate_volumes"
       ],
@@ -657,10 +657,12 @@
       ],
       "args": [
         "deviceId",
-        "path"
+        "path",
+        "firstSector?",
+        "sectorCount?"
       ],
       "returns": "{imageId}",
-      "notes": "The Create Image flow (S-040/R-93; corpus UIUX/07:36-37, the DiskBackupDialog chain UIUX/03:125). The connector speaks device ids (disk-N -> the physical disk number). Bridge pre-gates the engine cannot express: same-disk destination refusal (destination-overlap) and the byte-for-byte free-space gate (out-of-space, disk total + 64 MiB sidecar/headroom). Progress on image-progress:<id> (the recovery progress sink reused verbatim - image_create takes the same cumulative-bytes callback); terminal image-finished:<id> from the worker thread (the single-writer rule). NO cancel: the ABI exports none (cr_ui_image_create runs its win-layer CancelToken as nullptr) - the reference's stop-confirm dialog is a PARITY-DELTAS-registered divergence, never a fake stop. On failure the engine keeps <path>.partial (reported via the state probe, never parsed from message text)."
+      "notes": "The Create Image flow (S-040/R-93 + D-IMG-1/D-IMG-3, the installer-integration session; corpus UIUX/07:36-37, the DiskBackupDialog chain UIUX/03:125, the More-Option from/to sector pair strings:11640-11760). The connector speaks device ids (disk-N -> the physical disk number). Bridge pre-gates the engine cannot express: same-disk destination refusal (destination-overlap) and the free-space gate sized to the RANGE's bytes when firstSector/sectorCount are given (out-of-space, range bytes + 64 MiB sidecar/headroom). The worker rides cr_ui_image_create_ex: 0/0 range = the whole disk (byte-identical legacy output), the entry's cancel flag is LIVE (D-IMG-1). Progress on image-progress:<id> (the recovery progress sink reuse)."
     },
     {
       "name": "image_create_state",
@@ -673,7 +675,18 @@
         "imageId"
       ],
       "returns": "ImageJobState (type-maps 12)",
-      "notes": "The registry query: live counters + terminal latch + the filesystem-truth partialKept probe (<path>.partial exists). cancelSupported is always false - the truthful ABI contract the UI renders as a documented runs-to-completion posture."
+      "notes": "The registry query: live counters + terminal latch + the filesystem-truth partialKept probe (<path>.partial exists). cancelSupported is TRUE (D-IMG-1 closed: cr_ui_image_create_ex takes the caller-owned flag; the producer refuses within one 64 KiB chunk) and cancelRequested reports the flag's live state."
+    },
+    {
+      "name": "image_create_cancel",
+      "threading": "spawn-join",
+      "abiRefs": [],
+      "serves": [],
+      "args": [
+        "imageId"
+      ],
+      "returns": "{imageId, status, cancelRequested}",
+      "notes": "D-IMG-1 (the installer-integration session): the stop surface - sets the job's caller-owned cancel flag from any thread; the engine producer's loop head refuses within one 64 KiB chunk; the worker latches 'cancelled' and <path>.partial is kept (the og's 'You need to re-create the disk image if you stop it' truth, strings:11672-11673). A job already terminal is an honest no-op; an unknown id is the typed image-not-found refusal. serves: EMPTY until the W9 imaging UI wave wires the connector method (imaging.cancelImageCreation) + the stop-confirm dialog - the bridge command + the engine flag are the shipped halves."
     },
     {
       "name": "scan_telemetry",

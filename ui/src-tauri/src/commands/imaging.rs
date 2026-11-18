@@ -1,28 +1,34 @@
 //! commands/imaging.rs — the Create Image flow (image_create_start /
-//! image_create_state; contracts/command-surface.json; type-maps §11).
+//! image_create_state / image_create_cancel; contracts/command-surface.json;
+//! type-maps §11).
 //!
 //! Corpus lineage (the reference's first-class home-page flow): "Create
 //! Image" / "Select a drive or a partition to create a backup disk image"
 //! (DRWUI strings_ascii:14534-14535, the DiskBackupDialog chain UIUX/03:
 //! :125); byte-for-byte copy, elapsed/remaining progress, the space gates
-//! ("Insuffcient disk space / Need additional %1", strings:11645-11731).
-//! Engine surface: cr_ui_image_create (S-040/R-93) — flat raw image of
-//! physical disk N, streamed to `<path>.crimg-tmp`, atomically renamed on
-//! completion + a `<path>.sha256` sidecar; on failure the partial is KEPT
-//! as `<path>.partial` (reported, never passed off as complete).
+//! ("Insuffcient disk space / Need additional %1", strings:11645-11731),
+//! the optional sector range (DiskBackupSaveDlg's "More Option"
+//! from/to pair, strings:11640-11760), and the stop-confirm truth ("You
+//! need to re-create the disk image if you stop it", strings:11672-11673).
+//! Engine surface: cr_ui_image_create_ex (S-040/R-93 + D-IMG-1/D-IMG-3, the
+//! installer-integration session) — flat raw image of physical disk N's
+//! sector range, streamed to `<path>.crimg-tmp`, atomically renamed on
+//! completion + a `<path>.sha256` sidecar; on cancel or failure the
+//! partial is KEPT as `<path>.partial` (reported, never passed off as
+//! complete).
 //!
 //! Truth rules this module enforces:
-//! - NO CANCEL: the ABI exports none (cr_ui_image_create runs its win-layer
-//!   CancelToken as nullptr — engine/include/cr/cr_ui.h:1594-1612). The
-//!   reference's stop-confirm dialog ("You need to re-create the disk
-//!   image if you stop it") is a PARITY-DELTAS-registered divergence, not
-//!   a fake stop button the bridge would pretend to honor.
+//! - CANCEL IS REAL (D-IMG-1 closed): the worker hands the engine the
+//!   entry's caller-owned cancel flag (cr_ui_image_create_ex's
+//!   volatile-flag idiom); image_create_cancel sets it from any thread
+//!   and the producer's loop head refuses within one 64 KiB chunk. The
+//!   terminal state latches "cancelled" and `<path>.partial` is probed
+//!   on the filesystem — never guessed from message text.
 //! - The destination pre-gates are BRIDGE-side honesty the engine cannot
 //!   express (it writes the file, it does not inspect the volume):
-//!   same-disk destination refusal (imaging disk N onto a volume of disk
-//!   N is a guaranteed disk-full mid-read — refused up front with the
-//!   typed reason) and the free-space gate (byte-for-byte needs the
-//!   disk's total bytes + the sidecar + filesystem overhead headroom).
+//!   same-disk destination refusal and the free-space gate sized to the
+//!   RANGE's bytes when a sector range is given (the og's More-Option
+//!   range image needs only the range's space, not the whole disk's).
 //! - `partialKept` in the terminal state is a FILESYSTEM truth probe
 //!   (`<path>.partial` exists), never a guess from the engine's message
 //!   text.
@@ -89,6 +95,15 @@ pub struct ImageEntry {
     pub disk: u32,
     pub path: String,
     pub started_at: String,
+    /// D-IMG-3: the requested sector range (0/0 = the whole disk — the
+    /// worker passes both straight to cr_ui_image_create_ex).
+    pub first_sector: u64,
+    pub sector_count: u64,
+    /// D-IMG-1: the CALLER-OWNED cancel flag handed to the engine (the
+    /// volatile-flag idiom — Arc so the worker reads it alive whatever
+    /// happens to the registry; image_create_cancel stores 1 from any
+    /// thread and the producer's loop head refuses within one chunk).
+    pub cancel: Arc<AtomicU32>,
     pub live: Arc<Mutex<ImageLive>>,
     /// Terminal latch: (status, finished-at ISO), written by the worker
     /// thread exactly once.
@@ -104,8 +119,9 @@ impl Drop for ImageEntry {
         if !p.is_null() {
             unsafe { drop(Box::from_raw(p)) };
         }
-        // No engine handle to close: cr_ui_image_create is a one-shot call
-        // with no handle — the worker's return IS the lifecycle end.
+        // No engine handle to close: cr_ui_image_create_ex is a one-shot
+        // call with no handle — the worker's return IS the lifecycle end
+        // (the cancel flag is a shared Arc cell, not an owned handle).
     }
 }
 
@@ -228,10 +244,12 @@ pub async fn image_create_start(
     imaging: tauri::State<'_, Arc<ImagingState>>,
     device_id: String,
     path: String,
+    first_sector: Option<u64>,
+    sector_count: Option<u64>,
 ) -> Result<Value, BridgeError> {
     let imaging = imaging.inner().clone();
     let (entry, image_id, rx) = tauri::async_runtime::spawn_blocking(move || {
-        image_create_start_blocking(&imaging, &device_id, path)
+        image_create_start_blocking(&imaging, &device_id, path, first_sector, sector_count)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
@@ -255,6 +273,8 @@ fn image_create_start_blocking(
     imaging: &Arc<ImagingState>,
     device_id: &str,
     path: String,
+    first_sector: Option<u64>,
+    sector_count: Option<u64>,
 ) -> BridgeResult<ImageStart> {
     let trimmed = path.trim().to_string();
     if trimmed.is_empty() {
@@ -283,7 +303,31 @@ fn image_create_start_blocking(
             format!("disk {disk} is not present (removed or renumbered)"),
         )
     })?;
-    match destination_gate(&trimmed, disk, d.size_bytes) {
+    // D-IMG-3: the requested sector range (0/0 or None/None = the whole
+    // disk). The ENGINE owns the bounds validation (cr_ui_image_create_ex
+    // refuses an out-of-range pair with ERR_BAD_PARAMETER + its own
+    // message); the bridge computes the range's BYTE truth for the space
+    // gate + the live progress denominator — an out-of-bounds pair has no
+    // gate truth to compute (imaged_bytes 0) and gets the engine's refusal.
+    let first = first_sector.unwrap_or(0);
+    let count = sector_count.unwrap_or(0);
+    let imaged_bytes = {
+        let ls = u64::from(d.logical_sector);
+        if ls > 0 && first.saturating_mul(ls) < d.size_bytes {
+            let total_sectors = d.size_bytes / ls;
+            let n = if count == 0 {
+                total_sectors - first
+            } else {
+                count.min(total_sectors - first)
+            };
+            n.saturating_mul(ls)
+        } else if ls > 0 {
+            0 // out-of-bounds range: the engine refuses it; no gate truth
+        } else {
+            d.size_bytes
+        }
+    };
+    match destination_gate(&trimmed, disk, imaged_bytes) {
         DestGate::Ok => {}
         DestGate::SourceOverlap => {
             return Err(BridgeError::bridge(
@@ -320,7 +364,10 @@ fn image_create_start_blocking(
         disk,
         path: trimmed.clone(),
         started_at: now_iso(),
-        live: Arc::new(Mutex::new(ImageLive::new(d.size_bytes))),
+        first_sector: first,
+        sector_count: count,
+        cancel: Arc::new(AtomicU32::new(0)),
+        live: Arc::new(Mutex::new(ImageLive::new(imaged_bytes))),
         finished: Mutex::new(None),
         sink_user: SendPtr::new(sink_user),
     });
@@ -330,9 +377,14 @@ fn image_create_start_blocking(
         .map_err(|_| BridgeError::bridge(code::UNKNOWN, "images lock"))?
         .insert(image_id.clone(), entry.clone());
     crate::bridge::logging::info(&format!(
-        "image job {image_id}: disk {disk} -> {} ({:.1} GiB)",
+        "image job {image_id}: disk {disk} -> {} ({:.1} GiB{}",
         trimmed,
-        d.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+        imaged_bytes as f64 / (1024.0 * 1024.0 * 1024.0),
+        if first != 0 || count != 0 {
+            format!(", sectors [{first}, {})", if count == 0 { "end".to_string() } else { (first + count).to_string() })
+        } else {
+            String::new()
+        }
     ));
     Ok((entry, image_id, rx))
 }
@@ -428,10 +480,18 @@ fn compose_image_progress(image_id: &str, live: &ImageLive) -> Value {
 fn spawn_image_worker(app: tauri::AppHandle, entry: Arc<ImageEntry>, finished: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         let path = crate::bridge::util::cstr(&entry.path);
+        // D-IMG-1/D-IMG-3: the ranged + cancellable twin — 0/0 is the whole
+        // disk (byte-identical legacy output) and the cancel flag is LIVE
+        // for every image now (the stop-confirm truth: cancel keeps the
+        // partial, the job reports "cancelled", the UI may say plainly
+        // that a stopped image must be re-created).
         let rc = unsafe {
-            abi::cr_ui_image_create(
+            abi::cr_ui_image_create_ex(
                 entry.disk,
                 path.as_ptr(),
+                entry.first_sector,
+                entry.sector_count,
+                entry.cancel.as_ptr(),
                 Some(recovery_progress_sink),
                 entry.sink_user.get() as *mut std::ffi::c_void,
             )
@@ -522,11 +582,48 @@ pub async fn image_create_state(
             "etaSeconds": l.eta_seconds,
             "startedAt": entry.started_at,
             "finishedAt": finished_at,
-            // Truthful: no cancel exists at the ABI (the design sheet's
-            // recorded divergence) — the UI renders it as a documented
-            // "runs to completion" contract, never a dead stop button.
-            "cancelSupported": false,
+            // D-IMG-1 (closed): cancel IS supported — the entry's flag goes
+            // straight into cr_ui_image_create_ex and the producer's loop
+            // head refuses within one 64 KiB chunk; the UI renders the stop
+            // affordance with the reference's re-create truth.
+            "cancelSupported": true,
+            "cancelRequested": entry.cancel.load(Ordering::Acquire) != 0,
             "partialKept": partial_kept,
+        }))
+    })
+    .await
+    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
+}
+
+/// D-IMG-1 (the installer-integration session): the stop surface. Sets the
+/// job's caller-owned cancel flag from ANY thread; the engine producer's
+/// loop head refuses within one 64 KiB chunk, the worker latches
+/// "cancelled", and `<path>.partial` is kept (the S-040 disposition — the
+/// reference's "You need to re-create the disk image if you stop it"
+/// truth). Truthful answers: an unknown id is the typed
+/// image-not-found refusal; a job ALREADY terminal is an honest no-op
+/// (the flag write is harmless, the reported status is the terminal
+/// one, cancelRequested reflects the flag).
+#[tauri::command]
+pub async fn image_create_cancel(
+    imaging: tauri::State<'_, Arc<ImagingState>>,
+    image_id: String,
+) -> Result<Value, BridgeError> {
+    let imaging = imaging.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let entry = imaging.entry_arc(&image_id)?;
+        let status = entry
+            .finished
+            .lock()
+            .map_err(|_| BridgeError::bridge(code::UNKNOWN, "image finished lock"))?
+            .as_ref()
+            .map(|(s, _)| *s)
+            .unwrap_or("running");
+        entry.cancel.store(1, Ordering::Release);
+        Ok(json!({
+            "imageId": image_id,
+            "status": status,
+            "cancelRequested": entry.cancel.load(Ordering::Acquire) != 0,
         }))
     })
     .await

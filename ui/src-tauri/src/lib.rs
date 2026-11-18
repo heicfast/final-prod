@@ -94,11 +94,13 @@ pub fn run() {
             commands::system::system_pick_directory,
             commands::system::system_list_mounts,
             commands::system::system_open_path,
-            // imaging (lane C — the Create Image flow): start + state; NO
-            // cancel at the ABI (cr_ui_image_create runs cancel=nullptr —
-            // the documented divergence, PARITY-DELTAS-registered)
+            // imaging (lane C — the Create Image flow): start + state +
+            // cancel (D-IMG-1 closed by the installer-integration session:
+            // cr_ui_image_create_ex takes the caller-owned cancel flag and
+            // the optional sector range — the stop surface is real now)
             commands::imaging::image_create_start,
             commands::imaging::image_create_state,
+            commands::imaging::image_create_cancel,
             // diagnostics (lane C — the observability surface)
             commands::diagnostics::scan_telemetry,
             commands::diagnostics::scan_assistant_stats,

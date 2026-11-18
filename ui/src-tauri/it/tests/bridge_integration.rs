@@ -742,3 +742,122 @@ fn preview_surfaces() {
     unsafe { abi::cr_ui_device_close(dev) };
     let _ = std::fs::remove_file(&path);
 }
+
+// ---------------------------------------------------------------------------
+// W4 (the installer-integration session): the ranged + cancellable image
+// producer on the REAL seeded disk — cr_ui_image_create_ex end to end.
+// A bounded 4 MiB sector range exercises D-IMG-3 (content length + the
+// .sha256 sidecar of the RANGE) and the caller-owned flag exercises
+// D-IMG-1 (ERR_CANCELLED + the truthful .partial). Byte-level content
+// equality is pinned by the engine's portable ImageCreateRange.* suite;
+// this gate pins the real-disk wiring (elevation, geometry, the file
+// disposition, the sidecar).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn image_create_ex_range_and_cancel() {
+    let disk: u32 = std::env::var("CR_IT_SCAN_DISK")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    assert!(
+        disk != 0,
+        "CR_IT_SCAN_DISK not set — this gate runs under the bridge-integration workflow"
+    );
+
+    // geometry first: the range is sized off the REAL disk's sector count
+    let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
+    let rc = unsafe { abi::cr_ui_open_disk(disk, &mut dev) };
+    assert_eq!(rc, abi::CR_UI_OK, "open_disk 0x{rc:08X}");
+    let mut g: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
+    let rc = unsafe { abi::cr_ui_device_geometry(dev, &mut g) };
+    assert_eq!(rc, abi::CR_UI_OK, "device_geometry 0x{rc:08X}");
+    assert!(g.logical_sector >= 512, "logical sector {g.logical_sector} too small");
+    assert!(g.sector_count > 4096, "seed disk too small for the range test");
+
+    // (a) D-IMG-3: a 4 MiB range from sector 1024 — file length == the
+    // range bytes exactly, and the .sha256 sidecar of the RANGE exists
+    // beside the committed image
+    let first: u64 = 1024;
+    let count: u64 = (4 * 1024 * 1024) / u64::from(g.logical_sector);
+    let expect_len = count * u64::from(g.logical_sector);
+    let out = std::env::temp_dir().join(format!("cr-it-image-ex-{disk}.img"));
+    let cpath = std::ffi::CString::new(out.to_string_lossy().as_bytes()).unwrap();
+    let rc = unsafe {
+        abi::cr_ui_image_create_ex(
+            disk,
+            cpath.as_ptr(),
+            first,
+            count,
+            std::ptr::null_mut(),
+            None,
+            std::ptr::null_mut(),
+        )
+    };
+    assert_eq!(rc, abi::CR_UI_OK, "image_create_ex(range) 0x{rc:08X}");
+    let len = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
+    assert_eq!(len, expect_len, "ranged image length {len} != {expect_len}");
+    let sidecar = std::fs::read_to_string(out.with_extension("sha256")).unwrap_or_default();
+    assert!(
+        sidecar.len() == 67 + out.file_name().unwrap().to_string_lossy().len()
+            && sidecar.starts_with(|c: char| c.is_ascii_hexdigit()),
+        "sidecar shape wrong: {sidecar:?}"
+    );
+
+    // (b) D-IMG-1: the caller-owned flag — set BEFORE the call, the first
+    // loop head refuses, ERR_CANCELLED + the truthful .partial
+    let out2 = std::env::temp_dir().join(format!("cr-it-image-cancel-{disk}.img"));
+    let cpath2 = std::ffi::CString::new(out2.to_string_lossy().as_bytes()).unwrap();
+    let flag: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    let rc = unsafe {
+        abi::cr_ui_image_create_ex(
+            disk,
+            cpath2.as_ptr(),
+            first,
+            count,
+            flag.as_ptr(),
+            None,
+            std::ptr::null_mut(),
+        )
+    };
+    assert_eq!(
+        rc, abi::CR_UI_ERR_CANCELLED,
+        "pre-cancelled image_create_ex 0x{rc:08X}"
+    );
+    assert!(
+        out2.with_extension("partial").exists(),
+        "the cancelled create must keep the .partial"
+    );
+    assert!(!out2.exists(), "a cancelled create must NOT commit the image");
+
+    // (c) the out-of-range refusal: beyond the disk's end is ERR_BAD_
+    // PARAMETER — never a silent truncation (the og's Invalid sector)
+    let rc = unsafe {
+        abi::cr_ui_image_create_ex(
+            disk,
+            cpath.as_ptr(),
+            g.sector_count,
+            8,
+            std::ptr::null_mut(),
+            None,
+            std::ptr::null_mut(),
+        )
+    };
+    assert_eq!(
+        rc, abi::CR_UI_ERR_BAD_PARAMETER,
+        "out-of-range create_ex 0x{rc:08X}"
+    );
+
+    unsafe { abi::cr_ui_device_close(dev) };
+    let _ = std::fs::remove_file(&out);
+    let _ = std::fs::remove_file(out.with_extension("sha256"));
+    let _ = std::fs::remove_file(out2.with_extension("partial"));
+    write_evidence(
+        "image-create-ex.txt",
+        format!(
+            "range image: sectors [{first}, {}) -> {expect_len} bytes + sidecar; pre-cancel: ERR_CANCELLED + .partial; out-of-range: ERR_BAD_PARAMETER (disk {disk}, sector_count {})\n",
+            first + count,
+            g.sector_count
+        ),
+    );
+}
