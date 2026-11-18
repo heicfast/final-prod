@@ -69,13 +69,12 @@ jobs:
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           $kit = "build\out\stage-$version\engine"
-          if (-not (Test-Path "$kit\bin\cr_ui.dll")) { Write-Host '::error::kit missing cr_ui.dll'; exit 1 }
+          if (-not (Test-Path "$kit\cr_ui.dll")) { Write-Host '::error::kit missing cr_ui.dll'; exit 1 }
           cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
              engine\.github\scripts\api_harness.c /I engine\include `
-             /Fe:api_harness.exe /link "$kit\lib\cr_ui.lib"
+             /Fe:api_harness.exe /link "$kit\cr_ui.lib"
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          Copy-Item api_harness.exe -Destination $kit
-          Write-Host "harness staged in $kit"
+          Write-Host "harness built (staged into the bin bridge next step)"
 
       - name: Optional full ctest (the correctness gate before measuring)
         if: ${{ inputs.run_tests }}
@@ -107,6 +106,13 @@ jobs:
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          # Run-Benchmark.ps1's staged-release contract is the RELEASE-ZIP
+          # shape (<core>\bin\rrecov.exe + bin\userdata-defaults.json);
+          # build.ps1's engine kit is FLAT - bridge it into the bin\ layout.
+          $staged = 'D:\cr-bench\core'
+          New-Item -ItemType Directory -Force -Path "$staged\bin" | Out-Null
+          Copy-Item "$kit\*" -Destination "$staged\bin" -Force
+          Copy-Item api_harness.exe -Destination "$staged\bin" -Force
           $work = 'D:\cr-bench'
           $evidence = Join-Path $env:GITHUB_WORKSPACE 'benchmark-results'
           New-Item -ItemType Directory -Force -Path $work, $evidence | Out-Null
@@ -114,8 +120,8 @@ jobs:
           & engine\.github\scripts\Run-Benchmark.ps1 `
               -MatrixPath engine\.github\scenarios\benchmark-matrix.json `
               -RepoRoot engine `
-              -CoreStaged $kit `
-              -ApiHarness (Join-Path $kit 'api_harness.exe') `
+              -CoreStaged $staged `
+              -ApiHarness (Join-Path $staged 'bin\api_harness.exe') `
               -WorkRoot $work `
               -EvidenceRoot $evidence `
               -Profile '${{ inputs.profile }}' `
@@ -135,7 +141,7 @@ jobs:
           $alignOut = Join-Path $evidence 'alignbench.json'
           & engine\bench\ours\run-alignbench.ps1 `
               -Target '\\.\C:' `
-              -CrUiDll (Join-Path $kit 'bin\cr_ui.dll') `
+              -CrUiDll (Join-Path $kit 'cr_ui.dll') `
               -SpanMiB 512 `
               -OutJson $alignOut
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::the alignbench sweep failed'; exit 1 }
