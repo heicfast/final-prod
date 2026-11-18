@@ -3492,3 +3492,78 @@ context sheets are pushed.
   tag v0.9.4 -> release -> re-dispatch forensic-repro on v0.9.4 (the
   D-ENUM-01 census gate — every physical disk the OS exposes renders —
   becomes live again the moment the vdisks render).
+## 2026-11-18T07:25Z — T2 complete: the five Phase 0 context sheets pushed (no code touched yet)
+
+Agents A-E returned; every load-bearing citation spot-verified first-hand
+before this entry (ThreadPool resolve_threads cr_scan.cpp:58-68; the scan
+pipe's CachedReader::create(8 MiB, 256 KiB) at cr_scan.cpp:1387; ABI-CONTRACT
+§3 single-flight/caller-thread contract; the node-tree global mutex
+cr_node.h:653-657; the alignbench QD>1 overlapped ring
+run-alignbench.ps1:115-126 + :316; MFT read_record per-record 1 KiB reads
+cr_bootstrap.cpp:599-635; carve 1 MiB+4 KiB windows cr_carve.cpp:45-46).
+
+The five sheets (worklog/PRODUCT-STATE.md, REFERENCE-ARCHITECTURE.md,
+REFERENCE-RAW.md, PLATFORM-PERF.md, BASELINE.md — 2,040 lines, every claim
+file:line- or URL-cited):
+
+- PRODUCT-STATE (A): the read path is synchronous QD1 by construction —
+  no FILE_FLAG_OVERLAPPED/NO_BUFFERING at any open, GetOverlappedResult
+  blocks (cr_transport.cpp:70); ONE global mutex serializes every read
+  through the pipe, transport fill under the lock (cr_cached.cpp:31,:61);
+  scan-pipe cache 8 MiB/256 KiB/32 blocks reactive LRU, no prefetch
+  (D-72/N-045); scan runs on the caller's thread, remnant/lost/carve fan
+  out on ThreadPool hw-1 clamp 8; MFT walks per-record 1 KiB; result tree
+  one global mutex (cr_node.h:656); no live perf CI lane at HEAD (the
+  bench workflows were pruned by the CI rebuild — engine-ci is lint+build+
+  ctest only).
+- REFERENCE-ARCHITECTURE (B): the og layers CStorageDeviceWithCache (4 MiB
+  budget, 1000-run ctor default) + a DEDICATED prefetch thread with a
+  10-run look-ahead ring; NTFS healthy volumes ride memory-mapped views;
+  45 named threads in DRWUI; FAT quick scan per-worker threads.
+- REFERENCE-RAW (C): decisive — the og's CWindowsStorageDevice::Read is
+  SYNCHRONOUS (ReadFile with NULL OVERLAPPED, Device_decompiled.c:55964),
+  zero IOCP machinery corpus-wide, no FILE_FLAG_OVERLAPPED/NO_BUFFERING;
+  the og's latency hiding = 4 MiB device chunks (:56545) / 7 MiB volume
+  chunks (:56912) / 2 MiB MFT batches + the prefetch ring's 4 MiB runs
+  (0x400000/sectorSize, DRWUI:919088-919142) × 10-deep lookahead —
+  effective QD~10 read-ahead; SearchDataSource pins engine threads per
+  core (SetThreadAffinityMask, DRWUI:388833-388836).
+- PLATFORM-PERF (D, retry after context-deadline): Microsoft-documented
+  facts — FILE_FLAG_OVERLAPPED is REQUIRED for concurrent reads on one
+  handle (CreateFileW remarks); GetOverlappedResult(TRUE) is a blocking
+  wait; IOCP NumberOfConcurrentThreads=0 = one-per-processor; CreateThreadpoolIo
+  is Vista+ (Win7-safe); NO_BUFFERING needs sector-aligned buffers+offsets
+  and "should be physical sector-aligned"; no per-class QD optima are
+  Microsoft-documented (NCQ ceiling 32 SATA/HDD, NVMe 65,535², USB BOT
+  QD≈1, UAS 8+); the ~240 MiB/s runner cap is the documented Azure VM
+  storage signature (GitHub-hosted runners run on Azure VMs; Dv2-class
+  caps at defined QD).
+- BASELINE (E): all recorded numbers assembled with sources — direct-era
+  v0.7.0 already beats the driver baseline (deepcarve −30.7%, open −40.9%,
+  CPU/GiB −39.4%); THE WALL MATH: deepcarve effective 8.45 MiB/s vs device
+  rate 544 MiB/s — the walls are validation-CPU-bound ~64× under transport
+  provision; og legs on the runner: og 4/7 MiB chunk legs 197/196 MiB/s
+  vs our 256 KiB 241.64 MiB/s. NEW component microbenchmarks (this Linux
+  container, harness outside the repo): CachedReader miss-path overhead
+  +8.8-10.1% vs raw pread; THE MEASURED SERIALIZATION FACTOR of the
+  global mutex: 0.51× at N=2, 0.23× at N=4, 0.20× at N=8 threads (the
+  fan-out phases' workers all queue on one lock — the component-side
+  evidence PERF-LEVERS F1 was deferred for); LRU scan +85 ns/read at
+  32 blocks (negligible); per-miss 256 KiB resize ~4.6 µs.
+- Prior-session continuity pinned: PERF-LEVERS.md is the lever ledger —
+  F1 (mutex scope) / F2 (FILE_FLAG_OVERLAPPED) DEFERRED for lack of a
+  QD-discriminating surface; §3's honest frontier = the carve/validation
+  CPU pipeline (303.8 CPU-s/GiB), QD2-4 pipelining on physical NVMe, the
+  decrypt fixture, CancelSynchronousIo. This session opens exactly those,
+  with the serialization factor now measured at the component level.
+
+Convergence (feeds DIAGNOSIS.md next): the og is ALSO synchronous QD1 —
+its speed lives in 4-7 MiB chunks + the 10-run×4 MiB prefetch ring that
+keeps ~40 MiB of read-ahead in flight; ours has 1× 256 KiB in flight, one
+global lock over every fill, and walls that are CPU-bound in validation.
+The bottleneck hierarchy: (1) CPU-bound validation in carve/deep phases
+(64× headroom), (2) the global-mutex serialization of the fan-out phases
+(measured 0.2-0.5× aggregate scaling), (3) QD1-no-prefetch read path
+(latency-exposed on real NVMe, unvalidatable on the Azure cap), (4) per-
+miss/per-call buffer churn. DIAGNOSIS.md quantifies each layer before any
+code lands.
