@@ -117,6 +117,9 @@ describe('the tauri connector command surface (the manifest)', () => {
       extensions: null,
       origins: null,
       hideEmptyFiles: false,
+      hideSystemFiles: false,
+      hideTempFiles: false,
+      hideBrowserCache: false,
     };
     await conn.results.getResultTree('scan-1', null, 'path');
     expect(lastCall()).toEqual({

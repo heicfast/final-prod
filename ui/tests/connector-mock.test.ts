@@ -16,6 +16,9 @@ const BASE_FILTER: ResultsFilter = {
   extensions: null,
   origins: null,
   hideEmptyFiles: false,
+  hideSystemFiles: false,
+  hideTempFiles: false,
+  hideBrowserCache: false,
 };
 
 async function waitForScanCompletion(
@@ -879,5 +882,47 @@ describe('MockConnector — M04 image targets', () => {
     expect(a).toMatch(/\.(img|vhdx)$/i);
     expect(b).toMatch(/\.(img|vhdx)$/i);
     expect(a).not.toBe(b);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M15 — the three corpus filter toggles (system / temp / browser cache)
+// ---------------------------------------------------------------------------
+
+describe('MockConnector — M15 filter toggles', () => {
+  it('hideSystemFiles drops the system-class fixture records', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const target = (await c.devices.listDevices())[0]?.volumes[0];
+    if (!target) return;
+    const { scanId } = await c.scan.startScan({ targetId: target.id });
+    await waitForScanCompletion(c, scanId, 60_000);
+    const base = await c.results.countResults(scanId, BASE_FILTER);
+    const filtered = await c.results.countResults(scanId, {
+      ...BASE_FILTER,
+      hideSystemFiles: true,
+    });
+    expect(filtered).toBeLessThan(base);
+    expect(filtered).toBeGreaterThan(0);
+  });
+
+  it('hideTempFiles + hideBrowserCache drop the segment-class records', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const target = (await c.devices.listDevices())[0]?.volumes[0];
+    if (!target) return;
+    const { scanId } = await c.scan.startScan({ targetId: target.id });
+    await waitForScanCompletion(c, scanId, 60_000);
+    const base = await c.results.countResults(scanId, BASE_FILTER);
+    const noTemp = await c.results.countResults(scanId, {
+      ...BASE_FILTER,
+      hideTempFiles: true,
+    });
+    const noCache = await c.results.countResults(scanId, {
+      ...BASE_FILTER,
+      hideBrowserCache: true,
+    });
+    expect(noTemp).toBeLessThan(base); // Temp dirs exist in the fixture
+    expect(noCache).toBeLessThan(base); // Cache dirs exist in the fixture
   });
 });

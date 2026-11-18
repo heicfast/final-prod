@@ -61,6 +61,43 @@ export function FilterBar(): React.JSX.Element {
         {t('results.filterHideEmpty')}
       </label>
 
+      {/* M15 (W8): the three remaining corpus toggles (atlas §9). */}
+      <label
+        className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary"
+        htmlFor="filter-hide-system"
+      >
+        <Checkbox
+          id="filter-hide-system"
+          checked={f.hideSystemFiles}
+          onCheckedChange={(v) => f.setHideSystemFiles(v === true)}
+        />
+        {t('results.filterHideSystem')}
+      </label>
+
+      <label
+        className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary"
+        htmlFor="filter-hide-temp"
+      >
+        <Checkbox
+          id="filter-hide-temp"
+          checked={f.hideTempFiles}
+          onCheckedChange={(v) => f.setHideTempFiles(v === true)}
+        />
+        {t('results.filterHideTemp')}
+      </label>
+
+      <label
+        className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary"
+        htmlFor="filter-hide-cache"
+      >
+        <Checkbox
+          id="filter-hide-cache"
+          checked={f.hideBrowserCache}
+          onCheckedChange={(v) => f.setHideBrowserCache(v === true)}
+        />
+        {t('results.filterHideCache')}
+      </label>
+
       {f.hasActiveFilters() ? (
         <Button variant="ghost" size="sm" onClick={() => f.reset()} className="ml-auto">
           <FilterXIcon aria-hidden />

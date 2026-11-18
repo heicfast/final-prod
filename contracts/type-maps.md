@@ -103,6 +103,7 @@ aggregation).
 | `extensions` | `extensions[]` (lowercased WITH dot) + `extension_count` | |
 | `categories` | `category_mask`: graphics→1, video→2, audio→3, document→4, archive→5, other→6, email→7, bookmarks→8 (OR of bits) | **OQ-2 resolved from cr_ui.h:794** |
 | `sizeMinBytes`/`sizeMaxBytes` | `size_min`/`size_max` (0 = unbounded) | `hideEmptyFiles` → `size_min = max(size_min, 1)` |
+| `hideSystemFiles` / `hideTempFiles` / `hideBrowserCache` (M15, W8) | BRIDGE-SIDE predicates over NodeMeta (no engine field) | system = DOS FILE_ATTRIBUTE_SYSTEM (0x04; `NodeMeta.attributes` from `cr_ui_node_info.attributes`); temp = a '/'-path segment named temp/tmp (ASCII ci); browser cache = a segment named cache/cache2/code cache/gpu cache. The label set is corpus-cited (atlas §9); the predicate semantics are this product's — the og's `AdvanceFilterCondition` internals are corpus-undecoded (the recorded divergence) |
 | `dateFrom`/`dateTo` (ISO) | `modified_from`/`modified_to` (100ns-1601; 0 = unbounded) | |
 | `origins` | `origin_mask` + `deleted_only`: existing → structured,deleted==0; deleted → structured,deleted≠0; raw → carved; lost-path → lost; unsaved → virtual | |
 | `nodeId` + `treeMode` | pre-scan: path-prefix restriction via `path_prefix` where the node resolves to a path; on sessions the bridge resolves the node id to its subtree first | |

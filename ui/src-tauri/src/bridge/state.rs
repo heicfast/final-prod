@@ -196,6 +196,9 @@ pub struct NodeMeta {
     pub hash_valid: u32,
     /// 1 when the engine's twin/overlap rule flagged this node.
     pub overlap: u32,
+    /// DOS attributes verbatim from cr_ui_node_info (0x02 hidden, 0x04
+    /// system, 0x10 directory — the M15 predicates' axis).
+    pub attributes: u32,
     pub category: u8, // 0 dirs / bits 1..8 per cr_ui.h category_mask
     /// Subtree aggregates (files only; dirs accumulate in the reverse pass).
     pub file_count: u64,
@@ -741,6 +744,7 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
             name,
             path,
             is_dir,
+            attributes: info.attributes,
             size: info.logical_size,
             modified_ft: info.modified,
             created_ft: info.created,
@@ -790,6 +794,7 @@ fn placeholder_meta() -> NodeMeta {
         name: String::new(),
         path: String::new(),
         is_dir: false,
+        attributes: 0,
         size: 0,
         modified_ft: 0,
         created_ft: 0,

@@ -174,7 +174,7 @@
         "results.getResultTree"
       ],
       "returns": "TreePage",
-      "notes": "ONE filter implementation for live+session over the NodeMeta cache (G-7): path/type/raw modes; the lost-paths and raw synthetic groups."
+      "notes": "ONE filter implementation for live+session over the NodeMeta cache (G-7): path/type/raw modes; the lost-paths and raw synthetic groups. M15 (W8): the three corpus toggles (atlas §9) ride as bridge-side predicates over NodeMeta — system = DOS FILE_ATTRIBUTE_SYSTEM (0x04, the new NodeMeta.attributes axis from cr_ui_node_info.attributes), temp = a path segment named temp/tmp, browser cache = a segment named cache/cache2/code cache/gpu cache. The label set is corpus-cited; the predicate semantics are this product's (the og's AdvanceFilterCondition internals are corpus-undecoded — the documented divergence lives in type-maps §6). No ABI change."
     },
     {
       "name": "results_query",
@@ -191,9 +191,13 @@
         "scanId",
         "filter",
         "sort",
-        "page"
+        "page",
+        "hideSystemFiles?",
+        "hideTempFiles?",
+        "hideBrowserCache?"
       ],
-      "returns": "ResultsPage (nodes/total/totalBytes/offset/pageSize/elapsedMs)"
+      "returns": "ResultsPage (nodes/total/totalBytes/offset/pageSize/elapsedMs)",
+      "notes": "M15 (W8): the three corpus toggles (atlas §9) ride as bridge-side predicates over NodeMeta — system = DOS FILE_ATTRIBUTE_SYSTEM (0x04, the new NodeMeta.attributes axis from cr_ui_node_info.attributes), temp = a path segment named temp/tmp, browser cache = a segment named cache/cache2/code cache/gpu cache. The label set is corpus-cited; the predicate semantics are this product's (the og's AdvanceFilterCondition internals are corpus-undecoded — the documented divergence lives in type-maps §6). No ABI change."
     },
     {
       "name": "results_count",
@@ -202,7 +206,8 @@
       "serves": [
         "results.countResults"
       ],
-      "returns": "number (the same predicate, count_only)"
+      "returns": "number (the same predicate, count_only)",
+      "notes": "M15 (W8): the three corpus toggles (atlas §9) ride as bridge-side predicates over NodeMeta — system = DOS FILE_ATTRIBUTE_SYSTEM (0x04, the new NodeMeta.attributes axis from cr_ui_node_info.attributes), temp = a path segment named temp/tmp, browser cache = a segment named cache/cache2/code cache/gpu cache. The label set is corpus-cited; the predicate semantics are this product's (the og's AdvanceFilterCondition internals are corpus-undecoded — the documented divergence lives in type-maps §6). No ABI change."
     },
     {
       "name": "node_detail",

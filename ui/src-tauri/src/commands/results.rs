@@ -89,6 +89,12 @@ struct FilterIn {
     extensions: Vec<String>,
     origins: Vec<String>,
     hide_empty_files: bool,
+    /// M15 (W8): the three corpus toggles (atlas §9) — bridge-side
+    /// predicates over NodeMeta (DOS attributes + path segment classes;
+    /// no ABI change).
+    hide_system_files: bool,
+    hide_temp_files: bool,
+    hide_browser_cache: bool,
 }
 
 fn parse_filter(v: &Value) -> FilterIn {
@@ -133,6 +139,18 @@ fn parse_filter(v: &Value) -> FilterIn {
             .get("hideEmptyFiles")
             .and_then(|x| x.as_bool())
             .unwrap_or(false),
+        hide_system_files: v
+            .get("hideSystemFiles")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
+        hide_temp_files: v
+            .get("hideTempFiles")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
+        hide_browser_cache: v
+            .get("hideBrowserCache")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
     };
     if f.size_max == 0 {
         f.size_max = u64::MAX; // contract: null/0 = unbounded
@@ -155,6 +173,9 @@ struct Pred {
     date_to_ft: u64,
     extensions: Vec<String>,
     hide_empty_files: bool,
+    hide_system_files: bool,
+    hide_temp_files: bool,
+    hide_browser_cache: bool,
 }
 
 fn starts_with_ci(hay: &str, prefix: &str) -> bool {
@@ -176,6 +197,9 @@ fn resolve_pred(entry: &Arc<ScanEntry>, f: &FilterIn, metas: &[NodeMeta]) -> Bri
         date_to_ft: f.date_to.as_deref().map(iso_to_filetime).unwrap_or(0),
         extensions: f.extensions.clone(),
         hide_empty_files: f.hide_empty_files,
+        hide_system_files: f.hide_system_files,
+        hide_temp_files: f.hide_temp_files,
+        hide_browser_cache: f.hide_browser_cache,
     };
     if p.hide_empty_files && p.size_min < 1 {
         p.size_min = 1;
@@ -282,6 +306,16 @@ fn join_prefix(entry: &Arc<ScanEntry>, subtree: &str) -> Option<String> {
     }
 }
 
+/// M15: a '/'-joined path segment class test (ASCII case-insensitive —
+/// the paths are already lowercase from the snapshot builder).
+fn path_has_segment(path: &str, segments: &[&str]) -> bool {
+    path.split('/').any(|seg| {
+        segments
+            .iter()
+            .any(|want| seg.eq_ignore_ascii_case(want))
+    })
+}
+
 fn matches_pred(m: &NodeMeta, p: &Pred) -> bool {
     if m.is_dir {
         return false; // the list shows files only
@@ -313,6 +347,24 @@ fn matches_pred(m: &NodeMeta, p: &Pred) -> bool {
         if !p.extensions.contains(&ext) {
             return false;
         }
+    }
+    // M15 (W8): the three corpus toggles. The label set is corpus-cited
+    // (atlas §9); the predicates are this product's (the og's
+    // AdvanceFilterCondition internals are corpus-undecoded — the
+    // documented divergence lives in type-maps §6):
+    // - system: DOS FILE_ATTRIBUTE_SYSTEM (0x04)
+    // - temp: a path segment named temp/tmp (ASCII case-insensitive)
+    // - browser cache: a path segment named cache/cache2/code cache/gpu cache
+    if p.hide_system_files && (m.attributes & 0x04) != 0 {
+        return false;
+    }
+    if p.hide_temp_files && path_has_segment(&m.path, &["temp", "tmp"]) {
+        return false;
+    }
+    if p.hide_browser_cache
+        && path_has_segment(&m.path, &["cache", "cache2", "code cache", "gpu cache"])
+    {
+        return false;
     }
     if m.size < p.size_min || m.size > p.size_max {
         return false;
@@ -1010,6 +1062,7 @@ mod t14_validation {
                     name: name.clone(),
                     path: format!("users/public/docs/{name}"),
                     is_dir,
+                    attributes: if i % 31 == 0 { 0x04 } else { 0 },
                     size: if is_dir {
                         0
                     } else {

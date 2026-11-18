@@ -211,6 +211,7 @@ export const DIR_NAMES: readonly string[] = [
   'Logs',
   'Config',
   'Temp',
+  'Cache',
   'Shared',
   'Media',
   'Movies',

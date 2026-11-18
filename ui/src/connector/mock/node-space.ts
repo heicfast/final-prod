@@ -36,7 +36,33 @@ const EMPTY_FILTER: ResultsFilter = {
   extensions: null,
   origins: null,
   hideEmptyFiles: false,
+  hideSystemFiles: false,
+  hideTempFiles: false,
+  hideBrowserCache: false,
 };
+
+/** M15 (W8): the corpus toggles' predicate semantics — the SAME classes
+ * the bridge applies (documented in type-maps \u00a76; the og's
+ * AdvanceFilterCondition internals are corpus-undecoded, so the label set
+ * is corpus-cited and the predicates are this product's):
+ * - temp: a path segment named temp/tmp (ASCII case-insensitive)
+ * - browser cache: a path segment named cache/cache2/code cache/gpu cache
+ */
+const TEMP_SEGMENTS = new Set(['temp', 'tmp']);
+const CACHE_SEGMENTS = new Set(['cache', 'cache2', 'code cache', 'gpu cache']);
+
+/** The simulator's system-file fixture: the DOS-class system names plus
+ * a deterministic index-derived assignment (every 31st record) so the
+ * toggle always has visible effect — the mock's established
+ * index-derived fixture pattern (fOrigin/fCat's). */
+const SYSTEM_FILE_NAMES = new Set([
+  'desktop.ini',
+  'thumbs.db',
+  'ntuser.dat',
+  'pagefile.sys',
+  'hiberfil.sys',
+  'swapfile.sys',
+]);
 
 const ORIGINS: readonly ResultOrigin[] = [
   'existing',
@@ -386,6 +412,25 @@ export class NodeSpace {
     return ORIGINS[this.fOrigin[i]] ?? 'existing';
   }
 
+  /** M15: the simulator's FILE_ATTRIBUTE_SYSTEM fixture (the DOS-class
+   * names + every 31st record — deterministic, the established pattern). */
+  private isSystemFile(i: number): boolean {
+    return SYSTEM_FILE_NAMES.has(this.fileName(i).toLowerCase()) || i % 31 === 0;
+  }
+
+  /** M15: a path-segment class test over the record's directory chain
+   * (the same segment sets the bridge applies). */
+  private hasPathSegment(i: number, segments: Set<string>): boolean {
+    let cur: DirectoryRecord | undefined = this.dirs[this.fDir[i]];
+    let guard = 0;
+    while (cur && cur.parentId !== null && guard < 32) {
+      if (segments.has(cur.name.toLowerCase())) return true;
+      cur = this.dirIndexById.get(cur.parentId);
+      guard++;
+    }
+    return false;
+  }
+
   categoryOf(i: number): FileCategoryId {
     return CATEGORY_IDS[this.fCat[i]] ?? 'other';
   }
@@ -512,6 +557,10 @@ export class NodeSpace {
     )
       return false;
     if (filter.hideEmptyFiles && (this.fSize[i] ?? 0) === 0) return false;
+    // M15 (W8): the three corpus toggles — system/temp/browser-cache.
+    if (filter.hideSystemFiles && this.isSystemFile(i)) return false;
+    if (filter.hideTempFiles && this.hasPathSegment(i, TEMP_SEGMENTS)) return false;
+    if (filter.hideBrowserCache && this.hasPathSegment(i, CACHE_SEGMENTS)) return false;
     if (filter.sizeMinBytes !== null && (this.fSize[i] ?? 0) < filter.sizeMinBytes)
       return false;
     if (filter.sizeMaxBytes !== null && (this.fSize[i] ?? 0) > filter.sizeMaxBytes)

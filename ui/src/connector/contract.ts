@@ -757,6 +757,17 @@ export interface ResultsFilter {
   readonly origins: readonly ResultOrigin[] | null;
   /** True = drop zero-byte files ("Hide 0 KB files" toggle). */
   readonly hideEmptyFiles: boolean;
+  /** M15 (W8): "Hide System Files" — drop DOS FILE_ATTRIBUTE_SYSTEM
+   * (0x04) files. The label is the corpus toggle set (atlas §9); the
+   * predicate semantics are this product's (documented in type-maps —
+   * the og's AdvanceFilterCondition internals are corpus-undecoded). */
+  readonly hideSystemFiles: boolean;
+  /** M15: "Hide Temp Files" — drop files under a temp folder (a path
+   * segment named temp/tmp, ASCII case-insensitive). */
+  readonly hideTempFiles: boolean;
+  /** M15: "Hide Browser Cache" — drop files under browser cache folders
+   * (a path segment named cache/cache2/code cache/gpu cache). */
+  readonly hideBrowserCache: boolean;
 }
 
 export interface ResultsPage {

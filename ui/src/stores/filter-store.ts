@@ -29,6 +29,11 @@ export interface ResultsFilterUi {
   existingOnly: boolean;
   /** Corpus filter toggle: "Hide 0KB Files" (atlas §9). */
   hideEmptyFiles: boolean;
+  /** M15 (W8): the three remaining corpus toggles (atlas §9 — the label
+   * set is corpus-cited; the predicate semantics are this product's). */
+  hideSystemFiles: boolean;
+  hideTempFiles: boolean;
+  hideBrowserCache: boolean;
 }
 
 interface ResultsUiState extends ResultsFilterUi {
@@ -44,6 +49,9 @@ interface ResultsUiState extends ResultsFilterUi {
   commitExtensions: () => void;
   setExistingOnly: (v: boolean) => void;
   setHideEmptyFiles: (v: boolean) => void;
+  setHideSystemFiles: (v: boolean) => void;
+  setHideTempFiles: (v: boolean) => void;
+  setHideBrowserCache: (v: boolean) => void;
   reset: () => void;
   hasActiveFilters: () => boolean;
 }
@@ -64,6 +72,9 @@ const INITIAL: ResultsFilterUi = {
   extensions: null,
   existingOnly: false,
   hideEmptyFiles: false,
+  hideSystemFiles: false,
+  hideTempFiles: false,
+  hideBrowserCache: false,
 };
 
 const DAY_MS = 86_400_000;
@@ -157,6 +168,9 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
   },
   setExistingOnly: (v) => set({ existingOnly: v }),
   setHideEmptyFiles: (v) => set({ hideEmptyFiles: v }),
+  setHideSystemFiles: (v) => set({ hideSystemFiles: v }),
+  setHideTempFiles: (v) => set({ hideTempFiles: v }),
+  setHideBrowserCache: (v) => set({ hideBrowserCache: v }),
   reset: () => set({ ...INITIAL }),
   hasActiveFilters: () => {
     const s = get();
@@ -167,7 +181,10 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
       s.sizePreset !== 'any' ||
       (s.extensions?.length ?? 0) > 0 ||
       s.existingOnly ||
-      s.hideEmptyFiles
+      s.hideEmptyFiles ||
+      s.hideSystemFiles ||
+      s.hideTempFiles ||
+      s.hideBrowserCache
     );
   },
 }));
@@ -212,5 +229,8 @@ export function resolveFilter(): ResultsFilter {
     extensions: f.extensions,
     origins: f.existingOnly ? ['existing'] : null,
     hideEmptyFiles: f.hideEmptyFiles,
+    hideSystemFiles: f.hideSystemFiles,
+    hideTempFiles: f.hideTempFiles,
+    hideBrowserCache: f.hideBrowserCache,
   };
 }

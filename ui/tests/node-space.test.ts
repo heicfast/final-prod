@@ -14,6 +14,9 @@ const BASE: ResultsFilter = {
   extensions: null,
   origins: null,
   hideEmptyFiles: false,
+  hideSystemFiles: false,
+  hideTempFiles: false,
+  hideBrowserCache: false,
 };
 
 describe('NodeSpace — procedural index', () => {
