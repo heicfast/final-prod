@@ -17,19 +17,34 @@
                        no certificate import anywhere - absence asserted)
                        LocalMachine Root + TrustedPublisher — the
                        user-mode-product row: any driver artifact FAILS)
+      2b. shortcuts  — the Start Menu / desktop link set (G-3: the OUTER
+                       script creates none; the inner Tauri template owns
+                       them) — captured + asserted to target the install
+                       dir; a CHECK-SHORTCUTS row names the contingency
+                       (the outer .nsi gains CreateShortCut if the inner
+                       creates none)
       3. session-preservation — a marker written into the REAL sessions dir
                        survives a reinstall-over-install (the update row)
       4. repair      — corrupt an installed engine DLL, rerun setup.exe /S,
                        verify the hash is restored (the NoRepair=1 rerun path,
                        documented in installer/README.md)
+      4b. version-bump — ONLY when -InstallerPathNext is provided (G-9):
+                       install vX -> install vX+1 over it — registry Version
+                       restamped, marker survives, a DECOY stale module (a
+                       documented kit-class name absent from the current
+                       kit) removed by the installer's update sweep; the
+                       final uninstall then proves uninstall-after-update
       5. uninstall   — HeicFastUninstall.exe /S: app dir + registry
-                       removed; ProgramData
+                       removed (BOTH the product key AND the seeded heicfast
+                       install-location key + its empty parent — G-6); the
+                       shortcut set is gone; ProgramData
                        sessions PRESERVED (the .nsi's silent-keeps-state
                        contract — only interactive consent can delete)
 
-    Honest notes: the update row exercises reinstall-over-same-version (the
-    NSIS overwrite semantics are version-independent; the version-bump update
-    mechanics get exercised for real at the RC -> final sequence).
+    Honest notes: the same-version reinstall row runs ALWAYS; the
+    version-bump update mechanics run for real whenever a second-version
+    installer is provided (-InstallerPathNext) — the RC -> final sequence
+    and manual two-build runs are the suppliers.
 
 .PARAMETER InstallerPath
     Path to the built RecoveryWizard-<version>-setup.exe.
@@ -44,7 +59,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$InstallerPath,
-    [Parameter(Mandatory)] [string]$OutDir
+    [Parameter(Mandatory)] [string]$OutDir,
+    # G-9 (INTEGRATION-MATRIX W2): a SECOND installer of a DIFFERENT version,
+    # when available - enables the version-bump update row (registry restamp,
+    # marker survival, decoy stale-module removal by the installer's update
+    # sweep). Absent = the row records 'skipped' (the same-version reinstall
+    # row remains the exercised truth).
+    [string]$InstallerPathNext
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,12 +127,12 @@ function Get-DirInventory {
 }
 
 function Invoke-Setup {
-    param([string]$LogName)
+    param([string]$LogName, [string]$Path = $InstallerPath)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $p = Start-Process -FilePath $InstallerPath -ArgumentList '/S', '/allusers' -Wait -PassThru
+    $p = Start-Process -FilePath $Path -ArgumentList '/S', '/allusers' -Wait -PassThru
     $sw.Stop()
     $transcript = @(
-        "installer: $InstallerPath"
+        "installer: $Path"
         "args: /S /allusers"
         "exitCode: $($p.ExitCode)"
         "durationMs: $($sw.ElapsedMilliseconds)"
@@ -275,6 +296,38 @@ if ($null -ne $installed.testDllsShipped) {
 }
 
 # ---------------------------------------------------------------------------
+# 2b. shortcut set (G-3, INTEGRATION-MATRIX W2): the OUTER script creates no
+# shortcuts (verified: no CreateShortCut in recoverywizard.nsi); the inner
+# Tauri template owns them. Probe + ASSERT the all-users Start Menu set
+# targets the install dir; RECORD the desktop set. A CHECK-SHORTCUTS row
+# names the contingency: if evidence shows the inner template creates none,
+# the outer .nsi gains the CreateShortCut (the designed fail-loudly surface
+# for that decision - the final guard throws on CHECK-* rows).
+$startMenuPrograms = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+$startMenuLinks = @(Get-ChildItem $startMenuPrograms -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -match 'HeicFast|Recovery' })
+$shortcutSh = New-Object -ComObject WScript.Shell
+$startMenuIntoInstall = @($startMenuLinks | Where-Object {
+    try { $shortcutSh.CreateShortcut($_.FullName).TargetPath -like "$InstallDir*" } catch { $false }
+})
+$desktopLinks = @(Get-ChildItem "$env:PUBLIC\Desktop" -Filter '*.lnk' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match 'HeicFast|Recovery' })
+Write-Evidence -Name '03b-shortcuts.json' -Content ([ordered]@{
+    startMenuLinks   = @($startMenuLinks | ForEach-Object { $_.FullName.Substring($startMenuPrograms.Length + 1) })
+    intoInstallDir   = @($startMenuIntoInstall | ForEach-Object { $_.Name })
+    desktopLinks     = @($desktopLinks | ForEach-Object { $_.Name })
+} | ConvertTo-Json -Depth 3)
+$shortcutState = if ($startMenuLinks.Count -ge 1 -and $startMenuIntoInstall.Count -ge 1) { 'ok' } else { 'CHECK-SHORTCUTS' }
+Add-Row -Phase 'shortcuts' -Result $shortcutState -Facts @{
+    startMenu      = $startMenuLinks.Count
+    intoInstallDir = $startMenuIntoInstall.Count
+    desktop        = $desktopLinks.Count
+}
+if ($shortcutState -ne 'ok') {
+    Write-Warning 'shortcut probe: no Start Menu link targets the install dir - if the inner template creates none, the outer .nsi gains CreateShortCut (G-3 contingency)'
+}
+
+# ---------------------------------------------------------------------------
 # 3. session preservation across reinstall (the update row)
 # ---------------------------------------------------------------------------
 New-Item -ItemType Directory -Force -Path $SessionsDir | Out-Null
@@ -319,6 +372,48 @@ Add-Row -Phase 'repair-over-corruption' -Result $(if ($repaired) { 'ok' } else {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. version-bump update (G-9, INTEGRATION-MATRIX W2) - only when a second
+# installer was provided: install vX -> install vX+1 over it. Asserts the
+# registry Version restamp, session-marker survival, and the update sweep's
+# stale-module removal (a DECOY planted under a documented kit-class name
+# the current kit does not carry). The final uninstall below then proves
+# uninstall-after-update clean. Absent second installer = 'skipped'
+# (recorded; the same-version reinstall row remains the always-on truth).
+$regVersionBeforeBump = (Get-RegSnapshot -Path $SwKey).Version
+$versionBump = 'skipped'
+$versionBumpFacts = @{ provided = [bool]$InstallerPathNext }
+if ($InstallerPathNext) {
+    $decoyName = 'liblz4d.dll'
+    if (Test-Path (Join-Path $InstallDir $decoyName)) {
+        throw "decoy name collision: $decoyName is in the CURRENT kit - pick another documented stale kit-class name"
+    }
+    Copy-Item $crUi -Destination (Join-Path $InstallDir $decoyName) -Force
+    $bump = Invoke-Setup -LogName '06b-version-bump-transcript.txt' -Path $InstallerPathNext
+    $decoyGone = -not (Test-Path (Join-Path $InstallDir $decoyName))
+    $regVersionAfterBump = (Get-RegSnapshot -Path $SwKey).Version
+    $markerSurvivedBump = Test-Path $marker
+    Write-Evidence -Name '06c-after-version-bump.json' -Content ([ordered]@{
+        exitCode          = $bump.exitCode
+        durationMs        = $bump.durationMs
+        regVersionBefore  = $regVersionBeforeBump
+        regVersionAfter   = $regVersionAfterBump
+        decoyRemoved      = $decoyGone
+        markerSurvived    = $markerSurvivedBump
+    } | ConvertTo-Json -Depth 3)
+    $versionBumpOk = ($bump.exitCode -eq 0) -and ($regVersionAfterBump -ne $regVersionBeforeBump) -and $markerSurvivedBump -and $decoyGone
+    $versionBump = if ($versionBumpOk) { 'ok' } else { 'FAILED' }
+    $versionBumpFacts = @{
+        provided        = $true
+        exitCode        = $bump.exitCode
+        regVersionBefore = $regVersionBeforeBump
+        regVersionAfter = $regVersionAfterBump
+        markerSurvived  = $markerSurvivedBump
+        decoyRemoved    = $decoyGone
+    }
+}
+Add-Row -Phase 'update(version-bump)' -Result $versionBump -Facts $versionBumpFacts
+
+# ---------------------------------------------------------------------------
 # 5. uninstall (silent) — everything the installer placed removed; sessions KEPT
 # ---------------------------------------------------------------------------
 $un = "$InstallDir\HeicFastUninstall.exe"
@@ -348,19 +443,35 @@ $after = [ordered]@{
         Where-Object { $_.Subject -match 'HeicFast' }).Count
     markerSurvived    = Test-Path $marker
     sessionsKept      = Test-Path $SessionsDir
+    # G-6 (INTEGRATION-MATRIX W2): the seeded inner install-location key + its
+    # empty manufacturer parent must BOTH be gone (the .nsi deletes them; now
+    # asserted, not assumed).
+    seedKeyExists     = Test-Path 'HKLM:\SOFTWARE\heicfast\Recovery Wizard'
+    seedParentExists  = Test-Path 'HKLM:\SOFTWARE\heicfast'
+    # G-3: the shortcut set is gone with the product (the inner uninstaller
+    # owns their removal).
+    startMenuLinksGone = @(Get-ChildItem $startMenuPrograms -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match 'HeicFast|Recovery' }).Count -eq 0
+    desktopLinksGone   = @(Get-ChildItem "$env:PUBLIC\Desktop" -Filter '*.lnk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match 'HeicFast|Recovery' }).Count -eq 0
 }
 Write-Evidence -Name '08-after-uninstall.json' -Content ($after | ConvertTo-Json -Depth 4)
 $uninstallOk = ($after.exitCode -eq 0) -and (-not $after.swKeyExists) -and (-not $after.uninstallKeyExists) -and
+    (-not $after.seedKeyExists) -and (-not $after.seedParentExists) -and
     (-not $after.rdaServiceExists) -and (-not $after.sysDriverFile) -and
-    ($after.heicFastCerts -eq 0) -and $after.markerSurvived
+    ($after.heicFastCerts -eq 0) -and $after.markerSurvived -and
+    $after.startMenuLinksGone -and $after.desktopLinksGone
 Add-Row -Phase 'uninstall(silent)' -Result $(if ($uninstallOk) { 'ok' } else { 'CHECK-LEFTOVERS' }) -Facts @{
     exitCode      = $after.exitCode
     leftoverFiles = $after.leftovers
     swKeyGone     = -not $after.swKeyExists
     unKeyGone     = -not $after.uninstallKeyExists
+    seedKeyGone   = -not $after.seedKeyExists
+    seedParentGone = -not $after.seedParentExists
     driverFree    = -not ($after.rdaServiceExists -or $after.sysDriverFile)
     certsClean    = $after.heicFastCerts -eq 0
     sessionsKept  = $after.sessionsKept
+    shortcutsGone = $after.startMenuLinksGone -and $after.desktopLinksGone
 }
 
 # ---------------------------------------------------------------------------
@@ -381,7 +492,7 @@ Generated by `tools/validation/installer-matrix.ps1` (validation-evidence workfl
 "@
 Write-Evidence -Name 't15-runtime-matrix.md' -Content $md
 
-if ($timeline | Where-Object { $_.result -in 'FAILED', 'CHECK-LEFTOVERS' }) {
+if ($timeline | Where-Object { $_.result -in 'FAILED', 'CHECK-LEFTOVERS', 'CHECK-SHORTCUTS' }) {
     throw 'T15 matrix has failing rows — inspect the evidence files'
 }
 Write-Host '[matrix] all rows ok'

@@ -95,6 +95,18 @@ SetCompressor /SOLID lzma
   Abort "${REASON}"
 !macroend
 
+; AbortAfterInner (G-4, INTEGRATION-MATRIX W2) — an abort AFTER the inner
+; application setup ran must not strand the partial install. The cleanup is
+; the same sweep the uninstaller performs, scoped to what an aborted install
+; could have placed: the inner uninstall keys pointing into $INSTDIR, the
+; inner application itself (driven silent when it produced an uninstaller),
+; and the seeded install-location key + its empty manufacturer parent.
+; Idempotent (absent artifacts are skipped); the SUCCESS path never runs it.
+!macro AbortAfterInner REASON
+  Call AbortCleanup
+  !insertmacro AbortWithReason "${REASON}"
+!macroend
+
 ; InstallFact — append one line to the ALWAYS-ON install log. TWO sinks:
 ;   1. the PERSISTENT, user-discoverable log (the mandate's diagnostic
 ;      requirement): ${PROGRAMDATA_ROOT}\install.log — survives the install,
@@ -207,6 +219,27 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   InitPluginsDir
   File "/oname=$PLUGINSDIR\app-setup.exe" "${APP_BUNDLE}"
 
+  ; ---- 0. ENGINE KIT PRE-FLIGHT (G-4, INTEGRATION-MATRIX W2) -------------
+  ; The staged kit is verified BEFORE anything is placed: a kit that cannot
+  ; pass its own placement gates must abort BEFORE the inner application
+  ; setup runs (the pre-W2 ordering ran those gates after the inner install —
+  ; a kit-gate failure there STRANDED the inner app + its uninstall entry +
+  ; the seeded install-location key: the abort path had no cleanup).
+  ; Same conditions as the post-placement gates below.
+  ${IfNot} ${FileExists} "${ENGINE_KIT}${PATHSEP}cr_ui.dll"
+    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): the staged kit has no cr_ui.dll — run the engine lane (build.ps1 -Target engine) before the installer lane."
+  ${EndIf}
+  StrCpy $EngineDllCount 0
+  FindFirst $0 $1 "${ENGINE_KIT}${PATHSEP}*.dll"
+  ${DoUntil} $1 == ""
+    IntOp $EngineDllCount $EngineDllCount + 1
+    FindNext $0 $1
+  ${Loop}
+  FindClose $0
+  ${If} $EngineDllCount < 2
+    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): no runtime DLLs beside cr_ui.dll in the staged kit (found $EngineDllCount DLL(s))."
+  ${EndIf}
+
   ; Seed the inner installer's install-location registry: Tauri's
   ; RestorePreviousInstallLocation reads the DEFAULT value of
   ; SHCTX\Software\<manufacturer>\<productName> (our identifier
@@ -221,8 +254,8 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ExecWait '"$PLUGINSDIR\app-setup.exe" /S /allusers /D=$INSTDIR' $0
   !insertmacro InstallFact "app-setup exit=$0 mode=AllUsers dir=$INSTDIR"
   ${If} $0 != 0
-    StrCpy $1 $0   ; $0 becomes the FileWrite handle inside the macro
-    !insertmacro AbortWithReason "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe."
+    StrCpy $1 $0   ; AbortCleanup uses $0 — save the exit code before the sweep
+    !insertmacro AbortAfterInner "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe. The partial install was swept (G-4: no stranding)."
   ${EndIf}
 
   ; Integrity + ADOPTION: $INSTDIR becomes WHERE THE PRODUCT IS. The seed
@@ -238,7 +271,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${EndIf}
   ${IfNot} ${FileExists} "$INSTDIR\${APP_EXE}"
   ${AndIfNot} ${FileExists} "$INSTDIR\uninstall.exe"
-    !insertmacro AbortWithReason "Application setup did not produce the expected files in $INSTDIR (missing ${APP_EXE} / uninstall.exe)."
+    !insertmacro AbortAfterInner "Application setup did not produce the expected files in $INSTDIR (missing ${APP_EXE} / uninstall.exe). The partial install was swept (G-4)."
   ${EndIf}
 
   ; ---- 2. Engine kit: cr_ui.dll + import lib + the vcpkg runtime DLLs ----
@@ -256,10 +289,39 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   DetailPrint "Installing native recovery engine..."
   SetDetailsPrint both
   SetOutPath "$INSTDIR"
+
+  ; ---- 2b. UPDATE SWEEP (G-9, INTEGRATION-MATRIX W2): stale kit modules ----
+  ; An install-over-install must not leave modules of the PREVIOUS
+  ; version's kit behind when the vcpkg runtime naming changes between
+  ; versions (the zlib1/z/lz4/liblz4/liblz4d/zstd/zstdd/libzstd family).
+  ; The DOCUMENTED installer-owned file classes are deleted before the new
+  ; kit is placed — never user files ($INSTDIR is the product's own Program
+  ; Files dir; the inner application's files are untouched; in-use files
+  ; defer via REBOOTOK). Same-version reinstalls run the sweep too: harmless
+  ; (the kit re-places its set immediately after) and one code path.
+  ClearErrors
+  ReadRegStr $9 SHCTX "${PRODUCT_SWKEY}" "InstallDir"
+  ${IfNot} ${Errors}
+  ${AndIf} $9 == "$INSTDIR"
+    DetailPrint "Update sweep: removing the previous kit's file classes (G-9)..."
+    Delete /REBOOTOK "$INSTDIR\cr_ui.dll"
+    Delete /REBOOTOK "$INSTDIR\rrecov.exe"
+    Delete /REBOOTOK "$INSTDIR\userdata-defaults.json"
+    Delete /REBOOTOK "$INSTDIR\zlib1.dll"
+    Delete /REBOOTOK "$INSTDIR\z.dll"
+    Delete /REBOOTOK "$INSTDIR\lz4.dll"
+    Delete /REBOOTOK "$INSTDIR\liblz4.dll"
+    Delete /REBOOTOK "$INSTDIR\liblz4d.dll"
+    Delete /REBOOTOK "$INSTDIR\zstd.dll"
+    Delete /REBOOTOK "$INSTDIR\zstdd.dll"
+    Delete /REBOOTOK "$INSTDIR\libzstd.dll"
+    !insertmacro InstallFact "update sweep ran (G-9) over the previous kit's file classes"
+  ${EndIf}
+
   File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"
 
   ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
-    !insertmacro AbortWithReason "Engine kit incomplete: cr_ui.dll is missing."
+    !insertmacro AbortAfterInner "Engine kit incomplete: cr_ui.dll is missing from $INSTDIR after placement (the pre-flight passed — a disk/AV-level failure). The partial install was swept (G-4)."
   ${EndIf}
 
   ; At least one runtime DLL must ride beside cr_ui.dll (zlib1/lz4/liblz4/
@@ -273,7 +335,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${Loop}
   FindClose $0
   ${If} $EngineDllCount < 2
-    !insertmacro AbortWithReason "Engine kit incomplete: no runtime DLLs beside cr_ui.dll (found $EngineDllCount DLL(s))."
+    !insertmacro AbortAfterInner "Engine kit incomplete: no runtime DLLs beside cr_ui.dll (found $EngineDllCount DLL(s)). The partial install was swept (G-4)."
   ${EndIf}
 SectionEnd
 
@@ -393,6 +455,28 @@ Function RemoveInnerUninstallKeys
   Pop $R2
   Pop $R1
   Pop $R0
+FunctionEnd
+
+; AbortCleanup — the G-4 no-stranding sweep (see AbortAfterInner above).
+; Scope note (honest): everything is $INSTDIR-anchored. A FAILED inner setup
+; that landed in ITS OWN default dir (the /D= bypass edge, before adoption)
+; is not swept by the key match; the update-sweep + pre-flight make the
+; owned gates abort clean by construction.
+Function AbortCleanup
+  DetailPrint "Abort cleanup: removing the partial install (G-4)..."
+  Call RemoveInnerUninstallKeys
+  ${If} ${FileExists} "$INSTDIR\uninstall.exe"
+    CopyFiles /SILENT "$INSTDIR\uninstall.exe" "$TEMP\RW-inner-uninst.exe"
+    ExecWait '"$TEMP\RW-inner-uninst.exe" /S _?=$INSTDIR' $0
+    Delete /REBOOTOK "$TEMP\RW-inner-uninst.exe"
+  ${EndIf}
+  DeleteRegKey SHCTX "Software\heicfast\Recovery Wizard"
+  ClearErrors
+  EnumRegKey $0 SHCTX "Software\heicfast" 0
+  ${If} $0 == ""
+    DeleteRegKey SHCTX "Software\heicfast"
+  ${EndIf}
+  !insertmacro InstallFact "abort cleanup ran (G-4): inner keys swept inner-uninstalled seed-key-removed"
 FunctionEnd
 
 ; =============================================================================

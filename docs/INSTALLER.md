@@ -55,16 +55,25 @@ is untouched by both install and uninstall.
 1. Run the inner Tauri application setup silently inside the progress
    page (`app-setup.exe /S /allusers /D=$INSTDIR`); integrity-check that
    `recovery-wizard-ui.exe` and the inner `uninstall.exe` landed.
-2. Lay the engine kit beside the exe (`File` on the staged kit, excluding
-   the link-time `cr_ui.lib`); gates: `cr_ui.dll` present, ≥2 DLLs total
-   in `$INSTDIR`.
+2. Verify the staged engine kit BEFORE anything is placed (pre-flight:
+   `cr_ui.dll` + at least one runtime DLL in the staged kit — a bad kit
+   aborts before the inner application setup runs, so nothing is stranded),
+   sweep the previous version's documented kit file classes when installing
+   over an existing install (stale vcpkg-named runtime DLLs never linger
+   across versions), then lay the engine kit beside the exe (`File` on the
+   staged kit, excluding the link-time `cr_ui.lib`); gates: `cr_ui.dll`
+   present, ≥2 DLLs total in `$INSTDIR`.
 3. Create `%ProgramData%\HeicFast\Recovery Wizard\{sessions,logs}\`.
 4. Write the product key (Version, InstallDir, InstallMode) with
    read-backs, sweep any stale inner-setup uninstall keys, write the
    Add/Remove entry, and write the outer uninstaller
    (`HeicFastUninstall.exe`).
-5. **Abort path**: a failed inner setup or a failed engine-kit gate
-   aborts with the reason logged — no partial product.
+5. **Abort path**: a failed inner setup or a failed engine-kit gate aborts
+   with the reason logged — and every abort AFTER the inner setup ran first
+   sweeps the partial install (the inner uninstall keys, the inner
+   application via its own silent uninstaller, the seeded install-location
+   key): no stranded app, no orphan uninstall entry, no leftover seed key.
+   A kit failure aborts before anything is placed at all (the pre-flight).
 
 ## Uninstall
 
@@ -79,7 +88,9 @@ certificates, no registry keys — sessions kept).
 
 ## Update
 
-Re-running the new setup over an existing install: files are overwritten
+Re-running the new setup over an existing install: the previous kit's
+documented file classes are swept first (stale runtime DLLs under old
+vcpkg names never linger across versions), then files are overwritten
 in place; `%ProgramData%` sessions survive (T15-verified with a session
 marker across reinstall); version fields update from the single `VERSION`
 source. There is no service teardown/recreate step anymore — the

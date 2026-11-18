@@ -3331,6 +3331,51 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   capture (fresh T15 run at this frontier) is queued with the G-5 re-proof
   (W2).
 
+### T5/W2 — installer lifecycle hardening: no stranding, no stale modules, no unasserted state
+
+- G-4 closed at the root (the abort path had no cleanup): the .nsi's engine
+  kit PRE-FLIGHT is hoisted BEFORE the inner application setup runs (a kit
+  that cannot pass its own gates aborts before anything is placed); every
+  abort AFTER the inner setup ran now routes through AbortAfterInner ->
+  AbortCleanup (the inner uninstall keys swept via RemoveInnerUninstallKeys,
+  the inner application driven silent through its own uninstaller when it
+  produced one, the seeded Software\heicfast\Recovery Wizard key + its empty
+  parent deleted) — no stranded app, no orphan uninstall entry, no leftover
+  seed key on ANY post-inner abort path. Honest scope: the sweep is
+  $INSTDIR-anchored; a FAILED inner that landed in its own default dir (the
+  /D= bypass edge) is not swept by the key match.
+- G-9 closed at the root (stale modules on update): an install-over-install
+  (detected: the SW key's InstallDir == $INSTDIR) sweeps the DOCUMENTED
+  installer-owned kit file classes before placing the new kit — vcpkg naming
+  changes across versions (zlib1/z/lz4/liblz4/liblz4d/zstd/zstdd/libzstd)
+  never leave stale DLLs behind. Same-version reinstalls take the same
+  harmless path (the kit re-places its set immediately). installer-matrix.ps1
+  gains the version-bump row (conditional on -InstallerPathNext): registry
+  Version restamp + marker survival + a DECOY stale module planted under a
+  documented kit-class name asserted REMOVED by the sweep + the final
+  uninstall proving uninstall-after-update clean. 'skipped' recorded when no
+  second-version installer is supplied (the honest absent-evidence form).
+- G-6 closed: the uninstall assertions now prove the seeded install-location
+  key AND its empty manufacturer parent are gone (previously only
+  swKey/uninstallKey were asserted).
+- G-3 closed as designed: the shortcut probe — the OUTER script creates no
+  shortcuts (verified: zero CreateShortCut in the .nsi); the matrix captures
+  + asserts the inner Tauri template's all-users Start Menu set targets the
+  install dir, records the desktop set, asserts both gone after uninstall;
+  a CHECK-SHORTCUTS row (the final guard throws on it) names the
+  contingency: if the inner template creates none, the outer .nsi gains the
+  CreateShortCut. The truth lands with the next T15 run.
+- Validation (L-class): contracts validate.mjs green; no makensis/pwsh in
+  the sandbox (established in W1) — the .nsi compile + the full product
+  build + the matrix run on the Windows runners. The failure-path matrix
+  row (force a bad kit on the runner) is honestly scoped: needs a
+  deliberately-broken-kit build lane; NOT shipped this wave — the pre-flight
+  makes the bad-kit case abort pre-placement by construction.
+- G-5 re-proof dispatched after this push: validation-evidence.yml
+  (workflow_dispatch, full build + the extended matrix) at this frontier;
+  artifacts to be reviewed and committed under docs/INTEGRATION-VALIDATION/
+  per the workflow's own convention.
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)
