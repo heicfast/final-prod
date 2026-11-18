@@ -505,6 +505,70 @@ def check_header_contract_phrases():
     return ok
 
 
+def check_contracts_readme_counts():
+    """DT-14 (the installer-integration session, INTEGRATION-MATRIX §4): the
+    contracts README's count rows must state the TREE's derived numbers.
+
+    The class: contracts/README.md drifted to "92 exports / 9 domains,
+    36 methods" while the tree carried 93 exports and a 12-domain /
+    67-method connector - this gate scans engine docs only, so the
+    product-level README drifted unseen. Derivation: exports from cr_ui.h
+    (derive_abi_counts); the UI seam from ui/src/connector/contract.ts's
+    Domain interfaces (request-response = Promise-returning method lines
+    inside Domain blocks; subscriptions = the on* signature lines). In the
+    STANDALONE engine repo the product files do not exist - the check
+    skips there (nothing to gate, engine-repo docs stay covered by the
+    checks above).
+    """
+    product_root = ROOT.parent
+    readme = product_root / "contracts" / "README.md"
+    contract = product_root / "ui" / "src" / "connector" / "contract.ts"
+    if not (readme.is_file() and contract.is_file()):
+        print("doc_truth_gate: contracts-README count rows not in this tree "
+              "(standalone engine repo) - skipped")
+        return True
+    ok = True
+    exports, _codes, _events = derive_abi_counts()
+    src = contract.read_text(encoding="utf-8", errors="replace")
+    blocks = re.findall(r"export interface \w+Domain \{(.*?)\n\}", src, re.S)
+    domains = len(blocks)
+    rr = subs = 0
+    for body in blocks:
+        for line in body.splitlines():
+            if re.match(r"^  on[A-Z]\w*\(", line):
+                subs += 1
+            elif "Promise<" in line:
+                rr += 1
+    methods = rr + subs
+    text = readme.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"\((\d+) `cr_ui_\*` exports", text)
+    if not m:
+        print("doc_truth_gate: FAIL: contracts/README.md lost its engine-ABI "
+              "export-count row (the count-census row must exist)")
+        ok = False
+    elif int(m.group(1)) != exports:
+        print(f"doc_truth_gate: FAIL: contracts/README.md claims {m.group(1)} "
+              f"cr_ui_* exports but the tree derives {exports} (the A-ABI-3 "
+              f"class - refresh the row)")
+        ok = False
+    m = re.search(r"\((\d+) domains, (\d+) methods", text)
+    if not m:
+        print("doc_truth_gate: FAIL: contracts/README.md lost its UI-seam "
+              "domains/methods row (the count-census row must exist)")
+        ok = False
+    elif int(m.group(1)) != domains or int(m.group(2)) != methods:
+        print(f"doc_truth_gate: FAIL: contracts/README.md claims {m.group(1)} "
+              f"domains / {m.group(2)} methods but contract.ts derives "
+              f"{domains} domains / {methods} methods ({rr} request-response "
+              f"+ {subs} subscriptions) - refresh the row")
+        ok = False
+    if ok:
+        print(f"doc_truth_gate: contracts README count rows match the tree "
+              f"(exports={exports}, seam={domains} domains / {methods} "
+              f"methods = {rr} RR + {subs} subscriptions)")
+    return ok
+
+
 def main():
     ok = check_floorversion()
     ok = check_deleted_citations() and ok
@@ -514,6 +578,7 @@ def main():
     ok = check_abi_count_claims() and ok
     ok = check_parity_delta_numbering() and ok
     ok = check_header_contract_phrases() and ok
+    ok = check_contracts_readme_counts() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

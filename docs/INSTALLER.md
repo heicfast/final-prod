@@ -125,7 +125,13 @@ validation lanes read.
 
 ## Reproducibility
 
-One command from a clean checkout — `.\build.ps1 -Target all` — builds and
-signs everything and produces the installer; `VERSION` (repo root) is the
-single version source, enforced by `!error` guards in the script and the
-release workflow's tag gate.
+One command from a clean checkout on Windows with the full toolchain
+(MSVC/vcpkg + cmake, pnpm, Rust, NSIS — `docs/BUILD.md`) — `.\build.ps1
+-Target all` — builds and signs everything and produces the installer;
+`VERSION` (repo root) is the single version source, enforced by `!error`
+guards in the script and the release workflow's tag gate. Lane truth:
+`engine` and `ui` are standalone lanes; the `installer` lane consumes their
+staged outputs (it is not standalone — build.ps1 refuses a stale bundle,
+I-STALE-01); `build.sh` has no installer lane (the Linux-side .nsi
+compile check is the makensis form recorded in
+`docs/INTEGRATION-VALIDATION/installer-compile-check.md`).

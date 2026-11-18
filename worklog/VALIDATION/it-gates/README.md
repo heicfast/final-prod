@@ -39,7 +39,7 @@ records intact by the write-before-delete ordering) + a 512 MiB raw VHDX.
 - **enumerate.json / scan-events.json** — the disk-enumeration shape (3+
   disks, the seeded scan target) and the engine event stream counts.
 - **abi-layouts.json** — the generated ABI layout dump the it-crate pins
-  (365 field paths, incl. the D-P6 phase axes and the D-P4 SMART fields).
+  (366 field paths, incl. the D-P6 phase axes and the D-P4 SMART fields).
 
 ## Provenance chain
 

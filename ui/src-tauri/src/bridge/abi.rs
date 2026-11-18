@@ -43,7 +43,7 @@
 //! semantics. See contracts/event-mapping.md.
 
 // The ABI surface is PINNED 1:1 to engine/include/cr/cr_ui.h (the whole
-// 92-export surface, not just the calls the bridge makes today). Unconsumed
+// 93-export surface, not just the calls the bridge makes today). Unconsumed
 // declarations are therefore EXPECTED: exports the product has no surface
 // for yet (carve catalog/tally, disk map, image create, fsck escalation,
 // BitLocker-off, the core-side query engine, assistant/regrade — the

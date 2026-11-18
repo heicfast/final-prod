@@ -19,7 +19,7 @@
         "devices.getDeviceInfo"
       ],
       "returns": "Device[] (contract.ts shape; type-maps §1)",
-      "notes": "getDeviceInfo resolves a volume id to the owning device client-side (scan-target semantics). Status: fresh open probe; locked volumes probe 0x50060001. BF-02: no bus_type on v4 — kind degrades to the removable flag."
+      "notes": "getDeviceInfo resolves a volume id to the owning device client-side (scan-target semantics). Status: fresh open probe; locked volumes probe 0x50060001. bus_type IS on v4 (BF-02/BF-31 closed at ba2b9347; type-maps §1 live split): kind derives from the live bus axis — virtual/file-backed buses fall to the removable flag (D-ENUM-05) so VHDX mounts render as scannable drives."
     },
     {
       "name": "devices_refresh",
@@ -431,7 +431,7 @@
         "health.getHealth"
       ],
       "returns": "DiskHealth",
-      "notes": "BASE ABI only (no ex2 on v4 — BF-03: the threshold column is null). NG-6/NG-9 truth: NVMe-only reports are valid; an empty ATA table grades unknown, never good."
+      "notes": "ex2-first with base fallback on ABI v4 (BF-03 closed): commands/health.rs binds cr_ui_health_read_ex2 and calls it FIRST, falling back to cr_ui_health_read when the size probe refuses it — the vendor threshold column is real. NG-6/NG-9 truth: NVMe-only reports are valid; an empty ATA table grades unknown, never good."
     },
     {
       "name": "consent_respond",
@@ -892,10 +892,6 @@
     {
       "name": "scan_close (UI surface)",
       "reason": "the fresh contract dropped the surface; the command stays as internal registry hygiene"
-    },
-    {
-      "name": "cr_ui_health_read_ex2 / CrUiSmartAttrEx",
-      "reason": "not on ABI v4 (BF-03); the threshold column is null until the ex2 wrapper returns upstream"
     },
     {
       "name": "cr_ui_set_log_sink (flat-C)",

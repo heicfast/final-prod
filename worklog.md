@@ -3376,6 +3376,46 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   artifacts to be reviewed and committed under docs/INTEGRATION-VALIDATION/
   per the workflow's own convention.
 
+### T5/T13 W3 — doc-truth sweep: every stale count/note trued + a gate so the class cannot recur
+
+- DT-1/DT-2: contracts/README.md — 92 → 93 exports; 9 domains/36 methods →
+  12 domains/67 methods (the connector's real shape).
+- DT-3: engine/docs/ABI-CONTRACT.md §9 — CR_UI_ABI_VERSION is 4 (the v4
+  clause added; the v3/v2 history sentences kept).
+- DT-4/DT-5/DT-6: contracts/command-surface.json — health_read's note now
+  states the ex2-first + base-fallback truth (verified at
+  commands/health.rs:38,42); the wrong "not on ABI v4" removed-row for
+  cr_ui_health_read_ex2 dropped (the other three removed rows remain);
+  devices_list's note states the live bus_type axis (BF-02/BF-31 closed at
+  ba2b9347; virtual/file-backed buses fall to the removable flag per
+  D-ENUM-05).
+- DT-7: bridge/abi.rs header comment — 92-export → 93-export.
+- DT-8: worklog/VALIDATION/it-gates/README.md — 365 → 366 field paths.
+- DT-9: contracts/error-codes.json — the INTERIM elevation-mapping note
+  replaced by the live-truth sentence (the dedicated elevation-required
+  uiCode exists).
+- DT-10/DT-11: docs/INTEGRATION-GAPS.md — G-1's wrong NG-10 cross-ref →
+  NG-12; NG-10 annotated CLOSED-by-code (health-page rework);
+  G-9 annotated CLOSED-by-code (ba2b9347's bus_type axis).
+- DT-13: docs/INSTALLER.md Reproducibility — the one-command claim
+  qualified (Windows + full toolchain; the installer lane consumes staged
+  outputs; build.sh has no installer lane).
+- DT-14: the NEW guard — engine/tools/doc_truth_gate.py gains
+  check_contracts_readme_counts(): the contracts README's export row and
+  UI-seam row are now checked against TREE-DERIVED numbers (cr_ui.h export
+  census via derive_abi_counts; contract.ts's Domain interfaces →
+  domains/methods/subscription counts). Skips gracefully in the standalone
+  engine repo (no contracts/ tree there). The 92/9/36 drift class can no
+  longer recur silently.
+- DT-12 deferred to the evidence commit: installer-compile-check.md
+  regenerates against the CURRENT .nsi (640 lines, driver-free) once the
+  dispatched validation-evidence run lands.
+- Validation (L-class, all run locally this wave): python3 -m json.tool on
+  both edited contracts JSONs OK; node contracts/validate.mjs GREEN (54
+  commands, both cross-checks); python3 engine/tools/doc_truth_gate.py
+  GREEN — the full suite incl. the new check (exports=93, seam=12/67 = 55
+  RR + 12 subscriptions, zero FAILs).
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)

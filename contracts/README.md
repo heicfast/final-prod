@@ -10,9 +10,9 @@ Ownership model (no duplication):
 
 | Truth | Owned by | Location |
 |---|---|---|
-| The engine ABI (92 `cr_ui_*` exports, structs, event POD) | engine | `engine/include/cr/cr_ui.h` — frozen ABI, append-only |
+| The engine ABI (93 `cr_ui_*` exports, structs, event POD) | engine | `engine/include/cr/cr_ui.h` — frozen ABI, append-only |
 | The engine error numeric space | engine | `engine/include/cr/cr_error.h` |
-| The UI seam (9 domains, 36 methods, `ConnectorErrorCode` vocabulary) | ui | `ui/src/connector/contract.ts` |
+| The UI seam (12 domains, 67 methods, `ConnectorErrorCode` vocabulary) | ui | `ui/src/connector/contract.ts` |
 | **How the two map to each other** | **this directory** | `error-codes.json`, `event-mapping.md`, `type-maps.md`, `command-surface.json` |
 
 ## Files

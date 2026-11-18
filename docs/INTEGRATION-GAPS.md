@@ -36,7 +36,7 @@ their driver references as pre-consolidation facts.
 
 | # | Prior gap | Status after this session's diagnosis |
 |---|---|---|
-| G-1 | Standalone repair workbench (dryRun/undoLog/undo) throws typed `not-implemented`; consent flow in-scan shipped | **Partly dishonest in practice.** The typed refusals are real, but the Repair *page* renders a **canned fake queue** on top of them (see NG-10). The gap statement stays OPEN for the ABI trio (b); the fake page is a new defect. |
+| G-1 | Standalone repair workbench (dryRun/undoLog/undo) throws typed `not-implemented`; consent flow in-scan shipped | **Partly dishonest in practice.** The typed refusals are real, but the Repair *page* renders a **canned fake queue** on top of them (see NG-12). The gap statement stays OPEN for the ABI trio (b); the fake page is a new defect. |
 | G-2 | `currentPath` ticker always null; UI hides it truthfully | OPEN, unchanged (engine has no per-item event; the reference does not expose one at this granularity either). |
 | G-3 | `dataFoundBytes` live counter absent; exact value latched at completion | OPEN, unchanged, compatible follow-up. |
 | G-4 | Rendered previews (pdf/av/office) null with truthful hints | OPEN, unchanged (feature, not wiring). |
@@ -44,7 +44,7 @@ their driver references as pre-consolidation facts.
 | G-6 | Engine version string null in About | OPEN, unchanged, compatible follow-up. |
 | G-7 | Bridge-side results query for live scans and sessions | **Compounded by NG-1** (the real engine's node model defeats the bridge's path-tree listing entirely — the query never gets a tree to filter). |
 | G-8 | Device disconnect synthesis from heartbeat | OPEN, unchanged. |
-| G-9 | Device bus kinds (`sd`/`optical`) unmappable from the `removable` flag | **Still open and now visible as a dead surface**: the SD-card page filters `kind==='sd'` that the type map can never produce (NG-14). |
+| G-9 | Device bus kinds (`sd`/`optical`) unmappable from the `removable` flag | **CLOSED-by-code** (D-ENUM-02: the `bus_type` axis landed at ba2b9347; type-maps.md §1 records the live split — BF-02/BF-31 closed). The historical dead-surface note (the SD-card page's `kind==='sd'` filter, NG-14) no longer applies: `sd` maps from the real bus class. |
 | G-10 | Pre-scan lost-partition hints absent; badge surface future wiring | **Compounded by NG-9**: the Lost-Partition page is a canned fake rather than a truthful surface over the real scan-time capability. |
 | G-11 | Folder-scoped scans implemented as bridge-side path scoping | OPEN, unchanged, documented semantics delta. |
 
@@ -138,9 +138,10 @@ before and passes after.
   with no decodable table.
   **Fix:** engine marks the table undecodable (available=0 with reason);
   bridge maps to a truthful per-drive state.
-- **NG-10 [M] Hard-coded cosmetic values in the health page.**
-  "512B"/"2%" literals (`health-page.tsx:403,434`).
-  **Fix:** real sector size from device info; remove or derive the rest.
+- **NG-10 [M] Hard-coded cosmetic values in the health page — CLOSED-by-code.**
+  Was: "512B"/"2%" literals. Closed by the health-page rework: real sector
+  size from device info (`health-page.tsx:139` `sectorSize =
+  selectedDevice?.sectorSize`, rendered :462); literals grep-clean.
 
 ### Other surfaces (user symptom: "everything else dead or fake")
 
