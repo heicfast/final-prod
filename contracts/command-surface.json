@@ -19,7 +19,7 @@
         "devices.getDeviceInfo"
       ],
       "returns": "Device[] (contract.ts shape; type-maps §1)",
-      "notes": "getDeviceInfo resolves a volume id to the owning device client-side (scan-target semantics). Status: fresh open probe; locked volumes probe 0x50060001. bus_type IS on v4 (BF-02/BF-31 closed at ba2b9347; type-maps §1 live split): kind derives from the live bus axis — virtual/file-backed buses fall to the removable flag (D-ENUM-05) so VHDX mounts render as scannable drives."
+      "notes": "getDeviceInfo resolves a volume id to the owning device client-side (scan-target semantics). Status: fresh open probe; locked volumes probe 0x50060001. bus_type IS on v4 (BF-02/BF-31 closed at ba2b9347; type-maps §1 live split): kind derives from the live bus axis — virtual/file-backed buses fall to the removable flag (D-ENUM-05) so VHDX mounts render as scannable drives. M04 (W8): the imported image targets ride every device list (kind 'image'; refresh-stable within the app run — the registry is in-memory)."
     },
     {
       "name": "devices_refresh",
@@ -32,7 +32,7 @@
         "devices.refreshDevices"
       ],
       "returns": "Device[]",
-      "notes": "The engine re-queries the OS per call (R-86 pull model — calling IS the refresh)."
+      "notes": "The engine re-queries the OS per call (R-86 pull model — calling IS the refresh). M04 (W8): the imported image targets ride every device list (kind 'image'; refresh-stable within the app run — the registry is in-memory)."
     },
     {
       "name": "volume_unlock_dictionary",
@@ -73,7 +73,7 @@
         "bitlockerFvek?"
       ],
       "returns": "{scanId}",
-      "notes": "ABI gate -> resolve target -> open (FVEK through open_volume_with_key when supplied) -> zero-init cfg (stage_mask 7; autosave_dir = the sessions store, W1c; pre_scan_check 1 always; pre_scan_repair 1 ONLY for volume targets — the NG-21 guard: whole-disk repair analysis is truthfully unavailable, BF-06) -> attach -> subscribe BEFORE run -> dedicated run thread. pathScope is view-scoping (G-11). The consent callback is armed (bridge::consent): consent-request:<scanId> + the gate; the run tail frees the pipe, force-denies survivors, persists the undo log after an approved repair. Events: scan-progress/finished/autosaved/lost-candidate/consent-request per scanId. Virtual quick-targets (vol-recycle-bin / vol-desktop) resolve to the system volume + implicit pathScope."
+      "notes": "ABI gate -> resolve target -> open (FVEK through open_volume_with_key when supplied) -> zero-init cfg (stage_mask 7; autosave_dir = the sessions store, W1c; pre_scan_check 1 always; pre_scan_repair 1 ONLY for volume targets — the NG-21 guard: whole-disk repair analysis is truthfully unavailable, BF-06) -> attach -> subscribe BEFORE run -> dedicated run thread. pathScope is view-scoping (G-11). The consent callback is armed (bridge::consent): consent-request:<scanId> + the gate; the run tail frees the pipe, force-denies survivors, persists the undo log after an approved repair. Events: scan-progress/finished/autosaved/lost-candidate/consent-request per scanId. Virtual quick-targets (vol-recycle-bin / vol-desktop) resolve to the system volume + implicit pathScope. M04/BF-12 (W8): a targetId of the form imgfile-N routes the imported-image branch (commands/images.rs's registry -> cr_ui_open_image(path, 0, 0)); the image IS a whole disk (whole_disk=1, the NG-21 pre-scan-repair guard, pre_scan_check=1) and folder scopes / FVEK keys are refused (they address live-volume axes)."
     },
     {
       "name": "scan_pause",
@@ -835,6 +835,39 @@
       ],
       "returns": "{letter, accepted}",
       "notes": "The CBitlockerTurnOffOperation endpoint (M-078) - the DESTRUCTIVE decrypt twin of the unlock surface: explicit opt-in only (the UI gates it behind a confirmation dialog; nothing in the scan/open path ever calls it - D-16's legitimate-unlock-only register is untouched). OK means ACCEPTED, not plaintext: the OS decrypt continues in the background (the honest unobservable-percentage contract; the sink logs the/settle ticks as operational evidence only). ERR_FVE_LOCKED crosses when both command forms failed."
+    },
+    {
+      "name": "image_target_import",
+      "threading": "spawn-join",
+      "abiRefs": [],
+      "serves": [
+        "devices.importImageFile"
+      ],
+      "args": [
+        "path"
+      ],
+      "returns": "Device row (kind 'image')",
+      "notes": "M04/BF-12 (W8): the og's 'Import a disk image' flow (strings:11803-11816). The family gate is the og's filter minus .edisk (M03): vmdk/vhd/vhdx/dmg/img; missing file -> device-gone, unsupported family or empty file -> scan-scope-invalid. Idempotent per canonical path; the registry is in-memory (sessions saved from the image resume by PATH — session-96 identity)."
+    },
+    {
+      "name": "image_target_list",
+      "threading": "spawn-join",
+      "abiRefs": [],
+      "serves": [],
+      "args": [],
+      "returns": "Device rows",
+      "notes": "M04 (W8): the imported rows for an explicit re-query (devices_list already merges them). serves: EMPTY by design — the connector consumes the merged devices_list surface; the command exists for the dev panel + diagnostics."
+    },
+    {
+      "name": "system_pick_image_file",
+      "threading": "spawn-join",
+      "abiRefs": [],
+      "serves": [
+        "system.pickImageFile"
+      ],
+      "args": [],
+      "returns": "string | null",
+      "notes": "M04 (W8): the native disk-image picker — the og's filter minus .edisk (M03): *.vmdk *.vhd *.vhdx *.dmg *.img (strings:11803-11816). Null = cancelled; the bridge re-validates the family at import time (the filter is a convenience, never the gate)."
     }
   ],
   "events": [

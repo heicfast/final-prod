@@ -25,7 +25,7 @@ export type FileCategoryId =
 /** Recovery-condition grades come from the connector; the UI never re-grades. */
 export type ConfidenceGrade = 'excellent' | 'good' | 'fair' | 'poor' | 'unknown';
 
-export type DeviceKind = 'internal' | 'usb' | 'sd' | 'optical' | 'virtual';
+export type DeviceKind = 'internal' | 'usb' | 'sd' | 'optical' | 'virtual' | 'image';
 export type VolumeFs =
   | 'ntfs'
   | 'fat32'
@@ -147,6 +147,17 @@ export interface DevicesDomain {
    */
   getDeviceInfo(deviceId: string): Promise<Device>;
   refreshDevices(): Promise<Device[]>;
+  /**
+   * M04/BF-12: import a disk-image file as a scannable target (the
+   * reference's "Import a disk image" flow, strings:11803-11816). The
+   * supported families are the og's filter minus `.edisk` (M03):
+   * vmdk / vhd / vhdx / dmg / img. Idempotent per file (re-importing
+   * returns the existing row); the registry lives for this app run —
+   * sessions saved from the image resume by PATH, not by the row.
+   * Throws scan-scope-invalid for an unsupported family or an empty
+   * file, device-gone when the file is not present.
+   */
+  importImageFile(path: string): Promise<Device>;
   /**
    * N-064: the explicit-consent dictionary unlock for a locked BitLocker
    * volume (the engine's shipped common-password set + the caller's
@@ -1230,6 +1241,13 @@ export interface SystemDomain {
     readonly volumeId?: string | null;
     readonly excludeDeviceId?: string | null;
   }): Promise<string | null>;
+  /**
+   * M04: the native disk-image file picker — the og's filter minus
+   * `.edisk` (M03): `*.vmdk *.vhd *.vhdx *.dmg *.img` (strings:11803-
+   * 11816). Null = the user cancelled. The picked path feeds
+   * `devices.importImageFile` (the connector owns validation).
+   */
+  pickImageFile(): Promise<string | null>;
   listMountPoints(): Promise<readonly MountPoint[]>;
   openPath(path: string): Promise<void>;
   /**

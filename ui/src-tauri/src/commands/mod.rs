@@ -14,6 +14,7 @@ pub mod devices;
 pub mod diagnostics;
 pub mod health;
 pub mod imaging;
+pub mod images;
 pub mod lost_partition;
 pub mod maintenance;
 pub mod preview;

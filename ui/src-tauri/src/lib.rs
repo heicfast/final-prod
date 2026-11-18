@@ -37,9 +37,15 @@ pub fn run() {
         // address a physical disk, not a scan tree; the seam note is in
         // COORDINATION.md).
         .manage(Arc::new(commands::imaging::ImagingState::new()))
+        // M04/BF-12: the imported-image target registry (image files scanned
+        // as targets — the og's "Import a disk image" flow).
+        .manage(Arc::new(commands::images::ImageTargetsState::new()))
         .invoke_handler(tauri::generate_handler![
             // devices (+ the N-064 dictionary unlock)
             commands::devices::devices_list,
+            // M04: the imported-image targets (the og's Import-a-disk-image flow)
+            commands::images::image_target_import,
+            commands::images::image_target_list,
             commands::devices::devices_refresh,
             commands::devices::volume_unlock_dictionary,
             // scan (+ the N-060 save-scoped cancel)
@@ -92,6 +98,7 @@ pub fn run() {
             commands::system::system_load_user_signs,
             commands::system::system_validate_destination,
             commands::system::system_pick_directory,
+            commands::system::system_pick_image_file,
             commands::system::system_list_mounts,
             commands::system::system_open_path,
             // imaging (lane C — the Create Image flow): start + state +

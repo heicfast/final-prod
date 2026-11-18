@@ -555,3 +555,39 @@ describe('the tauri connector lane C surface (the manifest)', () => {
     expect(space.reasonKey).toBe('recovery.insufficientSpaceBody');
   });
 });
+
+// ---------------------------------------------------------------------------
+// M04 / BF-12 — the imported-image surface (the manifest commands)
+// ---------------------------------------------------------------------------
+
+describe('the tauri connector M04 image targets', () => {
+  it('import + picker invoke the manifest commands', async () => {
+    await conn.devices.importImageFile('D:\\Backups\\seed.img');
+    expect(lastCall()).toEqual({
+      cmd: 'image_target_import',
+      args: { path: 'D:\\Backups\\seed.img' },
+    });
+    await conn.system.pickImageFile();
+    expect(lastCall()).toEqual({ cmd: 'system_pick_image_file', args: {} });
+  });
+
+  it('maps the image-target refusal codes', async () => {
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'scan-scope-invalid', message: 'not a family' };
+    };
+    const err = (await conn.devices
+      .importImageFile('C:\\x.edisk')
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(err.code).toBe('scan-scope-invalid');
+    expect(err.reasonKey).toBe('errors.scanScopeInvalid');
+
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'device-gone', message: 'file not present' };
+    };
+    const gone = (await conn.devices
+      .importImageFile('C:\\missing.img')
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(gone.code).toBe('device-gone');
+    expect(gone.reasonKey).toBe('errors.deviceGone');
+  });
+});

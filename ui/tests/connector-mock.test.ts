@@ -823,3 +823,61 @@ describe('MockConnector — lane C surface parity', () => {
     expect(unmounted.code).toBe('device-gone'); // the loud refusal, never silent
   });
 });
+
+// ---------------------------------------------------------------------------
+// M04 / BF-12 — image-file scan targets (the og's Import-a-disk-image flow)
+// ---------------------------------------------------------------------------
+
+describe('MockConnector — M04 image targets', () => {
+  it('imports an image file, lists it as a scannable device, and scans it', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const before = (await c.devices.listDevices()).length;
+    const row = await c.devices.importImageFile('D:\\Backups\\seed-ntfs-disk.img');
+    expect(row.kind).toBe('image');
+    expect(row.canScanWholeDisk).toBe(true);
+    expect(row.capacity.totalBytes).toBeGreaterThan(0);
+    const after = await c.devices.listDevices();
+    expect(after.length).toBe(before + 1);
+    expect(after.some((d) => d.id === row.id)).toBe(true);
+
+    // The scan runs to completion over the imported target (the whole
+    // quick->advanced chain; the synthetic volume rides the image bytes).
+    const { scanId } = await c.scan.startScan({ targetId: row.id });
+    await waitForScanCompletion(c, scanId, 60_000);
+    const state = await c.scan.getScanState(scanId);
+    expect(state.status).toBe('completed');
+  });
+
+  it('is idempotent per path and survives a device refresh', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const first = await c.devices.importImageFile('E:\\Images\\laptop-2026.vhdx');
+    const second = await c.devices.importImageFile('E:\\Images\\laptop-2026.vhdx');
+    expect(second.id).toBe(first.id);
+    const refreshed = await c.devices.refreshDevices();
+    expect(refreshed.some((d) => d.id === first.id)).toBe(true);
+  });
+
+  it('refuses unsupported families and files with no extension', async () => {
+    const c = new MockConnector();
+    const err = (await c.devices
+      .importImageFile('C:\\temp\\archive.edisk')
+      .catch((e: unknown) => e)) as { code: string; reasonKey: string };
+    expect(err.code).toBe('scan-scope-invalid');
+    expect(err.reasonKey).toBe('errors.scanScopeInvalid');
+    const err2 = (await c.devices
+      .importImageFile('C:\\temp\\noext')
+      .catch((e: unknown) => e)) as { code: string };
+    expect(err2.code).toBe('scan-scope-invalid');
+  });
+
+  it('the canned picker alternates the supported families', async () => {
+    const c = new MockConnector();
+    const a = await c.system.pickImageFile();
+    const b = await c.system.pickImageFile();
+    expect(a).toMatch(/\.(img|vhdx)$/i);
+    expect(b).toMatch(/\.(img|vhdx)$/i);
+    expect(a).not.toBe(b);
+  });
+});

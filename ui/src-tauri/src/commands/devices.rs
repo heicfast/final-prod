@@ -491,21 +491,35 @@ fn compose_volume_row(v: &abi::CrUiVolumeInfo, d: &abi::CrUiDiskInfo) -> Value {
 #[tauri::command]
 pub async fn devices_list(
     state: tauri::State<'_, std::sync::Arc<BridgeState>>,
+    images: tauri::State<'_, std::sync::Arc<crate::commands::images::ImageTargetsState>>,
 ) -> Result<Vec<Value>, BridgeError> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || list_devices(&state))
-        .await
-        .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
+    let image_rows = images.inner().rows();
+    tauri::async_runtime::spawn_blocking(move || {
+        // M04/BF-12: the imported image targets ride every device list
+        // (refresh-stable within the app run; the registry is in-memory).
+        let mut out = list_devices(&state)?;
+        out.extend(image_rows);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
 }
 
 #[tauri::command]
 pub async fn devices_refresh(
     state: tauri::State<'_, std::sync::Arc<BridgeState>>,
+    images: tauri::State<'_, std::sync::Arc<crate::commands::images::ImageTargetsState>>,
 ) -> Result<Vec<Value>, BridgeError> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || list_devices(&state))
-        .await
-        .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
+    let image_rows = images.inner().rows();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut out = list_devices(&state)?;
+        out.extend(image_rows);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
 }
 
 // ---------------------------------------------------------------------------

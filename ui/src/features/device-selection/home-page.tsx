@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { DiscIcon } from 'lucide-react';
 import type { Device, Volume } from '@/connector/contract';
 import {
   CheckIcon,
@@ -15,12 +16,12 @@ import {
   RefreshCcwIcon,
   SaveIcon,
 } from 'lucide-react';
-import { useDevices, useRefreshDevices } from '@/queries/devices';
+import { useDevices, useImportImageFile, useRefreshDevices } from '@/queries/devices';
 import { UnlockVolumeDialog } from './unlock-volume-dialog';
 import { CreateImageDialog } from './create-image-dialog';
 import { useLoadSession, useResumeLastSession, useSessions } from '@/queries/sessions';
 import { useStartScan } from '@/queries/scan';
-import { usePickDirectory } from '@/queries/system';
+import { usePickDirectory, usePickImageFile } from '@/queries/system';
 import { formatBytes, formatDate, formatDriveGb } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,8 @@ export function HomePage(): React.JSX.Element {
   const loadSession = useLoadSession();
   const startScan = useStartScan();
   const pickDirectory = usePickDirectory();
+  const pickImageFile = usePickImageFile();
+  const importImage = useImportImageFile();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
@@ -129,6 +132,31 @@ export function HomePage(): React.JSX.Element {
       setSelectedFolderVolId(firstVol.id);
     }
     setFolderDialogOpen(true);
+  };
+
+  /** M04/BF-12: the og's "Import a disk image" flow — the native picker
+   * (the filter minus .edisk, M03) feeds the import; the row lands in the
+   * device list (kind 'image', scanned like any disk). Null pick = the
+   * user cancelled (no toast — a cancelled pick is not an error). */
+  const onImportImage = (): void => {
+    pickImageFile.mutate(undefined, {
+      onSuccess: (picked) => {
+        if (picked === null) return;
+        importImage.mutate(picked, {
+          onSuccess: (row) => {
+            setSelectedId(row.id);
+            toast.success(t('home.imageImported', { name: row.label }));
+          },
+          onError: (err) => {
+            toast.error(
+              err instanceof Error && err.message.length > 0
+                ? err.message
+                : t('home.imageImportFailed'),
+            );
+          },
+        });
+      },
+    });
   };
 
   const onConfirmFolder = (): void => {
@@ -315,7 +343,7 @@ export function HomePage(): React.JSX.Element {
         <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
           {t('home.quickTargets')}
         </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <QuickTarget
             icon={<RecycleBin3dIcon />}
             label={t('home.recycleBin')}
@@ -333,6 +361,14 @@ export function HomePage(): React.JSX.Element {
             label={t('home.chooseFolder')}
             onClick={onChooseFolder}
             loading={pickDirectory.isPending || startScan.isPending}
+          />
+          {/* M04/BF-12: the og's Import-a-disk-image quick target
+              (strings:11803-11816 — the filter minus .edisk, M03). */}
+          <QuickTarget
+            icon={<DiscIcon className="size-7 text-[#1677FF] dark:text-primary" aria-hidden />}
+            label={t('home.importImage')}
+            onClick={onImportImage}
+            loading={pickImageFile.isPending || importImage.isPending}
           />
         </div>
 
@@ -633,22 +669,28 @@ function DeviceCard({
         </span>
       ) : null}
 
-      {/* Create-image action (hover-revealed; always keyboard-focusable) */}
-      <button
-        type="button"
-        aria-label={t('imaging.action')}
-        title={t('imaging.action')}
-        onClick={() => setImageOpen(true)}
-        disabled={locked || offline}
-        className={cn(
-          'absolute right-2 top-2 z-10 inline-flex size-6 items-center justify-center rounded-xs text-[#64748B] transition-all',
-          'opacity-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100',
-          'hover:bg-[#DCE8FF] hover:text-[#1677FF] disabled:pointer-events-none disabled:opacity-0',
-          'dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary',
-        )}
-      >
-        <SaveIcon className="size-3.5" aria-hidden />
-      </button>
+      {/* Create-image action (hover-revealed; always keyboard-focusable).
+          M04: hidden for imported-image rows — imaging addresses physical
+          disks ('imaging addresses whole disks'); the bridge would refuse
+          an imgfile target, so the control is not rendered (never a dead
+          button). */}
+      {device.kind !== 'image' ? (
+        <button
+          type="button"
+          aria-label={t('imaging.action')}
+          title={t('imaging.action')}
+          onClick={() => setImageOpen(true)}
+          disabled={locked || offline}
+          className={cn(
+            'absolute right-2 top-2 z-10 inline-flex size-6 items-center justify-center rounded-xs text-[#64748B] transition-all',
+            'opacity-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100',
+            'hover:bg-[#DCE8FF] hover:text-[#1677FF] disabled:pointer-events-none disabled:opacity-0',
+            'dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary',
+          )}
+        >
+          <SaveIcon className="size-3.5" aria-hidden />
+        </button>
+      ) : null}
 
       <button
         type="button"
@@ -664,6 +706,9 @@ function DeviceCard({
             <span className="truncate text-[14px] font-semibold text-[#1E293B] dark:text-foreground">
               {compactLabel}
             </span>
+            {device.kind === 'image' ? (
+              <Badge variant="outline">{t('home.imageBadge')}</Badge>
+            ) : null}
             {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
             {locked ? (
               <Hint text={t('home.permissionDenied')}>

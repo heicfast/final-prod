@@ -39,6 +39,7 @@ use crate::bridge::events::{emit_scan_progress, scan_flags, scan_status, spawn_s
 use crate::bridge::state::{BridgeState, ScanEntry, ScanKind, ScanLive, Terminal};
 use crate::bridge::util::{now_iso, now_unix_ms, SendPtr};
 use crate::commands::devices::{disk_id, resolve_target, volume_id};
+use crate::commands::images::{is_image_target, resolve_image_target, ImageTargetsState};
 
 /// Normalize an absolute Windows path into the '/'-joined lowercase prefix
 /// the meta cache compares against (no drive letter, no trailing slash).
@@ -92,15 +93,17 @@ pub struct ScanPrep {
 pub async fn scan_start(
     app: tauri::AppHandle,
     state: tauri::State<'_, Arc<BridgeState>>,
+    images: tauri::State<'_, Arc<ImageTargetsState>>,
     target_id: String,
     path_scope: Option<String>,
     bitlocker_fvek: Option<String>,
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
+    let images = images.inner().clone();
     let state_for_launch = state.clone();
     let app_for_prep = app.clone();
     let prep = tauri::async_runtime::spawn_blocking(move || {
-        scan_start_blocking(&state, &app_for_prep, target_id, path_scope, bitlocker_fvek)
+        scan_start_blocking(&state, &images, &app_for_prep, target_id, path_scope, bitlocker_fvek)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
@@ -115,6 +118,7 @@ pub async fn scan_start(
 /// wrapper launches the threads.
 pub fn scan_start_blocking(
     state: &Arc<BridgeState>,
+    images: &Arc<ImageTargetsState>,
     app: &tauri::AppHandle,
     target_id: String,
     path_scope: Option<String>,
@@ -127,6 +131,16 @@ pub fn scan_start_blocking(
             code::UNKNOWN,
             format!("cr_ui ABI version {abi_v} != expected {CR_ABI}; the shipped engine kit is incompatible", CR_ABI = abi::CR_UI_ABI_VERSION),
         ));
+    }
+
+    // M04/BF-12: an imported image file as the scan target — the og's
+    // "Import a disk image" flow. The image IS a whole disk: whole_disk
+    // = 1, the NG-21 pre-scan-repair guard applies (the image's LBA 0 is
+    // a partition table — same hazard as a live whole-disk target), the
+    // damage audit stays on, and folder scopes / FVEK keys are refused
+    // (they address live-volume axes an image view has none of).
+    if is_image_target(&target_id) {
+        return scan_start_image_blocking(state, images, app, target_id, path_scope, bitlocker_fvek);
     }
 
     let target = resolve_target(&target_id)?;
@@ -305,6 +319,155 @@ pub fn scan_start_blocking(
         live: live.clone(),
         terminal: terminal.clone(),
         snapshot_exists: snapshot_exists.clone(),
+        sink_user: SendPtr::new(sink_user),
+        snap: Mutex::new(crate::bridge::state::SnapshotCache {
+            gen: 0,
+            handle: SendPtr::new(std::ptr::null_mut()),
+            partial: false,
+            node_count: 0,
+            metas: None,
+            last_refresh_ms: 0,
+            frozen: false,
+        }),
+        jobs: Mutex::new(Vec::new()),
+    });
+
+    state
+        .scans
+        .lock()
+        .map_err(|_| BridgeError::bridge(code::UNKNOWN, "registry lock"))?
+        .insert(scan_id.clone(), entry.clone());
+
+    Ok(ScanPrep {
+        entry,
+        events: rx,
+        consent: consent_user,
+    })
+}
+
+/// M04/BF-12: the image-file branch of scan_start_blocking — the og's
+/// "Import a disk image" target. Mirrors the live flow exactly (the same
+/// consent arming, the same event pipe, the same registry shape) with the
+/// image-specific truths: `cr_ui_open_image(path, 0, 0)` (the whole-file
+/// 512-byte-sector view), whole_disk = 1 (the image IS a disk), the NG-21
+/// repair guard (pre_scan_repair = 0 — the image's LBA 0 is a partition
+/// table), pre_scan_check = 1, and folder scopes / FVEK keys refused
+/// (they address live-volume axes an image view has none of).
+#[allow(clippy::too_many_arguments)]
+fn scan_start_image_blocking(
+    state: &Arc<BridgeState>,
+    images: &Arc<ImageTargetsState>,
+    app: &tauri::AppHandle,
+    target_id: String,
+    path_scope: Option<String>,
+    bitlocker_fvek: Option<String>,
+) -> BridgeResult<ScanPrep> {
+    if let Some(scope) = path_scope.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        return Err(BridgeError::bridge(
+            code::SCAN_SCOPE_INVALID,
+            format!(
+                "a folder scope ('{scope}') addresses a live volume — an imported \
+                 image is a whole-disk target with no drive letters"
+            ),
+        ));
+    }
+    if bitlocker_fvek.as_deref().map(str::trim).filter(|k| !k.is_empty()).is_some() {
+        return Err(BridgeError::bridge(
+            code::SCAN_SCOPE_INVALID,
+            "a BitLocker FVEK unlocks a live volume — an imported image carries \
+             its data in the clear inside the file",
+        ));
+    }
+    let target = resolve_image_target(images, &target_id)?;
+
+    let path_c = crate::bridge::util::cstr(&target.path);
+    let mut dev: *mut abi::CrUiDevice = std::ptr::null_mut();
+    let open_rc = unsafe { abi::cr_ui_open_image(path_c.as_ptr(), 0, 0, &mut dev) };
+    if open_rc == abi::CR_UI_ERR_FVE_LOCKED {
+        return Err(BridgeError::bridge(
+            code::DEVICE_PERMISSION,
+            "the image open reported a locked volume (unexpected for a file view)",
+        ));
+    }
+    if open_rc == abi::CR_UI_ERR_ELEVATION_REQUIRED {
+        return Err(BridgeError::engine(open_rc, "cr_ui_open_image (elevation required)"));
+    }
+    if open_rc != abi::CR_UI_OK {
+        return Err(BridgeError::engine(open_rc, "cr_ui_open_image"));
+    }
+    let device = SendPtr::new(dev);
+
+    let mut geom: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
+    check(
+        unsafe { abi::cr_ui_device_geometry(dev, &mut geom) },
+        "cr_ui_device_geometry (image)",
+    )?;
+
+    let scan_id = state.mint_scan_id();
+    let mut cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
+    cfg.whole_disk = 1; // the image IS the disk
+    cfg.pre_scan_repair = 0; // NG-21: no partition-table primary guard
+    cfg.pre_scan_check = 1;
+    let autosave_dir = crate::bridge::util::cstr(&state.sessions_dir.to_string_lossy());
+    cfg.autosave_dir_utf8 = autosave_dir.as_ptr();
+    let consent_user = SendPtr::new(Box::into_raw(Box::new(ConsentPipe {
+        scan_id: scan_id.clone(),
+        app: app.clone(),
+        state: state.clone(),
+    })));
+    cfg.repair_consent = Some(consent::consent_sink);
+    cfg.repair_consent_user = consent_user.get() as *mut std::ffi::c_void;
+
+    let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
+    check(
+        unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) },
+        "cr_ui_scan_create (image)",
+    )?;
+    let scan_ptr = SendPtr::new(scan);
+    check(
+        unsafe { abi::cr_ui_scan_attach_device(scan, dev) },
+        "cr_ui_scan_attach_device (image)",
+    )?;
+
+    let (tx, rx) = sync_channel::<abi::CrUiEvent>(512);
+    let sink_user = Box::into_raw(Box::new(tx.clone()));
+    check(
+        unsafe {
+            abi::cr_ui_scan_set_event_fn(
+                scan,
+                Some(crate::bridge::events::scan_event_sink),
+                sink_user as *mut std::ffi::c_void,
+            )
+        },
+        "cr_ui_scan_set_event_fn (image)",
+    )?;
+
+    let target_json = target.device_row();
+    let params_json = json!({
+        "targetId": target_id,
+        "pathScope": Value::Null,
+        "bitlockerFvek": Value::Null, // echoed shape only — never the key
+    });
+    let live = Arc::new(Mutex::new(ScanLive::new(geom.total_bytes, geom.logical_sector)));
+    let terminal: Arc<Mutex<Option<Terminal>>> = Arc::new(Mutex::new(None));
+    let snapshot_exists = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+    let entry = Arc::new(ScanEntry {
+        scan_id: scan_id.clone(),
+        kind: ScanKind::Live {
+            scan: scan_ptr,
+            device,
+            owns_device: true,
+        },
+        target_json,
+        device_id: target.id.clone(),
+        volume_id: None,
+        params_json,
+        path_scope: None,
+        started_at: now_iso(),
+        live,
+        terminal,
+        snapshot_exists,
         sink_user: SendPtr::new(sink_user),
         snap: Mutex::new(crate::bridge::state::SnapshotCache {
             gen: 0,

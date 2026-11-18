@@ -28,3 +28,14 @@ export function useUnlockVolume() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.devices }),
   });
 }
+
+/** M04/BF-12: import a disk-image file as a scannable target (the og's
+ * "Import a disk image" flow). The devices query invalidates so the row
+ * lands in the list; the returned row is the scan target. */
+export function useImportImageFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => connector.devices.importImageFile(path),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.devices }),
+  });
+}

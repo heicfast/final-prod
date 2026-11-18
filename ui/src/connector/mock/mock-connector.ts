@@ -391,6 +391,15 @@ export class MockConnector {
   private imageProgressListeners = new Map<string, Set<(e: ImageProgressEvent) => void>>();
   private imageFinishedListeners = new Map<string, Set<(e: ImageFinishedEvent) => void>>();
   private nextImageId = 1;
+  /** M04: the imported image targets (path-keyed, refresh-stable within
+   * the app run — the registry scope the real bridge carries). */
+  private imageImports: {
+    path: string;
+    device: Device;
+    volumeId: string;
+    space: NodeSpace;
+  }[] = [];
+  private nextImageImportId = 1;
 
   // ------------------------------------------------------------------
   // W-01: the event-emitter registry — the mock mirrors the bridge's
@@ -517,6 +526,23 @@ export class MockConnector {
       );
       this.nodeSpaces.set(primary.id, space);
     }
+    // M04: the imported image targets survive refreshes (the registry
+    // lives for the app run — the same scope the real bridge's carries).
+    for (const imp of this.imageImports) {
+      this.deviceList.push(imp.device);
+      this.nodeSpaces.set(imp.volumeId, imp.space);
+    }
+  }
+
+  /** M04: the deterministic size of a picked image file (the canned
+   * picker's fixture scale — a 64 GiB-class disk image). */
+  private static imageFileSize(path: string): number {
+    let h = 2166136261;
+    for (let i = 0; i < path.length; i++) {
+      h ^= path.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return 32 * 1024 * 1024 * 1024 + (h >>> 1) * 1024; // ~32 GiB, deterministic
   }
 
   private spaceFor(targetId: string): NodeSpace {
@@ -562,6 +588,65 @@ export class MockConnector {
       await latency(700, 200);
       this.rebuildDevices();
       return this.deviceList;
+    },
+
+    // M04/BF-12: the imported-image target — the og's Import-a-disk-image
+    // flow. The family gate mirrors the bridge's (the og's filter minus
+    // .edisk, M03); the device row mirrors the bridge's shape (kind
+    // 'image', the file size as capacity, whole-disk entry) plus the
+    // synthetic whole-image volume the simulator's scan machinery rides
+    // (the real bridge opens the file directly — the volumes live inside
+    // the image and the scan finds them).
+    importImageFile: async (path: string): Promise<Device> => {
+      await latency(260, 90);
+      const trimmed = path.trim();
+      const ext = /\.([a-z0-9]+)$/i.exec(trimmed)?.[1]?.toLowerCase();
+      const FAMILIES = ['vmdk', 'vhd', 'vhdx', 'dmg', 'img'];
+      if (!ext || !FAMILIES.includes(ext)) {
+        throw connError(
+          'scan-scope-invalid',
+          `'${ext ?? '(none)'}' is not a supported image family — the import filter is ${FAMILIES.map((f) => `*.${f}`).join(' ')}`,
+          'errors.scanScopeInvalid',
+        );
+      }
+      const existing = this.imageImports.find((i) => i.path === trimmed);
+      if (existing) return existing.device;
+      const id = `imgfile-${this.nextImageImportId++}`;
+      const volumeId = `vol-${id}`;
+      const size = MockConnector.imageFileSize(trimmed);
+      const fileName = trimmed.split(/[\\/]/).pop() ?? trimmed;
+      const capacity = { totalBytes: size, usedBytes: 0, freeBytes: 0 };
+      // The simulator's whole-image view: one volume riding the image
+      // bytes (the scan machinery addresses volumes; the real bridge's
+      // imgfile- arm opens the file directly).
+      const volume: Volume = {
+        id: volumeId,
+        deviceId: id,
+        label: fileName,
+        letter: null,
+        fs: 'ntfs',
+        capacity,
+        status: 'ok',
+        quickScanAvailable: true,
+      };
+      const device: Device = {
+        id,
+        kind: 'image',
+        busType: 'file',
+        model: `${ext.toUpperCase()} image`,
+        label: fileName,
+        serial: '',
+        capacity,
+        status: 'ok',
+        isSourceOfActiveScan: false,
+        volumes: [volume],
+        canScanWholeDisk: true,
+      };
+      const space = new NodeSpace(volumeId, 7717, 24, 860, Math.round(size * 0.62));
+      this.imageImports.push({ path: trimmed, device, volumeId, space });
+      this.deviceList.push(device);
+      this.nodeSpaces.set(volumeId, space);
+      return device;
     },
 
     unlockVolume: async (volumeId: string, _passwords: readonly string[]): Promise<void> => {
@@ -2534,6 +2619,16 @@ ${lines.join('')}
       const suggestion = pool[this.pickIndex % pool.length] ?? pool[0];
       this.pickIndex++;
       return suggestion ? `${suggestion.path}Recovered Files` : null;
+    },
+
+    // M04: the canned disk-image picker (the real connector opens the
+    // native dialog with the og's filter minus .edisk, M03). The fixture
+    // alternates two families so the import surface is exercised across
+    // both a flat image and a vhdx container.
+    pickImageFile: async (): Promise<string | null> => {
+      await latency(150);
+      const canned = ['D:\\Backups\\seed-ntfs-disk.img', 'E:\\Images\\laptop-2026.vhdx'];
+      return canned[this.pickIndex++ % canned.length];
     },
 
     listMountPoints: async (): Promise<MountPoint[]> => {

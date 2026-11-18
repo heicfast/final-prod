@@ -237,6 +237,12 @@ export function createTauriConnector(): RecoveryConnector {
 
       refreshDevices: async (): Promise<Device[]> => bridge(invoke('devices_refresh')),
 
+      // M04/BF-12: the imported-image target (the og's Import-a-disk-image
+      // flow). The bridge validates the family + presence; the returned
+      // row is the scan target (scan_start's imgfile- arm).
+      importImageFile: async (path: string): Promise<Device> =>
+        bridge(invoke('image_target_import', { path })),
+
       unlockVolume: async (volumeId: string, passwords: readonly string[]): Promise<void> =>
         bridge(invoke('volume_unlock_dictionary', { volumeId, passwords })),
     },
@@ -578,6 +584,11 @@ export function createTauriConnector(): RecoveryConnector {
         excludeDeviceId?: string | null;
       }): Promise<string | null> =>
         bridge(invoke('system_pick_directory', { hint: hint ?? null })),
+
+      // M04: the og's Import-a-disk-image filter minus .edisk (M03) — the
+      // bridge re-validates the family at import time.
+      pickImageFile: async (): Promise<string | null> =>
+        bridge(invoke('system_pick_image_file')),
 
       listMountPoints: async (): Promise<readonly MountPoint[]> =>
         bridge(invoke('system_list_mounts')),

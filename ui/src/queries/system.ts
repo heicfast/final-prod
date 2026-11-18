@@ -37,6 +37,14 @@ export function usePickDirectory() {
   });
 }
 
+/** M04: the native disk-image picker — the og's Import-a-disk-image filter
+ * minus .edisk (M03). Null = cancelled. */
+export function usePickImageFile() {
+  return useMutation({
+    mutationFn: () => connector.system.pickImageFile(),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // User signs (D1: elevation is the launch-time manifest — no runtime posture
 // probe or relaunch flow exists; the queries reflect the product as it is)

@@ -303,6 +303,29 @@ pub async fn system_pick_directory(
     Ok(json!(picked))
 }
 
+/// M04/BF-12: the disk-image file picker — the og's "Import a disk image"
+/// filter minus `.edisk` (M03): `*.vmdk *.vhd *.vhdx *.dmg *.img`
+/// (rev/strings_ascii.txt:11803-11816). Null = the user cancelled; the
+/// picked path feeds `image_target_import` (the bridge validates the
+/// family again — the filter is a convenience, never the gate).
+#[tauri::command]
+pub async fn system_pick_image_file(app: tauri::AppHandle) -> Result<Value, BridgeError> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter(
+                "Disk images",
+                ["vmdk", "vhd", "vhdx", "dmg", "img"],
+            )
+            .blocking_pick_file()
+            .map(|p| p.to_string())
+    })
+    .await
+    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?;
+    Ok(json!(picked))
+}
+
 #[tauri::command]
 pub async fn system_open_path(app: tauri::AppHandle, path: String) -> Result<(), BridgeError> {
     // Files are REVEALED with selection in the system explorer; folders

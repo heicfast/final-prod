@@ -111,3 +111,25 @@ test('create image: the cancellable running posture + the stop-confirm (D-IMG-1)
   // The job completes (the mock's compressed clock): the done copy shows.
   await expect(page.getByText(/disk image created/i)).toBeVisible({ timeout: 30_000 });
 });
+
+test('M04: import a disk image — the quick target, the row, the scan entry', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  // The og's "Import a disk image" quick target (the canned picker
+  // alternates .img / .vhdx — both families exercised across runs).
+  await page.getByRole('button', { name: /import a disk image/i }).click();
+
+  // The row lands in the device list with the Disk image badge.
+  await expect(page.getByText(/disk image/i).first()).toBeVisible({ timeout: 10_000 });
+
+  // The imported row is selectable + scannable like any disk (the
+  // click-through to the scan page happens through the standard flow;
+  // here the badge + selection is the surface proof).
+  const row = page.getByRole('radio', { name: /\.img|\.vhdx/i }).first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+});

@@ -4239,3 +4239,46 @@ contracts validate.mjs (55 commands, both cross-checks), doc_truth_gate
 (oxc-parser allocation vs the memory cap — the documented standing
 limitation; the ui-ci runner proves it) and the e2e lane runs on the
 runner.
+
+### T-W8/M04 — image-file scan targets: the "Import a disk image" flow (BF-12 CLOSED)
+
+The biggest W8 row, end to end. The bridge gains `commands/images.rs` — the
+in-memory imported-image registry (the ImagingState seam discipline) with the
+og's import filter minus `.edisk` (M03): vmdk/vhd/vhdx/dmg/img
+(strings:11803-11816). `image_target_import` validates truthfully (missing
+file → device-gone; unsupported family / empty file → scan-scope-invalid;
+idempotent per canonical path) and returns the Device-shaped row (kind
+'image' — NOT 'virtual', the D-ENUM-05 lesson: an imported image is a
+scannable target every surface must render); `devices_list`/`devices_refresh`
+merge the rows (refresh-stable within the app run — the registry's honest
+scope); `scan_start`'s new imgfile- branch opens through
+`cr_ui_open_image(path, 0, 0)` with whole_disk=1 (the image IS a disk), the
+NG-21 pre-scan-repair guard (pre_scan_repair=0), pre_scan_check=1, and folder
+scopes / FVEK keys refused (they address live-volume axes an image view has
+none of). `system_pick_image_file` is the native picker with the og's filter
+(bridge re-validates — the filter is a convenience, never the gate).
+
+The connector: `DeviceKind` gains 'image'; `devices.importImageFile(path)` +
+`system.pickImageFile()`; the mock mirrors the family gate, the idempotence,
+the refresh stability, and rides the scan machinery through a synthetic
+whole-image volume (the canned picker alternates .img/.vhdx). The home page
+gains the fourth quick target ("Import a disk image", the DiscIcon row in
+the Specify-a-location grid) with the pick→import→row chain; the DeviceCard
+badges image rows and HIDES the create-image hover action (imaging addresses
+physical disks — the bridge would refuse an imgfile target; never a dead
+button). i18n en/zh-CN.
+
+Contracts: scan_start/devices_list/devices_refresh notes trued + 3 new rows
+(image_target_import serves devices.importImageFile; system_pick_image_file
+serves system.pickImageFile; image_target_list serves-empty by design — the
+dev-panel/diagnostics surface); the README seam count 68 → 70 (doc_truth_gate
+caught the drift in-commit, as designed).
+
+Tests: mock — import/scan-to-completion over the imported target,
+idempotence + refresh survival, the family refusals, the canned-picker
+alternation; tauri — the new invoke shapes + the refusal code maps; e2e —
+the quick-target → row → badge flow. Local gates all green (typecheck,
+eslint, prettier, vitest 222/222, arch:lint, jscpd, contracts 58/56
+cross-checks, doc_truth 12/70). Honest scope: the Rust compiles on the
+runners (no local cargo — the standing sandbox limitation); knip is the
+documented memory-cap casualty.
