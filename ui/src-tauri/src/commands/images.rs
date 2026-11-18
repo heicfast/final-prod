@@ -182,7 +182,7 @@ pub async fn image_target_import(
         }
         // Canonicalize for the idempotence key (best-effort; the trimmed
         // path stands when the FS refuses).
-        let key = std::fs::canonicalize(&p)
+        let key = std::fs::canonicalize(p)
             .map(|c| c.to_string_lossy().to_string())
             .unwrap_or_else(|_| trimmed.clone());
         let file_name = p
