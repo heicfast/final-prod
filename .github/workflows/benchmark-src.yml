@@ -79,6 +79,7 @@ jobs:
       - name: Optional full ctest (the correctness gate before measuring)
         if: ${{ inputs.run_tests }}
         shell: pwsh
+        working-directory: engine
         run: |
           ctest --preset win-x64-release -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::ctest red before the matrix - not measuring a red tree'; exit 1 }
