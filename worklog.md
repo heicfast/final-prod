@@ -4154,3 +4154,38 @@ coverage, F-G carve throughput) NOT STARTED — this session's step budget ended
 Windows CI sweep + release validation not run (Linux sandbox). `worklog/VALIDATION/` gains
 nothing from this session — no evidence faked. OPEN-1: the concurrent installer-api lane's
 AsyncRing miss-path repair needs its Windows benchmark matrix re-run green.
+
+---
+
+## Session 2026-11-19 — installer-api lane re-opens (second continuation): main-green + the wiring waves
+
+Prompt (unchanged charter, saved token-redacted by this lane's first session at
+worklog/session-installer-api-prompt.md). Clone: final-prod `241e8991` (main),
+corpus `be0cfe95`. Token in env/git config only.
+
+**T1 — the red-main audit and repair.** Baseline at clone: benchmark-src,
+validation-evidence, release RED on every push since `22dcfddb` (12 consecutive
+zero-job push failures each — the phantom invalid-workflow-file class), ui-ci
+RED at `795f5328` (prettier). Root causes pinned first-hand: (a) the
+workflow-level `env: VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}` survived
+235d3c32's "workflow-level env removed" fix (that commit ADDED the step-level
+replacements, 24 insertions/0 deletions — never deleted the offending block;
+`runner` is an unrecognized named-value at workflow-env scope); (b)
+`preview-pane.tsx` shipped unformatted by W5e/M06. My in-flight repair was
+overtaken by the concurrent lane's identical root-cause fix (`cc201bff` +
+`df5e05b9`) — my duplicate was rebased away, never force-pushed; my unique
+remainder landed as `87c04b7f` (prettier 3.9.10 on preview-pane.tsx, pure
+formatting 41/41, `prettier --check .` from ui/ green). Local gates before
+push: contracts validate.mjs green (55 commands, both cross-checks),
+doc_truth_gate green (exports=95, seam=12/67), all workflow YAMLs parse clean,
+no workflow-level runner refs remain.
+
+**The frontier at work start**: W5 COMPLETE (M07 `228bf5bc`, M13 `9352c81d`,
+M12 `9ad991d6`, M06 `795f5328`; M28 verified fixed in-tree at
+engine/src/ui/cr_ui.cpp:5095 — the uniform ERR_ELEVATION_REQUIRED gate). This
+session's recorded scope, from the prior lane's deferred register: the W9
+imaging UI/connector half (the charter's UI-wiring requirement), the W8 batch,
+W7 repair workbench ABI, W9-repair UI, W6 (M20/M14), the evidence dispatches
+(benchmark-src = the ring repair's Windows proof, OPEN-1 of the sector-scan
+handoff; validation-evidence = the G-5 re-proof + DT-12 regen), and the
+truth-sheets re-trued as waves land.
