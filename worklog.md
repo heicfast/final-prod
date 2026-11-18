@@ -3295,3 +3295,38 @@ v0.9.3 bumped but untagged; bridge-integration results_filters gate had a
 NULL-POINTER PANIC queued — functional-lane debt, noted, not this session's
 mandate. Phase 0 agents A-E dispatch next; no code touches until the five
 context sheets are pushed.
+
+---
+
+## 2026-11-18 — D-ENUM-05: the 'virtual' bus-kind arm hid every file-backed disk (0.9.3's first post-release validation catch)
+
+- The forensic validation pass on the RELEASED 0.9.3 (run 44249495727,
+  dispatched by the prior lane at 1b9a4408's CI-STALE-01 closure) went RED
+  at S2b: 'getByRole(radio, /SeedEXFAT/) Timeout 15000ms'. The evidence
+  told the whole story: the disk census recorded 4 physical disks (2 SAS
+  runner disks + the 64GB SeedNTFS and 8GB SeedEXFAT vhdx fixtures), the
+  home page rendered 'Internal drives (2)' only — both vdisks missing
+  from every scanning surface; the health window (working correctly)
+  showed the truthful no-source state for the two disks it did see.
+- Root cause (D-ENUM-05, the regression class of D-ENUM-02): 0.9.3's
+  bus-driven kind split (ba2b9347) routed bus 14/15/16
+  (Virtual/FileBackedVirtual/Spaces) to kind 'virtual' — and
+  home-page.tsx:85, disk-health-window.tsx:110 and use-physical-devices.ts:21
+  all filter kind !== 'virtual'. A mounted VHDX is a scannable physical
+  drive with real content; 'virtual' is the shell-locations' kind
+  (Recycle Bin/Desktop quick-targets — hardcoded UI rows, never bridge
+  device rows). Every Hyper-V/Storage-Spaces/VHDX disk on a real user
+  machine would have vanished from the scan surfaces the same way.
+- Fix (96917f6c): map_kind's 14..=16 arm removed — bus 12/13 -> 'sd',
+  bus 7 -> 'usb', every other bus INCLUDING the virtual buses falls to
+  the removable flag (the same fallback ATA/NVMe/SAS always took).
+  contracts/type-maps.md trued with the D-ENUM-05 note; the call-site
+  comment trued. No test pinned the old arm (verified: no rust/ui/e2e
+  references); the mock's kind->busType inverse map is display-only for
+  the location rows.
+- VERSION -> 0.9.4; the release notes' opener rewritten to the 0.9.4
+  truth (the honesty patch over the 0.9.3 train, with the regression
+  named plainly). Order of operations: this frontier goes green ->
+  tag v0.9.4 -> release -> re-dispatch forensic-repro on v0.9.4 (the
+  D-ENUM-01 census gate — every physical disk the OS exposes renders —
+  becomes live again the moment the vdisks render).
