@@ -98,3 +98,71 @@ New rows from this session's audits (the register's honest ledger):
 - knip not runnable in this sandbox (oxc-parser allocation vs the memory cap).
 - Two sandbox recycles emptied the clones mid-session; recovery was always
   from the pushed state — push discipline held and nothing was lost.
+
+## Session 2026-11-18 (installer integration & API surface expansion) — additions and closures
+
+**Closed by this session:**
+- **G-1 — userdata-defaults.json never placed: FIXED** (W1) — the one real
+  placement defect: staged into the kit, placed flat by the .nsi kit File,
+  deleted by the uninstaller (data file the *.dll catch-all misses),
+  asserted by the T15 exact-module set, inherited by portable; About's
+  userSigns truthful non-zero on clean installs.
+- **G-4 — the installer abort path stranded partial installs: FIXED** (W2) —
+  the kit pre-flight hoisted before the inner application setup runs +
+  AbortAfterInner sweeps every post-inner abort path (inner keys, the inner
+  app silent-uninstalled, the seed key + empty parent).
+- **G-9 — stale kit modules on update: FIXED** (W2) — the update sweep over
+  the documented installer-owned file classes + the matrix's conditional
+  version-bump row (registry restamp + marker survival + decoy removal).
+- **G-6 — seed-key removal unasserted: FIXED** (W2) — asserted (key + the
+  empty manufacturer parent).
+- **G-3 — shortcuts unaudited: the probe shipped** (W2) — the matrix asserts
+  the inner template's Start Menu set targets the install dir and is gone
+  after uninstall; the CHECK-SHORTCUTS contingency names the outer-.nsi
+  CreateShortCut follow-up if evidence shows the inner creates none.
+- **D-IMG-1 — no imaging cancel: FIXED** (W4) — cr_ui_image_create_ex's
+  caller-owned volatile flag + the bridge image_create_cancel command + the
+  CLI token + the real-disk it-gate (ERR_CANCELLED + the truthful .partial).
+- **D-IMG-3 — whole-disk-only imaging: FIXED** (W4) — the sector range at
+  every layer (storage/win/ABI/CLI/bridge) with the og's Invalid-sector
+  grammar and the byte-identical 0/0 legacy proof.
+- **DT-1..DT-15 — the doc-truth sweep: FIXED** (W3) — and DT-14's new guard
+  (doc_truth_gate over the contracts README with tree-derived counts) held
+  the line through W4's 93→94 append, catching all six stale sites on its
+  first run.
+
+**This session's deferred register (precise scope each):**
+1. **The W9 imaging UI/connector half of D-IMG-1/D-IMG-3** — contract.ts
+   imaging.cancelImageCreation + startImageCreation's range params + the
+   mock connector + the stop-confirm dialog + the More-Option fields. The
+   engine + CLI + bridge halves ARE shipped; the TS surface is the next
+   wave (the serves-empty row in command-surface.json records it).
+2. **G-5 — fresh T15 runtime evidence**: the 06:40 dispatch failed on the
+   concurrent performance lane's mid-bump tree (VERSION 0.9.4 vs the app
+   manifests' 0.9.3 — build.ps1's version gate correctly refused it);
+   re-dispatched at 07:0x on the version-consistent frontier (b43ce273,
+   all waves in). The artifacts land under docs/INTEGRATION-VALIDATION/ +
+   the DT-12 compile-check regen when that run completes.
+3. **The failure-path matrix row** (force a bad kit on the runner): needs a
+   deliberately-broken-kit build lane; the pre-flight makes the bad-kit case
+   abort pre-placement by construction in the meantime.
+4. **The W5–W10 waves**: the small axes (thumbnail snapshot, archive tree,
+   CURRENT_PATH, vendor names), recovery/query completion (R-48 ACL, the
+   query existing knob), the repair workbench (W7 — G-1(b)), the UI wiring
+   batches (W8/W9), and the measured perf (W10 — owned by the CONCURRENT
+   performance lane; coordinated, not duplicated).
+5. **DT-12** — installer-compile-check.md regenerates against the current
+   640-line driver-free .nsi with the validation run's compile evidence.
+
+**Process limitations of this session (honesty about the evidence):**
+- Linux-only sandbox: no cmake/MSVC, no cargo, no pnpm, no makensis, no
+  pwsh, no root. Every C++/Rust/NSIS/PS change is compile-proven ONLY by
+  the runners; the local gates were contracts validate.mjs,
+  doc_truth_gate (python), the layout generator, the clang-format 18.1.8
+  pip wheel, and json.tool — all run green before every push.
+- The engine-ci lint gate caught the hand-written C++ wrapping (one style
+  commit, b43ce273 — the pinned-version lesson held: a 23.x format would
+  have re-wrapped the whole tree; 18.1.8 confined the diff to the new code).
+- A concurrent performance lane was active on the same repo the whole
+  session (three mid-push remote advances; every push pulled-and-rebased,
+  never forced; their worklog entries preserved verbatim in every merge).
