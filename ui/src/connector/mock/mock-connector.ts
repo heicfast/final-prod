@@ -1889,6 +1889,9 @@ ${lines.join('')}
         extensions: null,
         origins: ['deleted', 'lost-path'],
         hideEmptyFiles: false,
+        hideSystemFiles: false,
+        hideTempFiles: false,
+        hideBrowserCache: false,
       };
       const allMode =
         selection.kind === 'all'
