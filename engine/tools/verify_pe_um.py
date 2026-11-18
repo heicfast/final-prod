@@ -38,6 +38,24 @@ ALLOWLIST_ADDITIONS = {
     # the volume back out (corpus RecoveryModule_decompiled.c :60412; the
     # og's decompile cites the A variant there - the W variant is the same
     # syscall). Win2000-era API.
+    # 2026-11-18 performance session (the overlapped read-ahead ring +
+    # pooled cache buffers - worklog/PERFORMANCE.md fixes 1-2). Every
+    # entry is Win7 SP1 x64-available by construction:
+    #   VirtualAlloc/VirtualFree: NT-era memory manager, used for the
+    #     page-aligned pooled buffers (cr_cached.cpp BufferPool; the
+    #     ring's slot buffers in cr_transport.cpp).
+    #   CreateIoCompletionPort / GetQueuedCompletionStatus /
+    #     PostQueuedCompletionStatus: NT4-era IOCP surface (Microsoft
+    #     Learn: CreateIoCompletionPort, GetQueuedCompletionStatus) -
+    #     the ring's completion engine.
+    #   CancelIoEx: Vista-era (6.0) - Win7-inclusive; the ring's
+    #     teardown cancellation per the OVERLAPPED-lifetime rules.
+    "VirtualAlloc": "perf session fix 1/2: pooled page-aligned buffers; NT-era",
+    "VirtualFree": "perf session fix 1/2: pooled page-aligned buffers; NT-era",
+    "CreateIoCompletionPort": "perf session fix 2: the ring's IOCP; NT4-era API",
+    "GetQueuedCompletionStatus": "perf session fix 2: the completion thread; NT4-era API",
+    "PostQueuedCompletionStatus": "perf session fix 2: the stop post; NT4-era API",
+    "CancelIoEx": "perf session fix 2: teardown cancel; Vista-era, Win7-inclusive",
     "DeleteVolumeMountPointW": "S-010 repair quiesce (corpus :44699); Win2000-era API",
     # S-014 (diff-to-fix): the live auto-unlock read needs the per-volume
     # "Data" value (DRWService_decompiled.c:121 RegQueryValueExA there; W
