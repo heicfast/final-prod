@@ -821,6 +821,10 @@ bool ScanController::engine_progress_bridge_(u64 done, u64 total, void* user) {
 }
 
 ScanTelemetrySnapshot ScanController::telemetry() const {
+    /* M13: the ticker cell copy runs BEFORE tel_.m (path_mu_ only - the
+     * one-way lock rule; the string copy is the whole cost, bounded by
+     * the 511-byte cap) */
+    std::string cur_path = tree_.current_path();
     /* All live reads happen under the same mutex the stamp path uses for
      * teardown, so a query racing run()'s exit never touches a dead retry
      * pipe or a destroyed caller token. Live refresh (G-04/G-05/G-06):
@@ -829,6 +833,7 @@ ScanTelemetrySnapshot ScanController::telemetry() const {
      * stamped at stage boundaries). */
     std::lock_guard<std::mutex> lock(tel_.m);
     ScanTelemetrySnapshot out = tel_.snap;
+    out.current_path = std::move(cur_path);
     out.running = tel_running_.load(std::memory_order_acquire);
     if (!out.running)
         return out; /* finalized snapshot: stamp() already merged the

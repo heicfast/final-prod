@@ -330,6 +330,7 @@ fn scan_progress_axes_move() {
         errors: u32,
         phase: u32,
         phase_permille: u32,
+        path_seen: bool,
     }
     let t0 = Instant::now();
     let mut samples: Vec<Sample> = Vec::new();
@@ -361,6 +362,7 @@ fn scan_progress_axes_move() {
             errors: tel.error_ranges,
             phase: tel.phase,
             phase_permille: tel.phase_permille,
+            path_seen: tel.current_path[0] != 0,
         });
         let finished = run_handle.is_finished();
         if finished {
@@ -372,14 +374,14 @@ fn scan_progress_axes_move() {
     let csv = {
         let mut s = String::from(
             "t_ms,overall_pm,quick_pm,quick_done,deep_pm,deep_done,carve_pm,carve_done,\
-             bytes_scanned,bytes_found,files,errors,phase,phase_permille\n",
+             bytes_scanned,bytes_found,files,errors,phase,phase_permille,path_seen\n",
         );
         for m in &samples {
             s.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
                 m.t_ms, m.overall_pm, m.quick_pm, m.quick_done, m.deep_pm, m.deep_done,
                 m.carve_pm, m.carve_done, m.bytes_scanned, m.bytes_found, m.files, m.errors,
-                m.phase, m.phase_permille
+                m.phase, m.phase_permille, m.path_seen as u8
             ));
         }
         s
@@ -444,6 +446,16 @@ fn scan_progress_axes_move() {
         max_bytes_found > 0,
         "files were found but bytes_found stayed 0 — the found-size axis is dead (the \
          user-visible 'files found 21 (0 B)')"
+    );
+
+    // (b2) M13 (W5): the Searching-path axis — the first attach samples
+    // immediately, so any sample taken after a find carries a path. The
+    // pre-M13 ABI had no path field at all (BF-29: the ticker was
+    // hard-null on the real backend).
+    assert!(
+        samples.iter().any(|s| s.path_seen),
+        "files were found but current_path stayed empty on every sample — the \
+         Searching-path axis is dead (M13)"
     );
 
     // (c) THE PHASE MODEL PIN (D-P6), reframed by the first real

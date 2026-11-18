@@ -49,7 +49,7 @@ boundary.
 | bridge-derived (bytes/elapsed) | `etaSeconds`, `throughputBytesPerSecond` | |
 | snapshot exists (`cr_ui_scan_snapshot`, partial ok) | `recoverableDuringScan` = true | the mock's 0.4 threshold was simulation |
 | (no disconnect events — **G-8**) | `deviceConnected` = heartbeat-fresh within 2× heartbeat window | synthesized from CR_EVT_HEARTBEAT liveness + I/O error patterns |
-| (no path event — **G-2**) | `currentPath` = null | UI hides the ticker; never fabricated |
+| telemetry `current_path[512]` (**M13, W5** — the tree's sampled cell, every 128th attach) | `currentPath` (null when empty) | the og's "Searching: <path>" ticker; G-2's path half closed by the ABI axis — `currentSector` (P-TICK-01) stays the byte-cursor truth |
 
 ## 3. Scan state — `cr_ui_scan_busy/stopping/telemetry` + run result → `ScanState`
 

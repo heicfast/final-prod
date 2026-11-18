@@ -649,6 +649,13 @@ struct ScanTelemetrySnapshot {
      * run). Computed beside overall_permille in tel_counts_. */
     u32 phase = 0;
     u32 phase_permille = 0;
+    /* M13 (W5, BF-29's file half): the current item's full path - the
+     * "Searching: <path>" ticker axis, copied from the tree's sampled
+     * cell at read time (every 128th attach, first immediate; the
+     * bridge's poll cadence is the display rate). Backslash-joined from
+     * the root's role, UTF-8, tail-preserving 511-byte truncation;
+     * empty before the first sampled attach. */
+    std::string current_path;
 };
 
 /* Monotonic weighted progress: per-stage permille -> overall 0..1000. */

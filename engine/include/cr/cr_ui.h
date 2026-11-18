@@ -706,6 +706,19 @@ typedef struct cr_ui_telemetry {
      * maps it 1:1 — no UI-side re-derivation. */
     uint32_t phase;
     uint32_t phase_permille;
+    /* M13 append (W5, BF-29's file-path half): the current item's full
+     * path - the og's "Searching: <path>" ticker axis. UTF-8,
+     * backslash-joined from the root's role, sampled from the result
+     * tree at a bounded attach cadence (every 128th file, first
+     * immediate) and copied at telemetry-read time; the host's poll
+     * cadence is the display rate. Truncated to 511 bytes at a
+     * codepoint boundary, TAIL-PRESERVING (the item's own name
+     * survives; the deep-root side gives way). EMPTY
+     * (current_path[0] == 0) before the first sampled attach - never
+     * fabricated, never extrapolated (the currentSector twin stays the
+     * byte-cursor truth; the two axes are complementary, the og shows
+     * both). Additive append, the D4b/P-TICK-01 layout discipline. */
+    char current_path[512];
 } cr_ui_telemetry;
 
 /* Live snapshot of the running (or finished) scan; any thread, any time. */

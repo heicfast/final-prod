@@ -683,3 +683,47 @@ TEST(Telemetry, DeepStageCarriesTheByteAxes) {
     EXPECT_NE(std::string::npos, shim.find("out->current_offset_bytes = t.current_offset_bytes"))
         << "scan_telemetry_impl must copy the cursor axis (P-TICK-01)";
 }
+
+TEST(Telemetry, CurrentPathVisibleMidScan) {
+    /* M13 (W5): while the scan is PARKED mid-carve, the telemetry
+     * snapshot carries the current item's PATH (the quick stage's files
+     * are in the tree; the sampled cell holds a root-joined path). The
+     * pre-M13 snapshot had no path axis at all (BF-29: the ticker was
+     * hard-null). */
+    std::vector<u8> img = build_fat16_wide(100);
+    const u64 bad = 30 * 512;
+    BadRegionDevice dev(img, bad, 512);
+    dev.park_on_hit();
+    tree::ResultTree tree;
+    ScanConfig cfg; /* carve on: parks in the carve's far read */
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+
+    std::thread scan([&] { (void)ctrl.run(&dev, nullptr, nullptr, nullptr, stats); });
+    bool hit = false;
+    for (int i = 0; i < 1500 && !hit; ++i) {
+        hit = dev.hit();
+        if (!hit)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_TRUE(hit);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); /* settle */
+
+    const auto t = ctrl.telemetry();
+    ASSERT_TRUE(t.running);
+    EXPECT_FALSE(t.current_path.empty()) << "the Searching-path axis must be live mid-scan (M13)";
+    /* the cell is the tree's own sample - the two must agree exactly */
+    EXPECT_EQ(t.current_path, tree.current_path());
+    /* non-empty implies at least one path component (a root-joined
+     * sample, backslash-separated) */
+    EXPECT_NE(t.current_path.find('\\'), std::string::npos)
+        << "expected a root-joined path, got: " << t.current_path;
+
+    dev.unpark();
+    scan.join();
+    /* terminal: the cell keeps the last sample (a finalized scan's
+     * telemetry still reports it; the UI stops rendering the ticker on
+     * status, not on the field) */
+    const auto done = ctrl.telemetry();
+    EXPECT_EQ(done.current_path, tree.current_path());
+}

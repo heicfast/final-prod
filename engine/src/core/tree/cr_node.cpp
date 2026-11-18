@@ -4,6 +4,7 @@
  */
 
 #include "cr/tree/cr_node.h"
+#include "cr/cr_text.h"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -188,44 +189,106 @@ FullNode* ResultTree::add_folder(FileNode* parent, const std::u16string& role) {
 FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     if (!props || !parent)
         return nullptr;
-    std::lock_guard<std::mutex> lock(mutex_);
-    void* mem = arena_alloc(sizeof(FileNode));
-    if (!mem)
-        return nullptr;
-    FileNode* n = new (mem) FileNode();
-    n->set_props(props); /* +1 ref: caller releases its own when done */
-    n->parent_ = parent;
-    /* O(1) append via the tail pointer - the old sibling-chain walk was
-     * O(n) per insert (O(n^2) for a million-file carve root; audit:
-     * million-node scans must stay time-disciplined too) */
-    if (parent->first_child_ == nullptr) {
-        parent->first_child_ = n;
-        parent->last_child_ = n;
-    } else {
-        FileNode* t = parent->last_child_;
-        t->next_sibling_ = n;
-        n->prev_sibling_ = t;
-        parent->last_child_ = n;
+    FileNode* n = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        void* mem = arena_alloc(sizeof(FileNode));
+        if (!mem)
+            return nullptr;
+        n = new (mem) FileNode();
+        n->set_props(props); /* +1 ref: caller releases its own when done */
+        n->parent_ = parent;
+        /* O(1) append via the tail pointer - the old sibling-chain walk was
+         * O(n) per insert (O(n^2) for a million-file carve root; audit:
+         * million-node scans must stay time-disciplined too) */
+        if (parent->first_child_ == nullptr) {
+            parent->first_child_ = n;
+            parent->last_child_ = n;
+        } else {
+            FileNode* t = parent->last_child_;
+            t->next_sibling_ = n;
+            n->prev_sibling_ = t;
+            parent->last_child_ = n;
+        }
+        n->node_id_ = nodes_.size();
+        nodes_.push_back(n);
+        /* N-166: the live telemetry counters — every attached file counts
+         * once (the 1f9b2849 keep-both merge left the bump doubled; this
+         * repair restores the single increment), the raw/carved subset
+         * separately (carve stamps fs_kind=Raw before the attach; the
+         * structured engines stamp their own kinds). Relaxed atomics under
+         * the tree's own lock — the telemetry reader never takes the lock,
+         * so a mid-stage progress event can refresh its counters without
+         * contending the attach path. */
+        live_files_.fetch_add(1, std::memory_order_relaxed);
+        if (n->props() && n->props()->fs_kind == u32(FsKindCode::Raw))
+            live_raw_.fetch_add(1, std::memory_order_relaxed);
+        /* D4b: the live logical-size sum (the "Files Found: N (X GB)" size
+         * axis; same lock discipline as the counters above) */
+        if (n->props())
+            live_logical_.fetch_add(n->props()->logical_size, std::memory_order_relaxed);
+        index_node_locked(n);
     }
-    n->node_id_ = nodes_.size();
-    nodes_.push_back(n);
-    /* N-166: the live telemetry counters — every attached file counts
-     * once (the 1f9b2849 keep-both merge left the bump doubled; this
-     * repair restores the single increment), the raw/carved subset
-     * separately (carve stamps fs_kind=Raw before the attach; the
-     * structured engines stamp their own kinds). Relaxed atomics under
-     * the tree's own lock — the telemetry reader never takes the lock,
-     * so a mid-stage progress event can refresh its counters without
-     * contending the attach path. */
-    live_files_.fetch_add(1, std::memory_order_relaxed);
-    if (n->props() && n->props()->fs_kind == u32(FsKindCode::Raw))
-        live_raw_.fetch_add(1, std::memory_order_relaxed);
-    /* D4b: the live logical-size sum (the "Files Found: N (X GB)" size
-     * axis; same lock discipline as the counters above) */
-    if (n->props())
-        live_logical_.fetch_add(n->props()->logical_size, std::memory_order_relaxed);
-    index_node_locked(n);
+    /* M13: the ticker sample runs OUTSIDE the attach lock (the parent
+     * chain is immutable once linked; detach_subtree is a between-stages,
+     * single-writer operation, never concurrent with an in-flight add) */
+    sample_current_path_(n);
     return n;
+}
+
+/* M13 (W5): the "Searching: <path>" ticker cell's sampler. Every 128th
+ * attach rebuilds the newest file's full path (one O(depth) build per
+ * 128 files - the display cadence bound; the bridge's telemetry poll is
+ * the display rate on top). The FIRST attach samples immediately (tick
+ * 0), so a scan's first find lights the ticker at once. Root roles join
+ * with backslashes (the og's native-form ticker, rev/strings' "Searching"
+ * label family); names decode losslessly (the E000-band maps back to
+ * bytes). The 511-byte cap backs off to a codepoint boundary so the
+ * ABI's NUL-terminated current_path[512] is always valid UTF-8. */
+void ResultTree::sample_current_path_(FileNode* leaf) {
+    if (!leaf)
+        return;
+    static constexpr u64 kSampleEvery = 128;
+    const u64 tick = path_tick_.fetch_add(1, std::memory_order_relaxed);
+    if ((tick % kSampleEvery) != 0)
+        return;
+    std::string path;
+    std::string piece;
+    for (FileNode* p = leaf; p != nullptr; p = p->parent_) {
+        piece.clear();
+        if (p->full_) {
+            if (!text::lossless_u16_to_utf8(static_cast<const FullNode*>(p)->role, piece))
+                piece.clear();
+        } else if (p->props()) {
+            if (!text::lossless_u16_to_utf8(p->props()->name, piece))
+                piece.clear();
+        }
+        if (piece.empty())
+            continue; /* an unnamed intermediate contributes nothing */
+        if (!path.empty())
+            path.insert(path.begin(), '\\');
+        path.insert(path.begin(), piece.begin(), piece.end());
+        if (path.size() > 511)
+            break; /* the cap: stop collecting ancestors - the TAIL (the
+                    * file and its nearest folders) is the ticker's truth */
+    }
+    if (path.size() > 511) {
+        /* keep the LAST 511 bytes (the leaf side - the item's own name
+         * survives, the deep-root side gives way), then back the FRONT
+         * off to a codepoint boundary so the string stays valid UTF-8 */
+        path.erase(0, path.size() - 511);
+        while (!path.empty() && (u8(path.front()) & 0xC0u) == 0x80u)
+            path.erase(0, 1);
+        if (!path.empty() && (u8(path.front()) & 0x80u) != 0u)
+            path.erase(0, 1);
+    }
+    std::lock_guard<std::mutex> g(path_mu_);
+    current_path_ = std::move(path);
+}
+
+std::string ResultTree::current_path() const {
+    std::lock_guard<std::mutex> g(path_mu_);
+    return current_path_;
 }
 
 void ResultTree::index_node_locked(FileNode* n) {

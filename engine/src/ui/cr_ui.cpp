@@ -2592,6 +2592,15 @@ u32 scan_telemetry_impl(cr_ui_scan* scan, cr_ui_telemetry* out) {
     out->current_offset_bytes = t.current_offset_bytes; /* P-TICK-01 (BF-29) */
     out->phase = t.phase;                               /* D-P6: the restarting gauge */
     out->phase_permille = t.phase_permille;             /* D-P6: the phase's own 0..1000 */
+    /* M13 (W5): the "Searching: <path>" ticker axis - the snapshot's
+     * sampled cell, NUL-terminated into the fixed 512-byte field (the
+     * engine-side truncation already landed at a codepoint boundary;
+     * the memcpy length guard is defense-in-depth) */
+    {
+        const size_t n = t.current_path.size() > 511 ? 511 : t.current_path.size();
+        std::memcpy(out->current_path, t.current_path.data(), n);
+        out->current_path[n] = 0;
+    }
     out->elapsed_ms = t.elapsed_ms;
     out->error_ranges = u32(t.errors.ranges().size());
     out->paused = t.paused ? 1u : 0u;

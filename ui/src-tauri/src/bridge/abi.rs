@@ -316,6 +316,12 @@ pub struct CrUiTelemetry {
     /// reaches 1000). Mapped 1:1 by the bridge; no UI re-derivation.
     pub phase: u32,
     pub phase_permille: u32,
+    /// M13 append (W5, BF-29's file-path half): the current item's full
+    /// path — the og's "Searching: <path>" ticker axis. UTF-8,
+    /// NUL-terminated (empty = no sampled attach yet; tail-preserving
+    /// 511-byte truncation). The complement of current_offset_bytes:
+    /// the path is the ITEM truth, the offset the BYTE-cursor truth.
+    pub current_path: [u8; 512],
 }
 
 #[repr(C)]

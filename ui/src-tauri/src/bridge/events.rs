@@ -206,14 +206,17 @@ pub(crate) fn compose_scan_progress(
         "throughputBytesPerSecond": live.last_throughput,
         "recoverableDuringScan": snapshot_exists,
         "deviceConnected": device_connected(live, terminal, now),
-        // G-2 stands for PATHS: no ABI event carries the item being
-        // scanned, so currentPath stays null — but P-TICK-01 (BF-29)
-        // replaced the dead ticker with the REAL cursor: the byte
-        // offset the active sweep is reading now (telemetry's
-        // current_offset_bytes), expressed in the target's true
-        // sectors. Null when no byte-denominated pass is in flight —
-        // never a fabricated position.
-        "currentPath": serde_json::Value::Null,
+        // M13 (W5) closes G-2's path half: the ABI telemetry now carries
+        // the current item's path (the engine's sampled cell — every
+        // 128th attach, first immediate); currentPath renders the og's
+        // "Searching: <path>" ticker. Null when no file has attached
+        // yet — never a fabricated position, never a stale one beyond
+        // the sample cadence. currentSector (P-TICK-01) stays the
+        // byte-cursor truth; the two axes are complementary.
+        "currentPath": match &live.current_path {
+            Some(p) if !p.is_empty() => serde_json::json!(p),
+            _ => serde_json::Value::Null,
+        },
         "currentSector": (if live.current_offset > 0 {
             serde_json::json!(live.current_offset / live.sector_size.max(1) as u64)
         } else {
@@ -494,6 +497,22 @@ pub fn spawn_scan_emitter(
                         // entry whose permille is in flight carries the
                         // units; the cursor itself is telemetry-truth).
                         live.current_offset = tel.current_offset_bytes;
+                        // M13 (W5, BF-29's file half): the current item's
+                        // path — the "Searching: <path>" axis (the engine's
+                        // sampled cell; the ABI field is NUL-terminated
+                        // UTF-8, empty before the first sampled attach).
+                        live.current_path = {
+                            let nul = tel
+                                .current_path
+                                .iter()
+                                .position(|&b| b == 0)
+                                .unwrap_or(tel.current_path.len());
+                            if nul > 0 {
+                                Some(String::from_utf8_lossy(&tel.current_path[..nul]).into_owned())
+                            } else {
+                                None
+                            }
+                        };
                         live.current_offset_total = if tel.current_offset_bytes > 0 {
                             let (q, d, c) = (&tel.quick, &tel.deep, &tel.carve);
                             let active = if d.permille > 0 && d.completed == 0 {

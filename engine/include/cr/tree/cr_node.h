@@ -538,6 +538,16 @@ public:
      * for the whole scan). Lock-free read: an atomic load. */
     u64 live_logical() const { return live_logical_.load(std::memory_order_relaxed); }
 
+    /* M13 (W5, BF-29's file half): the current-item path cell - the
+     * "Searching: <path>" ticker's data source. add_file samples the
+     * newest file's full path at a bounded cadence (every 128th attach,
+     * first attach immediate); the telemetry reader copies the string
+     * under path_mu_ (never the attach lock, never the tree mutex - the
+     * ticker must not contend the emission path). Backslash-joined from
+     * the root's role, UTF-8, truncated to 511 bytes at a codepoint
+     * boundary; empty before the first sampled attach. */
+    std::string current_path() const;
+
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
 
@@ -654,6 +664,14 @@ private:
      * All mutating operations and index lookups serialize on this mutex;
      * roots()/node_count() are stable only between stages. */
     mutable std::mutex mutex_;
+
+    /* M13: the ticker cell (see current_path()). Guarded by its own tiny
+     * mutex - the telemetry reader never takes the tree mutex, and the
+     * sampler never takes tel locks (one-way: path_mu_ only). */
+    void sample_current_path_(FileNode* leaf);
+    mutable std::mutex path_mu_;
+    std::string current_path_;
+    std::atomic<u64> path_tick_{0};
 };
 
 } // namespace tree

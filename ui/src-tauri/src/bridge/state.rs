@@ -127,6 +127,11 @@ pub struct ScanLive {
     /// Searching ticker's real data; 0/0 = not sweeping).
     pub current_offset: u64,
     pub current_offset_total: u64,
+    /// M13 (W5, BF-29's file half): the current item's path — the og's
+    /// "Searching: <path>" axis (engine samples every 128th attach;
+    /// None = no sampled attach yet — never fabricated). The complement
+    /// of current_offset: the ITEM truth vs the BYTE-cursor truth.
+    pub current_path: Option<String>,
     pub last_throughput: f64,
     pub last_eta_seconds: Option<u64>,
 }
@@ -161,6 +166,7 @@ impl ScanLive {
             // ticker renders nothing rather than a fabricated position.
             current_offset: 0,
             current_offset_total: 0,
+            current_path: None,
             last_throughput: 0.0,
             last_eta_seconds: None,
         }
