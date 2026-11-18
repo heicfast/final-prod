@@ -3762,3 +3762,42 @@ EVERY DEFERRED ITEM: BEHAVIOR-FINDINGS.md (both sessions' sections), PARITY-DELT
 **Handoff**: implementation phases 2–4 not started (session step budget); exact entry points
 for every remaining fix are in worklog/BEHAVIOR-FINDINGS.md (this session's section).
 worklog/VALIDATION/ is intentionally empty — no evidence faked.
+## 2026-11-18T09:20Z — fix 1 landed: the CachedReader rework (F1 opened, Layer 2 + Layer 4 closed)
+
+Commit 9b3e1059 + evidence correction fe573920. The cache no longer
+serializes the world:
+
+- fill-outside-the-lock: the old read_at held ONE std::mutex across the
+  whole loop INCLUDING the transport fill; fills now run outside every
+  registry lock, per-block in-flight, with concurrent claimants waiting
+  on that block's cv (the og's consumer model).
+- 32-shard segmented LRU (one lane per block at the scan pipe's 32-block
+  config; graceful min(32, cap)); lock-free VALID probe (terminal state)
+  + hit copy under the shard lock (no refcount churn); per-shard
+  counters; cache-line-aligned block headers.
+- page-aligned buffer POOL (VirtualAlloc/mmap) replacing the per-miss
+  vector resize (~4.6 us/miss, 0.8x the copy itself); shared block
+  ownership = eviction-safe under a reader mid-copy.
+
+Measured before/after on the SAME artifact-corrected harness, same day,
+same fixture (BEFORE = the pre-rework code from 883107bf; the harness's
+shared-destination false-sharing artifact was found and fixed BEFORE any
+number was recorded): hit-path aggregate 0.54x->0.96x at N=2, 0.17x->0.82x
+at N=4, 0.12x->0.82x at N=8; miss-path N=1 +46%, N=4 17,763->49,392
+ops/s (+2.8x, was BELOW N=1 under the global mutex); sequential
+overhead 8.0%->5.5%; lookup 107.1->54.2 ns @ 32 blocks; alloc churn gone.
+A lock-free memcpy control at the same pattern bounds the container at
+1.6x at N=2 flat beyond — the cache adds no serialization on top.
+
+Correctness: 1637/1637 unit tests green (1634 prior + 3 new concurrency
+pins: byte-identical concurrent readers; two fills provably inside the
+transport at once; one fill serving 3 concurrent claimants). The
+audit-row-38 rule preserved; single-threaded hit/miss accounting pinned
+unchanged; the D-72/N-045 doc-truth pin passes (budget 8 MiB / 256 KiB
+unchanged; the algorithm divergence shrinks — register note next).
+PERFORMANCE.md (root worklog/) opened as the session ledger.
+
+Next: fix 2 — the transport overlapped ring (FILE_FLAG_OVERLAPPED +
+IOCP sliding window in cr_transport.cpp, Layer 3), which pairs with this
+fix for device-level fill concurrency (current handles still serialize
+concurrent ReadFile at the file object per the non-overlapped contract).
