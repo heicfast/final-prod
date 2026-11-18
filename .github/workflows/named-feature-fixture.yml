@@ -59,17 +59,17 @@ jobs:
             if ($okCount -lt 5) { throw "diskpart reported only $okCount successes (expected >= 5)" }
 
             # --- 2. generate the fixture twice: determinism proof ----------
-            // D-LANE-01 (the 44380763554 engine-flow red): the second
-            // generation now runs on the RUNNER's scratch disk, never on
-            // the evidence VHDX. The proof compares MANIFEST BYTES (a pure
-            // function of the generator + seed - same tree, same PRNG
-            // content), not on-disk placement; generating it on X: left a
-            // second deleted tree in the MFT whose clusters the expandable
-            // VHDX zero-fills after Remove-Item, so the engine-flow scan
-            // recovered an unaccounted all-zero duplicate tree and the
-            // verifier failed I1/I2/I4 on files the manifest never
-            // described. One generation on the VHDX = the scan sees exactly
-            // the manifest-known tree.
+            # D-LANE-01 (the 44380763554 engine-flow red): the second
+            # generation now runs on the RUNNER's scratch disk, never on
+            # the evidence VHDX. The proof compares MANIFEST BYTES (a pure
+            # function of the generator + seed - same tree, same PRNG
+            # content), not on-disk placement; generating it on X: left a
+            # second deleted tree in the MFT whose clusters the expandable
+            # VHDX zero-fills after Remove-Item, so the engine-flow scan
+            # recovered an unaccounted all-zero duplicate tree and the
+            # verifier failed I1/I2/I4 on files the manifest never
+            # described. One generation on the VHDX = the scan sees exactly
+            # the manifest-known tree.
             $m1 = Join-Path $evidence 'manifest.jsonl'
             $m2 = Join-Path $work 'manifest-detcheck.jsonl'
             $detRoot = Join-Path $env:RUNNER_TEMP 'nffx-detcheck'
