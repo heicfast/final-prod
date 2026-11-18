@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ConnectorError, PreviewPayload } from '@/connector/contract';
+import type { ArchiveTreeNode, ConnectorError, PreviewPayload } from '@/connector/contract';
 import {
+  ChevronRightIcon,
   FileWarningIcon,
+  FolderIcon,
   ImageIcon,
   Maximize2Icon,
   MinusIcon,
@@ -461,6 +463,31 @@ function ArchivePreview({
       {payload.truncated ? (
         <p className="text-xs text-foreground-secondary">{t('preview.archiveTruncated')}</p>
       ) : null}
+      {/* M06 (W5): the navigable tree — the og's ArchivePreview grouping
+          (folders collapse; folder sizes are descendant sums; the CRC badge
+          stays per-file). Falls back to the flat table when a bridge build
+          predates the tree field. */}
+      {payload.tree && payload.tree.length > 0 ? (
+        <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="sticky top-0 border-b border-border bg-surface-muted text-left text-foreground-secondary">
+                <th className="px-2.5 py-1.5 font-medium">{t('preview.archiveName')}</th>
+                <th className="px-2.5 py-1.5 text-right font-medium">
+                  {t('preview.archiveSize')}
+                </th>
+                <th className="px-2.5 py-1.5 text-right font-medium">
+                  {t('preview.archivePacked')}
+                </th>
+                <th className="px-2.5 py-1.5 font-medium">{t('preview.archiveCrc')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ArchiveTreeRows nodes={payload.tree} depth={0} />
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border">
         <table className="w-full text-xs">
           <thead>
@@ -503,8 +530,96 @@ function ArchivePreview({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
+}
+
+/** M06 (W5): the archive tree rows — folders toggle open/closed with a
+ * chevron (one open-set per tree); files render the flat row's columns.
+ * The indentation is a fixed 16px per depth level. */
+function ArchiveTreeRows({
+  nodes,
+  depth,
+}: {
+  nodes: readonly ArchiveTreeNode[];
+  depth: number;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = React.useState<ReadonlySet<string>>(() => new Set());
+  const rows: React.JSX.Element[] = [];
+  const render = (list: readonly ArchiveTreeNode[], path: string) => {
+    for (const n of list) {
+      const k = `${path}/${n.name}`;
+      if (n.dir) {
+        const isOpen = open.has(k);
+        rows.push(
+          <tr key={k} className="border-b border-border/60 last:border-0 bg-surface-muted/40">
+            <td className="px-2.5 py-1.5" style={{ paddingLeft: `${10 + depth * 16}px` }}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-sm hover:underline"
+                onClick={() =>
+                  setOpen((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(k)) next.delete(k);
+                    else next.add(k);
+                    return next;
+                  })
+                }
+                aria-expanded={isOpen}
+              >
+                <ChevronRightIcon
+                  className={`size-3.5 shrink-0 text-foreground-secondary transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                />
+                <FolderIcon className="size-3.5 shrink-0 text-foreground-secondary" />
+                <span className="font-medium">{n.name}</span>
+              </button>
+            </td>
+            <td className="px-2.5 py-1.5 text-right tabular text-foreground-secondary">
+              {formatBytes(n.size, i18n.language)}
+            </td>
+            <td className="px-2.5 py-1.5 text-right tabular text-foreground-secondary">
+              {n.compressed > 0 ? formatBytes(n.compressed, i18n.language) : '—'}
+            </td>
+            <td className="px-2.5 py-1.5 text-foreground-secondary">—</td>
+          </tr>,
+        );
+        if (isOpen && n.children && n.children.length > 0) {
+          render(n.children, k);
+        }
+      } else {
+        rows.push(
+          <tr key={k} className="border-b border-border/60 last:border-0">
+            <td
+              className="max-w-72 truncate px-2.5 py-1.5"
+              style={{ paddingLeft: `${10 + depth * 16}px` }}
+              title={n.name}
+            >
+              {n.name}
+            </td>
+            <td className="px-2.5 py-1.5 text-right tabular">
+              {formatBytes(n.size, i18n.language)}
+            </td>
+            <td className="px-2.5 py-1.5 text-right tabular">
+              {n.compressed > 0 ? formatBytes(n.compressed, i18n.language) : '—'}
+            </td>
+            <td className="px-2.5 py-1.5">
+              {n.crcPresent === true ? (
+                <span className="text-success">{t('preview.archiveCrcOk')}</span>
+              ) : n.crcPresent === false ? (
+                <span className="text-warning">{t('preview.archiveCrcMissing')}</span>
+              ) : (
+                '—'
+              )}
+            </td>
+          </tr>,
+        );
+      }
+    }
+  };
+  render(nodes, '');
+  return <>{rows}</>;
 }
 
 function HexPreview({

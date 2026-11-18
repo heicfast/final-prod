@@ -179,6 +179,106 @@ fn archive_entries(pv: *mut abi::CrUiPreview) -> BridgeResult<(Vec<Value>, bool)
     Ok((rows, total > take))
 }
 
+/// M06 (W5): the archive tree — the og's ArchivePreview navigable grouping
+/// (the Qt tree model's index/parent/child/rowCount shape) over the SAME
+/// bounded flat inventory, ZERO ABI change: zip central-directory names
+/// carry full paths, so rows group by path segment; a segment with children
+/// is a folder whether or not a trailing-'/' entry existed for it (CDs often
+/// omit dir entries). Folder size/compressed are descendant sums (display
+/// arithmetic over the same rows, not invented data); the CRC badge stays a
+/// per-file truth (folders omit it). Children sort dirs-first then name-asc
+/// (a deterministic order; the og's exact sort is corpus-UNKNOWN).
+#[derive(serde::Serialize)]
+struct ArchiveNode {
+    name: String,
+    dir: bool,
+    size: u64,
+    compressed: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    crc_present: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    children: Option<Vec<ArchiveNode>>,
+}
+
+fn archive_tree(entries: &[Value]) -> Value {
+    #[derive(Default)]
+    struct Builder {
+        dirs: std::collections::BTreeMap<String, Builder>,
+        files: Vec<ArchiveNode>,
+    }
+    impl Builder {
+        fn insert(&mut self, segs: &[&str], row: &Value) {
+            if segs.is_empty() {
+                return;
+            }
+            if segs.len() == 1 {
+                // a trailing-'/' entry marks its own row a directory; a
+                // bare last segment is a file
+                let name = segs[0];
+                let is_dir_row = name.ends_with('/');
+                let name = name.trim_end_matches('/');
+                if is_dir_row || name.is_empty() {
+                    if !name.is_empty() {
+                        // an explicit dir entry: ensure the node exists
+                        self.dirs.entry(name.to_string()).or_default();
+                    }
+                    return;
+                }
+                self.files.push(ArchiveNode {
+                    name: name.to_string(),
+                    dir: false,
+                    size: row["size"].as_u64().unwrap_or(0),
+                    compressed: row["compressed"].as_u64().unwrap_or(0),
+                    crc_present: Some(row["crcPresent"].as_bool().unwrap_or(false)),
+                    children: None,
+                });
+                return;
+            }
+            self.dirs
+                .entry(segs[0].trim_end_matches('/').to_string())
+                .or_default()
+                .insert(&segs[1..], row);
+        }
+        fn finish(mut self) -> Vec<ArchiveNode> {
+            let mut out: Vec<ArchiveNode> = self.files;
+            out.reserve(self.dirs.len());
+            for (name, b) in std::mem::take(&mut self.dirs) {
+                let children = b.finish();
+                let size = children.iter().map(|c| c.size).sum();
+                let compressed = children.iter().map(|c| c.compressed).sum();
+                out.push(ArchiveNode {
+                    name,
+                    dir: true,
+                    size,
+                    compressed,
+                    crc_present: None,
+                    children: Some(children),
+                });
+            }
+            // dirs first, then files; each name-asc (BTreeMap already
+            // ordered the dirs; sort the merged vec stably by dir-then-name)
+            out.sort_by(|a, b| {
+                b.dir
+                    .cmp(&a.dir)
+                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            });
+            out
+        }
+    }
+    let mut root = Builder::default();
+    for row in entries {
+        let Some(name) = row["name"].as_str() else {
+            continue;
+        };
+        if name.is_empty() {
+            continue;
+        }
+        let segs: Vec<&str> = name.split('/').filter(|s| !s.is_empty()).collect();
+        root.insert(&segs, row);
+    }
+    serde_json::to_value(root.finish()).unwrap_or(Value::Array(vec![]))
+}
+
 /// Encode display-oriented RGBA8 (the engine's thumbnail output) as a BMP
 /// data URL — a 32-bit BI_RGB writer, no image dependency. Rows are stored
 /// bottom-up BGRX per the format; the browser renders `image/bmp` natively.
@@ -492,11 +592,16 @@ pub fn preview_payload(
                 }))
             }
             "archive" => {
-                // M-116: the engine's bounded browse-inside inventory.
+                // M-116: the engine's bounded browse-inside inventory;
+                // M06 (W5): the tree grouping rides beside the flat rows
+                // (the flat list stays the payload's truth; the tree is the
+                // derived navigable view over the same rows).
                 let (entries, truncated) = archive_entries(pv)?;
+                let tree = archive_tree(&entries);
                 Ok(json!({
                     "kind": "archive",
                     "entries": entries,
+                    "tree": tree,
                     "truncated": truncated,
                 }))
             }

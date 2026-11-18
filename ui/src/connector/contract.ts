@@ -759,6 +759,19 @@ export interface ResultsDomain {
 // Preview
 // ---------------------------------------------------------------------------
 
+/** M06 (W5): one node of the archive browse-inside tree — the navigable
+ * grouping over the bounded flat inventory (the og's ArchivePreview tree
+ * model). Folders carry descendant-summed size/compressed and omit the
+ * CRC badge (a per-file truth); files carry their own row's values. */
+export interface ArchiveTreeNode {
+  readonly name: string;
+  readonly dir: boolean;
+  readonly size: number;
+  readonly compressed: number;
+  readonly crcPresent: boolean | null;
+  readonly children?: readonly ArchiveTreeNode[];
+}
+
 export type PreviewPayload =
   | {
       readonly kind: 'image';
@@ -812,6 +825,12 @@ export type PreviewPayload =
         readonly crcPresent: boolean;
         readonly nameTruncated: boolean;
       }[];
+      /** M06 (W5): the navigable tree over the same rows — zip CD names
+       * carry full paths, so the flat inventory groups by path segment
+       * (the og's ArchivePreview tree model). Folder size/compressed are
+       * descendant sums; crcPresent is null on folders (a per-file
+       * truth). Derived bridge-side, zero ABI change. */
+      readonly tree: readonly ArchiveTreeNode[];
       readonly truncated: boolean;
     };
 
