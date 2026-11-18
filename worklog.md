@@ -4103,6 +4103,18 @@ Waves 1-9 (T6-T20) are the implementation backlog, row by row from
 EXISTS/MISSING verdicts by reading the cited product files inside their
 wave before any code is written.
 
+**Main-green repair** (commit `cc201bff`): every push since `201100aa` had
+been creating phantom zero-job FAILED runs for release / benchmark-src /
+validation-evidence (event=push, 0 jobs — including all seven of this
+session's pushes). Root cause: the workflow-level
+`env: VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}…` block — the `runner`
+context is unavailable at workflow-level env, the exact invalid-file failure
+`235d3c32` described; that fix commit added the step-level env but never
+removed the workflow-level block (24 insertions, 0 deletions). `cc201bff`
+deletes the block from all three files (the step-level env carries the var);
+verified post-push: no phantom runs for `cc201bff` where every prior push
+generated three within a second.
+
 ---
 
 ## Session 2026-11-18 — sector-scan rebuild (Phase 0 + Phase 1): read, baseline, diagnose
