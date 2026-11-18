@@ -772,7 +772,7 @@ fn image_create_ex_range_and_cancel() {
     let mut g: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
     let rc = unsafe { abi::cr_ui_device_geometry(dev, &mut g) };
     assert_eq!(rc, abi::CR_UI_OK, "device_geometry 0x{rc:08X}");
-    assert!(g.logical_sector >= 512, "logical sector {g.logical_sector} too small");
+    assert!(g.logical_sector >= 512, "logical sector {} too small", g.logical_sector);
     assert!(g.sector_count > 4096, "seed disk too small for the range test");
 
     // (a) D-IMG-3: a 4 MiB range from sector 1024 — file length == the
