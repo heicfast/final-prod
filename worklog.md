@@ -3510,6 +3510,76 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   More-Option fields) stays the W9 wave's recorded scope — the bridge
   command, engine flag, and CLI flags are the shipped halves today.
 
+### T20 — the session handoff (2026-11-18, ~2.5h of lane time)
+
+THE CODE STATE (all pushed; every push pulled-rebased onto the concurrent
+lanes' advances, never forced): Phase 0 five sheets + matrix (7d253911/
+e8c6b061), W1 userdata-defaults placement (87cdf27a→a3d3e72a), W2 installer
+lifecycle hardening (42ef613b), W3 doc-truth sweep + the gate guard
+(5a374ce5), W4-A imaging ABI completion (b8740541) + the pinned-format
+pass (b43ce273), W4-B bridge half (07eb9ed4) + AtomicU32 import (b99fc523)
++ the format-arg fix (ad22d51e) + the partialKept/sidecar path-semantics
+root fix (372198fe), T10/T19 deliverables (dedb0a46).
+
+THE CI ITERATION STORY (the lanes doing their job — three real catches,
+two of them genuine bugs):
+1. engine-ci's clang-format gate caught the hand-written C++ wrapping
+   (b43ce273, the 18.1.8-pinned wheel — a 23.x format would have
+   re-wrapped the whole tree; the pin confined the diff to the new code).
+2. ui-ci's cargo check caught the missing AtomicU32 import (b99fc523).
+3. bridge-integration caught the it-gate's field-access format arg
+   (ad22d51e) and then the REAL bug: the extension-append vs extension-
+   replace path confusion — the engine keeps `<path>.img.partial`/
+   `<path>.img.sha256` (APPENDED), while with_extension() REPLACES `.img`
+   and probed a different file. The pre-existing bridge partialKept probe
+   carried the same defect (it could only ever have reported false); both
+   fixed at the root (372198fe).
+
+CI STATE AT CUTOFF:
+- engine-ci GREEN at b43ce273 — the W4-A C++ compiled under MSVC /W4 /WX
+  and the FULL suite passed (the 7 new ImageCreateRange.* tests + the 3
+  ui_abi_check probes included). The imaging ABI wave is proven on real
+  Windows at the engine layer.
+- ui-ci + ui-e2e + contracts-ci GREEN at 372198fe (the complete W4 with
+  every fix; the frontend untouched all session).
+- bridge-integration: the 372198fe run was CANCELLED mid-queue by the
+  CONCURRENT lanes' pushes; the 18b918d5 run (my code + the performance
+  lane's in-flight changes) fails at the ENGINE COMPILE step —
+  cr_transport.cpp C2220/C2440, the performance lane's IOCP territory,
+  NOT this session's files (my engine-ci passed the identical /W4 /WX
+  build at b43ce273). Their lane is actively iterating.
+- validation-evidence (the G-5 re-proof): three dispatches — #1 (06:40)
+  failed on the performance lane's mid-version-bump tree (VERSION 0.9.4
+  vs app manifests 0.9.3 — build.ps1's gate correctly refused); #2
+  (07:00) failed on my pre-import-fix Rust (the W4-B catch); #3 (07:53)
+  in flight on the W4-complete frontier — it will hit the same
+  cr_transport.cpp error until the performance lane's compile fix lands.
+  THE NEXT SESSION'S FIRST DISPATCH: once engine-ci is green on a
+  frontier containing this session, dispatch validation-evidence.yml,
+  download the artifacts, commit docs/INTEGRATION-VALIDATION/
+  (t15-runtime-matrix incl. the new rows: shortcuts, seed-key, version-
+  bump 'skipped', the W1 module-set file) + regenerate
+  installer-compile-check.md (DT-12) against the current 640-line .nsi.
+
+WHAT IS COMPLETE: Phase 0 (5 sheets + the matrix, pushed before code);
+Phase 1's W1/W2/W3 (the one real placement defect closed; the abort path
+hardened with pre-flight + AbortCleanup; the update sweep; the matrix
+probes; every stale doc trued + a permanent gate); Phase 2's W4 (the
+flagship imaging ABI completion — D-IMG-1 + D-IMG-3 closed through
+engine/CLI/bridge with byte-identical legacy proof); the T9/T10
+deliverables (FOOTPRINT-DELTA §3 + API-DELTA); BEHAVIOR-FINDINGS with the
+precise deferred register; the handoff (this).
+
+WHAT STAYS OPEN (precise scopes in BEHAVIOR-FINDINGS + API-DELTA +
+INTEGRATION-MATRIX §5): the W9 TS/UI half of the imaging cancel+range;
+W5's small axes; W6's recovery/query completion; W7's repair workbench;
+W8's UI wiring batch; W10 (the concurrent performance lane owns it);
+the G-5 evidence commit (blocked on the shared frontier's compile fix);
+the failure-path matrix row (the broken-kit build lane).
+
+THE INTEGRATION BOUNDARY held end to end: zero og-codebase bytes shipped;
+capability parity only; the corpus cited as behavior ground truth.
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)
