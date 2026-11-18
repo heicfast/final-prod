@@ -274,10 +274,19 @@ def main():
         ap.error("--manifest and --out are required (or --self-test)")
 
     result = verify(args.manifest, args.out)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    # D-PRINT-01 (run 44380763554): a Windows runner's stdout is cp1252; the
+    # unicode filename row ('Names/unicode-...') crashed the verdict print
+    # with UnicodeEncodeError BEFORE the report was written and BEFORE the
+    # VERDICT line - masking the actual judgment. The JSON report is still
+    # written utf-8; the stdout echo falls back to ASCII so a failing
+    # verdict always reaches the log. The verdict line itself is pure ASCII.
     if args.report:
         with open(args.report, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
+    try:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except UnicodeEncodeError:
+        print(json.dumps(result, indent=2, ensure_ascii=True))
     print("VERDICT: %s" % ("PASS" if result["ok"] else "FAIL"))
     return 0 if result["ok"] else 1
 
