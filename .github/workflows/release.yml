@@ -118,33 +118,58 @@ jobs:
 
           ## What changed in this release
 
-          This is the debug-and-release release: every surface reported
-          broken on the installed product was reproduced on real Windows,
-          root-caused, fixed at the source, and re-gated. 0.9.1 is the
-          patch cut over 0.9.0: the two defects the 0.9.0 validation run
-          itself caught are fixed (the deep scan phase's frozen progress
-          and the many-volume enumeration failure); everything else
-          carries over from 0.9.0.
+          This is the SMART/scan parity release: the disk-health surface was
+          rebuilt per-transport against the reference corpus, the scan
+          progress model was re-shaped to the reference's quick→advanced
+          presentation, and the results surfaces (filters, the deleted-tree
+          reconstruction, preview) are pinned end-to-end on real Windows by
+          the bridge integration gates. 0.9.2 was announced but never tagged;
+          0.9.3 carries the whole train honestly.
 
-          - **The app now requests administrator at launch.** Through
-            v0.8.4 the exe carried no manifest at all — it launched
-            unelevated and deferred elevation to an in-app restart prompt
-            (which also rendered off-theme). The embedded
-            requireAdministrator manifest gives one standard UAC prompt at
-            launch and none mid-session; the restart-prompt surface is
-            gone (the reference product ships the same posture).
-          - **No console window on disk health.** Every health read used
-            to spawn a visible cmd.exe console (a CRT pipe-spawn regression
-            from the engine re-merge). The TRIM query now runs fsutil
-            directly, hidden, with a bounded wait — and a build-time
-            tree-wide guard keeps every console-spawn out of the shipped
-            engine.
-          - **Every physical disk appears on the landing page.** The home
-            screen previously listed internal drives only and hid every
-            USB/SD/removable-bus device behind an unreachable view. The
-            page now renders the reference layout: "Internal drives (N)"
-            and "External drives (N)" together; SD cards stay first-class
-            on their dedicated page.
+          - **(0.9.3) Disk health reads every transport it can — truthfully.**
+            Two previously missing SMART transports landed, both
+            byte-grounded in the reference corpus: SAT over USB bridges
+            (the 12- and 16-byte CDB SCSI pass-through forms the reference's
+            own companion uses, with its retry ladder) and the WMI
+            MSStorageDriver_FailurePredict{Data,Thresholds} fallback from
+            root\WMI. ATA passthrough/legacy/CSMI and the NVMe
+            protocol-specific query were already in. A drive whose
+            transports all miss reports the truthful "not supported"
+            state — never a synthesized percentage.
+          - **(0.9.3) The health verdict is the engine's, end to end.** The
+            engine's four-state verdict (Good / Caution / Bad / Unknown)
+            now reaches the UI through the real grade chain — the
+            fabricated green percentage is history. The attribute table
+            carries value/threshold/raw with per-attribute grades like the
+            reference.
+          - **(0.9.3) Disk health is its own window.** The reference opens
+            a separate surface for disk health; the product now matches
+            that presentation model — a dedicated window with per-disk
+            attribute detail, instead of an inline percentage on the
+            wizard page.
+          - **(0.9.3) The scan gauge restarts per phase, like the
+            reference.** Quick scan runs first and shows its own 0–100%;
+            the advanced phase then restarts at 0 and climbs over the
+            deep+carve work actually remaining. The "jumps directly to
+            30–75% advanced scanning" presentation is gone, and the
+            terminal numbers are pinned by gates (phase completes at
+            100%, the global curve at its real cap).
+          - **(0.9.3) Filters and the deleted-tree reconstruction are
+            pinned on real disks.** The integration gates scan a seeded
+            fixture on a real Windows runner and assert through the
+            engine's query surface: category filters (image/document/
+            archive) hit the real FileFilter table, the size filter
+            respects its floor, and deleted_only returns the seeded
+            deleted set under their ORIGINAL parent paths — the
+            "reconstruct them as they were before deletion" standard,
+            written to the evidence artifacts.
+          - **(0.9.3) Preview surfaces tell the truth.** Image nodes
+            classify through the engine's real metadata; archives open
+            their actual central directory for the browse-inside
+            inventory. Rendered video/document previews are a registered
+            divergence (bundle-size and supply-chain decision): those
+            surfaces show real metadata with a truthful "preview not
+            rendered" hint — never a fabricated render.
           - **(0.9.2) Zero-heavy volumes no longer freeze the scan.** The
             0.9.1 validation run caught a 10-minute stretch on a 64 GB
             volume where every progress axis stood still with device
