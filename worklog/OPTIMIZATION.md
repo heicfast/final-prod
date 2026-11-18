@@ -59,3 +59,29 @@ session's pushes; each cites its run id.
 - No test removed, no stage skipped, no continue-on-error added anywhere;
   every existing gate (version lockstep, PE gates, dev-sign verify, D1
   manifest gate, ctest, contracts) still runs on every release.
+
+## After — measured, this session's runs (2026-11-18, all run IDs from the GitHub API)
+
+| Workflow | Before (green mean) | After | Run | Note |
+|---|---|---|---|---|
+| contracts-ci | 12 s | 10 s | 44364079846 (76a6738) | timeout+concurrency landed; ~parity (lane is sub-20s by nature) |
+| ui-ci | 301 s | 269 s | 44364079478 (76a6738) | rust-cache first hit pending (cargo deps cache added); -32 s |
+| ui-e2e | 367 s | 405 s | 87c04b7 run 44359295695 | +38 s — the concurrent session's W5e/M06 preview-pane feature added real test/work; not a regression of the lane itself |
+| engine-ci | 867 s | 571 s | 44347614852 (201100aa) | -296 s: the abi format fix unblocked the lane; the ctest working-directory fix + pip key versioning landed in the same train |
+| bridge-integration | 777 s | 754 s | 44348649846 (795f532) | ~parity; engine build still uncached (vcpkg binary cache covers ports only — the C++ object compile is the documented follow-up) |
+| validation-evidence | 928 s | t14 green in-run; t15 re-running with the G-3 fix | 44363284154 (3809fbc) | t14 green at first attempt with the vcpkg cache; t15 red pre-fix (stock RecoveryDrive.lnk false-match), re-dispatched at 3809fbc |
+| forensic-repro | 2003 s (last green Nov 6) | — | 44359495858 red: the v0.9.4 shipped-installer exit-2 bug (section 11 of CI-FAILURES) | re-dispatch after the v0.9.5 release lands the fixed installer |
+| benchmark-src | no green run ever (4/4 red) | — | 44359663812 queued at fc0e1e1 | ctest fix + vcpkg cache in the train; first-ever green expected |
+| release | 1277 s job (v0.9.4 run 44256566315) | in progress | 44365218107 (tag 02e62af) | vcpkg+pnpm+cargo caches first-hit on this tag run (ports ~95 s + pnpm ~60 s + cargo link deps saved vs v0.9.4's cold run); two failed attempts (44359484978 cancelled pre-fix, 44361715679 makensis File/$PLUGINSDIR lesson) are recorded above |
+
+Honest caveats, stated plainly:
+- The engine C++ object compile (the ~9-min MSVC build) is NOT cached in any
+  lane — ccache/sccache or an actions/cache over the build tree is the
+  documented follow-up; the vcpkg binary cache removes the port rebuilds only.
+- Release ≤ 10 min was NOT achieved: the caches trim the install/cargo-fetch
+  overhead, but the serial engine+tauri build remains ~17-20 min. The
+  build-once/download-artifact redesign (release consuming engine-ci's build
+  via workflow_run) is the follow-up; tag builds cannot reuse branch-run
+  artifacts because engine-ci triggers on branches: [main] only.
+- The "no green run exists" baseline for benchmark-src means no before/after
+  speed claim can be made for it — only correctness (first green) is claimed.
