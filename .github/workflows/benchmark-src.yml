@@ -61,6 +61,9 @@ jobs:
       - name: Engine kit (build.ps1 engine lane; the release recipe)
         shell: pwsh
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           ./build.ps1 -Target engine -SkipTests
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::engine kit build failed'; exit 1 }
 
@@ -86,12 +89,18 @@ jobs:
         shell: pwsh
         working-directory: engine
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           ctest --preset win-x64-release -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::ctest red before the matrix - not measuring a red tree'; exit 1 }
 
       - name: Runner context (recorded with every number)
         shell: pwsh
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           $id = [Security.Principal.WindowsIdentity]::GetCurrent()
           $p = New-Object Security.Principal.WindowsPrincipal($id)
           [ordered]@{
@@ -110,6 +119,9 @@ jobs:
       - name: The scenario matrix (New-TestDisk + Run-Benchmark.ps1)
         shell: pwsh
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           $version = (Get-Content VERSION -Raw).Trim()
           $kit = (Resolve-Path "build\out\stage-$version\engine").Path
           # Run-Benchmark.ps1's staged-release contract is the RELEASE-ZIP

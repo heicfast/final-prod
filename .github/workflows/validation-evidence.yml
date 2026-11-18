@@ -56,6 +56,9 @@ jobs:
       - name: Engine kit (build.ps1 lane; contracts gate runs inside)
         shell: pwsh
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           # engine tests are engine-ci's lane; the harness measures the real
           # user-mode transport (the elevated runner process opens the disks
           # directly).
@@ -193,6 +196,9 @@ jobs:
       - name: Full product build (all lanes; tests are the CI lanes' job)
         shell: pwsh
         run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
           $env:CR_UI_LIB_DIR = ''   # build.ps1 stages the kit and sets this itself
           ./build.ps1 -Target all -SkipTests
           if ($LASTEXITCODE -ne 0) { exit 1 }
