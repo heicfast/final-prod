@@ -97,6 +97,10 @@ fn recovery_start_blocking(
     // Config map (type-maps §6): collision -> conflict; verifyOnWrite ->
     // skip_hash_verify; rebuildFolders -> skip_dir_reconstruct. The defaults
     // (read_chunk 0 = 1 MiB, rename_attempts 0 = 64) stay engine-side.
+    // F-01 (the named feature): the deleted-tree selection arms the
+    // SectorForge-parity scheme - everything else keeps the classic flow.
+    let sel_kind = selection.get("kind").and_then(|k| k.as_str()).map(str::to_string);
+    let deleted_tree = sel_kind.as_deref() == Some("deleted-tree");
     let mut cfg: abi::CrUiRecoveryConfig = unsafe { std::mem::zeroed() };
     cfg.conflict = conflict_of(&options);
     cfg.skip_hash_verify = if options.get("verifyOnWrite").and_then(|v| v.as_bool()) == Some(false)
@@ -111,6 +115,7 @@ fn recovery_start_blocking(
         } else {
             0
         };
+    cfg.sf_collision = if deleted_tree { 1 } else { 0 };
 
     // Bounded (64): byte-sample coalescing — the writer's progress fn
     // never blocks; the emitter keeps the freshest sample.
@@ -246,10 +251,29 @@ fn recovery_start_blocking(
                 }
             }
         }
+        Some("deleted-tree") => {
+            // F-01 (the named feature): enqueue the whole deleted-only
+            // structure-preserving plan (dirs first) - SectorForge-parity
+            // semantics ("_orphaned/" id-suffixed tops, " (id N)"
+            // collisions, never-overwrite, SF component sanitizer).
+            // Session trees use the session handle; live scans the CURRENT
+            // snapshot generation (G-02b).
+            if is_session {
+                check(
+                    unsafe { abi::cr_ui_recovery_enqueue_deleted_tree(rec, sess) },
+                    "cr_ui_recovery_enqueue_deleted_tree",
+                )?;
+            } else {
+                check(
+                    unsafe { abi::cr_ui_recovery_enqueue_deleted_tree_snapshot(rec, snap_ptr) },
+                    "cr_ui_recovery_enqueue_deleted_tree_snapshot",
+                )?;
+            }
+        }
         _ => {
             return Err(BridgeError::bridge(
                 code::UNKNOWN,
-                "selection must be { kind: 'nodes' | 'all' }",
+                "selection must be { kind: 'nodes' | 'all' | 'deleted-tree' }",
             ));
         }
     }
@@ -454,6 +478,14 @@ pub async fn recovery_items(
             .map(|item| {
                 let outcome = item.get("outcome").and_then(|o| o.as_str()).unwrap_or("pending");
                 let state_word = outcome_state(outcome);
+                // F-45: the outcome class + the engine's content-honesty note
+                // (Complete / Incomplete / Failed; empty note = omitted).
+                let outcome_class = match outcome {
+                    "done" => "complete",
+                    "salvaged" | "read_error" | "hash_mismatch" => "incomplete",
+                    "refused" | "error" => "failed",
+                    _ => "",
+                };
                 let mut row = json!({
                     // Queue-stable id: the report's own item_id (the UI uses
                     // it as a React list key only).
@@ -462,6 +494,14 @@ pub async fn recovery_items(
                     "sizeBytes": item.get("bytes").and_then(|b| b.as_u64()).unwrap_or(0),
                     "state": state_word,
                 });
+                if !outcome_class.is_empty() {
+                    row["outcome"] = json!(outcome_class);
+                }
+                if let Some(note) = item.get("note").and_then(|n| n.as_str()) {
+                    if !note.is_empty() {
+                        row["note"] = json!(note);
+                    }
+                }
                 if state_word == "failed" {
                     row["error"] = json!({
                         "code": "recovery-item-failed",
@@ -562,6 +602,58 @@ pub async fn recovery_report(
             "verified": verified_count > 0 && errors == 0,
             "processedTotal": processed,
             "truncatedItemLists": truncated,
+        }))
+    })
+    .await
+    .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
+}
+
+// ---------------------------------------------------------------------------
+// F-01 (the named feature): reconstruct-deleted preview
+// ---------------------------------------------------------------------------
+
+/// Read-only preview of the deleted-only structure-preserving plan: what
+/// the "Recover deleted (keep folder structure)" post-scan option WOULD
+/// emit. Session trees use the session handle; live scans the CURRENT
+/// snapshot generation (G-02b - the value path, race-free).
+#[tauri::command]
+pub async fn recovery_preview_deleted_tree(
+    state: tauri::State<'_, Arc<BridgeState>>,
+    scan_id: String,
+) -> Result<Value, BridgeError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let entry = state.scan_entry_arc(&scan_id)?;
+        let is_session = matches!(entry.kind, ScanKind::Session { .. });
+        let mut prev: abi::CrUiReconstructPreview = unsafe { std::mem::zeroed() };
+        if is_session {
+            let sess = entry.session_handle();
+            check(
+                unsafe { abi::cr_ui_reconstruct_deleted_preview(sess, &mut prev) },
+                "cr_ui_reconstruct_deleted_preview",
+            )?;
+        } else {
+            let snap_ptr = {
+                let snap = entry
+                    .snap
+                    .lock()
+                    .map_err(|_| BridgeError::bridge(code::UNKNOWN, "snapshot lock"))?;
+                snap.handle.get()
+            };
+            check(
+                unsafe { abi::cr_ui_reconstruct_deleted_preview_snapshot(snap_ptr, &mut prev) },
+                "cr_ui_reconstruct_deleted_preview_snapshot",
+            )?;
+        }
+        Ok(json!({
+            "files": prev.files,
+            "dirs": prev.dirs,
+            "orphanFiles": prev.orphan_files,
+            "orphanDirs": prev.orphan_dirs,
+            "bytesTotal": prev.bytes_total,
+            "prunedActive": prev.pruned_active,
+            "prunedSubtrees": prev.pruned_subtrees,
+            "carvedExcluded": prev.carved_excluded,
         }))
     })
     .await

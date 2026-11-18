@@ -31,6 +31,11 @@ public:
      * the mask-gated SetFileTime trio, DRWUI :874686-718) */
     u32 set_metadata(u64 item_id, const std::u16string& final_path_utf16,
                      const FileMeta& meta) override;
+    /* F-01: GetFinalPathNameByHandleW-based canonicalize for the
+     * reconstruct flow's inside-out output guard (opens with
+     * FILE_FLAG_BACKUP_SEMANTICS so directories resolve; symlinks and
+     * junctions are followed by the final-path resolution itself). */
+    u32 canonicalize(const std::u16string& path_utf16, std::u16string& out_utf16) override;
 
 private:
     struct Open {

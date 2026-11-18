@@ -26,6 +26,9 @@
  *                                         archive view; M-116's smoke surface)
  *   recover --in file.crsf (--disk N | --image file) --to DIR
  *         [--deleted-only] [--filter s] [--report file.json]
+ *         [--reconstruct-deleted]  (F-01: the named feature - deleted-only
+ *          reconstruction with the original directory structure preserved,
+ *          SectorForge-parity semantics)
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
  *         [--chkdsk C:] (the M-075 escalation endpoint: launch Windows
@@ -80,6 +83,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_dict.h"
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/recovery/cr_extractplan.h" /* F-01: the named-feature plan */
 #include "cr/query/cr_query.h"
 #include "cr/apply/cr_apply.h"
 #include "cr/repair/cr_rawfixer.h"
@@ -2411,6 +2415,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     }
     std::wstring in_path, to_dir, filter, report_path, image_path;
     bool deleted_only = false;
+    bool reconstruct_deleted = false; /* F-01: the named feature */
     u32 disk = 0;
     bool have_disk = false, have_image = false;
     while (i < argc) {
@@ -2436,6 +2441,16 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--report", &report_path))
             continue; /* G-09: machine-readable result report */
         if (has_flag(argc, argv, i, L"--deleted-only")) {
+            deleted_only = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--reconstruct-deleted")) {
+            /* F-01 (the named feature): deleted-only reconstruction with
+             * the original directory structure preserved - the
+             * SectorForge-parity flow (SfId collisions, "_orphaned/"
+             * id-suffixed tops, SF component sanitizer, inside-out
+             * output guard, encrypted-empty honesty). */
+            reconstruct_deleted = true;
             deleted_only = true;
             continue;
         }
@@ -2500,6 +2515,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
 
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
+    /* F-01: the named feature arms the SF scheme (everything is opt-in;
+     * the classic flow below is byte-for-byte unchanged) */
+    if (reconstruct_deleted)
+        wcfg.scheme = recovery::CollisionScheme::SfId;
     /* M-136: the recovery pass reads through the SAME read chain the scan
      * built (build_read_pipe - SliceShim identity over the absolute source
      * -> RetryingDevice x3 Skip-mode -> 8 MiB / 256 KiB CachedReader, the
@@ -2558,41 +2577,71 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         to_dir.push_back(L'\\');
     std::u16string dest16(to_dir.begin(), to_dir.end());
 
-    /* enqueue every matching file node; directory nodes enqueue as
-     * structure items too (G-08) so empty leaves materialize */
+    /* enqueue: F-01's named feature plans the deleted-only structure; the
+     * classic flow enqueues every matching node (directory nodes enqueue
+     * as structure items too, G-08, so empty leaves materialize) */
     size_t queued = 0, refused = 0;
-    std::function<void(tree::FileNode*, const std::u16string&)> plan =
-        [&](tree::FileNode* n, const std::u16string& path) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
-                    continue; /* M-018/M-071: recover-all never writes the
-                               * og's hidden junk set (the gate the N-064
-                               * reconstruction dropped) */
-                const bool is_dir = (c->props()->attributes & 0x10) != 0;
-                const bool deleted = c->deleted_state() != tree::DeletedState::Active;
-                if (is_dir) {
-                    /* the directory itself becomes a queue item (mkdir on
-                     * process); descend regardless so deep leaves survive */
-                    if (writer.enqueue(c, path) == OK)
+    if (reconstruct_deleted) {
+        /* F-01: the structure-preserving extract plan over the loaded
+         * session tree - deleted-only with the F-31 fast-path, original
+         * paths via ancestry, orphans under "_orphaned/" with
+         * id-suffixed tops, carved/raw excluded. Dirs enqueue first
+         * (mkdir before content). */
+        writer.arm_output_guard(dest16);
+        recovery::extractplan::PlanOptions popt;
+        std::vector<recovery::extractplan::PlanItem> pitems;
+        const auto pst = recovery::extractplan::plan_deleted_tree(tree, popt, pitems);
+        wprintf(L"[reconstruct-deleted] plan: %llu file(s), %llu dir(s), %llu orphan(s), "
+                L"%llu MiB, %llu in-use pruned, %llu subtree(s), %llu carved excluded\n",
+                static_cast<unsigned long long>(pst.files),
+                static_cast<unsigned long long>(pst.dirs),
+                static_cast<unsigned long long>(pst.orphan_files + pst.orphan_dirs),
+                static_cast<unsigned long long>(pst.bytes_total >> 20),
+                static_cast<unsigned long long>(pst.pruned_active),
+                static_cast<unsigned long long>(pst.pruned_subtrees),
+                static_cast<unsigned long long>(pst.carved_excluded));
+        for (const auto& pi : pitems) {
+            const u32 eq =
+                writer.enqueue(const_cast<tree::FileNode*>(pi.node), dest16 + pi.rel_dir);
+            if (eq == ERR_DEST_OVERLAP)
+                ++refused;
+            else if (eq == OK)
+                ++queued;
+        }
+    } else {
+        std::function<void(tree::FileNode*, const std::u16string&)> plan =
+            [&](tree::FileNode* n, const std::u16string& path) {
+                for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                    if (!c->props())
+                        continue;
+                    if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                        continue; /* M-018/M-071: recover-all never writes the
+                                   * og's hidden junk set (the gate the N-064
+                                   * reconstruction dropped) */
+                    const bool is_dir = (c->props()->attributes & 0x10) != 0;
+                    const bool deleted = c->deleted_state() != tree::DeletedState::Active;
+                    if (is_dir) {
+                        /* the directory itself becomes a queue item (mkdir on
+                         * process); descend regardless so deep leaves survive */
+                        if (writer.enqueue(c, path) == OK)
+                            ++queued;
+                        plan(c, path + c->props()->name + u"\\");
+                        continue;
+                    }
+                    if (deleted_only && !deleted)
+                        continue;
+                    if (!filter8.empty() && !name_contains_ci(c->name_utf8(), filter8))
+                        continue;
+                    const u32 eq = writer.enqueue(c, path);
+                    if (eq == ERR_DEST_OVERLAP)
+                        ++refused;
+                    else if (eq == OK)
                         ++queued;
-                    plan(c, path + c->props()->name + u"\\");
-                    continue;
                 }
-                if (deleted_only && !deleted)
-                    continue;
-                if (!filter8.empty() && !name_contains_ci(c->name_utf8(), filter8))
-                    continue;
-                const u32 eq = writer.enqueue(c, path);
-                if (eq == ERR_DEST_OVERLAP)
-                    ++refused;
-                else if (eq == OK)
-                    ++queued;
-            }
-        };
-    for (auto* root : tree.roots())
-        plan(root, dest16);
+            };
+        for (auto* root : tree.roots())
+            plan(root, dest16);
+    }
     wprintf(
         L"queued %zu item(s)%s\n", queued,
         refused
@@ -3934,7 +3983,7 @@ int wmain(int argc, wchar_t** argv) {
             L"              [--json]  (the browse-inside archive inventory)\n"
             L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] "
             L"[--filter s]\n"
-            L"             [--report file.json]\n"
+            L"             [--report file.json] [--reconstruct-deleted]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov image --create --disk N --out file.img\n"
             L"             [--from-sector F --to-sector T]\n"

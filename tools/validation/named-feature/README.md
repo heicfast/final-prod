@@ -77,3 +77,28 @@ python tools/validation/named-feature/verify-reconstruction.py --manifest D:\wor
 ```
 
 Licensed under the MIT license. See LICENSE.
+
+## The engine-flow job (F-01 closed loop, added with the implementation)
+
+The lane's second job (`engine-flow`, needs `fixture`) is the Phase 3
+closed loop over the seeded ground truth — the REAL product flow, not a
+simulation:
+
+1. **Build rrecov** (win-x64-release, MSVC /W4 /WX, the engine-ci recipe).
+2. **Scan** the detached VHDX as an image (`rrecov scan --image <vhdx>
+   --whole-disk`): GPT + NTFS through the lost-partition machinery,
+   quick + deep + carve (the defaults).
+3. **Reconstruct** (`rrecov recover --in session.crsf --image <vhdx> --to
+   OUT --reconstruct-deleted`): the named feature's flow — the
+   extractplan (deleted-only, structure-preserving, `_orphaned/` with
+   id-suffixed tops) into the SafeWriter with the SfId scheme
+   (` (id N)` collisions, never-overwrite, SF component sanitizer,
+   inside-out output guard, encrypted-empty honesty).
+4. **Verify** with `verify-reconstruction.py --manifest manifest.jsonl
+   --out OUT`: the byte-for-byte judge, invariants I1–I5. A verifier
+   failure fails the lane — never masked.
+
+Evidence uploaded as `named-feature-engine-flow`: scan log, reconstruct
+log, the G-09 recovery report (per-item outcomes + notes), and the
+verifier's JSON verdict. The VHDX is read as an IMAGE the whole time
+(never remounted after the deletion flush — the testlab lesson).

@@ -18,10 +18,10 @@ INT_KEYS = {"elapsed_ms"}
 TOTALS_KEYS = {
     "queued", "done", "dirs", "refused",
     "errors", "hash_mismatch", "resumed", "salvaged", "nothing_to_recover",
-             "pending", "bytes",
+             "pending", "bytes", "read_error",
 }
 OUTCOMES = {"done", "refused", "error", "hash_mismatch", "resumed", "pending", "salvaged",
-            "nothing_to_recover"}
+            "nothing_to_recover", "read_error"}
 HASH_STATUS = {"verified", "computed", "mismatch", "not_computed"}
 ITEM_KEYS = {
     "item_id", "path", "name", "kind", "outcome", "reason",

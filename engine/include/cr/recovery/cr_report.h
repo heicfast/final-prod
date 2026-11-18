@@ -113,6 +113,12 @@ struct Item {
     /* the logical offset of the first unreadable byte (ReadError rows;
      * 0 otherwise; emitted only when cause_id != 0). */
     u64 first_failed_offset = 0;
+    /* F-45 (SF extract.rs notes family): the per-item content-honesty
+     * note - plain English, one line, derived from the item's own
+     * truth flags (encrypted / zero-filled spans / read-failure cause /
+     * cluster reuse). Empty = no note (field omitted in the report;
+     * additive-within-v1). */
+    std::string note;
 };
 
 struct Totals {

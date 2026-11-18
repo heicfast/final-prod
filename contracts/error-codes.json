@@ -238,6 +238,15 @@
       "surface": "recovery destination"
     },
     {
+      "code": "ERR_DEST_ESCAPE",
+      "value": "0x50050009",
+      "uiCode": "destination-invalid",
+      "context": {
+        "note": "F-01 (named feature): the reconstruct flow's inside-out guard refused a freshly created directory that canonicalizes outside the output root (pre-existing junction/symlink escape; SF extract.rs:242-252 behavior)."
+      },
+      "surface": "recovery item (reconstruct-deleted flow)"
+    },
+    {
       "code": "ERR_FVE_LOCKED",
       "value": "0x50060001",
       "uiCode": "device-permission",

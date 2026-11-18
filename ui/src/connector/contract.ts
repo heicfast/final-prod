@@ -975,6 +975,14 @@ export interface RecoveryItem {
   readonly state: 'pending' | 'running' | 'done' | 'failed' | 'skipped' | 'verifying';
   readonly error?: { code: ConnectorErrorCode; reasonKey?: string };
   readonly savedAs?: string;
+  /** F-45: the outcome badge class (done -> 'complete', salvaged/
+   *  read_error/hash_mismatch -> 'incomplete', refused/error ->
+   *  'failed'; omitted for pending/running rows). */
+  readonly outcome?: 'complete' | 'incomplete' | 'failed';
+  /** F-45: the engine's per-item content-honesty note (one line; e.g.
+   *  encrypted-empty, zero-filled spans, cluster reuse). Omitted when
+   *  the engine recorded none — never fabricated. */
+  readonly note?: string;
 }
 
 export interface RecoveryProgressEvent {
@@ -1010,11 +1018,29 @@ export interface RecoveryReport {
   readonly truncatedItemLists: boolean;
 }
 
-/** What to recover: an explicit node list, or everything matching a filter
- *  (the reference's Recover All — the export loop iterates the whole set). */
+/** What to recover: an explicit node list, everything matching a filter
+ *  (the reference's Recover All — the export loop iterates the whole set),
+ *  or the named feature — the deleted-only structure-preserving
+ *  reconstruction (F-01: "Recover deleted (keep folder structure)",
+ *  SectorForge-parity semantics). */
 export type RecoverySelection =
   | { readonly kind: 'nodes'; readonly nodeIds: readonly string[] }
-  | { readonly kind: 'all'; readonly filter: ResultsFilter };
+  | { readonly kind: 'all'; readonly filter: ResultsFilter }
+  | { readonly kind: 'deleted-tree' };
+
+/** F-01: read-only preview of the reconstruct-deleted plan (the
+ *  post-scan dialog's substance — what WOULD be emitted, deleted-only,
+ *  structure-preserving, orphans under "_orphaned/"). */
+export interface DeletedTreePreview {
+  readonly files: number;
+  readonly dirs: number;
+  readonly orphanFiles: number;
+  readonly orphanDirs: number;
+  readonly bytesTotal: number;
+  readonly prunedActive: number;
+  readonly prunedSubtrees: number;
+  readonly carvedExcluded: number;
+}
 
 export interface RecoveryDomain {
   startRecovery(
@@ -1023,6 +1049,11 @@ export interface RecoveryDomain {
     destination: string,
     options: RecoveryOptions,
   ): Promise<{ jobId: string }>;
+  /** F-01 (the named feature): read-only preview of the deleted-only
+   *  structure-preserving reconstruction plan for a finished (or live)
+   *  scan — the post-scan option's substance, before the user commits
+   *  to a destination. */
+  previewDeletedTreeReconstruction(scanId: string): Promise<DeletedTreePreview>;
   cancelRecovery(jobId: string): Promise<void>;
   getRecoveryState(jobId: string): Promise<RecoveryJob>;
   getRecoveryItems(

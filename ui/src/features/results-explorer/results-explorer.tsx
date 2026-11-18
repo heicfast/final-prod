@@ -622,6 +622,19 @@ export function ResultsExplorer({
                 {t('results.session.cancelSave')}
               </Button>
             ) : null}
+            {/* F-01 (the named feature): the post-scan secondary action —
+                recover every deleted file with its original folder structure
+                (deleted-only, orphans under "_orphaned/"); the destination
+                page owns the preview + commit flow. */}
+            <Button
+              variant="secondary"
+              size="lg"
+              className="border-transparent bg-[#DCE7F9] hover:bg-[#C8DAF5] dark:bg-surface-muted dark:hover:bg-surface-hover"
+              onClick={() => void navigate(`/recover/${scanId}?deleted-tree=1`)}
+            >
+              <Trash2Icon aria-hidden />
+              {t('results.context.recoverDeletedTree')}
+            </Button>
             <Button
               variant="primary"
               size="lg"

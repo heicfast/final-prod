@@ -47,6 +47,7 @@ import type {
   NodeDetail,
   PreviewPayload,
   RecoveryFinishedEvent,
+  DeletedTreePreview,
   RecoverySelection,
   RecoveryItem,
   RecoveryJob,
@@ -1815,6 +1816,41 @@ ${lines.join('')}
   // ------------------------------------------------------------ recovery
 
   readonly recovery = {
+    /** F-01: mock preview over the fixture space - counts the
+     * structure-recoverable deleted set (deleted origin + lost-path
+     * orphans; carved/raw excluded - the raw-category flow owns them),
+     * same shape the engine returns from the plan. */
+    previewDeletedTreeReconstruction: async (scanId: string): Promise<DeletedTreePreview> => {
+      await latency(80, 40);
+      const rt = this.requireScan(scanId);
+      const space = rt.space;
+      let files = 0;
+      let orphanFiles = 0;
+      let bytesTotal = 0;
+      const n = space.fileCount;
+      for (let i = 0; i < n; i++) {
+        const origin = space.originOf(i);
+        if (origin === 'deleted') {
+          files++;
+          bytesTotal += space.nodeAt(i).sizeBytes;
+        } else if (origin === 'lost-path') {
+          files++;
+          orphanFiles++;
+          bytesTotal += space.nodeAt(i).sizeBytes;
+        }
+      }
+      return {
+        files,
+        dirs: Math.max(1, Math.round(files / 12)),
+        orphanFiles,
+        orphanDirs: Math.max(orphanFiles > 0 ? 1 : 0, Math.round(orphanFiles / 40)),
+        bytesTotal,
+        prunedActive: n - files,
+        prunedSubtrees: 4,
+        carvedExcluded: 0,
+      };
+    },
+
     startRecovery: async (
       scanId: string,
       selection: RecoverySelection,
@@ -1837,6 +1873,23 @@ ${lines.join('')}
               };
             })
           : [];
+      // F-01 (the named feature): the deleted-tree selection walks the
+      // same lazy window machinery as recover-all, scoped to the
+      // structure-recoverable deleted set (deleted + lost-path; carved
+      // raw files carry no original structure and stay in the raw flow).
+      const deletedTreeFilter: ResultsFilter = {
+        nodeId: null,
+        treeMode: 'path',
+        search: null,
+        categories: null,
+        dateFrom: null,
+        dateTo: null,
+        sizeMinBytes: null,
+        sizeMaxBytes: null,
+        extensions: null,
+        origins: ['deleted', 'lost-path'],
+        hideEmptyFiles: false,
+      };
       const allMode =
         selection.kind === 'all'
           ? {
@@ -1846,14 +1899,22 @@ ${lines.join('')}
               cursor: 0,
               total: space.count(selection.filter, rt.scopeMask),
             }
-          : null;
+          : selection.kind === 'deleted-tree'
+            ? {
+                filter: deletedTreeFilter,
+                space,
+                scopeMask: rt.scopeMask,
+                cursor: 0,
+                total: space.count(deletedTreeFilter, rt.scopeMask),
+              }
+            : null;
       const totalCount = items.length + (allMode?.total ?? 0);
       const jobId = `job-${this.nextJobId++}`;
       // Items advanced per tick — scales with job size so even a
       // recover-all over the whole result set finishes in bounded wall time
       // (the real engine streams at disk speed; the simulator batches).
-      const targetTicks =
-        import.meta.env?.MODE === 'test' && selection.kind === 'all' ? 25 : 200;
+      const bulk = selection.kind === 'all' || selection.kind === 'deleted-tree';
+      const targetTicks = import.meta.env?.MODE === 'test' && bulk ? 25 : 200;
       const batch = Math.max(1, Math.ceil(Math.max(1, totalCount) / targetTicks));
       const job: JobRuntime = {
         jobId,

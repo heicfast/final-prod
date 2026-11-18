@@ -127,6 +127,18 @@ export function useRecoveryReport(jobId: string | null) {
   });
 }
 
+/** F-01 (the named feature): read-only preview of the deleted-only
+ *  structure-preserving reconstruction plan — the substance the recovery
+ *  destination page shows before the user commits ("Recover deleted files
+ *  (keep folder structure)"). */
+export function useDeletedTreePreview(scanId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.deletedTreePreview(scanId ?? 'none'),
+    queryFn: () => connector.recovery.previewDeletedTreeReconstruction(scanId!),
+    enabled: scanId !== null,
+  });
+}
+
 /** W-01 (the dead-letter fix): the recovery terminal-event bridge —
  * `recovery-finished:<jobId>` invalidates the job/items/report caches the
  * instant the run thread latches the terminal state (the progress store's

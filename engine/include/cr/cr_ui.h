@@ -1520,6 +1520,14 @@ typedef struct cr_ui_recovery_config {
     uint32_t skip_hash_verify;     /* 0 = verify ON (default) */
     uint32_t skip_dir_reconstruct; /* 0 = reconstruct ON (default, G-08) */
     uint32_t conflict;             /* 0 rename, 1 skip, 2 overwrite */
+    /* F-01 (the named feature): 1 = the SectorForge-parity scheme for
+     * the reconstruct-deleted flow - "name (id N).ext" collisions (the
+     * item's own id, deterministic), the SF cross-OS component
+     * sanitizer (reserved names, trailing dots/spaces, UTF-16 cap
+     * 240), the inside-out output guard, and encrypted-empty content
+     * honesty. 0 = the shipped behavior (appended field, zero-init
+     * safe - old configs keep the classic semantics). */
+    uint32_t sf_collision;
     cr_ui_recovery_progress_fn progress;
     void* progress_user;
 } cr_ui_recovery_config;
@@ -1566,6 +1574,10 @@ typedef struct cr_ui_recovery_stats {
                                   * any write (no file created; v1-era append,
                                   * no 1.1 marker ever shipped - section 9;
                                   * appended field - zero-init safe) */
+    /* M-135 counters surfaced for the F-45 outcome badges (appended
+     * field - zero-init safe): committed-but-truncated items (the
+     * og's error-9 family; outcome class "incomplete"). */
+    uint64_t read_error;
 } cr_ui_recovery_stats;
 
 CR_UI_API uint32_t cr_ui_recovery_get_stats(cr_ui_recovery* rec, cr_ui_recovery_stats* out);
@@ -1575,6 +1587,53 @@ CR_UI_API uint32_t cr_ui_recovery_get_stats(cr_ui_recovery* rec, cr_ui_recovery_
  * "pending" truthfully. source_utf8 identifies the source in the report. */
 CR_UI_API uint32_t cr_ui_recovery_report_json(cr_ui_recovery* rec, const char* source_utf8,
                                               char** json_out);
+
+/* ---- recovery: the named feature (F-01) -------------------------------------
+ * "Reconstructed files with original directory structure preserved,
+ * deleted only, as a post-scan option" - SectorForge-parity semantics
+ * (worklog/SECTORFORGE-FEATURES.md sheet section 3). Two surfaces:
+ *
+ *   1. PREVIEW (read-only, needs only the session/snapshot): counts
+ *      what the reconstruct pass WOULD emit - the post-scan dialog's
+ *      substance.
+ *   2. ENQUEUE (needs a recovery created with sf_collision=1 and a
+ *      set destination): plans the deleted-only tree and enqueues
+ *      every item (dirs first) into the recovery's queue; the normal
+ *      process/stats/report flow completes it.
+ *
+ * The plan: deleted-only selection with the F-31 fast-path (an in-use
+ * subtree with no deleted descendant is pruned whole); original paths
+ * via ancestry (live ancestors are path components, never items);
+ * orphans under "_orphaned/" with the top of every orphaned chain
+ * carrying its id ("_orphaned/Documents (id 23)/..."); every
+ * component sanitize_component_sf-clean; carved/raw nodes excluded
+ * (no original structure - the raw-category flow owns them). */
+
+typedef struct cr_ui_reconstruct_preview {
+    uint64_t files;           /* deleted file items the plan emits */
+    uint64_t dirs;            /* deleted dir items (structure materializes) */
+    uint64_t orphan_files;    /* file items landing under _orphaned/ */
+    uint64_t orphan_dirs;     /* dir items landing under _orphaned/ */
+    uint64_t bytes_total;     /* logical bytes over file items */
+    uint64_t pruned_active;   /* F-31 accounting: in-use nodes skipped */
+    uint64_t pruned_subtrees; /* in-use roots/branches dropped whole */
+    uint64_t carved_excluded; /* carved/raw-origin nodes excluded */
+} cr_ui_reconstruct_preview;
+
+CR_UI_API uint32_t cr_ui_reconstruct_deleted_preview(cr_ui_session* sess,
+                                                     cr_ui_reconstruct_preview* out);
+CR_UI_API uint32_t cr_ui_reconstruct_deleted_preview_snapshot(cr_ui_snapshot* snap,
+                                                              cr_ui_reconstruct_preview* out);
+
+/* Enqueue the whole deleted-only plan. The recovery MUST have been
+ * created with sf_collision=1 (the SfId scheme is the feature's naming
+ * contract; a mismatch is refused with CR_UI_ERR_BAD_PARAMETER) and a
+ * destination set (the inside-out guard arms on it). Per-call errors
+ * return; the queue keeps every successfully-enqueued item (callers
+ * count by return code, same contract as enqueue_node). */
+CR_UI_API uint32_t cr_ui_recovery_enqueue_deleted_tree(cr_ui_recovery* rec, cr_ui_session* sess);
+CR_UI_API uint32_t cr_ui_recovery_enqueue_deleted_tree_snapshot(cr_ui_recovery* rec,
+                                                                cr_ui_snapshot* snap);
 
 /* ---- health (Windows platform layer; ERR_UNSUPPORTED elsewhere) -------------
  * The CLI `health` flow: SMART via ATA passthrough, NVMe health log,

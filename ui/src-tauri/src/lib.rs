@@ -79,6 +79,7 @@ pub fn run() {
             commands::recovery::recovery_state,
             commands::recovery::recovery_items,
             commands::recovery::recovery_report,
+            commands::recovery::recovery_preview_deleted_tree,
             // health (base ABI — BF-03)
             commands::health::health_read,
             // repair: the consent answer (both families) + the G-1 gap trio

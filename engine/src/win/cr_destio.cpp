@@ -221,5 +221,35 @@ u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
     return OK;
 }
 
+u32 WinDestIo::canonicalize(const std::u16string& path_utf16, std::u16string& out_utf16) {
+    /* F-01: resolve to the final path (symlinks/junctions followed).
+     * FILE_FLAG_BACKUP_SEMANTICS is required to open directories; the
+     * trailing separator the core convention carries is dropped (the
+     * writer's containment compare handles both forms). */
+    std::u16string p = path_utf16;
+    while (p.size() > 1 && (p.back() == u'\\' || p.back() == u'/'))
+        p.pop_back();
+    if (p.empty())
+        return ERR_BAD_PARAMETER;
+    HANDLE h = CreateFileW(reinterpret_cast<const wchar_t*>(p.c_str()), GENERIC_READ,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return ERR_UNSUPPORTED; /* cannot resolve: the guard degrades */
+    wchar_t buf[1024];
+    const DWORD n = GetFinalPathNameByHandleW(h, buf, DWORD(1024), 0);
+    CloseHandle(h);
+    if (n == 0 || n >= 1024)
+        return ERR_UNSUPPORTED;
+    std::u16string s(reinterpret_cast<const char16_t*>(buf), size_t(n));
+    /* drop the \\?\ prefix when present so comparisons are form-stable */
+    if (s.size() >= 4 && s[0] == u'\\' && s[1] == u'\\' && s[2] == u'?' && s[3] == u'\\')
+        s.erase(0, 4);
+    while (s.size() > 1 && (s.back() == u'\\' || s.back() == u'/'))
+        s.pop_back();
+    out_utf16 = std::move(s);
+    return OK;
+}
+
 } // namespace win
 } // namespace cr

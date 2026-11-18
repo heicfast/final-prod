@@ -358,7 +358,11 @@
         "cr_ui_recovery_enqueue_subtree",
         "cr_ui_recovery_enqueue_snapshot",
         "cr_ui_recovery_enqueue_subtree_snapshot",
-        "cr_ui_recovery_queue_count"
+        "cr_ui_recovery_queue_count",
+        "cr_ui_reconstruct_deleted_preview",
+        "cr_ui_reconstruct_deleted_preview_snapshot",
+        "cr_ui_recovery_enqueue_deleted_tree",
+        "cr_ui_recovery_enqueue_deleted_tree_snapshot"
       ],
       "serves": [
         "recovery.startRecovery"
@@ -370,7 +374,7 @@
         "options"
       ],
       "returns": "{jobId}",
-      "notes": "Config map: collision->conflict; verifyOnWrite->skip_hash_verify; rebuildFolders->skip_dir_reconstruct (keepEmptyFolders/fileRepair have NO engine equivalent — BF-14 truthful-disable). Selection 'all' pages the bridge query at 500/page. Events: recovery-progress:<jobId>."
+      "notes": "Config map: collision->conflict; verifyOnWrite->skip_hash_verify; rebuildFolders->skip_dir_reconstruct (keepEmptyFolders/fileRepair have NO engine equivalent — BF-14 truthful-disable). Selection 'all' pages the bridge query at 500/page. Events: recovery-progress:<jobId>. Selection 'deleted-tree' (F-01, the named feature) enqueues the whole deleted-only structure-preserving plan via cr_ui_recovery_enqueue_deleted_tree (sf_collision=1; SectorForge-parity naming) instead of paging the query."
     },
     {
       "name": "recovery_cancel",
@@ -868,6 +872,23 @@
       "args": [],
       "returns": "string | null",
       "notes": "M04 (W8): the native disk-image picker — the og's filter minus .edisk (M03): *.vmdk *.vhd *.vhdx *.dmg *.img (strings:11803-11816). Null = cancelled; the bridge re-validates the family at import time (the filter is a convenience, never the gate)."
+    },
+    {
+      "name": "recovery_preview_deleted_tree",
+      "threading": "sync",
+      "abiRefs": [
+        "cr_ui_reconstruct_deleted_preview",
+        "cr_ui_reconstruct_deleted_preview_snapshot"
+      ],
+      "serves": [
+        "recovery.previewDeletedTreeReconstruction"
+      ],
+      "args": [
+        "scanId"
+      ],
+      "returns": "{files, dirs, orphanFiles, orphanDirs, bytesTotal, prunedActive, prunedSubtrees, carvedExcluded}",
+      "notes": "F-01 (the named feature): read-only preview of the reconstruct-deleted plan over the scan's session tree (or live snapshot, G-02b). No recovery handle, no destination - the post-scan dialog's substance. Deleted-only with the F-31 fast-path accounting."
+
     }
   ],
   "events": [

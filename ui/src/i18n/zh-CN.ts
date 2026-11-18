@@ -298,6 +298,7 @@ export const zhCN: TranslationSchema = {
     },
     context: {
       recover: '恢复…',
+      recoverDeletedTree: '恢复已删除文件（保留目录结构）',
       preview: '预览',
       openLocation: '打开所在位置',
       openLocationMock: '打开文件位置需要系统文件管理器权限。',
@@ -414,6 +415,20 @@ export const zhCN: TranslationSchema = {
     validating: '正在检查目标位置…',
     start: '恢复 {{count}} 项',
     start_other: '恢复 {{count}} 项',
+    deletedTree: {
+      title: '恢复已删除文件（保留目录结构）',
+      subtitle: '仅已删除文件，按原始目录结构重建。原始位置未知的文件将放入 _orphaned 目录。',
+      files: '已删除文件',
+      dirs: '文件夹',
+      orphans: '孤立文件（位置未知）',
+      bytes: '总大小',
+      start: '恢复已删除文件',
+    },
+    outcome: {
+      complete: '完整',
+      incomplete: '不完整',
+      failed: '失败',
+    },
   },
   health: {
     title: '磁盘健康',

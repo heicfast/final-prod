@@ -15,6 +15,7 @@ import {
 import { useMountPoints, usePickDirectory, useValidateDestination } from '@/queries/system';
 import {
   useCancelRecovery,
+  useDeletedTreePreview,
   useRecoveryFinishedBridge,
   useRecoveryItems,
   useRecoveryJob,
@@ -63,6 +64,9 @@ export function RecoveryPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
 
   const selection = useSelectionStore();
+  // F-01 (the named feature): the deleted-tree mode is strictly opt-in via
+  // ?deleted-tree=1 — every other behavior of this page is unchanged.
+  const deletedTree = params.get('deleted-tree') === '1';
   const recoverAll = params.has('all') || selection.mode === 'all';
   const nodeIds = React.useMemo(
     () => (recoverAll ? [] : Array.from(selection.ids)),
@@ -77,10 +81,18 @@ export function RecoveryPage(): React.JSX.Element {
     scanState.data && scanState.data.progress.filesFound > 0
       ? scanState.data.progress.dataFoundBytes / scanState.data.progress.filesFound
       : 2_400_000;
-  const neededBytes = Math.max(
-    1,
-    Math.round((recoverAll ? selection.allCount : Math.max(1, selectedCount)) * avgFileBytes),
-  );
+  // In deleted-tree mode the preview carries the REAL byte total — the
+  // estimate (count × average) is only the fallback while it loads.
+  const deletedTreePreview = useDeletedTreePreview(deletedTree ? scanId : null);
+  const neededBytes =
+    deletedTree && deletedTreePreview.data
+      ? Math.max(1, deletedTreePreview.data.bytesTotal)
+      : Math.max(
+          1,
+          Math.round(
+            (recoverAll ? selection.allCount : Math.max(1, selectedCount)) * avgFileBytes,
+          ),
+        );
 
   const mounts = useMountPoints();
   const startRecovery = useStartRecovery(scanId);
@@ -174,16 +186,18 @@ export function RecoveryPage(): React.JSX.Element {
             <SaveDestinationIcon />
             <div>
               <h1
-                aria-label={`${t('recovery.destination')} — ${t('recovery.title')}`}
+                aria-label={`${deletedTree ? t('recovery.deletedTree.title') : t('recovery.destination')} — ${t('recovery.title')}`}
                 className="text-[18px] font-bold tracking-tight text-[#1E293B] dark:text-foreground"
               >
-                {t('recovery.destination')}
+                {deletedTree ? t('recovery.deletedTree.title') : t('recovery.destination')}
               </h1>
               <p className="mt-1 text-[13px] text-[#64748B] tabular dark:text-foreground-secondary">
-                {t('recovery.filesToRecover', {
-                  count: Math.max(1, selectedCount),
-                  size: formatBytes(neededBytes, i18n.language),
-                })}
+                {deletedTree
+                  ? t('recovery.deletedTree.subtitle')
+                  : t('recovery.filesToRecover', {
+                      count: Math.max(1, selectedCount),
+                      size: formatBytes(neededBytes, i18n.language),
+                    })}
               </p>
             </div>
           </div>
@@ -208,6 +222,47 @@ export function RecoveryPage(): React.JSX.Element {
           </div>
         ) : (
           <>
+            {/* F-01: the deleted-tree preview — what WOULD be reconstructed
+                (deleted-only, structure-preserving). Loading / error states
+                are surfaced honestly; the stats never block picking a
+                destination. */}
+            {deletedTree ? (
+              <div className="mt-4">
+                {deletedTreePreview.isLoading ? (
+                  <Skeleton className="h-24 rounded-[8px]" />
+                ) : deletedTreePreview.isError ? (
+                  <Alert variant="danger">
+                    <p>
+                      {deletedTreePreview.error instanceof Error
+                        ? deletedTreePreview.error.message
+                        : t('errors.unknown')}
+                    </p>
+                  </Alert>
+                ) : deletedTreePreview.data ? (
+                  <div className="grid grid-cols-2 gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 dark:border-border dark:bg-surface sm:grid-cols-4">
+                    <StatTile
+                      label={t('recovery.deletedTree.files')}
+                      value={deletedTreePreview.data.files.toLocaleString(i18n.language)}
+                    />
+                    <StatTile
+                      label={t('recovery.deletedTree.dirs')}
+                      value={deletedTreePreview.data.dirs.toLocaleString(i18n.language)}
+                    />
+                    <StatTile
+                      label={t('recovery.deletedTree.orphans')}
+                      value={(
+                        deletedTreePreview.data.orphanFiles + deletedTreePreview.data.orphanDirs
+                      ).toLocaleString(i18n.language)}
+                    />
+                    <StatTile
+                      label={t('recovery.deletedTree.bytes')}
+                      value={formatBytes(deletedTreePreview.data.bytesTotal, i18n.language)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* Segmented Local | Cloud Tabs */}
             <div className="mt-5 grid grid-cols-2 rounded-[8px] bg-[#F1F5F9] p-1 dark:bg-surface">
               <button
@@ -469,7 +524,11 @@ export function RecoveryPage(): React.JSX.Element {
                 disabled={
                   !destination || validating || (validation !== null && !validation.allowed)
                 }
-                aria-label={`${t('recovery.saveButton')} (${startLabel})`}
+                aria-label={
+                  deletedTree
+                    ? t('recovery.deletedTree.start')
+                    : `${t('recovery.saveButton')} (${startLabel})`
+                }
                 title={
                   !destination
                     ? t('recovery.destinationRequired')
@@ -480,12 +539,17 @@ export function RecoveryPage(): React.JSX.Element {
                 onClick={() => {
                   startRecovery.mutate(
                     {
-                      selection: recoverAll
-                        ? {
-                            kind: 'all',
-                            filter: selection.allFilter ?? resolveFilter(),
-                          }
-                        : { kind: 'nodes', nodeIds },
+                      // F-01: the deleted-tree mode enqueues the whole
+                      // deleted-only structure-preserving plan — node ids
+                      // and the all-filter are ignored in this mode.
+                      selection: deletedTree
+                        ? { kind: 'deleted-tree' }
+                        : recoverAll
+                          ? {
+                              kind: 'all',
+                              filter: selection.allFilter ?? resolveFilter(),
+                            }
+                          : { kind: 'nodes', nodeIds },
                       destination,
                       options,
                     },
@@ -496,7 +560,7 @@ export function RecoveryPage(): React.JSX.Element {
                 }}
                 className="inline-flex h-9 min-w-[116px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
               >
-                {t('recovery.saveButton')}
+                {deletedTree ? t('recovery.deletedTree.start') : t('recovery.saveButton')}
               </button>
             </div>
           </>
@@ -610,12 +674,23 @@ function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
               key={item.nodeId}
               className="flex items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0"
             >
-              <span className="min-w-0 flex-1 truncate" title={item.name}>
-                {item.name}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate" title={item.name}>
+                  {item.name}
+                </span>
+                {item.note ? (
+                  <span
+                    className="block truncate text-xs text-foreground-secondary"
+                    title={item.note}
+                  >
+                    {item.note}
+                  </span>
+                ) : null}
               </span>
               <span className="shrink-0 text-xs text-foreground-secondary tabular">
                 {formatBytes(item.sizeBytes, i18n.language)}
               </span>
+              {item.outcome ? <OutcomeBadge outcome={item.outcome} note={item.note} /> : null}
               <QueueStateBadge state={item.state} reasonKey={item.error?.reasonKey} />
             </div>
           ))}
@@ -803,6 +878,34 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
         </div>
       </div>
     </div>
+  );
+}
+
+/** F-45/F-01: the per-item outcome badge (content honesty) — the engine's
+ *  verdict on WHAT landed on disk ('complete' | 'incomplete' | 'failed'),
+ *  distinct from the transport state badge; the one-line note rides along
+ *  as the tooltip. */
+function OutcomeBadge({
+  outcome,
+  note,
+}: {
+  outcome: NonNullable<RecoveryItem['outcome']>;
+  note?: string;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const map: Record<
+    NonNullable<RecoveryItem['outcome']>,
+    { variant: 'success' | 'warning' | 'danger'; label: string }
+  > = {
+    complete: { variant: 'success', label: t('recovery.outcome.complete') },
+    incomplete: { variant: 'warning', label: t('recovery.outcome.incomplete') },
+    failed: { variant: 'danger', label: t('recovery.outcome.failed') },
+  };
+  const cfg = map[outcome];
+  return (
+    <span className="shrink-0" title={note}>
+      <Badge variant={cfg.variant}>{cfg.label}</Badge>
+    </span>
   );
 }
 

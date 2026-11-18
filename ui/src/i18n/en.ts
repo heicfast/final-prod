@@ -302,6 +302,7 @@ export const en = {
     },
     context: {
       recover: 'Recover…',
+      recoverDeletedTree: 'Recover deleted (keep structure)',
       preview: 'Preview',
       openLocation: 'Open location',
       openLocationMock: 'Opening a file location requires elevated shell access.',
@@ -423,6 +424,21 @@ export const en = {
     validating: 'Checking destination…',
     start: 'Recover {{count}} item',
     start_other: 'Recover {{count}} items',
+    deletedTree: {
+      title: 'Recover deleted files (keep folder structure)',
+      subtitle:
+        'Deleted files only, reconstructed with their original folder structure. Files whose original location is unknown land under _orphaned.',
+      files: 'Deleted files',
+      dirs: 'Folders',
+      orphans: 'Orphaned (unknown location)',
+      bytes: 'Total size',
+      start: 'Recover deleted files',
+    },
+    outcome: {
+      complete: 'Complete',
+      incomplete: 'Incomplete',
+      failed: 'Failed',
+    },
   },
   health: {
     title: 'Disk health',

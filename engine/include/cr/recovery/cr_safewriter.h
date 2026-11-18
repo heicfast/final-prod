@@ -25,6 +25,10 @@
 #include <string>
 #include <vector>
 
+/* F-01 (the named feature): the SF-parity helpers live beside the plan
+ * (sanitize_component_sf / with_id_suffix_sf - cr_extractplan.h). */
+#include "../recovery/cr_extractplan.h"
+
 /* S-052 fwd: the LDM virtual device lives in the table layer
  * (cr/table/cr_ldm.h); the basis adapter below is implemented in
  * cr_safewriter.cpp where both layers meet. */
@@ -91,9 +95,34 @@ public:
         (void)meta;
         return ERR_UNSUPPORTED;
     }
+    /* F-01 (SF extract.rs:242-252 behavior): resolve a path to its
+     * canonical absolute form (junctions/symlinks followed), for the
+     * reconstruct flow's inside-out output guard. Backends without a
+     * canonicalize surface keep the default - the guard then degrades
+     * to the lexical check and says so (never silently skipped).
+     * OK = resolved (out_utf16 set); ERR_UNSUPPORTED = no surface;
+     * anything else = the backend's refusal. */
+    virtual u32 canonicalize(const std::u16string& path_utf16, std::u16string& out_utf16) {
+        (void)path_utf16;
+        (void)out_utf16;
+        return ERR_UNSUPPORTED;
+    }
 };
 
 enum class ItemState : u8 { Pending = 0, Reading, Writing, Verifying, Done, Error, Refused };
+
+/* F-01: the collision-naming scheme. OgUnderscore (default) is the
+ * shipped behavior - intra-queue "name_1.ext" / pre-existing
+ * "name (2)" (N-065/R7.1). SfId is the SectorForge parity scheme for
+ * the named feature (deleted-only structure-preserving
+ * reconstruction): on collision the item's OWN id is inserted before
+ * the extension - "name (id N).ext" (SF with_id_suffix,
+ * sanitize.rs:66-71) - and if THAT also collides the item FAILS with
+ * ERR_DEST_NAME_EXHAUSTED ("nothing pre-existing is ever overwritten",
+ * SF extract.rs:161-197). The ConflictPolicy still governs
+ * pre-existing finals (Rename = SF's never-overwrite posture; Skip
+ * keeps the product's idempotent re-run; Overwrite replaces). */
+enum class CollisionScheme : u8 { OgUnderscore = 0, SfId = 1 };
 
 /* Destination conflict policy (G-08/G-09): what to do when the exact
  * final path already exists on the destination.
@@ -140,6 +169,13 @@ struct QueueItem {
     bool had_unreadable = false; /* FB-R02: a device/decompress failure
                                   * zero-filled a span (Outcome::Salvaged) */
     /* ---- M-135: the og's per-file failure record ---- */
+    /* F-01: the SF-scheme id this item collides under (" (id N)");
+     * 0 = none (the og scheme ignores it) */
+    u64 sf_id = 0;
+    /* F-45: content-honesty note (plain English, one line; empty = no
+     * note). Derived at report time from the item's own truth flags
+     * (encrypted/zero-filled/reused) - never fabricated. */
+    std::string note;
     u32 cause_id = 0;            /* the numbered cause (cr_report.h's table);
                                   * 0 = no failure */
     u64 first_failed_offset = 0; /* logical offset of the first unreadable
@@ -174,6 +210,18 @@ struct WriterConfig {
      * truthfully (the library posture; the og's gate is a host
      * setting). */
     bool suppress_read_error_accounting = false;
+    /* ---- F-01 (the named feature; SectorForge parity) ---- */
+    /* collision naming + component sanitization scheme (see
+     * CollisionScheme above); OgUnderscore = the shipped behavior */
+    CollisionScheme scheme = CollisionScheme::OgUnderscore;
+    /* the SF UTF-16 per-component cap (sanitize_component_sf) */
+    u16 sf_max_component = 240;
+    /* SF parity for encrypted items (extract.rs content-honesty): an
+     * EFS-encrypted file is written EMPTY with a note (the content is
+     * cryptographically unrecoverable - committing the raw encrypted
+     * bytes would present un-original content as a recovered file).
+     * Only honored in SfId mode (the classic flow keeps its behavior). */
+    bool sf_encrypted_empty = true;
 };
 
 struct WriterStats {
@@ -298,6 +346,25 @@ public:
     std::u16string resolve_collision(const std::u16string& dir,
                                      const std::u16string& base_name) const;
 
+    /* F-01: the SF-scheme resolver - "name (id N).ext" on the first
+     * collision (N = the item's own id), EMPTY (fail the item with
+     * ERR_DEST_NAME_EXHAUSTED at process time) when that also collides.
+     * "Taken" means intra-queue OR (under Rename) exists on disk - the
+     * same two sources as resolve_collision. */
+    std::u16string resolve_collision_sf(const std::u16string& dir, const std::u16string& base_name,
+                                        u64 sf_id) const;
+
+    /* F-01 (SF extract.rs:242-252): arm the inside-out output guard.
+     * In SfId mode every directory the writer creates is canonicalized
+     * (DestIo::canonicalize) and refused with ERR_DEST_ESCAPE when it
+     * resolves outside `output_root` - a pre-existing junction/symlink
+     * inside the output can never redirect the reconstruction. When the
+     * backend cannot canonicalize the guard degrades to the lexical
+     * check (components are sanitize_component_sf-clean by
+     * construction, so "."/".." escape is already impossible) and the
+     * report says so (never silently skipped). */
+    void arm_output_guard(const std::u16string& output_root);
+
     /* sanitize a node display name for the destination FS (corpus sanitizer
      * replaces / * : ? " < > | with _). */
     static std::u16string sanitize_name(const std::u16string& in);
@@ -305,7 +372,8 @@ public:
 private:
     u32 enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
                        const tree::FileProperties* value_props, const std::u16string& dest_dir,
-                       u32 basis /* S-052: the item's root basis id */);
+                       u32 basis /* S-052: the item's root basis id */,
+                       u64 sf_id /* F-01: the item's SF-scheme id */);
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* timed body: recover_item stamps duration_ms on every exit path */
     u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
@@ -347,6 +415,14 @@ private:
     /* names assigned within THIS queue ("dir|name") - intra-queue
      * collision source of truth, independent of destination state */
     mutable std::set<std::u16string> claimed_names_;
+    /* F-01: the guarded output root (SfId mode) + its cached canonical
+     * form (canonicalization is attempted lazily once; UNSUPPORTED
+     * degrades the guard to the lexical check) */
+    std::u16string guard_root_;
+    bool have_guard_ = false;
+    mutable std::u16string guard_root_canon_;
+    mutable bool guard_canon_tried_ = false;
+    mutable bool guard_canon_ok_ = false;
 };
 
 /* M-135: the og's numbered user-facing failure causes - the

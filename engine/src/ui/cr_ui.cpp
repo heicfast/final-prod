@@ -77,6 +77,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <climits> /* F-01: PATH_MAX (FileDestIo::canonicalize) */
 #include <cwctype>
 #include <functional>
 #include <map>
@@ -771,6 +772,21 @@ private:
         struct stat st;
         return ::stat(to_path(path).c_str(), &st) == 0;
     }
+    /* F-01: the portable canonicalize for the inside-out guard
+     * (realpath follows symlinks; the trailing separator the core
+     * convention carries is dropped - the writer's containment
+     * compare handles both forms). ERR_UNSUPPORTED when the path does
+     * not resolve (the guard's documented degrade path). */
+    u32 canonicalize(const std::u16string& path, std::u16string& out) override {
+        char resolved[PATH_MAX];
+        if (::realpath(to_path(path).c_str(), resolved) == nullptr)
+            return ERR_UNSUPPORTED;
+        std::string s(resolved);
+        while (!s.empty() && s.back() == '/')
+            s.pop_back();
+        out = u8_to_u16(s.c_str());
+        return OK;
+    }
     /* S-060: the og's per-item restoration tail, POSIX translation
      * (the deliberate cross-platform mapping registered in
      * PARITY-DELTAS): SetFileTime(created/access/write) ->
@@ -1050,6 +1066,9 @@ struct CrRecovery {
     cr_ui_recovery_progress_fn progress = nullptr;
     void* progress_user = nullptr;
     recovery::WriterStats stats{};
+    /* F-01: the armed collision scheme (the enqueue_deleted_tree gate
+     * reads it back - the SfId contract check) */
+    recovery::CollisionScheme writer_scheme = recovery::CollisionScheme::OgUnderscore;
     std::chrono::steady_clock::time_point t0{};
     bool processed = false;
 };
@@ -4664,6 +4683,11 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
             wcfg.conflict = recovery::ConflictPolicy::Rename;
             break;
         }
+        /* F-01: the named-feature scheme (SfId) - everything about it is
+         * opt-in; zero keeps the shipped behavior. */
+        if (cfg->sf_collision)
+            wcfg.scheme = recovery::CollisionScheme::SfId;
+        r->writer_scheme = wcfg.scheme;
         if (cfg->progress) {
             r->progress = cfg->progress;
             r->progress_user = cfg->progress_user;
@@ -4708,6 +4732,10 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
         root.push_back(u'\\');
     r->dest_root = root;
     r->have_dest = true;
+    /* F-01: the inside-out output guard arms on the destination root
+     * (no-op in the classic scheme; canonicalize-based containment in
+     * SfId mode). */
+    r->writer->arm_output_guard(root);
 #ifdef _WIN32
     /* [F12]+N-013 arming (restored per S-054 after the 1ebd1bcc clobber):
      * the destination volume's FULL disk placement feeds the writer's
@@ -4995,6 +5023,108 @@ u32 recovery_stats_impl(cr_ui_recovery* rec, cr_ui_recovery_stats* out) {
     out->salvaged = r->stats.salvaged;
     out->dirs = r->stats.dirs;
     out->nothing_to_recover = r->stats.nothing_to_recover; /* GAP-S6-7 */
+    out->read_error = r->stats.read_error;                 /* M-135/F-45: incomplete-class items */
+    return ret_ok();
+}
+
+/* ---- F-01: the named feature (reconstruct deleted with structure) ---- */
+
+static void fill_reconstruct_preview(cr_ui_reconstruct_preview* out,
+                                     const recovery::extractplan::PlanStats& st) {
+    out->files = st.files;
+    out->dirs = st.dirs;
+    out->orphan_files = st.orphan_files;
+    out->orphan_dirs = st.orphan_dirs;
+    out->bytes_total = st.bytes_total;
+    out->pruned_active = st.pruned_active;
+    out->pruned_subtrees = st.pruned_subtrees;
+    out->carved_excluded = st.carved_excluded;
+}
+
+u32 reconstruct_deleted_preview_impl(cr_ui_session* sess, cr_ui_reconstruct_preview* out) {
+    if (!sess || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: sess/out");
+    auto* s = reinterpret_cast<CrSession*>(sess);
+    recovery::extractplan::PlanOptions opt; /* deleted_only, structure, SF caps */
+    std::vector<recovery::extractplan::PlanItem> items;
+    const auto st = recovery::extractplan::plan_deleted_tree(s->tree, opt, items);
+    std::memset(out, 0, sizeof(*out));
+    fill_reconstruct_preview(out, st);
+    return ret_ok();
+}
+
+u32 reconstruct_deleted_preview_snapshot_impl(cr_ui_snapshot* snap,
+                                              cr_ui_reconstruct_preview* out) {
+    if (!snap || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: snap/out");
+    auto* w = reinterpret_cast<CrSnapshot*>(snap);
+    recovery::extractplan::PlanOptions opt;
+    std::vector<recovery::extractplan::PlanItem> items;
+    const auto st = recovery::extractplan::plan_deleted_snapshot(*w->snap, opt, items);
+    std::memset(out, 0, sizeof(*out));
+    fill_reconstruct_preview(out, st);
+    return ret_ok();
+}
+
+u32 recovery_enqueue_deleted_tree_impl(cr_ui_recovery* rec, cr_ui_session* sess) {
+    if (!rec || !sess)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: rec/sess");
+    auto* r = reinterpret_cast<CrRecovery*>(rec);
+    auto* s = reinterpret_cast<CrSession*>(sess);
+    if (!r->have_dest)
+        return ret_(ERR_BAD_PARAMETER, "call cr_ui_recovery_set_destination first");
+    if (r->writer_scheme != recovery::CollisionScheme::SfId)
+        return ret_(ERR_BAD_PARAMETER,
+                    "cr_ui_recovery_enqueue_deleted_tree needs a recovery created "
+                    "with sf_collision=1 (the named feature's naming contract)");
+    /* S-052/M-136: same basis arm as every other enqueue path */
+    session_arm_ldm_basis(s, r->read_pipe->pipe);
+    r->writer->set_basis_table(s->ldm_basis.get());
+    recovery::extractplan::PlanOptions opt;
+    std::vector<recovery::extractplan::PlanItem> items;
+    recovery::extractplan::plan_deleted_tree(s->tree, opt, items);
+    for (const auto& it : items) {
+        const u32 eq = it.node != nullptr ? r->writer->enqueue(const_cast<tree::FileNode*>(it.node),
+                                                               r->dest_root + it.rel_dir)
+                                          : ERR_BAD_PARAMETER;
+        if (eq != OK && eq != ERR_DEST_OVERLAP)
+            return ret_(eq, "reconstruct enqueue %s", err_text(eq));
+        /* overlap is a counted refusal, not a failure (the family
+         * contract); name exhaustion is per-item at process time */
+    }
+    return ret_ok();
+}
+
+u32 recovery_enqueue_deleted_tree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* snap) {
+    if (!rec || !snap)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: rec/snap");
+    auto* r = reinterpret_cast<CrRecovery*>(rec);
+    auto* w = reinterpret_cast<CrSnapshot*>(snap);
+    if (!r->have_dest)
+        return ret_(ERR_BAD_PARAMETER, "call cr_ui_recovery_set_destination first");
+    if (r->writer_scheme != recovery::CollisionScheme::SfId)
+        return ret_(ERR_BAD_PARAMETER,
+                    "cr_ui_recovery_enqueue_deleted_tree_snapshot needs a recovery "
+                    "created with sf_collision=1 (the named feature's naming "
+                    "contract)");
+    /* S-052: the snapshot's basis source (session lazy-arm or the
+     * capture-time registry - the snapshot enqueue contract) */
+    if (w->src_session != nullptr) {
+        session_arm_ldm_basis(w->src_session, r->read_pipe->pipe);
+        r->writer->set_basis_table(w->src_session->ldm_basis.get());
+    } else if (w->src_scan != nullptr) {
+        r->writer->set_basis_table(w->ldm_basis.get());
+    }
+    recovery::extractplan::PlanOptions opt;
+    std::vector<recovery::extractplan::PlanItem> items;
+    recovery::extractplan::plan_deleted_snapshot(*w->snap, opt, items);
+    for (const auto& it : items) {
+        if (it.snap_index == 0xFFFFFFFFu)
+            continue; /* defensive: mixed plans cannot come from here */
+        const u32 eq = r->writer->enqueue(*w->snap, it.snap_index, r->dest_root + it.rel_dir);
+        if (eq != OK && eq != ERR_DEST_OVERLAP)
+            return ret_(eq, "reconstruct enqueue %s", err_text(eq));
+    }
     return ret_ok();
 }
 
@@ -5072,6 +5202,22 @@ extern "C" CR_UI_API uint32_t cr_ui_recovery_get_stats(cr_ui_recovery* rec,
 extern "C" CR_UI_API uint32_t cr_ui_recovery_report_json(cr_ui_recovery* rec,
                                                          const char* source_utf8, char** json_out) {
     return guarded(recovery_report_json_impl, rec, source_utf8, json_out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_reconstruct_deleted_preview(cr_ui_session* sess,
+                                                                cr_ui_reconstruct_preview* out) {
+    return guarded(reconstruct_deleted_preview_impl, sess, out);
+}
+extern "C" CR_UI_API uint32_t
+cr_ui_reconstruct_deleted_preview_snapshot(cr_ui_snapshot* snap, cr_ui_reconstruct_preview* out) {
+    return guarded(reconstruct_deleted_preview_snapshot_impl, snap, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_recovery_enqueue_deleted_tree(cr_ui_recovery* rec,
+                                                                  cr_ui_session* sess) {
+    return guarded(recovery_enqueue_deleted_tree_impl, rec, sess);
+}
+extern "C" CR_UI_API uint32_t cr_ui_recovery_enqueue_deleted_tree_snapshot(cr_ui_recovery* rec,
+                                                                           cr_ui_snapshot* snap) {
+    return guarded(recovery_enqueue_deleted_tree_snapshot_impl, rec, snap);
 }
 
 /* =========================================================================

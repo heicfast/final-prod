@@ -53,6 +53,7 @@ import type {
   RecoveryOptions,
   RecoveryProgressEvent,
   RecoveryReport,
+  DeletedTreePreview,
   RecoverySelection,
   RepairDryRun,
   RepairUndoEntry,
@@ -464,6 +465,9 @@ export function createTauriConnector(): RecoveryConnector {
         options: RecoveryOptions,
       ): Promise<{ jobId: string }> =>
         bridge(invoke('recovery_start', { scanId, selection, destination, options })),
+
+      previewDeletedTreeReconstruction: async (scanId: string): Promise<DeletedTreePreview> =>
+        bridge(invoke('recovery_preview_deleted_tree', { scanId })),
 
       cancelRecovery: async (jobId: string): Promise<void> =>
         bridge(invoke('recovery_cancel', { jobId })),

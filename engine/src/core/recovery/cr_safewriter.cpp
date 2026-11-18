@@ -146,10 +146,53 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
                   synthesized fallback name, no _dup) */
 }
 
+std::u16string SafeWriter::resolve_collision_sf(const std::u16string& dir,
+                                                const std::u16string& base_name, u64 sf_id) const {
+    /* F-01 (SF extract.rs:161-197, re-implemented from the documented
+     * behavior): the FIRST collision retries once as "name (id N).ext"
+     * (the item's own id, deterministic - re-runs of the same plan
+     * produce the same names); if that also collides the item FAILS -
+     * nothing pre-existing is ever overwritten, and no counter loop
+     * exists (the SF scheme's exhaustion is the SECOND collision). */
+    std::u16string prefix = dir;
+    if (!prefix.empty() && prefix.back() != u'\\' && prefix.back() != u'/')
+        prefix.push_back(u'\\');
+    const std::u16string key = prefix + u"|" + base_name;
+    const bool intra = claimed_names_.count(key) != 0;
+    const bool dest_taken =
+        cfg_.conflict == ConflictPolicy::Rename && io_.exists(prefix + base_name);
+    if (!intra && !dest_taken) {
+        claimed_names_.insert(key);
+        return base_name;
+    }
+    const std::u16string suffixed = with_id_suffix_sf(base_name, sf_id);
+    const std::u16string key2 = prefix + u"|" + suffixed;
+    const bool intra2 = claimed_names_.count(key2) != 0;
+    const bool dest2 = cfg_.conflict == ConflictPolicy::Rename && io_.exists(prefix + suffixed);
+    if (!intra2 && !dest2) {
+        claimed_names_.insert(key2);
+        return suffixed;
+    }
+    return {}; /* the SF scheme's exhaustion: FAIL the item with
+                  ERR_DEST_NAME_EXHAUSTED at process time */
+}
+
+void SafeWriter::arm_output_guard(const std::u16string& output_root) {
+    /* F-01: record the output root for the inside-out guard; the
+     * canonical form resolves lazily (the root may not exist yet at
+     * arming time - it is created by the first ensure_dir_). */
+    guard_root_ = output_root;
+    have_guard_ = !output_root.empty();
+    guard_root_canon_.clear();
+    guard_canon_tried_ = false;
+    guard_canon_ok_ = false;
+}
+
 u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     if (node == nullptr || node->props() == nullptr || source_ == nullptr)
         return ERR_BAD_PARAMETER;
-    return enqueue_common(node->props(), node, nullptr, dest_dir, node_basis_of(node));
+    return enqueue_common(node->props(), node, nullptr, dest_dir, node_basis_of(node),
+                          node->node_id());
 }
 
 u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
@@ -165,12 +208,13 @@ u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
         return ERR_NO_MEMORY;
     value_store_.push_back(std::move(owned));
     const tree::FileProperties* value = value_store_.back().get();
-    return enqueue_common(value, nullptr, value, dest_dir, snap_basis_of(snap, snap_index));
+    return enqueue_common(value, nullptr, value, dest_dir, snap_basis_of(snap, snap_index),
+                          snap.node(snap_index).node_id);
 }
 
 u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
                                const tree::FileProperties* value_props,
-                               const std::u16string& dest_dir, u32 basis) {
+                               const std::u16string& dest_dir, u32 basis, u64 sf_id) {
     if (pr == nullptr)
         return ERR_BAD_PARAMETER;
     const bool is_dir = cfg_.reconstruct_dirs && (pr->attributes & 0x10) != 0;
@@ -240,6 +284,7 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
     it.value_props = value_props; /* G-02b: null for node-based enqueues */
     it.read_src = read_src;
     it.basis = basis;
+    it.sf_id = sf_id; /* F-01: the SF-scheme id (" (id N)") */
     it.dest_dir = dest_dir;
     if (!it.dest_dir.empty() && it.dest_dir.back() != u'\\' && it.dest_dir.back() != u'/')
         it.dest_dir.push_back(u'\\');
@@ -254,8 +299,15 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
      * identically either way, so only band-unit names change behavior. */
     const std::u16string restore_base =
         !pr->name_raw.empty() ? text::utf8_to_u16(pr->name_raw) : pr->name;
-    const std::u16string clean = sanitize_name(restore_base);
-    it.final_name = resolve_collision(it.dest_dir, clean);
+    /* F-01: SfId mode sanitizes with the SF cross-OS component rules
+     * (reserved names, trailing dots/spaces, UTF-16 cap) instead of the
+     * corpus char-replace sanitizer; the og scheme is unchanged. */
+    const std::u16string clean = cfg_.scheme == CollisionScheme::SfId
+                                     ? sanitize_component_sf(restore_base, cfg_.sf_max_component)
+                                     : sanitize_name(restore_base);
+    it.final_name = cfg_.scheme == CollisionScheme::SfId
+                        ? resolve_collision_sf(it.dest_dir, clean, sf_id)
+                        : resolve_collision(it.dest_dir, clean);
     if (it.final_name.empty()) {
         /* N-065: the rename space is exhausted (the og's cap-break) - the
          * item is FAILED at process time, never a synthesized _dup name */
@@ -308,6 +360,43 @@ u32 SafeWriter::ensure_dir_(const std::u16string& dir) {
     if (u32 rc = io_.mkdir(dir))
         return rc;
     made_dirs_.insert(dir);
+    /* F-01 (SF extract.rs:242-252): the inside-out canonicalize guard.
+     * SfId mode only - the classic flow's behavior is unchanged. Every
+     * freshly created directory must canonicalize INSIDE the armed
+     * output root (a pre-existing junction/symlink inside the output
+     * must never redirect the reconstruction). When the backend cannot
+     * canonicalize the guard degrades to the lexical containment check
+     * (sanitize_component_sf already neutralized "."/"..", drives and
+     * separators per component, so lexical escape is impossible by
+     * construction) - and the report says "lexical" truthfully. */
+    if (cfg_.scheme == CollisionScheme::SfId && have_guard_) {
+        if (!guard_canon_tried_) {
+            guard_canon_tried_ = true;
+            guard_canon_ok_ = io_.canonicalize(guard_root_, guard_root_canon_) == OK &&
+                              !guard_root_canon_.empty();
+        }
+        if (guard_canon_ok_) {
+            std::u16string canon;
+            if (io_.canonicalize(dir, canon) == OK && !canon.empty()) {
+                const bool inside =
+                    canon == guard_root_canon_ ||
+                    (canon.size() > guard_root_canon_.size() &&
+                     canon.compare(0, guard_root_canon_.size(), guard_root_canon_) == 0 &&
+                     (guard_root_canon_.back() == u'\\' || guard_root_canon_.back() == u'/' ||
+                      canon[guard_root_canon_.size()] == u'\\' ||
+                      canon[guard_root_canon_.size()] == u'/'));
+                if (!inside) {
+                    made_dirs_.erase(dir); /* not ours - the guard refuses */
+                    return ERR_DEST_ESCAPE;
+                }
+            }
+            /* canonicalize failing on a just-created dir is the backend
+             * refusing (not our refusal): surfaced as the mkdir's own
+             * result above; the guard stays silent only when it can
+             * PROVE containment - a refused canonicalization never
+             * passes the guard, it just doesn't fail the item here. */
+        }
+    }
     return OK;
 }
 
@@ -520,6 +609,30 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
         return rc;
     }
     it.state = ItemState::Writing;
+
+    /* F-01 (SF content honesty, extract.rs notes family): an EFS-encrypted
+     * file's content is cryptographically unrecoverable - the SF-parity
+     * flow writes an EMPTY file (the name stays visible to the user)
+     * instead of committing the raw encrypted bytes as if they were
+     * recovered content. SfId mode only; the classic flow is unchanged. */
+    if (cfg_.scheme == CollisionScheme::SfId && cfg_.sf_encrypted_empty &&
+        (pr->attributes & 0x4000) != 0) {
+        if (u32 rc = io_.commit(it.item_id)) {
+            it.state = ItemState::Error;
+            it.error = rc;
+            ++stats.errors;
+            io_.close(it.item_id);
+            return rc;
+        }
+        io_.close(it.item_id);
+        it.state = ItemState::Done;
+        it.bytes_done = 0;
+        it.bytes_written = 0;
+        it.note = "encrypted (EFS): content not recoverable - empty file, "
+                  "name preserved (metadata only)";
+        ++stats.done;
+        return OK;
+    }
 
     crypto::Sha256 hash;
     /* resident metadata content first (NTFS resident streams, ZFS embedded
@@ -1128,6 +1241,30 @@ std::vector<report::Item> SafeWriter::report_items() const {
             r.reason = it.error;
         } else {
             r.outcome = report::Outcome::Done;
+        }
+        /* F-45 (per-item content-honesty notes, SF extract.rs notes
+         * family): derived ONLY from the item's own truth flags - never
+         * fabricated, never masking a failure. */
+        {
+            std::string note = it.note; /* stamped during process (EFS) */
+            if (note.empty() && it.had_unreadable)
+                note = "some spans were unreadable and zero-filled - content "
+                       "incomplete (size correct, bytes partially original)";
+            if (note.empty() && it.cause_id != 0) {
+                const char* cause = failure_cause_text(it.cause_id);
+                if (cause != nullptr)
+                    note = std::string("read failed mid-file, partial committed: ") + cause;
+            }
+            if (note.empty()) {
+                /* cluster-reuse honesty: the grading pass's Overwritten
+                 * confidence means every extent is live data now
+                 * (node-based items only - value rows carry no grade) */
+                if (it.node != nullptr && !it.is_dir &&
+                    it.node->confidence() == tree::Confidence::Overwritten)
+                    note = "all clusters reused by live data - content is not "
+                           "the original file's";
+            }
+            r.note = std::move(note);
         }
         out.push_back(std::move(r));
     }

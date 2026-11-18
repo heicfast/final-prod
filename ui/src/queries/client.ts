@@ -33,6 +33,7 @@ export const queryKeys = {
   job: (jobId: string) => ['recovery', jobId] as const,
   jobItems: (jobId: string) => ['recovery', jobId, 'items'] as const,
   report: (jobId: string) => ['recovery', jobId, 'report'] as const,
+  deletedTreePreview: (scanId: string) => ['recovery', 'deleted-tree-preview', scanId] as const,
   health: (deviceId: string) => ['health', deviceId] as const,
   appInfo: ['system', 'app'] as const,
   mounts: ['system', 'mounts'] as const,

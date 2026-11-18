@@ -132,6 +132,14 @@ Top level:
 - `bytes_written` (M-135; emitted when it differs from `bytes`) — the
   committed byte count (the og's std::filesystem size probe,
   DRWUI :874131-874205)
+- `note` (F-45, additive-within-v1; **omitted when empty**) — the per-item
+  content-honesty note, plain English, one line, derived ONLY from the
+  item's own truth flags (never fabricated, never masking a failure):
+  EFS-encrypted items in the reconstruct flow (empty file written, name
+  preserved), zero-filled unreadable spans (salvaged rows), the numbered
+  read-failure cause (read_error rows), and full cluster reuse
+  (confidence Overwritten). This is the SectorForge per-item notes
+  family (extract.rs), re-implemented from documented behavior.
 - `duration_ms` — per-item processing time (0 for skipped/unprocessed)
 - `sha256` — lowercase hex of the streamed content digest; **empty** when
   not computed (refused/error/pending/resumed/dir rows)

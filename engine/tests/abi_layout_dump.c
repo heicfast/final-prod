@@ -393,6 +393,25 @@ int main(int argc, char** argv) {
     fprintf(out, "\"%s\": %llu%s ", "tags_extracted",
             (unsigned long long)offsetof(cr_ui_query_row, tags_extracted), "");
     fputs("}},\n", out);
+    fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_reconstruct_preview",
+            (unsigned long long)sizeof(cr_ui_reconstruct_preview));
+    fprintf(out, "\"%s\": %llu%s ", "files",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, files), ",");
+    fprintf(out, "\"%s\": %llu%s ", "dirs",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, dirs), ",");
+    fprintf(out, "\"%s\": %llu%s ", "orphan_files",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, orphan_files), ",");
+    fprintf(out, "\"%s\": %llu%s ", "orphan_dirs",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, orphan_dirs), ",");
+    fprintf(out, "\"%s\": %llu%s ", "bytes_total",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, bytes_total), ",");
+    fprintf(out, "\"%s\": %llu%s ", "pruned_active",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, pruned_active), ",");
+    fprintf(out, "\"%s\": %llu%s ", "pruned_subtrees",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, pruned_subtrees), ",");
+    fprintf(out, "\"%s\": %llu%s ", "carved_excluded",
+            (unsigned long long)offsetof(cr_ui_reconstruct_preview, carved_excluded), "");
+    fputs("}},\n", out);
     fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_recovery_config",
             (unsigned long long)sizeof(cr_ui_recovery_config));
     fprintf(out, "\"%s\": %llu%s ", "read_chunk",
@@ -405,6 +424,8 @@ int main(int argc, char** argv) {
             (unsigned long long)offsetof(cr_ui_recovery_config, skip_dir_reconstruct), ",");
     fprintf(out, "\"%s\": %llu%s ", "conflict",
             (unsigned long long)offsetof(cr_ui_recovery_config, conflict), ",");
+    fprintf(out, "\"%s\": %llu%s ", "sf_collision",
+            (unsigned long long)offsetof(cr_ui_recovery_config, sf_collision), ",");
     fprintf(out, "\"%s\": %llu%s ", "progress",
             (unsigned long long)offsetof(cr_ui_recovery_config, progress), ",");
     fprintf(out, "\"%s\": %llu%s ", "progress_user",
@@ -429,7 +450,9 @@ int main(int argc, char** argv) {
     fprintf(out, "\"%s\": %llu%s ", "dirs",
             (unsigned long long)offsetof(cr_ui_recovery_stats, dirs), ",");
     fprintf(out, "\"%s\": %llu%s ", "nothing_to_recover",
-            (unsigned long long)offsetof(cr_ui_recovery_stats, nothing_to_recover), "");
+            (unsigned long long)offsetof(cr_ui_recovery_stats, nothing_to_recover), ",");
+    fprintf(out, "\"%s\": %llu%s ", "read_error",
+            (unsigned long long)offsetof(cr_ui_recovery_stats, read_error), "");
     fputs("}},\n", out);
     fprintf(out, "  \"%s\": {\"size\": %llu, \"fields\": {", "cr_ui_repair_plan",
             (unsigned long long)sizeof(cr_ui_repair_plan));

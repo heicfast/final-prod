@@ -75,6 +75,12 @@ enum Err : u32 {
     ERR_DEST_PATH_TOO_LONG = 0x50050006,
     ERR_DEST_PATH_INVALID = 0x50050007,
     ERR_DEST_NETWORK = 0x50050008,
+    /* F-01 (the named feature): the reconstruct flow's inside-out guard
+     * refused a freshly created directory that canonicalizes OUTSIDE the
+     * armed output root (SF extract.rs:242-252 - a pre-existing
+     * junction/symlink inside the output can never redirect the
+     * reconstruction). */
+    ERR_DEST_ESCAPE = 0x50050009,
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,

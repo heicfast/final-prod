@@ -654,6 +654,10 @@ pub struct CrUiRecoveryConfig {
     pub skip_hash_verify: u32,
     pub skip_dir_reconstruct: u32,
     pub conflict: u32,
+    /// F-01 (the named feature): 1 = the SectorForge-parity scheme for
+    /// the reconstruct-deleted flow ("name (id N).ext" collisions, SF
+    /// component sanitizer, inside-out output guard, encrypted-empty).
+    pub sf_collision: u32,
     pub progress: CrUiRecoveryProgressFn,
     pub progress_user: *mut c_void,
 }
@@ -670,6 +674,23 @@ pub struct CrUiRecoveryStats {
     pub salvaged: u64,
     pub dirs: u64,
     pub nothing_to_recover: u64,
+    /// M-135/F-45: committed-but-truncated items (the og's error-9
+    /// family; the "incomplete" outcome class).
+    pub read_error: u64,
+}
+
+/// F-01: the reconstruct-deleted preview (read-only plan counts).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CrUiReconstructPreview {
+    pub files: u64,
+    pub dirs: u64,
+    pub orphan_files: u64,
+    pub orphan_dirs: u64,
+    pub bytes_total: u64,
+    pub pruned_active: u64,
+    pub pruned_subtrees: u64,
+    pub carved_excluded: u64,
 }
 
 // ---- health -------------------------------------------------------------------------------
@@ -1008,6 +1029,22 @@ extern "C" {
         rec: *mut CrUiRecovery,
         source_utf8: *const i8,
         json_out: *mut *mut i8,
+    ) -> u32;
+    pub fn cr_ui_reconstruct_deleted_preview(
+        sess: *mut CrUiSession,
+        out: *mut CrUiReconstructPreview,
+    ) -> u32;
+    pub fn cr_ui_reconstruct_deleted_preview_snapshot(
+        snap: *mut CrUiSnapshot,
+        out: *mut CrUiReconstructPreview,
+    ) -> u32;
+    pub fn cr_ui_recovery_enqueue_deleted_tree(
+        rec: *mut CrUiRecovery,
+        sess: *mut CrUiSession,
+    ) -> u32;
+    pub fn cr_ui_recovery_enqueue_deleted_tree_snapshot(
+        rec: *mut CrUiRecovery,
+        snap: *mut CrUiSnapshot,
     ) -> u32;
 
     // health (the ex2 twin is the threshold surface — BF-03 closure; the

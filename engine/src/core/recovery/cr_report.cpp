@@ -311,6 +311,11 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
         }
         if (it.bytes_written != 0 && it.bytes_written != it.bytes)
             append_num(out, "bytes_written", it.bytes_written, true);
+        /* F-45: the per-item content-honesty note (SF extract.rs notes
+         * family) - omitted when empty (additive-within-v1). Derived
+         * from the item's own truth flags, never fabricated. */
+        if (!it.note.empty())
+            append_str(out, "note", it.note, true);
         out.push_back('}');
     }
     out.append(items.empty() ? "]\n}\n" : "\n  ]\n}\n");

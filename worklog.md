@@ -4282,3 +4282,90 @@ eslint, prettier, vitest 222/222, arch:lint, jscpd, contracts 58/56
 cross-checks, doc_truth 12/70). Honest scope: the Rust compiles on the
 runners (no local cargo — the standing sandbox limitation); knip is the
 documented memory-cap casualty.
+
+---
+
+## Cross-repo harvest — Wave 1 + Wave 5: the named feature lands (F-00d/F-01/F-31/F-45)
+
+**Engine (pure core, Linux-proven).** New module
+`engine/src/core/recovery/cr_extractplan.{h,cpp}` (F-00d + F-01): the
+structure-preserving extract plan, re-implemented from the SF sheet's
+documented behavior (`worklog/SECTORFORGE-FEATURES.md` §3, citing
+sf-core `ntfs/extract.rs` + `sanitize.rs` — no code copied):
+- `sanitize_component_sf()`: reserved device names (incl. `con.txt`
+  stem-matching + the superscript COM¹²³ spellings), trailing dot/space
+  runs → `_`, control chars → `_`, `.`/`..` neutralization, UTF-16 cap
+  240 preserving a <=16-unit extension;
+- `with_id_suffix_sf()`: ` (id N)` inserted BEFORE the extension;
+- `plan_deleted_tree()` / `plan_deleted_snapshot()`: single-pass emit
+  with tail rollback — the F-31 fast-path prunes an in-use subtree with
+  no deleted descendant WHOLE (O(n)); live ancestors become path
+  components only (the original path is the deleted file's full
+  ancestry); the "File Path Lost" root and its LostDir<NNN> groups map
+  to `_orphaned/` with the top of every orphaned chain id-suffixed
+  (two orphaned "Documents" never merge); carved/raw-origin nodes
+  excluded (no original structure); depth-capped 128.
+
+**SafeWriter (opt-in SfId scheme).** `WriterConfig.scheme =
+CollisionScheme::SfId`: `resolve_collision_sf()` (first collision →
+`name (id N).ext` with the item's own id — deterministic re-runs;
+second collision → FAIL with ERR_DEST_NAME_EXHAUSTED — never an
+overwrite); SF sanitize in SfId mode; `arm_output_guard()` +
+`DestIo::canonicalize()` (Win32 GetFinalPathNameByHandleW; POSIX
+realpath; default ERR_UNSUPPORTED → truthful lexical degrade) — the
+inside-out guard refuses a created dir that canonicalizes outside the
+output root with the new ERR_DEST_ESCAPE (0x50050009); EFS-encrypted
+items (0x4000) write EMPTY + note (SF content honesty); report
+`Item.note` (F-45) derived only from truth flags (encrypted /
+zero-filled / numbered cause / cluster reuse). The classic flow is
+byte-for-byte unchanged (OgUnderscore default; `SfIdWriter.
+EncryptedAndSchemeAreOptIn` pins it).
+
+**ABI (append-only, 95 → 99 exports).** `cr_ui_recovery_config` gains
+`sf_collision` (zero-init safe); `cr_ui_recovery_stats` gains
+`read_error`; new exports `cr_ui_reconstruct_deleted_preview{,_snapshot}`
+(read-only plan counts) + `cr_ui_recovery_enqueue_deleted_tree{,
+_snapshot}` (the whole deleted-only plan into the queue; refused
+without sf_collision=1 — the naming contract). Layouts regenerated
+(`tools/gen_abi_layouts.py`: 30 structs / 376 field paths; the header
+SHA pin refreshed; dump + ABI check green).
+
+**Bridge + UI.** Rust: `recovery_preview_deleted_tree` command +
+the `{kind:'deleted-tree'}` selection (arms sf_collision, enqueues the
+plan — session or live snapshot); `RecoveryItem` rows carry
+`outcome` (complete/incomplete/failed, F-45) + `note`. TS: contract
+types (`DeletedTreePreview`, selection variant, item fields), tauri +
+mock connectors (the mock simulates deleted-tree jobs over the fixture
+space), `useDeletedTreePreview` query, results-explorer's post-scan
+"Recover deleted (keep structure)" action, the recovery page's
+deleted-tree mode (preview panel: files/dirs/orphans/bytes), outcome
+badges + notes on item rows; i18n en + zh-CN parity. Contracts:
+command-surface +recovery_preview_deleted_tree + selection note;
+error-codes +ERR_DEST_ESCAPE; validate.mjs green (56 commands).
+
+**CLI.** `rrecov recover --reconstruct-deleted`: arms the SF scheme +
+plan (the classic path untouched); usage updated; win_syntax_check
+parses the app layer clean.
+
+**Tests.** `test_extractplan.cpp`: 15 cases — sanitizer edge cases
+(reserved/superscript/trailing runs/240-cap-with-ext), id-suffix forms,
+plan walks (deleted-only, whole-subtree pruning, live-ancestor
+components, parents-before-children, orphans never merged, carved/junk
+excluded, snapshot parity), SfId writer (intra-queue id suffix,
+second-collision exhaustion never overwrites, encrypted-empty + note,
+symlink-escape guard refusal, opt-in pin). Full suite: 1709 tests,
+0 failed (Linux). `validate_report.py`: latent bug fixed — M-135's
+`read_error` outcome/totals were missing from the validator (a
+ReadError report row would have failed schema validation).
+
+**Validation lane (Phase 3 closed loop).** The dispatch-only
+`named-feature-fixture.yml` gains the `engine-flow` job: builds rrecov,
+scans the seeded VHDX as an image (whole-disk), reconstructs with
+`--reconstruct-deleted`, and hands the output to the byte-for-byte
+verifier (I1–I5). A verifier failure fails the lane, never masked.
+To be dispatched after this push; evidence lands in
+`worklog/VALIDATION/fixtures/named-feature/` on green.
+
+Local gates at commit time: engine ci-local.sh GREEN (10/10, pinned
+clang-format 18.1.8), tsc/eslint/vitest green (211 tests), contracts
+validate.mjs green. Token never committed (secrets scan green).

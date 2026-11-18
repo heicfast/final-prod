@@ -190,6 +190,12 @@ describe('the tauri connector command surface (the manifest)', () => {
       },
     );
     expect(lastCall().cmd).toBe('recovery_start');
+    // F-01: the deleted-tree preview rides the same manifest seam.
+    await conn.recovery.previewDeletedTreeReconstruction('scan-1');
+    expect(lastCall()).toEqual({
+      cmd: 'recovery_preview_deleted_tree',
+      args: { scanId: 'scan-1' },
+    });
     await conn.recovery.cancelRecovery('job-1');
     expect(lastCall()).toEqual({ cmd: 'recovery_cancel', args: { jobId: 'job-1' } });
     await conn.recovery.getRecoveryState('job-1');
