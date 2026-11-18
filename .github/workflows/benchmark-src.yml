@@ -1,0 +1,152 @@
+name: benchmark-src
+
+# THE SOURCE LANE (worklog/BENCHMARK.md's contract, restored by the
+# 2026-11-18 performance session): measures the CHECKED-OUT COMMIT with
+# the release recipe, dispatch-only (the numbers are runner-dependent,
+# every run recorded deliberately; artifacts downloaded, reviewed, and
+# cited by hand - this workflow never pushes).
+#
+# Why restored: the perf discipline (PERFORMANCE-TARGET section 6: every
+# optimization measured BEFORE release) lost its vehicle when the CI
+# rebuild consolidated the benchmark lanes away (8ec4e712); the 2026-11
+# perf session's fix 1 (sharded concurrent cache) and fix 2 (the
+# overlapped IOCP read-ahead ring) need before/after scan-wall numbers on
+# real Windows plus the extended alignbench sweep (QD 1..32 x 64 KiB..
+# 16 MiB) - this lane is that vehicle. Same runner class (windows-2022),
+# same seeded-VHD matrix (Run-Benchmark.ps1), same evidence-tree shape as
+# the recorded baselines: numbers from this lane are comparable with
+# runs 41140212296 / 42012118585 (PERFORMANCE.md section 1).
+#
+# No masking: no continue-on-error; a leg that cannot run fails the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'smoke (fast feedback) or full (the whole matrix)'
+        type: choice
+        options: [smoke, full]
+        default: smoke
+      scan_modes:
+        description: 'comma-separated scan modes (quick,deep,deepcarve)'
+        default: 'quick,deep,deepcarve'
+      reason:
+        description: 'why this run exists (recorded in the evidence tree)'
+        required: true
+      run_tests:
+        description: 'run the full ctest suite before the matrix (default true)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-src
+  cancel-in-progress: false # measurement runs are never dropped
+
+jobs:
+  benchmark:
+    name: Build (release recipe) + the scenario matrix + the alignbench sweep
+    runs-on: windows-2022
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Engine kit (build.ps1 engine lane; the release recipe)
+        shell: pwsh
+        run: |
+          ./build.ps1 -Target engine -SkipTests
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::engine kit build failed'; exit 1 }
+
+      - name: MSVC dev environment (the api harness compile)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+
+      - name: Compile the API harness
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = "build\out\stage-$version\engine"
+          if (-not (Test-Path "$kit\bin\cr_ui.dll")) { Write-Host '::error::kit missing cr_ui.dll'; exit 1 }
+          cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
+             engine\.github\scripts\api_harness.c /I engine\include `
+             /Fe:api_harness.exe /link "$kit\lib\cr_ui.lib"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item api_harness.exe -Destination $kit
+          Write-Host "harness staged in $kit"
+
+      - name: Optional full ctest (the correctness gate before measuring)
+        if: ${{ inputs.run_tests }}
+        shell: pwsh
+        run: |
+          ctest --preset win-x64-release -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::ctest red before the matrix - not measuring a red tree'; exit 1 }
+
+      - name: Runner context (recorded with every number)
+        shell: pwsh
+        run: |
+          $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $p = New-Object Security.Principal.WindowsPrincipal($id)
+          [ordered]@{
+            imageOs     = $env:ImageOS
+            runnerName = $env:RUNNER_NAME
+            cpu         = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
+            cores       = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty NumberOfLogicalProcessors)
+            ramGb       = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
+            isElevated  = $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            ranAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+            commit      = '${{ github.sha }}'
+            runUrl      = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            reason      = '${{ inputs.reason }}'
+          } | ConvertTo-Json | Set-Content runner-context.json
+
+      - name: The scenario matrix (New-TestDisk + Run-Benchmark.ps1)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          $work = 'D:\cr-bench'
+          $evidence = Join-Path $env:GITHUB_WORKSPACE 'benchmark-results'
+          New-Item -ItemType Directory -Force -Path $work, $evidence | Out-Null
+          $modes = '${{ inputs.scan_modes }}' -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          & engine\.github\scripts\Run-Benchmark.ps1 `
+              -MatrixPath engine\.github\scenarios\benchmark-matrix.json `
+              -RepoRoot engine `
+              -CoreStaged $kit `
+              -ApiHarness (Join-Path $kit 'api_harness.exe') `
+              -WorkRoot $work `
+              -EvidenceRoot $evidence `
+              -Profile '${{ inputs.profile }}' `
+              -ScanModes $modes `
+              -ScanCapSec 1800 -RecoverCapSec 1800
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::the benchmark matrix failed'; exit 1 }
+
+      - name: The alignbench sweep (read-size x QD, now to 16 MiB x QD32)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          $evidence = Join-Path $env:GITHUB_WORKSPACE 'benchmark-results'
+          # \\.\C: = the recorded comparable surface (PERFORMANCE-BASELINE
+          # section 6 legs; the Azure virtualized-storage cap applies and is
+          # recorded as the runner-class caveat, never as device truth).
+          $alignOut = Join-Path $evidence 'alignbench.json'
+          & engine\bench\ours\run-alignbench.ps1 `
+              -Target '\\.\C:' `
+              -CrUiDll (Join-Path $kit 'bin\cr_ui.dll') `
+              -SpanMiB 512 `
+              -OutJson $alignOut
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::the alignbench sweep failed'; exit 1 }
+          if (-not (Test-Path $alignOut)) { Write-Host '::error::alignbench wrote no output'; exit 1 }
+
+      - name: Upload the evidence artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-src-evidence-${{ inputs.profile }}-${{ github.run_id }}
+          path: |
+            benchmark-results/
+            runner-context.json
+          retention-days: 90
+          if-no-files-found: error

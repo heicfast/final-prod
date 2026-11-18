@@ -312,8 +312,8 @@ Write-Host "== 2. read-size x queue-depth sweep (production flag shape, QD1 sync
 # buffered synchronous chunks; the core-strategy proxy = the production
 # 64 KiB/256 KiB shapes. Both are 64 KiB multiples (the envelope holds in
 # all cases - the comparison is chunk SIZE, not alignment).
-foreach ($chunk in @(64KB, 256KB, 1MB, 4MB, 7MB)) {
-    foreach ($qd in @(1, 2, 4, 8)) {
+foreach ($chunk in @(64KB, 256KB, 1MB, 4MB, 7MB, 16MB)) {
+    foreach ($qd in @(1, 2, 4, 8, 16, 32)) {
         $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, $qd, $false, $span, 2)
         Add-Result $r
     }
