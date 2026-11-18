@@ -3954,3 +3954,23 @@ contracts green, doc_truth green, clang-format 18.1.8 applied. The
 Windows-runner proof (engine-ci + the seven benchmark-src gates) is
 dispatched with this push — the repair is NOT claimed closed until the
 matrix runs green.
+
+---
+
+## Session: CI/CD Workflow Optimization, Failure Fixing & Release (2026-11-18)
+
+Prompt saved redacted at `worklog/session-ci-optimization-prompt.md`.
+
+**T1 — clone and baseline.** Cloned at `9352c81d` (branch `main`, clean tree).
+Baseline run history (GitHub API, 2026-11-18):
+
+| Workflow | Latest run | Conclusion | Duration |
+|---|---|---|---|
+| engine-ci | push @15:46 | **failure** | 43–45 s (quick fail; green runs before it: 697–913 s) |
+| bridge-integration | push @15:46 | **failure** | 107–110 s (green runs before it: 777–864 s) |
+| benchmark-src | dispatch @15:46 | **failure** | 689 s (earlier run 44275941738: 6811 s ≈ 1 h 53 m) |
+| ui-ci | push @15:46 | success | 257 s |
+| ui-e2e | push @15:46 | success | 313 s |
+| contracts-ci | push @15:46 | success | 23 s |
+
+The 15:46 batch is commit `9352c81d`'s CI — three workflows red on the default branch. Root causes in `worklog/CI-FAILURES.md` (Phase 0/1).
