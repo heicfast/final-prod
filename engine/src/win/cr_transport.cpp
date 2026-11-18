@@ -533,16 +533,16 @@ private:
             OVERLAPPED* ov = nullptr;
             const BOOL ok = GetQueuedCompletionStatus(port_, &bytes, &key, &ov, INFINITE);
             if (ov == nullptr)
-                break;                               /* the stop post, or a hard port failure */
-            const DWORD g = ok ? 0 : GetLastError(); /* captured immediately:
-                                                        no intervening call clobbers it */
+                break;                                 /* the stop post, or a hard port failure */
+            const DWORD gle = ok ? 0 : GetLastError(); /* captured immediately:
+                                                            no intervening call clobbers it */
             Slot* s = slot_from_ov(ov);
             {
-                std::lock_guard<std::mutex> g(s->mu);
+                std::lock_guard<std::mutex> lg(s->mu);
                 if (ok)
                     s->got = bytes;
                 else
-                    s->gle = g;
+                    s->gle = gle;
             }
             /* got/gle are published BEFORE the state release-store */
             s->state.store(ok ? Slot::kDone : Slot::kFailed, std::memory_order_release);
@@ -674,14 +674,14 @@ private:
             const BOOL ok = GetQueuedCompletionStatus(port_, &bytes, &key, &ov, 0);
             if (ov == nullptr)
                 break; /* empty (ERROR_TIMEOUT) or the stop post */
-            const DWORD g = ok ? 0 : GetLastError();
+            const DWORD gle = ok ? 0 : GetLastError();
             Slot* s = slot_from_ov(ov);
             {
-                std::lock_guard<std::mutex> g2(s->mu);
+                std::lock_guard<std::mutex> lg(s->mu);
                 if (ok)
                     s->got = bytes;
                 else
-                    s->gle = g;
+                    s->gle = gle;
             }
             s->state.store(ok ? Slot::kDone : Slot::kFailed, std::memory_order_release);
             SetEvent(s->ev);
