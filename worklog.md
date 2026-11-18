@@ -3201,6 +3201,33 @@ THE GATES' SCOREBOARD (what this session's evidence added):
 EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
 (this session's section) and PARITY-DELTAS (D-P4c, D-P8, G-1(b)).
 
+### T15-T16 — v0.9.3 RELEASED (all lanes green, artifacts verified on the release)
+
+- The frontier went fully green on be3b8256 — the FIRST all-green bridge run with
+  all five integration gates (telemetry axes, per-disk health coherence, the
+  phase-model terminal pins, filters + deleted-tree, preview surfaces): runs
+  44244567589 (engine-ci), 44244567592 (bridge), 44244567595 (ui-ci),
+  44244567598 (ui-e2e). The intermediate turn's two root-causes held: the
+  oleaut32 ordinal_8/9 rows and the query-gate's OWN use-after-free (a test
+  bug, not an engine bug — the shallow struct copy kept raw pointers after
+  cr_ui_query_rows_free; fixed with owned rows materialized before the free).
+- Tag v0.9.3 pushed on bf2e9755; release run 44246474638 GREEN end to end:
+  version gate, contracts gate, the full product build (engine + UI + Tauri +
+  NSIS installer + portable + SHA256SUMS), the dev-signature verification,
+  truthful notes. The GitHub release carries: RecoveryWizard-0.9.3-setup.exe
+  (2,854,056 bytes), RecoveryWizard-0.9.3-portable.zip (4,002,655 bytes),
+  SHA256SUMS (199 bytes).
+- worklog/VALIDATION/it-gates/: the green run's captured evidence, committed
+  verbatim with a provenance README (c2c91315): the phase-model terminal pins
+  (overall 750 vs phase 1000; 3.02 GiB found), the 81/81 deleted-tree rows
+  under their original gone/ parent, the real-JPEG classification + the
+  genuine zip's 43-entry inventory, the coherent no-source SMART refusals.
+- CI-STALE-01 closed: forensic-repro.yml's default tag v0.8.4 -> v0.9.3
+  (1b9a4408). T19 docs pointers: both footprint docs now route readers to
+  worklog/FOOTPRINT-DELTA.md (8217bc26).
+- T18 dispatched: forensic-repro on v0.9.3 (run 44249495727) — the clean-
+  Windows install + surface exercise.
+
 ## Installer Integration & API Surface Expansion session (2026-11-18) — Phase 0 begin
 
 ### T1 — clone, records, the charter, the integration boundary
