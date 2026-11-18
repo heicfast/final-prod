@@ -5487,3 +5487,87 @@ TEST(CrUi, CliHelpListsEveryScanFlag) {
             << " (the N-094 class: a surface invisible in the product's own help)";
     }
 }
+
+/* ---- M07 (W5): the snapshot-indexed thumbnail twin (BF-13's closure) ---- */
+
+TEST(CrUi, ThumbnailSnapshotTwinIdenticalBytesNoPromotion) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbsnap", build_fat16_png(), u, img, crsf));
+    const uint64_t logo = query_node_id(u.sess, "LOGO.PNG");
+    ASSERT_NE(logo, 0u);
+    /* the divergence pin's baseline: the node's grade BEFORE any
+     * snapshot-twin call (the scan's own grading pass may already have
+     * graded it; the pin is THAT THIS PATH NEVER CHANGES IT) */
+    const uint32_t grade_before = grade_of(u.sess, "LOGO.PNG");
+    ASSERT_NE(grade_before, 0xFFFFFFFFu);
+
+    /* the session's value snapshot + the row index of LOGO.PNG */
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+    int logo_idx = -1;
+    for (uint32_t i = 0; i < count && logo_idx < 0; ++i) {
+        cr_ui_node_info info{};
+        char name[512];
+        ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+        if (std::strcmp(name, "LOGO.PNG") == 0)
+            logo_idx = int(i);
+    }
+    ASSERT_GE(logo_idx, 0);
+
+    /* the two-call pattern through the SNAPSHOT twin: probe -> refusal
+     * shape -> fill; bytes/dims identical to the session twin's contract */
+    cr_ui_thumbnail_info sinfo{};
+    ASSERT_EQ(cr_ui_thumbnail_generate_snapshot(u.dev, u.snap, uint32_t(logo_idx), nullptr, nullptr,
+                                                0, &sinfo),
+              CR_UI_OK);
+    EXPECT_EQ(32u, sinfo.width);
+    EXPECT_EQ(24u, sinfo.height);
+    EXPECT_EQ(32u * 24u * 4u, sinfo.bytes_needed);
+    EXPECT_STREQ("png", sinfo.source_format);
+
+    std::vector<uint8_t> small(16, 0xAA);
+    cr_ui_thumbnail_info sinfo2{};
+    EXPECT_EQ(cr_ui_thumbnail_generate_snapshot(u.dev, u.snap, uint32_t(logo_idx), nullptr,
+                                                small.data(), 16, &sinfo2),
+              0x50030009u);
+    EXPECT_EQ(32u * 24u * 4u, sinfo2.bytes_needed);
+
+    std::vector<uint8_t> spx(size_t(sinfo.bytes_needed), 0);
+    cr_ui_thumbnail_info sinfo3{};
+    ASSERT_EQ(cr_ui_thumbnail_generate_snapshot(u.dev, u.snap, uint32_t(logo_idx), nullptr,
+                                                spx.data(), uint32_t(spx.size()), &sinfo3),
+              CR_UI_OK);
+    auto at = [&](uint32_t x, uint32_t y) {
+        return spx.data() + (size_t(y) * sinfo3.width + x) * 4;
+    };
+    EXPECT_EQ(255, at(2, 2)[0]);
+    EXPECT_EQ(255, at(29, 21)[0]);
+    EXPECT_EQ(255, at(29, 21)[1]);
+
+    /* THE DIVERGENCE PIN: no grade promotion through the snapshot path -
+     * the session-tree grade is UNCHANGED by the calls above (the
+     * session twin would have raised it; ThumbnailSuccessPromotesGradeTo2
+     * pins that side on the deleted fixture), and a FRESH snapshot of the
+     * session shows the same unchanged grade */
+    EXPECT_EQ(grade_before, grade_of(u.sess, "LOGO.PNG"))
+        << "the snapshot twin must never promote (the documented divergence)";
+    cr_ui_snapshot* fresh = nullptr;
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &fresh), CR_UI_OK);
+    cr_ui_node_info finfo{};
+    char fname[512];
+    ASSERT_EQ(cr_ui_snapshot_node(fresh, uint32_t(logo_idx), &finfo, fname, sizeof(fname)),
+              CR_UI_OK);
+    EXPECT_EQ(grade_before, finfo.grade) << "the fresh snapshot agrees";
+    cr_ui_snapshot_close(fresh);
+
+    /* the root row refuses (full nodes have no thumbnailable content) */
+    cr_ui_thumbnail_info rinfo{};
+    EXPECT_EQ(cr_ui_thumbnail_generate_snapshot(u.dev, u.snap, 0, nullptr, nullptr, 0, &rinfo),
+              0x50030003u);
+    /* out-of-range refuses */
+    cr_ui_thumbnail_info oinfo{};
+    EXPECT_EQ(cr_ui_thumbnail_generate_snapshot(u.dev, u.snap, count, nullptr, nullptr, 0, &oinfo),
+              0x50030003u);
+}

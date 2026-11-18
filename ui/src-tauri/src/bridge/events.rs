@@ -180,7 +180,14 @@ pub(crate) fn compose_scan_progress(
     probe: &ScanProbe,
 ) -> serde_json::Value {
     let now = now_unix_ms();
-    let status = scan_status(live, terminal, probe.busy, probe.stopping, probe.paused, now);
+    let status = scan_status(
+        live,
+        terminal,
+        probe.busy,
+        probe.stopping,
+        probe.paused,
+        now,
+    );
     let (overall, files_found, data_found) = match terminal {
         Some(t) => (1.0_f64, t.files_found, t.data_found_bytes),
         None => (live.overall, live.files_found, live.data_found_bytes),
@@ -522,7 +529,11 @@ pub fn spawn_scan_emitter(
                             } else {
                                 q
                             };
-                            if active.units_total > 0 { active.units_total } else { live.bytes_total }
+                            if active.units_total > 0 {
+                                active.units_total
+                            } else {
+                                live.bytes_total
+                            }
                         } else {
                             0
                         };

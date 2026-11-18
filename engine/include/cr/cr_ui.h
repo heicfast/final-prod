@@ -1481,6 +1481,27 @@ CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* se
                                             uint8_t* rgba, uint32_t rgba_cap,
                                             cr_ui_thumbnail_info* info);
 
+/* M07 (W5, BF-13's closure): the snapshot-indexed twin — the LIVE-scan
+ * thumbnail surface. Same two-call contract (rgba == NULL = the size
+ * probe), same caps defaults, same refusal set (M-115's <=20-byte
+ * ERR_UNSUPPORTED, the decode-refusal ERR_TRUNCATED damage truth, the
+ * named phase-2 refusals), same info fields; the node is addressed by
+ * SNAPSHOT ROW INDEX (cr_ui_snapshot_node's numbering) against a
+ * cr_ui_scan_snapshot / cr_ui_session_snapshot value object.
+ *
+ * ONE documented divergence from the session twin: NO grade promotion.
+ * The snapshot row is a value copy and a live scan's tree races the
+ * engine's attach path (the grade bitfield is not atomic) — promotion
+ * stays the stable-tree surfaces' privilege (the session twin, regrade);
+ * the og's list-tier dispatcher likewise promotes its own copy from its
+ * own worker (CGetListThumbnailThread), never the scan's live tree.
+ * Bytes, dims, refusal semantics are IDENTICAL. */
+CR_UI_API uint32_t cr_ui_thumbnail_generate_snapshot(cr_ui_device* dev, cr_ui_snapshot* snap,
+                                                     uint32_t index,
+                                                     const cr_ui_thumbnail_caps* caps,
+                                                     uint8_t* rgba, uint32_t rgba_cap,
+                                                     cr_ui_thumbnail_info* info);
+
 /* The format-support probe (the engine's documented v1 matrix + the
  * S-045 raw family): true for jpeg/png/bmp/gif/tiff/psd/pnm/hdr/raw. */
 CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format);

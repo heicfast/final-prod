@@ -17,8 +17,11 @@
 //!   thumbnail_generate (two-call probe -> alloc -> generate; EXIF-oriented,
 //!   display-shaped RGBA, grade-promoting M-083) and cross as a BMP data URL
 //!   (the bridge encodes the RGBA itself — a 40-line BI_RGB writer, no image
-//!   dependency). LIVE scans keep the preview-read assembly (documented
-//!   degradation, BF-13: snapshot-indexed thumbnails do not exist upstream).
+//!   dependency). LIVE scans generate through the M07 snapshot twin
+//!   (W5, BF-13 closed): cr_ui_thumbnail_generate_snapshot over the entry's
+//!   cached cr_ui_snapshot, same two-call shape, no grade promotion (the
+//!   engine's documented divergence for the value-copy path); the
+//!   preview-read assembly stays only as the non-image fallback.
 //!
 //! G-4 (no renderer): video/audio -> 'av' metadata payload with a null
 //! thumbnail; document -> 'office' metadata with no extracted text. The
@@ -277,6 +280,81 @@ fn session_thumbnail(entry: &Arc<ScanEntry>, node_id: u64) -> BridgeResult<Optio
     ))
 }
 
+/// The M07 live-scan thumbnail path (W5, BF-13's closure): the
+/// snapshot-indexed twin over the entry's cached snapshot — same two-call
+/// probe -> alloc shape as session_thumbnail. ERR_TRUNCATED is the same
+/// decode-refusal damage truth; ERR_UNSUPPORTED (the M-115 small-node
+/// floor, a non-image) degrades to the preview-read assembly below.
+fn live_thumbnail(entry: &Arc<ScanEntry>, idx: usize) -> BridgeResult<Option<Value>> {
+    let dev = entry.device();
+    if dev.is_null() {
+        return Ok(None); // truthful: no source, no thumbnail
+    }
+    if !matches!(entry.kind, ScanKind::Live { .. }) {
+        return Ok(None);
+    }
+    let snap = entry
+        .snap
+        .lock()
+        .map_err(|_| BridgeError::bridge(code::UNKNOWN, "snapshot lock"))?;
+    let handle = snap.handle.get();
+    if handle.is_null() {
+        return Ok(None); // no snapshot generation yet (pre-first-refresh)
+    }
+    // Probe: generation runs, dims are decided, pixels are discarded.
+    let mut info: abi::CrUiThumbnailInfo = unsafe { std::mem::zeroed() };
+    let rc = unsafe {
+        abi::cr_ui_thumbnail_generate_snapshot(
+            dev,
+            handle,
+            idx as u32,
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            0,
+            &mut info,
+        )
+    };
+    match rc {
+        abi::CR_UI_OK => {}
+        abi::CR_UI_ERR_TRUNCATED => {
+            // decode refusal (ABI-CONTRACT 7i) — the typed damage truth
+            return Err(BridgeError::bridge(
+                code::PREVIEW_DAMAGED,
+                "the engine's strict decoders refused this image (damaged or short stream)",
+            ));
+        }
+        abi::CR_UI_ERR_UNSUPPORTED | abi::CR_UI_ERR_NO_MEMORY => {
+            return Ok(None); // not a thumbnail-capable node / probe shape
+        }
+        _ => {
+            return Err(BridgeError::engine(
+                rc,
+                "cr_ui_thumbnail_generate_snapshot(probe)",
+            ))
+        }
+    }
+    if info.width == 0 || info.height == 0 || info.bytes_needed == 0 {
+        return Ok(None);
+    }
+    let cap = info.bytes_needed;
+    let mut rgba = vec![0u8; cap as usize];
+    let rc = unsafe {
+        abi::cr_ui_thumbnail_generate_snapshot(
+            dev,
+            handle,
+            idx as u32,
+            std::ptr::null(),
+            rgba.as_mut_ptr(),
+            cap,
+            &mut info,
+        )
+    };
+    check(rc, "cr_ui_thumbnail_generate_snapshot")?;
+    Ok(Some(json!({
+        "dataUrl": rgba_to_bmp_data_url(&rgba, info.width, info.height),
+    })))
+}
+
 pub fn preview_payload(
     state: &Arc<BridgeState>,
     scan_id: &str,
@@ -294,6 +372,16 @@ pub fn preview_payload(
         }
         // fall through to the preview-read assembly (the node may be a
         // non-image or an unsupported format — the payload below is truthful)
+    }
+
+    // M07 (W5, BF-13 closed): LIVE scans get first-class thumbnails through
+    // the snapshot-indexed twin — the preview-read assembly stays only the
+    // non-image fallback (the pre-M07 degradation was documented in BF-13).
+    if thumbnail && matches!(entry.kind, ScanKind::Live { .. }) {
+        if let Some(v) = live_thumbnail(&entry, idx)? {
+            return Ok(v);
+        }
+        // fall through: non-image / refused probe — the assembly is truthful
     }
 
     let pv = open_preview(&entry, idx, node_id_u64)?;

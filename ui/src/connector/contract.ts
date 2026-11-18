@@ -823,7 +823,9 @@ export interface PreviewDomain {
   /**
    * M-102: server-side thumbnails. Loaded SESSIONS generate through the
    * engine (EXIF-oriented, display-shaped, grade-promoting); LIVE scans
-   * assemble from preview reads (documented degradation, BF-13). Returns
+   * generate through the M07 snapshot twin (W5, BF-13 closed — same
+   * engine decode, no grade promotion on the value-copy path), with
+   * preview-read assembly only for non-image nodes. Returns
    * null when the node has no thumbnail (oversized / unsupported / no
    * source) — never a fabricated image.
    */

@@ -22,6 +22,7 @@
 #include "cr/cr_ui.h"
 #include "cr/cr_log.h"
 #include "cr/cr_errmod.h"
+#include "cr/cr_text.h"
 
 #include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
@@ -4481,6 +4482,130 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     return ret_ok();
 }
 
+u32 thumbnail_generate_snapshot_impl(cr_ui_device* dev, cr_ui_snapshot* snap, uint32_t index,
+                                     const cr_ui_thumbnail_caps* caps, uint8_t* rgba, u32 rgba_cap,
+                                     cr_ui_thumbnail_info* info) {
+    if (!dev || !snap || !info)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/snap/info");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    auto* w = reinterpret_cast<CrSnapshot*>(snap);
+    if (index >= w->snap->node_count())
+        return ret_(ERR_BAD_PARAMETER, "node index %u out of range", index);
+    const tree::SnapNode& n = w->snap->node(index);
+    if (n.full)
+        return ret_(ERR_BAD_PARAMETER, "root/virtual nodes have no thumbnailable content");
+    /* M-115 (identical to the session twin): the og's <=20-byte work-item
+     * floor - no attempt, no promotion (and the snapshot path never
+     * promotes anyway - the header's documented divergence). */
+    if (n.logical_size <= 0x14)
+        return ret_(ERR_UNSUPPORTED,
+                    "thumbnail: %llu-byte file under the og's 20-byte work-item floor",
+                    static_cast<unsigned long long>(n.logical_size));
+    /* the snapshot row's private props copy - the snapshot may close
+     * independently ONLY after this call returns (the PreviewReader is
+     * stack-scoped here, unlike the session twin's long-lived handle) */
+    tree::FileProperties* props = w->snap->materialize_props(index);
+    if (!props)
+        return ret_(ERR_NO_MEMORY, "props materialization failed");
+    std::unique_ptr<tree::FileProperties, PropReleaser> owned(props);
+
+    preview::ThumbnailCaps ecaps;
+    if (caps) {
+        if (caps->max_edge != 0)
+            ecaps.max_edge = caps->max_edge;
+        if (caps->max_pixels != 0)
+            ecaps.max_pixels = caps->max_pixels;
+        if (caps->max_read != 0)
+            ecaps.max_read = caps->max_read;
+        if (caps->max_work != 0)
+            ecaps.max_work = caps->max_work;
+        if (caps->allow_embedded > 1)
+            return ret_(ERR_BAD_PARAMETER, "caps->allow_embedded must be 0 or 1 (got %u)",
+                        caps->allow_embedded);
+        if (caps->allow_embedded != 0)
+            ecaps.allow_embedded = caps->allow_embedded != 0;
+    }
+
+    /* F-1 + S-052 (the preview_open_snapshot basis walk, verbatim):
+     * extents are absolute - read through the PARENT disk when the scan
+     * device is a volume slice; LDM-basis rows read through the
+     * snapshot's source table (the session's lazy arm or the scan's live
+     * registry). */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    {
+        u32 i = index;
+        u32 guard = 0;
+        while (w->snap->node(i).parent != tree::SNAP_NONE) {
+            i = w->snap->node(i).parent;
+            if (++guard > w->snap->node_count())
+                break;
+        }
+        const u32 basis = w->snap->node(i).basis;
+        if (basis != 0) {
+            IStorageDevice* bdev = nullptr;
+            if (w->src_session != nullptr) {
+                session_arm_ldm_basis(w->src_session, src);
+                if (w->src_session->ldm_basis)
+                    bdev = w->src_session->ldm_basis->at(basis);
+            } else if (w->src_scan != nullptr && w->ldm_basis) {
+                bdev = w->ldm_basis->at(basis);
+            }
+            if (bdev != nullptr)
+                src = bdev;
+        }
+    }
+    preview::PreviewReader reader(src, owned.get());
+
+    /* N-144 (identical): the TxtViewFiles dispatch — a text-viewable
+     * extension takes the text-snapshot render, never the decode path. */
+    std::string nm;
+    if (!text::lossless_u16_to_utf8(owned->name, nm))
+        nm.clear();
+    const size_t dot = nm.rfind('.');
+    bool is_text_view = false;
+    if (dot != std::string::npos && dot + 1 < nm.size()) {
+        std::string ext = nm.substr(dot);
+        for (char& c : ext)
+            if (c >= 'A' && c <= 'Z')
+                c = char(c - 'A' + 'a');
+        is_text_view = preview::textexts::eligible(ext);
+    }
+
+    preview::Thumbnail thumb;
+    const preview::ThumbStatus st = is_text_view ? preview::make_text_snapshot(reader, ecaps, thumb)
+                                                 : preview::make_thumbnail(reader, ecaps, thumb);
+    std::memset(info, 0, sizeof(*info));
+
+    /* NO grade promotion here - the header's documented divergence (the
+     * value-copy row + the racy live tree; the og's list-tier dispatcher
+     * promotes its own copy from its own worker, never the live tree). */
+
+    if (st != preview::ThumbStatus::Ok) {
+        std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                      thumb.source_format.c_str());
+        info->truncated = thumb.truncated ? 1 : 0;
+        return ret_(thumb_status_to_abi(st), "thumbnail %s", preview::thumbnail_status_name(st));
+    }
+
+    info->width = thumb.width;
+    info->height = thumb.height;
+    info->bytes_needed = thumb.width * thumb.height * 4u;
+    std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                  thumb.source_format.c_str());
+    info->from_embedded = thumb.from_embedded ? 1 : 0;
+    info->truncated = thumb.truncated ? 1 : 0;
+    if (rgba == nullptr)
+        return ret_ok(); /* the size probe: pixels discarded by design */
+    if (rgba_cap < info->bytes_needed) {
+        info->bytes_needed = thumb.width * thumb.height * 4u; /* keep the answer */
+        return ret_(ERR_NO_MEMORY, "rgba buffer %u < %u needed", rgba_cap, info->bytes_needed);
+    }
+    std::memcpy(rgba, thumb.rgba.data(), size_t(info->bytes_needed));
+    return ret_ok();
+}
+
 u32 thumbnail_format_supported_impl(const char* utf8_format) {
     if (!utf8_format)
         return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_format");
@@ -4495,6 +4620,12 @@ extern "C" CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_
                                                        uint8_t* rgba, uint32_t rgba_cap,
                                                        cr_ui_thumbnail_info* info) {
     return guarded(thumbnail_generate_impl, dev, sess, node_id, caps, rgba, rgba_cap, info);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_thumbnail_generate_snapshot(
+    cr_ui_device* dev, cr_ui_snapshot* snap, uint32_t index, const cr_ui_thumbnail_caps* caps,
+    uint8_t* rgba, uint32_t rgba_cap, cr_ui_thumbnail_info* info) {
+    return guarded(thumbnail_generate_snapshot_impl, dev, snap, index, caps, rgba, rgba_cap, info);
 }
 
 extern "C" CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format) {

@@ -42,8 +42,8 @@ fn main() {
     // manifest REPLACES the default, so the dependency is restated inside
     // app.manifest). tauri-build embeds it as RT_MANIFEST resource #1 on
     // Windows targets; the attribute is inert on other targets.
-    let windows_attrs = tauri_build::WindowsAttributes::new()
-        .app_manifest(include_str!("app.manifest"));
+    let windows_attrs =
+        tauri_build::WindowsAttributes::new().app_manifest(include_str!("app.manifest"));
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows_attrs))
         .expect("failed to run tauri build");
 }

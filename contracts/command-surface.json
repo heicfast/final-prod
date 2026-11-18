@@ -248,7 +248,7 @@
         "preview.getThumbnail"
       ],
       "returns": "{dataUrl} | null",
-      "notes": "M-102: SESSION-kind nodes generate through thumbnail_generate (two-call; EXIF-oriented, grade-promoting) and cross as a BMP data URL (the bridge's own BI_RGB encoder); LIVE scans assemble from preview reads (BF-13 documented degradation); decode refusal (ERR_TRUNCATED) -> preview-damaged."
+      "notes": "M-102: SESSION-kind nodes generate through thumbnail_generate (two-call; EXIF-oriented, grade-promoting) and cross as a BMP data URL (the bridge's own BI_RGB encoder); LIVE scans generate through the M07 snapshot twin cr_ui_thumbnail_generate_snapshot over the cached snapshot (W5, BF-13 closed; no grade promotion - the engine's documented divergence for the value-copy path), with preview-read assembly only as the non-image fallback; decode refusal (ERR_TRUNCATED) -> preview-damaged."
     },
     {
       "name": "session_save",

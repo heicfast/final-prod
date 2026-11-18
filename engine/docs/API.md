@@ -107,7 +107,7 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**4**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C except for the v4 removal: 94 exported functions in
+append-only-flat-C except for the v4 removal: 95 exported functions in
 the current header (the count re-derived 2026-11-18, installer-integration
 session: 97 `CR_UI_API` lines minus 3 `#define` macros; the 94th is
 `cr_ui_image_create_ex`, the D-IMG-1/D-IMG-3 ranged+cancel twin; the

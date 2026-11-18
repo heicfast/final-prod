@@ -1,7 +1,8 @@
 //! bridge/abi.rs — the cr_ui C-ABI binding.
 //!
 //! Pinned 1:1 from `engine/include/cr/cr_ui.h` (ABI version 4, the
-//! 94-export surface — the 94th is `cr_ui_image_create_ex`, the
+//! 95-export surface — the 95th is `cr_ui_thumbnail_generate_snapshot`,
+//! the M07/BF-13 live-scan twin; the 94th is `cr_ui_image_create_ex`, the
 //! D-IMG-1/D-IMG-3 ranged+cancel twin; the 93rd is
 //! `cr_ui_health_read_ex2`, the BF-03 threshold closure). Every struct
 //! mirrors the header's DECLARATION ORDER
@@ -45,7 +46,7 @@
 //! semantics. See contracts/event-mapping.md.
 
 // The ABI surface is PINNED 1:1 to engine/include/cr/cr_ui.h (the whole
-// 94-export surface, not just the calls the bridge makes today). Unconsumed
+// 95-export surface, not just the calls the bridge makes today). Unconsumed
 // declarations are therefore EXPECTED: exports the product has no surface
 // for yet (carve catalog/tally, disk map, image create, fsck escalation,
 // BitLocker-off, the core-side query engine, assistant/regrade — the
@@ -741,7 +742,7 @@ pub struct CrUiSmartReport {
     pub grade: u32,
 }
 
-// ---- extern declarations (94-export surface, ABI v4) -----------------------------------
+// ---- extern declarations (95-export surface, ABI v4) -----------------------------------
 
 extern "C" {
     // version & diagnostics
@@ -951,6 +952,19 @@ extern "C" {
         dev: *mut CrUiDevice,
         sess: *mut CrUiSession,
         node_id: u64,
+        caps: *const CrUiThumbnailCaps,
+        rgba: *mut u8,
+        rgba_cap: u32,
+        info: *mut CrUiThumbnailInfo,
+    ) -> u32;
+    /// M07 (W5, BF-13): the snapshot-indexed twin — the LIVE-scan
+    /// thumbnail surface. Same two-call contract and refusal set; NO
+    /// grade promotion (the value-copy row + the racy live tree — the
+    /// header's documented divergence).
+    pub fn cr_ui_thumbnail_generate_snapshot(
+        dev: *mut CrUiDevice,
+        snap: *mut CrUiSnapshot,
+        index: u32,
         caps: *const CrUiThumbnailCaps,
         rgba: *mut u8,
         rgba_cap: u32,
