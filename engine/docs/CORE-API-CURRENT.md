@@ -10,13 +10,13 @@
 
 **Headline counts** (re-derived 2026-10-30, session-96 — the
 doc_truth_gate count invariants guard these in CI): C++ public headers 94
-under `include/cr/**` (29 module directories); C ABI **95 exports** (98 `CR_UI_API` lines minus 3
-`#define` macros in cr_ui.h = 95 `extern "C" CR_UI_API` definitions in
+under `include/cr/**` (29 module directories); C ABI **99 exports** (98 `CR_UI_API` lines minus 3
+`#define` macros in cr_ui.h = 99 `extern "C" CR_UI_API` definitions in
 src/ui/cr_ui.cpp, recount matches; the v3->v4 bump REMOVED the
 driver-era `cr_ui_driver_status` export with the kernel driver); CLI **13 verbs** (rrecov.cpp — list,
 list-carve-formats, sessions, scan, tree, recover, archive-list, health,
 fix, apply, image, bench, unlock — the `driver` verb was REMOVED with
-the kernel driver, session-96); error codes **40 + OK** (the enum-member
+the kernel driver, session-96); error codes **41 + OK** (the enum-member
 census: 40 ERR_ members in cr_error.h — session-96 removed the five
 ERR_DRIVER_* members and added ERR_ELEVATION_REQUIRED; the long-standing "45" was the
 doc_truth_gate's file-wide 0x5-literal regex counting the truncated
@@ -52,7 +52,7 @@ ABI event types **12** (the CR_EVT_* census).
 > `cr_ui_device_transport` reports "direct"/"image", the elevation gate
 > (ERR_ELEVATION_REQUIRED) replaced the driver-era gate, and §(e)/§(f) stand as
 > the historical census of both ended eras. Current
-> counts: 95 exports / 13 verbs / 40+OK error codes / 12 ABI event types> (re-derived 2026-11-18, the installer-API session: the M07/BF-13 snapshot twin (`cr_ui_thumbnail_generate_snapshot`) raised 94 -> 95; the D-IMG-1/D-IMG-3 twin (`cr_ui_image_create_ex`) raised 93 -> 94; the 2026-11-11 re-derivation: the BF-03 ex2 append (eb4bb5f3) raised the export count 92 -> 93; the earlier session-96 recount: the
+> counts: 99 exports / 13 verbs / 41+OK error codes / 12 ABI event types> (re-derived 2026-11-18, the installer-API session: the M07/BF-13 snapshot twin (`cr_ui_thumbnail_generate_snapshot`) raised 94 -> 95; the D-IMG-1/D-IMG-3 twin (`cr_ui_image_create_ex`) raised 93 -> 94; the 2026-11-11 re-derivation: the BF-03 ex2 append (eb4bb5f3) raised the export count 92 -> 93; the earlier session-96 recount: the
 > cr_ui_driver_status export and the `driver` verb died with the kernel
 > driver, the five ERR_DRIVER_* members with it, ERR_ELEVATION_REQUIRED
 > added - the

@@ -1123,6 +1123,9 @@ mod t14_validation {
                 date_to_ft: 0,
                 extensions: Vec::new(),
                 hide_empty_files: false,
+                hide_system_files: false,
+                hide_temp_files: false,
+                hide_browser_cache: false,
             };
             timed_pass(&metas, &all_files, "all");
             // The scoped pred (the worst case that still walks every row:

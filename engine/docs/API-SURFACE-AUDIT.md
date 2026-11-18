@@ -30,7 +30,7 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 95 exports (re-derived 2026-11-18, the
+`libcr_ui.so`): 99 exports (re-derived 2026-11-18, the
 installer-API session: 98 CR_UI_API lines - 3 #defines; the 95th is the
 M07/BF-13 snapshot-index thumbnail twin `cr_ui_thumbnail_generate_snapshot`;
 the 94th is the D-IMG-1/D-IMG-3
