@@ -4029,3 +4029,43 @@ in `worklog/VALIDATION/`. The named feature is priority: **reconstructed
 files with original directory structure preserved, deleted only, as a
 post-scan option — matching SectorForge's behavior**. Nothing is implemented
 until the feature matrix (T3) is committed and pushed.
+
+---
+
+## Session 2026-11-18 — sector-scan rebuild (Phase 0 + Phase 1): read, baseline, diagnose
+
+Prompt saved redacted at `worklog/session-sector-scan-rebuild-prompt.md`. Clone: final-prod
+`976bced8` (main), corpus `be0cfe95`. Token in credential store only, never committed.
+
+**T2 (`d69893ed`)** — five Phase 0 context sheets pushed BEFORE any code, from five parallel
+read agents (A product, B reference-scan, C reference-algorithms, D MS-docs, E reproduction):
+`worklog/session-sector-scan-rebuild/{PRODUCT-PIPELINE,REFERENCE-SCAN,REFERENCE-ALGORITHMS,MS-DOCS,REPRODUCTION}.md`
+(2,248 lines, every claim cited). Load-bearing findings: the read path is ALREADY the
+AsyncRing IOCP transport (8×4 MiB + companion sync handle — the prior perf lane's work, not
+the pre-ring QD1 sync the old sheets describe); **0 of 12 CR_EVT_* event types carry a result
+row** (the engine→UI streaming drop stage); the reference corpus documents NO per-phase
+progress weights — the sector-linear X/Y ticker is the only evidenced model, 40/35/25 is
+product lineage; the reference's phantom gates are fully synthesized (dual-generation
+validation, grammar-walk-with-end, size sanity, extent viability, name sanity, structured-wins
+merge); 34 MS Learn pages fetched with 13 doc-cited platform rules; the seed manifest is
+uploaded by forensic-repro but NEVER consumed by any gate (no detection/phantom-rate evidence
+exists anywhere).
+
+**T3 (`c54f2496`)** — `worklog/session-sector-scan-rebuild/DIAGNOSIS.md`: ten stages
+quantified with run IDs. Reader/geometry/detection WORK (post-ring repair; 81/81 deleted-tree
+nodes on the 6 GiB it-gate; 26-41k files/s quick-stage). Broken: (5) the streamer drops every
+row — counters-only events + 10%-bucket snapshot starvation is the root cause of "nothing a
+user would recognize as a real recovery result" DURING scan; (8) the progress axis decouples
+from byte-denominated work — quick+deep are metadata passes finishing in seconds, so the UI
+opens at exactly 75.0% then crawls (75.0→76.1% over 891 s, run 42255492260) while carve
+grinds at the measured 8.45 MiB/s validation wall; (9) sector ticker axes inconsistent
+(clamped carve vs unclamped deep, P-DEEP-01); (7) phantom/accuracy UNMEASURED — the
+instrument itself is missing (F-D: manifest-vs-results gate is the first rebuild act).
+Fix plan F-A..F-G with exact entry points recorded for the implementation session.
+
+**Handoff (truthful)**: implementation phases 2-4 (F-A streaming event, F-B/F-C byte-derived
+monotonic percent + one sector axis, F-D manifest gate, F-E filter unification, F-F grading
+coverage, F-G carve throughput) NOT STARTED — this session's step budget ended at diagnosis.
+Windows CI sweep + release validation not run (Linux sandbox). `worklog/VALIDATION/` gains
+nothing from this session — no evidence faked. OPEN-1: the concurrent installer-api lane's
+AsyncRing miss-path repair needs its Windows benchmark matrix re-run green.
