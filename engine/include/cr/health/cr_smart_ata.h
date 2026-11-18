@@ -42,6 +42,62 @@ struct SmartAttrInfo {
     HealthGrade grade = HealthGrade::Unknown; /* S-024 */
 };
 
+/* M12 (W5): the vendor display family — the og's 0x181c cascade
+ * (FUN_0040dad0, s6-health-grading-decode.md §5) as an own-code enum.
+ * Numeric values mirror the decoded codes (citation-anchored, not
+ * ABI — core-internal). IMPLEMENTED gates: the model-prefix branches
+ * the decode spells out + the fully-decoded attr signatures (the
+ * IronWolf/SandForce/Plextor/JMicron60x/OczVector/Mtron set). DEFERRED
+ * with precise scope: families whose gates the decode does not spell
+ * out (Apacer/Maxiotek/Marvell/SiliconMotion/Ymtc/Ssstc/IntelDc —
+ * s6 §5 gives call sites only), the Phison firmware "S9" subgate
+ * (firmware is not parsed today), and the per-family NAME tables
+ * beyond the decoded samples (REFERENCE-SMART §3.2's observed strings
+ * — the full 30-family tables are corpus-UNKNOWN, never invented). */
+enum class SmartVendorFamily : u8 {
+    Generic = 0,    /* Smart: the HDD fallback */
+    GenericSsd = 1, /* SmartSsd: the SSD fallback */
+    Mtron = 2,
+    Indilinx = 3,
+    JMicron60x = 4,
+    Intel = 5,
+    Samsung = 6,
+    SandForce = 7,
+    Micron = 8,
+    Ocz = 9,
+    Seagate = 0xa, /* the IronWolf-signature branch */
+    Wdc = 0xb,
+    Plextor = 0xc,
+    SanDisk = 0xd,
+    OczVector = 0xe,
+    Kingston = 0x11,
+    MicronMU02 = 0x12, /* CRUCIAL/CT class */
+    SKhynix = 0x15,
+    Kioxia = 0x16,
+    Ssstc = 0x17,
+    IntelDc = 0x18,
+    Apacer = 0x19,
+    SiliconMotion = 0x1a,
+    Phison = 0x1b,
+    Marvell = 0x1c,
+    Maxiotek = 0x1d,
+    Ymtc = 0x1e,
+};
+
+/* Stage 1 (model-only, pre-attr): the decoded prefix/contains gates in
+ * the cascade's order. Signature-gated families return Generic here and
+ * refine in stage 2. model is the IDENTIFY words-27-46 string the parser
+ * already builds (space-stripped, upper-case by caller convention is NOT
+ * assumed — the matcher is case-insensitive like the og's CStringT::Find). */
+SmartVendorFamily smart_vendor_family_model(const std::string& model, bool model_says_ssd);
+
+/* Stage 2 (post-attr refinement): the fully-decoded attr-id signatures
+ * (the attribute id SET must contain every signature id). Only families
+ * whose signature the decode spells out are refined; a model-gated
+ * family is never demoted. */
+SmartVendorFamily smart_vendor_family_refine(SmartVendorFamily model_family,
+                                             const std::vector<SmartAttrInfo>& attrs);
+
 /* The parsed SMART report minus the platform SSD probe (seek-penalty
  * stays win-side; model-based SSD detection runs here via
  * model_says_ssd). */
@@ -54,6 +110,9 @@ struct SmartInfo {
     HealthGrade grade = HealthGrade::Unknown; /* S-024: worst attr grade */
     std::string model; /* IDENTIFY words 27-46, byte-swapped, space-stripped */
     bool model_says_ssd = false;
+    /* M12 (W5): the resolved vendor display family (core-internal; the
+     * name overlays consume it, the ABI report does not carry it). */
+    SmartVendorFamily family = SmartVendorFamily::Generic;
     /* derived verdicts (attr-id keyed) */
     u64 reallocated_sectors = 0; /* attr 5 raw */
     u64 pending_sectors = 0;     /* attr 197 raw */
@@ -97,6 +156,12 @@ u32 read_smart_ata_buffers(const u8* table, const u8* thresholds_or_null, const 
 /* Human-readable attribute names for the well-known IDs (pure table;
  * the win header re-exports). */
 const char* smart_attr_name(u8 id);
+
+/* M12 (W5): the family-aware resolution — the generic table, then the
+ * decoded vendor overlays (Seagate's attr-1 "Raw data error rate" et
+ * al.; the family's id set from the classifier). Falls back to the
+ * generic name for every family whose table is corpus-UNKNOWN. */
+const char* smart_attr_name(SmartVendorFamily family, u8 id);
 
 } // namespace health
 } // namespace cr

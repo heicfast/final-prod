@@ -167,3 +167,101 @@ TEST(SmartBufferParse, WmiPathLeavesAtaVersionAtZero) {
     ASSERT_EQ(read_smart_ata_buffers(table, nullptr, "", info), u32(cr::OK));
     EXPECT_EQ(0, info.ata_version);
 }
+
+/* ---- M12 (W5): the vendor display family + the name overlays ---- */
+
+TEST(SmartVendorFamily, ModelGatesMatchTheDecodedCascade) {
+    using cr::health::smart_vendor_family_model;
+    using cr::health::SmartVendorFamily;
+    EXPECT_EQ(smart_vendor_family_model("WDC WD40EFRX-68N32N0", false), SmartVendorFamily::Wdc);
+    EXPECT_EQ(smart_vendor_family_model("SAMSUNG HD155UI", false), SmartVendorFamily::Samsung);
+    EXPECT_EQ(smart_vendor_family_model("MZ-77E500B", true), SmartVendorFamily::Samsung);
+    EXPECT_EQ(smart_vendor_family_model("INTEL SSDSC2CT040A4", true), SmartVendorFamily::Intel);
+    EXPECT_EQ(smart_vendor_family_model("CRUCIAL CT500MX500SSD1", true),
+              SmartVendorFamily::MicronMU02);
+    EXPECT_EQ(smart_vendor_family_model("KINGSTON SA400S37240G", true),
+              SmartVendorFamily::Kingston);
+    EXPECT_EQ(smart_vendor_family_model("KIOXIA-EXCERIA", true), SmartVendorFamily::Kioxia);
+    EXPECT_EQ(smart_vendor_family_model("OCZ-VERTEX3", true), SmartVendorFamily::Ocz);
+    EXPECT_EQ(smart_vendor_family_model("SanDisk SDSSDA-240G", true), SmartVendorFamily::SanDisk);
+    EXPECT_EQ(smart_vendor_family_model("HFS512G39TND-N210A", true), SmartVendorFamily::SKhynix);
+    /* the fallback pair */
+    EXPECT_EQ(smart_vendor_family_model("ST5000DM000-1FK178", false),
+              SmartVendorFamily::Generic); /* plain Seagate: no decoded model gate */
+    EXPECT_EQ(smart_vendor_family_model("SOME SSD MODEL SSD", true), SmartVendorFamily::GenericSsd);
+}
+
+TEST(SmartVendorFamily, SignatureRefinementPinsIronWolf) {
+    using cr::health::smart_vendor_family_refine;
+    using cr::health::SmartVendorFamily;
+    /* the decoded IronWolf signature set (:24312) on an otherwise-ungated
+     * model refines to Seagate */
+    std::vector<cr::health::SmartAttrInfo> sig;
+    const u16 ids[] = {1,    5,    9,    12,   100,  0x66, 0x67, 0xAA,
+                       0xAB, 0xAC, 0xB3, 0xB5, 0xB7, 0xB9, 0xBB};
+    for (u16 id : ids)
+        sig.push_back(cr::health::SmartAttrInfo{u8(id), u16(id)}); /* id+value */
+    EXPECT_EQ(smart_vendor_family_refine(SmartVendorFamily::Generic, sig),
+              SmartVendorFamily::Seagate);
+    /* one id short: no refinement (the signature is a subset requirement) */
+    sig.pop_back();
+    EXPECT_EQ(smart_vendor_family_refine(SmartVendorFamily::Generic, sig),
+              SmartVendorFamily::Generic);
+    /* a model-gated family never demotes */
+    EXPECT_EQ(smart_vendor_family_refine(SmartVendorFamily::Wdc, sig), SmartVendorFamily::Wdc);
+    /* Mtron: attr[0]==187 with count 1 */
+    std::vector<cr::health::SmartAttrInfo> mtron;
+    mtron.push_back(cr::health::SmartAttrInfo{187, 100});
+    EXPECT_EQ(smart_vendor_family_refine(SmartVendorFamily::Generic, mtron),
+              SmartVendorFamily::Mtron);
+}
+
+TEST(SmartVendorFamily, NameOverlaysAndGenericAdditions) {
+    using cr::health::smart_attr_name;
+    using cr::health::SmartVendorFamily;
+    /* generic base */
+    EXPECT_STREQ("Read error rate", smart_attr_name(u8(1)));
+    /* the Seagate overlay (the observed diskhealth_English.qm string) */
+    EXPECT_STREQ("Raw data error rate", smart_attr_name(SmartVendorFamily::Seagate, u8(1)));
+    /* every other id on Seagate falls back to the generic table */
+    EXPECT_STREQ("Temperature", smart_attr_name(SmartVendorFamily::Seagate, u8(194)));
+    /* the observed generic additions: 188 + 22 (were missing) */
+    EXPECT_STREQ("Command Timeout", smart_attr_name(u8(188)));
+    EXPECT_STREQ("Current Helium Level", smart_attr_name(u8(22)));
+    /* the og-exact observed renames */
+    EXPECT_STREQ("Current Pending Sector Count", smart_attr_name(u8(197)));
+    EXPECT_STREQ("CRC Error Count", smart_attr_name(u8(199)));
+    /* families with corpus-UNKNOWN tables fall back, never invent */
+    EXPECT_STREQ("Read error rate", smart_attr_name(SmartVendorFamily::Kingston, u8(1)));
+}
+
+TEST(SmartVendorFamily, BuffersPathStampsFamilyAndNames) {
+    u8 table[512];
+    std::memset(table, 0, sizeof(table));
+    const u8 raw[6] = {1, 0, 0, 0, 0, 0};
+    /* a WDC model + attr 1: the Wdc family, the generic name (only the
+     * Seagate overlay differs for id 1 today) */
+    put_attr(table, 0, 1, 0x000F, 100, 100, raw);
+    put_attr(table, 1, 194, 0x0022, 65, 60, raw);
+    {
+        cr::health::SmartInfo info;
+        ASSERT_EQ(read_smart_ata_buffers(table, nullptr, "WDC WD40EFRX-68N32N0", info),
+                  u32(cr::OK));
+        EXPECT_EQ(cr::health::SmartVendorFamily::Wdc, info.family);
+        EXPECT_EQ("Read error rate", info.attributes[0].name);
+    }
+    /* an IronWolf signature model set refines to Seagate and renames id 1 */
+    const u16 ids[] = {1,    5,    9,    12,   100,  0x66, 0x67, 0xAA,
+                       0xAB, 0xAC, 0xB3, 0xB5, 0xB7, 0xB9, 0xBB};
+    u8 wolf[512];
+    std::memset(wolf, 0, sizeof(wolf));
+    for (u32 k = 0; k < sizeof(ids) / sizeof(ids[0]); ++k)
+        put_attr(wolf, k, u8(ids[k]), 0x000F, 100, 100, raw);
+    {
+        cr::health::SmartInfo info;
+        ASSERT_EQ(read_smart_ata_buffers(wolf, nullptr, "ST12000VN0007-2GS116", info), u32(cr::OK));
+        EXPECT_EQ(cr::health::SmartVendorFamily::Seagate, info.family);
+        ASSERT_FALSE(info.attributes.empty());
+        EXPECT_EQ("Raw data error rate", info.attributes[0].name);
+    }
+}
