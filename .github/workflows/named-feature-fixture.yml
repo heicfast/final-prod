@@ -1,0 +1,110 @@
+name: named-feature-fixture
+
+# Dispatch-only evidence lane (session: cross-repo harvest, T5): builds the
+# seeded named-feature fixture on a REAL Windows runner — a 2 GB GPT/NTFS
+# VHDX created via diskpart (the tools/forensic/seed-disks.ps1 pattern) —
+# proves generator determinism (two generations, identical manifests modulo
+# the _meta line), applies the deletion matrix with volume flushes, runs the
+# verifier self-test, detaches, and uploads the VHDX + manifest + logs as
+# artifacts. The VHDX is the seeded ground-truth image later lanes scan
+# (Wave 5 validation); it is NEVER remounted-and-written after the deletion
+# flush (the testlab lesson).
+#
+# This lane is dispatch-only by design: it never runs on push, so main's
+# push lanes stay untouched by fixture work.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: named-feature-fixture-${{ github.ref }}
+  cancel-in-progress: false # evidence runs queue; nothing in flight is dropped
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build seeded fixture VHDX (generate, determinism proof, delete, verify self-test)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $work = Join-Path $env:RUNNER_TEMP 'nffx'
+          $evidence = Join-Path $work 'evidence'
+          New-Item -ItemType Directory -Force -Path $work, $evidence | Out-Null
+          Start-Transcript -Path (Join-Path $evidence 'lane-transcript.txt') | Out-Null
+          try {
+            # --- 1. create + attach the VHDX (seed-disks.ps1 pattern) ------
+            $vhdx = Join-Path $work 'named-feature-fixture.vhdx'
+            $dp = Join-Path $work 'dp-create.txt'
+            @(
+              "create vdisk file=`"$vhdx`" type=expandable maximum=2048",
+              "select vdisk file=`"$vhdx`"",
+              'attach vdisk',
+              'convert gpt',
+              'create partition primary',
+              'format fs=ntfs label="NFFX" quick',
+              'assign letter=X'
+            ) | Set-Content -Path $dp -Encoding ASCII
+            $out = & diskpart /s $dp 2>&1 | Out-String
+            Write-Host $out
+            if ($LASTEXITCODE -ne 0) { throw "diskpart create failed (exit $LASTEXITCODE)" }
+            $okCount = ([regex]::Matches($out, 'DiskPart successfully')).Count
+            if ($okCount -lt 5) { throw "diskpart reported only $okCount successes (expected >= 5)" }
+
+            # --- 2. generate the fixture twice: determinism proof ----------
+            $m1 = Join-Path $evidence 'manifest.jsonl'
+            $m2 = Join-Path $work 'manifest-detcheck.jsonl'
+            & powershell -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\fixture' -ManifestOut $m1
+            if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 1 failed" }
+            & powershell -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\det-check' -ManifestOut $m2
+            if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 2 failed" }
+            $a = Get-Content $m1 | Select-Object -Skip 1   # skip _meta (root/timestamp differ by design)
+            $b = Get-Content $m2 | Select-Object -Skip 1
+            $diff = Compare-Object -ReferenceObject $a -DifferenceObject $b
+            if ($diff) {
+              $diff | Format-Table | Out-String | Write-Host
+              throw "determinism FAILED: manifests differ beyond the _meta line"
+            }
+            Write-Host 'determinism PROOF: two generations byte-identical (modulo _meta)'
+            Remove-Item -Recurse -Force -LiteralPath 'X:\det-check'
+
+            # --- 3. apply the deletion matrix ------------------------------
+            $applyLog = Join-Path $evidence 'apply-log.json'
+            & powershell -File tools/validation/named-feature/apply-deletions.ps1 -Root 'X:\fixture' -ManifestOut $m1 -LogOut $applyLog
+            if ($LASTEXITCODE -ne 0) { throw "apply-deletions failed" }
+
+            # --- 4. verifier self-test -------------------------------------
+            & python tools/validation/named-feature/verify-reconstruction.py --self-test | Tee-Object -FilePath (Join-Path $evidence 'verify-selftest.txt')
+            if ($LASTEXITCODE -ne 0) { throw 'verifier self-test FAILED' }
+
+            # --- 5. final flush before detach (no remount afterwards) ------
+            Write-VolumeCache -DriveLetter X -ErrorAction SilentlyContinue
+          }
+          finally {
+            Stop-Transcript | Out-Null
+            # detach so the VHDX keeps its post-deletion state untouched
+            $vhdx = Join-Path $work 'named-feature-fixture.vhdx'
+            if (Test-Path $vhdx) {
+              $dpd = Join-Path $work 'dp-detach.txt'
+              "select vdisk file=`"$vhdx`"", 'detach vdisk' | Set-Content -Path $dpd -Encoding ASCII
+              & diskpart /s $dpd 2>&1 | Out-String | Write-Host
+            }
+          }
+
+      - name: Upload evidence + seeded VHDX
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: named-feature-fixture
+          path: |
+            ${{ runner.temp }}/nffx/evidence/**
+            ${{ runner.temp }}/nffx/named-feature-fixture.vhdx
+          if-no-files-found: error
+          retention-days: 90
