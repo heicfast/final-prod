@@ -556,7 +556,23 @@ fn results_filters_and_deleted_tree() {
             unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().into_owned()
         }
     };
-    let run_query = |q: &mut abi::CrUiQuery| -> (u64, Vec<abi::CrUiQueryRow>) {
+    /// A query row OWNS nothing: `name`/`path` are engine-heap pointers
+    /// freed by `cr_ui_query_rows_free`. A shallow struct copy (the old
+    /// `from_raw_parts(..).to_vec()`) carried those raw pointers past the
+    /// free — every later `cstr_of(r.path)` read a dangling pointer, and
+    /// when the allocator reused the freed block for the destination
+    /// String, `copy_nonoverlapping` saw src==dst and aborted
+    /// (core/ptr/mod.rs:554, run 44102634559). Rows are materialized into
+    /// OWNED data BEFORE the engine frees its side.
+    struct OwnedRow {
+        node_id: u64,
+        name: String,
+        path: String,
+        size: u64,
+        deleted: u32,
+        category: u32,
+    }
+    let run_query = |q: &mut abi::CrUiQuery| -> (u64, Vec<OwnedRow>) {
         q.offset = 0;
         q.limit = 500;
         let mut rows: *mut abi::CrUiQueryRow = std::ptr::null_mut();
@@ -564,12 +580,19 @@ fn results_filters_and_deleted_tree() {
         let mut total: u64 = 0;
         let rc = unsafe { abi::cr_ui_query_run(sess, q, &mut rows, &mut count, &mut total) };
         assert_eq!(rc, abi::CR_UI_OK, "query_run 0x{rc:08X}");
-        let v = if !rows.is_null() && count > 0 {
-            unsafe { std::slice::from_raw_parts(rows, count as usize).to_vec() }
-        } else {
-            Vec::new()
-        };
+        let mut v: Vec<OwnedRow> = Vec::with_capacity(count as usize);
         if !rows.is_null() {
+            for i in 0..count as usize {
+                let r = unsafe { &*rows.add(i) };
+                v.push(OwnedRow {
+                    node_id: r.node_id,
+                    name: cstr_of(r.name),
+                    path: cstr_of(r.path),
+                    size: r.size,
+                    deleted: r.deleted,
+                    category: r.category,
+                });
+            }
             unsafe { abi::cr_ui_query_rows_free(rows, count) };
         }
         (total, v)
@@ -613,7 +636,7 @@ fn results_filters_and_deleted_tree() {
     assert!(total >= 81, "deleted_only: {total} < 81 (80 del + the bulk)");
     let in_gone = rows
         .iter()
-        .filter(|r| cstr_of(r.path).to_ascii_lowercase().contains("gone"))
+        .filter(|r| r.path.to_ascii_lowercase().contains("gone"))
         .count();
     assert!(
         in_gone >= 80,
@@ -621,7 +644,7 @@ fn results_filters_and_deleted_tree() {
     );
     let evidence: String = rows
         .iter()
-        .map(|r| format!("{}\t{}\t{}\n", cstr_of(r.path), r.size, r.deleted))
+        .map(|r| format!("{}\t{}\t{}\n", r.path, r.size, r.deleted))
         .collect();
     write_evidence("deleted-tree.txt", evidence);
 
