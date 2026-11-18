@@ -216,3 +216,33 @@ execute here; each is documented with precise scope in
 `worklog/BEHAVIOR-FINDINGS.md`, never faked. All Linux-executable
 evidence (gcc/clang sanitizers, cppcheck, fuzzers, stress runs, the
 Linux CI lanes `build.sh` runs) is real tool output.
+
+## Lane F — the installer-api lane re-opens (2026-11-18, this session)
+
+The installer-integration/API-surface charter re-dispatches as **Lane F**
+(`Installer-API Agent <installer-api@heicfast.local>`). Prior lanes A-E
+ended at their recorded entries; the performance lane's last push
+(a2561acd) left main RED in two places it never observed (the bench run
+completed after its session ended): the Linux `win_syntax_check` gate
+(fix-2's ungrown SDK stubs + an ill-formed cast in the new test file)
+and benchmark-src run 44275941738 (seven hard-gate failures — root
+cause: the ring's `pick_victim_locked` never returns an INFLIGHT slot,
+so all-slots-busy out-of-window reads returned ERR_NO_MEMORY, a hard
+error to the retry pipe; plus 4 MiB-per-miss read amplification).
+
+Lane F's repair (c049f83a): the companion sync handle for every
+non-front miss (the pre-ring envelope, byte-identical semantics); the
+walking front keeps the recycle path; ERR_NO_MEMORY is unreachable from
+the read path. Two regression pins added on the MSVC lane (a 128 MiB
+fixture 4x the window; walker+probes+backtrack concurrent). Full-matrix
+benchmark-src re-dispatched for the seven gates — the repair is not
+closed until it runs green.
+
+Territory: the charter's remaining waves W5-W10 (engine + bridge +
+contracts + UI wiring + installer validation), per the INTEGRATION-MATRIX
+wave plan. Engine/bridge crossings get announced here per the seam rule;
+Lane E's safety-hardening sheets (SAFETY-SURFACE, REFERENCE-EDGE-CASES)
+are adopted as inputs — their top-risk rows (BF-32 teardown race) ride
+W10. Environment truth: Linux container (gcc 14.2 + cmake via pip, node
+24, python 3.12); Windows evidence via the dispatchable runner lanes
+only, never faked.
