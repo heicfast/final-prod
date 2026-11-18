@@ -1,3 +1,69 @@
+# DIAGNOSIS — session 2026-11-18 (result pipeline: streaming, detection, persistence)
+
+> **Phase-0 complete before this diagnosis**: five context sheets committed
+> and pushed (06987a83) before any code change — `worklog/PRODUCT-PIPELINE.md`
+> (agent A), `worklog/REFERENCE-PIPELINE.md` (agent B),
+> `worklog/REFERENCE-ALGORITHMS.md` (agent C), `worklog/REFERENCE-MODULES.md`
+> (agent D), `worklog/PIPELINE-MATRIX.md` (agent E synthesis). Every claim
+> below cites those sheets; they cite the corpus and product file:line. The
+> PRIOR session's diagnosis (performance, 2026-11-18) is preserved verbatim
+> at the bottom of this file — its bottleneck trains are landed and are NOT
+> re-litigated here; this session's axis is the RESULT pipeline only.
+
+## 0. The drop stage, quantified: the engine→UI event surface carries zero result rows
+
+Stage-by-stage instrumentation of the product's result pipeline (PRODUCT-PIPELINE.md §1–6):
+
+| # | Stage | Product evidence | Verdict |
+|---|---|---|---|
+| 1 | Sector read | `build_read_pipe` — RetryingDevice Skip-mode + 8 MiB LRU CachedReader (cr_scan.cpp:191); measured 544 MiB/s transport provision, 8.45 MiB/s deep-carve wall (prior diagnosis) | WORKS |
+| 2 | FS recognition | `probe_family` content-verified (cr_scan.cpp:963) | WORKS |
+| 3 | FS parse → detector | 8 FS engines parse MFT/FAT/exFAT/ext4/HFS+… records live during scan | WORKS |
+| 4 | Detector emission | engines emit into shared `tree::ResultTree::add_file` (cr_node.cpp:188); carve stage adds 3-layer detection nodes live | WORKS — nodes exist during scan |
+| 5 | Local persistence | CRSF chunked-deflate, atomic `.tmp`+rename checkpoints mid-scan (cr_crsf.cpp, cr_records.cpp) | WORKS — writes during scan |
+| 6 | Engine→UI events | **12 `CR_EVT_*` types are aggregate counters only (permille/files/bytes/error ranges/lost candidates); 0 of them carry a result row.** `currentPath` hard null (events.rs:218) | ❌ **THE DROP STAGE** |
+| 7 | UI result list | rows reach the UI only via `cr_ui_scan_snapshot` pull → bridge NodeMeta cache, invalidated at **10% progress buckets** (scan.ts:41) | STARVED |
+
+**Conclusion — results are lost at stage 6, not in detection or persistence.**
+Detection emits nodes live (stage 4) and the session store checkpoints them mid-scan
+(stage 5), but the event channel transports **no result rows**; the UI compensates with a
+full-snapshot pull refreshed only at 10%-bucket boundaries. Any volume whose scan completes
+within one bucket (or whose permille stalls in a long carve phase — the 8.45 MiB/s wall)
+shows an EMPTY result list for the entire scan: exactly the reported symptom "sector reading
+produces nothing in the results".
+
+Reference ground truth (corpus): the og pushes rows LIVE through its MOM→Qt bridge —
+engine callbacks `(int,void*,int&)` → `CMessageProxy` → queued Qt bus → 15 subscribers'
+`onReceiveData`; two-phase emission (quick-pass rows first, then advanced/carve rows into
+separate branches, runtime-proven "Reconstructed" 1→16 live).
+Citations: re-workspace/artifacts/MOM-modules/mom-modules--ui-bridge-and-dependency-matrix.md §1;
+re-workspace/artifacts/UIUX/25-connect-wiring-graph.md §2/§3.1;
+re-workspace/artifacts/UIUX/dynamic-ground-truth--scan-phase-captured.md §3/§7.
+
+## 1. Secondary weaknesses (measured, same session)
+
+1. **Grading coverage holes** (PRODUCT-PIPELINE.md §5): extension-in-table nodes skip twin
+   detection entirely (S-058 inverted gate); deep-read grade runs only for index==0 non-twin
+   nodes → recovery chance is unevenly computed across the tree.
+2. **Tail-walk bound**: carver tail-paired formats fall back to header-only emission past
+   8 MiB; the og's BruteForce walks to last-valid EOF with a 200 MiB bound
+   (REFERENCE-ALGORITHMS.md §2/§5).
+3. **Duplicated filter semantics**: the Rust bridge re-implements filter/sort/paging over its
+   own NodeMeta cache instead of engine `cr_ui_query_run` (results.rs:11–17) — two divergent
+   implementations of the same contract, only one engine-tested.
+
+## 2. Fix order (root-cause, not symptom)
+
+1. **Phase 3 first** (the drop stage): add a row-carrying event surface — engine emits result
+   rows during scan; bridge forwards as `scan-result:{id}` Tauri events; UI appends
+   incrementally with bounded queue + backpressure + clean cancellation.
+2. **Phase 2** (detection strength): close the grading coverage holes (S-058 gate, deep-read
+   coverage); raise the tail-walk bound to the og's 200 MiB with chunked re-read.
+3. **Phase 4**: CRSF persistence already matches the og's .rsf role and ADDS mid-scan
+   checkpointing the og lacks (REFERENCE-PIPELINE.md §12–13) — polish only, no rewrite.
+
+---
+
 # DIAGNOSIS — session 2026-11-18 (performance: the I/O pipeline, threading model, queue depth, and CPU/memory limits)
 
 > **Phase-0 complete before this diagnosis**: five context sheets committed
