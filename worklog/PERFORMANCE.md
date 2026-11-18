@@ -39,24 +39,27 @@ engine/include/cr/storage/cr_cached.h):
    shared block ownership makes eviction safe under a reader mid-copy.
 
 **Before/after — the same component microbench, same 256 MiB
-page-cache-warm fixture (before = the pre-rework code, run 2026-11-18,
-harness per-thread destinations for BOTH runs after the harness's own
-shared-destination artifact was found and fixed — the artifact was
-capping ALL runs at one line's ping-pong rate; the BEFORE numbers below
-are the harness-corrected reruns of the OLD code, recompiled from git
-history's cr_cached.cpp at commit 883107bf^):
+page-cache-warm fixture, SAME DAY (2026-11-18), the harness's
+per-thread-destination fix applied to BOTH sides** (the harness's
+original shared destination buffer was false-sharing one cache line
+across every worker — a measurement artifact capping all runs; found
+and fixed before any number was recorded as BEFORE). The BEFORE side is
+the pre-rework cr_cached.{h,cpp} extracted verbatim from commit
+883107bf and recompiled against the same harness (raw outputs:
+bench_before/bench_old_fixed/bench_final in this session's transcript;
+scripts preserved under /home/z/my-project/scripts/):
 
 | Measurement (harness section) | BEFORE | AFTER | Delta |
 |---|---:|---:|---|
-| [b] hit-path aggregate scaling N=2 | 0.41x | 0.96x | serialization removed (2.3x) |
+| [b] hit-path aggregate scaling N=2 | 0.54x | 0.96x | serialization removed |
 | [b] hit-path aggregate scaling N=4 | 0.17x | 0.82x | 4.8x |
-| [b] hit-path aggregate scaling N=8 | 0.11x | 0.82x | 7.5x |
-| [b] hit-path N=1 absolute | 4.88 M ops/s | 5.00 M ops/s | +2.5% (lock-free probe) |
-| [b2] miss-path N=1 (fill+copy) | 27,973 ops/s | 33,876 ops/s | +21% |
-| [b2] miss-path N=4 aggregate | 20,608 ops/s | 49,392 ops/s | +2.4x (fills overlap) |
-| [a] sequential 256 KiB stream overhead vs raw pread | 8.8% | 5.5% | -3.3 points (pool) |
-| [c] LRU lookup per read @ 32 blocks | 108.7 ns | 54.2 ns | -50% (1 entry/shard) |
-| [d] per-miss buffer alloc | ~4.6 µs (0.8x the copy) | pooled (O(1) freelist) | churn removed |
+| [b] hit-path aggregate scaling N=8 | 0.12x | 0.82x | 6.8x |
+| [b] hit-path N=1 absolute | 4.16 M ops/s | 5.00 M ops/s | +20% (lock-free probe, no refcount) |
+| [b2] miss-path N=1 (fill+copy) | 23,266 ops/s | 33,876 ops/s | +46% (copy/publish outside the global lock) |
+| [b2] miss-path N=4 aggregate | 17,763 ops/s (BELOW N=1: the mutex actively throttled) | 49,392 ops/s | +2.8x, and now SCALES above N=1 |
+| [a] sequential 256 KiB stream overhead vs raw pread | 8.0% | 5.5% | -2.5 points (pooled buffers) |
+| [c] LRU lookup per read @ 32 blocks | 107.1 ns | 54.2 ns | -49% (1 entry/shard) |
+| [d] per-miss buffer alloc | ~4.6 µs (0.8x the copy itself) | pooled (O(1) freelist) | churn removed |
 
 The N=4/8 aggregate is now bounded by the container's 2-vCPU memcpy
 ceiling (verified with a lock-free memcpy control at the same pattern:
