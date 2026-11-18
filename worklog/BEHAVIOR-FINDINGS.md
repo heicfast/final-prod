@@ -166,3 +166,41 @@ New rows from this session's audits (the register's honest ledger):
 - A concurrent performance lane was active on the same repo the whole
   session (three mid-push remote advances; every push pulled-and-rebased,
   never forced; their worklog entries preserved verbatim in every merge).
+
+---
+
+## Session 2026-11-18 — streaming-detection-pipeline: precise scope of the incomplete
+
+**Completed and pushed**: Phase 0 five context sheets (`06987a83`), DIAGNOSIS with the
+quantified drop stage (`793a740b`). The diagnosis is the session's load-bearing result:
+the pipeline loses rows at the engine→UI event surface (0 of 12 `CR_EVT_*` types carry a
+row; UI starves between 10%-bucket snapshot pulls at scan.ts:41) — detection and
+persistence were measured WORKING.
+
+**Not completed (truthful scope + exact entry points for the next session):**
+
+1. **Streaming row event (Phase 3, the root-cause fix)**: no row-carrying event exists yet.
+   Entry points: engine/include/cr/cr_ui.h:151–297 (event enum + `cr_ui_event` struct —
+   append-only W1c discipline), engine/src/ui/cr_ui.cpp (sink dispatch),
+   engine/src/core/orchestrator/cr_scan.cpp + cr_node.cpp:188 (`ResultTree::add_file`
+   chokepoint → batch emitter), ui/src-tauri/src/bridge/abi.rs (struct mirror; re-pin the
+   94/94 layout pin), ui/src-tauri/src/bridge/events.rs:353 (new match arm →
+   `app.emit("scan-result:{id}")`), ui/src/connector/contract.ts +
+   tauri-connector.ts (`onScanResult`), ui/src/queries/scan.ts (subscribe + incremental
+   append). Bounded queue + backpressure live in the bridge channel; cancellation must
+   flush partial rows.
+2. **Grading coverage (Phase 2)**: S-058 inverted gate skips twin detection for
+   in-table extensions; deep-read grade only for index==0 non-twin nodes —
+   engine/src/core/tree/cr_grading.cpp (PRODUCT-PIPELINE.md §5).
+3. **Tail-walk bound (Phase 2)**: 8 MiB → og 200 MiB with chunked re-read —
+   engine/src/core/carve/cr_carve.cpp (REFERENCE-ALGORITHMS.md §2/§5).
+4. **Bridge filter unification**: results.rs:11–17 NodeMeta re-filter vs engine
+   `cr_ui_query_run` — one contract, one implementation.
+5. **Windows CI sweep (T14) + release validation (T15)**: not run — this sandbox is
+   Linux-only; run `build.ps1` + the Windows workflows on a Windows host.
+6. **worklog/VALIDATION/**: directories created, **intentionally EMPTY** — no evidence
+   was captured this session and none was invented. Gates 1–8 of the session prompt are
+   therefore NOT proven yet; only the Phase-0/Phase-1 document gates are met.
+
+No fake results, no code stubs, no TODO markers introduced; this file is the truthful
+disable the session rules require.

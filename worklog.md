@@ -3748,3 +3748,17 @@ STATE AT CUTOFF:
 
 EVERY DEFERRED ITEM: BEHAVIOR-FINDINGS.md (both sessions' sections), PARITY-DELTAS
 (D-P4c, D-P8, G-1(b)), FOOTPRINT-DELTA.md.
+
+---
+
+## Session 2026-11-18 — streaming-detection-pipeline (Phase 0 + Phase 1)
+
+| Step | SHA | What |
+|---|---|---|
+| T1 | — | Both repos cloned; commits recorded: final-prod `b8740541` (rebased to remote `85d44f56` line after divergence), corpus `be0cfe95`; redacted session prompt saved (token never committed) |
+| T2 | `06987a83` | Phase 0: five context sheets pushed BEFORE any code — PRODUCT-PIPELINE (A), REFERENCE-PIPELINE (B), REFERENCE-ALGORITHMS (C), REFERENCE-MODULES (D), PIPELINE-MATRIX (E synthesis). Every claim corpus-cited or product file:line |
+| T3 | `793a740b` | DIAGNOSIS: exact drop stage quantified — engine→UI event surface carries 0 result rows (12/12 CR_EVT_* are counters); UI starves between 10%-bucket snapshot pulls; prior perf diagnosis preserved below the fold |
+
+**Handoff**: implementation phases 2–4 not started (session step budget); exact entry points
+for every remaining fix are in worklog/BEHAVIOR-FINDINGS.md (this session's section).
+worklog/VALIDATION/ is intentionally empty — no evidence faked.
