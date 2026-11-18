@@ -3254,6 +3254,54 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
 - Phase 0 next: agents A–E produce INSTALLER-CURRENT / REFERENCE-FOOTPRINT /
   REFERENCE-API / PRODUCT-API / INTEGRATION-MATRIX; pushed before any code.
 
+### T2 — Phase 0 agents A–D: the four context sheets
+
+- Agent A → worklog/INSTALLER-CURRENT.md (570 lines): the installer truth —
+  build pipeline, the staged engine kit (4 file classes), NSIS placement
+  rules, the as-defined footprint, the t15 evidence STALE verdict (every
+  committed runtime artifact is driver-era v0.6.0-rc1), and the §8 gap
+  register (G-1 userdata-defaults placed by NOTHING though both consumers
+  probe it exe-adjacent; G-3 shortcuts unaudited; G-4 abort stranding; G-5
+  stale evidence; G-9 update path unexercised).
+- Agent B → worklog/REFERENCE-FOOTPRINT.md (602 lines): the reference
+  installed tree re-measured 1:1 at corpus HEAD (1,276 live files /
+  494.7 MiB; BUILDPE 194), errata from CORRECTIONS.md folded, module
+  taxonomy, install/uninstall/update behavior, the 31-row parity mapping
+  (19 ALREADY-INTEGRATED / 5 PARTIAL / 7 ABSENT) — IP boundary held
+  throughout: names/sizes only, no og binary opened.
+- Agent C → worklog/REFERENCE-API.md (326 lines): the reference capability
+  surface across 10 domains — scan control/telemetry, .rsf sessions, results
+  tree/filters/deleted-tree, recovery, per-format repair, imaging, lost
+  partition, the SMART transport chain, preview, activation/cloud/NAS — each
+  with inputs/outputs/errors/perf + corpus citation; §10 ranks the parity
+  gaps.
+- Agent D → worklog/PRODUCT-API.md (418 lines): product truth counted from
+  source, not docs — 93 ABI exports (the documented 92 is stale), ABI v4,
+  12 events, 40+OK error codes, 13 CLI verbs / 6 exit codes, 54 Tauri
+  commands, 12 domains / 67 connector methods (the documented 9/36 is
+  stale), test coverage map, the documented-truth gap list, the doc-drift
+  register (§9).
+
+### T3 — Agent E → worklog/INTEGRATION-MATRIX.md (281 lines): the execution contract
+
+- §1 footprint gaps (18 rows), §2 installer defects (G-1..G-9, root causes +
+  precise fix scopes), §3 API gaps (32 rows M01–M32), §4 doc-truth defects
+  (DT-1..DT-15), §5 the wave plan W1..W10, §6 the per-wave validation plan
+  (sandbox truth: Linux-only L-class vs Windows-runner C-class vs manual
+  M/H-class), §7 the sheet-vs-sheet discrepancy ledger (all resolved against
+  source).
+- THE WAVE CONTRACT: W1 userdata-defaults placement (T5, S) → W2 installer
+  lifecycle hardening + evidence re-proof (T5) → W3 doc-truth sweep (T5/T13)
+  → W4 imaging ABI completion cr_ui_image_create_ex (T11) → W5 small
+  axes → W6 recovery/query completion → W7 repair workbench ABI → W8/W9 UI
+  wiring → W10 measured perf. DEFER rows keep their recorded scopes (M03
+  .edisk UNKNOWN-internals, M05 renderers, M11 vendor dialects, ...).
+- Global invariants per wave: append-only ABI with gen_abi_layouts + abi.rs
+  re-pin in the SAME commit (the eb4bb5f3 lesson), contracts validate.mjs
+  green, no undocumented behavior change, main green after every wave, no og
+  file ever copied.
+
+
 ---
 
 ## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)
