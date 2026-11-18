@@ -175,8 +175,11 @@ if (Test-Path -LiteralPath $stash) {
 $flushAfter = 'not attempted'
 try {
     $probe = Join-Path $Root '.nffx-flush-probe'
-    $fs = [System.IO.File]::Open($probe, [System.IO.FileMode]::Create,
-        [System.IO.FileAccess]::Write, [System.IO.FileOptions]::WriteThrough)
+    # FileStream ctor (run-4 evidence: File.Open's 4-arg overload takes
+    # FileShare, not FileOptions - the ctor form pins WriteThrough correctly)
+    $fs = [System.IO.FileStream]::new($probe, [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 1,
+        [System.IO.FileOptions]::WriteThrough)
     try { $fs.WriteByte(0); $fs.Flush($true) } finally { $fs.Close() }
     Remove-Item -LiteralPath $probe -Force
     $letter = Get-VolumeLetter $Root
