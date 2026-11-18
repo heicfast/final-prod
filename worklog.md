@@ -4410,3 +4410,66 @@ Tests: M15's two mock suites (each toggle drops its class, keeps the rest);
 M22's four-case reasonKey suite; the full vitest 225/225. Local gates all
 green (typecheck/lint/prettier/contracts/doc_truth 99+12/71). The Rust
 compiles on the runners (no local cargo — the standing limitation).
+
+---
+
+## Session continuation: the red-main repair + the installer's shipped-exe bug (2026-11-18, evening)
+
+**Where the reds came from, honestly:** the 0.9.5-session's own workflow edits
+broke four workflows for ~1 hour (runner.temp in a workflow-level env block —
+the runner context is not available there; plus a duplicated timeout-minutes
+key). The removal patch's regex failed silently twice before the concurrent
+lane's cc201bff deleted the blocks at root; 6a6e05cd deduped the timeouts.
+Every "fix" commit from this session now requires grep-verified absence in
+the message (recorded in CI-FAILURES §12).
+
+**The real product bug found (closed):** every forensic-repro run on v0.9.4
+failed D-PRIV-01 with `app not installed` — the shipped setup.exe aborted
+with exit 2 on ANY machine other than the one that compiled it. Root cause:
+the G-4 engine-kit pre-flight (added in v0.9.4, commit 42ef613b) probed the
+COMPILE-TIME build-machine path `${ENGINE_KIT}` at RUNTIME. v0.9.3 installed
+fine (nsi predates the gate); t15 stayed green only because it builds AND
+installs on the same runner. Evidence: the forensic artifact's install.log
+carried ONLY the onInit line; 4.2 s runtime; exit 2. Fixes: 5798cf39 (kit
+payload extracted to $PLUGINSDIR\engine-kit, gates read the payload) +
+02e62afb (CopyFiles not File for the runtime placement — NSIS File is
+compile-time-only; learned live on release run 44361715679). PROVEN: forensic
+run 44369227822 installs the shipped v0.9.5 setup.exe clean (exit 0, 5.6 s),
+manifest gate green (requireAdministrator).
+
+**The t15 false red (closed):** the G-3 shortcuts assertion matched any
+'Recovery'-containing .lnk — including the STOCK Windows Administrative
+Tools\RecoveryDrive.lnk (a win22 image fixture). 3809fbc5 scoped the probe
+to 'HeicFast|Recovery Wizard'. Our link was provably removed; the OS's own
+utility is not ours to remove. Validation-evidence GREEN at 987 s after the
+fix (run 44366316888, t14+t15 both green).
+
+**Concurrent-session reds fixed at their source (each with the run ID in
+the commit message):** E0308 add_filter array literal (bd01ac19), needless
+borrow at images.rs:170 (03b265e6), TS2739 missing hide-* fields in the
+mock deletedTreeFilter (c8747105), E0063 Pred literal in the T14 test
+(173ca47c, + doc-truth 95->99/40->41 counts in three engine docs), doubled
+backtick continuations in named-feature-fixture.yml (0c8b3220), stale ABI
+header.sha after cb2c8e0's header change (42e1e3ea, regenerated with the
+repo's own generator + pinned clang-format 18.1.8), second needless borrow
+at images.rs:185 (d8774560).
+
+**v0.9.5 release: GREEN end to end** (run 44365218107, 1224 s = 20.4 min,
+down from v0.9.4's 23.3 min with the vcpkg/pnpm/cargo caches first-hit;
+assets: setup.exe 2877168 B, portable.zip 4039372 B, SHA256SUMS). The
+≤10-min target was NOT met — the serial engine+tauri compile remains the
+critical path; the build-once/artifact-reuse redesign is the documented
+follow-up (OPTIMIZATION.md).
+
+**Still open at handoff:** forensic-repro's D-SCAN-01 red on the S3 leg
+(run 44369227822: maxFrozen=800 s over a 64 GB seeded VHDX deep scan;
+advancedPctDelta=1.8, liveBytesOk=true — the percent DID move, slowly; a
+67 GB deep pass at runner-disk speeds legitimately exceeds the 180 s
+frozen-triple budget; the engine logged stage 2 begin then silence for the
+linear deep phase). This is a probe-budget vs disk-size question, not a
+workflow bug — the fix belongs to the forensic lane owner (scale the stall
+budget with disk size or gate on engine sector telemetry). benchmark-src
+run 44359663812 (smoke) still in flight; its first-ever green is expected
+but not yet claimed. ui-ci/bridge runs on the newest heads are in flight
+from the concurrent session's rapid pushes; each red so far was a real
+integration miss from their feature commits, fixed at source same-hour.
