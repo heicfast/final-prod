@@ -118,14 +118,27 @@ jobs:
 
           ## What changed in this release
 
-          This is the SMART/scan parity release: the disk-health surface was
-          rebuilt per-transport against the reference corpus, the scan
-          progress model was re-shaped to the reference's quick→advanced
-          presentation, and the results surfaces (filters, the deleted-tree
-          reconstruction, preview) are pinned end-to-end on real Windows by
-          the bridge integration gates. 0.9.2 was announced but never tagged;
-          0.9.3 carries the whole train honestly.
+          This is the landing-page honesty patch over the 0.9.3 smart-scan
+          train: the forensic validation pass on the released 0.9.3 caught
+          a regression in the new bus-driven device-kind axis, fixed at
+          its root and re-validated. 0.9.2 was announced but never tagged;
+          0.9.3 carried the smart-scan/parity train; 0.9.4 carries this fix.
 
+          - **(0.9.4) File-backed disks are scannable drives again.** The
+            0.9.3 device-kind axis routed virtual-bus disks (VHDX mounts,
+            Hyper-V guests, Storage Spaces) to a 'virtual' kind that the
+            landing page, the disk-health picker and the repair page all
+            filter out — those disks vanished from every scanning surface
+            (the exact "disks disappear" defect class the product exists
+            to never have). The forensic gate caught it the day it
+            shipped: the seeded fixture disks (both bus File Backed
+            Virtual) never rendered, so no scan could start on them.
+            A mounted disk image is a physical drive with real content —
+            it now classifies through the same removable-flag path every
+            other non-USB bus takes, and renders on the landing page's
+            drive groups like any other disk. The 'virtual' kind remains
+            what it always meant: the shell locations (Recycle Bin /
+            Desktop quick-targets).
           - **(0.9.3) Disk health reads every transport it can — truthfully.**
             Two previously missing SMART transports landed, both
             byte-grounded in the reference corpus: SAT over USB bridges

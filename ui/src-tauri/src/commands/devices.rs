@@ -135,9 +135,15 @@ fn bus_type_name(bus: u32) -> &'static str {
 ///   - SD/MMC bus → 'sd' (the dedicated SD-card surface's population;
 ///     native SDHCI readers report BusType Sd — the merged-into-USB
 ///     misclassification is dead)
-///   - Virtual / FileBackedVirtual / Spaces → 'virtual' (mounted images,
-///     storage-space aggregates — not user-scannable "drives" on the
-///     landing page's physical groups)
+///   - Virtual / FileBackedVirtual / Spaces → the removable flag decides
+///     'usb' vs 'internal' — the SAME fallback every other non-USB bus
+///     takes (D-ENUM-05, the forensic-repro regression: routing bus
+///     14/15/16 to 'virtual' hid every VHDX/Hyper-V/Storage-Spaces disk
+///     from the landing page, the health picker and the repair page —
+///     run 44249495727's S2b radio never rendered. A file-backed disk IS
+///     a scannable physical drive with real content; the 'virtual' kind
+///     is the shell locations' (Recycle Bin/Desktop quick-targets — UI
+///     rows the bridge never emits), not mounted-disk images').
 ///   - USB bus → 'usb'
 ///   - everything else (ATA/SATA/NVMe/SAS/RAID/...) → the removable flag
 ///     decides 'usb' vs 'internal' — bus 0 (descriptor unavailable)
@@ -145,7 +151,6 @@ fn bus_type_name(bus: u32) -> &'static str {
 pub fn map_kind(bus_type: u32, removable: u32) -> &'static str {
     match bus_type {
         12 | 13 => "sd",
-        14..=16 => "virtual",
         7 => "usb",
         _ => {
             if removable != 0 {
@@ -262,10 +267,10 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
         });
         out.push(json!({
             "id": disk_id(d.number),
-            // D-ENUM-02's consumer: the kind split is bus-driven now
-            // (BF-02/BF-31 closed) — 'sd' fires for SD/MMC-bus cards,
-            // 'virtual' for file-backed images, USB stays USB, and the
-            // removable flag only decides the unknown-bus fallback.
+            // D-ENUM-02's consumer: 'sd' fires for SD/MMC-bus cards
+            // (BF-02/BF-31), USB stays USB, and every other bus —
+            // virtual/file-backed included (D-ENUM-05) — falls to the
+            // removable flag, so mounted images stay scannable drives.
             "kind": map_kind(d.bus_type, d.removable),
             "busType": bus_type_name(d.bus_type),
             "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
