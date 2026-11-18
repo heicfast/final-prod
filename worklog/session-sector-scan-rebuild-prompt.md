@@ -48,3 +48,19 @@ to run. Truthful-disable per the session rules.
 | Time (UTC) | Entry |
 |---|---|
 | 2026-11-18 | T1 complete: repos cloned, commits recorded (see above), prompt saved redacted, git identity + credential store configured (token never committed). Next: T2 parallel read agents. |
+
+## Session completion record (step-budget cut)
+
+Phase 0 (T2) complete: five context sheets pushed at `d69893ed`.
+Phase 1 (T3) complete: DIAGNOSIS.md (this directory) — stages quantified, fix plan F-A..F-G.
+
+**Not started (truthful scope, next session picks up from F-A):**
+- F-A row-carrying event + during-scan streaming (entry points in DIAGNOSIS.md)
+- F-B/F-C byte-derived monotonic percent + single sector axis
+- F-D manifest-vs-results gate (the phantom/accuracy instrument)
+- F-E bridge filter unification, F-F grading coverage, F-G carve throughput (BF-30)
+- T14 Windows CI sweep, T15 release validation — Linux sandbox, runners required
+- worklog/VALIDATION/ remains honestly EMPTY for this session's fixes
+
+Handoff: entry points + evidence live in worklog/session-sector-scan-rebuild/. The
+concurrent installer-api lane's AsyncRing repair needs its Windows matrix re-run (OPEN-1).
