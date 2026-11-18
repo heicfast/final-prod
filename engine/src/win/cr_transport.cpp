@@ -52,8 +52,8 @@ namespace {
 
 /* The ring tuning seam (cr_transport.h): tests and the bench lane write
  * these BEFORE open; 0 selects the production default. */
-std::atomic<u32> g_ring_run{0};      /* 0 -> 4 MiB (the og's run size) */
-std::atomic<u32> g_ring_slots{0};   /* 0 -> 8 slots (32 MiB window) */
+std::atomic<u32> g_ring_run{0};   /* 0 -> 4 MiB (the og's run size) */
+std::atomic<u32> g_ring_slots{0}; /* 0 -> 8 slots (32 MiB window) */
 
 /* ---------------------------------------------------------------------------
  * Shared geometry probing.
@@ -307,20 +307,20 @@ public:
         enum State : int { kIdle = 0, kInflight = 1, kDone = 2, kFailed = 3 };
         /* OVERLAPPED first: slot_from_ov() is a container_of. */
         OVERLAPPED ov;
-        HANDLE ev = nullptr;  /* manual-reset: wakes all predicate waiters */
-        u8* buf = nullptr;    /* VirtualAlloc'd page-aligned, run_ capacity */
-        u64 off = 0;          /* claimed issued offset (64 KiB floor) */
-        u32 issued = 0;       /* claimed issued length (tail-clamped) */
+        HANDLE ev = nullptr; /* manual-reset: wakes all predicate waiters */
+        u8* buf = nullptr;   /* VirtualAlloc'd page-aligned, run_ capacity */
+        u64 off = 0;         /* claimed issued offset (64 KiB floor) */
+        u32 issued = 0;      /* claimed issued length (tail-clamped) */
         std::atomic<int> state{kIdle};
         std::atomic<u64> used_seq{0}; /* LRU clock for DONE-slot reclaim */
-        u32 got = 0;   /* completed byte count (published before state) */
-        DWORD gle = 0; /* failing GLE (published before state) */
-        std::mutex mu; /* claim/serve/retire serialization: holding it
-                          excludes a concurrent reclaim of this slot
-                          (claim_slot_locked takes it before repurposing
-                          the buffer), so a server copying under the lock
-                          can never race a fresh ReadFile into the same
-                          buffer */
+        u32 got = 0;                  /* completed byte count (published before state) */
+        DWORD gle = 0;                /* failing GLE (published before state) */
+        std::mutex mu;                /* claim/serve/retire serialization: holding it
+                                         excludes a concurrent reclaim of this slot
+                                         (claim_slot_locked takes it before repurposing
+                                         the buffer), so a server copying under the lock
+                                         can never race a fresh ReadFile into the same
+                                         buffer */
     };
 
     AsyncRing(HANDLE h, u64 dev_size, u32 run_bytes, u32 slot_count) {
@@ -421,8 +421,7 @@ public:
                     s = pick_victim_locked();
                     if (!s)
                         return ERR_NO_MEMORY;
-                    const u64 issue_off =
-                        (pos / io::kDirectAlignBytes) * io::kDirectAlignBytes;
+                    const u64 issue_off = (pos / io::kDirectAlignBytes) * io::kDirectAlignBytes;
                     u64 want_end = issue_off + run_;
                     const u64 need_end = pos + take;
                     if (want_end < need_end)
@@ -471,7 +470,7 @@ public:
                     ResetEvent(s->ev);
                     s->state.store(Slot::kIdle, std::memory_order_release);
                     return disconnect::gle_is_disconnect(g2) ? ERR_DEVICE_DISCONNECTED
-                                                              : ERR_READ_FAILED;
+                                                             : ERR_READ_FAILED;
                 }
                 if (st != Slot::kDone || s->off > pos || s->off + s->got <= pos) {
                     /* reclaimed/repurposed under us (or completed short of
@@ -534,7 +533,7 @@ private:
             OVERLAPPED* ov = nullptr;
             const BOOL ok = GetQueuedCompletionStatus(port_, &bytes, &key, &ov, INFINITE);
             if (ov == nullptr)
-                break; /* the stop post, or a hard port failure */
+                break;                               /* the stop post, or a hard port failure */
             const DWORD g = ok ? 0 : GetLastError(); /* captured immediately:
                                                         no intervening call clobbers it */
             Slot* s = slot_from_ov(ov);
@@ -620,9 +619,8 @@ private:
         std::lock_guard<std::mutex> g(ring_mu_);
         if (!active_.load())
             return;
-        const u64 next =
-            (cursor_.load(std::memory_order_relaxed) / io::kDirectAlignBytes) *
-            io::kDirectAlignBytes;
+        const u64 next = (cursor_.load(std::memory_order_relaxed) / io::kDirectAlignBytes) *
+                         io::kDirectAlignBytes;
         if (next >= dev_size_)
             return;
         for (auto& sp : slots_) {
@@ -743,8 +741,8 @@ bool reopen_handle(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_ino
 bool reopen_handle_ov(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_inout) {
     if (!path || !path[0])
         return false;
-    HANDLE nh = CreateFileW(path, access, share, nullptr, OPEN_EXISTING,
-                            FILE_FLAG_OVERLAPPED, nullptr);
+    HANDLE nh =
+        CreateFileW(path, access, share, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
     if (nh == INVALID_HANDLE_VALUE)
         return false;
     HANDLE old = *h_inout;
@@ -762,8 +760,7 @@ bool reopen_handle_ov(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_
 class DirectDevice final : public IStorageDevice {
 public:
     DirectDevice(HANDLE h, Geometry g, std::wstring path, DWORD access, DWORD share)
-        : h_(h), geom_(std::move(g)), path_(std::move(path)), access_(access),
-          share_(share) {
+        : h_(h), geom_(std::move(g)), path_(std::move(path)), access_(access), share_(share) {
         /* 2026-11-18: the data path rides the overlapped read-ahead ring
          * (FILE_FLAG_OVERLAPPED handles + IOCP sliding window - the og's
          * prefetch model generalized). The handle MUST have been opened
@@ -772,8 +769,8 @@ public:
          * the 32 MiB window) the device degrades to the pre-ring sync
          * envelope path - honest, never a silent stall. */
         ring_ = std::make_unique<AsyncRing>(h, geom_.total_bytes,
-                                             g_ring_run.load(std::memory_order_relaxed),
-                                             g_ring_slots.load(std::memory_order_relaxed));
+                                            g_ring_run.load(std::memory_order_relaxed),
+                                            g_ring_slots.load(std::memory_order_relaxed));
     }
     ~DirectDevice() override {
         if (ring_)
@@ -825,9 +822,9 @@ std::unique_ptr<IStorageDevice> open_path(const wchar_t* path, u32* err) {
      * is the documented-safe shape - ReadFile remarks). The
      * DEVICE-ioctls below run BEFORE the ring exists (port not yet
      * created), so GetOverlappedResult-style waits are safe here. */
-    HANDLE h = CreateFileW(path, GENERIC_READ,
-                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                          OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         if (err)
             *err = ERR_OPEN_FAILED;
@@ -1420,16 +1417,19 @@ bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
     return true;
 }
 
-
 /* ---- ring_tuning (cr_transport.h): the sweep seam ---- */
 namespace ring_tuning {
-std::atomic<u32>& run_bytes() { return g_ring_run; }
-std::atomic<u32>& slot_count() { return g_ring_slots; }
+std::atomic<u32>& run_bytes() {
+    return g_ring_run;
+}
+std::atomic<u32>& slot_count() {
+    return g_ring_slots;
+}
 } // namespace ring_tuning
 
 /* ---- open_file_async (cr_transport.h): the ring on an ordinary file ---- */
 std::unique_ptr<IStorageDevice> open_file_async(const wchar_t* path, u32 run_, u32 slots_,
-                                                 u32* err) {
+                                                u32* err) {
     if (!path || !path[0]) {
         if (err)
             *err = ERR_BAD_PARAMETER;

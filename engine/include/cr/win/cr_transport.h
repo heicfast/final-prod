@@ -90,13 +90,13 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, u32* err);
  * (4 MiB runs, 8 slots = 32 MiB window). Geometry is file-shaped
  * (512-byte sectors, exact byte size). */
 std::unique_ptr<IStorageDevice> open_file_async(const wchar_t* path, u32 run_bytes, u32 slots,
-                                                 u32* err);
+                                                u32* err);
 
 /* Ring tuning seam (the measure-first discipline: the sweep harness sets
  * these before open; 0 = production default). Tests and the bench lane
  * are the only writers in-tree. */
 namespace ring_tuning {
-std::atomic<u32>& run_bytes(); /* default 4 MiB (the og's run size) */
+std::atomic<u32>& run_bytes();  /* default 4 MiB (the og's run size) */
 std::atomic<u32>& slot_count(); /* default 8 (32 MiB window) */
 } // namespace ring_tuning
 

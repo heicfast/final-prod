@@ -132,7 +132,7 @@ struct CachedReader::Block final {
      * 2026-11-18 rerun). */
     alignas(kCacheLine) u64 start = 0;
     std::atomic<int> state{0}; /* 0 = FILLING, 1 = VALID, 2 = FAILED */
-    u8* data = nullptr; /* pooled, block_bytes_ capacity */
+    u8* data = nullptr;        /* pooled, block_bytes_ capacity */
     std::shared_ptr<BufferPool> pool;
     mutable std::mutex mu; /* fill publication + waiter queue ONLY — the
                               hit path takes NO block lock (VALID is
@@ -140,9 +140,7 @@ struct CachedReader::Block final {
                               block, and eviction holds the shard lock) */
     std::condition_variable cv;
 
-    explicit Block(std::shared_ptr<BufferPool> p) : pool(std::move(p)) {
-        data = pool->acquire();
-    }
+    explicit Block(std::shared_ptr<BufferPool> p) : pool(std::move(p)) { data = pool->acquire(); }
     ~Block() {
         if (pool && data)
             pool->release(data);
@@ -172,7 +170,8 @@ std::unique_ptr<CachedReader> CachedReader::create(std::unique_ptr<IStorageDevic
     r->capacity_ = static_cast<size_t>(cache_bytes / block_bytes);
     if (r->capacity_ == 0)
         return nullptr;
-    const size_t nshards = r->capacity_ < kShardCount ? (r->capacity_ ? r->capacity_ : 1) : kShardCount;
+    const size_t nshards =
+        r->capacity_ < kShardCount ? (r->capacity_ ? r->capacity_ : 1) : kShardCount;
     const size_t shard_cap = r->capacity_ / nshards;
     r->shards_.resize(nshards);
     for (auto& sp : r->shards_) {
@@ -340,9 +339,9 @@ u32 CachedReader::read_at(u64 offset, void* buffer, u32 length) {
             }
             shard.hits.fetch_add(1, std::memory_order_relaxed);
         } else if (we_fill) {
-            const u32 blen = static_cast<u32>(
-                block_start + block_bytes_ <= inner_->size() ? block_bytes_
-                                                              : inner_->size() - block_start);
+            const u32 blen = static_cast<u32>(block_start + block_bytes_ <= inner_->size()
+                                                  ? block_bytes_
+                                                  : inner_->size() - block_start);
             const u32 rc = inner_->read_at(block_start, b->data, blen);
             {
                 std::lock_guard<std::mutex> bb(b->mu);

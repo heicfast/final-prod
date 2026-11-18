@@ -89,9 +89,9 @@ public:
 
 private:
     CachedReader() = default;
-    struct Block;   /* defined in cr_cached.cpp */
+    struct Block;     /* defined in cr_cached.cpp */
     class BufferPool; /* defined in cr_cached.cpp */
-    struct Shard;   /* defined in cr_cached.cpp */
+    struct Shard;     /* defined in cr_cached.cpp */
 
     static void lru_touch(std::vector<std::shared_ptr<Block>>& blocks, size_t found);
     void evict_overflow_locked(Shard& shard);

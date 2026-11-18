@@ -117,7 +117,9 @@ TEST(DestOverlapSpans, ZeroOffsetCrossDiskNeverArms) {
 
 namespace {
 /* deterministic pattern: byte i = (i*131 + 7) & 0xFF */
-unsigned char pat(u64 i) { return unsigned char((i * 131 + 7) & 0xFF); }
+unsigned char pat(u64 i) {
+    return unsigned char((i * 131 + 7) & 0xFF);
+}
 
 wchar_t* make_pattern_file(u64 bytes) {
     static wchar_t path[MAX_PATH];
@@ -125,8 +127,8 @@ wchar_t* make_pattern_file(u64 bytes) {
     if (GetTempPathW(MAX_PATH, dir) == 0)
         return nullptr;
     GetTempFileNameW(dir, L"ring", 0, path);
-    HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h =
+        CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE)
         return nullptr;
     std::vector<unsigned char> buf(1 << 20);
@@ -210,7 +212,9 @@ TEST(AsyncRing, ConcurrentReadersByteIdentical) {
             std::vector<unsigned char> buf(8192);
             u64 st = 0x9E3779B97F4A7C15ULL * (t + 1);
             for (int k = 0; k < 4000; ++k) {
-                st ^= st << 13; st ^= st >> 7; st ^= st << 17;
+                st ^= st << 13;
+                st ^= st >> 7;
+                st ^= st << 17;
                 const u64 off = st % ((32ull << 20) - 8192);
                 if (dev->read_at(off, buf.data(), 8192) != cr::OK) {
                     bad.fetch_add(1);
