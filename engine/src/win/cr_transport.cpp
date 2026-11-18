@@ -1,5 +1,7 @@
 /* cr_transport.cpp - the Windows transport layer: DIRECT raw I/O under
- * administrator privilege (session-96: the kernel-driver replacement).
+ * administrator privilege (session-96: the kernel-driver replacement),
+ * with the overlapped read-ahead ring (2026-11-18 performance session:
+ * PERF-LEVERS F2/F10 opened - the og's prefetch-thread model generalized).
  *
  * Direct wiring (\\.\PhysicalDriveN, no kernel component of ours):
  *   - open_disk / open_disk_rw / open_disk_apply_rw: the direct whole-disk
@@ -8,10 +10,17 @@
  *   - true byte counts: ReadFile/WriteFile report real transferred bytes
  *     (the driver-era F11 Information=Length*512 scaling is deleted with
  *     the driver)
+ *   - the READ data path (DirectDevice) now opens FILE_FLAG_OVERLAPPED
+ *     and serves every read through the AsyncRing (IOCP + sliding
+ *     window of N outstanding 4 MiB-class 64-KiB-aligned reads,
+ *     refill-on-consume): the og's dedicated prefetch thread + 10-run
+ *     x 4 MiB lookahead (DRWUI:919088-919142) generalized one layer
+ *     down, without the og's driver-era sector-unit grammar. Queue
+ *     depth = the window; concurrent read_at on the one handle is
+ *     documented-safe (unique OVERLAPPED per call).
  *   - the S-010 quiesce chain and the S-029 device-control chain operate
- *     on direct handles (they always did on the volume side; the layout
- *     IOCTLs now issue on the direct disk handle - refresh_disk_properties
- *     is the in-tree proof)
+ *     on direct handles (the write side RwDevice stays synchronous:
+ *     repair/apply writes are single-flight by their own contracts)
  *   - writes staged through a sector-aligned buffer when the caller's is
  *     unaligned (the direct-write rule: the storage stack requires
  *     sector-aligned buffers on raw handles)
@@ -28,15 +37,23 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <shlwapi.h>
+#include <atomic>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace cr {
 namespace win {
 
 namespace {
+
+/* The ring tuning seam (cr_transport.h): tests and the bench lane write
+ * these BEFORE open; 0 selects the production default. */
+std::atomic<u32> g_ring_run{0};      /* 0 -> 4 MiB (the og's run size) */
+std::atomic<u32> g_ring_slots{0};   /* 0 -> 8 slots (32 MiB window) */
 
 /* ---------------------------------------------------------------------------
  * Shared geometry probing.
@@ -56,6 +73,18 @@ u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, DWORD* gle_out) {
     OVERLAPPED ov = {};
     ov.Offset = u32(off);
     ov.OffsetHigh = u32(off >> 32);
+    /* hEvent: REQUIRED for correct concurrent waits on overlapped
+     * handles (completions with a NULL hEvent signal the FILE HANDLE,
+     * waking every waiter - the documented "incorrectly report that the
+     * read operation is complete" hazard). Per-thread event: one
+     * overlapped_read executes at a time per thread, so a thread-local
+     * event is uniquely owned per in-flight call. */
+    static thread_local HANDLE t_ev = [] {
+        HANDLE e = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        return e;
+    }();
+    ov.hEvent = t_ev;
+    ResetEvent(t_ev);
     DWORD got = 0;
     if (!ReadFile(h, buf, len, &got, &ov)) {
         const DWORD e = GetLastError();
@@ -81,24 +110,39 @@ u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, DWORD* gle_out) {
 
 /* Exact byte length for volume AND disk handles (IOCTL_DISK_GET_LENGTH_INFO
  * works on both; DISK_GEOMETRY_EX rounds to the disk geometry). */
-bool probe_length(HANDLE h, u64* out) {
+bool probe_length(HANDLE h, u64* out, bool overlapped = false) {
+    /* Overlapped handles (the ring's data path) MUST receive a valid
+     * OVERLAPPED from DeviceIoControl (the documented requirement); the
+     * wait below runs BEFORE any IOCP association exists, so the
+     * synchronous GetOverlappedResult shape is safe. Sync handles take
+     * the null-overlapped call unchanged. */
     GET_LENGTH_INFORMATION li = {};
     DWORD br = 0;
-    if (DeviceIoControl(h, IOCTL_DISK_GET_LENGTH_INFO, nullptr, 0, &li, sizeof(li), &br, nullptr)) {
+    OVERLAPPED ov = {};
+    OVERLAPPED* ovp = overlapped ? &ov : nullptr;
+    if (DeviceIoControl(h, IOCTL_DISK_GET_LENGTH_INFO, nullptr, 0, &li, sizeof(li), &br, ovp)) {
         *out = u64(li.Length.QuadPart);
         return true;
+    }
+    if (overlapped && GetLastError() == ERROR_IO_PENDING) {
+        if (GetOverlappedResult(h, &ov, &br, TRUE)) {
+            *out = u64(li.Length.QuadPart);
+            return true;
+        }
     }
     return false;
 }
 
-Geometry probe_geometry(HANDLE h, u64* out_size) {
+Geometry probe_geometry(HANDLE h, u64* out_size, bool overlapped = false) {
     Geometry g{};
     DISK_GEOMETRY_EX dg = {};
     DWORD br = 0;
+    OVERLAPPED ov = {};
+    OVERLAPPED* ovp = overlapped ? &ov : nullptr;
     u64 exact = 0;
-    const bool have_exact = probe_length(h, &exact);
+    const bool have_exact = probe_length(h, &exact, overlapped);
     if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &dg, sizeof(dg), &br,
-                        nullptr)) {
+                        ovp)) {
         g.logical_sector = dg.Geometry.BytesPerSector;
         g.physical_sector = dg.Geometry.BytesPerSector;
         /* corrected via the alignment query below (512e/4Kn) */
@@ -107,7 +151,7 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
         q.QueryType = PropertyStandardQuery;
         u8 buf[4096];
         if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
-                            nullptr)) {
+                            ovp)) {
             /* STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR authoritative layout
              * (winioctl.h / MS-DDK): Version@0, Size@4, BytesPerCacheLine@8,
              * BytesOffsetForCacheAlignment@0xC, BytesPerLogicalSector@0x10,
@@ -183,10 +227,15 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
  * no bounce copy. The F11 Information-scale compensation is orthogonal
  * (it keys on the ISSUED length, not the caller's).
  *
- * Threading: reads through the engine pipe arrive serialized under the
- * CachedReader mutex; per-handle single-flight is the ABI contract
- * (ABI-CONTRACT section 3), so the shared HANDLE is safe here. The
- * per-thread bounce below additionally tolerates concurrent callers.
+ * Threading: since the 2026-11-18 performance session the engine pipe's
+ * readers reach the transport CONCURRENTLY (the sharded CachedReader
+ * fills outside its registry locks - cr_cached.cpp). The data-path
+ * handle is FILE_FLAG_OVERLAPPED and every read rides the AsyncRing
+ * (unique OVERLAPPED per issued read: the documented-safe concurrent
+ * shape); this aligned_read_at helper is now the WRITE-side (RwDevice)
+ * and degraded-path reader, whose callers are single-flight by their
+ * own contracts (repair/apply) - the per-thread bounce below tolerates
+ * any concurrent stragglers.
  * ------------------------------------------------------------------------ */
 u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, u64 dev_size, DWORD* gle_out) {
     if (len == 0)
@@ -213,6 +262,446 @@ u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, u64 dev_size, DWORD* 
     std::memcpy(buf, bounce.data() + size_t(e.skip), size_t(e.take));
     return OK;
 }
+
+/* ---------------------------------------------------------------------------
+ * THE OVERLAPPED READ-AHEAD RING (2026-11-18 performance session).
+ *
+ * The og's latency-hiding, generalized: their CStorageDeviceWithCache runs a
+ * dedicated prefetch thread with a 10-run look-ahead ring of 4 MiB runs
+ * (DRWUI_decompiled.c:919088-919142, Device:56545) on top of synchronous
+ * QD1 ReadFile. Ours: the data-path handle is FILE_FLAG_OVERLAPPED and
+ * reads are served from a sliding window of outstanding overlapped reads,
+ * completed through ONE I/O completion port served by ONE completion thread
+ * (GetQueuedCompletionStatus; NumberOfConcurrentThreads=1 - a completion
+ * here is mark-state + SetEvent, trivially serial), with per-slot
+ * manual-reset events and lock-free predicate waits. GetOverlappedResult
+ * is NEVER called on the port-associated handle (the documented
+ * IOCP+GetOverlappedResult hazard: the port thread may dequeue the
+ * completion the waiter would wait on).
+ *
+ *   - refill-on-consume: after a slot's bytes are consumed, the next run
+ *     after the read cursor is issued on a free slot (follow-the-cursor -
+ *     the og's "CacheThread find read sector" policy, vendor log
+ *     DRWUI:962634).
+ *   - pivot-on-miss: a read outside the window issues at its own 64 KiB
+ *     floor (random-access streams degrade to sync-like behavior, never
+ *     worse than the pre-ring transport).
+ *   - every ISSUED read: 64 KiB-multiple length at a 64 KiB-floor offset
+ *     (the GAP-S6-13 mandate property), clamped at the device tail (the
+ *     documented tail exception).
+ *   - concurrency: multiple reader threads share the ring (the sharded
+ *     CachedReader fills concurrently above). Lock order is one-way:
+ *     ring_mu_ THEN slot.mu, never the reverse; waits sleep on events,
+ *     never on a lock held across I/O. Slot claims happen under
+ *     ring_mu_ (no double-issue race); ReadFile queueing happens with
+ *     no lock held.
+ *   - teardown: CancelIoEx per pending slot, stop post, join, drain,
+ *     free (the documented OVERLAPPED-lifetime discipline: no slot
+ *     memory goes away before its completions are observed).
+ *   - heal: rebind() re-associates a reopened handle onto the same port
+ *     and resets the slots (the DirectDevice error-6 retry path).
+ * ------------------------------------------------------------------------ */
+class AsyncRing final {
+public:
+    struct Slot {
+        enum State : int { kIdle = 0, kInflight = 1, kDone = 2, kFailed = 3 };
+        /* OVERLAPPED first: slot_from_ov() is a container_of. */
+        OVERLAPPED ov;
+        HANDLE ev = nullptr;  /* manual-reset: wakes all predicate waiters */
+        u8* buf = nullptr;    /* VirtualAlloc'd page-aligned, run_ capacity */
+        u64 off = 0;          /* claimed issued offset (64 KiB floor) */
+        u32 issued = 0;       /* claimed issued length (tail-clamped) */
+        std::atomic<int> state{kIdle};
+        std::atomic<u64> used_seq{0}; /* LRU clock for DONE-slot reclaim */
+        u32 got = 0;   /* completed byte count (published before state) */
+        DWORD gle = 0; /* failing GLE (published before state) */
+        std::mutex mu; /* claim/serve/retire serialization: holding it
+                          excludes a concurrent reclaim of this slot
+                          (claim_slot_locked takes it before repurposing
+                          the buffer), so a server copying under the lock
+                          can never race a fresh ReadFile into the same
+                          buffer */
+    };
+
+    AsyncRing(HANDLE h, u64 dev_size, u32 run_bytes, u32 slot_count) {
+        u64 run = run_bytes ? run_bytes : 4ull * 1024 * 1024;
+        const u64 kA = io::kDirectAlignBytes;
+        run = (run / kA) * kA; /* 64 KiB multiple (at least one below) */
+        if (run < kA)
+            run = kA;
+        if (dev_size < run) { /* small device: fit the run to it */
+            run = (dev_size / kA) * kA;
+            if (run < kA)
+                run = kA;
+        }
+        run_ = u32(run);
+        u64 want_slots = slot_count ? slot_count : 8;
+        const u64 by_dev = (dev_size + run - 1) / run;
+        if (want_slots > by_dev)
+            want_slots = by_dev;
+        if (want_slots < 1)
+            want_slots = 1;
+        h_.store(h);
+        dev_size_ = dev_size;
+        cursor_.store(0);
+        port_ = CreateIoCompletionPort(h, nullptr, 0 /*device key*/, 1 /*concurrency*/);
+        if (port_ == nullptr)
+            return; /* ring disabled: DirectDevice falls back to the sync path */
+        for (u64 i = 0; i < want_slots; ++i) {
+            auto sp = std::make_unique<Slot>();
+            sp->ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+            sp->buf = static_cast<u8*>(
+                VirtualAlloc(nullptr, run_, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+            if (sp->ev && sp->buf)
+                slots_.push_back(std::move(sp));
+        }
+        if (slots_.empty()) {
+            CloseHandle(port_); /* disabled ring: no handle leaks */
+            port_ = nullptr;
+            return;
+        }
+        worker_ = std::thread([this] { completion_loop(); });
+        active_.store(true);
+    }
+
+    ~AsyncRing() { stop(); }
+
+    bool active() const { return active_.load(); }
+
+    /* Heal: associate the reopened handle onto the same port, reset all
+     * slots (inflight ones were CancelIoEx'd; their aborted completions
+     * are drained here; the worker keeps serving). */
+    bool rebind(HANDLE nh) {
+        std::lock_guard<std::mutex> g(ring_mu_);
+        if (!active_.load() || nh == nullptr || nh == INVALID_HANDLE_VALUE)
+            return false;
+        cancel_inflight_locked();
+        drain_port_locked();
+        if (CreateIoCompletionPort(nh, port_, 0, 1) == nullptr)
+            return false;
+        h_.store(nh);
+        for (auto& sp : slots_)
+            reset_slot_locked(*sp);
+        return true;
+    }
+
+    /* Serve [off, off+len). Returns the transport rc; *gle_out carries
+     * the failing GLE for the DirectDevice heal decision. */
+    u32 read(u64 off, void* buf, u32 len, u64 dev_size, DWORD* gle_out) {
+        u8* dst = static_cast<u8*>(buf);
+        u64 pos = off;
+        u32 remain = len;
+        while (remain > 0) {
+            Slot* s = nullptr;
+            bool do_issue = false;
+            {
+                std::lock_guard<std::mutex> g(ring_mu_);
+                const u32 take = min_u32(remain, run_);
+                /* 1. DONE slot fully covering the next slice */
+                for (auto& sp : slots_) {
+                    if (sp->state.load(std::memory_order_acquire) == Slot::kDone &&
+                        sp->off <= pos && pos + take <= sp->off + sp->got) {
+                        s = sp.get();
+                        break;
+                    }
+                }
+                /* 2. INFLIGHT slot whose issued range covers it: wait (the
+                 * read-ahead payoff - the consumer-blocks-on-run model) */
+                if (!s) {
+                    for (auto& sp : slots_) {
+                        if (sp->state.load(std::memory_order_acquire) == Slot::kInflight &&
+                            sp->off <= pos && pos + take <= sp->off + sp->issued) {
+                            s = sp.get();
+                            break;
+                        }
+                    }
+                }
+                /* 3. pivot: claim a slot at this request's 64 KiB floor */
+                if (!s) {
+                    s = pick_victim_locked();
+                    if (!s)
+                        return ERR_NO_MEMORY;
+                    const u64 issue_off =
+                        (pos / io::kDirectAlignBytes) * io::kDirectAlignBytes;
+                    u64 want_end = issue_off + run_;
+                    const u64 need_end = pos + take;
+                    if (want_end < need_end)
+                        want_end = need_end;
+                    if (want_end > dev_size)
+                        want_end = dev_size; /* the documented tail clamp */
+                    if (want_end <= issue_off)
+                        return ERR_RANGE_OUT_OF_BOUNDS;
+                    const u32 issue_len = u32(want_end - issue_off);
+                    claim_slot_locked(*s, issue_off, issue_len);
+                    do_issue = true;
+                }
+            }
+
+            if (do_issue && !issue(*s)) {
+                /* issue-side hard failure (not pending): the slot is
+                 * already FAILED with its gle published; report like a
+                 * completion failure (the heal path rides the gle). */
+                if (gle_out)
+                    *gle_out = s->gle;
+                return ERR_READ_FAILED;
+            }
+
+            /* lock-free predicate wait: the terminal publish (state
+             * release-store after got/gle writes) makes the event a pure
+             * wake mechanism; NO lock is held while sleeping. */
+            for (;;) {
+                if (s->state.load(std::memory_order_acquire) != Slot::kInflight)
+                    break;
+                WaitForSingleObject(s->ev, INFINITE);
+            }
+            /* serve under the slot lock: excludes a concurrent reclaim
+             * (a pivot claiming this slot as victim takes the same lock
+             * BEFORE repurposing the buffer), and re-validates the slot
+             * still holds OUR bytes - a found-DONE slot can have been
+             * claimed-and-reissued between our ring-lock release and
+             * here (state INFLIGHT again, or a new off). */
+            bool retry = false;
+            {
+                std::lock_guard<std::mutex> g(s->mu);
+                const int st = s->state.load(std::memory_order_acquire);
+                if (st == Slot::kFailed) {
+                    const DWORD g2 = s->gle;
+                    if (gle_out)
+                        *gle_out = g2;
+                    ResetEvent(s->ev);
+                    s->state.store(Slot::kIdle, std::memory_order_release);
+                    return disconnect::gle_is_disconnect(g2) ? ERR_DEVICE_DISCONNECTED
+                                                              : ERR_READ_FAILED;
+                }
+                if (st != Slot::kDone || s->off > pos || s->off + s->got <= pos) {
+                    /* reclaimed/repurposed under us (or completed short of
+                     * this request): re-select from the top - the slot's
+                     * new state is another reader's business, never ours */
+                    retry = true;
+                } else {
+                    const u32 take = min_u32(remain, u32(s->off + s->got - pos));
+                    std::memcpy(dst, s->buf + (pos - s->off), take);
+                    dst += take;
+                    pos += take;
+                    remain -= take;
+                    s->used_seq.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+            if (retry)
+                continue;
+            advance_cursor(pos);
+            /* refill-on-consume: the next run after the cursor on a free
+             * slot (NO slot lock held here - one-way lock order). */
+            kick_readahead();
+        }
+        return OK;
+    }
+
+    void stop() {
+        {
+            std::lock_guard<std::mutex> g(ring_mu_);
+            if (!active_.exchange(false))
+                return;
+            cancel_inflight_locked();
+        }
+        if (worker_.joinable()) {
+            PostQueuedCompletionStatus(port_, 0, kStopKey, nullptr);
+            worker_.join();
+        }
+        {
+            std::lock_guard<std::mutex> g(ring_mu_);
+            drain_port_locked();
+            for (auto& sp : slots_) {
+                if (sp->ev)
+                    CloseHandle(sp->ev);
+                if (sp->buf)
+                    VirtualFree(sp->buf, 0, MEM_RELEASE);
+            }
+            slots_.clear();
+            if (port_)
+                CloseHandle(port_);
+            port_ = nullptr;
+        }
+    }
+
+private:
+    static constexpr ULONG_PTR kStopKey = 1; /* any value: identified by ov==NULL */
+
+    void completion_loop() {
+        for (;;) {
+            DWORD bytes = 0;
+            ULONG_PTR key = 0;
+            OVERLAPPED* ov = nullptr;
+            const BOOL ok = GetQueuedCompletionStatus(port_, &bytes, &key, &ov, INFINITE);
+            if (ov == nullptr)
+                break; /* the stop post, or a hard port failure */
+            const DWORD g = ok ? 0 : GetLastError(); /* captured immediately:
+                                                        no intervening call clobbers it */
+            Slot* s = slot_from_ov(ov);
+            {
+                std::lock_guard<std::mutex> g(s->mu);
+                if (ok)
+                    s->got = bytes;
+                else
+                    s->gle = g;
+            }
+            /* got/gle are published BEFORE the state release-store */
+            s->state.store(ok ? Slot::kDone : Slot::kFailed, std::memory_order_release);
+            SetEvent(s->ev);
+        }
+    }
+
+    static Slot* slot_from_ov(OVERLAPPED* ov) {
+        return reinterpret_cast<Slot*>(reinterpret_cast<char*>(ov) - offsetof(Slot, ov));
+    }
+
+    /* Ring lock held: mark a slot claimed (IDLE/FAILED/DONE -> INFLIGHT
+     * with its issued coordinates). The claim is the double-issue guard:
+     * only a ring-lock holder transitions a slot to INFLIGHT. */
+    void claim_slot_locked(Slot& s, u64 a_off, u32 ilen) {
+        std::lock_guard<std::mutex> g(s.mu);
+        ResetEvent(s.ev);
+        s.ov = OVERLAPPED{};
+        s.ov.Offset = u32(a_off);
+        s.ov.OffsetHigh = u32(a_off >> 32);
+        s.ov.hEvent = s.ev;
+        s.off = a_off;
+        s.issued = ilen;
+        s.got = 0;
+        s.gle = 0;
+        s.state.store(Slot::kInflight, std::memory_order_release);
+    }
+
+    /* Queue the ReadFile for an already-claimed slot. No lock held (and
+     * none taken: the claim already serialized this slot). */
+    bool issue(Slot& s) {
+        BOOL ok = ReadFile(h_.load(), s.buf, s.issued, nullptr, &s.ov);
+        if (!ok) {
+            const DWORD e = GetLastError();
+            if (e != ERROR_IO_PENDING) {
+                std::lock_guard<std::mutex> g(s.mu);
+                s.gle = e;
+                s.state.store(Slot::kFailed, std::memory_order_release);
+                SetEvent(s.ev);
+                return false;
+            }
+        }
+        return true; /* pending - or completed synchronously: the port
+                        still queues the completion packet */
+    }
+
+    /* Ring lock held: pick the reclaim target. IDLE first, then FAILED,
+     * then the least-recently-used DONE. INFLIGHT never (waiters). */
+    Slot* pick_victim_locked() {
+        Slot* failed = nullptr;
+        Slot* oldest_done = nullptr;
+        u64 oldest_seq = ~u64(0);
+        for (auto& sp : slots_) {
+            const int st = sp->state.load(std::memory_order_acquire);
+            if (st == Slot::kIdle)
+                return sp.get();
+            if (st == Slot::kFailed && !failed)
+                failed = sp.get();
+            if (st == Slot::kDone) {
+                const u64 seq = sp->used_seq.load(std::memory_order_relaxed);
+                if (!oldest_done || seq < oldest_seq) {
+                    oldest_done = sp.get();
+                    oldest_seq = seq;
+                }
+            }
+        }
+        return failed ? failed : oldest_done;
+    }
+
+    /* Refill-on-consume: issue the next run after the cursor on a free
+     * slot. Ring lock for the scan/claim (claim takes the slot lock -
+     * one-way order); ReadFile queues with no lock held. */
+    void kick_readahead() {
+        std::lock_guard<std::mutex> g(ring_mu_);
+        if (!active_.load())
+            return;
+        const u64 next =
+            (cursor_.load(std::memory_order_relaxed) / io::kDirectAlignBytes) *
+            io::kDirectAlignBytes;
+        if (next >= dev_size_)
+            return;
+        for (auto& sp : slots_) {
+            const int st = sp->state.load(std::memory_order_acquire);
+            if (st == Slot::kInflight || st == Slot::kDone) {
+                if (sp->off == next)
+                    return; /* the window already leads here */
+                continue;
+            }
+            u64 end = next + run_;
+            if (end > dev_size_)
+                end = dev_size_;
+            if (end <= next)
+                return;
+            claim_slot_locked(*sp, next, u32(end - next));
+            issue(*sp);
+            return; /* one kick per consume */
+        }
+    }
+
+    void advance_cursor(u64 end) {
+        u64 cur = cursor_.load(std::memory_order_relaxed);
+        while (end > cur && !cursor_.compare_exchange_weak(cur, end))
+            ;
+    }
+
+    void reset_slot_locked(Slot& s) {
+        std::lock_guard<std::mutex> g(s.mu);
+        ResetEvent(s.ev);
+        s.got = 0;
+        s.gle = 0;
+        s.off = 0;
+        s.issued = 0;
+        s.state.store(Slot::kIdle, std::memory_order_release);
+    }
+
+    void cancel_inflight_locked() {
+        for (auto& sp : slots_) {
+            if (sp->state.load(std::memory_order_acquire) == Slot::kInflight)
+                CancelIoEx(h_.load(), &sp->ov);
+        }
+    }
+
+    /* Non-blocking drain of the port queue: marks aborted completions
+     * terminal. Used under ring_mu_ (slot lock per packet - one-way). */
+    void drain_port_locked() {
+        for (;;) {
+            DWORD bytes = 0;
+            ULONG_PTR key = 0;
+            OVERLAPPED* ov = nullptr;
+            const BOOL ok = GetQueuedCompletionStatus(port_, &bytes, &key, &ov, 0);
+            if (ov == nullptr)
+                break; /* empty (ERROR_TIMEOUT) or the stop post */
+            const DWORD g = ok ? 0 : GetLastError();
+            Slot* s = slot_from_ov(ov);
+            {
+                std::lock_guard<std::mutex> g2(s->mu);
+                if (ok)
+                    s->got = bytes;
+                else
+                    s->gle = g;
+            }
+            s->state.store(ok ? Slot::kDone : Slot::kFailed, std::memory_order_release);
+            SetEvent(s->ev);
+        }
+    }
+
+    static u32 min_u32(u64 a, u64 b) { return u32(a < b ? a : b); }
+
+    std::atomic<HANDLE> h_{nullptr};
+    u64 dev_size_ = 0;
+    u32 run_ = 4u * 1024 * 1024;
+    HANDLE port_ = nullptr;
+    std::vector<std::unique_ptr<Slot>> slots_;
+    std::thread worker_;
+    std::mutex ring_mu_;
+    std::atomic<bool> active_{false};
+    std::atomic<u64> cursor_{0}; /* read-ahead anchor: advances with consumption */
+};
 
 /* ---------------------------------------------------------------------------
  * Handle self-healing (og parity, core-api session).
@@ -248,6 +737,23 @@ bool reopen_handle(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_ino
     return true;
 }
 
+/* The overlapped twin (the ring's handles reopen FILE_FLAG_OVERLAPPED -
+ * reopening without the flag would put the healed handle back on the
+ * serialized I/O-manager path). */
+bool reopen_handle_ov(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_inout) {
+    if (!path || !path[0])
+        return false;
+    HANDLE nh = CreateFileW(path, access, share, nullptr, OPEN_EXISTING,
+                            FILE_FLAG_OVERLAPPED, nullptr);
+    if (nh == INVALID_HANDLE_VALUE)
+        return false;
+    HANDLE old = *h_inout;
+    *h_inout = nh;
+    if (old != INVALID_HANDLE_VALUE && old != nh)
+        CloseHandle(old);
+    return true;
+}
+
 /* ---------------------------------------------------------------------------
  * Direct device: true byte counts from the IO manager. THE data-path
  * device of the direct era (the RDA grammar-path twin was removed with
@@ -256,8 +762,22 @@ bool reopen_handle(const wchar_t* path, DWORD access, DWORD share, HANDLE* h_ino
 class DirectDevice final : public IStorageDevice {
 public:
     DirectDevice(HANDLE h, Geometry g, std::wstring path, DWORD access, DWORD share)
-        : h_(h), geom_(std::move(g)), path_(std::move(path)), access_(access), share_(share) {}
+        : h_(h), geom_(std::move(g)), path_(std::move(path)), access_(access),
+          share_(share) {
+        /* 2026-11-18: the data path rides the overlapped read-ahead ring
+         * (FILE_FLAG_OVERLAPPED handles + IOCP sliding window - the og's
+         * prefetch model generalized). The handle MUST have been opened
+         * with FILE_FLAG_OVERLAPPED by the open site (open_path); the
+         * ring construction is best-effort: on failure (no memory for
+         * the 32 MiB window) the device degrades to the pre-ring sync
+         * envelope path - honest, never a silent stall. */
+        ring_ = std::make_unique<AsyncRing>(h, geom_.total_bytes,
+                                             g_ring_run.load(std::memory_order_relaxed),
+                                             g_ring_slots.load(std::memory_order_relaxed));
+    }
     ~DirectDevice() override {
+        if (ring_)
+            ring_->stop(); /* cancels, drains, joins - before the handle dies */
         if (h_ != INVALID_HANDLE_VALUE)
             CloseHandle(h_);
     }
@@ -267,7 +787,18 @@ public:
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
         DWORD gle = 0;
-        u32 rc = aligned_read_at(h_, off, buf, len, size(), &gle);
+        u32 rc = OK;
+        if (ring_ && ring_->active()) {
+            rc = ring_->read(off, buf, len, size(), &gle);
+            if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
+                std::lock_guard<std::mutex> g(heal_mu_);
+                if (reopen_handle_ov(path_.c_str(), access_, share_, &h_) && ring_->rebind(h_))
+                    rc = ring_->read(off, buf, len, size(), nullptr);
+            }
+            return rc;
+        }
+        /* degraded (ring construction failed): the pre-ring sync path */
+        rc = aligned_read_at(h_, off, buf, len, size(), &gle);
         if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
             std::lock_guard<std::mutex> g(heal_mu_);
             if (reopen_handle(path_.c_str(), access_, share_, &h_))
@@ -285,18 +816,24 @@ private:
     DWORD access_ = GENERIC_READ;
     DWORD share_ = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
     std::mutex heal_mu_;
+    std::unique_ptr<AsyncRing> ring_;
 };
 
 std::unique_ptr<IStorageDevice> open_path(const wchar_t* path, u32* err) {
-    HANDLE h =
-        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    /* 2026-11-18: FILE_FLAG_OVERLAPPED on the data-path open (the ring's
+     * precondition; concurrent unique-OVERLAPPED ReadFile on one handle
+     * is the documented-safe shape - ReadFile remarks). The
+     * DEVICE-ioctls below run BEFORE the ring exists (port not yet
+     * created), so GetOverlappedResult-style waits are safe here. */
+    HANDLE h = CreateFileW(path, GENERIC_READ,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                          OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         if (err)
             *err = ERR_OPEN_FAILED;
         return nullptr;
     }
-    Geometry g = probe_geometry(h, nullptr);
+    Geometry g = probe_geometry(h, nullptr, true /*overlapped handle now*/);
     if (g.total_bytes == 0) {
         /* last resort for exotic handles: file-system size */
         LARGE_INTEGER sz = {};
@@ -881,6 +1418,34 @@ bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
         return false;
     *letter = root[0];
     return true;
+}
+
+
+/* ---- ring_tuning (cr_transport.h): the sweep seam ---- */
+namespace ring_tuning {
+std::atomic<u32>& run_bytes() { return g_ring_run; }
+std::atomic<u32>& slot_count() { return g_ring_slots; }
+} // namespace ring_tuning
+
+/* ---- open_file_async (cr_transport.h): the ring on an ordinary file ---- */
+std::unique_ptr<IStorageDevice> open_file_async(const wchar_t* path, u32 run_, u32 slots_,
+                                                 u32* err) {
+    if (!path || !path[0]) {
+        if (err)
+            *err = ERR_BAD_PARAMETER;
+        return nullptr;
+    }
+    /* the explicit run/slots take precedence over the globals for this
+     * one open (the test/bench surface); 0 = the production defaults */
+    if (run_ || slots_) {
+        const u32 prev_run = g_ring_run.exchange(run_);
+        const u32 prev_slots = g_ring_slots.exchange(slots_);
+        std::unique_ptr<IStorageDevice> dev = open_path(path, err);
+        g_ring_run.store(prev_run);
+        g_ring_slots.store(prev_slots);
+        return dev;
+    }
+    return open_path(path, err);
 }
 
 } // namespace win

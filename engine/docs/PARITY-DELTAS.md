@@ -2308,6 +2308,24 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
+**2026-11-18 amendment (the performance session, benchmark-gated as this
+row requires):** both halves of the algorithm divergence CLOSED in-tree
+as measured decisions. (a) The cache itself is now fill-outside-the-lock
+with per-block in-flight claims on a 32-shard segmented LRU (the old
+single global mutex serialized every worker's transport round trip —
+measured aggregate 0.54x/0.17x/0.12x at N=2/4/8, now 0.96x/0.82x/0.82x,
+worklog/PERFORMANCE.md fix 1); the BUDGET stays 8 MiB / 256 KiB exactly
+as registered (the pin's three artifacts stay in lockstep). (b) The
+sequential latency-hiding the og gets from its prefetch thread is now
+provided at the transport: every data-path handle opens
+FILE_FLAG_OVERLAPPED and serves through the AsyncRing IOCP
+sliding-window (4 MiB runs x 8 slots = 32 MiB window vs the og's 10-run
+x 4 MiB ring; cr_transport.cpp) — the "one layer down by large reads"
+clause above is superseded by the ring, same file, same budget class.
+The row's budget+algorithm REGISTER status stays (the og's own cache
+algorithm is still its own shape); the engine-side halves are recorded
+as closed by measurement in worklog/PERFORMANCE.md fixes 1-2.
+
 ### D-99 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 
 **Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og

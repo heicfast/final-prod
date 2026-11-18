@@ -24,6 +24,11 @@
 #include <gtest/gtest.h>
 #include "cr/win/cr_transport.h"
 
+#include <windows.h>
+
+#include <atomic>
+#include <cstdio>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -96,4 +101,155 @@ TEST(DestOverlapSpans, ZeroOffsetCrossDiskNeverArms) {
     ve.push_back(ext(0, 0, 256ull << 30)); /* dest = whole of disk 0 */
     std::vector<std::pair<u64, u64>> spans;
     ASSERT_FALSE(dest_overlap_spans(ve, true, 2, &spans));
+}
+
+/* ===================== the overlapped read-ahead ring =====================
+ * 2026-11-18 performance session (PERF-LEVERS F2/F10 opened): the
+ * FILE_FLAG_OVERLAPPED + IOCP sliding-window transport. These tests ride
+ * open_file_async() on a real temp file (the ring's documented surface):
+ * byte-exactness across shapes (aligned, ragged, tail, multi-run),
+ * read-ahead actually issuing ahead (latency hiding), concurrent readers
+ * byte-identical, and immediate teardown with slots in flight (the
+ * CancelIoEx + drain + join discipline).
+ * ========================================================================== */
+
+#include <cstdio>
+
+namespace {
+/* deterministic pattern: byte i = (i*131 + 7) & 0xFF */
+unsigned char pat(u64 i) { return unsigned char((i * 131 + 7) & 0xFF); }
+
+wchar_t* make_pattern_file(u64 bytes) {
+    static wchar_t path[MAX_PATH];
+    wchar_t dir[MAX_PATH];
+    if (GetTempPathW(MAX_PATH, dir) == 0)
+        return nullptr;
+    GetTempFileNameW(dir, L"ring", 0, path);
+    HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return nullptr;
+    std::vector<unsigned char> buf(1 << 20);
+    u64 written = 0;
+    while (written < bytes) {
+        const u32 chunk = u32(bytes - written < u64(buf.size()) ? bytes - written : buf.size());
+        for (u32 i = 0; i < chunk; ++i)
+            buf[i] = pat(written + i);
+        DWORD put = 0;
+        if (!WriteFile(h, buf.data(), chunk, &put, nullptr) || put != chunk) {
+            CloseHandle(h);
+            DeleteFileW(path);
+            return nullptr;
+        }
+        written += chunk;
+    }
+    CloseHandle(h);
+    return path;
+}
+
+bool check_read(cr::IStorageDevice* dev, u64 off, u32 len) {
+    std::vector<unsigned char> got(len);
+    if (dev->read_at(off, got.data(), len) != cr::OK)
+        return false;
+    for (u32 i = 0; i < len; ++i)
+        if (got[i] != pat(off + i))
+            return false;
+    return true;
+}
+} // namespace
+
+TEST(AsyncRing, ByteExactAcrossShapes) {
+    wchar_t* path = make_pattern_file(24ull << 20);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    auto dev = cr::win::open_file_async(path, 0, 0, &err);
+    ASSERT_NE(dev, nullptr) << "err=" << err;
+    EXPECT_EQ(err, cr::OK);
+    /* aligned */
+    EXPECT_TRUE(check_read(dev.get(), 0, 4096));
+    EXPECT_TRUE(check_read(dev.get(), 4 << 20, 256 * 1024));
+    /* ragged (unaligned offset + odd length - the envelope floor/ceil) */
+    EXPECT_TRUE(check_read(dev.get(), 1234, 333));
+    EXPECT_TRUE(check_read(dev.get(), (8 << 20) + 65531, 9001));
+    /* multi-run (bigger than one 4 MiB window) */
+    EXPECT_TRUE(check_read(dev.get(), 3 << 20, 9 << 20));
+    /* the device tail (documented tail clamp) */
+    EXPECT_TRUE(check_read(dev.get(), (24ull << 20) - 4096, 4096));
+    /* bounds contract preserved */
+    unsigned char b;
+    EXPECT_EQ(dev->read_at(24ull << 20, &b, 1), cr::ERR_RANGE_OUT_OF_BOUNDS);
+    DeleteFileW(path);
+}
+
+TEST(AsyncRing, SequentialReadAheadServes) {
+    /* a long sequential walk: every 64 KiB step must hit - by construction
+     * the ring issues ahead; the assertion is the byte truth + that the
+     * whole walk completes (the readahead never wedges). */
+    wchar_t* path = make_pattern_file(48ull << 20);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    auto dev = cr::win::open_file_async(path, 0, 0, &err);
+    ASSERT_NE(dev, nullptr);
+    for (u64 off = 0; off + 4096 <= 48ull << 20; off += 64 * 1024)
+        if (!check_read(dev.get(), off, 4096)) {
+            FAIL() << "readahead walk broke at off=" << off;
+        }
+    DeleteFileW(path);
+}
+
+TEST(AsyncRing, ConcurrentReadersByteIdentical) {
+    wchar_t* path = make_pattern_file(32ull << 20);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    auto dev = cr::win::open_file_async(path, 0, 0, &err);
+    ASSERT_NE(dev, nullptr);
+    std::atomic<int> bad{0};
+    std::vector<std::thread> th;
+    for (int t = 0; t < 4; ++t) {
+        th.emplace_back([&, t] {
+            std::vector<unsigned char> buf(8192);
+            u64 st = 0x9E3779B97F4A7C15ULL * (t + 1);
+            for (int k = 0; k < 4000; ++k) {
+                st ^= st << 13; st ^= st >> 7; st ^= st << 17;
+                const u64 off = st % ((32ull << 20) - 8192);
+                if (dev->read_at(off, buf.data(), 8192) != cr::OK) {
+                    bad.fetch_add(1);
+                    return;
+                }
+                for (u32 i = 0; i < 8192; ++i)
+                    if (buf[i] != pat(off + i)) {
+                        bad.fetch_add(1);
+                        return;
+                    }
+            }
+        });
+    }
+    for (auto& x : th)
+        x.join();
+    EXPECT_EQ(bad.load(), 0);
+    DeleteFileW(path);
+}
+
+TEST(AsyncRing, TuningOverrideAndTeardownInFlight) {
+    /* the sweep seam: a non-default run/slot config serves byte-exact,
+     * and destroying the device while read-ahead slots are IN FLIGHT is
+     * clean (cancel + drain + join: no hang, no leak, no crash - the
+     * destructor discipline the OVERLAPPED lifetime rules require). */
+    wchar_t* path = make_pattern_file(32ull << 20);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    {
+        auto dev = cr::win::open_file_async(path, 256 * 1024 /*run*/, 16 /*slots*/, &err);
+        ASSERT_NE(dev, nullptr);
+        EXPECT_TRUE(check_read(dev.get(), 5 << 20, 1 << 20));
+        EXPECT_TRUE(check_read(dev.get(), 1000, 777));
+        /* slots are in flight here (readahead was kicked by the walks);
+         * the destructor runs immediately after this line */
+    }
+    {
+        auto dev = cr::win::open_file_async(path, 0, 1 /*single slot*/, &err);
+        ASSERT_NE(dev, nullptr);
+        EXPECT_TRUE(check_read(dev.get(), 0, 32ull << 20));
+    }
+    DeleteFileW(path);
 }

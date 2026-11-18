@@ -1,6 +1,8 @@
 /*
  * cr_transport.h - the Windows transport layer: DIRECT raw I/O, user mode,
- * administrator privilege (session-96: the kernel-driver replacement).
+ * administrator privilege (session-96: the kernel-driver replacement),
+ * with the overlapped read-ahead ring (session 2026-11-18: the PERF-LEVERS
+ * F2/F10 fix - the og's prefetch-thread model generalized).
  *
  * The RDA driver era is GONE - removed, not gated, not deprecated, not left
  * as a fallback. The data path opens \\.\PhysicalDriveN directly with the
@@ -8,6 +10,18 @@
  * unified 64 KiB envelope (io::direct_envelope - the sector-rejection and
  * GAP-S6-13 defenses), and reports true byte counts (the driver-era F11
  * Information=Length*512 scaling is deleted with the driver).
+ *
+ * THE RING (the direct era's latency-hiding, og-parity-plus): every
+ * data-path handle opens FILE_FLAG_OVERLAPPED and feeds an IOCP
+ * completion engine with a sliding window of N outstanding 4 MiB-class
+ * reads (refill-on-consume, follow-the-cursor - the og's 10-run x 4 MiB
+ * prefetch ring generalized: DRWUI:919088-919142, Device:56545). Queue
+ * depth is the window size by construction; the 64 KiB envelope property
+ * holds for every ISSUED read (offsets floored, lengths 64 KiB multiples
+ * except the documented device-tail clamp). Concurrent read_at on one
+ * handle is documented-safe (unique OVERLAPPED per call - ReadFile
+ * remarks) and rides the ring; the public IStorageDevice contract
+ * (blocking read_at) is unchanged.
  *
  * The privilege model (the mandate's honest-elevation contract): the direct
  * layer's single precondition is the process token. Every raw-disk open in
@@ -35,6 +49,7 @@
 #include "cr/storage/cr_slice.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/apply/cr_apply.h"
+#include <atomic>
 #include <memory>
 #include <string>
 #include <utility>
@@ -60,12 +75,30 @@ storage::ImageFileIo& image_file_io();
 
 /* Whole-disk read view: \\.\PhysicalDriveN opened GENERIC_READ, share
  * R|W|D (the exact open posture the grammar path used). The returned
- * device serves every engine read through the 64 KiB envelope with true
- * byte counts. A non-elevated token is the caller's precondition to check
- * (require_privilege in rrecov.cpp / the cr_ui open impls); an open
- * failure under an elevated token is a TARGET error: ERR_OPEN_FAILED
- * (absent disk number, protected device, or a busy disk). */
+ * device serves every engine read through the overlapped read-ahead
+ * ring (FILE_FLAG_OVERLAPPED + IOCP sliding window - see the header
+ * comment) with true byte counts. A non-elevated token is the caller's
+ * precondition to check (require_privilege in rrecov.cpp / the cr_ui
+ * open impls); an open failure under an elevated token is a TARGET
+ * error: ERR_OPEN_FAILED (absent disk number, protected device, or a
+ * busy disk). */
 std::unique_ptr<IStorageDevice> open_disk(u32 disk, u32* err);
+
+/* Overlapped file-backed device (FILE_FLAG_OVERLAPPED + the same ring):
+ * the test/bench surface for the ring on any ordinary file, and the
+ * image-class door. run_bytes/slots = 0 select the production defaults
+ * (4 MiB runs, 8 slots = 32 MiB window). Geometry is file-shaped
+ * (512-byte sectors, exact byte size). */
+std::unique_ptr<IStorageDevice> open_file_async(const wchar_t* path, u32 run_bytes, u32 slots,
+                                                 u32* err);
+
+/* Ring tuning seam (the measure-first discipline: the sweep harness sets
+ * these before open; 0 = production default). Tests and the bench lane
+ * are the only writers in-tree. */
+namespace ring_tuning {
+std::atomic<u32>& run_bytes(); /* default 4 MiB (the og's run size) */
+std::atomic<u32>& slot_count(); /* default 8 (32 MiB window) */
+} // namespace ring_tuning
 
 /* CONTROL-PATH whole-disk open (\\.\PhysicalDriveN, read-only share) - used
  * by ENUMERATION only (cr_enumerate.cpp; the og's own enumeration never

@@ -66,6 +66,13 @@ is internally reference-counted across threads — see §3 for the thread rules.
   writers never block readers. A snapshot taken mid-scan is stamped
   `partial=1` and is safe to browse AND to recover from (value semantics).
 - All other entry points: call from one thread at a time per handle.
+- Engine-internal note (2026-11-18, no ABI-visible change): the Windows
+  data-path transport opens its handles `FILE_FLAG_OVERLAPPED` and serves
+  reads through an IOCP sliding-window ring with unique OVERLAPPED per
+  issued read (cr_transport.cpp's AsyncRing). `IStorageDevice::read_at`
+  stays a synchronous, blocking call per the cr_device.h contract - the
+  overlapped machinery is internal latency-hiding, not a concurrency
+  promise beyond what §3 already grants (engine worker threads).
 - The library never calls back on a thread the caller didn't hand it:
   progress callbacks fire on the thread running `run()`/`process()`;
   EVENT callbacks (`cr_ui_scan_set_event_fn`) may additionally fire from

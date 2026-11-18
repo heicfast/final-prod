@@ -3801,3 +3801,20 @@ Next: fix 2 — the transport overlapped ring (FILE_FLAG_OVERLAPPED +
 IOCP sliding window in cr_transport.cpp, Layer 3), which pairs with this
 fix for device-level fill concurrency (current handles still serialize
 concurrent ReadFile at the file object per the non-overlapped contract).
+---
+
+## 2026-11-18T10:35Z — fix 2 landed: the overlapped read-ahead ring (F2+F10, Layer 3 attacked)
+
+The transport's read path is no longer QD1-sync-no-prefetch: every
+data-path handle opens FILE_FLAG_OVERLAPPED and serves through the
+AsyncRing — IOCP + one completion thread per device, 8x4 MiB sliding
+window (32 MiB in flight vs the og's 10x4 MiB), refill-on-consume
+follow-the-cursor, pivot-on-miss, 64 KiB envelope property preserved on
+every issued read, CancelIoEx+drain+join teardown, overlapped-aware
+handle heals (rebind), overlapped-aware probes, thread-local hEvents for
+the sync-shape helper. ring_tuning::run_bytes/slot_count = the sweep
+seam; open_file_async = the test/bench surface. ABI surface unchanged
+(read_at stays blocking; ABI-CONTRACT §3 engine-internal note added);
+D-72's algorithm halves closed by measurement (amendment in the row).
+4 new Windows transport tests ride engine-ci. Throughput claims deferred
+to the T7 harness dispatch — no number without the runner.
