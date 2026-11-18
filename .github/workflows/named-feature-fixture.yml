@@ -61,9 +61,11 @@ jobs:
             # --- 2. generate the fixture twice: determinism proof ----------
             $m1 = Join-Path $evidence 'manifest.jsonl'
             $m2 = Join-Path $work 'manifest-detcheck.jsonl'
-            & powershell -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\fixture' -ManifestOut $m1
+            # pwsh (PS7): reads UTF-8 (BOM) scripts natively; PS5.1 would also
+            # work with the BOM, PS7 is the lane's shell anyway
+            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\fixture' -ManifestOut $m1
             if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 1 failed" }
-            & powershell -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\det-check' -ManifestOut $m2
+            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\det-check' -ManifestOut $m2
             if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 2 failed" }
             $a = Get-Content $m1 | Select-Object -Skip 1   # skip _meta (root/timestamp differ by design)
             $b = Get-Content $m2 | Select-Object -Skip 1
@@ -77,7 +79,7 @@ jobs:
 
             # --- 3. apply the deletion matrix ------------------------------
             $applyLog = Join-Path $evidence 'apply-log.json'
-            & powershell -File tools/validation/named-feature/apply-deletions.ps1 -Root 'X:\fixture' -ManifestOut $m1 -LogOut $applyLog
+            & pwsh -NoProfile -File tools/validation/named-feature/apply-deletions.ps1 -Root 'X:\fixture' -ManifestOut $m1 -LogOut $applyLog
             if ($LASTEXITCODE -ne 0) { throw "apply-deletions failed" }
 
             # --- 4. verifier self-test -------------------------------------

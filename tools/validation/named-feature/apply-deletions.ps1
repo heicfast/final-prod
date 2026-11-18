@@ -1,4 +1,4 @@
-# apply-deletions.ps1 - apply the named-feature fixture's deletion matrix.
+﻿# apply-deletions.ps1 - apply the named-feature fixture's deletion matrix.
 #
 # Reads the manifest emitted by generate-fixture.ps1 and performs, in
 # apply_order: the double-delete recreate dance (delete v1 -> restore v2

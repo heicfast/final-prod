@@ -1,4 +1,4 @@
-# generate-fixture.ps1 - deterministic seeded fixture for the named-feature
+﻿# generate-fixture.ps1 - deterministic seeded fixture for the named-feature
 # validation standard (session: cross-repo harvest, T5).
 #
 # Builds the fixture tree on any NTFS root with FIXED timestamps, FIXED
@@ -62,7 +62,10 @@ function Get-ContentBytes([string] $rel, [long] $size, [byte[]] $header, [byte[]
         $ms.Write($body, 0, $body.Length)
     }
     if ($footer.Length -gt 0) { $ms.Write($footer, 0, $footer.Length) }
-    return $ms.ToArray()
+    # comma operator: prevents PowerShell from unrolling an EMPTY byte[0]
+    # into zero pipeline output (which the caller would receive as $null -
+    # the run-1 failure: WriteAllBytes ArgumentNullException on empty.bin)
+    return , $ms.ToArray()
 }
 
 # real signature bytes so later carve-dedup checks have true positives
