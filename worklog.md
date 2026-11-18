@@ -3718,3 +3718,33 @@ Linux-executable evidence set is real tool output throughout.
 T1 artifacts: this entry; the prompt file; the Lane E section of
 COORDINATION.md. Next: T2 — parallel Phase-0 read (agents A–E over the
 product and corpus), five context sheets, push before any fix.
+
+
+### T20 handoff (this session's close, 2026-11-18 ~07:20Z) — the v0.9.4 correction train
+
+STATE AT CUTOFF:
+- v0.9.3 is PUBLISHED (run 44246474638 green; setup.exe 2,854,056 bytes + portable
+  4,002,655 + SHA256SUMS) and its integration-gate evidence is committed
+  (worklog/VALIDATION/it-gates/, c2c91315: the phase pins, 81/81 deleted-tree rows,
+  the real-zip inventory, the coherent no-source SMART refusals).
+- The clean-Windows forensic pass on v0.9.3 (run 44249495727) caught D-ENUM-05
+  (attached vdisks invisible). Fixed in three layers with the parallel installer-API
+  session: 96917f6c (the bus-kind arm) + 94e3fc73 (home/disk-health consumers, this
+  session) + 3c3e02c5 (use-physical-devices, theirs).
+- The first v0.9.4 tag died at the lockstep gate (their 96917f6c bumped VERSION
+  alone — run 44253461220, nothing published). Lockstep completed (9c9597e7) and
+  the tag was RE-POINTED there (no release object existed; the re-point is clean).
+- THE RELEASE RUN ON v0.9.4 IS IN FLIGHT AT THIS HANDOFF: run 44256566315 on
+  9c9597e7. NEXT SESSION'S FIRST ACTION: check its outcome; on green, verify the
+  assets + notes on the release, then DISPATCH forensic-repro on v0.9.4
+  (workflow_dispatch, release_tag=v0.9.4) — the clean-Windows gate that must pass
+  this time (the SeedEXFAT card is visible again with D-ENUM-05 fixed). On red,
+  pull the failing step's log and root-cause (the build.ps1 -Target all path
+  exercises the W1/W2 installer changes end-to-end for the first time).
+- The parallel installer-API session is mid-wave (W1-W4 landed, W4-B fixing a
+  ui-ci red on THEIR frontier at b99fc523 — NOT in the v0.9.4 tag, which predates
+  their W4). Coordinate via this worklog; their sheets: worklog/INSTALLER-CURRENT,
+  REFERENCE-API, PRODUCT-API, INTEGRATION-MATRIX, API-DELTA.
+
+EVERY DEFERRED ITEM: BEHAVIOR-FINDINGS.md (both sessions' sections), PARITY-DELTAS
+(D-P4c, D-P8, G-1(b)), FOOTPRINT-DELTA.md.
