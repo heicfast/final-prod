@@ -151,6 +151,18 @@ constexpr u32 kTrialOrder[] = {
     FMT_MOV_NAKED};
 constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
 
+/* T13a (2026-11-18 perf session): trailing-zero count for the first-byte
+ * dispatch bitsets (MSVC/_BitScanForward64 and GCC/__builtin_ctzll). */
+static inline u32 ctz64(u64 x) {
+#if defined(_MSC_VER)
+    unsigned long idx = 0;
+    _BitScanForward64(&idx, x);
+    return u32(idx);
+#else
+    return u32(__builtin_ctzll(x));
+#endif
+}
+
 /* Shared scan context (single-thread: one worker touches it; parallel:
  * counters are atomic, tree emission is internally locked). */
 struct ScanCtx {
@@ -170,6 +182,19 @@ struct ScanCtx {
      * the S-007 niche batch added that second gate) */
     static constexpr u32 kMaxTrialSlots = 160;
     bool trial_disabled[kMaxTrialSlots] = {};
+    /* T13a (2026-11-18 perf session): the first-byte DISPATCH bitsets —
+     * for each window byte value, the trial slots whose magic starts with
+     * that byte (disabled slots excluded at build time). The grammar
+     * window loop was a full kTrialCount strided registry compare per
+     * BYTE (the dominant share of the measured 303.8 CPU-s/GiB deepcarve
+     * wall, PERF-LEVERS F14 / worklog/DIAGNOSIS.md L1); the bitset
+     * collapses it to one table load, iterating only the slots that can
+     * match. Bit order = trial order (bits ascend with the slot index),
+     * so the N-070 evaluation order at every position is byte-identical
+     * with the pre-T13a loop. Built once per carve in carve_slice
+     * (before workers fan out); read-only afterwards. */
+    static constexpr u32 kFbWords = (kMaxTrialSlots + 63) / 64;
+    u64 fb_mask[256][kFbWords] = {};
     std::vector<bool> rawsign_disabled;
     const CarveFlags* flags;
     /* D4f (the debug-and-release session): the per-scan user-sign SNAPSHOT.
@@ -652,11 +677,14 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             continue;
         }
         const u8 c = win[off];
-        /* first-byte dispatch: only formats whose magic starts with c.
-         * The match itself (magic compare + window-head clip + candidate
-         * shift) is match_signature in cr_signatures.h - the SAME
-         * primitive the S-017 F8 self-probe runs, so a magic the scan
-         * cannot reach fails at load time (one source of truth).
+        /* T13a first-byte dispatch: the bitset of trial slots whose magic
+         * starts with this byte (built per carve; bit order = trial
+         * order). The pre-T13a shape iterated EVERY slot per byte with a
+         * strided registry load — the dominant CPU cost of the deepcarve
+         * wall. The match itself (magic compare + window-head clip +
+         * candidate shift) is match_signature in cr_signatures.h - the
+         * SAME primitive the S-017 F8 self-probe runs, so a magic the
+         * scan cannot reach fails at load time (one source of truth).
          *
          * N-070 (diff-to-fix): every registry row whose magic matches is
          * validated at this position and the highest accumulated-score
@@ -670,123 +698,130 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
         CarveResult best_cr;
         u64 best_len = 0;
         u64 best_cand_abs = 0;
-        for (u32 ti = 0; ti < kTrialCount; ++ti) {
-            if (ctx.trial_disabled[ti])
-                continue; /* M-024: format disabled by the host */
-            const Signature& sig = ctx.reg[kTrialOrder[ti]];
-            if (sig.header[0] != c)
-                continue; /* first-byte fast path */
-            u64 cand_rel = 0;
-            if (!match_signature(sig, win, want, off, cand_rel))
+        bool pos_done = false; /* the old loop's `break` at this position */
+        const u64* fb = ctx.fb_mask[c];
+        for (u32 w = 0; w < ScanCtx::kFbWords && !pos_done; ++w) {
+            u64 bits = fb[w];
+            if (!bits)
                 continue;
-            const u64 cand_abs = base + cand_rel;
-            if (cand_abs + sig.min_size > ctx.total)
-                continue;
-            ctx.hits.fetch_add(1, std::memory_order_relaxed);
+            do {
+                const u32 ti = (w << 6) + ctz64(bits);
+                bits &= bits - 1;
+                const Signature& sig = ctx.reg[kTrialOrder[ti]];
+                u64 cand_rel = 0;
+                if (!match_signature(sig, win, want, off, cand_rel))
+                    continue;
+                const u64 cand_abs = base + cand_rel;
+                if (cand_abs + sig.min_size > ctx.total)
+                    continue;
+                ctx.hits.fetch_add(1, std::memory_order_relaxed);
 
-            /* M-117 (the trial-loop ordering repair; renumbered from the
-             * draft M-116 at the push per the ID-collision rule): the covered check
-             * runs BEFORE the validator. The walk's result was never used
-             * for covered candidates (the post-validator check simply
-             * `continue`d), but the walk itself ran to the row's FULL cap
-             * - on a contiguous suppress_overlap stream (TS/M2TS/MPEG
-             * audio: 1-byte sync keys, one hit per packet) that is the
-             * quadratic blow-up this fix removes: every mid-stream sync
-             * re-walked up to 200 MB only to be discarded as a duplicate
-             * (the executed S-054 fixture: a 220 MB stream = ~1.06M hits
-             * x ~200 MB walks - the scan stage never finishes; post-fix
-             * the whole stream scans in milliseconds). The terminal state
-             * is identical (duplicates++ + continue); the one counter
-             * refinement: a covered position whose walk would have FAILED
-             * now counts as a duplicate (what it is - the same stream)
-             * instead of a rejection. */
-            if (emitted_at.count(cand_abs)) {
-                ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                break; /* position already resolved (F9 dedup) */
-            }
-            if (sig.suppress_overlap) {
-                bool inside = false;
-                for (const auto& cov : ctx.overlap_covered)
-                    if (cand_abs > cov.first && cand_abs < cov.second) {
-                        inside = true;
-                        break;
-                    }
-                if (inside) {
+                /* M-117 (the trial-loop ordering repair; renumbered from the
+                 * draft M-116 at the push per the ID-collision rule): the covered check
+                 * runs BEFORE the validator. The walk's result was never used
+                 * for covered candidates (the post-validator check simply
+                 * `continue`d), but the walk itself ran to the row's FULL cap
+                 * - on a contiguous suppress_overlap stream (TS/M2TS/MPEG
+                 * audio: 1-byte sync keys, one hit per packet) that is the
+                 * quadratic blow-up this fix removes: every mid-stream sync
+                 * re-walked up to 200 MB only to be discarded as a duplicate
+                 * (the executed S-054 fixture: a 220 MB stream = ~1.06M hits
+                 * x ~200 MB walks - the scan stage never finishes; post-fix
+                 * the whole stream scans in milliseconds). The terminal state
+                 * is identical (duplicates++ + continue); the one counter
+                 * refinement: a covered position whose walk would have FAILED
+                 * now counts as a duplicate (what it is - the same stream)
+                 * instead of a rejection. */
+                if (emitted_at.count(cand_abs)) {
                     ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                    continue; /* a mid-stream sync of an emitted stream */
+                    pos_done = true; /* position already resolved (F9 dedup) */
+                    break;
                 }
-            }
+                if (sig.suppress_overlap) {
+                    bool inside = false;
+                    for (const auto& cov : ctx.overlap_covered)
+                        if (cand_abs > cov.first && cand_abs < cov.second) {
+                            inside = true;
+                            break;
+                        }
+                    if (inside) {
+                        ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                        continue; /* a mid-stream sync of an emitted stream */
+                    }
+                }
 
-            /* try THIS format's grammar; accepting candidates accumulate
-             * into best_sig (N-070) - the winner is emitted after the
-             * loop. */
-            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
-            if (!cr.ok) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                if (rejected_at.size() < kMaxTrackedRejections)
-                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
-                continue;
-            }
-            /* N-158: the typed-id disable gate. The og ships [Filter]
-             * keys for exactly the five N-158 typed ids (XMIND/MMAP/
-             * EDDX/WFP/DRP, RawConfig.ini :12/:15/:17/:18/:22); when
-             * the host disables the token the typing must not surface:
-             * a candidate whose override targets a disabled row is
-             * dropped HERE (not at the override resolution - the
-             * claiming office row would otherwise emit a non-office
-             * archive as DOCX). The suppression is row-level, the
-             * finding's conservative landing (the og's exact
-             * callback coupling is undecoded - the IAnalyserFilter
-             * method at vtable+8 takes no id parameter,
-             * RAWSearchDLL :4414-4418); the N-115 nine stay exempt
-             * via carve_format_always_on (N-149), so the gate only
-             * ever fires for the five new ids. */
-            if (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT &&
-                typed_row_disabled(ctx, cr.format_override)) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
-            u64 file_len = cr.end - cand_abs;
-            if (file_len < sig.min_size || file_len > sig.max_size) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                if (rejected_at.size() < kMaxTrackedRejections)
-                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
-                continue;
-            }
+                /* try THIS format's grammar; accepting candidates accumulate
+                 * into best_sig (N-070) - the winner is emitted after the
+                 * loop. */
+                CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
+                if (!cr.ok) {
+                    ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                    if (rejected_at.size() < kMaxTrackedRejections)
+                        rejected_at.insert(cand_abs); /* S-055: no-reclaim */
+                    continue;
+                }
+                /* N-158: the typed-id disable gate. The og ships [Filter]
+                 * keys for exactly the five N-158 typed ids (XMIND/MMAP/
+                 * EDDX/WFP/DRP, RawConfig.ini :12/:15/:17/:18/:22); when
+                 * the host disables the token the typing must not surface:
+                 * a candidate whose override targets a disabled row is
+                 * dropped HERE (not at the override resolution - the
+                 * claiming office row would otherwise emit a non-office
+                 * archive as DOCX). The suppression is row-level, the
+                 * finding's conservative landing (the og's exact
+                 * callback coupling is undecoded - the IAnalyserFilter
+                 * method at vtable+8 takes no id parameter,
+                 * RAWSearchDLL :4414-4418); the N-115 nine stay exempt
+                 * via carve_format_always_on (N-149), so the gate only
+                 * ever fires for the five new ids. */
+                if (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT &&
+                    typed_row_disabled(ctx, cr.format_override)) {
+                    ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+                u64 file_len = cr.end - cand_abs;
+                if (file_len < sig.min_size || file_len > sig.max_size) {
+                    ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                    if (rejected_at.size() < kMaxTrackedRejections)
+                        rejected_at.insert(cand_abs); /* S-055: no-reclaim */
+                    continue;
+                }
 
-            /* F9 dedup vs structured results + prior carved nodes (the
-             * locked extent index is the cross-worker backstop) */
-            u64 len_class = 0;
-            if (file_len >= (1 << 20)) {
-                while ((1ULL << len_class) < file_len)
-                    ++len_class;
-                len_class += 64;
-            } else {
-                len_class = file_len / 65536;
-            }
-            bool dup = false;
-            if (ctx.dedup_tree &&
-                ctx.dedup_tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
-                dup = true;
-            if (!dup && ctx.tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
-                dup = true;
-            if (dup) {
-                ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                emitted_at.insert(cand_abs); /* position resolved: a file lives here (the
-                                                raw-sign layer must not re-probe it) */
-                break;
-            }
+                /* F9 dedup vs structured results + prior carved nodes (the
+                 * locked extent index is the cross-worker backstop) */
+                u64 len_class = 0;
+                if (file_len >= (1 << 20)) {
+                    while ((1ULL << len_class) < file_len)
+                        ++len_class;
+                    len_class += 64;
+                } else {
+                    len_class = file_len / 65536;
+                }
+                bool dup = false;
+                if (ctx.dedup_tree &&
+                    ctx.dedup_tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
+                    dup = true;
+                if (!dup && ctx.tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
+                    dup = true;
+                if (dup) {
+                    ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                    emitted_at.insert(cand_abs); /* position resolved: a file lives here (the
+                                                    raw-sign layer must not re-probe it) */
+                    pos_done = true;
+                    break;
+                }
 
-            /* N-070: candidate accepted - accumulate; strictly greater
-             * score replaces (ties keep the earlier trial-order row). */
-            if (best_sig == nullptr ||
-                u32(sig.base_confidence) + u32(cr.confidence) >
-                    u32(best_sig->base_confidence) + u32(best_cr.confidence)) {
-                best_sig = &sig;
-                best_cr = std::move(cr);
-                best_len = file_len;
-                best_cand_abs = cand_abs;
-            }
+                /* N-070: candidate accepted - accumulate; strictly greater
+                 * score replaces (ties keep the earlier trial-order row). */
+                if (best_sig == nullptr ||
+                    u32(sig.base_confidence) + u32(cr.confidence) >
+                        u32(best_sig->base_confidence) + u32(best_cr.confidence)) {
+                    best_sig = &sig;
+                    best_cr = std::move(cr);
+                    best_len = file_len;
+                    best_cand_abs = cand_abs;
+                }
+            } while (bits);
         }
         if (best_sig != nullptr) {
             const Signature& sig = *best_sig;
@@ -1555,6 +1590,20 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
             for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
                 ctx.rawsign_disabled[fi] =
                     carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
+        }
+        /* T13a: build the first-byte dispatch bitsets (ALWAYS, not only
+         * when a disable list exists — the no-list shape is all-enabled).
+         * Slots excluded here are exactly the trial_disabled ones, so the
+         * hot loop needs no per-slot disable test (identical semantics:
+         * the pre-T13a loop skipped disabled slots before the
+         * first-byte compare). */
+        for (u32 ti = 0; ti < kTrialCount; ++ti) {
+            if (ctx.trial_disabled[ti])
+                continue;
+            const Signature& sig = ctx.reg[kTrialOrder[ti]];
+            if (sig.header_len == 0)
+                continue; /* no registry row ships a zero-length magic; defensive */
+            ctx.fb_mask[sig.header[0]][ti >> 6] |= 1ull << (ti & 63);
         }
         /* D4f: the user-sign snapshot — one registry visit for the whole
          * carve, then a lock-free probe at stride time */

@@ -143,3 +143,46 @@ is made for the ring before those numbers exist — the Azure-runner cap
 (~240 MiB/s, QD-flat) bounds what that surface can show, and the
 per-transport optima on physical media stay in the NOT-MEASURED debt
 register (worklog/BASELINE.md §5).
+
+## Fix 3 — the carve matcher's first-byte dispatch table (DIAGNOSIS Layer 1,
+the dominant wall; PERF-LEVERS F14's scoped frontier, opened)
+
+**What changed** (engine/src/core/carve/cr_carve.cpp): the grammar window
+loop iterated EVERY trial slot per BYTE with a strided registry load
+(`sig.header[0] != c` across kTrialCount≈160 rows, ~12.8 KiB of registry
+traffic per byte) — the dominant share of the measured 303.8 CPU-s/GiB
+deepcarve wall (PERF-LEVERS §0; the DIAGNOSIS's Layer 1). The fix: a
+256-entry first-byte DISPATCH bitset (one u64×3 word per byte value),
+built once per carve from trial_disabled + the registry's magic first
+bytes (disabled slots excluded at build time); the hot loop loads one
+word and iterates only set bits — ascending bit order = trial order, so
+the N-070 evaluation order at every position is byte-identical with the
+pre-fix loop.
+
+**Output identity**: the same positions are gated (the M-005/occupancy
+gates run before the dispatch, unchanged), the same slots are tried in
+the same order at each position, the same validators run on the same
+candidates, the same counters tick — pinned by the exact-result
+contract tests (test_carve.cpp's registry pins + the F9/M-117/N-070
+regression fixtures), 315/315 Carve tests green on both sides.
+
+**Before/after — the same unit-fixture workload, same box, 3-run medians
+(2 vCPU container, gcc 14.2 -O2; the Carve suite's fixtures include the
+220 MB suppress-overlap stream, the M-117 quadratic-guard fixture, and
+the exact-output rows):**
+
+| Measurement | BEFORE | AFTER | Delta |
+|---|---:|---:|---|
+| Carve test-suite wall (315 tests) | 161.0 s | 29.0 s | **5.55x** |
+| Run-to-run spread | 160.5-161.1 s | 28.97-29.12 s | stable both sides |
+
+The runner-class deepcarve wall (the 8 GiB seeded VHD, the comparable
+recorded baseline 1,040,054 ms @ v0.7.0) rides the dispatched
+benchmark-src lane — the number lands in this ledger when the run
+completes (same verbs, same runner class, same disk profile as the
+baseline per BENCHMARK.md's comparability contract).
+
+**Scope note**: the per-byte gate costs (free-map bit test + division,
+occupancy binary search) remain per-byte — second-order against the
+dispatch kill; the memoized-gate follow-up is recorded as the next lever
+if the dispatched wall numbers still show headroom.
