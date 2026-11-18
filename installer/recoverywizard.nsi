@@ -344,11 +344,13 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
 
   ; Placement reads the staged payload (build-machine independence, the
   ; 0.9.4 bug fix): $PLUGINSDIR\engine-kit was verified in the pre-flight;
-  ; SetOutPath $INSTDIR + File from the payload dir is the documented NSIS
-  ; form (File cannot copy dir->dir without SetOutPath; copying the staged
-  ; payload is a plain local copy, no re-extraction).
-  SetOutPath "$INSTDIR"
-  File /x cr_ui.lib "$PLUGINSDIR\engine-kit\*"
+  ; CopyFiles is the RUNTIME copy command — the File instruction is
+  ; COMPILE-TIME only and cannot source from $PLUGINSDIR (the first cut of
+  ; this fix learned it live: makensis 'File: "$PLUGINSDIR\engine-kit\*" ->
+  ; no files found', release run 44361715679). CopyFiles preserves the flat
+  ; kit layout into $INSTDIR exactly as the old compile-time File did
+  ; (cr_ui.lib stays payload-only, exactly as the /x exclusion kept it).
+  CopyFiles /SILENT "$PLUGINSDIR\engine-kit\*.*" "$INSTDIR"
 
   ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
     !insertmacro AbortAfterInner "Engine kit incomplete: cr_ui.dll is missing from $INSTDIR after placement (the pre-flight passed — a disk/AV-level failure). The partial install was swept (G-4)."
