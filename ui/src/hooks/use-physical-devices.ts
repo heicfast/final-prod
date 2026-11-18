@@ -18,7 +18,16 @@ export function usePhysicalDevices(): {
 } {
   const [params, setParams] = useSearchParams();
   const query = useDevices();
-  const devices = (query.data ?? []).filter((d) => d.kind !== 'virtual');
+  // D-ENUM-01 (run 44249495727's evidence): every device the payload
+  // carries is a physically-enumerated disk — the bridge's bus-kind arm
+  // (96917f6c, D-ENUM-05) no longer classifies file-backed disks as
+  // 'virtual', and this picker-side filter would re-hide them for the
+  // repair/health pages alone. The shell locations (Recycle Bin /
+  // Desktop quick-targets) are hardcoded UI rows, never payload rows —
+  // 'virtual' can no longer reach here. When BF-12's image targets join
+  // the payload, their visibility must be a DELIBERATE decision, never
+  // a silent filter (the audit-trail standard the other consumers carry).
+  const devices = query.data ?? [];
   const paramId = params.get('device');
   const selectedId =
     paramId && devices.some((d) => d.id === paramId) ? paramId : (devices[0]?.id ?? '');
