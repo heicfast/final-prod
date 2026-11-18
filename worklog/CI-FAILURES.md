@@ -148,3 +148,23 @@ T14 job step 8 `Run the ignored T14 tests (release, serialized, uncaptured)` fai
 Workflows with no runs at all: none — all nine workflows have run history (benchmark-src total_count 4, validation-evidence 28, forensic-repro 33, release 18, ui-ci 109, ui-e2e 94, contracts-ci 69, engine-ci 63, bridge-integration 45).
 
 Log evidence index (local scratch, outside the clone): `/home/z/my-project/ci-logs/run{44339513142,44339552858,44339513235,44339558061,44339547294,44334634961,44275941738,44272577458,44249495727,44262457689,44253108774,44253461220,44255202084,44261473448,44259547753,44104298262,44099373023}/`.
+
+## 11. forensic-repro — the v0.9.4-era reds (dispatch, heads 6a6e05cd / 201100aa / 87c04b7f, Nov 18 16:28–17:31 UTC)
+
+| Field | Value |
+|---|---|
+| Runs | [44348181946](https://github.com/heicfast/final-prod/actions/runs/44348181946) (v0.9.4 input), [44359495858](https://github.com/heicfast/final-prod/actions/runs/44359495858) (87c04b7f) — plus the 235d3c3/201100a dispatches (phantom-invalid-era) |
+| Failing job / step | `Reproduce all reported symptoms (installed release)` — the `Manifest gate - the installed exe requires elevation (D-PRIV-01)` step (the first install-consumer gate) |
+| Exact error lines | `[install-probe] installer exited ... after 4.2s (exit code 2)` → `[manifest-gate] appManifest = app not installed` → `D-PRIV-01 gate: the installed exe's manifest is 'app not installed' - requireAdministrator expected` |
+| Root cause | **A shipped-installer product bug introduced in v0.9.4, NOT a workflow defect.** The G-4 engine-kit pre-flight added to `installer/recoverywizard.nsi` probes `${ENGINE_KIT}\cr_ui.dll` at RUNTIME — but `ENGINE_KIT` is a COMPILE-TIME build-machine path (`D:\a\...\build\out\stage-0.9.4\engine`) that exists only where makensis compiled the installer. The `File` command bakes the kit payload into the exe, so the installer is complete — but the runtime `FileExists` on the build path aborts it (exit 2) on every other machine BEFORE the inner Tauri setup runs. Proof chain: the forensic evidence artifact (14447930604) shows `ProgramData/HeicFast/Recovery Wizard/logs/install.log` containing ONLY the `onInit` line (no `app-setup exit=` fact — the section aborted before the inner install), a 4.2–4.6 s runtime (too fast for the inner bundle), and `facts-postinstall.json` reporting `app not installed`. v0.9.3 installed clean (exit 0) — its nsi predates the pre-flight; v0.9.4's own t15 matrix stayed green because validation-evidence builds AND installs on the same runner, so the build path exists there. The last green forensic run (42255492260, v0.8.4) predates the assert-added d8fbef64. |
+| Affected files | `installer/recoverywizard.nsi` (the pre-flight gates + the kit placement `File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"` line) |
+| Root-cause fix | **5798cf39**: the kit payload is extracted to `$PLUGINSDIR\engine-kit` (SetOutPath + File) at the top of the section, the pre-flight gates read the payload (not the build path), and the `$INSTDIR` placement copies the staged payload — build-machine independence by construction. Same gates, same abort reasons, no test or stage removed. |
+| Resolution | FIXED — commit 5798cf39; green proof: the v0.9.5 release run on tag (fresh compile of the fixed nsi) + a forensic-repro dispatch installing the shipped v0.9.5 setup.exe on a fresh runner (recorded in worklog.md when green). |
+
+## 12. The 0.9.5-session self-inflicted reds (recorded truthfully)
+
+| Field | Value |
+|---|---|
+| Runs | Every push to main between 201100aa and 241e8991 produced zero-job "failure" records for release/benchmark-src/validation-evidence (e.g. 44348177249, 44348179096, 44348174740, 44357202970) |
+| Root cause | The session's own workflow edits: (a) `${{ runner.temp }}` used in a WORKFLOW-LEVEL `env:` (the runner context is not available there) → invalid-file, zero-job push failures; (b) a duplicated `timeout-minutes` key → the same class. The removal patch's regex failed silently (backslash-escaping), so the blocks survived two "fix" commits until cc201bff deleted them outright. |
+| Resolution | FIXED — cc201bff (concurrent lane, env blocks removed at root) + 6a6e05cd (timeout dedup, verified per-job single key across all 9 files); v0.9.5 tag re-pointed at the clean head. The lesson is recorded here so the audit trail shows it: the two "fix" commits 235d3c32/6a6e05cd claimed the removal but the first did not verify the block was actually gone — every subsequent claim in this repo now requires the grep-verified absence in the commit message. |
