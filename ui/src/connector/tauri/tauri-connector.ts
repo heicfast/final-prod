@@ -154,6 +154,16 @@ const ENGINE_CODE_MAP: Readonly<Record<number, ConnectorErrorCode>> = {
   0x500c0001: 'elevation-required', // ERR_ELEVATION_REQUIRED (the user-mode posture)
 };
 
+/** M22 (W8): the destination taxonomy's distinct reasonKeys — the three
+ * M-074 codes keep the destination-invalid uiCode but carry their own
+ * copy so the refusal says WHY (path too long / malformed / network).
+ * The unwritable leg already had its own code (destination-unwritable). */
+const ENGINE_REASON_OVERRIDES: Readonly<Record<number, string>> = {
+  0x50050006: 'errors.destinationPathTooLong', // ERR_DEST_PATH_TOO_LONG
+  0x50050007: 'errors.destinationPathInvalid', // ERR_DEST_PATH_INVALID
+  0x50050008: 'errors.destinationNetwork', // ERR_DEST_NETWORK
+};
+
 function toConnectorError(raw: unknown): ConnectorError {
   const payload = raw as { code?: unknown; bridgeCode?: unknown; message?: unknown };
   let code: ConnectorErrorCode = 'unknown';
@@ -170,7 +180,13 @@ function toConnectorError(raw: unknown): ConnectorError {
       : 'The recovery backend reported a failure without a message.';
   return Object.assign(new Error(message), {
     code,
-    reasonKey: REASON_KEYS[code],
+    // M22 (W8): the destination taxonomy's distinct reasonKeys — the
+    // three M-074 codes keep the destination-invalid uiCode (the
+    // vocabulary stays stable) but carry their own copy so the refusal
+    // says WHY (BF-15's umbrella closed at the connector layer).
+    reasonKey:
+      (detailCode !== undefined ? ENGINE_REASON_OVERRIDES[detailCode] : undefined) ??
+      REASON_KEYS[code],
     detail: detailCode !== undefined ? { code: detailCode } : undefined,
   });
 }

@@ -4369,3 +4369,44 @@ To be dispatched after this push; evidence lands in
 Local gates at commit time: engine ci-local.sh GREEN (10/10, pinned
 clang-format 18.1.8), tsc/eslint/vitest green (211 tests), contracts
 validate.mjs green. Token never committed (secrets scan green).
+### T-W8/M31 + M15 + M22 — three rows, three commits (the quick-win batch)
+
+**M31 (`3be873f3`-lineage, rebased to the push)**: the Repair page's truthful
+interim — SAMPLE_REPAIR_FILES and the fabricated dropzone→queue→Repair-All
+flow DELETED (NG-12 closed at the root); the page states plainly that
+per-file content repair is a separate product line this build does not
+include (M09/S-050/D-137, the API-DELTA register) and carries the REAL
+surface as primary: the volume repair workbench over the typed repair
+methods (the in-scan pre-scan repair chain's semantics; the typed
+not-implemented refusal renders honestly on the real backend until W7).
+
+**M15**: the three remaining corpus filter toggles (atlas §9: Hide System /
+Hide Temp / Hide Browser Cache). The label set is corpus-cited; the
+predicate semantics are this product's, DOCUMENTED as the divergence in
+type-maps §5 (the og's AdvanceFilterCondition internals are
+corpus-undecoded): system = DOS FILE_ATTRIBUTE_SYSTEM (0x04) via the new
+NodeMeta.attributes axis (cr_ui_node_info.attributes — already read for
+is_dir, now carried); temp = a '/'-path segment named temp/tmp (ASCII ci);
+browser cache = cache/cache2/code cache/gpu cache. Bridge-side predicates in
+matches_pred (zero ABI change); the mock mirrors the same segment classes
+with a deterministic system-file fixture (the DOS-class names + every 31st
+record) and gains the Cache dir name so the toggles are exercisable
+end-to-end. ResultsFilter + filter-store + the bar + command-surface trued.
+
+**M22**: the destination taxonomy's distinct reasonKeys — the three M-074
+codes (0x50050006/7/8) keep the destination-invalid uiCode (the vocabulary
+stays stable) but carry their own copy via ENGINE_REASON_OVERRIDES
+(path-too-long / path-invalid / network) so the refusal says WHY; the
+bridgeCode path keeps the umbrella. error-codes.json notes trued (BF-15
+closed at the connector layer); i18n en/zh-CN.
+
+**Concurrent-lane seam (recorded)**: the F-01 lane's `cb2c8e0a` added 4
+engine exports (95→99) + `previewDeletedTreeReconstruction` (71st method)
+without the contracts-README count trues; my frontier re-trued BOTH rows in
+the same commit (the doc_truth gate caught both — the W3 guard holding the
+line across lanes).
+
+Tests: M15's two mock suites (each toggle drops its class, keeps the rest);
+M22's four-case reasonKey suite; the full vitest 225/225. Local gates all
+green (typecheck/lint/prettier/contracts/doc_truth 99+12/71). The Rust
+compiles on the runners (no local cargo — the standing limitation).

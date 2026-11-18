@@ -215,7 +215,7 @@
       "value": "0x50050006",
       "uiCode": "destination-invalid",
       "context": {
-        "note": "M-074 destination taxonomy (v4): the three new destination refusal codes share the destination-invalid umbrella; distinct reasonKeys deferred (BF-15)."
+        "note": "M-074 destination taxonomy (v4); M22 (W8) split the reasonKeys at the connector layer: the three codes keep the destination-invalid uiCode but carry distinct reasonKeys (errors.destinationPathTooLong / destinationPathInvalid / destinationNetwork) so the refusal says WHY — BF-15 closed."
       },
       "surface": "recovery destination"
     },
@@ -224,7 +224,7 @@
       "value": "0x50050007",
       "uiCode": "destination-invalid",
       "context": {
-        "note": "M-074: malformed destination path."
+        "note": "M-074: malformed destination path; M22 reasonKey errors.destinationPathInvalid."
       },
       "surface": "recovery destination"
     },
@@ -233,7 +233,7 @@
       "value": "0x50050008",
       "uiCode": "destination-invalid",
       "context": {
-        "note": "M-074: destination resolves to a network location the safe writer refuses."
+        "note": "M-074: destination resolves to a network location the safe writer refuses; M22 reasonKey errors.destinationNetwork."
       },
       "surface": "recovery destination"
     },

@@ -13,7 +13,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConnectorError, ConnectorErrorCode } from '@/connector/contract';
+import type { ResultsFilter, ConnectorError, ConnectorErrorCode } from '@/connector/contract';
 
 type InvokeCall = { cmd: string; args: Record<string, unknown> };
 
@@ -51,6 +51,23 @@ beforeEach(() => {
     return null;
   };
 });
+
+const FILTER: ResultsFilter = {
+  nodeId: null,
+  treeMode: 'path',
+  search: null,
+  categories: null,
+  dateFrom: null,
+  dateTo: null,
+  sizeMinBytes: null,
+  sizeMaxBytes: null,
+  extensions: null,
+  origins: null,
+  hideEmptyFiles: false,
+  hideSystemFiles: false,
+  hideTempFiles: false,
+  hideBrowserCache: false,
+};
 
 describe('the tauri connector command surface (the manifest)', () => {
   it('every domain method is a function (the wired-domains gate)', () => {
@@ -598,5 +615,74 @@ describe('the tauri connector M04 image targets', () => {
       .catch((e: unknown) => e)) as ConnectorError;
     expect(gone.code).toBe('device-gone');
     expect(gone.reasonKey).toBe('errors.deviceGone');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M22 — the destination taxonomy's distinct reasonKeys
+// ---------------------------------------------------------------------------
+
+describe('the tauri connector M22 destination reasonKeys', () => {
+  it('the three M-074 codes keep the uiCode but split the reasonKey', async () => {
+    invokeImpl = () => {
+      throw { code: 0x50050006, message: 'path too long' };
+    };
+    const tooLong = (await conn.recovery
+      .startRecovery('scan-1', { kind: 'all', filter: FILTER }, 'C:\\x', {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: false,
+        verifyOnWrite: true,
+      })
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(tooLong.code).toBe('destination-invalid');
+    expect(tooLong.reasonKey).toBe('errors.destinationPathTooLong');
+
+    invokeImpl = () => {
+      throw { code: 0x50050007, message: 'malformed' };
+    };
+    const malformed = (await conn.recovery
+      .startRecovery('scan-1', { kind: 'all', filter: FILTER }, 'C:\\x', {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: false,
+        verifyOnWrite: true,
+      })
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(malformed.code).toBe('destination-invalid');
+    expect(malformed.reasonKey).toBe('errors.destinationPathInvalid');
+
+    invokeImpl = () => {
+      throw { code: 0x50050008, message: 'network' };
+    };
+    const network = (await conn.recovery
+      .startRecovery('scan-1', { kind: 'all', filter: FILTER }, 'C:\\x', {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: false,
+        verifyOnWrite: true,
+      })
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(network.code).toBe('destination-invalid');
+    expect(network.reasonKey).toBe('errors.destinationNetwork');
+
+    // The bridgeCode path keeps the umbrella (no engine code to refine on).
+    invokeImpl = () => {
+      throw { code: 0, bridgeCode: 'destination-invalid', message: 'generic' };
+    };
+    const umbrella = (await conn.recovery
+      .startRecovery('scan-1', { kind: 'all', filter: FILTER }, 'C:\\x', {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: false,
+        verifyOnWrite: true,
+      })
+      .catch((e: unknown) => e)) as ConnectorError;
+    expect(umbrella.code).toBe('destination-invalid');
+    expect(umbrella.reasonKey).toBe('errors.destinationInvalid');
   });
 });
