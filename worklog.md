@@ -3226,3 +3226,45 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   no exe/dll/sys tracked) and it stays that way.
 - Phase 0 next: agents A–E produce INSTALLER-CURRENT / REFERENCE-FOOTPRINT /
   REFERENCE-API / PRODUCT-API / INTEGRATION-MATRIX; pushed before any code.
+
+---
+
+## 2026-11-18T06:10Z — performance session opens: T1 complete (clone, record, prompt archived)
+
+The performance-diagnostic mandate (senior performance engineer, Windows
+storage internals, overlapped I/O / IOCP / threading / queue depth) opens on
+final-prod @ 8217bc26 (main, clean) with the reference corpus
+easeus-drw-research @ be0cfe9 checked out side-by-side. The session prompt is
+archived token-redacted at worklog/session-performance-fix-prompt.md.
+
+First-hand hot-path recon (the bottleneck hypotheses the Phase 0 agents now
+verify end-to-end, all code-cited):
+
+1. cr_transport.cpp:53-80 `overlapped_read` — ReadFile is issued against
+   handles opened WITHOUT FILE_FLAG_OVERLAPPED (open_path :291-293,
+   FILE_ATTRIBUTE_NORMAL): the OVERLAPPED struct is an offset holder, and
+   GetOverlappedResult(...,TRUE) blocks. The read path is SYNCHRONOUS with
+   queue depth 1 by construction — no IOCP, no outstanding reads, ever.
+2. cr_transport.cpp:186-189 — the ABI pins per-handle single-flight, and
+   cr_cached.cpp:31 serializes every read_at under one global std::mutex
+   (the whole device share one lock; linear O(n) block scan per read;
+   per-miss std::vector<u8> heap allocation, no buffer reuse).
+3. Read sizing: scan pipe reads 256 KiB cache blocks (8 MiB LRU,
+   cr_scan.cpp) vs the og's 4 MiB device chunks / 2 MiB MFT batches
+   (PERFORMANCE-BASELINE.md §5: "The og still issues 4-8x fewer transitions
+   per byte than our engine path").
+4. cr_cached.h:9-36 (N-045) registers the divergence: the og has a PREFETCH
+   read-ahead engine with a dedicated thread (10-run lookahead); ours is
+   reactive LRU with no prefetch — on real NVMe the latency-hiding gap
+   is the throughput gap.
+5. The only sweep evidence (PERFORMANCE-BASELINE.md §6, run 40227375329) is
+   Azure virtualized C: — ~240 MiB/s cap, QD-flat — explicitly recorded as
+   NOT representative of consumer NVMe ("fast local NVMe will re-measure").
+   Real-hardware QD/read-size optima are unmeasured; that is this session's
+   measurement debt.
+
+Known frontier inherited from the SMART session's T20 handoff (worklog tail):
+v0.9.3 bumped but untagged; bridge-integration results_filters gate had a
+NULL-POINTER PANIC queued — functional-lane debt, noted, not this session's
+mandate. Phase 0 agents A-E dispatch next; no code touches until the five
+context sheets are pushed.
