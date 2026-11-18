@@ -62,9 +62,9 @@ u32 create_disk_image(u32 disk, const std::u16string& out_path_utf16, CancelToke
  * exceeds the device refuses with ERR_BAD_PARAMETER (never a silent
  * truncation). */
 u32 create_image_file_range(IStorageDevice& src, u64 first_byte, u64 length,
-                             const std::u16string& out_path_utf16, CancelToken* cancel,
-                             storage::ImageCreateProgressFn progress, void* progress_user,
-                             storage::ImageCreateStats* stats);
+                            const std::u16string& out_path_utf16, CancelToken* cancel,
+                            storage::ImageCreateProgressFn progress, void* progress_user,
+                            storage::ImageCreateStats* stats);
 
 /* The SECTOR-denominated disk form (the ABI's twin, D-IMG-3): produce the
  * flat raw image of physical disk N's SECTOR RANGE [first_sector,

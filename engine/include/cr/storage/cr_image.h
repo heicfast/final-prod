@@ -161,9 +161,9 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
  * progress reports (done, length) with done counted from the range head;
  * stats.bytes_written is the committed prefix length of the range. */
 u32 create_image_stream_range(IStorageDevice& src, u64 first_byte, u64 length,
-                               ImageCreateSink& sink, CancelToken* cancel,
-                               ImageCreateProgressFn progress, void* progress_user,
-                               ImageCreateStats* stats);
+                              ImageCreateSink& sink, CancelToken* cancel,
+                              ImageCreateProgressFn progress, void* progress_user,
+                              ImageCreateStats* stats);
 
 } // namespace storage
 } // namespace cr

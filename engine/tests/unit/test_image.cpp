@@ -1207,7 +1207,7 @@ bool digits_only_1_15(const std::string& s) {
 
 TEST(ImageCreateRange, GrammarMirrorsTheOgsDigitsOnlyForm) {
     EXPECT_TRUE(digits_only_1_15("0"));
-    EXPECT_TRUE(digits_only_1_15("123456789012345")); /* 15 digits: the cap */
+    EXPECT_TRUE(digits_only_1_15("123456789012345"));   /* 15 digits: the cap */
     EXPECT_FALSE(digits_only_1_15("1234567890123456")); /* 16: refused */
     EXPECT_FALSE(digits_only_1_15(""));
     EXPECT_FALSE(digits_only_1_15("12a4"));
@@ -1224,9 +1224,8 @@ TEST(ImageCreateRange, WholeRangeMatchesWholeStream) {
     ASSERT_EQ(OK, create_image_stream(src, whole_sink, nullptr, nullptr, nullptr, &whole));
     MemSink range_sink;
     ImageCreateStats ranged{};
-    ASSERT_EQ(OK,
-              create_image_stream_range(src, 0, src.size(), range_sink, nullptr, nullptr,
-                                        nullptr, &ranged));
+    ASSERT_EQ(OK, create_image_stream_range(src, 0, src.size(), range_sink, nullptr, nullptr,
+                                            nullptr, &ranged));
     ASSERT_EQ(whole_sink.bytes().size(), range_sink.bytes().size());
     EXPECT_EQ(0, std::memcmp(whole_sink.bytes().data(), range_sink.bytes().data(),
                              whole_sink.bytes().size()));
@@ -1238,13 +1237,12 @@ TEST(ImageCreateRange, MiddleSliceMatchesSourceBytes) {
     /* a range that starts past a chunk boundary and ends mid-chunk: the
      * emitted stream is exactly the source's [first, first+len) bytes */
     SrcDevice src(5 * 64 * 1024 + 12345, 512);
-    const u64 first = 64 * 1024 + 123; /* deliberately unaligned head */
+    const u64 first = 64 * 1024 + 123;       /* deliberately unaligned head */
     const u64 length = 2 * 64 * 1024 + 4567; /* deliberately unaligned tail */
     MemSink sink;
     ImageCreateStats st{};
     ASSERT_EQ(OK,
-              create_image_stream_range(src, first, length, sink, nullptr, nullptr, nullptr,
-                                        &st));
+              create_image_stream_range(src, first, length, sink, nullptr, nullptr, nullptr, &st));
     ASSERT_EQ(size_t(length), sink.bytes().size());
     EXPECT_EQ(0, std::memcmp(src.bytes().data() + first, sink.bytes().data(), size_t(length)));
     expect_digest_of(sink.bytes(), st.sha256);
@@ -1273,11 +1271,9 @@ TEST(ImageCreateRange, BeyondDeviceRefused) {
     MemSink sink;
     ImageCreateStats st{};
     EXPECT_EQ(ERR_BAD_PARAMETER,
-              create_image_stream_range(src, src.size(), 1, sink, nullptr, nullptr, nullptr,
-                                        &st));
-    EXPECT_EQ(ERR_BAD_PARAMETER,
-              create_image_stream_range(src, src.size() + 1, 8, sink, nullptr, nullptr,
-                                        nullptr, &st));
+              create_image_stream_range(src, src.size(), 1, sink, nullptr, nullptr, nullptr, &st));
+    EXPECT_EQ(ERR_BAD_PARAMETER, create_image_stream_range(src, src.size() + 1, 8, sink, nullptr,
+                                                           nullptr, nullptr, &st));
     /* the exactly-to-the-end range is legal (the inclusive to-sector) */
     MemSink ok_sink;
     ImageCreateStats ok_st{};
@@ -1305,8 +1301,7 @@ TEST(ImageCreateRange, ProgressTotalIsRangeLength) {
     const u64 length = 2 * 64 * 1024 + 512;
     MemSink sink;
     ImageCreateStats st{};
-    ASSERT_EQ(OK,
-              create_image_stream_range(src, 64 * 1024, length, sink, nullptr, fn, &ctx, &st));
+    ASSERT_EQ(OK, create_image_stream_range(src, 64 * 1024, length, sink, nullptr, fn, &ctx, &st));
     EXPECT_EQ(3u, ctx.calls) << "one callback per chunk (2 full + 1 short tail)";
     EXPECT_EQ(length, ctx.total_seen);
     EXPECT_EQ(length, ctx.last_done);
@@ -1323,8 +1318,8 @@ TEST(ImageCreateRange, CancelMidRangeKeepsTruthfulPrefix) {
     const u64 length = 3 * 64 * 1024;
     MemSink sink;
     ImageCreateStats st{};
-    const u32 rc = create_image_stream_range(src, 64 * 1024, length, sink, &tok, progress,
-                                             &tok, &st);
+    const u32 rc =
+        create_image_stream_range(src, 64 * 1024, length, sink, &tok, progress, &tok, &st);
     ASSERT_EQ(ERR_CANCELLED, rc);
     EXPECT_TRUE(st.cancelled);
     EXPECT_EQ(u64(64 * 1024), st.bytes_written) << "exactly one range chunk committed";

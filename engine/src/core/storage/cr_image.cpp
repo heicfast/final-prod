@@ -1569,8 +1569,7 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
     /* D-IMG-3: the whole-disk form is the [0, size) range form - ONE loop,
      * byte-identical arithmetic (the delegated twin's done/total/bytes_
      * written values are the whole-disk values by construction). */
-    return create_image_stream_range(src, 0, total, sink, cancel, progress, progress_user,
-                                     stats);
+    return create_image_stream_range(src, 0, total, sink, cancel, progress, progress_user, stats);
 }
 
 /* D-IMG-3 (the installer-integration session, INTEGRATION-MATRIX M02): the
@@ -1583,9 +1582,9 @@ u32 create_image_stream(IStorageDevice& src, ImageCreateSink& sink, CancelToken*
  * RANGE-relative (done counts from the range head, total is the range
  * length, bytes_written is the committed prefix of the range). */
 u32 create_image_stream_range(IStorageDevice& src, u64 first_byte, u64 length,
-                               ImageCreateSink& sink, CancelToken* cancel,
-                               ImageCreateProgressFn progress, void* progress_user,
-                               ImageCreateStats* stats) {
+                              ImageCreateSink& sink, CancelToken* cancel,
+                              ImageCreateProgressFn progress, void* progress_user,
+                              ImageCreateStats* stats) {
     ImageCreateStats local{};
     crypto::Sha256 hash;
     std::vector<u8> buf;

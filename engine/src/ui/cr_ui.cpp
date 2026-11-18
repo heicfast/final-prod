@@ -1788,9 +1788,9 @@ u32 image_create_ex_impl(uint32_t disk, const char* utf8_path, uint64_t first_se
     token.flag = cancel_flag;
     ImageCreateProgressBridge bridge{progress, user};
     storage::ImageCreateStats stats{};
-    const u32 rc = win::create_disk_image_ex(
-        disk, path, first_sector, sector_count, cancel_flag ? &token : nullptr,
-        image_create_progress_bridge, &bridge, &stats);
+    const u32 rc = win::create_disk_image_ex(disk, path, first_sector, sector_count,
+                                             cancel_flag ? &token : nullptr,
+                                             image_create_progress_bridge, &bridge, &stats);
     if (rc == OK)
         return ret_ok();
     if (rc == ERR_CANCELLED)
@@ -5147,13 +5147,12 @@ extern "C" CR_UI_API uint32_t cr_ui_image_create(uint32_t disk, const char* utf8
 /* D-IMG-1/D-IMG-3 (the installer-integration session): the ranged +
  * cancellable twin. */
 extern "C" CR_UI_API uint32_t cr_ui_image_create_ex(uint32_t disk, const char* utf8_path,
-                                                    uint64_t first_sector,
-                                                    uint64_t sector_count,
+                                                    uint64_t first_sector, uint64_t sector_count,
                                                     volatile uint32_t* cancel_flag,
                                                     cr_ui_recovery_progress_fn progress,
                                                     void* user) {
-    return guarded(image_create_ex_impl, disk, utf8_path, first_sector, sector_count,
-                   cancel_flag, progress, user);
+    return guarded(image_create_ex_impl, disk, utf8_path, first_sector, sector_count, cancel_flag,
+                   progress, user);
 }
 
 /* ---- M-075: the chkdsk escalation endpoint (the ladder's fix rung) ----

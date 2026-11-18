@@ -131,9 +131,9 @@ u32 create_image_file(IStorageDevice& src, const std::u16string& out_path_utf16,
 }
 
 u32 create_image_file_range(IStorageDevice& src, u64 first_byte, u64 length,
-                             const std::u16string& out_path_utf16, CancelToken* cancel,
-                             storage::ImageCreateProgressFn progress, void* progress_user,
-                             storage::ImageCreateStats* stats) {
+                            const std::u16string& out_path_utf16, CancelToken* cancel,
+                            storage::ImageCreateProgressFn progress, void* progress_user,
+                            storage::ImageCreateStats* stats) {
     if (out_path_utf16.empty())
         return ERR_BAD_PARAMETER;
     const std::u16string temp = out_path_utf16 + u".crimg-tmp";
@@ -144,9 +144,8 @@ u32 create_image_file_range(IStorageDevice& src, u64 first_byte, u64 length,
         return ERR_OPEN_FAILED;
 
     storage::ImageCreateStats local{};
-    const u32 rc =
-        storage::create_image_stream_range(src, first_byte, length, sink, cancel, progress,
-                                          progress_user, &local);
+    const u32 rc = storage::create_image_stream_range(src, first_byte, length, sink, cancel,
+                                                      progress, progress_user, &local);
     if (rc == OK) {
         if (!sink.flush()) {
             sink.close();
@@ -218,8 +217,8 @@ u32 create_disk_image_ex(u32 disk, const std::u16string& out_path_utf16, u64 fir
         return ERR_BAD_PARAMETER; /* the range runs past the end: refuse,
                                      never silently truncate */
     return create_image_file_range(*dev, first_sector * u64(g.logical_sector),
-                                   count * u64(g.logical_sector), out_path_utf16, cancel,
-                                   progress, progress_user, stats);
+                                   count * u64(g.logical_sector), out_path_utf16, cancel, progress,
+                                   progress_user, stats);
 }
 
 } // namespace win

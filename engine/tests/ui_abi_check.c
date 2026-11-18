@@ -1178,8 +1178,7 @@ int main(int argc, char** argv) {
          * and the same honest unsupported answer on this lane */
         CHECK_EQ_U64(cr_ui_image_create_ex(0, NULL, 0, 0, NULL, NULL, NULL),
                      CR_UI_ERR_BAD_PARAMETER);
-        CHECK_EQ_U64(cr_ui_image_create_ex(0, "", 0, 0, NULL, NULL, NULL),
-                     CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_image_create_ex(0, "", 0, 0, NULL, NULL, NULL), CR_UI_ERR_BAD_PARAMETER);
         CHECK_EQ_U64(cr_ui_image_create_ex(0, "out.img", 0, 0, NULL, NULL, NULL),
                      CR_UI_ERR_UNSUPPORTED);
         CHECK(strstr(cr_ui_last_error(), "Windows platform layer") != NULL);

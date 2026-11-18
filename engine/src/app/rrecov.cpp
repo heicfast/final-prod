@@ -2960,11 +2960,10 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     /* the no-range path stays the literal legacy call (byte-identical); the
      * ranged path takes the ex twin (which ALSO answers Ctrl-C through the
      * same g_cancel_token). */
-    const u32 rc = ranged
-                       ? win::create_disk_image_ex(disk, out16, first_sector, sector_count,
-                                                   &g_cancel_token, progress, &ctx, &stats)
-                       : win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx,
-                                                 &stats);
+    const u32 rc =
+        ranged ? win::create_disk_image_ex(disk, out16, first_sector, sector_count, &g_cancel_token,
+                                           progress, &ctx, &stats)
+               : win::create_disk_image(disk, out16, &g_cancel_token, progress, &ctx, &stats);
     const std::string hex = crypto::to_hex(stats.sha256, 32);
     if (rc == OK) {
         wprintf(L"image complete: %llu bytes, sha256 %hs\n",
