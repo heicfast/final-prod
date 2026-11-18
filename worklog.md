@@ -3687,3 +3687,34 @@ QD1 large-read health, LRU/checkpoint/API latencies, the result-tree mutex
 maps Phase 2 onto acceptance measurements per fix; BASELINE.md (T4) is the
 standing numbers sheet. T5/T6 audit content rode PRODUCT-STATE.md (I/O
 model + queue/lock/buffer/alignment audits, all file:line-cited).
+
+---
+
+## 2026-11-18T09:00Z — Lane E opens: safety-hardening session T1 (clone, baselines, prompt, coordination)
+
+The memory-safety/stability/security-hardening session opens as **Lane
+E** (announcement + territory: `worklog/COORDINATION.md`). Base state
+recorded before any work:
+
+- Product: `final-prod` main @ `dedb0a463309efc9b60436cf89553e3493351a8f`
+  (2026-11-18T07:02Z) — the imaging-wave + DIAGNOSIS state (ABI v4, 94
+  exports; W9's TS half recorded in API-DELTA).
+- Corpus: `easeus-drw-research` main @ `be0cfe95ecf22ac67e0f3a823dd003163b196d38`
+  (the 8-corrections errata state).
+- Session prompt saved token-redacted:
+  `worklog/session-safety-hardening-prompt.md` (read twice).
+
+Environment truth (recorded because the session's own rules forbid
+hallucinated evidence): this lane runs in a Linux container with
+git/gcc/g++/node/npm/python3. cmake, clang/clang-tidy/clang-format,
+cppcheck, cargo/rustc, CodeQL are NOT preinstalled — each gets
+installed (pip/apt where available) before its Phase-0/C/D task needs
+it, or its absence is documented with precise scope. Windows-only
+gates (MSVC `/analyze`, on-Windows sanitizer/RC evidence, Windows CI
+runs) cannot execute here and will be recorded as precise-scope
+blockers in `worklog/BEHAVIOR-FINDINGS.md`, never faked. The
+Linux-executable evidence set is real tool output throughout.
+
+T1 artifacts: this entry; the prompt file; the Lane E section of
+COORDINATION.md. Next: T2 — parallel Phase-0 read (agents A–E over the
+product and corpus), five context sheets, push before any fix.

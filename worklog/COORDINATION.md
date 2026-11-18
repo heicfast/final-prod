@@ -181,3 +181,38 @@ lane C applied the three mechanical fixes: `///` → `//` on the two
 expression-field comments, `14 | 15 | 16` → `14..=16`. No behavior
 change; lane C's local 1.99 clippy + cargo check both green on the
 result.
+
+## Lane E — the safety-hardening lane (2026-11-18, this session)
+
+A fifth session opens: **Lane E** — `Safety Hardening Agent
+<safety-hardening@heicfast.local>`. Mandate (the user's own words):
+systematically find and fix every memory safety, stability, and
+resource-consumption defect — OOB, UAF, double-free, uninit memory,
+integer overflow, stack overflow, leaks (memory/handle/thread),
+deadlocks, hangs, freezes, unbounded consumption, incomplete wiring,
+unhandled errors, crashes, vulnerabilities. Every defect proven with a
+reproduction, every fix root-cause, every fix proven before/after.
+Session prompt (token redacted): `worklog/session-safety-hardening-prompt.md`.
+
+Prior-lane state adopted: lanes A–D concluded at their recorded entries
+above; no live pushes since `dedb0a46` (2026-11-18T07:02Z, cloned as
+this session's base). Lane E takes over the consolidated A/D territory —
+`engine/**`, `ui/src-tauri/src/bridge/**` — plus the whole-tree safety
+mandate (any file may carry a memory-safety defect; fixes in another
+lane's historical territory get announced here first, per the seam
+rule).
+
+Lane E file ownership (additions to the seam table):
+
+| Territory | Owner |
+|---|---|
+| `worklog/session-safety-hardening-prompt.md`, `worklog/{SAFETY-SURFACE,REFERENCE-EDGE-CASES,STATIC-ANALYSIS,SANITIZER-FINDINGS,RUNTIME-STRESS,DEFECT-LEDGER}.md`, `worklog/FIXES/**` | Lane E |
+| `engine/fuzz/**` (new fuzzers), `engine/tests/**` (regression tests), `tools/validation/**` (stress harnesses) | Lane E |
+
+Environment truth recorded up front (the no-hallucination rule): this
+session runs in a **Linux container**. Windows-only evidence gates
+(MSVC `/analyze`, on-Windows RC validation, Windows CI runs) cannot
+execute here; each is documented with precise scope in
+`worklog/BEHAVIOR-FINDINGS.md`, never faked. All Linux-executable
+evidence (gcc/clang sanitizers, cppcheck, fuzzers, stress runs, the
+Linux CI lanes `build.sh` runs) is real tool output.
