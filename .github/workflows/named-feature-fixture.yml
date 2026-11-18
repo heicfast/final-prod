@@ -182,7 +182,7 @@ jobs:
 
           # 2. the named feature: deleted-only reconstruction with the
           #    original directory structure (SF semantics; SfId scheme)
-          $recLog = & $rrecov recover --in $session --image $vhdx --to $out ``
+          $recLog = & $rrecov recover --in $session --image $vhdx --to $out `
               --reconstruct-deleted --report (Join-Path $evidence 'recovery-report.json') 2>&1 | Out-String
           $recLog | Set-Content -Path (Join-Path $evidence 'reconstruct-log.txt') -Encoding UTF8
           Write-Host $recLog
@@ -190,8 +190,8 @@ jobs:
 
           # 3. the byte-for-byte judge: I1 deleted-only, I2 exactness,
           #    I3 collision-set, I4 accountability, I5 containment
-          & python ..\tools\validation\named-feature\verify-reconstruction.py ``
-              --manifest $manifest --out $out --report (Join-Path $evidence 'verify-report.json') ``
+          & python ..\tools\validation\named-feature\verify-reconstruction.py `
+              --manifest $manifest --out $out --report (Join-Path $evidence 'verify-report.json') `
             | Tee-Object -FilePath (Join-Path $evidence 'verify-output.txt')
           if ($LASTEXITCODE -ne 0) { throw 'VERIFIER FAILED - see verify-report.json (never masked)' }
           Write-Host 'F-01 ENGINE-FLOW VERDICT: PASS (I1-I5 green on the seeded ground truth)'
