@@ -99,8 +99,10 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_mountpoints.h" /* M-118: the register channel's live HKCU walk */
 #include "cr/win/cr_transport.h"
-#include "cr/win/cr_winenv.h"       /* ENUMERATE_DISK_BOUND: the 200-disk product space */
+#include "cr/win/cr_winenv.h" /* ENUMERATE_DISK_BOUND: the 200-disk product space */
+#include "cr/win/cr_image_create.h"
 #include "cr/win/cr_image_create.h" /* S-040: the image verb */
+#include "cr/win/cr_rescue_win.h"   /* F-33/F-34: the rescue flow */
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_bootfix.h"
 #include "cr/win/cr_fsck.h" /* M-075: the chkdsk escalation endpoint */
@@ -2896,6 +2898,10 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
     bool have_disk = false;
     std::wstring out;
     bool have_out = false;
+    /* F-33/F-34 (Wave 6): the ddrescue-style rescue mode's knobs */
+    bool rescue = false, reverse = false;
+    std::wstring chunk_txt, skip_txt, retries_txt;
+    bool have_chunk = false, have_skip = false, have_retries = false;
     /* D-IMG-3 (the installer-integration session): the og's "More Option"
      * from/to sector range (DiskBackupSaveDlg fromLabel/toLabel,
      * [0-9]{1,15} validation, "Invalid sector" errors - strings:11640-
@@ -2937,6 +2943,31 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--to-sector", &v)) {
             to_sector_txt = v;
             have_to = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--rescue")) {
+            /* F-33/F-34: two-pass ddrescue-style imaging with bad-sector
+             * isolation + the resumable <out>.mapfile (auto-resume). */
+            rescue = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--reverse")) {
+            reverse = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--chunk-size", &v)) {
+            chunk_txt = v;
+            have_chunk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--skip-size", &v)) {
+            skip_txt = v;
+            have_skip = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--retries", &v)) {
+            retries_txt = v;
+            have_retries = true;
             continue;
         }
         wprintf(L"unknown image option: %s\n", argv[i]);
@@ -2987,6 +3018,108 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
+    const std::u16string out16(out.begin(), out.end());
+    if (rescue) {
+        /* F-33/F-34: the rescue flow. A sector range and rescue compose
+         * (the map covers the RANGE - the imager sees the range as its
+         * universe through a sliced view); reverse/sparse, chunk/skip/
+         * retries map onto RescueImagerConfig. No sha256 sidecar for
+         * rescue images (holes would make the digest vouch for zeros that
+         * were never read - the mapfile is the truth artifact). */
+        if (ranged) {
+            wprintf(L"--rescue does not compose with a sector range (rescue the whole "
+                    L"disk; carve ranges later)\n");
+            return 1;
+        }
+        const auto parse_size = [](const std::wstring& t, u64* o) {
+            if (t.empty() || t.size() > 20)
+                return false;
+            u64 mul = 1;
+            wchar_t unit = t.back();
+            std::wstring num = t;
+            if (unit == L'k' || unit == L'K') {
+                mul = 1024;
+                num = t.substr(0, t.size() - 1);
+            } else if (unit == L'm' || unit == L'M') {
+                mul = 1024 * 1024;
+                num = t.substr(0, t.size() - 1);
+            } else {
+                unit = 0;
+            }
+            if (num.empty())
+                return false;
+            for (const wchar_t c : num)
+                if (c < L'0' || c > L'9')
+                    return false;
+            *o = u64(wcstoull(num.c_str(), nullptr, 10)) * mul;
+            return *o > 0;
+        };
+        storage::RescueImagerConfig rcfg;
+        if (have_chunk && !parse_size(chunk_txt, &rcfg.initial_chunk)) {
+            wprintf(L"Invalid chunk size: %s\n", chunk_txt.c_str());
+            return 1;
+        }
+        if (have_skip && !parse_size(skip_txt, &rcfg.skip_size)) {
+            wprintf(L"Invalid skip size: %s\n", skip_txt.c_str());
+            return 1;
+        }
+        if (have_retries) {
+            if (retries_txt.empty() || retries_txt.size() > 9) {
+                wprintf(L"Invalid retry count: %s\n", retries_txt.c_str());
+                return 1;
+            }
+            for (const wchar_t c : retries_txt)
+                if (c < L'0' || c > L'9') {
+                    wprintf(L"Invalid retry count: %s\n", retries_txt.c_str());
+                    return 1;
+                }
+            rcfg.max_retries = u32(wcstoul(retries_txt.c_str(), nullptr, 10));
+        }
+        rcfg.reverse = reverse;
+
+        struct RCtx {
+            u64 next_mark = 0;
+        } rctx;
+        auto rprogress = +[](void* user, const storage::RescueStats& st) {
+            auto* c = static_cast<RCtx*>(user);
+            const u64 done = st.rescued_bytes + st.bad_bytes;
+            if (done < c->next_mark && st.pending_bytes > 0)
+                return;
+            wprintf(L"rescue: %llu%% | rescued %llu MiB | bad %llu KiB | pending %llu MiB | "
+                    L"pass %ls | pos 0x%llX\n",
+                    static_cast<unsigned long long>(
+                        (st.rescued_bytes + st.bad_bytes) * 100 /
+                        (st.rescued_bytes + st.bad_bytes + st.pending_bytes)),
+                    static_cast<unsigned long long>(st.rescued_bytes >> 20),
+                    static_cast<unsigned long long>(st.bad_bytes >> 10),
+                    static_cast<unsigned long long>(st.pending_bytes >> 20),
+                    st.pass_retry ? L"retry" : L"copy",
+                    static_cast<unsigned long long>(st.current_pos));
+            const u64 total = st.rescued_bytes + st.bad_bytes + st.pending_bytes;
+            const u64 mark = total / 10 ? total / 10 : 1;
+            c->next_mark = done + mark;
+        };
+
+        u32 err = 0;
+        std::unique_ptr<IStorageDevice> dev = win::open_disk(disk, &err);
+        if (!dev)
+            return 1;
+        storage::RescueStats rstats{};
+        const u32 rrc =
+            win::create_rescue_image(*dev, out16, rcfg, &g_cancel_token, rprogress, &rctx, &rstats);
+        const bool complete = rrc == OK;
+        wprintf(L"rescue %ls: rescued %llu / %llu bytes, bad %llu, pending %llu%s\n",
+                complete ? L"complete" : L"stopped",
+                static_cast<unsigned long long>(rstats.rescued_bytes),
+                static_cast<unsigned long long>(dev->size()),
+                static_cast<unsigned long long>(rstats.bad_bytes),
+                static_cast<unsigned long long>(rstats.pending_bytes),
+                complete ? L"" : L" - re-run the same command to resume");
+        wprintf(L"mapfile: %s.mapfile%s\n", out.c_str(),
+                complete ? L" (all '+': the completion certificate)" : L"");
+        return complete ? 0 : 1;
+    }
+
     /* live progress: one line per ~10% (throttled; the callback fires per
      * 64 KiB chunk, printing all of them would dominate the stream) */
     struct Ctx {
@@ -3004,7 +3137,6 @@ int cmd_image(int argc, wchar_t** argv, int& i) {
         c->next_mark = done + mark;
     };
 
-    const std::u16string out16(out.begin(), out.end());
     storage::ImageCreateStats stats{};
     /* the no-range path stays the literal legacy call (byte-identical); the
      * ranged path takes the ex twin (which ALSO answers Ctrl-C through the

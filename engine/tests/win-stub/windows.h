@@ -32,6 +32,7 @@
  * structure AND layout now match the MSVC lane. ULONG_PTR stays 8 (x64). */
 typedef unsigned int DWORD;
 typedef unsigned long long ULONGLONG; /* M-075's chkdsk launcher (cr_fsck.cpp) */
+typedef long long LONGLONG;           /* F-33/F-34 rescue sink (cr_rescue_win.cpp) */
 typedef unsigned int ULONG;
 typedef unsigned long long ULONG_PTR;
 typedef int LONG;
@@ -145,6 +146,7 @@ struct WIN32_FIND_DATAW {
 #define CREATE_ALWAYS 2
 #define CREATE_NO_WINDOW 0x08000000UL
 #define OPEN_EXISTING 3
+#define OPEN_ALWAYS 4 /* F-33/F-34 rescue resume (cr_rescue_win.cpp) */
 #define FILE_ATTRIBUTE_NORMAL 0x00000080UL
 #define NO_ERROR 0UL
 #define INVALID_SET_FILE_POINTER 0xFFFFFFFFUL
@@ -369,6 +371,12 @@ inline BOOL QueryPerformanceCounter(LARGE_INTEGER*) {
 }
 inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
     return 1;
+}
+
+/* ---- F-33/F-34: the rescue sink's sparse/positioned-write surface ------- */
+#define FSCTL_SET_SPARSE 0x000900C4UL
+inline BOOL SetFilePointerEx(HANDLE, LARGE_INTEGER, LARGE_INTEGER*, DWORD) {
+    return TRUE;
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
@@ -675,3 +683,7 @@ inline BOOL ReadConsoleInputW(HANDLE, INPUT_RECORD*, DWORD, DWORD*) {
 inline HANDLE CreateThread(void*, DWORD, DWORD(WINAPI*)(void*), void*, DWORD, DWORD*) {
     return (HANDLE)0;
 }
+
+/* F-33/F-34: DeviceIoControl/FSCTL_SET_SPARSE live in the ioctl stub;
+ * included at the END so every type above is declared first. */
+#include "winioctl.h"

@@ -4473,3 +4473,80 @@ run 44359663812 (smoke) still in flight; its first-ever green is expected
 but not yet claimed. ui-ci/bridge runs on the newest heads are in flight
 from the concurrent session's rapid pushes; each red so far was a real
 integration miss from their feature commits, fixed at source same-hour.
+
+---
+
+## Wave 6 unit A + the cb2c8e0a CI postmortem: two-pass rescue imaging lands
+
+**cb2c8e0a push postmortem (three root causes, all fixed in this unit).**
+contracts-ci green; engine-ci lint RED, bridge-integration RED,
+fixture-lane engine-flow RED:
+1. **engine-ci (AST parse gate)**: the engine-flow job's pwsh block used
+   backtick line-continuations before `--flags` — and the committed YAML
+   carried DOUBLED backticks (an escaped literal, i.e. NO continuation;
+   the next line's leading `--` parses as a unary operator). Rewritten
+   as single-line invocations; locally re-simulated the gate's
+   extraction (4 blocks, zero trailing backticks).
+2. **bridge-integration (ABI freshness gate)**: my committed
+   `abi_layout_dump.header.sha` was STALE — cr_ui.h was edited (the
+   u8_to_u16/writer_scheme fixes + clang-format) AFTER the last
+   generator run. Regenerated (30 structs / 376 field paths; the CI's
+   expected 19f722e5… now matches), dump reformatted, local ABI dump +
+   check green.
+3. **fixture engine-flow ("Set up job")**: I fabricated the
+   actions/download-artifact pin SHA (631f0bb8… — does not exist; the
+   hallucination the mission's rules exist to catch, caught by the
+   runner itself). Replaced with the REAL v4 tag SHA resolved from the
+   GitHub API (d3f86a106a0bac45b974a628896c90dbdf5c8093, v4.3.0 merge).
+   The fixture job itself SUCCEEDED in that run — the seeded VHDX
+   ground truth exists (artifact `named-feature-fixture`, run
+   44370686000).
+Also registered: my pushed subject `feat(W1+W5/F-01)` violates the
+local commit-convention charset (scope allows [A-Za-z0-9._-] only;
+`+`/`/` are out) — CI does not enforce it and force-push is forbidden,
+so it stands as a recorded deviation; every subsequent subject
+conforms.
+
+**F-33/F-34: the ddrescue-style two-pass rescue imager.** New pure-core
+`engine/src/core/storage/cr_rescue.{h,cpp}` (behavior re-implemented
+from the SF sheet §2.1/2.2 citing sf-core imager.rs/mapfile.rs; the
+on-disk mapfile follows GNU ddrescue's documented format —
+ddrescueview-readable):
+- `RescueMap`: sorted/contiguous/non-overlapping blocks over [0,total);
+  mark() split-carve-merge; find_next/find_prev (clipped);
+  to_mapfile_text()/parse() (round-trip tested; hostile input —
+  overlaps, holes, unknown status, zero-size — refused);
+- `RescueImager`: pass 1 forward (from current_pos, with the from-0
+  fallback so a resumed/reverse run picks up untried areas before it)
+  or REVERSE (each region read from its TAIL; current_pos keeps the
+  lowest point); a failed read marks max(skip, chunk) NonTrimmed and
+  jumps — one bad spot cannot stall the rescue; pass 2 binary-splits
+  NonTrimmed/NonScraped toward sector granularity, retrying each
+  sector up to max_retries before BadSector; checkpoints (dest flush ->
+  map save) at <=5s cadence (periodic failures swallowed — an AV lock
+  aborting a live rescue would be far worse) and forced at pass
+  boundaries; buffer-capacity-clamped reads (no unbounded retry read);
+- stats derive from the map (rescued/bad/pending sum to total — the
+  truth invariant); NO sha256 sidecar for rescue images BY DESIGN
+  (holes would make a digest vouch for zeros never read; the mapfile is
+  the truth artifact, all-'+' = the completion certificate).
+- Win32 driver `win/cr_rescue_win.cpp`: positioned writes
+  (SetFilePointerEx), FSCTL_SET_SPARSE best-effort (F-36) on
+  reverse/fresh, atomic mapfile IO (tmp + flush + MoveFileExW with the
+  5x50ms replace-while-open retry), auto-resume with the refusal
+  checks (wrong-size map; map claiming bytes a missing/short dest does
+  not hold), direct-to-final-path disposition (temp+rename would
+  orphan the map's claims — the mapfile is the commit marker).
+- CLI: `rrecov image --create --disk N --out f.img --rescue [--reverse]
+  [--chunk-size N] [--skip-size N] [--retries N]` with resume hinting;
+  the flat producer path untouched.
+- Tests (12): map round-trip/hostile-input/split-merge/clip, clean
+  full rescue byte-compared, the two-sector bad patch isolated to
+  EXACTLY 1024 bad bytes (hole never written — no synthesized zeros),
+  reverse attempts the tail first, resume never redoes Finished work,
+  wrong-size map refused, forced-save failure propagates, periodic
+  checkpoints fire, empty-device parity. win-stub extended (OPEN_ALWAYS,
+  LONGLONG, FSCTL_SET_SPARSE, SetFilePointerEx; winioctl include moved
+  to the stub's END so its types resolve); win_syntax_check green over
+  the whole win layer + app.
+Local gates: ci-local GREEN, 1679 tests 0 failed, layout regen verified. (feat(W6): two-pass ddrescue-style rescue imaging with the resumable mapfile (F-33/F-34) + the cb2c8e0a CI postmortem fixes)

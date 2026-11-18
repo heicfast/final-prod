@@ -58,6 +58,7 @@ add_executable(cr_tests
     unit/test_ldm_recovery.cpp
     unit/test_report.cpp
     unit/test_extractplan.cpp
+    unit/test_rescue.cpp
     unit/test_reghive.cpp
     unit/test_bcdfix.cpp
     unit/test_nvramfix.cpp
