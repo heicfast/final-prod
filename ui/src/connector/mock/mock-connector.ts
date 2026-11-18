@@ -34,10 +34,12 @@ import type {
   DiskMapOptions,
   DiskMapPayload,
   FsckResult,
+  ImageCancelAck,
   ImageFinishedEvent,
   ImageJobState,
   ImageJobStatus,
   ImageProgressEvent,
+  ImageSectorRange,
   LostCandidateEvent,
   LostCandidateRow,
   MockScenarioId,
@@ -222,8 +224,11 @@ interface ScanRuntime {
 /**
  * Lane C: the mock imaging runtime — the Create Image flow's simulator
  * (deterministic ticks, the same emitter-registry discipline the scan and
- * recovery runtimes use). NO cancel is simulated: the contract's truthful
- * cancelSupported=false posture is mirrored verbatim.
+ * recovery runtimes use). Cancel IS simulated (D-IMG-1/W9): the stop sets
+ * the flag, the next tick latches `cancelled`, the terminal events carry
+ * partialKept = bytes-done > 0 — the bridge's filesystem-probe semantics
+ * mirrored (the simulator writes no real partial file, so the flag stands
+ * in for the probe truthfully).
  */
 interface ImageRuntime {
   imageId: string;
@@ -237,6 +242,13 @@ interface ImageRuntime {
   timer: ReturnType<typeof setInterval> | null;
   startedAt: string;
   finishedAt: string | null;
+  /** D-IMG-1: the live cancel flag (set by cancelImageCreation from any
+   * call; consumed by the next tick). */
+  cancelRequested: boolean;
+  /** D-IMG-3: the requested range (null = the whole disk), for the
+   * state's byte math mirror. */
+  firstSector: number;
+  sectorCount: number;
 }
 
 /** The mock carve catalog: a deterministic sample of the engine's two
@@ -975,6 +987,38 @@ export class MockConnector {
    */
   private imageTick(rt: ImageRuntime): void {
     rt.tick++;
+    // D-IMG-1: the cancel checkpoint — the flag set by cancelImageCreation
+    // latches `cancelled` at the NEXT tick head (the engine's producer
+    // loop refuses within one 64 KiB chunk; one 90 ms tick is the
+    // simulator's equivalent bound). The bytes already committed stand
+    // (the partial truth).
+    if (rt.cancelRequested && rt.status === 'running') {
+      rt.status = 'cancelled';
+      rt.finishedAt = new Date().toISOString();
+      if (rt.timer) {
+        clearInterval(rt.timer);
+        rt.timer = null;
+      }
+    }
+    if (rt.status !== 'running') {
+      // Terminal latch already landed (cancel or completion): emit the
+      // final progress + terminal event, stop ticking.
+      this.emitTo(this.imageProgressListeners, rt.imageId, {
+        imageId: rt.imageId,
+        status: rt.status,
+        bytesDone: rt.bytesDone,
+        bytesTotal: rt.bytesTotal,
+        overallProgress: rt.status === 'completed' ? 1 : rt.bytesDone / rt.bytesTotal,
+        throughputBytesPerSecond: rt.status === 'completed' ? rt.throughput : 0,
+        etaSeconds: rt.status === 'completed' ? 0 : null,
+      });
+      this.emitTo(this.imageFinishedListeners, rt.imageId, {
+        imageId: rt.imageId,
+        status: rt.status,
+        partialKept: rt.status !== 'completed' && rt.bytesDone > 0,
+      });
+      return;
+    }
     // The simulated clock: ~90 MB/s at 90 ms ticks would take minutes for
     // a disk-sized total — scale to a ~4 s run (44 ticks), the same
     // compression the scan engine applies to its stages.
@@ -2530,6 +2574,7 @@ ${lines.join('')}
     startImageCreation: async (
       deviceId: string,
       path: string,
+      range?: ImageSectorRange,
     ): Promise<{ imageId: string }> => {
       await latency(420, 120);
       const trimmed = path.trim();
@@ -2555,6 +2600,49 @@ ${lines.join('')}
         throw connError('device-gone', `device ${deviceId} not found`, 'errors.deviceGone');
       }
       const device = this.deviceList[diskIdx];
+      // D-IMG-3: the range's byte math + the bounds refusal — the
+      // ENGINE's own gate mirrored (cr_ui_image_create_ex refuses an
+      // out-of-range pair with ERR_BAD_PARAMETER, which the connector
+      // maps to scan-scope-invalid; never a silent truncation). The
+      // mock's device rows carry the sector-size axis when present
+      // (512 default — the engine's own fallback).
+      const sectorSize = device.sectorSize ?? 512;
+      const totalSectors = Math.floor(device.capacity.totalBytes / sectorSize);
+      let firstSector = 0;
+      let sectorCount = 0;
+      let bytesTotal = device.capacity.totalBytes;
+      if (range) {
+        if (
+          !Number.isSafeInteger(range.firstSector) ||
+          !Number.isSafeInteger(range.sectorCount) ||
+          range.firstSector < 0 ||
+          range.sectorCount < 0
+        ) {
+          throw connError(
+            'scan-scope-invalid',
+            'the sector range must be non-negative integers',
+            'errors.scanScopeInvalid',
+          );
+        }
+        if (range.firstSector >= totalSectors) {
+          throw connError(
+            'scan-scope-invalid',
+            `invalid sector: the disk carries ${totalSectors} sectors (0-based)`,
+            'errors.scanScopeInvalid',
+          );
+        }
+        firstSector = range.firstSector;
+        sectorCount = range.sectorCount;
+        const n = sectorCount === 0 ? totalSectors - firstSector : sectorCount;
+        if (firstSector + n > totalSectors) {
+          throw connError(
+            'scan-scope-invalid',
+            `invalid sector: the range [${firstSector}, ${firstSector + n}) passes the disk end (${totalSectors})`,
+            'errors.scanScopeInvalid',
+          );
+        }
+        bytesTotal = n * sectorSize;
+      }
       // The same-disk pre-gate: the destination letter must not live on
       // the imaged device (mirrors the bridge's typed refusal).
       const destLetter = /^[A-Za-z]:/.exec(trimmed)?.[0]?.[0]?.toUpperCase();
@@ -2572,12 +2660,15 @@ ${lines.join('')}
         path: trimmed,
         status: 'running',
         bytesDone: 0,
-        bytesTotal: device.capacity.totalBytes,
+        bytesTotal,
         throughput: 96 * 1024 * 1024,
         tick: 0,
         timer: null,
         startedAt: new Date().toISOString(),
         finishedAt: null,
+        cancelRequested: false,
+        firstSector,
+        sectorCount,
       };
       this.imageJobs.set(imageId, rt);
       rt.timer = setInterval(() => this.imageTick(rt), 90);
@@ -2612,8 +2703,38 @@ ${lines.join('')}
         path: rt.path,
         startedAt: rt.startedAt,
         finishedAt: rt.finishedAt,
-        cancelSupported: false, // the truthful contract, mirrored verbatim
-        partialKept: false, // the simulator never simulates a failed stream
+        // D-IMG-1 closed: cancel is REAL — the flag is live from the
+        // stop request until the terminal latch.
+        cancelSupported: true,
+        cancelRequested: rt.cancelRequested,
+        // The simulator's stand-in for the bridge's `<path>.partial`
+        // filesystem probe: any committed byte before a non-complete
+        // terminal state kept a partial.
+        partialKept: rt.status !== 'completed' && rt.bytesDone > 0,
+      };
+    },
+
+    // D-IMG-1: the stop surface. The flag write is from-any-call; the
+    // next tick latches `cancelled` (the engine's one-64-KiB-chunk bound
+    // mirrored as one tick). An unknown id is the typed refusal; a job
+    // already terminal is the honest no-op with the terminal status.
+    cancelImageCreation: async (imageId: string): Promise<ImageCancelAck> => {
+      await latency(40, 20);
+      const rt = this.imageJobs.get(imageId);
+      if (!rt) {
+        throw connError(
+          'image-not-found',
+          `image job ${imageId} not found`,
+          'errors.imageNotFound',
+        );
+      }
+      if (rt.status === 'running') {
+        rt.cancelRequested = true;
+      }
+      return {
+        imageId,
+        status: rt.status,
+        cancelRequested: rt.cancelRequested,
       };
     },
 

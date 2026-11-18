@@ -1,8 +1,16 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpenIcon, HardDriveIcon, SaveIcon } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  FolderOpenIcon,
+  HardDriveIcon,
+  SaveIcon,
+  SquareIcon,
+} from 'lucide-react';
 import type { Device } from '@/connector/contract';
 import {
+  useCancelImageCreation,
   useImageFinishedBridge,
   useImageProgress,
   useImageState,
@@ -30,13 +38,27 @@ import { toast } from 'sonner';
  * flat image + .sha256 sidecar (the engine's S-040 contract; the og's
  * .edisk is a registered engine-side divergence, PARITY-DELTAS D-147).
  *
- * Truth rules: NO cancel button (the ABI exports none — cancelSupported
- * is always false; the copy says the run completes, never a dead stop
- * control); the destination pre-check is advisory (the BRIDGE's own gate
- * is the authority — destination-overlap / out-of-space refuse the start
- * server-side); progress is the engine's cumulative-bytes callback, with
- * throughput + ETA derived exactly like the scan page's.
+ * Truth rules (D-IMG-1/D-IMG-3 closed — the W9 wiring over the shipped
+ * engine/CLI/bridge halves):
+ * - CANCEL IS REAL: the Stop control (with the reference's stop-confirm —
+ *   "You need to re-create the disk image if you stop it", strings:11672-
+ *   11673) rides the bridge's image_create_cancel; the partial is KEPT as
+ *   `<path>.partial` and the cancelled state says so plainly.
+ * - The More-Option sector range (DiskBackupSaveDlg's from/to pair,
+ *   strings:11640-11760): digits-only inputs (the og's [0-9]{1,15}
+ *   grammar), empty To = end of disk; the ENGINE owns the bounds refusal
+ *   (an out-of-range pair is refused bad-parameter — surfaced as the
+ *   typed toast, never a silent truncation).
+ * - The destination pre-check is advisory (the BRIDGE's own gate is the
+ *   authority — destination-overlap / out-of-space sized to the RANGE's
+ *   bytes refuse the start server-side); progress is the engine's
+ *   cumulative-bytes callback, with throughput + ETA derived exactly like
+ *   the scan page's.
  */
+
+/** The og's sector-grammar: digits only, at most 15 (strings:11640-11760 —
+ * the [0-9]{1,15} edit the DiskBackupSaveDlg pair accepts). */
+const SECTOR_RE = /^[0-9]{1,15}$/;
 
 export function CreateImageDialog({
   device,
@@ -51,7 +73,12 @@ export function CreateImageDialog({
   const [folder, setFolder] = React.useState<string | null>(null);
   const [fileName, setFileName] = React.useState('');
   const [imageId, setImageId] = React.useState<string | null>(null);
+  const [showMore, setShowMore] = React.useState(false);
+  const [fromSector, setFromSector] = React.useState('');
+  const [toSector, setToSector] = React.useState('');
+  const [confirmStop, setConfirmStop] = React.useState(false);
   const start = useStartImageCreation();
+  const cancelImage = useCancelImageCreation();
   const pickDirectory = usePickDirectory();
   const openPath = useOpenPath();
   const progressEvent = useImageProgress(imageId);
@@ -72,16 +99,58 @@ export function CreateImageDialog({
     setFolder(null);
     setFileName(defaultFileName(device, i18n.language));
     setImageId(null);
+    setShowMore(false);
+    setFromSector('');
+    setToSector('');
+    setConfirmStop(false);
     start.reset();
+    cancelImage.reset();
   } else if (!open && wasOpen) {
     setWasOpen(false);
   }
 
   const running = imageId !== null && progress?.status === 'running';
   const finished =
-    imageId !== null && (progress?.status === 'completed' || progress?.status === 'failed');
+    imageId !== null &&
+    (progress?.status === 'completed' ||
+      progress?.status === 'failed' ||
+      progress?.status === 'cancelled');
   const path =
     folder !== null && fileName.trim() !== '' ? `${folder}\\${fileName.trim()}` : null;
+
+  // The More-Option pair's advisory validity: digits-only inputs, and a
+  // From that does not pass the To when both are given. The ENGINE owns
+  // the real bounds gate (an out-of-disk pair is its typed refusal).
+  const fromOk = fromSector === '' || SECTOR_RE.test(fromSector);
+  const toOk = toSector === '' || SECTOR_RE.test(toSector);
+  const pairOk = fromSector === '' || toSector === '' || Number(fromSector) <= Number(toSector);
+  const rangeValid = fromOk && toOk && pairOk;
+  // The range reaches the connector ONLY when at least one field is set;
+  // an empty To means "to the end of the disk" (sectorCount 0 — the
+  // engine's own end-of-disk convention).
+  const sectorSize = device?.sectorSize ?? 512;
+  const totalSectors =
+    device && device.capacity.totalBytes > 0
+      ? Math.floor(device.capacity.totalBytes / sectorSize)
+      : 0;
+  const range =
+    fromSector !== '' || toSector !== ''
+      ? {
+          firstSector: fromSector === '' ? 0 : Number(fromSector),
+          sectorCount:
+            toSector === ''
+              ? 0
+              : Number(toSector) - (fromSector === '' ? 0 : Number(fromSector)) + 1,
+        }
+      : undefined;
+  const rangeBytes =
+    range !== undefined && totalSectors > 0
+      ? Math.min(
+          (range.sectorCount === 0 ? totalSectors - range.firstSector : range.sectorCount) *
+            sectorSize,
+          device?.capacity.totalBytes ?? 0,
+        )
+      : null;
 
   const onPickFolder = (): void => {
     pickDirectory.mutate(
@@ -95,9 +164,9 @@ export function CreateImageDialog({
   };
 
   const onStart = (): void => {
-    if (!device || path === null) return;
+    if (!device || path === null || !rangeValid) return;
     start.mutate(
-      { deviceId: device.id, path },
+      { deviceId: device.id, path, range },
       {
         onSuccess: ({ imageId: id }) => {
           setImageId(id);
@@ -114,9 +183,28 @@ export function CreateImageDialog({
     );
   };
 
+  const onStop = (): void => {
+    if (imageId === null) return;
+    cancelImage.mutate(imageId, {
+      onSuccess: (ack) => {
+        setConfirmStop(false);
+        if (ack.status === 'running') {
+          toast.info(t('imaging.stopping'));
+        } else {
+          toast.info(t('imaging.stopNoop'));
+        }
+      },
+      onError: () => {
+        toast.error(t('imaging.stopFailed'));
+      },
+    });
+  };
+
   const onReveal = (): void => {
     if (folder !== null) openPath.mutate(folder);
   };
+
+  const cancelSupported = state.data?.cancelSupported ?? true;
 
   return (
     <Dialog open={open && device !== null} onOpenChange={onOpenChange}>
@@ -139,7 +227,7 @@ export function CreateImageDialog({
               </div>
               <div className="text-xs text-foreground-secondary tabular">
                 {t('imaging.sourceSize', {
-                  size: formatBytes(device.capacity.totalBytes, i18n.language),
+                  size: formatBytes(rangeBytes ?? device.capacity.totalBytes, i18n.language),
                 })}
               </div>
             </div>
@@ -176,9 +264,82 @@ export function CreateImageDialog({
               className="h-9 bg-white text-xs dark:bg-surface"
               spellCheck={false}
             />
+
+            {/* The More-Option disclosure (DiskBackupSaveDlg's sector-range
+                pair, strings:11640-11760) */}
+            <button
+              type="button"
+              className="flex w-full items-center gap-1 pt-1 text-left text-[11px] font-medium text-primary hover:underline"
+              onClick={() => setShowMore((v) => !v)}
+              aria-expanded={showMore}
+            >
+              {showMore ? (
+                <ChevronUpIcon className="size-3.5" aria-hidden />
+              ) : (
+                <ChevronDownIcon className="size-3.5" aria-hidden />
+              )}
+              {t('imaging.moreOptions')}
+            </button>
+            {showMore ? (
+              <div className="space-y-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFD] px-3 py-3 dark:border-border dark:bg-surface">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <label
+                      className="mb-1 block text-[11px] font-medium text-foreground-secondary"
+                      htmlFor="img-from-sector"
+                    >
+                      {t('imaging.fromSector')}
+                    </label>
+                    <Input
+                      id="img-from-sector"
+                      value={fromSector}
+                      onChange={(e) => setFromSector(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="0"
+                      inputMode="numeric"
+                      aria-invalid={!fromOk || !pairOk}
+                      className="h-8 bg-white text-xs tabular dark:bg-surface"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <label
+                      className="mb-1 block text-[11px] font-medium text-foreground-secondary"
+                      htmlFor="img-to-sector"
+                    >
+                      {t('imaging.toSector')}
+                    </label>
+                    <Input
+                      id="img-to-sector"
+                      value={toSector}
+                      onChange={(e) => setToSector(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder={t('imaging.toSectorEnd')}
+                      inputMode="numeric"
+                      aria-invalid={!toOk || !pairOk}
+                      className="h-8 bg-white text-xs tabular dark:bg-surface"
+                      spellCheck={false}
+                    />
+                  </div>
+                </div>
+                {!rangeValid ? (
+                  <p className="text-[11px] font-medium text-danger" role="alert">
+                    {t('imaging.invalidSector')}
+                  </p>
+                ) : (
+                  <p className="text-[11px] leading-relaxed text-foreground-secondary">
+                    {t('imaging.rangeNote', {
+                      total: totalSectors.toLocaleString(i18n.language),
+                    })}
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <p className="text-[11px] leading-relaxed text-foreground-secondary">
               {t('imaging.sidecarNote', {
-                size: formatBytes(device?.capacity.totalBytes ?? 0, i18n.language),
+                size: formatBytes(
+                  rangeBytes ?? device?.capacity.totalBytes ?? 0,
+                  i18n.language,
+                ),
               })}
             </p>
           </div>
@@ -214,9 +375,9 @@ export function CreateImageDialog({
                 </span>
               ) : null}
             </div>
-            {progress?.status === 'running' ? (
-              <p className="rounded-md bg-[#EBF3FF] px-3 py-2 text-[11px] text-[#0B4F9E] dark:bg-primary-muted dark:text-primary">
-                {t('imaging.noCancelNote')}
+            {running && state.data?.cancelRequested ? (
+              <p className="rounded-md bg-warning-muted px-3 py-2 text-[11px] font-medium text-warning">
+                {t('imaging.stopping')}
               </p>
             ) : null}
             {progress?.status === 'completed' ? (
@@ -227,6 +388,13 @@ export function CreateImageDialog({
             {progress?.status === 'failed' ? (
               <p className="rounded-md bg-[#FDE2E2] px-3 py-2 text-[11px] text-[#C92A2A] dark:bg-danger-muted dark:text-danger">
                 {t('imaging.failed')}
+              </p>
+            ) : null}
+            {progress?.status === 'cancelled' ? (
+              <p className="rounded-md bg-warning-muted px-3 py-2 text-[11px] text-warning">
+                {state.data?.partialKept
+                  ? t('imaging.cancelledPartial')
+                  : t('imaging.cancelled')}
               </p>
             ) : null}
           </div>
@@ -241,8 +409,14 @@ export function CreateImageDialog({
               <Button
                 variant="primary"
                 onClick={onStart}
-                disabled={path === null || start.isPending}
-                title={path === null ? t('imaging.destinationPlaceholder') : undefined}
+                disabled={path === null || start.isPending || !rangeValid}
+                title={
+                  path === null
+                    ? t('imaging.destinationPlaceholder')
+                    : !rangeValid
+                      ? t('imaging.invalidSector')
+                      : undefined
+                }
               >
                 <SaveIcon className="size-4" aria-hidden />
                 {t('imaging.start')}
@@ -258,13 +432,48 @@ export function CreateImageDialog({
                 {t('common.close')}
               </Button>
             </>
+          ) : confirmStop ? (
+            /* The reference's stop-confirm (strings:11672-11673): the
+               re-create truth stated plainly, Stop vs Keep going. */
+            <div className="flex w-full flex-col gap-2" role="alertdialog">
+              <p className="text-xs font-medium text-foreground">{t('imaging.stopTitle')}</p>
+              <p className="text-[11px] leading-relaxed text-foreground-secondary">
+                {t('imaging.stopBody')}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setConfirmStop(false)}
+                  disabled={cancelImage.isPending}
+                >
+                  {t('imaging.stopKeepGoing')}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={onStop}
+                  disabled={cancelImage.isPending}
+                >
+                  <SquareIcon className="size-4" aria-hidden />
+                  {t('imaging.stop')}
+                </Button>
+              </div>
+            </div>
           ) : (
-            /* Running: no stop control — the truthful no-cancel contract
-                (the only exit closes the dialog; the job keeps running and
-                the state stays queryable). */
-            <Button variant="secondary" onClick={() => onOpenChange(false)}>
-              {t('imaging.hide')}
-            </Button>
+            /* Running: the Stop control (D-IMG-1 closed — cancel is real)
+               + the background-continue exit. */
+            <div className="flex w-full items-center justify-between gap-2">
+              <Button variant="secondary" onClick={() => onOpenChange(false)}>
+                {t('imaging.hide')}
+              </Button>
+              {cancelSupported ? (
+                <Button variant="danger" onClick={() => setConfirmStop(true)}>
+                  <SquareIcon className="size-4" aria-hidden />
+                  {t('imaging.stop')}
+                </Button>
+              ) : null}
+            </div>
           )}
         </DialogFooter>
       </DialogContent>

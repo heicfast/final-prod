@@ -231,7 +231,8 @@ error-codes.json session rules.
 | progress callback `(bytes_done, bytes_total)` | `image-progress:<imageId>` event: `bytesDone/bytesTotal/overallProgress/throughputBytesPerSecond/etaSeconds` | the engine's own cumulative-bytes callback (the recovery sink reused); bridge EMA throughput + clamped-monotonic fraction |
 | worker rc: `CR_UI_OK` / `CR_UI_ERR_CANCELLED` / other | `status`: `'completed'` / `'cancelled'` / `'failed'`; `image-finished:<imageId>` = `{status, partialKept}` | single-writer rule: the worker latches + emits the terminal pair |
 | (filesystem probe: `<path>.partial` exists) | `partialKept: boolean` | a filesystem truth probe, never parsed from engine message text |
-| (ABI carries no cancel) | `cancelSupported: false` | the truthful contract; the reference's stop-confirm is a PARITY-DELTAS-registered divergence |
+| `cr_ui_image_create_ex` cancel flag (the entry's `Arc<AtomicU32>`; `image_create_cancel`) | `cancelImageCreation(imageId)` → `ImageCancelAck {imageId, status, cancelRequested}`; `cancelSupported: true` + `cancelRequested` on `ImageJobState` | D-IMG-1 closed (W4 bridge + W9 TS wiring): cancel is real; the reference's stop-confirm ships in CreateImageDialog |
+| `image_create_start` args `firstSector?/sectorCount?` | `ImagingDomain.startImageCreation(deviceId, path, range?: ImageSectorRange)` — `{firstSector, sectorCount}` (0-based first; count 0 = to the end) | D-IMG-3: the reference's More-Option from/to pair; the ENGINE owns the bounds refusal (`ERR_BAD_PARAMETER` → `scan-scope-invalid`, never a silent truncation) |
 | registry row | `image_create_state` → `ImageJobState` | live counters + terminal latch, answerable after the terminal event |
 
 ## 12. Diagnostics — the observability surface (lane C)

@@ -536,11 +536,24 @@ export interface ImageJobState extends ImageProgressEvent {
   readonly path: string;
   readonly startedAt: Iso8601;
   readonly finishedAt: Iso8601 | null;
-  /** Always false — the ABI exports no cancel (the documented divergence
-   * from the reference's stop-confirm; the UI renders a truthful
-   * runs-to-completion posture, never a dead stop button). */
+  /** TRUE — cancel is real (D-IMG-1 closed): the worker hands the
+   * engine the job's caller-owned cancel flag (`cr_ui_image_create_ex`),
+   * so a running image CAN be stopped; the partial is kept as
+   * `<path>.partial` and a stopped image must be re-created (the
+   * reference's stop-confirm truth). */
   readonly cancelSupported: boolean;
+  /** The cancel flag's live state (true once `cancelImageCreation`
+   * landed, until the worker latches the terminal `cancelled` status). */
+  readonly cancelRequested: boolean;
   readonly partialKept: boolean;
+}
+
+/** The optional sector range (D-IMG-3 — the reference's "More Option"
+ * from/to pair): `firstSector` is 0-based, `sectorCount` 0 = to the END
+ * of the disk. Omitted = the whole disk (byte-identical legacy). */
+export interface ImageSectorRange {
+  readonly firstSector: number;
+  readonly sectorCount: number;
 }
 
 export interface ImagingDomain {
@@ -548,16 +561,40 @@ export interface ImagingDomain {
    * Start a byte-for-byte image of the whole physical disk (`deviceId`
    * must be a disk-N id) to `path` (the engine streams to
    * `<path>.crimg-tmp`, renames on completion + writes a `.sha256`
-   * sidecar). Bridge pre-gates: destination on the imaged disk refuses
-   * destination-overlap; free space below the byte-for-byte need refuses
-   * out-of-space. NO cancel exists (cancelSupported is always false).
+   * sidecar). The optional `range` images only the sector span (the
+   * reference's More Option from/to; the engine refuses an out-of-range
+   * pair with bad-parameter — never a silent truncation). Bridge
+   * pre-gates: destination on the imaged disk refuses
+   * destination-overlap; free space below the range's byte-for-byte
+   * need (whole disk when no range) refuses out-of-space.
    */
-  startImageCreation(deviceId: string, path: string): Promise<{ imageId: string }>;
+  startImageCreation(
+    deviceId: string,
+    path: string,
+    range?: ImageSectorRange,
+  ): Promise<{ imageId: string }>;
   getImageState(imageId: string): Promise<ImageJobState>;
+  /** D-IMG-1: stop a running image — sets the job's cancel flag; the
+   * engine refuses within one 64 KiB chunk, the partial is KEPT as
+   * `<path>.partial`, and the terminal state is `cancelled`. A job
+   * already terminal is an honest no-op; an unknown id is the typed
+   * image-not-found refusal. */
+  cancelImageCreation(imageId: string): Promise<ImageCancelAck>;
   /** The progress stream (`image-progress:<imageId>`, coalesced). */
   onImageProgress(imageId: string, cb: (event: ImageProgressEvent) => void): () => void;
-  /** The terminal event (`image-finished:<imageId>`). */
+  /** The terminal event (`image-finished:<imageId>`) — the cancel
+   * acknowledgment too: no separate ack event exists; the terminal
+   * payload with status `cancelled` + `partialKept` IS it. */
   onImageFinished(imageId: string, cb: (event: ImageFinishedEvent) => void): () => void;
+}
+
+/** The stop acknowledgment: the job's status AT THE MOMENT of the request
+ * (running = the stop was accepted and will latch; a terminal status =
+ * the honest no-op) + the flag's live state. */
+export interface ImageCancelAck {
+  readonly imageId: string;
+  readonly status: ImageJobStatus;
+  readonly cancelRequested: boolean;
 }
 
 // ---------------------------------------------------------------------------

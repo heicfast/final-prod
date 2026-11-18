@@ -410,6 +410,25 @@ describe('the tauri connector lane C surface (the manifest)', () => {
     });
   });
 
+  it('imaging D-IMG-1/D-IMG-3: the range + the cancel ride the manifest commands', async () => {
+    // The More-Option range: firstSector/sectorCount cross as the bridge
+    // command's optional args (omitted entirely for the whole-disk form).
+    await conn.imaging.startImageCreation('disk-1', 'E:\\range.img', {
+      firstSector: 4096,
+      sectorCount: 2048,
+    });
+    expect(lastCall()).toEqual({
+      cmd: 'image_create_start',
+      args: { deviceId: 'disk-1', path: 'E:\\range.img', firstSector: 4096, sectorCount: 2048 },
+    });
+    // The stop: image_create_cancel with the image id.
+    await conn.imaging.cancelImageCreation('img-1');
+    expect(lastCall()).toEqual({
+      cmd: 'image_create_cancel',
+      args: { imageId: 'img-1' },
+    });
+  });
+
   it('the observability methods invoke the manifest commands', async () => {
     await conn.scan.getScanTelemetry('scan-1');
     expect(lastCall()).toEqual({ cmd: 'scan_telemetry', args: { scanId: 'scan-1' } });

@@ -132,11 +132,12 @@ New rows from this session's audits (the register's honest ledger):
   first run.
 
 **This session's deferred register (precise scope each):**
-1. **The W9 imaging UI/connector half of D-IMG-1/D-IMG-3** — contract.ts
+1. **The W9 imaging UI/connector half of D-IMG-1/D-IMG-3** — **CLOSED
+   (2026-11-19 re-open, this file's §1 residual row)**: contract.ts
    imaging.cancelImageCreation + startImageCreation's range params + the
-   mock connector + the stop-confirm dialog + the More-Option fields. The
-   engine + CLI + bridge halves ARE shipped; the TS surface is the next
-   wave (the serves-empty row in command-surface.json records it).
+   mock connector + the stop-confirm dialog + the More-Option fields —
+   all landed with the W9-imaging wave; the engine + CLI + bridge halves
+   were already shipped.
 2. **G-5 — fresh T15 runtime evidence**: the 06:40 dispatch failed on the
    concurrent performance lane's mid-bump tree (VERSION 0.9.4 vs the app
    manifests' 0.9.3 — build.ps1's version gate correctly refused it);

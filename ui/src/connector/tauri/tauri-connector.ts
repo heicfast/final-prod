@@ -37,9 +37,11 @@ import type {
   DiskMapOptions,
   DiskMapPayload,
   FsckResult,
+  ImageCancelAck,
   ImageFinishedEvent,
   ImageJobState,
   ImageProgressEvent,
+  ImageSectorRange,
   LostCandidateRow,
   MountPoint,
   NodeDetail,
@@ -593,11 +595,26 @@ export function createTauriConnector(): RecoveryConnector {
       startImageCreation: async (
         deviceId: string,
         path: string,
+        range?: ImageSectorRange,
       ): Promise<{ imageId: string }> =>
-        bridge(invoke('image_create_start', { deviceId, path })),
+        bridge(
+          invoke('image_create_start', {
+            deviceId,
+            path,
+            ...(range
+              ? { firstSector: range.firstSector, sectorCount: range.sectorCount }
+              : {}),
+          }),
+        ),
 
       getImageState: async (imageId: string): Promise<ImageJobState> =>
         bridge(invoke('image_create_state', { imageId })),
+
+      // D-IMG-1: the stop surface (the bridge's image_create_cancel sets
+      // the entry's caller-owned flag; the engine's producer loop head
+      // refuses within one 64 KiB chunk and the partial is kept).
+      cancelImageCreation: async (imageId: string): Promise<ImageCancelAck> =>
+        bridge(invoke('image_create_cancel', { imageId })),
 
       onImageProgress: (
         imageId: string,

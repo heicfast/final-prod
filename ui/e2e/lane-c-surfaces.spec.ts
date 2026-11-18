@@ -59,7 +59,9 @@ test('recoverability: the completion celebration carries the engine verdict', as
   await expect(page.getByText(/Images:/)).toBeVisible();
 });
 
-test('create image: the truthful no-cancel running posture', async ({ page }) => {
+test('create image: the cancellable running posture + the stop-confirm (D-IMG-1)', async ({
+  page,
+}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
     timeout: 15_000,
@@ -75,15 +77,36 @@ test('create image: the truthful no-cancel running posture', async ({ page }) =>
   await page.getByRole('button', { name: /browse/i }).click();
   const start = page.getByRole('button', { name: /^create image$/i }).first();
   await expect(start).toBeEnabled({ timeout: 10_000 });
+
+  // The More-Option disclosure opens the from/to sector pair (D-IMG-3).
+  await page.getByRole('button', { name: /more options/i }).click();
+  await expect(page.getByLabel(/^from sector/i)).toBeVisible();
+  await expect(page.getByLabel(/^to sector/i)).toBeVisible();
+  // A from beyond the to is advisory-invalid; a legal pair re-enables.
+  await page.getByLabel(/^from sector/i).fill('2000');
+  await page.getByLabel(/^to sector/i).fill('1000');
+  await expect(page.getByText(/^invalid sector/i)).toBeVisible();
+  await expect(start).toBeDisabled();
+  await page.getByLabel(/^from sector/i).fill('1000');
+  await expect(start).toBeEnabled();
+
   await start.click();
 
-  // The running posture: the no-cancel note + "continue in background" —
-  // never a stop button (the ABI exports no cancel).
-  await expect(page.getByText(/runs to completion/i)).toBeVisible({ timeout: 10_000 });
+  // The running posture: "continue in background" AND the Stop control
+  // (cancel is real — D-IMG-1 closed at the engine/CLI/bridge/W9 TS).
   await expect(page.getByRole('button', { name: /continue in background/i })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByRole('button', { name: /^(stop|cancel)/i })).toBeHidden();
+  const stop = page.getByRole('button', { name: /^stop$/i });
+  await expect(stop).toBeVisible({ timeout: 10_000 });
+
+  // The stop-confirm states the re-create truth (strings:11672-11673).
+  await stop.click();
+  await expect(
+    page.getByText(/you need to re-create the disk image if you stop it/i),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /keep going/i }).click();
+  await expect(page.getByRole('button', { name: /^stop$/i })).toBeVisible();
 
   // The job completes (the mock's compressed clock): the done copy shows.
   await expect(page.getByText(/disk image created/i)).toBeVisible({ timeout: 30_000 });

@@ -650,8 +650,27 @@ export const en = {
     progress: 'Image creation progress',
     throughput: '{{rate}}/s',
     remaining: 'Remaining time: {{time}}',
-    noCancelNote:
-      'The image runs to completion — this build provides no interrupt (a stopped image must be re-created). You can close this window; creation continues.',
+    // D-IMG-1 (closed, W9): cancel is real — the old noCancelNote
+    // ("this build provides no interrupt") was FALSE from the W4 bridge
+    // landing and is deleted, stale claims removed.
+    moreOptions: 'More options — image only a sector range',
+    fromSector: 'From sector',
+    toSector: 'To sector',
+    toSectorEnd: 'End of disk',
+    invalidSector: 'Invalid sector',
+    rangeNote:
+      'The disk carries {{total}} sectors. Leave “To” empty to image to the end. A pair beyond the disk is refused by the engine — never a silent truncation.',
+    stop: 'Stop',
+    stopTitle: 'Stop image creation?',
+    stopBody:
+      'You need to re-create the disk image if you stop it. The part already written is kept as a .partial file next to the destination.',
+    stopKeepGoing: 'Keep going',
+    stopping: 'Stopping — the current chunk completes first…',
+    stopNoop: 'This image already finished — nothing to stop.',
+    stopFailed: 'The stop could not be requested.',
+    cancelled: 'Image creation was stopped.',
+    cancelledPartial:
+      'Image creation was stopped. The partial file was kept next to the destination — you need to re-create the disk image to get a complete one.',
     done: 'Disk image created. The .sha256 checksum sidecar is next to it.',
     failed: 'Image creation failed. A partial file was kept next to the destination.',
     reveal: 'Open folder',

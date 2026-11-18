@@ -160,7 +160,7 @@ describe('CreateImageDialog', () => {
     },
   };
 
-  it('opens with the destination form, starts, and reaches the no-cancel running posture', async () => {
+  it('opens with the destination form, starts, and reaches the cancellable running posture (D-IMG-1)', async () => {
     await connector.devices.refreshDevices();
     const devices = await connector.devices.listDevices();
     const src = devices.find((d) => d.volumes.some((v) => v.letter === 'C')) ?? devices[0];
@@ -180,11 +180,8 @@ describe('CreateImageDialog', () => {
     await waitFor(() => expect(startBtn).not.toBeDisabled(), { timeout: 5_000 });
 
     fireEvent.click(startBtn);
-    // The running posture: the truthful no-cancel note + the hide action
-    // (never a stop button).
-    expect(
-      await screen.findByText(/runs to completion/i, { exact: false }),
-    ).toBeInTheDocument();
+    // The running posture: the background-continue exit AND the stop
+    // control (D-IMG-1 closed — cancel is real).
     await waitFor(
       () => {
         expect(
@@ -193,6 +190,55 @@ describe('CreateImageDialog', () => {
       },
       { timeout: 10_000 },
     );
-    expect(screen.queryByRole('button', { name: /^(stop|cancel)/i })).toBeNull();
+    const stopBtn = screen.getByRole('button', { name: /^stop$/i });
+    expect(stopBtn).toBeInTheDocument();
+
+    // The stop-confirm choreography: the re-create truth stated plainly
+    // (the og's strings:11672-11673), Stop vs Keep going.
+    fireEvent.click(stopBtn);
+    expect(
+      await screen.findByText(/you need to re-create the disk image if you stop it/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /keep going/i })).toBeInTheDocument();
+
+    // Keep going returns to the running posture without stopping.
+    fireEvent.click(screen.getByRole('button', { name: /keep going/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^stop$/i })).toBeInTheDocument(),
+    );
+  });
+
+  it('D-IMG-3: the More-Option range — digits-only fields, advisory validation, range start', async () => {
+    await connector.devices.refreshDevices();
+    const devices = await connector.devices.listDevices();
+    const src = devices.find((d) => d.volumes.some((v) => v.letter === 'C')) ?? devices[0];
+    renderTree(
+      <CreateImageDialog device={src ?? device} open onOpenChange={() => undefined} />,
+    );
+
+    // A destination is required for a startable form (the same-disk gate
+    // routes the picker to another device).
+    const startBtn = await screen.findByRole('button', { name: /create image/i });
+    fireEvent.click(screen.getByRole('button', { name: /browse/i }));
+    await waitFor(() => expect(startBtn).not.toBeDisabled(), { timeout: 5_000 });
+
+    // The disclosure opens the from/to pair (the og's More Option).
+    fireEvent.click(screen.getByRole('button', { name: /more options/i }));
+    expect(screen.getByLabelText(/^from sector/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^to sector/i)).toBeInTheDocument();
+
+    // A from beyond the to is advisory-invalid: the start refuses locally.
+    fireEvent.change(screen.getByLabelText(/^from sector/i), {
+      target: { value: '2000' },
+    });
+    fireEvent.change(screen.getByLabelText(/^to sector/i), { target: { value: '1000' } });
+    expect(await screen.findByText(/^invalid sector/i)).toBeInTheDocument();
+    expect(startBtn).toBeDisabled();
+
+    // A legal pair re-enables the start (the engine owns the real bounds).
+    fireEvent.change(screen.getByLabelText(/^from sector/i), {
+      target: { value: '1000' },
+    });
+    await waitFor(() => expect(startBtn).not.toBeDisabled());
   });
 });

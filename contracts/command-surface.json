@@ -681,12 +681,14 @@
       "name": "image_create_cancel",
       "threading": "spawn-join",
       "abiRefs": [],
-      "serves": [],
+      "serves": [
+        "imaging.cancelImageCreation"
+      ],
       "args": [
         "imageId"
       ],
       "returns": "{imageId, status, cancelRequested}",
-      "notes": "D-IMG-1 (the installer-integration session): the stop surface - sets the job's caller-owned cancel flag from any thread; the engine producer's loop head refuses within one 64 KiB chunk; the worker latches 'cancelled' and <path>.partial is kept (the og's 'You need to re-create the disk image if you stop it' truth, strings:11672-11673). A job already terminal is an honest no-op; an unknown id is the typed image-not-found refusal. serves: EMPTY until the W9 imaging UI wave wires the connector method (imaging.cancelImageCreation) + the stop-confirm dialog - the bridge command + the engine flag are the shipped halves."
+      "notes": "D-IMG-1 (the installer-integration session; W9 wired): the stop surface - sets the job's caller-owned cancel flag from any thread; the engine producer's loop head refuses within one 64 KiB chunk; the worker latches 'cancelled' and <path>.partial is kept (the og's 'You need to re-create the disk image if you stop it' truth, strings:11672-11673). A job already terminal is an honest no-op; an unknown id is the typed image-not-found refusal. Serves the connector method imaging.cancelImageCreation + the CreateImageDialog stop-confirm (the W9 TS/UX half over the shipped engine/CLI/bridge halves)."
     },
     {
       "name": "scan_telemetry",

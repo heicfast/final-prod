@@ -4189,3 +4189,53 @@ W7 repair workbench ABI, W9-repair UI, W6 (M20/M14), the evidence dispatches
 (benchmark-src = the ring repair's Windows proof, OPEN-1 of the sector-scan
 handoff; validation-evidence = the G-5 re-proof + DT-12 regen), and the
 truth-sheets re-trued as waves land.
+
+### T-W9 — the imaging UI/connector half: D-IMG-1/D-IMG-3 CLOSED end-to-end (the charter's UI-wiring requirement)
+
+The W9-imaging wave over the shipped engine/CLI/bridge halves. The connector
+contract gains `ImagingDomain.cancelImageCreation(imageId) -> ImageCancelAck`
++ `startImageCreation(deviceId, path, range?: ImageSectorRange)` (firstSector
+0-based, sectorCount 0 = to-the-end — the ABI semantics verbatim) +
+`ImageJobState.cancelRequested` (cancelSupported's stale "always false"
+doc-truth replaced with the D-IMG-1-closed reality). The tauri connector
+passes firstSector/sectorCount into `image_create_start` and binds
+`image_create_cancel`; the mock simulates the cancel truthfully (the flag
+consumed at the next tick head — the engine's one-64-KiB-chunk bound as one
+tick; `cancelled` terminal + partialKept = bytes-committed > 0, the bridge's
+filesystem-probe semantics mirrored) and refuses out-of-range pairs exactly
+as the engine does (ERR_BAD_PARAMETER -> scan-scope-invalid, never a silent
+truncation). `useCancelImageCreation` joins the query layer.
+
+The dialog: the More-Option disclosure (the og's DiskBackupSaveDlg from/to
+pair, strings:11640-11760) with digits-only inputs (the [0-9]{1,15} grammar)
+and the advisory Invalid-sector state (the ENGINE owns the real bounds gate);
+the running phase gains the Stop control + the stop-confirm with the
+reference's re-create truth ("You need to re-create the disk image if you
+stop it", strings:11672-11673) + Stop-vs-Keep-going choreography; the
+cancelled terminal state renders the partialKept truth. The FALSE
+noCancelNote copy ("this build provides no interrupt") is DELETED from both
+locales — a stale claim removed, replaced with the truthful strings.
+
+Contracts: command-surface.json's image_create_cancel row now serves
+imaging.cancelImageCreation (55 commands, 54 TS-invoked cross-checked);
+type-maps §11's "(ABI carries no cancel)" row replaced with the
+cancel-flag + range rows; the contracts README seam count 67 -> 68 METHODS
+(doc_truth_gate-derived: 56 RR + 12 subscriptions; the gate ran green in the
+same commit).
+
+Tests: connector-mock gains the cancel round-trip (ack running + flag live,
+cancelled terminal, partialKept true), the unknown-id typed refusal, and the
+range suite (legal mid-disk range sizes bytesTotal; first-past-end,
+past-end-pair, and negative/float refusals all scan-scope-invalid);
+connector-tauri pins the new invoke shapes (range args + cancel);
+lane-c-surfaces re-pins the dialog (the cancellable posture + stop-confirm
+choreography + the More-Option advisory validation) and gains a dedicated
+D-IMG-3 range test; the e2e spec re-pins the same flow end-to-end.
+
+Local gates (all green before push): typecheck, eslint, prettier --check .,
+vitest 216/216 (30 files), arch:lint, filefilter:check, jscpd exit 0,
+contracts validate.mjs (55 commands, both cross-checks), doc_truth_gate
+(exports=95, seam=12/68). Honest scope: knip cannot run in this sandbox
+(oxc-parser allocation vs the memory cap — the documented standing
+limitation; the ui-ci runner proves it) and the e2e lane runs on the
+runner.

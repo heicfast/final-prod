@@ -97,11 +97,25 @@ export function useImageState(imageId: string | null) {
   });
 }
 
-/** Start an image creation (the dialog's action). */
+/** Start an image creation (the dialog's action). The optional range is
+ * the reference's More-Option from/to pair (D-IMG-3): firstSector
+ * 0-based, sectorCount 0 = to the end of the disk. */
 export function useStartImageCreation() {
   return useMutation({
-    mutationFn: (input: { deviceId: string; path: string }) =>
-      connector.imaging.startImageCreation(input.deviceId, input.path),
+    mutationFn: (input: {
+      deviceId: string;
+      path: string;
+      range?: { firstSector: number; sectorCount: number };
+    }) => connector.imaging.startImageCreation(input.deviceId, input.path, input.range),
+  });
+}
+
+/** D-IMG-1: stop a running image — the engine refuses within one
+ * 64 KiB chunk, the partial is KEPT as `<path>.partial`, and the
+ * terminal state is `cancelled` (a stopped image must be re-created). */
+export function useCancelImageCreation() {
+  return useMutation({
+    mutationFn: (imageId: string) => connector.imaging.cancelImageCreation(imageId),
   });
 }
 

@@ -612,9 +612,93 @@ describe('MockConnector — lane C surface parity', () => {
     expect(ok).toBe(true);
     const state = await c.imaging.getImageState(imageId);
     expect(state.status).toBe('completed');
-    expect(state.cancelSupported).toBe(false); // the truthful contract
+    expect(state.cancelSupported).toBe(true); // D-IMG-1 closed — cancel is real
     expect(state.overallProgress).toBe(1);
     expect(seen[0]).toBe('running');
+  });
+
+  it('D-IMG-1: stops a running image — cancelRequested ack, cancelled terminal, partialKept', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const devices = await c.devices.listDevices();
+    const disk = devices.find((d) => d.canScanWholeDisk) ?? devices[0];
+    const { imageId } = await c.imaging.startImageCreation(disk.id, 'E:\\backup.img');
+    // The stop lands mid-run: the ack carries the running status + the
+    // live flag; the next tick latches cancelled with a kept partial.
+    let sawRunning = false;
+    const off = c.imaging.onImageProgress(imageId, (e) => {
+      if (e.status === 'running') sawRunning = true;
+    });
+    const terminal = new Promise<boolean>((resolve) => {
+      c.imaging.onImageFinished(imageId, (e) => resolve(e.status === 'cancelled'));
+    });
+    // Wait for at least one running sample before stopping (deterministic
+    // first tick at 90 ms; the stop between ticks is the mid-run case).
+    await new Promise((r) => setTimeout(r, 120));
+    const ack = await c.imaging.cancelImageCreation(imageId);
+    expect(ack.imageId).toBe(imageId);
+    expect(ack.status).toBe('running');
+    expect(ack.cancelRequested).toBe(true);
+    const cancelled = await terminal;
+    off();
+    expect(cancelled).toBe(true);
+    expect(sawRunning).toBe(true);
+    const state = await c.imaging.getImageState(imageId);
+    expect(state.status).toBe('cancelled');
+    expect(state.cancelSupported).toBe(true);
+    expect(state.cancelRequested).toBe(true);
+    expect(state.partialKept).toBe(true); // bytes were committed before the stop
+  });
+
+  it('D-IMG-1: cancelImageCreation on an unknown id is the typed refusal', async () => {
+    const c = new MockConnector();
+    const err = (await c.imaging.cancelImageCreation('img-404').catch((e: unknown) => e)) as {
+      code: string;
+      reasonKey: string;
+    };
+    expect(err.code).toBe('image-not-found');
+    expect(err.reasonKey).toBe('errors.imageNotFound');
+  });
+
+  it('D-IMG-3: images a sector range — the range sizes the job; out-of-range refuses', async () => {
+    const c = new MockConnector();
+    await c.devices.listDevices();
+    const devices = await c.devices.listDevices();
+    const disk = devices.find((d) => d.canScanWholeDisk) ?? devices[0];
+    const sectorSize = disk.sectorSize ?? 512;
+    const totalSectors = Math.floor(disk.capacity.totalBytes / sectorSize);
+    // A legal mid-disk range: sectors [100, 199] (inclusive to = 199).
+    const { imageId } = await c.imaging.startImageCreation(disk.id, 'E:\\range.img', {
+      firstSector: 100,
+      sectorCount: 100,
+    });
+    const state = await c.imaging.getImageState(imageId);
+    expect(state.bytesTotal).toBe(100 * sectorSize);
+    // Out-of-range: the first sector past the disk end is refused
+    // (the ENGINE's ERR_BAD_PARAMETER gate mirrored — scan-scope-invalid).
+    const err = (await c.imaging
+      .startImageCreation(disk.id, 'E:\\bad.img', {
+        firstSector: totalSectors,
+        sectorCount: 1,
+      })
+      .catch((e: unknown) => e)) as { code: string };
+    expect(err.code).toBe('scan-scope-invalid');
+    // A range passing the disk end is refused the same way.
+    const err2 = (await c.imaging
+      .startImageCreation(disk.id, 'E:\\bad2.img', {
+        firstSector: totalSectors - 10,
+        sectorCount: 100,
+      })
+      .catch((e: unknown) => e)) as { code: string };
+    expect(err2.code).toBe('scan-scope-invalid');
+    // A negative/float sector is refused as a bad parameter.
+    const err3 = (await c.imaging
+      .startImageCreation(disk.id, 'E:\\bad3.img', {
+        firstSector: -1,
+        sectorCount: 0,
+      })
+      .catch((e: unknown) => e)) as { code: string };
+    expect(err3.code).toBe('scan-scope-invalid');
   });
 
   it('refuses image creation onto the imaged disk (the same-disk pre-gate)', async () => {

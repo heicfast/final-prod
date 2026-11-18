@@ -633,8 +633,26 @@ export const zhCN: TranslationSchema = {
     progress: '镜像创建进度',
     throughput: '{{rate}}/秒',
     remaining: '预计剩余：{{time}}',
-    noCancelNote:
-      '镜像将运行至完成——此构建不支持中断（中断的镜像需要重新创建）。您可以关闭此窗口，创建将继续进行。',
+    // D-IMG-1（已关闭，W9）：取消已是真实能力——旧的 noCancelNote
+    // （“此构建不支持中断”）自 W4 桥接层落地起即为假话，予以删除。
+    moreOptions: '更多选项——仅镜像一段扇区范围',
+    fromSector: '起始扇区',
+    toSector: '结束扇区',
+    toSectorEnd: '磁盘末尾',
+    invalidSector: '无效扇区',
+    rangeNote:
+      '该磁盘共有 {{total}} 个扇区。“结束扇区”留空表示镜像到磁盘末尾。超出磁盘范围的扇区对会被引擎拒绝——绝不会静默截断。',
+    stop: '停止',
+    stopTitle: '停止创建镜像？',
+    stopBody:
+      '如果现在停止，您将需要重新创建磁盘镜像。已写入的部分会以 .partial 文件保留在目标位置旁边。',
+    stopKeepGoing: '继续',
+    stopping: '正在停止——当前数据块先完成写入…',
+    stopNoop: '该镜像任务已结束——无需停止。',
+    stopFailed: '无法发出停止请求。',
+    cancelled: '镜像创建已停止。',
+    cancelledPartial:
+      '镜像创建已停止。未完成的文件已保留在目标位置旁边——需要完整镜像时请重新创建。',
     done: '磁盘镜像已创建。.sha256 校验和附件位于其旁边。',
     failed: '镜像创建失败。目标位置旁边保留了部分完成的文件。',
     reveal: '打开文件夹',
