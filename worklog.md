@@ -3567,3 +3567,29 @@ The bottleneck hierarchy: (1) CPU-bound validation in carve/deep phases
 (latency-exposed on real NVMe, unvalidatable on the Azure cap), (4) per-
 miss/per-call buffer churn. DIAGNOSIS.md quantifies each layer before any
 code lands.
+---
+
+## 2026-11-18T08:15Z — T3/T4/T5/T6 complete: DIAGNOSIS.md pushed (the quantified four-layer bottleneck)
+
+DIAGNOSIS.md (new content on top, the SMART session's preserved verbatim
+below) pins the bottleneck hierarchy, each layer a measurement:
+
+- L1: walls are validation-CPU-bound — deepcarve 8.45 MiB/s effective vs
+  544 MiB/s device rate (64x under provision; 303.8 CPU-s/GiB).
+- L2: ONE global mutex over every read with fill under the lock
+  (cr_cached.cpp:31,:61); the fan-out's 8 workers queue on it; MEASURED
+  aggregate scaling 0.51x/0.23x/0.20x at N=2/4/8 (container microbench) —
+  vs the og's bookkeeping-only CRITICAL_SECTION + dedicated filler thread.
+- L3: QD1-sync, no read-ahead anywhere — 256 KiB blocks, per-record 1 KiB
+  MFT calls, 1 MiB carve windows; the og: 4-7 MiB chunks + a 10-run x 4 MiB
+  prefetch ring (~40 MiB in flight, effective QD~10). The runner cannot
+  discriminate (240 MiB/s Azure cap, QD-flat) — the F1/F2 deferral reason,
+  now reopened with a debt register.
+- L4: buffer churn (per-miss 4.6 us alloc = 0.8x the copy; no pool anywhere).
+
+Ruled out with citations: the 64 KiB envelope (correct, mandated), transport
+QD1 large-read health, LRU/checkpoint/API latencies, the result-tree mutex
+(register, not frontier — walls say validation CPU dominates). The fix plan
+maps Phase 2 onto acceptance measurements per fix; BASELINE.md (T4) is the
+standing numbers sheet. T5/T6 audit content rode PRODUCT-STATE.md (I/O
+model + queue/lock/buffer/alignment audits, all file:line-cited).

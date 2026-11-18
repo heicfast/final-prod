@@ -1,3 +1,214 @@
+# DIAGNOSIS — session 2026-11-18 (performance: the I/O pipeline, threading model, queue depth, and CPU/memory limits)
+
+> **Phase-0 complete before this diagnosis**: five context sheets committed
+> and pushed before any code change — `worklog/PRODUCT-STATE.md` (agent A),
+> `worklog/REFERENCE-ARCHITECTURE.md` (agent B), `worklog/REFERENCE-RAW.md`
+> (agent C), `worklog/PLATFORM-PERF.md` (agent D), `worklog/BASELINE.md`
+> (agent E, with new component microbenchmarks). Every claim below cites
+> those sheets or the source tree; they cite the corpus and the platform
+> docs. The PRIOR session's diagnosis (SMART/scan, 2026-11-17) is preserved
+> verbatim at the bottom of this file; its functional fix trains are landed
+> and are NOT re-litigated here — this session's axis is performance only.
+
+## 0. The bottleneck, quantified: four layers, ranked by measured impact
+
+**Layer 1 — the walls are validation-CPU-bound (the dominant end-to-end
+number).** The deep-carve wall measured **8.45 MiB/s effective** (8 GiB in
+1,014,235 ms, run 41140212296) while the transport's device rate at the
+consumer's block size is **544 MiB/s** — the wall runs **~64× below the
+device provision**. CPU/GiB = 303.8 CPU-s (4 threads) ≈ 76 s wall-equivalent
+per GiB; the deepcarve wall is ~124 s/GiB — consistent with CPU-bound work
+plus pipeline overheads (PERF-LEVERS §0, BASELINE §2.4). Every
+transport-side micro-second saved is invisible against this wall UNLESS it
+overlaps the validation CPU with the next reads (which is exactly what
+read-ahead buys) or the CPU work itself shrinks.
+
+**Layer 2 — one global mutex serializes every read through the pipe
+(measured on ANY hardware, worst on the fan-out phases).**
+`CachedReader::read_at` takes `std::mutex` for the WHOLE loop including the
+transport fill (cr_cached.cpp:31, :61 — fill under the lock: one reader's
+device round trip, ~10⁴–10⁶ ns, blocks all others). Consumers that queue on
+this one lock:
+- the scan engines during the sequential pass (cr_scan.cpp:1387 — one
+  CachedReader 8 MiB/256 KiB/32 blocks for the whole pipe),
+- the remnant/lost/carve fan-out workers — ThreadPool hw-1 clamped to 8
+  (cr_scan.cpp:58-68; cr_carve.cpp:1631),
+- the retry pipe's zero-fill reads and the carve windows (N-045 register).
+**MEASURED serialization factor** (container microbench, page-cache-warm,
+BASELINE §4.2): aggregate throughput **0.51× at N=2, 0.23× at N=4, 0.20× at
+N=8 threads** — concurrency does not just fail to scale, it actively
+degrades 2–5×. The og's contrast: its CRITICAL_SECTION guards only ring
+bookkeeping; fills happen on the dedicated prefetch thread while consumers
+memcpy under short critical sections (DRWUI_decompiled.c:962269/:962670/
+:962776 — REFERENCE-RAW §12). On the CI runner (2 vCPU → fan-out resolves
+to 1 worker, cr_scan.cpp:58-68) this cost is invisible; on every real
+multi-core machine it is the first thing every worker hits.
+
+**Layer 3 — the read path is QD1 with no read-ahead (the real-NVMe/HDD
+exposure).** All data-path handles open WITHOUT `FILE_FLAG_OVERLAPPED`
+(cr_transport.cpp:291-293 et al.); `overlapped_read`'s OVERLAPPED is an
+offset holder and `GetOverlappedResult(...,TRUE)` blocks (cr_transport.cpp:53-80)
+— **synchronous reads, queue depth 1 by construction, no IOCP anywhere in
+production** (PRODUCT-STATE §1.1; QD>1 exists only in the bench harness's
+separate overlapped ring, run-alignbench.ps1:115-126). Read sizes at the
+pipe: 256 KiB cache blocks (cr_scan.cpp:1387); MFT records are fetched
+per-record 1 KiB (cr_bootstrap.cpp:599-635 — sequential MFT rides the cache
+at ~1 miss/256 KiB, but each miss is a full, un-overlapped device round
+trip); carve windows 1 MiB+4 KiB (cr_carve.cpp:45-46); writer 1 MiB
+(cr_safewriter.h:158). There is no prefetch/read-ahead engine (D-72/N-045:
+reactive true-LRU only).
+The og is ALSO synchronous QD1 (ReadFile with NULL OVERLAPPED,
+Device_decompiled.c:55964-55965; zero IOCP machinery corpus-wide,
+REFERENCE-RAW §1-3) — **its latency-hiding is chunk size × read-ahead**:
+4 MiB device chunks (Device:56545), 7 MiB volume chunks (:56912), 2 MiB MFT
+batches (NTFSSearchDLL:5649-5678), and the prefetch thread's 10-run
+look-ahead ring of 4 MiB runs (DRWUI:919088-919142) — **~40 MiB of
+in-flight read-ahead, effective QD~10**. Our engine: 1× 256 KiB in flight.
+Per PLATFORM-PERF: QD1-sync on an Azure-capped volume (~240 MiB/s,
+QD-flat — PERFORMANCE-BASELINE §6) shows no gap; on real NVMe
+(latency ~50–100 µs) the ceiling of 256 KiB-per-round-trip with per-read
+lock+syscall+copy overhead lands far under the device's ~3 GB/s class, and
+on HDD (5–15 ms rotational latency) QD1-no-prefetch is 2–4× under a
+4 MiB-run prefetcher. **The runner cannot discriminate this — the exact
+reason PERF-LEVERS deferred F1/F2. This session opens them with the
+sliding-window implementation plus the honest measurement-debt register
+(§5).**
+
+**Layer 4 — buffer churn (measured, real but secondary).** Per-miss cache
+block allocation: `std::vector<u8>::resize` 256 KiB ≈ **4.6 µs = 0.8× the
+block-copy cost itself** (BASELINE §4.4 — every miss allocates fresh); the
+transport's unaligned-request bounce is a per-thread resize (cr_transport.cpp:206);
+carve windows and writer chunks allocate per window/chunk; **no buffer pool
+exists anywhere in the read path** (PRODUCT-STATE §3). LRU lookup cost at
+the production 32-block capacity: +85 ns/read — negligible (BASELINE §4.3).
+
+## 1. The composed answer to "why is final-prod slow vs the reference"
+
+On the only surface that measures walls end to end today (GH windows-2022
+runner, 8 GiB 512e VHDX), the product is NOT slower on raw transport —
+our 256 KiB leg beats the og's 4/7 MiB legs on the runner (241.64 vs
+197.32/196.15 MiB/s, BASELINE §3 — the og pays for chunk size in syscall
+count against a capped virtualized volume). The user-perceived slowness
+composes from the layers above, in this order:
+
+1. **Deep/carve walls are CPU-bound** (Layer 1) and the CPU work is not
+   overlapped with I/O (Layer 3): the validators chew while NOTHING reads
+   ahead — the og's 10-run ring keeps feeding them.
+2. **Fan-out phases serialize on the cache mutex** (Layer 2): 8 workers,
+   one lock, one fill at a time — measured 0.2–0.5× aggregate scaling;
+   the og's workers hit a short bookkeeping critical section while a
+   dedicated thread fills.
+3. **On real hardware** (not measurable here — §5 debt): QD1-sync ×
+   256 KiB leaves the device latency-exposed exactly where the og's
+   read-ahead runway hides it; per-transport classes (NVMe QD4–32,
+   HDD NCQ 32, USB BOT QD1) have no tuning surface at all — every read
+   rides one hardcoded shape (REFERENCE-RAW §17: the og likewise tunes
+   nothing per bus — parity today; the mandate requires the sweep).
+4. **MFT walk record-granularity + no batching at the reader level**
+   (Layer 3): the og issues 2 MiB batches; we issue 1 KiB calls that the
+   cache coalesces only opportunistically (the sequential pass pays 4,096
+   transitions/GiB vs the og's 256-512 — PERFORMANCE-BASELINE §5).
+
+## 2. The parameter table — ours at HEAD vs the reference (decompiled)
+
+| Parameter | final-prod (HEAD 6d2cefb9) | og (corpus) | Cite |
+|---|---|---|---|
+| Read model | sync (blocking GetOverlappedResult) | sync (NULL OVERLAPPED) | cr_transport.cpp:70 / Device:55964 |
+| Queue depth | **1, no read-ahead** | 1 + **10-run×4 MiB prefetch ring (QD~10 eff.)** | PRODUCT-STATE §1 / DRWUI:919088-919142 |
+| Handle flags | FILE_ATTRIBUTE_NORMAL (no OVERLAPPED/NO_BUFFERING) | same | cr_transport.cpp:291 / REFERENCE-RAW §4 |
+| Device chunk | 256 KiB (cache block) | 4 MiB | cr_scan.cpp:1387 / Device:56545 |
+| Volume chunk | 256 KiB | 7 MiB | cr_scan.cpp:1387 / Device:56912 |
+| MFT batch | 1 KiB per record (cache-coalesced) | 2 MiB (0x1000 sectors/call) | cr_bootstrap.cpp:599 / NTFSSearchDLL:5649-5678 |
+| Carve window | 1 MiB + 4 KiB | 4 MiB + 0x1000 tail, double buffer | cr_carve.cpp:45 / RAWSearchDLL:9271-9296 |
+| Cache | 8 MiB, 32×256 KiB, reactive LRU, one global mutex, fill under lock | 4 MiB budget, CRITICAL_SECTION bookkeeping only, dedicated prefetch thread | cr_cached.cpp:31 / DRWUI:962269-962776 |
+| Fan-out threads | hw-1 clamp 8, ThreadPool; scan on caller thread | per-worker FAT threads; engine threads core-pinned (SetThreadAffinityMask) | cr_scan.cpp:58-68 / DRWUI:388833-388836 |
+| Buffers | per-miss/per-window/per-chunk allocs; no pool | plain heap, ring-owned | PRODUCT-STATE §3 / REFERENCE-RAW §18 |
+| Alignment | 64 KiB envelope, both transports; physical sector probed (StorageAccessAlignmentProperty) | sector-aligned by construction (offset×sectorSize, truncation) | cr_directalign.h / cr_transport.cpp:105-127 / Device:55936-55968 |
+| Per-transport tuning | none | none (bus type only a flag) | PRODUCT-STATE / REFERENCE-RAW §17 |
+
+## 3. Ruled OUT by measurement (do not spend this session here)
+
+- **The 64 KiB envelope is correct and mandated** — GAP-S6-13's slow-path
+  property + sector-multiple subsumption (cr_transport.cpp:152-190); F4's
+  sector-granular envelope was already dispositioned a behavior risk with
+  nil gain.
+- **The transport is not broken at QD1 large reads**: 544 MiB/s at 1 MiB on
+  the runner VHDX; open latency 9-10 µs (−41% vs driver era); self-healing
+  reopen is correctness-only (PRODUCT-STATE §1).
+- **LRU lookup, checkpoint, cheap-op API**: +85 ns/read lookup; save_session
+  9.3 ms; cr_ui cheap ops 10.7-166.3 ns (BASELINE §2/§4).
+- **The result-tree global mutex (cr_node.h:656)**: the query path walks
+  lock-free under the ABI single-thread + G-02 snapshot discipline; mutation
+  serialization is a real register item on multi-core but the walls say the
+  CPU spend is validation, not tree emission — it goes on the
+  contention-profile register (§5), not the fix frontier, until profiled.
+- **QueryPerf**: 1M-node filter+count 26 ms / page 64 ms — green (BASELINE §4).
+
+## 4. Fix plan (Phase 2, acceptance measurement per fix)
+
+1. **Overlapped read-ahead ring (the og's model, generalized)** — a
+   PrefetchReader layer: `FILE_FLAG_OVERLAPPED` data-path handles, a
+   sliding window of N outstanding 4-16 MiB overlapped reads completed by a
+   dedicated completion thread (IOCP-shaped; CreateThreadpoolIo is
+   Win7-safe per PLATFORM-PERF §2), pooled VirtualAlloc buffers served to
+   the caller under short bookkeeping locks. ABI surface UNCHANGED:
+   `read_at` stays a synchronous call per the contract (ABI-CONTRACT §3);
+   the concurrency lives INSIDE the reader stack — the single-flight
+   clause holds at the public boundary, with its in-tree rationale
+   (unique-OVERLAPPED legality) documented in the amendment.
+   Acceptance: full unit suite green + byte-identical scan output on the
+   Linux lane and the CI VHDX fixtures; reader-level component bench ≥
+   QD1-sync throughput on the container; engine-ci green; wall deltas
+   (quick/deep/deepcarve + TTFR + cancel_to_stop_ms) captured per dispatch.
+2. **CachedReader fill-outside-lock + per-block in-flight dedup** — misses
+   fill concurrently (each under its own block state), hits stay
+   short-critical-section; blocks pooled. Acceptance: the N-thread
+   aggregate scaling factor measured ≥1.0× where today it is 0.2-0.5×
+   (BASELINE §4.2 rerun); no output change (hit/miss counts may change —
+   telemetry only).
+3. **Read sizing at the pipe**: block size sweep {256K, 512K, 1M, 2M, 4M}
+   × the new read-ahead window {4M, 8M, 16M} × QD {1,2,4,8} — runner
+   numbers recorded (capped-surface truth) + component-bench numbers; the
+   og-parity default (4 MiB runs) is the floor, the mandate's 16 MiB class
+   the sweep top. MFT batching at the reader level rides the ring (the
+   per-record 1 KiB calls become ring hits).
+4. **The sweep harness + the missing bench lane**: extend
+   run-alignbench.ps1's QD list (:316) to 16/32 and chunk list to 16 MiB;
+   re-wire the bench dispatch workflow (test-benchmark.yml is absent from
+   root .github/workflows at HEAD — BENCHMARK.md §1 records its removal;
+   re-add as a dispatchable lane) — every future number lands in CI
+   artifacts, not prose.
+5. **CPU-parallel validation (attacks Layer 1)**: the carve/deep CPU spend
+   (303.8 CPU-s/GiB) in the signature matcher + validators — batching,
+   early-exit order, and per-record parallelism on the existing ThreadPool;
+   output-identity gated by the exact-result contract tests (carve registry)
+   + the 1 MiB-block SHA-256 hash-map ground truth. Acceptance: deepcarve
+   wall reduction on the same 8 GiB fixture with byte-identical trees and
+   recover-all reports.
+6. **Alignment on the overlapped path**: pooled VirtualAlloc buffers
+   (page-aligned ⇒ sector-aligned; physical-sector probed already at
+   cr_transport.cpp:105-127) + NO_BUFFERING evaluation on the ring handles
+   (the runner leg exists in alignbench — `nobuf` flag) with the
+   cache-pollution rationale recorded either way.
+7. **Cancellation on the overlapped path**: CancelIoEx per pending
+   OVERLAPPED + the existing cooperative checkpoints (transports never
+   poll — cr_device.h:144-148; measured stop 282.6 ms stands as the bar
+   to meet or beat).
+
+## 5. The measurement-debt register (precise scope, per BASELINE §5)
+
+NOT MEASURED on any available surface: per-transport QD/read-size optima on
+physical NVMe/SATA/HDD/USB/SD; the ~3.5× 64 KiB-multiple slow-path ratio on
+real NVMe (Azure shows 1.03× — virtualized); QD>1 payoff on physical media;
+cancel latency on slow media. The procedures are staged in BASELINE §5
+(alignbench sweep on physical media; Run-Benchmark.ps1 matrix). Every claim
+this session makes about those classes will say "debt" or cite the runner's
+capped-surface truth — never project.
+
+---
+---
+
+# PRIOR SESSION'S DIAGNOSIS (2026-11-17, SMART/scan-functional) — preserved verbatim below
 # DIAGNOSIS — session 2026-11-17 (SMART rebuild, scan pipeline repair, reference parity)
 
 > **This session's Phase-0 is complete before this diagnosis**: five context
