@@ -216,8 +216,6 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   SetDetailsPrint textonly
   DetailPrint "Installing application (Tauri bundle, silent)..."
   SetDetailsPrint both
-  InitPluginsDir
-  File "/oname=$PLUGINSDIR\app-setup.exe" "${APP_BUNDLE}"
 
   ; ---- 0. ENGINE KIT PRE-FLIGHT (G-4, INTEGRATION-MATRIX W2) -------------
   ; The staged kit is verified BEFORE anything is placed: a kit that cannot
@@ -226,18 +224,44 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ; a kit-gate failure there STRANDED the inner app + its uninstall entry +
   ; the seeded install-location key: the abort path had no cleanup).
   ; Same conditions as the post-placement gates below.
-  ${IfNot} ${FileExists} "${ENGINE_KIT}${PATHSEP}cr_ui.dll"
-    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): the staged kit has no cr_ui.dll — run the engine lane (build.ps1 -Target engine) before the installer lane."
+  ;
+  ; INSTALL-MACHINE TRUTH (the 0.9.4 shipped-installer bug, closed in 0.9.5):
+  ; the pre-flight MUST NOT probe ${ENGINE_KIT} at RUNTIME. That define is a
+  ; COMPILE-TIME path on the BUILD machine (D:\a\...\build\out\stage-\engine);
+  ; the File command bakes the kit INTO the installer, so the shipped exe
+  ; carries the payload regardless — but the runtime FileExists on the build
+  ; path is TRUE only on the machine that compiled it. On every other machine
+  ; (the forensic lane's fresh runner, or any customer) the gate aborted a
+  ; COMPLETE installer with exit 2 before the inner setup ever ran —
+  ; install.log carried only the onInit line, the app never installed, and
+  ; D-PRIV-01 failed as 'app not installed'. The v0.9.4 t15 matrix stayed
+  ; green only because it builds AND installs on the same runner, so the
+  ; build path existed there. The gate now verifies what the installer itself
+  ; stages: the kit payload is extracted to $PLUGINSDIR\engine-kit FIRST and
+  ; the pre-flight (and the placement below) read from there — build-machine
+  ; independence by construction.
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\app-setup.exe" "${APP_BUNDLE}"
+  SetDetailsPrint textonly
+  DetailPrint "Staging engine kit payload for verification..."
+  SetDetailsPrint both
+  ; Kit payload -> $PLUGINSDIR\engine-kit (the /oname dir form is invalid for
+  ; multi-file File; extract with SetOutPath to a per-file subdir).
+  SetOutPath "$PLUGINSDIR\engine-kit"
+  File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"
+
+  ${IfNot} ${FileExists} "$PLUGINSDIR\engine-kit\cr_ui.dll"
+    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): the installer payload has no cr_ui.dll — the build staged an incomplete kit (run the engine lane before the installer lane)."
   ${EndIf}
   StrCpy $EngineDllCount 0
-  FindFirst $0 $1 "${ENGINE_KIT}${PATHSEP}*.dll"
+  FindFirst $0 $1 "$PLUGINSDIR\engine-kit\*.dll"
   ${DoUntil} $1 == ""
     IntOp $EngineDllCount $EngineDllCount + 1
     FindNext $0 $1
   ${Loop}
   FindClose $0
   ${If} $EngineDllCount < 2
-    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): no runtime DLLs beside cr_ui.dll in the staged kit (found $EngineDllCount DLL(s))."
+    !insertmacro AbortWithReason "Engine kit incomplete (pre-flight): no runtime DLLs in the installer payload (found $EngineDllCount DLL(s))."
   ${EndIf}
 
   ; Seed the inner installer's install-location registry: Tauri's
@@ -318,7 +342,13 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
     !insertmacro InstallFact "update sweep ran (G-9) over the previous kit's file classes"
   ${EndIf}
 
-  File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"
+  ; Placement reads the staged payload (build-machine independence, the
+  ; 0.9.4 bug fix): $PLUGINSDIR\engine-kit was verified in the pre-flight;
+  ; SetOutPath $INSTDIR + File from the payload dir is the documented NSIS
+  ; form (File cannot copy dir->dir without SetOutPath; copying the staged
+  ; payload is a plain local copy, no re-extraction).
+  SetOutPath "$INSTDIR"
+  File /x cr_ui.lib "$PLUGINSDIR\engine-kit\*"
 
   ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
     !insertmacro AbortAfterInner "Engine kit incomplete: cr_ui.dll is missing from $INSTDIR after placement (the pre-flight passed — a disk/AV-level failure). The partial install was swept (G-4)."
