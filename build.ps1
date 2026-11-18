@@ -118,7 +118,20 @@ function Invoke-Engine {
     }
     if (-not $deployed) { throw "no deployed vcpkg runtime DLLs beside cr_ui.dll in $uiBin - expected the cr_deploy_vcpkg_binaries POST_BUILD output" }
     $deployed | Copy-Item -Destination $engineKit
-    Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '))"
+
+    # M-065 / G-1 (installer-integration session, INTEGRATION-MATRIX W1): the
+    # engine's default user-sign set (111 entries — the og's install-tree
+    # EUUserData CAPABILITY, own original data) ships in the kit BESIDE the
+    # binaries. BOTH consumers probe it exe-adjacent at startup (the CLI's
+    # engine/src/app/rrecov.cpp:1354 probe; the bridge's USER_SIGN_DEFAULTS_FILE
+    # probe, ui/src-tauri/src/commands/system.rs) — a kit without it leaves
+    # every clean install at userSigns: 0 while the capability and the file
+    # both exist in-repo. Staged here so the installer (recoverywizard.nsi kit
+    # File) and the portable zip (portable.ps1 kit copy) both place it with
+    # zero further changes; the Invoke-Ui kit copy into the cargo target dirs
+    # picks it up for dev runs the same way.
+    Copy-Item (Join-Path $RepoRoot 'engine\data\userdata-defaults.json') -Destination $engineKit
+    Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '); user-sign defaults staged)"
 
     # DEVELOPMENT SELF-SIGNING on the staged kit modules (the ABI dll + the
     # CLI): the PE gates above ran on the build-tree files; the signature

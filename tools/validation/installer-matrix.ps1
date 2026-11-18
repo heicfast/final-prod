@@ -246,7 +246,7 @@ if ($installed.heicFastCerts -gt 0) {
 # refuses a kit with zero runtime DLLs).
 $expectedModules = @(
     'recovery-wizard-ui.exe', 'uninstall.exe', 'HeicFastUninstall.exe',
-    'cr_ui.dll', 'rrecov.exe'
+    'cr_ui.dll', 'rrecov.exe', 'userdata-defaults.json'
 )
 $actualModules = @($installed.inventory | ForEach-Object { $_.rel })
 $missing = @($expectedModules | Where-Object { $_ -notin $actualModules })

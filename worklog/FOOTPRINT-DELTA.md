@@ -41,3 +41,25 @@ media-renderer bundle (D-P8's ~130 MiB family), the repair workbench (~46),
 WinPE (~176), the language packs, and two Qt runtimes replaced by the OS's
 WebView2. The product is not "missing 380 files' worth of functionality";
 it is missing exactly the three items above, each recorded.
+
+## 3 Session addendum (2026-11-18, Installer Integration session — W1)
+
+The reference's `EUUserData` install-tree placement class (the 111-entry
+ext-signature JSON in the install root; REFERENCE-FOOTPRINT §1.3 — the
+engine-init default user-sign set feeding the CHK repair chain in the og)
+had a product equivalent that existed but was NEVER placed:
+`engine/data/userdata-defaults.json` (111 entries, own original data) sat
+in-repo, both consumers probed it exe-adjacent at startup (CLI
+`engine/src/app/rrecov.cpp:1354`, bridge `ui/src-tauri/src/commands/system.rs`
+`USER_SIGN_DEFAULTS_FILE`), and no build lane staged it, the installer placed
+nothing for it, and the portable zip missed it — every clean install started
+at `userSigns: 0` while the capability and the file both existed
+(INTEGRATION-MATRIX G-1/FM-14 — the one real placement defect of the
+reconciliation). Resolution (W1, this session): `build.ps1` stages it into
+the engine kit; the `.nsi` kit `File` places it flat in `$INSTDIR` (no
+placement-rule change — the kit glob already covers data files); the
+uninstaller deletes it explicitly (the `*.dll` catch-all does not cover
+data files); `installer-matrix.ps1` asserts it in the exact module set;
+the portable zip inherits it via its kit copy. `docs/INSTALLER.md`'s
+placement table lists it. The og's own EUUserData file stays out of the
+product (the IP boundary): the two share the CAPABILITY, not the bytes.

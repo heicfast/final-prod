@@ -42,7 +42,7 @@ consolidation session, commit 318b9655.)
 
 | Location | Contents |
 |---|---|
-| `$INSTDIR` (default `C:\Program Files\HeicFast\Recovery Wizard`) | the app (`recovery-wizard-ui.exe`, Tauri bundle) · the engine kit BESIDE the exe (`cr_ui.dll`, `rrecov.exe`, `z/lz4/zstd` runtime DLLs — loader truth: static imports resolve from the exe dir) · `uninstall.exe` (inner) · `HeicFastUninstall.exe` (ours) |
+| `$INSTDIR` (default `C:\Program Files\HeicFast\Recovery Wizard`) | the app (`recovery-wizard-ui.exe`, Tauri bundle) · the engine kit BESIDE the exe (`cr_ui.dll`, `rrecov.exe`, `z/lz4/zstd` runtime DLLs — loader truth: static imports resolve from the exe dir · `userdata-defaults.json` — the engine's 111-entry default user-sign set, probed exe-adjacent by both the CLI and the bridge at startup, so a clean install's userSigns is real) · `uninstall.exe` (inner) · `HeicFastUninstall.exe` (ours) |
 | `%ProgramData%\HeicFast\Recovery Wizard` | `sessions\` (the product's scan sessions) · `logs\` (`install.log` — see Diagnostics) |
 | Registry | `HKLM\Software\HeicFast\Recovery Wizard` (Version, InstallDir, InstallMode) · the Add/Remove entry `HKLM\...\Uninstall\Recovery Wizard` |
 

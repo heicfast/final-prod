@@ -242,7 +242,11 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${EndIf}
 
   ; ---- 2. Engine kit: cr_ui.dll + import lib + the vcpkg runtime DLLs ----
-  ; staged by build.ps1 from the engine's own POST_BUILD-deployed set.
+  ; staged by build.ps1 from the engine's own POST_BUILD-deployed set, plus
+  ; userdata-defaults.json (M-065/G-1, INTEGRATION-MATRIX W1): the engine's
+  ; 111-entry default user-sign set — a DATA file both consumers probe
+  ; exe-adjacent at startup (CLI + bridge); placed flat with the kit so a
+  ; clean install's userSigns starts real, not 0.
   ; LAYOUT TRUTH (bridge decision, docs/BUILD.md): the Rust bridge STATICALLY
   ; imports cr_ui.dll — the loader resolves static imports from the exe's
   ; directory at process start, so the DLLs ride BESIDE ${APP_EXE} at
@@ -494,6 +498,10 @@ Section "Uninstall"
   ; runtime DLLs are ours.
   Delete /REBOOTOK "$INSTDIR\cr_ui.dll"
   Delete /REBOOTOK "$INSTDIR\rrecov.exe"
+  ; The engine's default user-sign set (M-065/G-1, INTEGRATION-MATRIX W1): a
+  ; DATA file the *.dll catch-all below does not cover — without this line a
+  ; complete uninstall would orphan it.
+  Delete /REBOOTOK "$INSTDIR\userdata-defaults.json"
   Delete /REBOOTOK "$INSTDIR\zlib1.dll"
   Delete /REBOOTOK "$INSTDIR\z.dll"
   Delete /REBOOTOK "$INSTDIR\lz4.dll"

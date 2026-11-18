@@ -3301,6 +3301,35 @@ EVERY deferred item with its precise scope is in BEHAVIOR-FINDINGS.md
   green, no undocumented behavior change, main green after every wave, no og
   file ever copied.
 
+### T5/W1 — installer placement completeness: userdata-defaults.json SHIPS
+
+- INTEGRATION-MATRIX G-1/FM-14 closed — the one real placement defect: the
+  engine's 111-entry default user-sign set existed in-repo
+  (engine/data/userdata-defaults.json; entry count re-verified this wave by
+  parse: 111) and BOTH consumers probe it exe-adjacent at startup
+  (engine/src/app/rrecov.cpp:1354; the bridge's USER_SIGN_DEFAULTS_FILE,
+  ui/src-tauri/src/commands/system.rs), but no lane staged it and nothing
+  placed it — every clean install started at userSigns: 0.
+- The fix (pure additive placement, zero behavior change elsewhere):
+  build.ps1 stages the json into the engine kit; the .nsi kit File already
+  places every non-.lib kit file flat in $INSTDIR (no .nsi placement-rule
+  change — only the comment gained the truth); the uninstaller deletes it
+  explicitly (a DATA file the *.dll catch-all does not cover — without the
+  line a complete uninstall would orphan it); installer-matrix.ps1's
+  exact-module-set assertion gains the file (required — the $extraRoot
+  non-DLL guard would otherwise fail it); portable.ps1 inherits it via its
+  whole-kit copy; docs/INSTALLER.md's placement table + worklog/
+  FOOTPRINT-DELTA.md §3 record it. About's userSigns row becomes truthful
+  non-zero on clean installs; the degradation contract (logged no-op when
+  genuinely absent) stays for real absence.
+- Validation, Linux-sandbox class (L): node contracts/validate.mjs GREEN
+  (54 commands / 12 events, both cross-checks). Sandbox truth: no makensis,
+  no pwsh, no root (apt refused) — the .nsi compile gate and the .ps1 parse
+  gate run on the repo's Windows runners (release.yml builds the installer;
+  validation-evidence.yml runs the T15 matrix); both edits are
+  line-for-line the syntax of their neighbors. The Windows-runner evidence
+  capture (fresh T15 run at this frontier) is queued with the G-5 re-proof
+  (W2).
 
 ---
 
