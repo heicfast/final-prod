@@ -29,18 +29,26 @@ function Write-Log([string] $msg) {
     Write-Host ("[nffx-del] {0} {1}" -f (Get-Date -Format o), $msg)
 }
 
-function Get-VolumeLetter([string] $root) {
-    return (Split-Path -Qualifier $Root).TrimEnd(':')
+function Get-VolumeLetter([string] $rootPath) {
+    # regex on the LOCAL param (run-2 postmortem: the Split-Path/TrimEnd
+    # derivation fed Write-VolumeCache a ':' letter at the after-flush while
+    # the identical before-flush worked; derive defensively + loudly)
+    if ($rootPath -match '^([A-Za-z]):[\\/]') { return $Matches[1] }
+    throw "cannot derive a drive letter from root: '$rootPath'"
 }
 
-function Flush-Volume([string] $root) {
-    $letter = Get-VolumeLetter $root
+function Flush-Volume([string] $rootPath) {
+    $letter = Get-VolumeLetter $rootPath
     try {
-        Write-VolumeCache -DriveLetter $letter -ErrorAction Stop
-        return 'flushed'
+        $vol = Get-Volume -DriveLetter $letter -ErrorAction Stop
+        if ($vol) {
+            $vol | Write-VolumeCache -ErrorAction Stop
+            return "flushed (letter $letter)"
+        }
+        return "flush-failed: volume $letter not found"
     }
     catch {
-        return "flush-failed: $($_.Exception.Message)"
+        return "flush-failed (letter $letter): $($_.Exception.Message)"
     }
 }
 
@@ -70,6 +78,7 @@ foreach ($r in $ordered) {
     if ($r.special -eq 'double-delete-v1') {
         # delete v1, then restore v2 from the stash with its declared metadata
         $abs = Join-Path $Root ($r.rel -replace '/', '\')
+        Write-Log "action delete-v1: $($r.rel)"
         if (Test-Path -LiteralPath $abs) {
             Remove-Item -LiteralPath $abs -Force
             Add-Action 'delete' $r.rel 'ok'
@@ -121,6 +130,7 @@ foreach ($r in ($rows | Sort-Object -Property apply_order)) {
     }
     if ($r.delete_class -eq 'file-delete') {
         $abs = Join-Path $Root ($r.rel -replace '/', '\')
+        Write-Log "action delete: $($r.rel)"
         if (Test-Path -LiteralPath $abs) {
             # ReadOnly attributes need -Force; Remove-Item -Force covers them
             Remove-Item -LiteralPath $abs -Force
@@ -133,6 +143,7 @@ foreach ($r in ($rows | Sort-Object -Property apply_order)) {
     elseif ($r.delete_class -eq 'tree-delete') {
         if ($r.is_dir) {
             $abs = Join-Path $Root ($r.rel -replace '/', '\')
+            Write-Log "action delete-tree: $($r.rel)"
             if (Test-Path -LiteralPath $abs) {
                 Remove-Item -LiteralPath $abs -Recurse -Force
                 Add-Action 'delete-tree' $r.rel 'ok'
