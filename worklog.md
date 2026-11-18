@@ -3997,3 +3997,35 @@ engine-ci. Matrix reduction N/A (no matrices exist). Version bumped to
 0.9.5 in lockstep for the release cut; notes updated truthfully.
 Detail: worklog/OPTIMIZATION.md. Cleanup: duplicate rust cache entry and the
 14 orphaned rda-wdk artifacts deleted via the API (see below).
+
+---
+
+## Session: Cross-Repository Feature Harvest & Implementation (2026-11-19)
+
+Prompt saved redacted at `worklog/session-cross-repo-harvest-prompt.md`.
+
+**T1 — clone and pin.** Product cloned at `201100aa` (branch `main`, clean
+tree, VERSION 0.9.5). Six reference repos cloned read-only (all public,
+anonymous clones — token never needed for reads, kept in git config only):
+
+| Role | Repository | Pinned HEAD | License |
+|---|---|---|---|
+| Product (target) | heicfast/final-prod | `201100aa2978e26c218c73c00f7c15c23757d554` | MIT |
+| B — UI/recovery features | terraseraph/sectorforge | `b292a299c18013706e81d670657ced6c43f200ca` | MIT |
+| C — UI/recovery features | htoklu/halim-recovery | `3b5d66d8537432f54b76489e717387f9da198635` | MIT |
+| D — partition & carving | cgsecurity/testdisk | `02941e1b0fce14a33932724de85cbe8385bb70d0` | GPLv2+ (`COPYING`) |
+| E — forensic engine lib | sleuthkit/sleuthkit | `3dcb43668d811548206fbeaf5e0c9753202f672f` | IPL 1.0 core + bundled (`licenses/`) |
+| F — NTFS deep recovery | mjgil-rust/ntfs-recover | `5072bbc729b293efc0b2070b38ad30c3b7e043cf` | 0BSD |
+| G — MFT analysis/rescue | hasithahaththella/mft-rescue | `9b0e5ecc9d24ae9918f83e3a81e4a8616f610a22` | MIT |
+
+Repo scale at pin: final-prod 3227 tracked files; sectorforge 197;
+halim-recovery 62; testdisk 793; sleuthkit 959; ntfs-recover 25; mft-rescue 8.
+
+Mandate: best-of-breed harvest — for each capability take the reference that
+does it best, re-implement from understanding in our stack (never copy
+verbatim), cite the reference for behavior, license-check every feature,
+validate against seeded ground truth with byte-for-byte comparison, evidence
+in `worklog/VALIDATION/`. The named feature is priority: **reconstructed
+files with original directory structure preserved, deleted only, as a
+post-scan option — matching SectorForge's behavior**. Nothing is implemented
+until the feature matrix (T3) is committed and pushed.
