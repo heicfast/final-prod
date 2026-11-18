@@ -305,13 +305,13 @@ if ($null -ne $installed.testDllsShipped) {
 # for that decision - the final guard throws on CHECK-* rows).
 $startMenuPrograms = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
 $startMenuLinks = @(Get-ChildItem $startMenuPrograms -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -match 'HeicFast|Recovery' })
+    Where-Object { $_.FullName -match 'HeicFast|Recovery Wizard' })
 $shortcutSh = New-Object -ComObject WScript.Shell
 $startMenuIntoInstall = @($startMenuLinks | Where-Object {
     try { $shortcutSh.CreateShortcut($_.FullName).TargetPath -like "$InstallDir*" } catch { $false }
 })
 $desktopLinks = @(Get-ChildItem "$env:PUBLIC\Desktop" -Filter '*.lnk' -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match 'HeicFast|Recovery' })
+    Where-Object { $_.Name -match 'HeicFast|Recovery Wizard' })
 Write-Evidence -Name '03b-shortcuts.json' -Content ([ordered]@{
     startMenuLinks   = @($startMenuLinks | ForEach-Object { $_.FullName.Substring($startMenuPrograms.Length + 1) })
     intoInstallDir   = @($startMenuIntoInstall | ForEach-Object { $_.Name })
@@ -451,9 +451,9 @@ $after = [ordered]@{
     # G-3: the shortcut set is gone with the product (the inner uninstaller
     # owns their removal).
     startMenuLinksGone = @(Get-ChildItem $startMenuPrograms -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match 'HeicFast|Recovery' }).Count -eq 0
+        Where-Object { $_.FullName -match 'HeicFast|Recovery Wizard' }).Count -eq 0
     desktopLinksGone   = @(Get-ChildItem "$env:PUBLIC\Desktop" -Filter '*.lnk' -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match 'HeicFast|Recovery' }).Count -eq 0
+        Where-Object { $_.Name -match 'HeicFast|Recovery Wizard' }).Count -eq 0
 }
 Write-Evidence -Name '08-after-uninstall.json' -Content ($after | ConvertTo-Json -Depth 4)
 $uninstallOk = ($after.exitCode -eq 0) -and (-not $after.swKeyExists) -and (-not $after.uninstallKeyExists) -and
