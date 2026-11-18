@@ -261,6 +261,10 @@ ALLOWED_DLLS = {
     "zlibd1.dll": "name-only",  # old-vcpkg debug zlib
     "z.dll": "name-only",      # vcpkg-2026 release zlib
     "zd.dll": "name-only",     # vcpkg-2026 debug zlib
+    "libz.dll": "name-only",   # the benchmark-src lane's vcpkg revision (run
+    "libzd.dll": "name-only",  # 44334634961) spells it libz/libzd — the same
+                               # drift class d24c1cab recorded for lz4/zstd;
+                               # zlib is a name-only codec dependency either way
     "liblz4.dll": "name-only",  # old vcpkg lz4 name
     "lz4.dll": "name-only",     # vcpkg-2026 lz4
     "libzstd.dll": "name-only",  # old vcpkg zstd name
