@@ -316,7 +316,7 @@ pub async fn system_pick_image_file(app: tauri::AppHandle) -> Result<Value, Brid
             .file()
             .add_filter(
                 "Disk images",
-                ["vmdk", "vhd", "vhdx", "dmg", "img"],
+                &["vmdk", "vhd", "vhdx", "dmg", "img"],
             )
             .blocking_pick_file()
             .map(|p| p.to_string())
