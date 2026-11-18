@@ -82,7 +82,19 @@ export function HomePage(): React.JSX.Element {
     'vol-data': true,
   });
   const devices = devicesQuery.data ?? [];
-  const physical = devices.filter((d) => d.kind !== 'virtual');
+  // D-ENUM-01: EVERY device in the payload is a physically-enumerated
+  // disk and must be visible + selectable. The primary fix is 96917f6c
+  // (the bus-kind arm in devices.rs — D-ENUM-05); this consumer-side
+  // layer keeps the standard enforced where it renders: when BF-12's
+  // image targets eventually surface in this payload, their visibility
+  // must be a DELIBERATE decision, never a silent filter. Evidence: run
+  // 44249495727 on v0.9.3 rendered 'Internal drives (2)' on a machine
+  // whose census recorded 4 disks — both seed vdisks invisible, the
+  // save/resume vehicle could not even click its target card. Image
+  // targets (open_image, BF-12) are a separate unsurfaced surface and
+  // never appear in this payload, so 'virtual' here can only mean an
+  // attached virtual disk.
+  const physical = devices;
   const internal = physical.filter((d) => d.kind === 'internal');
   // D-ENUM-01: reference parity — the landing page renders BOTH groups
   // ("Internal drives (N)" + "External drives (%1)"); every physical device

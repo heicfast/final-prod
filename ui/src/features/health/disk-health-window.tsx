@@ -107,7 +107,12 @@ function deviceDisplayName(device: Device): string {
 export function DiskHealthWindowApp(props: { initialDiskIndex: number }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const devicesQuery = useDevices();
-  const devices = (devicesQuery.data ?? []).filter((d) => d.kind !== 'virtual');
+  // D-ENUM-01 (same evidence as the landing page: forensic run 44249495727
+  // saw 2 selector candidates on a 4-disk machine): the all-disks selector
+  // renders EVERY device in the payload — an attached virtual disk is a
+  // real disk with real (or honestly-absent) SMART; the reference's
+  // DiskHealth companion lists it too.
+  const devices = React.useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   /* the one-time first-caution jump: null = not decided yet. */
