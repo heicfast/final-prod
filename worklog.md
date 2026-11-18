@@ -3974,3 +3974,9 @@ Baseline run history (GitHub API, 2026-11-18):
 | contracts-ci | push @15:46 | success | 23 s |
 
 The 15:46 batch is commit `9352c81d`'s CI — three workflows red on the default branch. Root causes in `worklog/CI-FAILURES.md` (Phase 0/1).
+
+**T2 — Phase 0 context sheets (agents A–D), pushed before any change.**
+- `worklog/WORKFLOW-INVENTORY.md` — 9 workflows end to end; 3 red on main @9352c81d (engine-ci, bridge-integration, benchmark-src); 6/9 lack concurrency groups; 3/9 lack explicit timeouts; all 46 action refs SHA-pinned but on outdated majors.
+- `worklog/CI-FAILURES.md` — every current + recent failure with root cause per run (engine-ci/bridge: regenerated `abi_layout_dump.c` committed without clang-format 18.1.8; benchmark-src: ctest step runs from repo root but `CMakePresets.json` lives under `engine/`; older benchmark failures already fixed on main).
+- `worklog/PIPELINE-AUDIT.md` — engine built 2×/push (~18.4 min duplicated), release reuses nothing (~23 min serial), vcpkg ports rebuilt uncached in 3 lanes, `web-dist` artifact has zero consumers.
+- `worklog/CACHE-AUDIT.md` — 5 caches/1.4 GB (duplicate 584 MB rust entry), 220 artifacts/327 MB (14 orphaned rda-wdk from deleted driver-ci), 12/12 recent cache events primary-key full hits.
