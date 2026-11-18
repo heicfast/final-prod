@@ -3888,3 +3888,69 @@ seam; open_file_async = the test/bench surface. ABI surface unchanged
 D-72's algorithm halves closed by measurement (amendment in the row).
 4 new Windows transport tests ride engine-ci. Throughput claims deferred
 to the T7 harness dispatch — no number without the runner.
+
+## 2026-11-18T12:05Z — installer-api session re-opens: the red-main repair (ring miss-path root cause + Linux parse gate)
+
+Session re-dispatched on the same charter (installer integration + API
+surface expansion). Baseline audit at clone (HEAD a2561acd) found main
+RED in two places the prior sessions never saw:
+
+1. **Linux lane**: `win_syntax_check` failed on `cr_transport.cpp` — the
+   performance session's fix-2 ring code consumed 13 SDK symbols the
+   M-055 declaration-only stubs never grew (the gate's own contract:
+   "a new SDK symbol in src/win grows the stub here"), and
+   `test_transport_win.cpp:121` shipped an ill-formed multi-word
+   functional cast (`unsigned char(...)`) that MSVC tolerates and g++
+   rejects. Fixed: stubs grown (IOCP trio, event pair, CancelIoEx,
+   VirtualAlloc/VirtualFree, MEM_*/PAGE_* constants, GetTempFileNameW),
+   cast → `static_cast`.
+2. **benchmark-src run 44275941738 (a2561acd)** — the first full matrix
+   through fixes 1-3 — failed SEVEN hard gates: cancel+resume
+   `resumedFiles=0`; S-DEL-NTFS hash-recall 0.272 < floor 0.35;
+   bench-rand-1m 9427ms > 2192 cap; bench-open 227869ms > 19571 cap;
+   scan-deep-wall 26253ms > 18155 cap; api-save-session 13.7 > 11.88;
+   api-recovery 5524.5ms > 54.12 cap (102x over baseline).
+
+**Root cause (both functional failures + the perf-wall class), pinned
+from source**: `AsyncRing::pick_victim_locked()` returns only
+IDLE/FAILED/oldest-DONE slots — never INFLIGHT. In the runner's steady
+state the device outruns validation CPU, so ALL 8 slots sit INFLIGHT;
+every out-of-window read (remnant/carve random probes, recovery extents,
+MFT random access) hit step 3 with no claimable victim and
+`read_at` returned **ERR_NO_MEMORY** — which `RetryingDevice::try_read`
+(cr_retry.cpp:49) classifies as a hard error (not retried, not
+zero-filled, not bisected) and propagates straight into every engine.
+The 4 remaining miss cases (a free victim existed) claimed a slot and
+issued a full `run_`=4 MiB read for a 4 KiB need — ~1024x read
+amplification on random workloads (the api-recovery/bench-rand walls).
+The engine-ci ring tests never saw it: their fixtures (24-48 MiB) fit
+inside the 32 MiB window, so the miss path never fired.
+
+**The repair (root cause, not symptom)**: `AsyncRing::read` step 3 now
+discriminates — a miss AT THE WALKING FRONT (slice ends beyond the
+cursor, starts within one run of it: the sequential consumer's warm-up
+and window-recycling path) still recycles a victim; EVERYTHING ELSE
+(backward re-reads, random probes, recovery extents, front reads with
+no free slot) is served by the **companion sync handle**: a second open
+of the same path, FILE_FLAG_OVERLAPPED but NEVER associated with the
+completion port, read through the pre-ring `aligned_read_at` envelope in
+<=1 MiB slices, with NO cursor advance and NO kick (a random read must
+not drag the window). `DirectDevice` owns the companion (ctor opens it
+before the ring — if it fails the ring stays disabled and the device is
+the pre-ring sync transport; heal reopens both handles as a unit or
+fails whole; dtor closes it after ring stop). ERR_NO_MEMORY is now
+unreachable from the read path; the design comment's original promise
+("random-access streams degrade to sync-like behavior, never worse than
+the pre-ring transport") is finally implemented.
+
+**Regression pins added** (`test_transport_win.cpp`, MSVC lane): a
+128 MiB fixture (4x the window) with 4 threads x 3000 random 64 KiB
+reads — byte-exact, zero failures (the old code cannot pass this); a
+96 MiB walker + 2 random-probe + 1 backward-reread concurrent test
+(the product's real scan shape; the cursor stays the walker's).
+
+Local evidence: parse gate green (grown stubs), 1781/1781 Linux tests,
+contracts green, doc_truth green, clang-format 18.1.8 applied. The
+Windows-runner proof (engine-ci + the seven benchmark-src gates) is
+dispatched with this push — the repair is NOT claimed closed until the
+matrix runs green.

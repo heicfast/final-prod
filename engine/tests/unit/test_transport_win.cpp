@@ -118,7 +118,7 @@ TEST(DestOverlapSpans, ZeroOffsetCrossDiskNeverArms) {
 namespace {
 /* deterministic pattern: byte i = (i*131 + 7) & 0xFF */
 unsigned char pat(u64 i) {
-    return unsigned char((i * 131 + 7) & 0xFF);
+    return static_cast<unsigned char>((i * 131 + 7) & 0xFF);
 }
 
 wchar_t* make_pattern_file(u64 bytes) {
@@ -255,5 +255,123 @@ TEST(AsyncRing, TuningOverrideAndTeardownInFlight) {
         ASSERT_NE(dev, nullptr);
         EXPECT_TRUE(check_read(dev.get(), 0, 32ull << 20));
     }
+    DeleteFileW(path);
+}
+
+TEST(AsyncRing, RandomMissesBeyondWindowNeverFail) {
+    /* THE REGRESSION PIN (benchmark-src run 44275941738): the first
+     * landed ring claimed a victim for EVERY miss and returned
+     * ERR_NO_MEMORY when all slots were in flight - the runner's steady
+     * state on any device bigger than the 32 MiB window. This fixture is
+     * 4x the window (128 MiB), so misses are CONSTANT; 4 threads x 3000
+     * random reads must be byte-exact with ZERO failures. The old code
+     * cannot pass this (misses with the window fully busy fail hard);
+     * the companion-sync repair serves every miss. */
+    wchar_t* path = make_pattern_file(128ull << 20);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    auto dev = cr::win::open_file_async(path, 0, 0, &err);
+    ASSERT_NE(dev, nullptr) << "err=" << err;
+    std::atomic<int> bad{0};
+    std::vector<std::thread> th;
+    for (int t = 0; t < 4; ++t) {
+        th.emplace_back([&, t] {
+            std::vector<unsigned char> buf(64 * 1024);
+            u64 st = 0x2545F4914F6CDD1DULL * (t + 1);
+            for (int k = 0; k < 3000; ++k) {
+                st ^= st << 13;
+                st ^= st >> 7;
+                st ^= st << 17;
+                const u64 off = st % ((128ull << 20) - 64 * 1024);
+                if (dev->read_at(off, buf.data(), 64 * 1024) != cr::OK) {
+                    bad.fetch_add(1);
+                    return;
+                }
+                for (u32 i = 0; i < 64 * 1024; ++i)
+                    if (buf[i] != pat(off + i)) {
+                        bad.fetch_add(1);
+                        return;
+                    }
+            }
+        });
+    }
+    for (auto& x : th)
+        x.join();
+    EXPECT_EQ(bad.load(), 0);
+    DeleteFileW(path);
+}
+
+TEST(AsyncRing, WalkerAndRandomProbesConcurrent) {
+    /* the product's real shape: ONE sequential consumer (the scan pipe)
+     * walking forward while fan-out workers probe RANDOM offsets (the
+     * remnant/carve/recovery pattern). The walker must stay byte-exact
+     * (the window serves it), the probes must stay byte-exact (the
+     * companion serves them), and neither may disturb the other: the
+     * cursor is the walker's, a probe must never drag it. */
+    const u64 sz = 96ull << 20; /* 3x the default window */
+    wchar_t* path = make_pattern_file(sz);
+    ASSERT_NE(path, nullptr);
+    u32 err = 0;
+    auto dev = cr::win::open_file_async(path, 0, 0, &err);
+    ASSERT_NE(dev, nullptr);
+    std::atomic<int> bad{0};
+    std::vector<std::thread> th;
+    /* the walker: 64 KiB steps over the whole file (the readahead path) */
+    th.emplace_back([&] {
+        std::vector<unsigned char> buf(64 * 1024);
+        for (u64 off = 0; off + 64 * 1024 <= sz; off += 64 * 1024) {
+            if (dev->read_at(off, buf.data(), 64 * 1024) != cr::OK) {
+                bad.fetch_add(1);
+                return;
+            }
+            for (u32 i = 0; i < 64 * 1024; ++i)
+                if (buf[i] != pat(off + i)) {
+                    bad.fetch_add(1);
+                    return;
+                }
+        }
+    });
+    /* two random probe threads (the miss path) */
+    for (int t = 0; t < 2; ++t) {
+        th.emplace_back([&, t] {
+            std::vector<unsigned char> buf(4096);
+            u64 st = 0x9E3779B97F4A7C15ULL * (t + 7);
+            for (int k = 0; k < 2000; ++k) {
+                st ^= st << 13;
+                st ^= st >> 7;
+                st ^= st << 17;
+                const u64 off = st % (sz - 4096);
+                if (dev->read_at(off, buf.data(), 4096) != cr::OK) {
+                    bad.fetch_add(1);
+                    return;
+                }
+                for (u32 i = 0; i < 4096; ++i)
+                    if (buf[i] != pat(off + i)) {
+                        bad.fetch_add(1);
+                        return;
+                    }
+            }
+        });
+    }
+    /* a backward re-read thread (the CatchBuffer backtrack shape: the
+     * window's already-consumed territory - the companion's exact case) */
+    th.emplace_back([&] {
+        std::vector<unsigned char> buf(4096);
+        for (int k = 0; k < 2000; ++k) {
+            const u64 off = (sz - 4096) - (u64(k) * 65536) % (sz / 2);
+            if (dev->read_at(off, buf.data(), 4096) != cr::OK) {
+                bad.fetch_add(1);
+                return;
+            }
+            for (u32 i = 0; i < 4096; ++i)
+                if (buf[i] != pat(off + i)) {
+                    bad.fetch_add(1);
+                    return;
+                }
+        }
+    });
+    for (auto& x : th)
+        x.join();
+    EXPECT_EQ(bad.load(), 0);
     DeleteFileW(path);
 }

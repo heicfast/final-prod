@@ -236,6 +236,41 @@ inline BOOL WriteFile(HANDLE, const void*, DWORD, DWORD*, OVERLAPPED*) {
 inline BOOL GetOverlappedResult(HANDLE, OVERLAPPED*, DWORD*, BOOL) {
     return 1;
 }
+/* Overlapped-ring stubs (the perf session's fix 2, 18b918d5; Win7 import
+ * gate audited at 47cfeae9): the IOCP trio + the manual-reset event pair +
+ * CancelIoEx + the page-allocator pair the AsyncRing consumes. The gate's
+ * contract (M-055): a new SDK symbol in src/win grows the stub here. */
+inline HANDLE CreateEventW(SECURITY_ATTRIBUTES*, BOOL, BOOL, const wchar_t*) {
+    return (HANDLE)0;
+}
+inline BOOL SetEvent(HANDLE) {
+    return 1;
+}
+inline BOOL ResetEvent(HANDLE) {
+    return 1;
+}
+inline HANDLE CreateIoCompletionPort(HANDLE, HANDLE, ULONG_PTR, DWORD) {
+    return (HANDLE)0;
+}
+inline BOOL PostQueuedCompletionStatus(HANDLE, DWORD, ULONG_PTR, OVERLAPPED*) {
+    return 1;
+}
+inline BOOL GetQueuedCompletionStatus(HANDLE, DWORD*, ULONG_PTR*, OVERLAPPED**, DWORD) {
+    return 1;
+}
+inline BOOL CancelIoEx(HANDLE, OVERLAPPED*) {
+    return 1;
+}
+inline void* VirtualAlloc(void*, size_t, DWORD, DWORD) {
+    return nullptr;
+}
+inline BOOL VirtualFree(void*, size_t, DWORD) {
+    return 1;
+}
+#define MEM_COMMIT 0x1000UL
+#define MEM_RESERVE 0x2000UL
+#define MEM_RELEASE 0x8000UL
+#define PAGE_READWRITE 0x04UL
 inline BOOL FlushFileBuffers(HANDLE) {
     return 1;
 }
@@ -372,6 +407,11 @@ inline BOOL DeleteVolumeMountPointW(const wchar_t*) {
     return 1;
 }
 inline DWORD GetTempPathW(DWORD, wchar_t*) {
+    return 0;
+}
+/* the ring tests' pattern-file fixture (test_transport_win.cpp): the SDK
+ * shape (return = the unique numeric extension used, 0 on failure) */
+inline UINT GetTempFileNameW(const wchar_t*, const wchar_t*, UINT, wchar_t*) {
     return 0;
 }
 inline UINT GetWindowsDirectoryW(wchar_t*, UINT) {

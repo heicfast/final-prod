@@ -11,13 +11,17 @@
  *     (the driver-era F11 Information=Length*512 scaling is deleted with
  *     the driver)
  *   - the READ data path (DirectDevice) now opens FILE_FLAG_OVERLAPPED
- *     and serves every read through the AsyncRing (IOCP + sliding
- *     window of N outstanding 4 MiB-class 64-KiB-aligned reads,
+ *     and serves WINDOW-COVERED reads through the AsyncRing (IOCP +
+ *     sliding window of N outstanding 4 MiB-class 64-KiB-aligned reads,
  *     refill-on-consume): the og's dedicated prefetch thread + 10-run
  *     x 4 MiB lookahead (DRWUI:919088-919142) generalized one layer
  *     down, without the og's driver-era sector-unit grammar. Queue
  *     depth = the window; concurrent read_at on the one handle is
- *     documented-safe (unique OVERLAPPED per call).
+ *     documented-safe (unique OVERLAPPED per call). Reads the window
+ *     does NOT cover go to the COMPANION SYNC HANDLE (a second open,
+ *     never port-associated) through the pre-ring aligned envelope -
+ *     random/backward access keeps exact pre-ring semantics (the
+ *     benchmark-src regression repair; see AsyncRing::read step 3).
  *   - the S-010 quiesce chain and the S-029 device-control chain operate
  *     on direct handles (the write side RwDevice stays synchronous:
  *     repair/apply writes are single-flight by their own contracts)
@@ -283,9 +287,19 @@ u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, u64 dev_size, DWORD* 
  *     after the read cursor is issued on a free slot (follow-the-cursor -
  *     the og's "CacheThread find read sector" policy, vendor log
  *     DRWUI:962634).
- *   - pivot-on-miss: a read outside the window issues at its own 64 KiB
- *     floor (random-access streams degrade to sync-like behavior, never
- *     worse than the pre-ring transport).
+ *   - pivot-at-the-front / companion-elsewhere: a read the window does
+ *     not cover is served by the COMPANION SYNC HANDLE (a second open of
+ *     the same path, never associated with the port) through the pre-ring
+ *     aligned envelope - byte-identical semantics, no 4 MiB run
+ *     amplification, no victim wait. Only a miss AT THE WALKING FRONT
+ *     (the slice ends beyond the cursor and starts within one run of it)
+ *     recycles a ring slot: that is the warm-up and window-recycling path
+ *     of the sequential consumer, whose reads advance the cursor. The
+ *     first landed shape claimed a victim for EVERY miss and returned
+ *     ERR_NO_MEMORY when all eight slots were in flight (the runner's
+ *     steady state) - the benchmark-src matrix caught it as the
+ *     cancel+resume and S-DEL-NTFS recall regressions; this is the
+ *     root-cause repair, never a symptom patch.
  *   - every ISSUED read: 64 KiB-multiple length at a 64 KiB-floor offset
  *     (the GAP-S6-13 mandate property), clamped at the device tail (the
  *     documented tail exception).
@@ -386,14 +400,17 @@ public:
     }
 
     /* Serve [off, off+len). Returns the transport rc; *gle_out carries
-     * the failing GLE for the DirectDevice heal decision. */
-    u32 read(u64 off, void* buf, u32 len, u64 dev_size, DWORD* gle_out) {
+     * the failing GLE for the DirectDevice heal decision. sync_h is the
+     * caller-owned companion handle (never port-associated): the miss
+     * path's pre-ring envelope. */
+    u32 read(u64 off, void* buf, u32 len, u64 dev_size, DWORD* gle_out, HANDLE sync_h) {
         u8* dst = static_cast<u8*>(buf);
         u64 pos = off;
         u32 remain = len;
         while (remain > 0) {
             Slot* s = nullptr;
             bool do_issue = false;
+            bool companion = false;
             {
                 std::lock_guard<std::mutex> g(ring_mu_);
                 const u32 take = min_u32(remain, run_);
@@ -416,24 +433,51 @@ public:
                         }
                     }
                 }
-                /* 3. pivot: claim a slot at this request's 64 KiB floor */
+                /* 3. miss. At the walking front (this slice ends beyond the
+                 * cursor and starts within one run of it) the ring recycles
+                 * a victim at the request's 64 KiB floor - the warm-up and
+                 * window-recycling path of the sequential consumer, whose
+                 * reads advance the cursor. EVERYTHING ELSE - backward
+                 * re-reads, random probes, recovery extents, and front
+                 * reads with no recyclable slot (all eight in flight) -
+                 * goes to the companion sync handle: the pre-ring envelope,
+                 * never ERR_NO_MEMORY, never a 4 MiB amplification. */
                 if (!s) {
-                    s = pick_victim_locked();
-                    if (!s)
-                        return ERR_NO_MEMORY;
-                    const u64 issue_off = (pos / io::kDirectAlignBytes) * io::kDirectAlignBytes;
-                    u64 want_end = issue_off + run_;
-                    const u64 need_end = pos + take;
-                    if (want_end < need_end)
-                        want_end = need_end;
-                    if (want_end > dev_size)
-                        want_end = dev_size; /* the documented tail clamp */
-                    if (want_end <= issue_off)
-                        return ERR_RANGE_OUT_OF_BOUNDS;
-                    const u32 issue_len = u32(want_end - issue_off);
-                    claim_slot_locked(*s, issue_off, issue_len);
-                    do_issue = true;
+                    const u64 cur = cursor_.load(std::memory_order_relaxed);
+                    if (pos < cur + u64(run_) && pos + take > cur)
+                        s = pick_victim_locked();
+                    if (s) {
+                        const u64 issue_off = (pos / io::kDirectAlignBytes) * io::kDirectAlignBytes;
+                        u64 want_end = issue_off + run_;
+                        const u64 need_end = pos + take;
+                        if (want_end < need_end)
+                            want_end = need_end;
+                        if (want_end > dev_size)
+                            want_end = dev_size; /* the documented tail clamp */
+                        if (want_end <= issue_off)
+                            return ERR_RANGE_OUT_OF_BOUNDS;
+                        const u32 issue_len = u32(want_end - issue_off);
+                        claim_slot_locked(*s, issue_off, issue_len);
+                        do_issue = true;
+                    } else {
+                        companion = true;
+                    }
                 }
+            }
+            if (companion) {
+                /* the pre-ring envelope on the never-associated companion:
+                 * <=1 MiB slices (the aligned_read_at bounce cap), NO
+                 * cursor advance (a random read must not drag the window),
+                 * NO kick (nothing was consumed from a slot). The loop then
+                 * re-scans - later slices may find window covers again. */
+                const u32 ctake = min_u32(remain, 1u << 20);
+                const u32 crc = aligned_read_at(sync_h, pos, dst, ctake, dev_size, gle_out);
+                if (crc != OK)
+                    return crc;
+                dst += ctake;
+                pos += ctake;
+                remain -= ctake;
+                continue;
             }
 
             if (do_issue && !issue(*s)) {
@@ -764,11 +808,23 @@ public:
         /* 2026-11-18: the data path rides the overlapped read-ahead ring
          * (FILE_FLAG_OVERLAPPED handles + IOCP sliding window - the og's
          * prefetch model generalized). The handle MUST have been opened
-         * with FILE_FLAG_OVERLAPPED by the open site (open_path); the
-         * ring construction is best-effort: on failure (no memory for
-         * the 32 MiB window) the device degrades to the pre-ring sync
-         * envelope path - honest, never a silent stall. */
-        ring_ = std::make_unique<AsyncRing>(h, geom_.total_bytes,
+         * with FILE_FLAG_OVERLAPPED by the open site (open_path).
+         *
+         * THE COMPANION SYNC HANDLE (the miss-path repair, same day): a
+         * second open of the same path with the same access/share, also
+         * FILE_FLAG_OVERLAPPED but NEVER associated with the completion
+         * port - every read the window does not cover goes through it via
+         * the pre-ring aligned envelope (overlapped_read's unique-
+         * OVERLAPPED-per-call shape is the documented-safe concurrent form
+         * on a non-associated handle). The ring requires BOTH handles:
+         * if the companion open fails the ring stays disabled and the
+         * device serves the pre-ring sync envelope on h_ (never associated
+         * in that case, so the GetOverlappedResult wait is safe). */
+        sync_h_ = CreateFileW(path_.c_str(), access_, share_, nullptr, OPEN_EXISTING,
+                              FILE_FLAG_OVERLAPPED, nullptr);
+        if (sync_h_ == INVALID_HANDLE_VALUE)
+            return; /* ring disabled: the pre-ring sync path on h_ */
+        ring_ = std::make_unique<AsyncRing>(h_, geom_.total_bytes,
                                             g_ring_run.load(std::memory_order_relaxed),
                                             g_ring_slots.load(std::memory_order_relaxed));
     }
@@ -777,6 +833,8 @@ public:
             ring_->stop(); /* cancels, drains, joins - before the handle dies */
         if (h_ != INVALID_HANDLE_VALUE)
             CloseHandle(h_);
+        if (sync_h_ != INVALID_HANDLE_VALUE)
+            CloseHandle(sync_h_);
     }
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (h_ == INVALID_HANDLE_VALUE)
@@ -786,15 +844,21 @@ public:
         DWORD gle = 0;
         u32 rc = OK;
         if (ring_ && ring_->active()) {
-            rc = ring_->read(off, buf, len, size(), &gle);
+            rc = ring_->read(off, buf, len, size(), &gle, sync_h_);
             if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
                 std::lock_guard<std::mutex> g(heal_mu_);
-                if (reopen_handle_ov(path_.c_str(), access_, share_, &h_) && ring_->rebind(h_))
-                    rc = ring_->read(off, buf, len, size(), nullptr);
+                /* both handles died with the device: heal as a unit, or not
+                 * at all (a half-healed device would serve ring hits from a
+                 * dead window and misses from a dead handle - the next read
+                 * retries the full heal, the pre-existing per-read shape) */
+                if (reopen_handle_ov(path_.c_str(), access_, share_, &h_) && ring_->rebind(h_) &&
+                    reopen_handle_ov(path_.c_str(), access_, share_, &sync_h_))
+                    rc = ring_->read(off, buf, len, size(), nullptr, sync_h_);
             }
             return rc;
         }
-        /* degraded (ring construction failed): the pre-ring sync path */
+        /* degraded (ring construction failed): the pre-ring sync path on
+         * h_ - safe here because the ring never associated a port */
         rc = aligned_read_at(h_, off, buf, len, size(), &gle);
         if (rc == ERR_READ_FAILED && gle == ERROR_INVALID_HANDLE) {
             std::lock_guard<std::mutex> g(heal_mu_);
@@ -808,6 +872,7 @@ public:
 
 private:
     HANDLE h_;
+    HANDLE sync_h_ = INVALID_HANDLE_VALUE; /* the miss-path companion (see ctor) */
     Geometry geom_;
     std::wstring path_;
     DWORD access_ = GENERIC_READ;
