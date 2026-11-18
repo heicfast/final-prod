@@ -246,3 +246,21 @@ are adopted as inputs — their top-risk rows (BF-32 teardown race) ride
 W10. Environment truth: Linux container (gcc 14.2 + cmake via pip, node
 24, python 3.12); Windows evidence via the dispatchable runner lanes
 only, never faked.
+
+## Lane F — ci-opt seam note (2026-11-18, after 25537feb)
+
+The ci-opt session's T1 baselined three red workflows at 9352c81d. Lane
+F's repair of two of them landed at a19afb56: the engine-ci/bridge
+reds were the W5b layout-dump format tail (the generated dump now rides
+the pinned clang-format; the gate's own STALE message names the fix),
+and benchmark-src's seven failed gates (run 44275941738) are the ring
+miss-path repair's verification — dispatched at a19afb56, IN FLIGHT.
+
+Territory split (the seam): ci-opt owns `.github/workflows/**`
+(mechanics, caching, triggers, durations); lane F owns the GATE
+SEMANTICS the workflows run (the benchmark floors, the engine/bridge
+test content, the repair verification). If ci-opt's Phase 1 wants the
+reds gone before lane F's dispatched runs complete: they complete on
+their own — re-dispatching benchmark-src mid-run doubles the load
+without changing the verdict. Lane F announces here when the seven
+gates' verdict lands.
