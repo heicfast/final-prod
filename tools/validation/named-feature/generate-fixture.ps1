@@ -111,10 +111,30 @@ $Files = @(
     @{ rel = 'Attributes/hidden-note.txt';             size = 1024;    magic = 'txt';  attrs = 'Archive, Hidden';      deleted = $true;  delete_class = 'file-delete';  apply_order = 18; output_rel = 'Attributes/hidden-note.txt' }
     @{ rel = 'Attributes/readonly-diary.txt';          size = 2048;    magic = 'txt';  attrs = 'Archive, ReadOnly';   deleted = $true;  delete_class = 'file-delete';  apply_order = 19; output_rel = 'Attributes/readonly-diary.txt' }
     @{ rel = 'Deep/a/b/c/d/e/nested-deep.txt';         size = 5120;    magic = 'txt';  attrs = 'Archive';             deleted = $true;  delete_class = 'file-delete';  apply_order = 21; output_rel = 'Deep/a/b/c/d/e/nested-deep.txt' }
+    # D-PROBE-01 rows: real files the apply step creates (probe) or seeds
+    # (stash) and then deletes - declared so I4 accountability is exact.
+    # The flush probe is created with WriteThrough (apply-deletions) and
+    # deleted; its 1 content byte is a fixed 0x00 (WriteAllBytes below
+    # never runs for it - apply-deletions owns its creation; the row
+    # exists for manifest truth).
+    @{ rel = '.nffx-flush-probe';                       size = 1;       magic = $null;  attrs = 'Archive';             deleted = $true;  delete_class = 'probe';        apply_order = 50; output_rel = '.nffx-flush-probe'; special = 'flush-probe' }
+    @{ rel = '.nffx/draft-v2.txt';                      size = 4096;    magic = 'txt';  attrs = 'Archive';             deleted = $true;  delete_class = 'stash';        apply_order = 51; output_rel = $null; special = 'stash-v2' }
 )
 
 $StashDir = '.nffx'   # scaffolding for the double-delete v2 bytes; removed by apply-deletions
 $V2Size   = 4096      # MUST match the double-delete-v2 row's size in $Files
+
+# D-PROBE-01 (the 44391734922 root cause): the flush probe is a REAL
+# deleted file on the fixture volume - it must be a manifest row, or the
+# verifier's I4 accountability fails on its honest recovery. Declared
+# here as its own EXACT row (apply-deletions owns its lifecycle: the
+# write-through probe IS this row's content, deleted after the flush).
+# The stash twin row (.nffx/draft-v2.txt, delete_class 'stash') declares
+# the v2 scaffolding file so its recovery is accounted too (the stash is
+# genuinely deleted by apply-deletions' stash-removal step; both v1 and
+# the stash are recovered side by side with the collision pair's (id N)
+# scheme at the SAME output name - I3's 1..2 tolerance plus I4's
+# by-hash accounting cover every survivor).
 
 # ---- build -----------------------------------------------------------------
 Write-Log "fixture $FixtureId v$FIXTURE_VERSION -> $Root"
@@ -157,6 +177,12 @@ foreach ($f in $Files) {
             # deterministic via the stash rel path seed and DIFFERS from v1.
             $bytes = $null   # created by apply-deletions from the stash
         }
+        elseif ($f.special -eq 'flush-probe') {
+            # D-PROBE-01: created by apply-deletions (WriteThrough, 1 byte
+            # 0x00, then deleted); declared here only - the manifest row is
+            # the truth the verifier holds the engine to (sha of b"\x00").
+            $bytes = [byte[]]@(0)
+        }
         else {
             $bytes = Get-ContentBytes -rel $f.rel -size $f.size -header $m[0] -footer $m[1]
         }
@@ -167,6 +193,21 @@ foreach ($f in $Files) {
             if (-not (Test-Path -LiteralPath $stashAbs)) { New-Item -ItemType Directory -Force -Path $stashAbs | Out-Null }
             $v2bytes = Get-ContentBytes -rel "$StashDir/draft-v2.txt" -size $V2Size -header $m[0] -footer $m[1]
             [System.IO.File]::WriteAllBytes((Join-Path $stashAbs 'draft-v2.txt'), $v2bytes)
+        }
+        elseif ($f.special -eq 'flush-probe') {
+            # NOT written at generation time (apply-deletions creates it
+            # post-deletion, exactly the lifecycle the engine saw in run
+            # 44391734922) - hash the declared bytes for the manifest
+            $size = $bytes.Length
+            $sha = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '').ToLowerInvariant()
+        }
+        elseif ($f.special -eq 'stash-v2') {
+            # the stash file IS on disk (written by the double-delete-v1
+            # branch above) - hash it like any real row
+            [System.IO.File]::WriteAllBytes($abs, $bytes)
+            $item = Get-Item -LiteralPath $abs
+            $size = $item.Length
+            $sha = (Get-FileHash -LiteralPath $abs -Algorithm SHA256).Hash.ToLowerInvariant()
         }
         elseif ($f.special -ne 'double-delete-v2') {
             [System.IO.File]::WriteAllBytes($abs, $bytes)
@@ -179,12 +220,12 @@ foreach ($f in $Files) {
             $sha = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($v2)).Replace('-', '').ToLowerInvariant()
             if ($size -ne $f.size) { throw "v2 stash size mismatch: $($f.rel) declared $($f.size), stash $size" }
         }
-        elseif (Test-Path -LiteralPath $abs) {
+        elseif ($f.special -ne 'flush-probe' -and (Test-Path -LiteralPath $abs)) {
             $item = Get-Item -LiteralPath $abs
             $size = $item.Length
             $sha = (Get-FileHash -LiteralPath $abs -Algorithm SHA256).Hash.ToLowerInvariant()
         }
-        else {
+        elseif ($f.special -ne 'flush-probe') {
             throw "generated file missing after write: $($f.rel)"
         }
     }

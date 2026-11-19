@@ -338,6 +338,82 @@ TEST(ExtractPlan, DeletedDirTreeParentsFirst) {
     EXPECT_EQ(items[2].rel_dir, u"Old\\inner\\");
 }
 
+/* F-01b (the 44391734922 engine-flow red): the NTFS volume root is a
+ * real IN-USE directory named '.' - it must contribute NO component to
+ * any destination path (the plan's sanitized '.' would otherwise nest
+ * every real-volume reconstruction under a phantom '_' directory; the
+ * classic flow only survived because Win32 collapses '.' in paths). */
+TEST(ExtractPlan, VolumeRootDotIsTransparent) {
+    ResultTree t;
+    FullNode* vol = t.add_root(u"Basic data partition");
+    /* the NTFS '.' volume root, in-use, holding the fixture tree */
+    FileProperties* pdot = mkprops(500, u".", 0, 0x10);
+    FileNode* dot = t.add_file(vol, pdot);
+    pdot->release();
+    FileProperties* pdocs = mkprops(501, u"Docs", 0, 0x10);
+    FileNode* docs = t.add_file(dot, pdocs);
+    pdocs->release();
+    FileProperties* pf = mkprops(502, u"gone.txt", 21, 0);
+    FileNode* gone = t.add_file(docs, pf);
+    gone->set_deleted_state(DeletedState::Deleted);
+    pf->release();
+
+    extractplan::PlanOptions opt;
+    std::vector<extractplan::PlanItem> items;
+    const auto st = extractplan::plan_deleted_tree(t, opt, items);
+
+    ASSERT_EQ(items.size(), size_t(1));
+    EXPECT_EQ(items[0].name, u"gone.txt");
+    /* 'Docs' stayed a component; '.' did NOT - no '_' anywhere */
+    EXPECT_EQ(items[0].rel_dir, u"Docs\\");
+    EXPECT_EQ(st.pruned_subtrees, 0u);
+}
+
+/* F-01b twin: a DELETED '.' directory (a volume root whose own record
+ * is deleted but whose children carry recoverable entries) is never an
+ * item either - children surface at its rel directly. */
+TEST(ExtractPlan, DeletedDotDirNeverAnItem) {
+    ResultTree t;
+    FullNode* vol = t.add_root(u"Basic data partition");
+    FileProperties* pdot = mkprops(510, u".", 0, 0x10);
+    FileNode* dot = t.add_file(vol, pdot);
+    dot->set_deleted_state(DeletedState::Deleted);
+    pdot->release();
+    FileProperties* pf = mkprops(511, u"deep.txt", 31, 0);
+    FileNode* deep = t.add_file(dot, pf);
+    deep->set_deleted_state(DeletedState::Deleted);
+    pf->release();
+
+    extractplan::PlanOptions opt;
+    std::vector<extractplan::PlanItem> items;
+    extractplan::plan_deleted_tree(t, opt, items);
+
+    ASSERT_EQ(items.size(), size_t(1));
+    EXPECT_EQ(items[0].name, u"deep.txt");
+    EXPECT_EQ(items[0].rel_dir, u"");
+}
+
+/* F-01b: a '..'-named in-use dir is transparent the same way */
+TEST(ExtractPlan, DotDotDirIsTransparent) {
+    ResultTree t;
+    FullNode* vol = t.add_root(u"NTFS");
+    FileProperties* pup = mkprops(520, u"..", 0, 0x10);
+    FileNode* up = t.add_file(vol, pup);
+    pup->release();
+    FileProperties* pf = mkprops(521, u"x.bin", 8, 0);
+    FileNode* x = t.add_file(up, pf);
+    x->set_deleted_state(DeletedState::Deleted);
+    pf->release();
+
+    extractplan::PlanOptions opt;
+    std::vector<extractplan::PlanItem> items;
+    extractplan::plan_deleted_tree(t, opt, items);
+
+    ASSERT_EQ(items.size(), size_t(1));
+    EXPECT_EQ(items[0].name, u"x.bin");
+    EXPECT_EQ(items[0].rel_dir, u"");
+}
+
 TEST(ExtractPlan, OrphansIdSuffixedAndNeverMerged) {
     ResultTree t;
     FullNode* lost = t.add_root(u"File Path Lost");
@@ -478,6 +554,34 @@ TEST(ExtractPlan, SnapshotWalkMatchesTreeWalk) {
     EXPECT_EQ(items[1].name, u"x.txt");
     EXPECT_EQ(items[1].rel_dir, u"Docs\\");
     EXPECT_NE(items[1].snap_index, 0xFFFFFFFFu);
+}
+
+/* F-01b snapshot-form twin: the '.' volume root is transparent in the
+ * snapshot walk too (the named feature's live-scan posture). */
+TEST(ExtractPlan, SnapshotDotRootTransparent) {
+    ResultTree t;
+    FullNode* vol = t.add_root(u"Basic data partition");
+    FileProperties* pdot = mkprops(610, u".", 0, 0x10);
+    FileNode* dot = t.add_file(vol, pdot);
+    pdot->release();
+    FileProperties* pdocs = mkprops(611, u"Docs", 0, 0x10);
+    FileNode* docs = t.add_file(dot, pdocs);
+    pdocs->release();
+    FileProperties* pf = mkprops(612, u"gone.txt", 41, 0);
+    FileNode* gone = t.add_file(docs, pf);
+    gone->set_deleted_state(DeletedState::Deleted);
+    pf->release();
+
+    auto snap = tree::Snapshot::capture(t, false);
+    ASSERT_NE(snap, nullptr);
+
+    extractplan::PlanOptions opt;
+    std::vector<extractplan::PlanItem> items;
+    const auto st = extractplan::plan_deleted_snapshot(*snap, opt, items);
+    ASSERT_EQ(items.size(), size_t(1));
+    EXPECT_EQ(items[0].name, u"gone.txt");
+    EXPECT_EQ(items[0].rel_dir, u"Docs\\");
+    EXPECT_EQ(st.pruned_subtrees, 0u);
 }
 
 /* ---- the SfId writer ------------------------------------------------------ */

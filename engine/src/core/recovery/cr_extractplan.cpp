@@ -205,6 +205,20 @@ bool is_carved_node(const tree::FileNode* n) {
     return pr != nullptr && pr->fs_kind == u32(FsKindCode::Raw);
 }
 
+/* F-01b (the 44391734922 engine-flow red): '.' and '..' are REFERENCE
+ * names, never output components. The NTFS walk parents the volume
+ * root as a real in-use directory NAMED '.' (cr_mftwalk.cpp: "NTFS
+ * root '.': its parent reference is itself"); the classic recover flow
+ * accidentally survived it (Win32 path normalization collapses '.' in
+ * a path), but the plan walk SANITIZES components - sanitize('.') is
+ * '_' - so every real-volume reconstruction nested under a phantom '_'
+ * directory. The reference names are transparent here, in both walk
+ * forms, for live dirs, deleted dirs and emitted names alike: a
+ * component that IS '.' or '..' adds nothing to the destination path. */
+static bool is_reference_name(const std::u16string& n) {
+    return n == u"." || n == u"..";
+}
+
 /* emit() - single pass with tail rollback (see file header). Returns
  * true when the subtree contributed at least one item. `rel` carries a
  * trailing separator (or is empty for the output root). */
@@ -263,9 +277,13 @@ bool emit_tree(TreeCtx& c, tree::FileNode* n, const std::u16string& rel, bool or
          * stays exactly when a deleted descendant is emitted (the
          * ORIGINAL path is the deleted file's full ancestry); a
          * descendant-less branch is pruned whole. Used components are
-         * NOT counted in pruned_active (they were used, not pruned). */
+         * NOT counted in pruned_active (they were used, not pruned).
+         * F-01b: a '.'/ '..' in-use dir contributes NO component (the
+         * volume root must not become a '_' directory). */
         const std::u16string child_rel =
-            rel + sanitize_component_sf(pr->name, c.opt.max_component_units) + u"\\";
+            is_reference_name(pr->name)
+                ? rel
+                : rel + sanitize_component_sf(pr->name, c.opt.max_component_units) + u"\\";
         bool any = false;
         ++c.depth;
         for (tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling())
@@ -278,7 +296,29 @@ bool emit_tree(TreeCtx& c, tree::FileNode* n, const std::u16string& rel, bool or
         return any;
     }
 
-    /* a deleted (or mode-included) item: emit it */
+    /* a deleted (or mode-included) item: emit it. F-01b: a '.'/'..'
+     * item is never emitted as an item (a reference name cannot be an
+     * output component; a deleted '.' volume root contributes only its
+     * children, at its own rel). */
+    if (is_reference_name(pr->name)) {
+        if (!is_dir) {
+            /* a '.'/ '..' FILE: no reference name exists for files;
+             * sanitize already keeps it from being a path hazard, but
+             * it must still surface - keep the sanitized form */
+        } else {
+            const std::u16string child_rel = orphan_top ? c.orphan_base : rel;
+            bool any = false;
+            ++c.depth;
+            for (tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling())
+                any = emit_tree(c, ch, child_rel, orphan_zone, false) || any;
+            --c.depth;
+            if (!any) {
+                c.out.resize(mark);
+                ++c.st.pruned_subtrees;
+            }
+            return any;
+        }
+    }
     PlanItem it;
     it.node = n;
     it.id = n->node_id();
@@ -391,8 +431,30 @@ bool emit_snap(SnapCtx& c, u32 i, const std::u16string& rel, bool orphan_zone, b
             ++c.st.pruned_active;
             return false;
         }
+        /* F-01b: '.'/'..' in-use dirs contribute no component (the
+         * volume root must not become a '_' directory) */
         const std::u16string child_rel =
-            rel + sanitize_component_sf(n.name, c.opt.max_component_units) + u"\\";
+            is_reference_name(n.name)
+                ? rel
+                : rel + sanitize_component_sf(n.name, c.opt.max_component_units) + u"\\";
+        bool any = false;
+        ++c.depth;
+        for (u32 ch = n.first_child; ch != tree::SNAP_NONE; ch = c.s.node(ch).next_sibling)
+            any = emit_snap(c, ch, child_rel, orphan_zone, false) || any;
+        --c.depth;
+        if (!any) {
+            c.out.resize(mark);
+            ++c.st.pruned_subtrees;
+        }
+        return any;
+    }
+
+    /* F-01b: a deleted '.'/'..' DIRECTORY is never an item - its
+     * children surface at its own rel (a reference name cannot be an
+     * output component); a '.'/'..' FILE has no reference meaning and
+     * falls through to the sanitized emission. */
+    if (is_reference_name(n.name) && is_dir) {
+        const std::u16string child_rel = orphan_top ? c.orphan_base : rel;
         bool any = false;
         ++c.depth;
         for (u32 ch = n.first_child; ch != tree::SNAP_NONE; ch = c.s.node(ch).next_sibling)

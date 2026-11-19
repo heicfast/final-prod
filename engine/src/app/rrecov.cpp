@@ -505,8 +505,14 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
                               : fmt == storage::ImageFormat::Vhdx ? L"VHDX"
                                                                   : L"raw";
     /* LBA0 classification (the og reads 0x1000 bytes and classifies
-     * MBR/GPT at construction; a failed read prints unknown) */
-    u8 lba0[512] = {};
+     * MBR/GPT at construction; a failed read prints unknown).
+     * classify_lba0 needs LBA1 too: the GPT probe is the 'EFI PART'
+     * signature AT +0x200 - a 512-byte read can only ever see the
+     * protective MBR and mislabels every GPT disk as MBR (the
+     * 44391734922 engine-flow printed "(VHDX, MBR)" over a disk whose
+     * GPT header, MSR entry and 'Basic data partition' entry it had
+     * itself parsed one screen later). The og's 0x1000 recipe read. */
+    u8 lba0[0x1000] = {};
     const wchar_t* layout = L"unknown layout";
     if (dev->read_at(0, lba0, sizeof(lba0)) == OK) {
         const storage::Lba0Layout lay = storage::classify_lba0(lba0, sizeof(lba0));

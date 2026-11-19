@@ -68,6 +68,19 @@ function Add-Action([string] $kind, [string] $target, [string] $outcome) {
     })
 }
 
+# 0a. D-PROBE-01: create the flush probe's MFT record NOW, before any
+# deletion. Run 44391734922 proved the hard way that a post-deletion
+# create can take a JUST-FREED record (report.docx's - its recovery was
+# eaten by the probe's own file record); created here, while every
+# fixture file is still live, its record is freshly allocated and
+# cannot be any deleted file's record. The write-through byte + delete
+# still happen AFTER all deletions (the durability step below).
+$probePath = Join-Path $Root '.nffx-flush-probe'
+$probeKeep = [System.IO.FileStream]::new($probePath, [System.IO.FileMode]::Create,
+    [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 1,
+    [System.IO.FileOptions]::WriteThrough)
+try { $probeKeep.Close() } catch { $probeKeep.Close() }
+
 # 0. flush BEFORE any deletion (lazy-writer guard)
 $flushBefore = Flush-Volume $Root
 Write-Log "flush-before: $flushBefore"
@@ -95,6 +108,14 @@ foreach ($r in $ordered) {
 }
 
 # recreate v2 from the stash (between the two delete passes), with declared metadata
+# D-V2-DURABILITY (the 44391734922 root cause): the v2 copy is the ONLY
+# mid-apply cached write on the volume, and this lane's own history proves
+# the volume cache unreliable here (Write-VolumeCache second-invocation
+# failures, runs 44354788432/44355793332) - the copy's DATA clusters were
+# lost on the detach (the VHDX read zeros at v2's extent while every
+# generation-time write survived). The recreate now goes through a
+# WriteThrough FileStream (the same ctor the flush probe already uses),
+# so the bytes reach the disk before the delete can orphan them.
 $stash = Join-Path $Root '.nffx'
 $stashFile = Join-Path $stash 'draft-v2.txt'
 $v2rows = @($rows | Where-Object { $_.special -eq 'double-delete-v2' })
@@ -103,7 +124,11 @@ $v2 = $v2rows[0]
 if (-not (Test-Path -LiteralPath $stashFile)) { throw "stash missing: $stashFile (run generate-fixture.ps1 first)" }
 $v2abs = Join-Path $Root ($v2.rel -replace '/', '\')
 if (Test-Path -LiteralPath $v2abs) { throw "v2 target already exists before recreation: $v2abs" }
-[System.IO.File]::Copy($stashFile, $v2abs)
+$v2bytes = [System.IO.File]::ReadAllBytes($stashFile)
+$fs = [System.IO.FileStream]::new($v2abs, [System.IO.FileMode]::Create,
+    [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 65536,
+    [System.IO.FileOptions]::WriteThrough)
+try { $fs.Write($v2bytes, 0, $v2bytes.Length); $fs.Flush($true) } finally { $fs.Close() }
 $item = Get-Item -LiteralPath $v2abs
 $item.CreationTime   = [datetime] $v2.created
 $item.LastWriteTime  = [datetime] $v2.modified
@@ -170,21 +195,32 @@ if (Test-Path -LiteralPath $stash) {
 # after-flush is best-effort by construction and NEVER fatal to the evidence:
 #   (a) a WriteThrough create+flush+delete probe forces the write-through path
 #       (durability before the diskpart detach, which flushes again itself);
-#   (b) one -ErrorAction SilentlyContinue Write-VolumeCache attempt, outcome
+#       (b) one -ErrorAction SilentlyContinue Write-VolumeCache attempt, outcome
 #       recorded truthfully in the apply-log.
+# D-PROBE-01: the probe is now a DECLARED manifest row (size 1, content
+# 0x00, sha256 of b"\x00") - its honest recovery is accounted by I4. The
+# probe's create may reuse ANY freed MFT record (lowest-free allocation),
+# which can eat a just-deleted file's record; the apply-log records the
+# fixture's MFT state after the probe so a missing I2 row is diagnosable
+# from evidence (the run-44391734922 lesson: report.docx's record was
+# taken by the probe's create and the failure was undebuggable).
 $flushAfter = 'not attempted'
 try {
-    $probe = Join-Path $Root '.nffx-flush-probe'
+    # the probe's record was allocated BEFORE the deletions (0a above);
+    # this step only writes its 1 content byte write-through and deletes
+    # it - the delete frees the probe's OWN record, nothing else's
+    $probe = $probePath
     # FileStream ctor (run-4 evidence: File.Open's 4-arg overload takes
     # FileShare, not FileOptions - the ctor form pins WriteThrough correctly)
-    $fs = [System.IO.FileStream]::new($probe, [System.IO.FileMode]::Create,
+    $fs = [System.IO.FileStream]::new($probe, [System.IO.FileMode]::Open,
         [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 1,
         [System.IO.FileOptions]::WriteThrough)
     try { $fs.WriteByte(0); $fs.Flush($true) } finally { $fs.Close() }
+    $probeSha = (Get-FileHash -LiteralPath $probe -Algorithm SHA256).Hash.ToLowerInvariant()
     Remove-Item -LiteralPath $probe -Force
     $letter = Get-VolumeLetter $Root
     Write-VolumeCache -DriveLetter $letter -ErrorAction SilentlyContinue
-    $flushAfter = "write-through probe ok; volume-cache best-effort (letter $letter)"
+    $flushAfter = "write-through probe ok (sha $probeSha); volume-cache best-effort (letter $letter)"
 }
 catch {
     $flushAfter = "flush-failed: $($_.Exception.Message)"

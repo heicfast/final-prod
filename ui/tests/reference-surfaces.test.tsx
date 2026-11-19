@@ -110,8 +110,15 @@ describe('reference UI surfaces and sidebar', () => {
     // The volume workbench renders over the REAL device list (the mock's
     // disks with no findings → the truthful empty state + the undo-log
     // section — the workbench is present, not the fake queue).
-    expect(await screen.findByText(/no repairable problems were found/i)).toBeVisible();
-    expect(screen.getByText(/undo log/i)).toBeVisible();
+    // timeout: the chain awaits two serial mock latencies (enumerate 700±200
+    // then dry-run 600±200, mean ~1300 ms / mean+3σ ~1790 ms — run
+    // 44391744949 proved the 1000 ms findByText default too tight on a
+    // coverage-instrumented runner; tests/timing-budget-proof.ts is the
+    // distribution evidence).
+    expect(
+      await screen.findByText(/no repairable problems were found/i, {}, { timeout: 4000 }),
+    ).toBeVisible();
+    expect(await screen.findByText(/undo log/i, {}, { timeout: 4000 })).toBeVisible();
   });
 
   it('renders Lost Partition Recovery with the REAL disk list (the demo fixtures are gone)', async () => {

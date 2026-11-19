@@ -70,15 +70,20 @@ jobs:
             # verifier failed I1/I2/I4 on files the manifest never
             # described. One generation on the VHDX = the scan sees exactly
             # the manifest-known tree.
+            # D-ROOT-01 (the 44391734922 engine-flow red): the fixture
+            # seeds at the VOLUME ROOT (X:\), not X:\fixture - volume-
+            # relative paths (what the engine reconstructs) then equal
+            # manifest rel paths (what the verifier expects) exactly, with
+            # no 'fixture/' component the verifier would have to strip.
             $m1 = Join-Path $evidence 'manifest.jsonl'
             $m2 = Join-Path $work 'manifest-detcheck.jsonl'
             $detRoot = Join-Path $env:RUNNER_TEMP 'nffx-detcheck'
             New-Item -ItemType Directory -Force -Path $detRoot | Out-Null
             # pwsh (PS7): reads UTF-8 (BOM) scripts natively; PS5.1 would also
             # work with the BOM, PS7 is the lane's shell anyway
-            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\fixture' -ManifestOut $m1
+            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root 'X:\' -ManifestOut $m1
             if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 1 failed" }
-            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root (Join-Path $detRoot 'fixture') -ManifestOut $m2
+            & pwsh -NoProfile -File tools/validation/named-feature/generate-fixture.ps1 -Root (Join-Path $detRoot 'fxroot') -ManifestOut $m2
             if ($LASTEXITCODE -ne 0) { throw "generate-fixture run 2 failed" }
             $a = Get-Content $m1 | Select-Object -Skip 1   # skip _meta (root/timestamp differ by design)
             $b = Get-Content $m2 | Select-Object -Skip 1
@@ -92,7 +97,7 @@ jobs:
 
             # --- 3. apply the deletion matrix ------------------------------
             $applyLog = Join-Path $evidence 'apply-log.json'
-            & pwsh -NoProfile -File tools/validation/named-feature/apply-deletions.ps1 -Root 'X:\fixture' -ManifestOut $m1 -LogOut $applyLog
+            & pwsh -NoProfile -File tools/validation/named-feature/apply-deletions.ps1 -Root 'X:\' -ManifestOut $m1 -LogOut $applyLog
             if ($LASTEXITCODE -ne 0) { throw "apply-deletions failed" }
 
             # --- 4. verifier self-test -------------------------------------
