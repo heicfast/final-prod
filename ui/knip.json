@@ -7,6 +7,7 @@
     "e2e/**/*.ts",
     "scripts/**/*.mjs"
   ],
+  "ignore": ["tests/timing-budget-proof.ts"],
   "ignoreDependencies": ["@ast-grep/cli"],
   "ignoreExportsUsedInFile": true,
   "include": [
