@@ -4550,3 +4550,31 @@ ddrescueview-readable):
   to the stub's END so its types resolve); win_syntax_check green over
   the whole win layer + app.
 Local gates: ci-local GREEN, 1679 tests 0 failed, layout regen verified. (feat(W6): two-pass ddrescue-style rescue imaging with the resumable mapfile (F-33/F-34) + the cb2c8e0a CI postmortem fixes)
+
+## Session 2026-11-19 (continuation) — the 44391734922 engine-flow red: three root causes, all fixed
+
+Head at session start `f4dcc3e8` (v0.9.6). This session: (1) the ui-ci
+M31 red (run 44391744949) — a timing budget, not a product bug: two
+serial mock latencies (700±200 + 600±200 ms) vs RTL's 1000 ms findByText
+default; explicit 4000 ms budgets (distribution proof in
+ui/tests/timing-budget-proof.ts; 97.2% of trials exceed 1000 ms);
+(2) the named-feature-fixture engine-flow red (runs 10-12) — artifacts
+pulled and driven to three root causes: ENGINE F-01b (the NTFS '.'
+volume root sanitized into a '_' path component — every real-volume
+reconstruct nested under `_\`; '.'/'..' are now transparent reference
+names in both plan-walk forms, 4 new tests), FIXTURE durability (the v2
+recreate's cached File.Copy lost its data on the unflushable volume
+cache — the VHDX reads zeros at v2's extent while the stash twin
+survived; the recreate is WriteThrough now), FIXTURE design (probe's
+post-delete create ate report.docx's freed MFT record — the probe
+record is pre-allocated before any deletion; the probe + stash are
+declared manifest rows; the fixture seeds at the volume root X:\ so
+manifest rel == volume-relative path). Bonus display-truth fix: the
+'(VHDX, MBR)' label over a GPT disk (classify_lba0 needs LBA1; the og's
+0x1000-byte read restored). Engine suite-by-suite on Linux: 1682/0
+(CycleGuardPerf excluded locally — 3.4 GB fixture vs 4 GB sandbox; the
+Windows lane owns it). Commits: be7966c5, 1a1f6877 (null-safe
+$MAGIC[$null] + prettier), 20efb62a (knip ignore). In flight at
+handoff: named-feature-fixture(14) on 1a1f6877 — THE F-01 closed-loop
+gate; engine-ci(73)/bridge(68) on be7966c5; ui-ci(129)/ui-e2e(114) on
+20efb62a. Full detail: worklog/SESSION-2026-11-19-F01B-ROOT-CAUSE.md.
