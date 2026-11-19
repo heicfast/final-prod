@@ -23,7 +23,9 @@ for (let i = 0; i < N; i++) {
   if (total > worst) worst = total;
   if (total > 1000) over++;
 }
-console.log(`trials=${N} worst-total=${worst.toFixed(0)}ms over-1000ms=${over} (${((over / N) * 100).toFixed(1)}%)`);
+console.log(
+  `trials=${N} worst-total=${worst.toFixed(0)}ms over-1000ms=${over} (${((over / N) * 100).toFixed(1)}%)`,
+);
 
 // Plus RTL polls on an interval (default 50ms), so the effective budget is
 // timeout rounded up to the next poll; and the dry-run query only STARTS after
@@ -31,4 +33,6 @@ console.log(`trials=${N} worst-total=${worst.toFixed(0)}ms over-1000ms=${over} (
 // findByText budget covers mean+3σ of the whole chain with margin.
 const mean = 1300;
 const sigma = Math.sqrt((200 / Math.sqrt(3)) ** 2 * 2); // uniform jitter stdev per leg
-console.log(`mean=${mean}ms sigma=${sigma.toFixed(0)}ms mean+3sigma=${(mean + 3 * sigma).toFixed(0)}ms`);
+console.log(
+  `mean=${mean}ms sigma=${sigma.toFixed(0)}ms mean+3sigma=${(mean + 3 * sigma).toFixed(0)}ms`,
+);

@@ -171,7 +171,9 @@ foreach ($f in $Files) {
         $size = 0
     }
     else {
-        $m = $MAGIC[$f.magic]
+        # null-safe magic lookup: rows without a content magic (the
+        # flush-probe declares none) take the empty header/footer pair
+        $m = if ($null -ne $f.magic) { $MAGIC[$f.magic] } else { @([byte[]]@(), [byte[]]@()) }
         if ($f.special -eq 'double-delete-v2') {
             # v2 bytes come from the stash copy written below; content is
             # deterministic via the stash rel path seed and DIFFERS from v1.
