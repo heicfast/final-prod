@@ -5256,3 +5256,14 @@ clusters/FRS @0x40 (the same source GetBootClusterSize reads and the
 engine's own parser uses). The manifest's mft_record values were never
 affected (they come from [BenchRaw]::GetFileIndex's file-id low 48 bits -
 verified sane, 42..~20000).
+
+### E2E-F8: the FS-touch auto-remount — 2026-11-26
+
+Run 45890019629: the mountvol cycle executed (GUID resolved, letter cycled)
+and the volume STILL sat with FileSystem null - FSCTL_DISMOUNT persists
+until a FILESYSTEM-level access through the letter triggers the auto-remount
+(raw opens never do; the mount manager does not remount on raw access). The
+reseed ladder now: FS touch first (the trigger), then access-path re-attach,
+then the mountvol cycle + touch, then diskpart rescan + touch, then the
+honest refusal. Every other shard on this run is green so far (refs-a/b,
+fat32-a/b) - the exFAT reseed-after-PARTOVR state is the last blocker.
