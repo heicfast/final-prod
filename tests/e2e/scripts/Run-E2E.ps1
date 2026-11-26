@@ -122,10 +122,20 @@ if (-not $isSmoke -and $ShardId) {
     $shard = $shard[0]
     $shardDisks = @($shard.disks)
     $shardScenarioIds = @($shard.scenarios)
-    $selected = @($matrixScenarios | Where-Object { $shardScenarioIds -contains $_.id })
+    # ORDER BY THE SHARD LIST (run 45826003339's exfat-b lesson: selecting by
+    # the matrix array's order silently ran PARTDEL first on its disk, forced
+    # the reseed's partition recreation, and surfaced the exFAT extent garbage
+    # finding - the shard's declared order is the contract; delete_partition
+    # is always last per disk by matrix design)
+    $selected = @($shardScenarioIds | ForEach-Object {
+        $sid = $_
+        $matrixScenarios | Where-Object { $_.id -eq $sid } | Select-Object -First 1
+    })
     $selectedIds = @($selected | ForEach-Object { $_.id })
     $missing = @($shardScenarioIds | Where-Object { $selectedIds -notcontains $_ })
     if ($missing.Count -gt 0) { throw "shard references unknown scenarios: $($missing -join ', ')" }
+    $nullIds = @($selected | Where-Object { -not $_ } | ForEach-Object { 'null' })
+    if ($nullIds.Count -gt 0) { throw "shard references unresolved scenario entries" }
     $selectedDisks = $matrixDisks | Where-Object { $shardDisks -contains $_.id }
 } else {
     $selected = $matrixScenarios
@@ -304,6 +314,87 @@ foreach ($sc in $selected) {
         # apply-scenario signals failure by THROWING (its own EAP=Stop);
         # delete_partition's diskpart fallback owns its own exit check
 
+
+        # ---- the unsupported-format path (expect=unsupported_fs) -------------------------
+        # The row pins the product's honest behavior on a filesystem its volume
+        # scan refuses (the prompt's 'every unsupported-format path' coverage):
+        # the environment is REAL (disk + seed + deletion all happen); the scan
+        # must refuse CLEANLY - exit 1, the error surfaced, NO session, NO
+        # crash - and that clean refusal is the gate. Recorded alongside it:
+        # the capability FINDING (see the matrix note + worklog).
+        if ([string]$sc.expect -eq 'unsupported_fs') {
+            Write-Host "  unsupported-format probe: the scan is EXPECTED to refuse cleanly"
+            $refusalDir = Join-Path $scEv 'cli'
+            New-Item -ItemType Directory -Force -Path $refusalDir | Out-Null
+            $sessionPath = Join-Path $scCli 'session-quick.crsf'
+            $scanArgs = @('scan', '--volume', "$letter`:", '--threads', "$Threads", '--quick-only',
+                          '--out', $sessionPath, '--log', (Join-Path $scCli 'stage-quick.log'), '--json')
+            $t0 = Get-Date
+            $pinfo = Start-Process -FilePath $RrecovExe -ArgumentList $scanArgs `
+                -RedirectStandardOutput (Join-Path $refusalDir 'scan-quick.stdout') `
+                -RedirectStandardError (Join-Path $refusalDir 'scan-quick.stderr') `
+                -PassThru -NoNewWindow -Wait
+            $cliExit = [int]$pinfo.ExitCode
+            $cliWall = [math]::Round(((Get-Date) - $t0).TotalSeconds, 2)
+            $cliOut = ''
+            if (Test-Path -LiteralPath (Join-Path $refusalDir 'scan-quick.stdout')) {
+                $cliOut = (Get-Content -LiteralPath (Join-Path $refusalDir 'scan-quick.stdout') -Raw)
+            }
+            $cliRefused = ($cliExit -eq 1) -and ($cliOut -match 'bad magic|0x50030001') -and (-not (Test-Path -LiteralPath $sessionPath))
+            $apiExitRef = $null
+            $apiRefused = $false
+            if ($IncludeApi) {
+                $apiRefDir = Join-Path $scEv 'api'
+                New-Item -ItemType Directory -Force -Path $apiRefDir | Out-Null
+                & $ApiHarness @('--scan', '--target', 'volume', '--letter', $letter,
+                    '--dest', (Join-Path $scApi 'recovered'), '--out', $scApi, '--label', $id,
+                    '--threads', "$Threads") 2>&1 |
+                    Tee-Object -FilePath (Join-Path $apiRefDir 'harness.stdout') | Out-Null
+                $apiExitRef = $LASTEXITCODE
+                $apiOut = ''
+                if (Test-Path -LiteralPath (Join-Path $scApi 'harness.stdout')) {
+                    $apiOut = (Get-Content -LiteralPath (Join-Path $scApi 'harness.stdout') -Raw)
+                }
+                $apiRefused = ($apiExitRef -ne 0) -and ($apiOut -match 'bad magic|0x50030001|50030001')
+            }
+            $resCli = [ordered]@{
+                expected = 'clean refusal (exit 1 + bad magic surfaced + no session)'
+                exit_code = $cliExit; wall_seconds = $cliWall
+                passed = $cliRefused; reasons = @()
+            }
+            if (-not $cliRefused) {
+                $resCli.reasons += "CLI refusal shape wrong: exit=$cliExit session=$(Test-Path -LiteralPath $sessionPath) badmagic=$($cliOut -match 'bad magic|0x50030001')"
+            }
+            $resApi = [ordered]@{ expected = 'nonzero + error surfaced'; exit_code = $apiExitRef; passed = $true; reasons = @() }
+            if ($IncludeApi) {
+                $resApi.passed = $apiRefused
+                if (-not $apiRefused) { $resApi.reasons += "API refusal shape wrong: exit=$apiExitRef" }
+            } else {
+                $resApi.reasons += 'skipped: smoke profile is CLI-only by design (recorded)'
+            }
+            $verdict.lanes = @{ cli = $resCli; api = $resApi }
+            $verdict.passed = $resCli.passed -and (($resApi.passed) -or (-not $IncludeApi))
+            $verdict.finding = [string]$sc.gate.note
+            if (-not $verdict.passed) {
+                Fail "scenario ${id}: the unsupported-format refusal was NOT clean - see 04-scenarios/$id"
+            } else {
+                Write-Host ("PASS {0}: clean refusal (CLI exit {1}, API exit {2}) - the finding is recorded, not masked" -f $id, $cliExit, $apiExitRef)
+            }
+            [ordered]@{
+                scenario = $id; mode = $sc.mode; filesystem = [string]$vol.fs
+                expect = 'unsupported_fs'
+                disk = [string]$sc.disk; volume = [string]$sc.volume
+                deletion_applied = $true
+                seed_manifest = (Join-Path '03-baseline' "seed-manifest-$($vol.label).jsonl")
+                seed_manifest_sha256 = (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLower()
+                finding = [string]$sc.gate.note
+            } | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $scEv 'scenario.json') -Encoding utf8
+            [ordered]@{ scenario = $id; checked = $false; reason = 'unsupported-format probe: nothing is recovered by construction; the refusal shape is the gate' } |
+                ConvertTo-Json -Depth 4 | Set-Content (Join-Path $scEv 'divergence.json') -Encoding utf8
+            $verdict | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $scEv 'verdict.json') -Encoding utf8
+            $scenarioVerdicts += $verdict
+            continue
+        }
 
         # the S-PART-DELETE H1 settle guard (raw whole-disk opens can hit the
         # PnP reconfiguration window milliseconds after a table mutation)

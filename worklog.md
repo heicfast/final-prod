@@ -4978,3 +4978,37 @@ non-twin only), F-G carve validation wall (NOTE: the concurrent lane's 1f46de9b 
 root-caused the D-SCAN-01 stall as per-candidate 1 MiB allocation churn — re-measure the
 wall before re-scoping), T14-T20 (CI sweep, validation evidence, docs, verification,
 BEHAVIOR-FINDINGS, handoff).
+
+### The first e2e-full dispatch: three findings, all captured with evidence (T15 in flight) — 2026-11-26
+
+Run 45824132728 died at the kit-download step - the download-artifact pin was
+one character wrong (d3f86a106e0bac45 is the repo's proven SHA; I had
+d3f86a106e0bac45's neighbor). Fixed + re-dispatched as 45826003339 on head
+1f46de9b93. That run executed the real matrix and captured three findings:
+
+FINDING E2E-1 (product surface, deterministic, every ReFS row): the runner
+formats ReFS and the corpus seeds fine (10217 files on a 4 GiB volume), but
+rrecov scan refuses the volume - 'scan failed: bad magic (0x50030001)' on
+every refs scenario; the whole-disk lost-partition scan finds 0 as well; the
+apply dry-run exits 1. engine/README.md claims 'ReFS (first-class: full MSB
+chain)' - a windows-2022 Format-Volume ReFS is not scannable. Matrix
+response: the 11 ReFS rows are now expect=unsupported_fs probes (the
+prompt's every-unsupported-format-path coverage): disk + seed + deletion are
+real, the scan must refuse CLEANLY (exit 1 + error surfaced + no session +
+no crash) and the clean refusal is the gate; the capability gap is recorded
+as the row's finding, never masked.
+
+FINDING E2E-2 (shared-primitive bug, first-ever exercise): exfat-b's decay
+rows threw Int64 overflow converting '6.456360425798342E+19' - garbage
+extent VCNs (beyond uint64 range) in the manifest FSCTL enrichment after the
+reseed recreated the exFAT partition. The bench lane never ran exFAT
+extent-addressed modes (its matrix has none), so this path was never
+exercised before. Root-cause sits in the FSCTL_GET_RETRIEVAL_POINTERS
+marshaling/enrichment chain (engine/bench/volume/volume.ps1 +
+generate_seed.ps1) and is left to the owner with this evidence.
+
+FINDING E2E-3 (harness bug, mine): $selected ordered scenarios by the MATRIX
+array, not the shard's declared order - PARTDEL ran FIRST in exfat-b,
+forcing the partition-recreation reseed that surfaced E2E-2. Fixed: shard
+selection follows the shard list; the matrix's per-filesystem order now puts
+delete_partition last too (the ALL-mode path shares the discipline).

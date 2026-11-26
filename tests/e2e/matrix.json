@@ -1,24 +1,28 @@
 {
   "version": 1,
   "suite": "tests/e2e — the end-to-end recovery validation matrix",
-
   "comment": [
     "The versioned truth for the e2e suite (tests/e2e/SCENARIOS.md documents every row).",
     "Disks are FIXED-size VHDX files created by engine/.github/scripts/New-TestDisk.ps1 (diskpart-only: no Hyper-V module dependency - the CI-proven pattern from the bench lane). Each shard creates ONLY the disks it references, so shards are stateless and parallel.",
     "Deletion scenarios are applied by engine/bench/scenarios/apply-scenario.ps1 (12 modes: recycle_bin, permanent_delete, unlink_native, folder_delete, quick_format, full_format, delete_partition, decay_50, decay_80, decay_100, partial_overwrite, mft_corrupt).",
     "Ground truth is ALWAYS the seed manifest (engine/bench/seed/generate_seed.ps1, corpus v2.0.0: 23 real-magic formats, CJK names, long paths, ADS, hard links, sparse, fragmentation, nested trees, keep-control group) + the recorded deletion method - never a tool's own output.",
     "Gate discipline (inherited from engine/.github/scenarios/benchmark-matrix.json): a gate must never test a documented engine gap as if it were a promise. Floors are cited from recorded runs; everything else is observe-only (recorded, tracked, gated only on execution-completeness: scan exit 0, session produced, inventory + metrics computed, recover exit 0/2, API exit 0/2, and the CLI-vs-API divergence check).",
-    "ReFS runs on its own shards: 'where the runner supports it' (windows-2022 Datacenter images carry ReFS; if the runner cannot format ReFS the shard FAILS with a diagnostic artifact - never a silent skip).",
+    "ReFS rows are the 'where the runner supports it' form: the runner supports ReFS (disk + format + seed all real), the product's volume scan does not - expect=unsupported_fs pins the clean-refusal contract (the prompt's every-unsupported-format-path coverage) and records the capability FINDING with run evidence.",
     "Divergence gate: every scenario runs the CLI lane (engine/bench/ours/run-ours.ps1) and the API lane (engine/.github/scripts/api_harness.exe, the cr_ui C-ABI lifecycle); Compare-Lanes.ps1 proves both paths agree (recovered set + hash-match set + scan stats). Any divergence is a hard finding."
   ],
-
   "disks": [
     {
       "id": "e2e-ntfs",
       "size_mb": 6144,
       "partition_style": "GPT",
       "volumes": [
-        { "label": "NTFSVOL", "fs": "NTFS", "size_percent": 100, "letter_hint": "X", "seed_profile": "full" }
+        {
+          "label": "NTFSVOL",
+          "fs": "NTFS",
+          "size_percent": 100,
+          "letter_hint": "X",
+          "seed_profile": "full"
+        }
       ]
     },
     {
@@ -26,7 +30,13 @@
       "size_mb": 4096,
       "partition_style": "GPT",
       "volumes": [
-        { "label": "EXFATVOL", "fs": "exFAT", "size_percent": 100, "letter_hint": "Y", "seed_profile": "full" }
+        {
+          "label": "EXFATVOL",
+          "fs": "exFAT",
+          "size_percent": 100,
+          "letter_hint": "Y",
+          "seed_profile": "full"
+        }
       ]
     },
     {
@@ -34,7 +44,13 @@
       "size_mb": 2048,
       "partition_style": "MBR",
       "volumes": [
-        { "label": "FAT32VOL", "fs": "FAT32", "size_percent": 100, "letter_hint": "Z", "seed_profile": "smoke" }
+        {
+          "label": "FAT32VOL",
+          "fs": "FAT32",
+          "size_percent": 100,
+          "letter_hint": "Z",
+          "seed_profile": "smoke"
+        }
       ]
     },
     {
@@ -42,88 +58,800 @@
       "size_mb": 4096,
       "partition_style": "GPT",
       "volumes": [
-        { "label": "REFSVOL", "fs": "ReFS", "size_percent": 100, "letter_hint": "W", "seed_profile": "full" }
+        {
+          "label": "REFSVOL",
+          "fs": "ReFS",
+          "size_percent": 100,
+          "letter_hint": "W",
+          "seed_profile": "full"
+        }
       ]
     }
   ],
-
   "scenarios": [
-    { "id": "S-E2E-NTFS-RECYCLE", "mode": "recycle_bin", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "recycle-bin deepcarve hash-recall 0.0006 on the 10,216-file bench corpus (run 42019994804, benchmark-matrix.json S-RECYCLE-NTFS) - the $R-name/pairing quality gap is the quality workstream's territory; the e2e row records the measured number against the same corpus." } },
-    { "id": "S-E2E-NTFS-PERMDEL", "mode": "permanent_delete", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "floor", "floor_hash_recall": 0.35, "note": "floor 0.35 cited from run 42019994804 (current-corpus NTFS permanent-delete deepcarve hash-recall 0.428, floor = measured minus headroom; benchmark-matrix.json S-DEL-NTFS). Corpus geometry differs (6 GiB single-volume disk vs the bench lane's 5 GiB 60% volume) - a false red here is re-baselined by evidence, never by deleting the row." } },
-    { "id": "S-E2E-NTFS-UNLINK", "mode": "unlink_native", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "native DeleteFileW is the same on-disk end state as permanent_delete (Remove-Item) - expected recall parity with S-E2E-NTFS-PERMDEL is the recorded expectation, ungated (the bench lane has no unlink_native row to cite)." } },
-    { "id": "S-E2E-NTFS-FOLDER", "mode": "folder_delete", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "bin-emptied deepcarve hash-recall 0.0739 on the bench corpus (run 42019994804, benchmark-matrix.json S-BINEMPTY-NTFS) - after Clear-RecycleBin the $I/$R metadata is itself deleted and payload recovery is carve-dependent." } },
-    { "id": "S-E2E-NTFS-QKFMT", "mode": "quick_format", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "quick-format recovery is a KNOWN ENGINE GAP (GAP-S6-4: name-only remnant scan, 0% vs og 51.5%; benchmark-matrix.json S-FMT-FAT32 note) - recorded ungated; the row still exercises the full format-recovery path end to end." } },
-    { "id": "S-E2E-NTFS-FULLFMT", "mode": "full_format", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "Format-Volume -Full zero-fills the data area - recall 0 is physics, not a defect; the row proves the product survives the zero-filled volume honestly (exit 0, empty tree) instead of fabricating results." } },
-    { "id": "S-E2E-NTFS-PARTDEL", "mode": "delete_partition", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "disk", "scan_modes": "deepcarve", "gate": { "type": "discovery", "note": "GATE = the lost partition is DISCOVERED (lost_partitions >= 1) AND recover completes exit 0/2 - the benchmark-matrix.json S-PART-DELETE contract. File recall is discovery-limited (43.0% measured, run 40073093997-smoke) and recorded ungated. Post-actions: the lost-partition APPLY probe (dry-run + real apply + partition-reappears assertion)." } },
-    { "id": "S-E2E-NTFS-DECAY50", "mode": "decay_50", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "floor", "floor_hash_recall": 0.85, "note": "decay_50 measured 96.4% (PERFORMANCE-PROFILE.md, cited via benchmark-matrix.json S-DECAY-NTFS); floor 0.85 = measured minus headroom." } },
-    { "id": "S-E2E-NTFS-DECAY80", "mode": "decay_80", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "the NTFS decay_80 cliff is an allocation-hint sector-reuse effect, not an engine defect (GAP-S6-5) - judged against the physical-ceiling probe apply-scenario emits; recorded ungated." } },
-    { "id": "S-E2E-NTFS-DECAY100", "mode": "decay_100", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "100% reuse decay: maximum sector-reuse pressure; physical-ceiling judged (GAP-S6-5), recorded ungated." } },
-    { "id": "S-E2E-NTFS-PARTOVR", "mode": "partial_overwrite", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "the first 8 sectors of every deleted file's first extent are 0xAA-overwritten - those files CANNOT hash-match by construction (benchmark-matrix.json S-OVR-NTFS note); honesty about physics, not a gap." } },
-    { "id": "S-E2E-NTFS-MFTCOR", "mode": "mft_corrupt", "disk": "e2e-ntfs", "volume": "NTFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "MFT records zeroed + $Bitmap XORed - structured NTFS recovery is destroyed by construction; the carve-only salvage path is what this row exercises (benchmark-matrix.json S-MFT-NTFS note)." } },
-
-    { "id": "S-E2E-EXFAT-RECYCLE", "mode": "recycle_bin", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT recycle-bin row - no recorded bench baseline; observe-only with full capture." } },
-    { "id": "S-E2E-EXFAT-PERMDEL", "mode": "permanent_delete", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "current-corpus exFAT delete deepcarve hash-recall 0.0 (run 42019994804, benchmark-matrix.json S-DEL-EXFAT) - the exFAT deepcarve quality gap is the quality workstream's; recorded ungated." } },
-    { "id": "S-E2E-EXFAT-UNLINK", "mode": "unlink_native", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "DeleteFileW parity row - expected parity with S-E2E-EXFAT-PERMDEL, recorded ungated." } },
-    { "id": "S-E2E-EXFAT-FOLDER", "mode": "folder_delete", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT bin-emptied row - no recorded bench baseline; observe-only." } },
-    { "id": "S-E2E-EXFAT-QKFMT", "mode": "quick_format", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT quick-format row - the FAT-family format-recovery gap class (GAP-S6-4); recorded ungated." } },
-    { "id": "S-E2E-EXFAT-FULLFMT", "mode": "full_format", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "zero-filled volume - recall 0 is physics; honest-survival row." } },
-    { "id": "S-E2E-EXFAT-PARTDEL", "mode": "delete_partition", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "disk", "scan_modes": "deepcarve", "gate": { "type": "discovery", "note": "GATE = lost partition discovered + recover completes; file recall recorded ungated (same contract as S-PART-DELETE)." } },
-    { "id": "S-E2E-EXFAT-DECAY50", "mode": "decay_50", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT sector-reuse decay row - no recorded baseline; observe-only." } },
-    { "id": "S-E2E-EXFAT-DECAY80", "mode": "decay_80", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT decay_80 - observe-only." } },
-    { "id": "S-E2E-EXFAT-DECAY100", "mode": "decay_100", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "exFAT decay_100 - observe-only." } },
-    { "id": "S-E2E-EXFAT-PARTOVR", "mode": "partial_overwrite", "disk": "e2e-exfat", "volume": "EXFATVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files." } },
-
-    { "id": "S-E2E-FAT32-RECYCLE", "mode": "recycle_bin", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 recycle-bin row - observe-only." } },
-    { "id": "S-E2E-FAT32-PERMDEL", "mode": "permanent_delete", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 deleted-entry recovery is a KNOWN ENGINE GAP (GAP-S6-1/S6-2, measured 0-0.3% recall; benchmark-matrix.json S-DEL-FAT32 note) - recorded ungated." } },
-    { "id": "S-E2E-FAT32-UNLINK", "mode": "unlink_native", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "DeleteFileW parity row - recorded ungated." } },
-    { "id": "S-E2E-FAT32-FOLDER", "mode": "folder_delete", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 bin-emptied row - observe-only." } },
-    { "id": "S-E2E-FAT32-QKFMT", "mode": "quick_format", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "quick-format recall is a KNOWN ENGINE GAP (GAP-S6-4) - the scenario still exercises the full format-recovery path end to end (benchmark-matrix.json S-FMT-FAT32 note)." } },
-    { "id": "S-E2E-FAT32-FULLFMT", "mode": "full_format", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "zero-filled volume - honest-survival row." } },
-    { "id": "S-E2E-FAT32-PARTDEL", "mode": "delete_partition", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "disk", "scan_modes": "deepcarve", "gate": { "type": "discovery", "note": "GATE = lost partition discovered + recover completes; the MBR variant of the partition-delete matrix (the FAT32 disk is MBR)." } },
-    { "id": "S-E2E-FAT32-DECAY50", "mode": "decay_50", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 decay row - observe-only." } },
-    { "id": "S-E2E-FAT32-DECAY80", "mode": "decay_80", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 decay_80 - observe-only." } },
-    { "id": "S-E2E-FAT32-DECAY100", "mode": "decay_100", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "FAT32 decay_100 - observe-only." } },
-    { "id": "S-E2E-FAT32-PARTOVR", "mode": "partial_overwrite", "disk": "e2e-fat32", "volume": "FAT32VOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files." } },
-
-    { "id": "S-E2E-REFS-RECYCLE", "mode": "recycle_bin", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS recycle-bin row - observe-only; ReFS support is conditional on the runner image (shard fails with diagnostic if ReFS cannot be formatted - never a silent skip)." } },
-    { "id": "S-E2E-REFS-PERMDEL", "mode": "permanent_delete", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS permanent-delete row - the refs/partial_overwrite precedent (run 40079065019, apply-scenario.ps1 BENCH-F5c) proved ReFS scenarios run on the runner class; observe-only." } },
-    { "id": "S-E2E-REFS-UNLINK", "mode": "unlink_native", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS DeleteFileW parity row - observe-only." } },
-    { "id": "S-E2E-REFS-FOLDER", "mode": "folder_delete", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS bin-emptied row - observe-only." } },
-    { "id": "S-E2E-REFS-QKFMT", "mode": "quick_format", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS quick-format row - observe-only." } },
-    { "id": "S-E2E-REFS-FULLFMT", "mode": "full_format", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "zero-filled volume - honest-survival row." } },
-    { "id": "S-E2E-REFS-PARTDEL", "mode": "delete_partition", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "disk", "scan_modes": "deepcarve", "gate": { "type": "discovery", "note": "GATE = lost partition discovered + recover completes (ReFS GPT partition)." } },
-    { "id": "S-E2E-REFS-DECAY50", "mode": "decay_50", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS decay row - cluster geometry derived from the manifest when the boot sector has none (apply-scenario.ps1 BENCH-F5c)." } },
-    { "id": "S-E2E-REFS-DECAY80", "mode": "decay_80", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS decay_80 - observe-only." } },
-    { "id": "S-E2E-REFS-DECAY100", "mode": "decay_100", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS decay_100 - observe-only." } },
-    { "id": "S-E2E-REFS-PARTOVR", "mode": "partial_overwrite", "disk": "e2e-refs", "volume": "REFSVOL", "target_mode": "volume", "scan_modes": "all", "gate": { "type": "observe", "note": "ReFS partial-overwrite row - the run 40079065019 precedent shape (refs/partial_overwrite)." } }
+    {
+      "id": "S-E2E-NTFS-RECYCLE",
+      "mode": "recycle_bin",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "recycle-bin deepcarve hash-recall 0.0006 on the 10,216-file bench corpus (run 42019994804, benchmark-matrix.json S-RECYCLE-NTFS) - the $R-name/pairing quality gap is the quality workstream's territory; the e2e row records the measured number against the same corpus."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-PERMDEL",
+      "mode": "permanent_delete",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.35,
+        "note": "floor 0.35 cited from run 42019994804 (current-corpus NTFS permanent-delete deepcarve hash-recall 0.428, floor = measured minus headroom; benchmark-matrix.json S-DEL-NTFS). Corpus geometry differs (6 GiB single-volume disk vs the bench lane's 5 GiB 60% volume) - a false red here is re-baselined by evidence, never by deleting the row."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-UNLINK",
+      "mode": "unlink_native",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "native DeleteFileW is the same on-disk end state as permanent_delete (Remove-Item) - expected recall parity with S-E2E-NTFS-PERMDEL is the recorded expectation, ungated (the bench lane has no unlink_native row to cite)."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-FOLDER",
+      "mode": "folder_delete",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "bin-emptied deepcarve hash-recall 0.0739 on the bench corpus (run 42019994804, benchmark-matrix.json S-BINEMPTY-NTFS) - after Clear-RecycleBin the $I/$R metadata is itself deleted and payload recovery is carve-dependent."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-QKFMT",
+      "mode": "quick_format",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "quick-format recovery is a KNOWN ENGINE GAP (GAP-S6-4: name-only remnant scan, 0% vs og 51.5%; benchmark-matrix.json S-FMT-FAT32 note) - recorded ungated; the row still exercises the full format-recovery path end to end."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-FULLFMT",
+      "mode": "full_format",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "Format-Volume -Full zero-fills the data area - recall 0 is physics, not a defect; the row proves the product survives the zero-filled volume honestly (exit 0, empty tree) instead of fabricating results."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-DECAY50",
+      "mode": "decay_50",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.85,
+        "note": "decay_50 measured 96.4% (PERFORMANCE-PROFILE.md, cited via benchmark-matrix.json S-DECAY-NTFS); floor 0.85 = measured minus headroom."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-DECAY80",
+      "mode": "decay_80",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "the NTFS decay_80 cliff is an allocation-hint sector-reuse effect, not an engine defect (GAP-S6-5) - judged against the physical-ceiling probe apply-scenario emits; recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-DECAY100",
+      "mode": "decay_100",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "100% reuse decay: maximum sector-reuse pressure; physical-ceiling judged (GAP-S6-5), recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-PARTOVR",
+      "mode": "partial_overwrite",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "the first 8 sectors of every deleted file's first extent are 0xAA-overwritten - those files CANNOT hash-match by construction (benchmark-matrix.json S-OVR-NTFS note); honesty about physics, not a gap."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-MFTCOR",
+      "mode": "mft_corrupt",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "MFT records zeroed + $Bitmap XORed - structured NTFS recovery is destroyed by construction; the carve-only salvage path is what this row exercises (benchmark-matrix.json S-MFT-NTFS note)."
+      }
+    },
+    {
+      "id": "S-E2E-NTFS-PARTDEL",
+      "mode": "delete_partition",
+      "disk": "e2e-ntfs",
+      "volume": "NTFSVOL",
+      "target_mode": "disk",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "discovery",
+        "note": "GATE = the lost partition is DISCOVERED (lost_partitions >= 1) AND recover completes exit 0/2 - the benchmark-matrix.json S-PART-DELETE contract. File recall is discovery-limited (43.0% measured, run 40073093997-smoke) and recorded ungated. Post-actions: the lost-partition APPLY probe (dry-run + real apply + partition-reappears assertion)."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-RECYCLE",
+      "mode": "recycle_bin",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT recycle-bin row - no recorded bench baseline; observe-only with full capture."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-PERMDEL",
+      "mode": "permanent_delete",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "current-corpus exFAT delete deepcarve hash-recall 0.0 (run 42019994804, benchmark-matrix.json S-DEL-EXFAT) - the exFAT deepcarve quality gap is the quality workstream's; recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-UNLINK",
+      "mode": "unlink_native",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "DeleteFileW parity row - expected parity with S-E2E-EXFAT-PERMDEL, recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-FOLDER",
+      "mode": "folder_delete",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT bin-emptied row - no recorded bench baseline; observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-QKFMT",
+      "mode": "quick_format",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT quick-format row - the FAT-family format-recovery gap class (GAP-S6-4); recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-FULLFMT",
+      "mode": "full_format",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "zero-filled volume - recall 0 is physics; honest-survival row."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-DECAY50",
+      "mode": "decay_50",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT sector-reuse decay row - no recorded baseline; observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-DECAY80",
+      "mode": "decay_80",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT decay_80 - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-DECAY100",
+      "mode": "decay_100",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "exFAT decay_100 - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-PARTOVR",
+      "mode": "partial_overwrite",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files."
+      }
+    },
+    {
+      "id": "S-E2E-EXFAT-PARTDEL",
+      "mode": "delete_partition",
+      "disk": "e2e-exfat",
+      "volume": "EXFATVOL",
+      "target_mode": "disk",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "discovery",
+        "note": "GATE = lost partition discovered + recover completes; file recall recorded ungated (same contract as S-PART-DELETE)."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-RECYCLE",
+      "mode": "recycle_bin",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 recycle-bin row - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-PERMDEL",
+      "mode": "permanent_delete",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 deleted-entry recovery is a KNOWN ENGINE GAP (GAP-S6-1/S6-2, measured 0-0.3% recall; benchmark-matrix.json S-DEL-FAT32 note) - recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-UNLINK",
+      "mode": "unlink_native",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "DeleteFileW parity row - recorded ungated."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-FOLDER",
+      "mode": "folder_delete",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 bin-emptied row - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-QKFMT",
+      "mode": "quick_format",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "quick-format recall is a KNOWN ENGINE GAP (GAP-S6-4) - the scenario still exercises the full format-recovery path end to end (benchmark-matrix.json S-FMT-FAT32 note)."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-FULLFMT",
+      "mode": "full_format",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "zero-filled volume - honest-survival row."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-DECAY50",
+      "mode": "decay_50",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 decay row - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-DECAY80",
+      "mode": "decay_80",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 decay_80 - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-DECAY100",
+      "mode": "decay_100",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 decay_100 - observe-only."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-PARTOVR",
+      "mode": "partial_overwrite",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "observe",
+        "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files."
+      }
+    },
+    {
+      "id": "S-E2E-FAT32-PARTDEL",
+      "mode": "delete_partition",
+      "disk": "e2e-fat32",
+      "volume": "FAT32VOL",
+      "target_mode": "disk",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "discovery",
+        "note": "GATE = lost partition discovered + recover completes; the MBR variant of the partition-delete matrix (the FAT32 disk is MBR)."
+      }
+    },
+    {
+      "id": "S-E2E-REFS-RECYCLE",
+      "mode": "recycle_bin",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-PERMDEL",
+      "mode": "permanent_delete",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-UNLINK",
+      "mode": "unlink_native",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-FOLDER",
+      "mode": "folder_delete",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-QKFMT",
+      "mode": "quick_format",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-FULLFMT",
+      "mode": "full_format",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-DECAY50",
+      "mode": "decay_50",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-DECAY80",
+      "mode": "decay_80",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-DECAY100",
+      "mode": "decay_100",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-PARTOVR",
+      "mode": "partial_overwrite",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "volume",
+      "scan_modes": "all",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    },
+    {
+      "id": "S-E2E-REFS-PARTDEL",
+      "mode": "delete_partition",
+      "disk": "e2e-refs",
+      "volume": "REFSVOL",
+      "target_mode": "disk",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "unsupported_fs",
+        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+      },
+      "expect": "unsupported_fs"
+    }
   ],
-
   "smoke": {
     "comment": "The e2e-smoke matrix: PR-triggered fast feedback (~10 min), CLI path only. Small dedicated disks (a partition-delete row owns its whole disk - the partition removal is destructive).",
     "disks": [
-      { "id": "smoke-ntfs", "size_mb": 1536, "partition_style": "GPT", "volumes": [ { "label": "SMNTFS", "fs": "NTFS", "size_percent": 100, "letter_hint": "X", "seed_profile": "smoke" } ] },
-      { "id": "smoke-exfat", "size_mb": 1536, "partition_style": "GPT", "volumes": [ { "label": "SMEXFAT", "fs": "exFAT", "size_percent": 100, "letter_hint": "Y", "seed_profile": "smoke" } ] },
-      { "id": "smoke-fat32", "size_mb": 1024, "partition_style": "MBR", "volumes": [ { "label": "SMFAT32", "fs": "FAT32", "size_percent": 100, "letter_hint": "Z", "seed_profile": "smoke" } ] },
-      { "id": "smoke-part", "size_mb": 1536, "partition_style": "GPT", "volumes": [ { "label": "SMPART", "fs": "NTFS", "size_percent": 100, "letter_hint": "W", "seed_profile": "smoke" } ] }
+      {
+        "id": "smoke-ntfs",
+        "size_mb": 1536,
+        "partition_style": "GPT",
+        "volumes": [
+          {
+            "label": "SMNTFS",
+            "fs": "NTFS",
+            "size_percent": 100,
+            "letter_hint": "X",
+            "seed_profile": "smoke"
+          }
+        ]
+      },
+      {
+        "id": "smoke-exfat",
+        "size_mb": 1536,
+        "partition_style": "GPT",
+        "volumes": [
+          {
+            "label": "SMEXFAT",
+            "fs": "exFAT",
+            "size_percent": 100,
+            "letter_hint": "Y",
+            "seed_profile": "smoke"
+          }
+        ]
+      },
+      {
+        "id": "smoke-fat32",
+        "size_mb": 1024,
+        "partition_style": "MBR",
+        "volumes": [
+          {
+            "label": "SMFAT32",
+            "fs": "FAT32",
+            "size_percent": 100,
+            "letter_hint": "Z",
+            "seed_profile": "smoke"
+          }
+        ]
+      },
+      {
+        "id": "smoke-part",
+        "size_mb": 1536,
+        "partition_style": "GPT",
+        "volumes": [
+          {
+            "label": "SMPART",
+            "fs": "NTFS",
+            "size_percent": 100,
+            "letter_hint": "W",
+            "seed_profile": "smoke"
+          }
+        ]
+      }
     ],
     "scenarios": [
-      { "id": "SM-NTFS-PERMDEL", "mode": "permanent_delete", "disk": "smoke-ntfs", "volume": "SMNTFS", "target_mode": "volume", "scan_modes": "quick", "gate": { "type": "observe", "note": "smoke row: quick scan, observe-only - full-corpus floors live in the full matrix + the regression baseline." } },
-      { "id": "SM-EXFAT-RECYCLE", "mode": "recycle_bin", "disk": "smoke-exfat", "volume": "SMEXFAT", "target_mode": "volume", "scan_modes": "quick", "gate": { "type": "observe", "note": "smoke row: quick scan, observe-only." } },
-      { "id": "SM-FAT32-QKFMT", "mode": "quick_format", "disk": "smoke-fat32", "volume": "SMFAT32", "target_mode": "volume", "scan_modes": "deepcarve", "gate": { "type": "observe", "note": "smoke row: quick-format end-to-end path, deepcarve (the format-recovery surface), observe-only (GAP-S6-4)." } },
-      { "id": "SM-PART-DELETE", "mode": "delete_partition", "disk": "smoke-part", "volume": "SMPART", "target_mode": "disk", "scan_modes": "deepcarve", "gate": { "type": "discovery", "note": "smoke row: the lost-partition discovery gate (lost_partitions >= 1, recover exit 0/2) on a disposable GPT disk." } }
+      {
+        "id": "SM-NTFS-PERMDEL",
+        "mode": "permanent_delete",
+        "disk": "smoke-ntfs",
+        "volume": "SMNTFS",
+        "target_mode": "volume",
+        "scan_modes": "quick",
+        "gate": {
+          "type": "observe",
+          "note": "smoke row: quick scan, observe-only - full-corpus floors live in the full matrix + the regression baseline."
+        }
+      },
+      {
+        "id": "SM-EXFAT-RECYCLE",
+        "mode": "recycle_bin",
+        "disk": "smoke-exfat",
+        "volume": "SMEXFAT",
+        "target_mode": "volume",
+        "scan_modes": "quick",
+        "gate": {
+          "type": "observe",
+          "note": "smoke row: quick scan, observe-only."
+        }
+      },
+      {
+        "id": "SM-FAT32-QKFMT",
+        "mode": "quick_format",
+        "disk": "smoke-fat32",
+        "volume": "SMFAT32",
+        "target_mode": "volume",
+        "scan_modes": "deepcarve",
+        "gate": {
+          "type": "observe",
+          "note": "smoke row: quick-format end-to-end path, deepcarve (the format-recovery surface), observe-only (GAP-S6-4)."
+        }
+      },
+      {
+        "id": "SM-PART-DELETE",
+        "mode": "delete_partition",
+        "disk": "smoke-part",
+        "volume": "SMPART",
+        "target_mode": "disk",
+        "scan_modes": "deepcarve",
+        "gate": {
+          "type": "discovery",
+          "note": "smoke row: the lost-partition discovery gate (lost_partitions >= 1, recover exit 0/2) on a disposable GPT disk."
+        }
+      }
     ]
   },
-
-  "shards_comment": "delete_partition is ALWAYS the last scenario on its disk (the partition removal is volume-destructive; reseed recreates the partition as defense-in-depth, but the deterministic order removes the dependency).",
+  "shards_comment": "delete_partition is ALWAYS the last scenario on its disk (the partition removal is volume-destructive; reseed recreates the partition as defense-in-depth, but the deterministic order removes the dependency). The matrix's per-filesystem scenario order ALSO puts delete_partition last (the ALL-mode single-machine path shares the discipline), and shard selection follows the shard's declared order (run 45826003339).",
   "shards": [
-    { "id": "ntfs-basic", "disks": ["e2e-ntfs"], "scenarios": ["S-E2E-NTFS-RECYCLE", "S-E2E-NTFS-PERMDEL", "S-E2E-NTFS-UNLINK", "S-E2E-NTFS-FOLDER"] },
-    { "id": "ntfs-format", "disks": ["e2e-ntfs"], "scenarios": ["S-E2E-NTFS-QKFMT", "S-E2E-NTFS-FULLFMT", "S-E2E-NTFS-DECAY50", "S-E2E-NTFS-PARTDEL"] },
-    { "id": "ntfs-decay", "disks": ["e2e-ntfs"], "scenarios": ["S-E2E-NTFS-DECAY80", "S-E2E-NTFS-DECAY100", "S-E2E-NTFS-PARTOVR", "S-E2E-NTFS-MFTCOR"] },
-    { "id": "exfat-a", "disks": ["e2e-exfat"], "scenarios": ["S-E2E-EXFAT-RECYCLE", "S-E2E-EXFAT-PERMDEL", "S-E2E-EXFAT-UNLINK", "S-E2E-EXFAT-FOLDER", "S-E2E-EXFAT-QKFMT", "S-E2E-EXFAT-FULLFMT"] },
-    { "id": "exfat-b", "disks": ["e2e-exfat"], "scenarios": ["S-E2E-EXFAT-DECAY50", "S-E2E-EXFAT-DECAY80", "S-E2E-EXFAT-DECAY100", "S-E2E-EXFAT-PARTOVR", "S-E2E-EXFAT-PARTDEL"] },
-    { "id": "fat32-a", "disks": ["e2e-fat32"], "scenarios": ["S-E2E-FAT32-RECYCLE", "S-E2E-FAT32-PERMDEL", "S-E2E-FAT32-UNLINK", "S-E2E-FAT32-FOLDER", "S-E2E-FAT32-QKFMT", "S-E2E-FAT32-FULLFMT"] },
-    { "id": "fat32-b", "disks": ["e2e-fat32"], "scenarios": ["S-E2E-FAT32-DECAY50", "S-E2E-FAT32-DECAY80", "S-E2E-FAT32-DECAY100", "S-E2E-FAT32-PARTOVR", "S-E2E-FAT32-PARTDEL"] },
-    { "id": "refs-a", "disks": ["e2e-refs"], "scenarios": ["S-E2E-REFS-RECYCLE", "S-E2E-REFS-PERMDEL", "S-E2E-REFS-UNLINK", "S-E2E-REFS-FOLDER", "S-E2E-REFS-QKFMT", "S-E2E-REFS-FULLFMT"] },
-    { "id": "refs-b", "disks": ["e2e-refs"], "scenarios": ["S-E2E-REFS-DECAY50", "S-E2E-REFS-DECAY80", "S-E2E-REFS-DECAY100", "S-E2E-REFS-PARTOVR", "S-E2E-REFS-PARTDEL"] }
+    {
+      "id": "ntfs-basic",
+      "disks": [
+        "e2e-ntfs"
+      ],
+      "scenarios": [
+        "S-E2E-NTFS-RECYCLE",
+        "S-E2E-NTFS-PERMDEL",
+        "S-E2E-NTFS-UNLINK",
+        "S-E2E-NTFS-FOLDER"
+      ]
+    },
+    {
+      "id": "ntfs-format",
+      "disks": [
+        "e2e-ntfs"
+      ],
+      "scenarios": [
+        "S-E2E-NTFS-QKFMT",
+        "S-E2E-NTFS-FULLFMT",
+        "S-E2E-NTFS-DECAY50",
+        "S-E2E-NTFS-PARTDEL"
+      ]
+    },
+    {
+      "id": "ntfs-decay",
+      "disks": [
+        "e2e-ntfs"
+      ],
+      "scenarios": [
+        "S-E2E-NTFS-DECAY80",
+        "S-E2E-NTFS-DECAY100",
+        "S-E2E-NTFS-PARTOVR",
+        "S-E2E-NTFS-MFTCOR"
+      ]
+    },
+    {
+      "id": "exfat-a",
+      "disks": [
+        "e2e-exfat"
+      ],
+      "scenarios": [
+        "S-E2E-EXFAT-RECYCLE",
+        "S-E2E-EXFAT-PERMDEL",
+        "S-E2E-EXFAT-UNLINK",
+        "S-E2E-EXFAT-FOLDER",
+        "S-E2E-EXFAT-QKFMT",
+        "S-E2E-EXFAT-FULLFMT"
+      ]
+    },
+    {
+      "id": "exfat-b",
+      "disks": [
+        "e2e-exfat"
+      ],
+      "scenarios": [
+        "S-E2E-EXFAT-DECAY50",
+        "S-E2E-EXFAT-DECAY80",
+        "S-E2E-EXFAT-DECAY100",
+        "S-E2E-EXFAT-PARTOVR",
+        "S-E2E-EXFAT-PARTDEL"
+      ]
+    },
+    {
+      "id": "fat32-a",
+      "disks": [
+        "e2e-fat32"
+      ],
+      "scenarios": [
+        "S-E2E-FAT32-RECYCLE",
+        "S-E2E-FAT32-PERMDEL",
+        "S-E2E-FAT32-UNLINK",
+        "S-E2E-FAT32-FOLDER",
+        "S-E2E-FAT32-QKFMT",
+        "S-E2E-FAT32-FULLFMT"
+      ]
+    },
+    {
+      "id": "fat32-b",
+      "disks": [
+        "e2e-fat32"
+      ],
+      "scenarios": [
+        "S-E2E-FAT32-DECAY50",
+        "S-E2E-FAT32-DECAY80",
+        "S-E2E-FAT32-DECAY100",
+        "S-E2E-FAT32-PARTOVR",
+        "S-E2E-FAT32-PARTDEL"
+      ]
+    },
+    {
+      "id": "refs-a",
+      "disks": [
+        "e2e-refs"
+      ],
+      "scenarios": [
+        "S-E2E-REFS-RECYCLE",
+        "S-E2E-REFS-PERMDEL",
+        "S-E2E-REFS-UNLINK",
+        "S-E2E-REFS-FOLDER",
+        "S-E2E-REFS-QKFMT",
+        "S-E2E-REFS-FULLFMT"
+      ]
+    },
+    {
+      "id": "refs-b",
+      "disks": [
+        "e2e-refs"
+      ],
+      "scenarios": [
+        "S-E2E-REFS-DECAY50",
+        "S-E2E-REFS-DECAY80",
+        "S-E2E-REFS-DECAY100",
+        "S-E2E-REFS-PARTOVR",
+        "S-E2E-REFS-PARTDEL"
+      ]
+    }
   ]
 }
