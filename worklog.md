@@ -5280,3 +5280,16 @@ FS-specific (FAT32's same shard order PASSES) and survived the full remount
 ladder - the exfat-b shard order now puts PARTDEL FIRST on the healthy
 fresh volume (the recreation reseed is proven to serve the following rows,
 run 45836204263) with PARTOVR last; the matrix comment cites the evidence.
+
+### E2E-F10: NtfsData must not dismount — 2026-11-26
+
+Run 45902752944: the GLE=5 was SELF-INFLICTED - my NtfsData locked+
+dismounted the volume before reading the boot, and the outer
+LockAndDismount can never lock a volume in dismount limbo (the same class
+as E2E-F7, one level up - the retries, first-level and second-level, were
+riding a permanent state). A read-only aligned sector-0 read needs neither
+lock nor dismount: NtfsData is now open->read->close, and the lock+dismount
+before the WRITES stays where it belongs (CorruptMft). The C# brace
+structure fixed with it. 8 of 9 shards green on this run (exfat-b, refs-a,
+refs-b, fat32-a/b, exfat-a, ntfs-basic all PASS - only ntfs-decay's MFTCOR
+and the still-running ntfs-format remain).

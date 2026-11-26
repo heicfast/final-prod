@@ -217,25 +217,26 @@ public static class BenchRaw
         // u16 @0x0B, sectors/cluster u8 @0x0D, total sectors s64 @0x28, $MFT
         // LCN s64 @0x30, clusters/FRS s64 @0x40 (negative = 2^-value).
         // Own handle (run 45890019629: wrapping the CALLER's SafeFileHandle in
-        // a FileStream disposed it - 'Cannot access a disposed object'); the
-        // open->lock->read shape mirrors GetBootClusterSize exactly.
+        // a FileStream disposed it - 'Cannot access a disposed object').
+        // READ-ONLY and NO LockAndDismount (run 45902752944: locking+
+        // dismounting here left the volume in dismount limbo - the outer
+        // LockAndDismount then hit FSCTL_LOCK GLE=5 forever, the same limbo
+        // class as E2E-F7 one level up). A raw aligned read of sector 0 needs
+        // neither; the lock+dismount before the WRITES belongs to CorruptMft.
         using (SafeFileHandle h = OpenVolumeRaw(letter))
+        using (FileStream fs = new FileStream(h, FileAccess.Read, 512, false))
         {
-            LockAndDismount(h);
-            using (FileStream fs = new FileStream(h, FileAccess.Read, 512, false))
-            {
-                byte[] b = ReadRange(fs, 0, 512);
-                if (Encoding.ASCII.GetString(b, 3, 8) != "NTFS    ")
-                    throw new IOException("boot sector is not NTFS (OEM mismatch)");
-                int bps = BitConverter.ToUInt16(b, 0x0B);
-                int spc = b[0x0D];
-                long totalSectors = BitConverter.ToInt64(b, 0x28);
-                long mftLcn = BitConverter.ToInt64(b, 0x30);
-                long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
-                long bpc = (long)bps * (long)spc;
-                long totalClusters = spc > 0 ? totalSectors / spc : 0;
-                return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
-            }
+            byte[] b = ReadRange(fs, 0, 512);
+            if (Encoding.ASCII.GetString(b, 3, 8) != "NTFS    ")
+                throw new IOException("boot sector is not NTFS (OEM mismatch)");
+            int bps = BitConverter.ToUInt16(b, 0x0B);
+            int spc = b[0x0D];
+            long totalSectors = BitConverter.ToInt64(b, 0x28);
+            long mftLcn = BitConverter.ToInt64(b, 0x30);
+            long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
+            long bpc = (long)bps * (long)spc;
+            long totalClusters = spc > 0 ? totalSectors / spc : 0;
+            return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
         }
     }
 
