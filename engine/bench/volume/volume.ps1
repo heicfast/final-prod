@@ -422,7 +422,14 @@ public static class BenchRaw
                 string oem = Encoding.ASCII.GetString(b, 3, 8).Trim();
                 if (oem == "EXFAT")
                 {
-                    int s1 = b[0x78]; int s2 = b[0x79];
+                    // E2E-F2 (runs 45826003339 + 45836204263, the first-ever
+                    // exFAT extent-addressed exercise): the shift bytes are at
+                    // +0x6C/+0x6D per the engine's own wire header
+                    // (include/cr/exfat/cr_exfat_wire.h:35-36), NOT +0x78/+0x79
+                    // (that region is boot_code - garbage shifts ~25/25 gave
+                    // bpc ~2^50 and every decay/partial_overwrite extent
+                    // multiplication overflowed Int64).
+                    int s1 = b[0x6C]; int s2 = b[0x6D];
                     return (long)(Math.Pow(2, s1) * Math.Pow(2, s2));
                 }
                 int bps = BitConverter.ToUInt16(b, 0x0B);

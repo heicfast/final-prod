@@ -346,15 +346,16 @@ foreach ($sc in $selected) {
             if ($IncludeApi) {
                 $apiRefDir = Join-Path $scEv 'api'
                 New-Item -ItemType Directory -Force -Path $apiRefDir | Out-Null
-                & $ApiHarness @('--scan', '--target', 'volume', '--letter', $letter,
+                # capture into a variable AND write the evidence file (run
+                # 45836204263: Tee'd to the evidence dir but read back from
+                # the work dir - the refusal text was never seen and every
+                # API probe false-failed; one source of truth from here on)
+                $apiOutLines = & $ApiHarness @('--scan', '--target', 'volume', '--letter', $letter,
                     '--dest', (Join-Path $scApi 'recovered'), '--out', $scApi, '--label', $id,
-                    '--threads', "$Threads") 2>&1 |
-                    Tee-Object -FilePath (Join-Path $apiRefDir 'harness.stdout') | Out-Null
+                    '--threads', "$Threads") 2>&1
+                $apiOutLines | Set-Content -LiteralPath (Join-Path $apiRefDir 'harness.stdout') -Encoding utf8
                 $apiExitRef = $LASTEXITCODE
-                $apiOut = ''
-                if (Test-Path -LiteralPath (Join-Path $scApi 'harness.stdout')) {
-                    $apiOut = (Get-Content -LiteralPath (Join-Path $scApi 'harness.stdout') -Raw)
-                }
+                $apiOut = ($apiOutLines -join "`n")
                 $apiRefused = ($apiExitRef -ne 0) -and ($apiOut -match 'bad magic|0x50030001|50030001')
             }
             $resCli = [ordered]@{

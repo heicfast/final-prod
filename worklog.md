@@ -5143,3 +5143,18 @@ runtime DLLs that ride beside the installed exe. Cancelled; the staging now
 copies every shipped DLL from the portable kit (asserted: z.dll, lz4.dll,
 zstd.dll present) and re-dispatches. The e2e-full lane is unaffected (its
 build.ps1 kit is complete).
+
+### The E2E-2 root cause + the probe-path fix — 2026-11-26
+
+Precisely identified: GetBootClusterSize's exFAT branch read the sector/
+cluster shift bytes at +0x78/+0x79 - that region is boot_code (garbage ~25/25
+→ bpc ~2^50); the engine's own wire header (include/cr/exfat/cr_exfat_wire.h:
+35-36) puts bytes_per_sector_shift at +0x6C and sectors_per_cluster_shift at
++0x6D. Every exFAT decay/partial_overwrite extent multiplication then
+overflowed Int64 (the 4.61e19/6.45e19 conversions; manifest extents verified
+sane, max VCN 49837). Fixed the shared primitive with the citation (the bench
+lane never ran an exFAT extent-addressed row, so the wrong offsets were never
+exercised). Second fix: the unsupported_fs API probe Tee'd harness.stdout into
+the evidence dir but read it back from the work dir - the refusal text was
+never seen and every refs API probe false-failed (the CLI probes were clean:
+exit 1 + 'scan failed: bad magic (0x50030001)' + no session).
