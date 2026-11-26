@@ -101,7 +101,7 @@ ABI event types **12** (the CR_EVT_* census).
 | Symbol | Purpose |
 |---|---|
 | `orchestrator::FsFamily` (0..11, 5 reserved, 10 BitLocker, 11 UDF) | family enum, serialized values (cr_scan.h:36-69) |
-| `StageWeights` (40/35/25), `weighted_progress` | monotonic weighted progress (cr_scan.h:71-75, 443) |
+| `scan_byte_plan`, `overall_from_plan`, `advanced_from_plan` | F-B byte-plan progress: the cumulative sweep position over sweeps x target size (the StageWeights/weighted_progress form is RETIRED — the reference documents no phase weights) |
 | `ReadPipe`, `build_read_pipe(slice, cache, block)` | the testable scan pipe constructor (cr_scan.h:86-96; cr_scan.cpp:153) |
 | `event::Type` (ScanStage..FsCheck, 8 values) + `event::Event` + `EventFn` | the typed event stream (cr_scan.h:122-183) |
 | `ScanConfig` | stage enables, whole_disk, fs_hint, threads, repair hooks (S-008), pre_scan_check (M-041), identity card fields, raw_category_name, CheckpointSink, ldm_resolver, event_fn (cr_scan.h:185-315) |

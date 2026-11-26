@@ -248,12 +248,15 @@ TEST(Telemetry, UniformProgressAcrossStagesMonotonic) {
 }
 
 TEST(Telemetry, FatWalkEmitsIncrementalTicks) {
-    /* G-04 core fix, proven SYNCHRONOUSLY through the user callback (no
-     * polling race): the walk emits a tick at every 64th dentry examined,
-     * so the callback observes distinct overall permilles strictly below
-     * the quick boundary (750 = weighted(1000,1000,0), covers_both) while
-     * the walk is still running. The pre-fix engine emitted exactly one
-     * end-of-directory tick - nothing below the boundary. */
+    /* G-04 core fix + F-B re-pin (the weights are retired): the walk emits
+     * a tick at every 64th dentry examined, so the callback observes
+     * distinct overall permilles strictly below completion while the walk
+     * is still running. The quick|deep-only config has NO byte sweep (the
+     * degenerate plan == 0 shape) — the honest bar is the ACTIVE stage's
+     * own record permille, which the shared walk advances; the old form
+     * compressed this into the weighted 750 boundary. The pre-fix engine
+     * emitted exactly one end-of-directory tick - nothing below the
+     * boundary. */
     MemDevice dev(build_fat16_wide(200));
     tree::ResultTree tree;
     ScanConfig cfg;
@@ -275,20 +278,20 @@ TEST(Telemetry, FatWalkEmitsIncrementalTicks) {
     {
         std::lock_guard<std::mutex> lock(cap.m);
         ASSERT_FALSE(cap.overall.empty());
-        u32 prev = 0, below = 0, last_below = 0;
+        u32 prev = 0, distinct = 0, last = 0;
         for (u32 p : cap.overall) {
             EXPECT_GE(p, prev); /* monotonic across ticks AND boundaries */
             EXPECT_LE(p, 1000u);
-            if (p < 750u && p != last_below) { /* distinct mid-walk values */
-                ++below;
-                last_below = p;
+            if (p < 1000u && p != last) { /* distinct mid-walk values */
+                ++distinct;
+                last = p;
             }
             prev = p;
         }
         /* ticks at dentries 64/128/192 (root walk stops at the first 0x00
          * slot, i.e. after 200 entries) - at least three intermediates */
-        EXPECT_GE(below, 3u);
-        EXPECT_EQ(750u, prev); /* ends exactly at the quick->deep boundary */
+        EXPECT_GE(distinct, 3u);
+        EXPECT_EQ(1000u, prev); /* completes at 1000, never the 750 cap */
     }
 }
 
@@ -616,18 +619,20 @@ TEST(Telemetry, DeepRemnantSweepTicksPerBlock) {
 /* ---- P-DEEP-01 + P-TICK-01: the deep byte axis + the live cursor ---------- */
 
 TEST(Telemetry, DeepStageCarriesTheByteAxes) {
-    /* P-DEEP-01 (0.9.3): the user's "stuck in sector scanning" presentation
-     * — bytes_scanned was carve-true ONLY, so "Reading sector: X/Y" froze
-     * through the entire deep phase (quick+deep = 75% of the weighted
-     * progress bar with a dead sector counter; the forensic deep window on
-     * the 64 GiB seed showed bytes_scanned static while the sweep ground
-     * on). The wiring pin: the deep stage bridge flags byte units (BOTH
+    /* P-DEEP-01 (0.9.3) + F-C (sector-scan rebuild): the user's "stuck in
+     * sector scanning" presentation — bytes_scanned was carve-true ONLY,
+     * so "Reading sector: X/Y" froze through the entire deep phase (the
+     * forensic deep window on the 64 GiB seed showed bytes_scanned static
+     * while the sweep ground on). F-C unified the axis: ONE cumulative
+     * byte-sweep position X (flushed completed sweeps + the active sweep's
+     * live cursor) across ALL byte sub-passes — the carve stage's separate
+     * clamped-base form and the deep stage's direct-assign branch are both
+     * gone. The wiring pin: the deep stage bridge flags byte units (BOTH
      * byte-denominated sub-passes — the remnant sweep's slice coverage and
-     * lost::discover's byte-window walk), and tel_publish_ carries a
-     * stage-1 branch that stamps the LIVE position. The behavioral proof
-     * is the bridge-integration lane's scan_progress_axes_move deep-window
-     * assertion (real NTFS seed, real timing); this pin guards the wiring
-     * mechanically. */
+     * lost::discover's byte-window walk), and tel_publish_ stamps the
+     * unified cumulative axis. The behavioral proof is the bridge
+     * lane's scan_progress_axes_move deep-window assertion (real NTFS
+     * seed, real timing); this pin guards the wiring mechanically. */
     const std::string src = cr_test::read_repo_text("src/core/orchestrator/cr_scan.cpp");
     ASSERT_FALSE(src.empty());
 
@@ -656,21 +661,24 @@ TEST(Telemetry, DeepStageCarriesTheByteAxes) {
     EXPECT_NE(std::string::npos, fn_body.find("b->bytes_units"))
         << "the progress bridge must honor StageBridge::bytes_units (P-DEEP-01)";
 
-    /* tel_publish_ stamps the deep position (the stage-1 branch). The search
-     * is ANCHORED at the branch marker: the stamp must sit inside the deep
-     * branch (the carve branch stamps a clamped base+done instead). The
-     * original fixed 2400-byte window was 30 bytes too tight for the real
-     * function and had never executed anywhere — engine-ci never reached
-     * ctest between the scan-truth train landing and this fix (run
-     * 44023463712 was its first execution, 1760/1761 green). */
+    /* F-C: tel_publish_ stamps the ONE cumulative byte-sweep axis. The old
+     * stage-1/stage-2 branch pair (deep direct-assign vs carve clamped
+     * base+done — two axes, the restart/freeze class) is retired; the
+     * unified form accumulates the ACTIVE sweep's position (max-guarded
+     * against parallel stragglers) onto the flushed base. */
     const size_t publish_fn = src.find("void ScanController::tel_publish_(");
     ASSERT_NE(std::string::npos, publish_fn) << "tel_publish_ moved?";
     const std::string pub_body = src.substr(publish_fn, 4000);
-    const size_t deep_branch = pub_body.find("} else if (stage == 1) {");
-    ASSERT_NE(std::string::npos, deep_branch)
-        << "tel_publish_ must carry the deep byte branch (P-DEEP-01)";
-    EXPECT_NE(std::string::npos, pub_body.find("tel_.snap.bytes_scanned = done;", deep_branch))
-        << "the deep branch stamps the live position (direct, per-sub-pass)";
+    EXPECT_NE(std::string::npos, pub_body.find("if (done > tel_.sweep_pos)"))
+        << "tel_publish_ must max-guard the active sweep position (F-C)";
+    EXPECT_NE(std::string::npos,
+              pub_body.find("tel_.snap.bytes_scanned = tel_.sweep_flushed + tel_.sweep_pos;"))
+        << "tel_publish_ must stamp the ONE cumulative sweep axis (F-C)";
+    /* ...and the old split-axis branches must be GONE */
+    EXPECT_EQ(std::string::npos, pub_body.find("} else if (stage == 1) {"))
+        << "the deep direct-assign branch is retired (F-C: one axis)";
+    EXPECT_EQ(std::string::npos, pub_body.find("carve_bytes_base_ + done"))
+        << "the carve clamped-base form is retired (F-C: one axis)";
 
     /* P-TICK-01 (BF-29): the live cursor — the Searching ticker's real
      * data, stamped wherever byte-denominated progress publishes */

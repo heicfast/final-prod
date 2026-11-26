@@ -279,7 +279,7 @@ Sequence (the documented binding lifecycle [CORE §3, `docs/CONNECTION-GUIDE.md:
 `cr_ui_open_volume(letter)` (locked ⇒ consent paths `cr_ui_open_volume_with_key` /
 `cr_ui_unlock_volume_with_dictionary`, CORE §2.1; UI surfaces the three-choice prompt) →
 `cr_ui_scan_create` with zero-init `cr_ui_scan_config` (memset-0 = documented defaults:
-stage_mask 7, weights 40/35/25, threads auto 1..8 [CORE §7]) → `cr_ui_scan_attach_device`
+stage_mask 7, threads auto 1..8 [CORE §7]; the legacy weight fields are IGNORED since F-B) → `cr_ui_scan_attach_device`
 (device borrowed, must outlive scan) → `cr_ui_scan_set_event_fn` **before** run →
 spawn dedicated OS thread → `cr_ui_scan_run` (synchronous; returns 0 / engine error /
 `CR_UI_ERR_CANCELLED` with tree intact). Bridge mints `scanId` ("scan-N") and registers
@@ -296,8 +296,11 @@ Adaptations & deltas:
   stage; 'tree-build' ← bridge-synthesized snapshot/finalize phase; 'done' ← run() return.
   `scanPhaseOf` mapping (quick: volume-analysis+quick-index; advanced: deep-walk+carve;
   organizing: rest) is unchanged [UI §5].
-- Weights: mock 0.04/0.14/0.42/0.24/0.16 [UI §3.4] → core quick/deep/carve 40/35/25
-  [CORE §7]. Bridge normalizes into `overallProgress` = telemetry `overall_permille`/1000,
+- Progress model (F-B, sector-scan rebuild): the engine's percent is byte-plan
+  derived (the cumulative sweep position over sweeps x target size); the core's
+  legacy per-stage weights are RETIRED and the mock's per-stage weight
+  simulation now mirrors the byte-plan form. Bridge normalizes into
+  `overallProgress` = telemetry `overall_permille`/1000,
   **clamped monotonic** (UI asserts monotonic overallProgress [UI §6]).
 - `ScanProgressEvent` field map (from `cr_ui_scan_telemetry` + events, CORE §2.1):
   `bytesScanned` ← `bytes_scanned`; `bytesTotal` ← device geometry (or slice bytes);

@@ -83,7 +83,7 @@ these field-for-field at the ABI.
 | `run_quick` / `run_deep` / `run_carve` | true | stage enables |
 | `whole_disk` | false | lost-partition discovery |
 | `threads` | 0 (auto, 1..8) | worker pool size |
-| `quick`/`deep`/`carve` weights | 40/35/25 | monotonic weighted progress model (percent of total per stage) |
+| progress model | byte plan | F-B: percent = cumulative sweep position / (byte sweeps x target size); the legacy per-stage weight fields are IGNORED (ABI fields kept for compat, zero them) |
 | `pre_scan_repair` | false | repair stage before engines; requires the `consent` callback for any write |
 | `pre_scan_check` | false | damage-audit stage after repair, before engines (never aborts; M-041) |
 | `volume_label` / `volume_model` / `volume_serial` / `volume_image` | empty | informational identity for the session record |

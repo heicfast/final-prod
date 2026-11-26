@@ -77,8 +77,9 @@ interchangeable - the same property that let the reference product ship its
 ## 4. Threading model
 
 Scan stages run worker fanned-out where the engine supports it (fixed
-cancel-checked loops; cancel wakes paused waiters). The stage weights
-(40/35/25) drive monotonic progress. The tree is arena-allocated
+cancel-checked loops; cancel wakes paused waiters). Progress is byte-plan
+derived and monotonic (F-B: the cumulative byte-sweep position over the
+sweeps x target-size plan). The tree is arena-allocated
 with bulk destruction - million-node scans stay memory-disciplined.
 
 **Pause/resume (G-07, D-3 corrected):** two cooperating layers.

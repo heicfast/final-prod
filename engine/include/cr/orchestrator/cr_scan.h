@@ -69,11 +69,35 @@ enum class FsFamily : u8 {
     Udf = 11
 };
 
-struct StageWeights {
-    u32 quick = 40; /* percent-of-total per stage (monotonic weighted) */
-    u32 deep = 35;
-    u32 carve = 25;
-};
+/* ---- F-B (sector-scan rebuild): the byte-plan progress model -------------
+ * The reference corpus documents NO per-phase percent weights for the scan
+ * bar (REFERENCE-SCAN section 4.1, parity row 6): the only evidenced model is
+ * SECTOR-LINEAR - "Reading sector: X/Y" with the remaining time derived
+ * from throughput, where the og's own captured ticker shows X beyond Y
+ * (134316032/31413598 - multiple sweeps re-cover the disk). The legacy
+ * StageWeights {40, 35, 25} was product lineage (BF-22), never a reference
+ * behavior: quick+deep are metadata passes that finish in seconds, so the
+ * old weights handed them 75% of the bar and the UI opened at exactly
+ * 75.0% then crawled (run 42255492260: 75.0->76.1% over 891 s) - the
+ * reported "progress jumps to 75% then stalls" bug.
+ *
+ * The model now: every configured byte sweep (the carve window sweep, the
+ * NTFS remnant sweep, whole-disk lost discovery) walks the target's full
+ * span and publishes its own monotonic position; the scan's byte PLAN is
+ * sweeps x target size, the cumulative sweep position X accumulates
+ * across sweeps, and the overall percent is X over the plan (monotonic,
+ * stamped 1000 only at true completion). The plan is the denominator of
+ * the percent; the ticker keeps the device-size denominator, so X can
+ * exceed it on multi-sweep scans - the og's own captured shape. */
+u64 scan_byte_plan(bool run_carve, bool run_deep, bool whole_disk, FsFamily fs_hint,
+                   u64 slice_bytes);
+
+/* The percent forms, pure and tested (the telemetry recompute calls these
+ * under its lock; fallback_pm is the ACTIVE stage's own permille for the
+ * degenerate no-sweep configurations - a quick-only scan has no byte axis,
+ * so its honest bar is the quick pass's own progress). */
+u32 overall_from_plan(u64 sweep_x, u64 plan_bytes, u32 fallback_pm);
+u32 advanced_from_plan(u64 sweep_x, u64 plan_bytes, u64 advanced_base_x, u32 fallback_pm);
 
 /* ---- M-058: the scan read pipe, as a testable unit -----------------------
  * run()'s inline construction had a defensive-path use-after-free: when
@@ -113,8 +137,11 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *    (single-flight is the bridge's job, as the cr_ui shim does).
  *  - Must not block; no cancellation semantics (the token is).
  *  - Stage transitions fire in scan order, exactly once each. Progress
- *    samples fire when the overall permille advances (coalesced, <= 1000
- *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
+ *    samples fire when the overall permille advances (coalesced, <= ~5/s
+ *    plus stage flips - F-C: a 200 ms floor between samples replaced the
+ *    byte-step trigger, so the stream is time-throttled like the og's
+ *    polling grid, never a per-window firehose). Files-found/error events
+ *    are STAGE-BOUNDARY
  *    samples (the engines do not publish per-file increments) - but the
  *    ScanProgress samples carry LIVE-refreshed counters (N-166: the
  *    attach-time tree counter's delta over the boundary total is
@@ -205,8 +232,7 @@ struct ScanConfig {
     bool run_carve = true;
     bool whole_disk = false;              /* enables lost-partition discovery */
     FsFamily fs_hint = FsFamily::Unknown; /* auto-probed when Unknown */
-    StageWeights weights;
-    u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
+    u32 threads = 0;                      /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
 
     /* M-118 (diff-to-fix): the register channel's remembered volume
      * placements (Explorer MountPoints2\\CPC\\Volume history, sector
@@ -610,15 +636,24 @@ struct StageTelemetry {
 };
 
 struct ScanTelemetrySnapshot {
-    u32 overall_permille = 0; /* weighted, monotonic */
+    u32 overall_permille = 0; /* F-B: byte-plan derived (X over the sweep
+                                 plan), monotonic; the ACTIVE stage's own
+                                 permille in the degenerate no-sweep configs */
     StageTelemetry quick, deep, carve;
     u64 files_found = 0;
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
-    u64 bytes_scanned = 0;        /* the LIVE reading position of the ACTIVE
-                                     byte-denominated stage (P-DEEP-01: deep counts
-                                     now; carve keeps the D4a base+done form) */
+    u64 bytes_scanned = 0;        /* F-C: the ONE cumulative byte-sweep axis
+                                      (X) - the sum of every completed sweep's
+                                      final position plus the active sweep's
+                                      live position. Can EXCEED the device
+                                      size on multi-sweep scans: the og's own
+                                      ticker capture reads "Reading sector:
+                                      134316032/31413598" (X 4.27x Y) - the
+                                      sweeps re-cover the target, the ticker
+                                      accumulates. Percent axes divide X by
+                                      the PLAN, never by this field. */
     u64 bytes_found = 0;          /* D4b: live found-data size (tree live_logical) */
     u64 current_offset_bytes = 0; /* P-TICK-01 (BF-29): the byte offset the
                                       active sweep is reading right now — the
@@ -643,10 +678,13 @@ struct ScanTelemetrySnapshot {
      * REFERENCE-SCAN §5, strings @0001d7d6/@00007825). phase: 0 = quick,
      * 1 = advanced (deep+carve as one phase — the og's m_iScanType 2).
      * phase_permille: the ACTIVE PHASE's own 0..1000 — quick's permille
-     * while quick runs; the deep+carve weighted combination over the
-     * ACTIVE sub-stages only (re-normalized: a quick|deep scan's advanced
-     * phase is the deep stage alone; the default 35/25 pair when both
-     * run). Computed beside overall_permille in tel_counts_. */
+     * while quick runs; after the boundary, F-B's byte-plan form: the
+     * cumulative sweep position SINCE the advanced-phase start over the
+     * same byte plan (quick owns no byte sweep, so the advanced base is
+     * ~0 on standard runs; the explicit latch keeps quick-disabled and
+     * resume legs honest). Degenerate no-sweep configs fall back to the
+     * active stage's own permille. Computed beside overall_permille in
+     * tel_recompute_locked_. */
     u32 phase = 0;
     u32 phase_permille = 0;
     /* M13 (W5, BF-29's file half): the current item's full path - the
@@ -658,19 +696,15 @@ struct ScanTelemetrySnapshot {
     std::string current_path;
 };
 
-/* Monotonic weighted progress: per-stage permille -> overall 0..1000. */
-u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carve_pm);
-
-/* D-P6: the reference's per-phase progress (pure, tested like
- * weighted_progress). Returns the active phase (0 quick, 1 advanced) and
- * its own 0..1000: quick's permille while quick runs (and is configured);
- * once quick completes (or is disabled) the advanced phase = deep+carve
- * weighted over the ACTIVE sub-stages only (re-normalized — unlike
- * weighted_progress, a disabled stage contributes neither weight nor
- * permille). quick_pm/deep_pm/carve_pm are clamped 0..1000 internally. */
-std::pair<u32, u32> phase_progress(const StageWeights& w, bool run_quick, bool run_deep,
-                                   bool run_carve, bool quick_completed, u32 quick_pm, u32 deep_pm,
-                                   u32 carve_pm);
+/* F-B: the byte-plan percent forms (pure, tested). overall_from_plan:
+ * the cumulative sweep position X over the byte plan, 0..1000, clamped
+ * at 1000 (multi-sweep X can pass the plan only via unplanned work —
+ * the completion stamp is the certificate); fallback_pm when plan == 0
+ * (no byte sweep configured — the active stage's own permille is the
+ * honest bar). advanced_from_plan: the D-P6 restarting advanced gauge,
+ * X since the advanced-phase base over the same plan, same fallback. */
+u32 overall_from_plan(u64 sweep_x, u64 plan_bytes, u32 fallback_pm);
+u32 advanced_from_plan(u64 sweep_x, u64 plan_bytes, u64 advanced_base_x, u32 fallback_pm);
 
 /* stage_done_mask bit assignments (SessionState + VolumeInfo.flags share
  * these; G-07 resume consumes them). */
@@ -840,6 +874,23 @@ private:
         std::chrono::steady_clock::time_point stage_t0{};
         u64 stage_pause_base = 0; /* run-wide paused_ms() at stage start */
         u64 eta_prev_rate = 0;    /* M-126: the EMA state between snapshots */
+        /* F-B/F-C: the cumulative byte-sweep axis (X) and its plan.
+         * sweep_pos: the ACTIVE sweep's own monotonic position (each byte
+         * sub-pass — carve / NTFS remnant / lost discovery — publishes its
+         * own cursor; tel_sweep_begin_ brackets every sub-pass explicitly,
+         * never inferred from reset-shaped publishes, so a parallel
+         * worker's out-of-order sample can never be mistaken for a new
+         * sweep). sweep_flushed: the sum of every COMPLETED sweep's final
+         * position. plan_bytes: sweeps x target size — the percent
+         * denominator, computed once at run start (post-probe, when the
+         * fs_hint the remnant gate will see is settled). adv_base_x /
+         * adv_latched: X latched at the first non-quick stage begin — the
+         * D-P6 restarting advanced gauge's zero point. */
+        u64 sweep_pos = 0;
+        u64 sweep_flushed = 0;
+        u64 plan_bytes = 0;
+        u64 adv_base_x = 0;
+        bool adv_latched = false;
     };
     /* Engine->stage progress bridge context (raw fn-pointer trampoline). */
     struct StageBridge {
@@ -859,6 +910,14 @@ private:
     void tel_stage_begin_(u32 stage, const CancelToken* cancel);
     void tel_stage_end_(u32 stage, const CancelToken* cancel);
     void tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units, const CancelToken* cancel);
+    /* F-C: bracket a byte sweep (carve / remnant / discovery). Flushes the
+     * previous sweep's final position into the flushed base so the active
+     * slot always tracks the CURRENT sweep's own position; the snapshot's
+     * bytes_scanned = flushed + pos is the ONE cumulative axis. */
+    void tel_sweep_begin_();
+    /* F-B: recompute overall + phase under tel_.m (called from every
+     * tel_* mutation point; byte-plan derived, monotonic clamped). */
+    void tel_recompute_locked_(u32 active_stage);
     void tel_counts_(ScanStats& stats, const CancelToken* cancel);
     void tel_counts_(const ScanStats& stats, const CancelToken* cancel);
     /* N-166: live-refresh the files/carved counters from the tree's
@@ -897,11 +956,16 @@ private:
     }
     mutable std::atomic<u32> evt_last_overall_{0xFFFFFFFFu};
     mutable std::atomic<u32> evt_last_errors_{0};
-    /* D4a: the bytes-axis coalescing state — a progress event also fires
-     * when the live scanned-bytes moved this much since the last sample
-     * (multi-TB carves spend minutes inside one permille step). */
-    mutable std::atomic<u64> evt_last_bytes_{0};
-    static constexpr u64 kProgressBytesStep_ = 16ull << 20;
+    /* F-C: the time-floor coalescing state — a progress sample fires when
+     * the overall permille (or the active stage's own permille, so
+     * record-denominated phases like quick keep the event channel alive)
+     * advances AND >= 200 ms passed since the last sample (<= ~5/s plus
+     * stage flips: time-throttled like the og's polling grid, never a
+     * per-window firehose; the byte-step trigger it replaced fired up to
+     * once per 16 MiB on multi-TB carves). */
+    mutable std::atomic<u32> evt_last_stage_pm_{0};
+    mutable std::atomic<i64> evt_last_ms_{0};
+    static constexpr i64 kProgressMillisStep_ = 200;
     /* the live sink (constructed from cfg_; overridable pre-run so the
      * resumed flow - whose controller is built inside resume() - can
      * subscribe after the handle exists) */
@@ -930,12 +994,6 @@ private:
     mutable std::atomic<u32> tel_stage_ = 0; /* current stage for worker-side publishes */
     mutable std::atomic<bool> tel_running_ = false;
     std::atomic<RetryingDevice*> tel_retry_ = nullptr;
-    /* D4a: stats.bytes_scanned latched when the carve stage begins — the
-     * live publish path stamps snap.bytes_scanned = base + carve done so
-     * "Reading sector: X/Y" moves DURING the carve (the pre-fix snapshot
-     * only stamped at stage boundaries, freezing the counter for the whole
-     * sector sweep). Set under tel_.m by run_carve_stage before the sweep. */
-    u64 carve_bytes_base_ = 0;
     /* the caller's token, for live paused()/paused_ms() refresh in
      * telemetry() while run() executes (cleared under tel_.m at teardown) */
     std::atomic<const CancelToken*> tel_cancel_ = nullptr;

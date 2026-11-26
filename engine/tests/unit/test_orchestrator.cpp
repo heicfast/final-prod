@@ -470,6 +470,34 @@ TEST(Orchestrator, WholeDiskNoDoubleScan) {
             << "no anonymous candidate root for table volumes: " << n;
 }
 
+TEST(Orchestrator, CumulativeSweepAxisExceedsTheDeviceOnMultiSweepScans) {
+    /* F-B/F-C (sector-scan rebuild): the og's own captured ticker shape —
+     * "Reading sector: 134316032/31413598" (X 4.27x Y, REFERENCE-SCAN
+     * section 4.1): multiple sweeps re-cover the target and the
+     * cumulative X accumulates past the device size while the PERCENT
+     * stays plan-derived (never >100%). A whole-disk quick+deep+carve
+     * scan runs TWO byte sweeps (the carve window sweep + lost
+     * discovery's whole-disk walk): the plan is exactly 2x the disk, X
+     * ends at 2x the disk, the overall completes at 1000 — and the
+     * quick|deep metadata work contributes NOTHING to the bar (the old
+     * weighted form opened this exact scan at 75.0%). */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    const u64 disk = u64(img.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg; /* quick+deep+carve, whole disk */
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    const auto t = ctrl.telemetry();
+    EXPECT_EQ(1000u, t.overall_permille) << "X reaches the plan at completion";
+    EXPECT_EQ(disk * 2, t.bytes_scanned)
+        << "the cumulative axis: the carve sweep + the discovery sweep";
+    EXPECT_GT(t.bytes_scanned, disk) << "X past the device size — the og's own ticker shape";
+}
+
 TEST(Orchestrator, WholeDiskVolumeRootsCarryDisplayNames) {
     /* M-104: the per-volume roots carry the volumes' on-disk labels
      * (VOLONE/VOLTWO from the boot sectors), not anonymous LBA strings;
@@ -1151,14 +1179,61 @@ TEST(Orchestrator, MemoryMonitorEmitsUnderPressure) {
     EXPECT_EQ(rec3.lines.size(), 0u);
 }
 
-TEST(Orchestrator, WeightedProgress) {
-    StageWeights w{40, 35, 25};
-    EXPECT_EQ(weighted_progress(w, 0, 0, 0), 0u);
-    EXPECT_EQ(weighted_progress(w, 1000, 0, 0), 400u);
-    EXPECT_EQ(weighted_progress(w, 1000, 1000, 0), 750u);
-    EXPECT_EQ(weighted_progress(w, 1000, 1000, 1000), 1000u);
-    EXPECT_EQ(weighted_progress(w, 500, 500, 500), 500u);
-    EXPECT_EQ(weighted_progress(w, 2000, 0, 0), 400u); /* clamped */
+/* ---- F-B (sector-scan rebuild): the byte-plan progress model ------------
+ * The reference documents NO per-phase percent weights (REFERENCE-SCAN
+ * section 4.1, parity row 6) — the sector-linear sweep is the only
+ * evidenced form. The legacy StageWeights {40, 35, 25} was product lineage
+ * (BF-22): quick+deep are metadata passes finishing in seconds, so the
+ * old bar opened at exactly 75.0% then crawled (run 42255492260). The
+ * model now: a byte PLAN (one target-span per configured byte sweep) is
+ * the denominator, the cumulative sweep position X the numerator. */
+TEST(Orchestrator, ScanBytePlanCountsEveryConfiguredSweep) {
+    const u64 GB = 1000ull * 1000 * 1000;
+    /* quick+deep+carve on an NTFS partition: carve + remnant = 2 spans */
+    EXPECT_EQ(scan_byte_plan(true, true, false, FsFamily::Ntfs, 64 * GB), 128 * GB);
+    /* FAT/exFAT has no remnant sweep: carve alone */
+    EXPECT_EQ(scan_byte_plan(true, true, false, FsFamily::Fat, 8 * GB), 8 * GB);
+    EXPECT_EQ(scan_byte_plan(true, true, false, FsFamily::Exfat, 8 * GB), 8 * GB);
+    /* whole-disk: carve + discovery (the disk-level probe is not NTFS) */
+    EXPECT_EQ(scan_byte_plan(true, true, true, FsFamily::Unknown, 64 * GB), 128 * GB);
+    /* carve-only: one span */
+    EXPECT_EQ(scan_byte_plan(true, false, false, FsFamily::Ntfs, 64 * GB), 64 * GB);
+    /* record-only configs own NO byte sweep — the honest degenerate bar is
+     * the active stage's own permille (the overall_from_plan fallback) */
+    EXPECT_EQ(scan_byte_plan(false, true, false, FsFamily::Fat, 8 * GB), 0u);
+    EXPECT_EQ(scan_byte_plan(false, false, false, FsFamily::Ntfs, 8 * GB), 0u);
+}
+
+TEST(Orchestrator, OverallFromPlanIsByteDerived) {
+    EXPECT_EQ(overall_from_plan(0, 1000, 0), 0u);
+    EXPECT_EQ(overall_from_plan(250, 1000, 999), 250u);
+    EXPECT_EQ(overall_from_plan(1000, 1000, 0), 1000u);
+    /* X past the plan (unplanned work): clamped, never >100% */
+    EXPECT_EQ(overall_from_plan(4000, 1000, 0), 1000u);
+    /* the degenerate fallback: the active stage's own permille, clamped */
+    EXPECT_EQ(overall_from_plan(0, 0, 0), 0u);
+    EXPECT_EQ(overall_from_plan(0, 0, 400), 400u);
+    EXPECT_EQ(overall_from_plan(0, 0, 1000), 1000u);
+    /* the old 75.0% opening shape, killed at the model: quick+deep DONE
+     * (all metadata records walked) contributes NOTHING to X — the bar
+     * stays at 0 permille until the carve sweep actually reads. The old
+     * weighted form returned 750 for exactly this state. */
+    const u64 big = 64ull * 1000 * 1000 * 1000;
+    EXPECT_EQ(overall_from_plan(0, big, 0), 0u);
+    EXPECT_EQ(overall_from_plan(big, big, 0), 1000u);
+}
+
+TEST(Orchestrator, AdvancedFromPlanRestartsAtThePhaseBoundary) {
+    /* D-P6 on the byte plan: the advanced gauge restarts at 0 at the
+     * boundary (advanced_base_x latched at the first non-quick stage
+     * begin) and completes at the plan's end. */
+    EXPECT_EQ(advanced_from_plan(0, 1000, 0, 0), 0u);
+    EXPECT_EQ(advanced_from_plan(300, 1000, 100, 0), 200u);
+    EXPECT_EQ(advanced_from_plan(1100, 1000, 100, 0), 1000u);
+    /* quick-disabled leg: the base latches at X=0 — advanced from the start */
+    EXPECT_EQ(advanced_from_plan(500, 1000, 0, 0), 500u);
+    /* the same degenerate fallback as overall */
+    EXPECT_EQ(advanced_from_plan(0, 0, 0, 250), 250u);
 }
 
 TEST(Orchestrator, ProbeFamily) {
@@ -3111,7 +3186,14 @@ TEST(Orchestrator, TelemetryCountersMoveDuringCarveStage) {
             r->rows.push_back({e.type, e.stage, e.files_found, e.carved_found});
         }
     } rec;
+    /* F-C: the 200 ms progress-coalescing floor needs a carve that spans
+     * multiple throttle windows — a fast fixture coalesces its whole
+     * carve into the first event (the floor's designed shape; the real
+     * Windows lanes' multi-second sweeps clear it naturally). The image
+     * grows +8 MiB of carve slack and the device SLEEPS per read so the
+     * serial carve crosses several 200 ms windows deterministically. */
     auto img = build_fat16();
+    img.resize(img.size() + u64(8) * 1024 * 1024, 0);
     /* ten JPEGs spread across the data area so the carve crosses several
      * scan windows (each window boundary ticks the progress bridge) */
     const auto plant_jpeg_at = [&](u64 byte_off) {
@@ -3157,12 +3239,25 @@ TEST(Orchestrator, TelemetryCountersMoveDuringCarveStage) {
     for (int i = 0; i < 10; ++i)
         plant_jpeg_at(u64(150) * 512 + u64(i) * 200 * 512);
 
-    MemDevice dev(std::move(img));
+    /* the sleeping wrapper: every read costs 30 ms, so the serial carve's
+     * ~10 windows span ~1s - at least two 200 ms coalescing windows fire
+     * mid-carve (the sleeps ride the engine's own scan thread) */
+    struct SlowDevice final : IStorageDevice {
+        explicit SlowDevice(std::vector<u8> b) : inner_(std::move(b)) {}
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            return inner_.read_at(off, buf, len);
+        }
+        const Geometry& geometry() const override { return inner_.geometry(); }
+        MemDevice inner_;
+    };
+    SlowDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
     cfg.run_deep = false;
     cfg.run_carve = true;
+    cfg.threads = 1; /* the serial carve path: deterministic window pacing */
     cfg.event_fn = &CountRecorder::on_evt;
     cfg.event_user = &rec;
     ScanController ctrl(tree, cfg);
@@ -3513,41 +3608,12 @@ TEST(ScanEvents, DeepFirstWhenQuickDisabledForTheCarveDedup) {
 
 /* D-P6: the reference's per-phase progress (the restarting gauge,
  * REFERENCE-SCAN section 5). Quick shows its own 0-100%, then the
- * advanced phase RESTARTS at 0 over deep+carve. */
-TEST(OrchestratorPhase, QuickPhaseIsQuicksOwnPermille) {
-    const StageWeights w{};
-    EXPECT_EQ((phase_progress(w, true, true, true, false, 0, 0, 0)), (std::pair<u32, u32>(0u, 0u)));
-    EXPECT_EQ((phase_progress(w, true, true, true, false, 500, 999, 999)),
-              (std::pair<u32, u32>(0u, 500u)));
-    EXPECT_EQ((phase_progress(w, true, true, true, false, 1000, 0, 0)),
-              (std::pair<u32, u32>(0u, 1000u)));
-}
-
-TEST(OrchestratorPhase, AdvancedRestartsAtZeroWhenQuickCompletes) {
-    const StageWeights w{};
-    /* quick completed, deep just began: the gauge RESTARTS (0, not 40%+) */
-    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 0, 0)),
-              (std::pair<u32, u32>(1u, 0u)));
-    /* both advanced sub-stages half-done: 500 (weights 35/25) */
-    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 500, 500)),
-              (std::pair<u32, u32>(1u, 500u)));
-    EXPECT_EQ((phase_progress(w, true, true, true, true, 1000, 1000, 1000)),
-              (std::pair<u32, u32>(1u, 1000u)));
-}
-
-TEST(OrchestratorPhase, DisabledStagesRenormalizeNotStall) {
-    const StageWeights w{};
-    /* quick|deep only (the it-gate's config): advanced = deep alone -
-     * deep done REACHES 1000 (overall would cap at 750) */
-    EXPECT_EQ((phase_progress(w, true, true, false, true, 1000, 1000, 0)),
-              (std::pair<u32, u32>(1u, 1000u)));
-    EXPECT_EQ((phase_progress(w, true, true, false, true, 1000, 400, 0)),
-              (std::pair<u32, u32>(1u, 400u)));
-    /* quick disabled entirely: advanced from the start (deep-only config,
-     * so deep's 250 IS the advanced permille) */
-    EXPECT_EQ((phase_progress(w, false, true, false, false, 0, 250, 0)),
-              (std::pair<u32, u32>(1u, 250u)));
-    /* nothing active: honest zero */
-    EXPECT_EQ((phase_progress(w, true, false, false, true, 1000, 0, 0)),
-              (std::pair<u32, u32>(1u, 0u)));
-}
+ * advanced phase RESTARTS at 0. The old pure phase_progress() form and
+ * its three tests were retired with F-B (sector-scan rebuild): the
+ * advanced gauge is now byte-plan derived — advanced_from_plan(X, plan,
+ * advanced_base, fallback) — pinned above (AdvancedFromPlanRestartsAtThe
+ * PhaseBoundary) and through the live controller in test_pause_resume
+ * (PhaseModelCompletes...) and test_telemetry (the phase-axis pins). The
+ * "disabled stages renormalize" concern is gone with the weights: the
+ * plan counts only the CONFIGURED sweeps (ScanBytePlanCounts...), so a
+ * quick|deep scan's plan is honest without any renormalization. */

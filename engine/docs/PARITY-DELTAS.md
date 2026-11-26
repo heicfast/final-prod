@@ -3795,9 +3795,10 @@ spec-max cluster's exact u64 address, the wrapped form explicitly NOT equal).
 ## X. The S42 fix lane (2026-10-29) — the progress display layer (M-125)
 
 ### D-127 — the engine's linear permille vs the og's display remap (progress
-semantics, M-125):** the core's engine telemetry reports a TRUTHFUL linear
-weighted permille over the stage weights (cr_scan's `weighted_progress`,
-40/35/25 — the engine never lies in its telemetry), where the og's DRWUI
+semantics, M-125):** the core's engine telemetry reports a TRUTHFUL byte-plan
+permille (cr_scan's `overall_from_plan` since F-B — the cumulative sweep
+position over the sweeps x target-size plan; the engine never lies in its
+telemetry), where the og's DRWUI
 renders a piecewise-remapped display percent (FUN_1401af820: raw<11 → ×2;
 11..30 → (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 →
 identity; the defensive 99.99 stall cap — dead for raw in [0,100], ported as

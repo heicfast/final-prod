@@ -172,18 +172,18 @@ TEST(ProgressDisplay, MonotonicPublishGuard) {
     EXPECT_NEAR(query::progress_display_publish(99.0, 100.0), 100.0, 1e-9);
 }
 
-TEST(ProgressDisplay, CorePermilleStaysLinear) {
-    /* M-125: the engine's own telemetry stays the TRUTHFUL linear
-     * weighted permille (cr_scan's weighted_progress, 40/35/25) - the
-     * remap is the og's DISPLAY layer, a query-side helper; the
-     * engine never lies in its telemetry (the deliberate divergence
-     * registered in PARITY-DELTAS). */
-    const orchestrator::StageWeights w{40, 35, 25};
-    EXPECT_EQ(orchestrator::weighted_progress(w, 0, 0, 0), 0u);
-    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 0, 0), 400u);
-    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 1000, 0), 750u);
-    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 1000, 1000), 1000u);
-    EXPECT_EQ(orchestrator::weighted_progress(w, 500, 500, 500), 500u);
+TEST(ProgressDisplay, CorePermilleStaysBytePlanLinear) {
+    /* M-125 + F-B (sector-scan rebuild): the engine's own telemetry stays
+     * the TRUTHFUL byte-plan permille (cr_scan's overall_from_plan since
+     * the weights were retired - the remap is the og's DISPLAY layer, a
+     * query-side helper; the engine never lies in its telemetry (the
+     * deliberate divergence registered in PARITY-DELTAS). */
+    EXPECT_EQ(orchestrator::overall_from_plan(0, 1000, 0), 0u);
+    EXPECT_EQ(orchestrator::overall_from_plan(250, 1000, 0), 250u);
+    EXPECT_EQ(orchestrator::overall_from_plan(500, 1000, 0), 500u);
+    EXPECT_EQ(orchestrator::overall_from_plan(1000, 1000, 0), 1000u);
+    /* linear in the sweep position: no weighted stage compression */
+    EXPECT_EQ(orchestrator::overall_from_plan(750, 1000, 0), 750u);
 }
 
 /* ===================================================================== */

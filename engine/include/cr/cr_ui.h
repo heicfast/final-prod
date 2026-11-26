@@ -119,7 +119,8 @@ CR_UI_API void cr_ui_string_free(char* s);
  * events and its scan-abort event). */
 
 /* stage: 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none/unknown.
- * stage_permille: 0..1000 within the stage. overall_permille: weighted
+ * stage_permille: 0..1000 within the stage. overall_permille: F-B
+ * byte-plan derived (cumulative sweep position over the sweep plan),
  * 0..1000 monotonic. bytes_* only meaningful where a stage counts bytes
  * (carve); error_ranges = live read-failure range count so far. */
 typedef void (*cr_ui_progress_fn)(void* user, uint32_t stage, uint32_t stage_permille,
@@ -523,11 +524,16 @@ typedef struct cr_ui_repair_plan {
 typedef uint32_t (*cr_ui_repair_consent_fn)(void* user, const cr_ui_repair_plan* plan);
 
 typedef struct cr_ui_scan_config {
-    uint32_t stage_mask;   /* 0 = default (quick|deep|carve = 7); else bits
-                            * 1 quick, 2 deep, 4 carve */
-    uint32_t whole_disk;   /* 1 = lost-partition discovery (needs a disk view) */
-    uint32_t fs_hint;      /* 0 = auto-probe */
-    uint32_t quick_weight; /* 0 = defaults 40/35/25 (percent-of-total) */
+    uint32_t stage_mask; /* 0 = default (quick|deep|carve = 7); else bits
+                          * 1 quick, 2 deep, 4 carve */
+    uint32_t whole_disk; /* 1 = lost-partition discovery (needs a disk view) */
+    uint32_t fs_hint;    /* 0 = auto-probe */
+    /* Legacy per-stage weights — IGNORED since F-B (sector-scan rebuild):
+     * the engine's percent is byte-plan derived (cumulative sweep position
+     * over sweeps x target size; the reference documents no phase weights —
+     * REFERENCE-SCAN section 4.1). Fields kept for ABI compatibility
+     * (append-only W1c); zero them. */
+    uint32_t quick_weight;
     uint32_t deep_weight;
     uint32_t carve_weight;
     uint32_t threads;              /* 0 = auto */

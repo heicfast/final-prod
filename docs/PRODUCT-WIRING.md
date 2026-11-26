@@ -43,8 +43,10 @@ The bridge holds registries (`ui/src-tauri/src/bridge/state.rs:411-424`) of live
 marshals engine events from worker threads through a bounded channel to one emitter thread per
 handle (`ui/src-tauri/src/bridge/events.rs:196-322`), and serves results by re-snapshotting the
 engine's in-memory result tree (`cr_ui_scan_snapshot`) into a bridge-side metadata cache that the
-bridge itself filters (`ui/src-tauri/src/commands/results.rs:1-20`, gap G-7). Scans always run
-quick→deep→carve with weights 40/35/25 (`engine/include/cr/orchestrator/cr_scan.h:71-75`).
+bridge itself filters (`ui/src-tauri/src/commands/results.rs:1-20`, gap G-7). Scans run the
+configured stages with byte-plan derived progress (F-B: the cumulative sweep position over
+sweeps x target size — the legacy 40/35/25 weights are retired; the reference documents no
+phase weights).
 
 ---
 
@@ -155,8 +157,8 @@ quick→deep→carve with weights 40/35/25 (`engine/include/cr/orchestrator/cr_s
      `cr_ui.cpp:1152-1183`).
    - **config is zero-initialized** except `whole_disk`, `pre_scan_repair=1`,
      `pre_scan_check=1`, consent callback (`scan.rs:184-194`): `stage_mask=0` ⇒ engine
-     default **quick|deep|carve** (`engine/src/ui/cr_ui.cpp:1036-1040`), weights 0 ⇒
-     **40/35/25** (`engine/include/cr/orchestrator/cr_scan.h:71-75`), threads 0 ⇒ auto.
+     default **quick|deep|carve** (`engine/src/ui/cr_ui.cpp:1036-1040`), the legacy weight
+     fields 0 ⇒ ignored (F-B: progress is byte-plan derived), threads 0 ⇒ auto.
    - event sink subscribed BEFORE run (`scan.rs:201-215`, bounded channel 512).
 3. **Run thread** — `cr_ui_scan_run` executes synchronously on a dedicated thread
    (`scan.rs:300`); engine `scan_run_impl` (`cr_ui.cpp:1729-1815`) starts the 5 s heartbeat
@@ -272,16 +274,18 @@ at every open (`cr_transport.cpp:376-394`, `cr_ui.cpp:1158-1183`).
   `deep-walk|carve → advanced`, else `organizing`.
 - **Labels** (`ui/src/i18n/en.ts:154-158`): "Quick Scanning {{percent}}" / "Advanced Scanning
   {{percent}}" rendered at `scan-progress-page.tsx:176-184`; "Files Found: N (size)"
-  (`scan-progress-page.tsx:185-190`); "Reading sector: X/Y" where X/Y = `bytesScanned/512` and
-  `bytesTotal/512` — **hard-coded 512 division regardless of real sector size**
-  (`scan-progress-page.tsx:128-129`); "Searching: <path>" ticker is **never shown** because
-  `currentPath` is always null (`events.rs:145-147`, G-2).
-- **The ~40% point is the quick→deep boundary by construction**: overall =
-  `weighted_progress(40/35/25)` over stage permilles (`engine/include/cr/orchestrator/cr_scan.h:71-75`,
-  `cr_scan.cpp:355-390`). Quick completing ⇒ overall = 40.0%. The label flips from "Quick" to
-  "Advanced" at that moment (stage event deep-walk). There is no user-facing "quick scan then
-  advanced" button — the scan ALWAYS runs all three stages (bridge zero-init `scan.rs:184`,
-  engine default mask 7 `cr_ui.cpp:1036`).
+  (`scan-progress-page.tsx:185-190`); "Reading sector: X/Y" where X/Y = `bytesScanned` /
+  `bytesTotal` over the TARGET's sector size — never a hard-coded 512
+  (`scan-progress-page.tsx:143-145`); the "Searching: <path>" ticker renders the
+  engine's real sampled `currentPath` (M13/W5 — null only before the first attach).
+- **The ~40% opening plateau is GONE (F-B)**: the old overall =
+  `weighted_progress(40/35/25)` handed quick+deep 75% of the bar for seconds of
+  metadata work (the UI opened at exactly 75.0% then crawled — run 42255492260:
+  75.0→76.1% over 891 s). Since F-B the percent is byte-plan derived (the cumulative
+  sweep position over sweeps x target size); metadata passes own no percent, and the
+  Quick→Advanced label flip rides the D-P6 phase axes, not a percent boundary. There is
+  no user-facing "quick scan then advanced" button — the scan ALWAYS runs all three
+  stages (bridge zero-init `scan.rs:184`, engine default mask 7 `cr_ui.cpp:1036`).
 - **Where sector counts come from**: `bytesScanned` = engine telemetry `bytes_scanned`
   (carve-true bytes; filled at every progress emit `events.rs:278-283`), `bytesTotal` = the
   opened view's geometry total (`scan.rs:172-174,230`).

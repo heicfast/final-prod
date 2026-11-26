@@ -92,7 +92,7 @@ const char* type_display_category_name(TypeDisplayCategory c);
  * piecewise remap and a defensive stall cap. These helpers land that
  * display math as an OPTIONAL query-layer surface so hosts can render
  * og-faithful UX; the engine's own telemetry stays the TRUTHFUL
- * linear weighted permille (cr_scan's weighted_progress - the
+ * byte-plan permille (cr_scan's overall_from_plan since F-B — the
  * deliberate engine-side truth registered in PARITY-DELTAS; the remap
  * is the og's display layer, D-118). */
 

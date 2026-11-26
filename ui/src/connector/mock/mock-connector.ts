@@ -164,14 +164,16 @@ function previewKindOf(node: {
  * §3/§7): volume probe -> quick pass (FS metadata) -> advanced pass (full
  * searchers + RAW carving) -> organize. The quick pass is a short prefix
  * (~21 s on the reference's runner volume); advanced dominates the run.
+ *
+ * F-B (sector-scan rebuild): the engine's percent is BYTE-PLAN derived —
+ * the cumulative sweep position X over sweeps x target size — so the mock
+ * simulates the byte-denominated stages ('deep-walk', 'carve') as sweeps,
+ * each walking the target's full span (its stageProgress IS the sweep
+ * cursor); record/metadata stages contribute NOTHING to X. The old
+ * per-stage weight table is retired with the engine's own retirement (the
+ * reference documents no phase weights — REFERENCE-SCAN §4.1).
  */
-const STAGE_WEIGHTS: Partial<Record<ScanStage, number>> = {
-  'volume-analysis': 0.04,
-  'quick-index': 0.14,
-  'deep-walk': 0.42,
-  carve: 0.24,
-  'tree-build': 0.16,
-};
+const BYTE_SWEEP_STAGES: readonly ScanStage[] = ['deep-walk', 'carve'];
 const STAGE_ORDER: readonly ScanStage[] = [
   'volume-analysis',
   'quick-index',
@@ -843,12 +845,16 @@ export class MockConnector {
       const stageOf = (name: ScanStage): StageTelemetry => {
         const idx = rt.stages.indexOf(name);
         const curIdx = rt.stages.indexOf(rt.stage);
+        // F-B: only the byte-denominated stages carry bytesDone (their
+        // sweep position); quick's metadata pass reports 0/0 — the engine's
+        // own honest shape.
+        const sweep = name === 'deep-walk' || name === 'carve';
         if (idx >= 0 && curIdx > idx) {
           return {
             permille: 1000,
             unitsDone: 1,
             unitsTotal: 1,
-            bytesDone: rt.bytesTotal,
+            bytesDone: sweep ? rt.bytesTotal : 0,
             elapsedMs: 0,
             completed: true,
           };
@@ -858,7 +864,7 @@ export class MockConnector {
             permille: Math.round(rt.stageProgress * 1000),
             unitsDone: 1,
             unitsTotal: 1,
-            bytesDone: Math.round(rt.bytesScanned * rt.stageProgress),
+            bytesDone: sweep ? Math.round(rt.stageProgress * rt.bytesTotal) : 0,
             elapsedMs: Math.round(rt.tick * 80),
             completed: false,
           };
@@ -1173,39 +1179,48 @@ export class MockConnector {
       rt.errors += 1;
     }
 
-    // bytes/throughput
-    const byteSpeed = (rt.bytesTotal / totalTicks) * (0.8 + ((rt.tick * 37) % 40) / 100);
-    rt.bytesScanned = Math.min(rt.bytesTotal, rt.bytesScanned + byteSpeed);
+    // bytes/throughput — F-B (sector-scan rebuild): the cumulative
+    // byte-sweep axis (X). Each byte-denominated stage ('deep-walk',
+    // 'carve') walks the target's full span — its stageProgress IS the
+    // sweep cursor; X = every completed sweep's span + the active sweep's
+    // cursor. Can EXCEED bytesTotal on multi-sweep scans (the og's own
+    // ticker shape: "Reading sector: 134316032/31413598" — X 4.27x Y).
+    // Record/metadata stages contribute NOTHING to X — the honest shape
+    // that kills the 75%-opening weighted plateau.
+    const sweeps = BYTE_SWEEP_STAGES.filter((s) => stages.includes(s));
+    const planBytes = sweeps.length * rt.bytesTotal;
+    let x = 0;
+    for (const s of sweeps) {
+      const si = stages.indexOf(s);
+      if (si < curIdx)
+        x += rt.bytesTotal; // a completed sweep: its full span
+      else if (si === curIdx) x += Math.min(1, rt.stageProgress) * rt.bytesTotal; // the active cursor
+    }
+    const byteSpeed = Math.max(0, x - rt.bytesScanned) * (0.8 + ((rt.tick * 37) % 40) / 100);
+    rt.bytesScanned = x;
     rt.throughput = byteSpeed * 8;
     rt.eta = Math.max(1, Math.round(((totalTicks - rt.tick) * 150) / 1000));
 
-    // overall from active stage weights (normalized so omitting 'quick-index' still spans 0..1)
-    const activeWeightTotal = stages.reduce((acc, s) => acc + (STAGE_WEIGHTS[s] ?? 0), 0) || 1;
-    let before = 0;
-    for (let i = 0; i < curIdx; i++) {
-      before += (STAGE_WEIGHTS[stages[i]] ?? 0) / activeWeightTotal;
-    }
-    const curWeight = (STAGE_WEIGHTS[rt.stage] ?? 0) / activeWeightTotal;
-    rt.overall = Math.min(1, before + curWeight * rt.stageProgress);
+    // overall = X over the byte plan (F-B: the engine's overall_from_plan
+    // shape — the per-stage weight compression is retired; the degenerate
+    // no-sweep scan falls back to the sequential stage fraction, the honest
+    // record-only bar)
+    const frac =
+      planBytes > 0
+        ? x / planBytes
+        : Math.min(1, (curIdx + rt.stageProgress) / Math.max(1, stages.length));
+    rt.overall = Math.min(1, frac);
 
     // D-P6: the reference's per-phase gauge — quick's own 0-100%, then the
-    // advanced phase RESTARTS at 0 (deep+carve as one phase, weighted over
-    // the stages actually present in this scan's list).
+    // advanced phase RESTARTS at 0 (F-B: byte-plan derived — the advanced
+    // phase's sweeps over the same plan; quick's metadata stages own no
+    // share, so the advanced base is 0).
     if (rt.stage === 'volume-analysis' || rt.stage === 'quick-index') {
       rt.phase = 'quick';
       rt.phaseProgress = rt.stageProgress;
     } else {
       rt.phase = 'advanced';
-      const dw = stages.includes('deep-walk') ? (STAGE_WEIGHTS['deep-walk'] ?? 0) : 0;
-      const cw = stages.includes('carve') ? (STAGE_WEIGHTS['carve'] ?? 0) : 0;
-      const deepFrac =
-        rt.stage === 'deep-walk'
-          ? rt.stageProgress
-          : stages.indexOf(rt.stage) > stages.indexOf('deep-walk')
-            ? 1
-            : 0;
-      const carveFrac = rt.stage === 'carve' ? rt.stageProgress : 0;
-      rt.phaseProgress = dw + cw > 0 ? (dw * deepFrac + cw * carveFrac) / (dw + cw) : 0;
+      rt.phaseProgress = Math.min(1, planBytes > 0 ? x / planBytes : rt.stageProgress);
     }
 
     if (rt.stageProgress >= 1) {
@@ -1248,7 +1263,9 @@ export class MockConnector {
         rt.status = 'completed';
         rt.completedAt = new Date().toISOString();
         rt.overall = 1;
-        rt.bytesScanned = rt.bytesTotal;
+        // F-B: the terminal X = every sweep's full span (can EXCEED
+        // bytesTotal on multi-sweep scans — the og's own ticker shape)
+        rt.bytesScanned = planBytes;
         rt.eta = 0;
         if (rt.timer) clearInterval(rt.timer);
         rt.timer = null;
@@ -1324,13 +1341,12 @@ export class MockConnector {
           : rt.overall > 0.4,
       deviceConnected: !rt.disconnectFired,
       currentPath: rt.currentPath,
-      // P-TICK-01 parity: the mock simulates the cursor with its own
-      // bytesScanned curve during the byte-denominated stages (the real
-      // connector reads telemetry's current_offset_bytes — same shape,
-      // same null-when-not-sweeping rule).
+      // P-TICK-01 parity: the ACTIVE sweep's own cursor (the engine's
+      // current_offset_bytes — the position within the CURRENT byte
+      // sweep, never the cumulative X; null outside the byte stages).
       currentSector:
         rt.stage === 'deep-walk' || rt.stage === 'carve'
-          ? Math.floor(rt.bytesScanned / (rt.target.sectorSize ?? 512))
+          ? Math.floor((rt.stageProgress * rt.bytesTotal) / (rt.target.sectorSize ?? 512))
           : null,
       currentSectorTotal:
         rt.stage === 'deep-walk' || rt.stage === 'carve'

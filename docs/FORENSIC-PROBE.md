@@ -108,9 +108,13 @@ The Health page (driven through the real UI, screenshots 02-06):
 Source-level break points (all verified against the shipped tree; the scan
 phase capture is the run at 1f45b88c):
 
-1. **40% is the quick→deep stage-weight boundary by construction** —
-   `engine/include/cr/orchestrator/cr_scan.h:71-75` (default weights
-   40/35/25): quick done ⇒ overall = exactly 40%, deep runs 40→75%.
+1. **40% was the quick→deep stage-weight boundary by construction — FIXED
+   by F-B (sector-scan rebuild)** — the 1f45b88c capture's
+   `engine/include/cr/orchestrator/cr_scan.h:71-75` default weights
+   40/35/25 made quick done ⇒ overall = exactly 40%, deep runs 40→75%.
+   The weights are RETIRED: the percent is byte-plan derived (the
+   cumulative sweep position over sweeps x target size), so the metadata
+   passes own no percent and the boundary no longer exists.
 2. **Deep-scan progress stalls by design on large volumes** — progress
    ticks only when a parallel 4 MiB chunk completes
    (`engine/src/core/tree/cr_mftwalk.cpp:2117-2164`); a single-threaded

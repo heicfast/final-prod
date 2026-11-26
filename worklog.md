@@ -4892,3 +4892,44 @@ PASS - the lost-partition path works end to end on a real partition-deleted
 disk; the APPLY probe planner REFUSED (recorded - honest capability state).
 API-lane skip recorded with its design reason in every verdict. e2e-full
 dispatched next (T15).
+## Session 2026-11-26 — sector-scan rebuild (the implementation continuation): F-B + F-C land
+
+The same session prompt as 2026-11-18 (`worklog/session-sector-scan-rebuild-prompt.md`),
+re-verified in-tree before touching anything: T1-T3 were already done (five sheets at
+`d69893ed`, DIAGNOSIS + fix plan F-A..F-G at `c54f2496`), and the later 2026-11-19 lanes
+left all seven fix items open (grep-verified: no row-carrying event in cr_ui.h, the 40/35/25
+`StageWeights` still in cr_scan.h:72-76, the deep sub-pass still unclamped, no manifest gate,
+the bridge re-filter still in results.rs:11-17). Clone: final-prod `126ea398` (main, clean).
+
+**F-B + F-C — the byte-plan progress model (the "jumps to 75% then stalls" bug, DIAGNOSIS
+stages 8+9).** The 40/35/25 `StageWeights`/`weighted_progress`/`phase_progress` are
+RETIRED: the reference corpus documents NO per-phase percent weights (REFERENCE-SCAN
+§4.1, parity row 6 — the sector-linear "Reading sector: X/Y" model is the only evidenced
+form; the og's own captured ticker reads X 4.27x Y). The rebuilt model:
+`scan_byte_plan` (one target-span per configured byte sweep — carve, NTFS remnant,
+whole-disk discovery; record passes own NO share) is the percent's denominator; the
+cumulative sweep axis X (`tel_sweep_begin_` brackets each byte sub-pass explicitly,
+`tel_publish_` max-guards the active cursor onto the flushed base) is the numerator —
+ONE axis replacing the carve clamped-base/deep direct-assign split; X can EXCEED the
+device size on multi-sweep scans (the og's captured shape, pinned by
+`CumulativeSweepAxisExceedsTheDeviceOnMultiSweepScans`: bytes_scanned == 2x disk on a
+whole-disk two-volume MBR scan); `overall_from_plan`/`advanced_from_plan` (pure,
+tested) drive overall + the D-P6 restarting advanced gauge; progress-event coalescing
+moved from the 16 MiB byte-step to a 200 ms time floor (≤5/s + stage flips). The ABI
+weight fields stay (append-only W1c) and are ignored; no ABI layout change (the dump sha
+hashes comment-stripped headers). The mock connector re-simulates the byte-plan model.
+Deliverable: `worklog/SECTOR-SCAN.md` (model, citations, before/after).
+
+Local gates before push: engine ctest **1821/1822** (linux-release, Werror; the one red =
+`FatChain.CycleGuardPerf` — the documented sandbox OOM exclusion, 3.4 GB fixture vs 4 GB
+sandbox, the Windows lane owns it, PRE-EXISTING and unchanged); clang-format 18.1.8 clean;
+tsc/eslint/prettier green; vitest **225/225**; contracts validate.mjs green (57 commands);
+doc_truth_gate green (99 exports, 12/71 seam). cmake itself was absent in this recycled
+sandbox — installed via pip (cmake 4.4.5), noted for the next session.
+
+In flight at push: engine-ci/bridge-integration/contracts-ci/ui-ci/ui-e2e (push-triggered)
++ the dispatch-only `named-feature-fixture` engine-flow lane (the seeded-VHDX closed loop —
+the best Windows exercise of the new progress model on real seeded data); run ids to be
+recorded in this session's entry as they land. Honest scope: the REPRODUCTION capture
+plan's Windows captures (C2 stall-after, C7 per-second series, C8 streaming cadence) still
+ride the runners.

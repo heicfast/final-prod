@@ -1358,12 +1358,14 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
             return ret_(ERR_BAD_PARAMETER, "fs_hint %u is not a valid FsFamily value", in->fs_hint);
         }
     }
-    if (in && in->quick_weight)
-        out.weights.quick = in->quick_weight;
-    if (in && in->deep_weight)
-        out.weights.deep = in->deep_weight;
-    if (in && in->carve_weight)
-        out.weights.carve = in->carve_weight;
+    /* F-B (sector-scan rebuild): the legacy per-stage weights
+     * (quick/deep/carve_weight) are IGNORED — the engine's percent is
+     * byte-plan derived (scan_byte_plan: the cumulative sweep position
+     * over sweeps x target size; the reference corpus documents no phase
+     * weights — REFERENCE-SCAN section 4.1, parity row 6). The ABI
+     * fields stay (append-only W1c discipline; old hosts still send
+     * them), and this mapping is deliberately gone: a host-set weight can
+     * no longer distort the percent. */
     if (in)
         out.threads = in->threads;
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);

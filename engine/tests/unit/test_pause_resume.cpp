@@ -276,14 +276,16 @@ TEST(PauseResume, ScanPauseFreezesAndElapsedExcludesPause) {
     EXPECT_LE(stats.elapsed_ms + tok.paused_ms(), wall + u64(60));
 }
 
-TEST(PauseResume, PhaseModelCompletesAt1000WhereTheGlobalCurveCapsAt750) {
-    /* D-P6: the reference's per-phase gauge, pinned through the live
-     * controller. The og's gauge RESTARTS per phase and completes at 100%;
-     * our single global curve for a quick|deep scan (the it-gate's shape)
-     * caps at exactly 750 permille — the presentation the user reported as
-     * "jumps directly to 75% advanced scanning". The phase axes (quick's
-     * own permille, then the advanced phase re-normalized over its ACTIVE
-     * sub-stages) complete at 1000 for the same run. */
+TEST(PauseResume, PhaseModelCompletesAndQuickDeepOwnNoPercent) {
+    /* D-P6 + F-B (sector-scan rebuild), pinned through the live
+     * controller on the quick|deep shape (carve off, FAT: no byte sweep
+     * at all — the degenerate plan == 0 config). The og's gauge RESTARTS
+     * per phase and completes at 100%. The old weighted form handed
+     * quick+deep 75% of the global bar for seconds of metadata work —
+     * the exact "jumps directly to 75% advanced scanning" presentation;
+     * the byte-plan model gives record-only configs the ACTIVE stage's
+     * own permille as the honest bar, completing at 1000 with the final
+     * stage end. */
     MemDevice dev(build_fat16());
     tree::ResultTree tree;
     ScanConfig cfg;
@@ -304,10 +306,15 @@ TEST(PauseResume, PhaseModelCompletesAt1000WhereTheGlobalCurveCapsAt750) {
     };
     ASSERT_EQ(OK, ctrl.run(&dev, nullptr, probe, &c, stats));
     const auto t = ctrl.telemetry();
-    EXPECT_TRUE(c.saw_quick_phase);      /* phase 0 while quick ran */
-    EXPECT_EQ(1u, t.phase);              /* terminal: the advanced phase */
-    EXPECT_EQ(1000u, t.phase_permille);  /* re-normalized completion */
-    EXPECT_EQ(750u, t.overall_permille); /* the global curve's cap (D-P6) */
+    EXPECT_TRUE(c.saw_quick_phase);     /* phase 0 while quick ran */
+    EXPECT_EQ(1u, t.phase);             /* terminal: the advanced phase */
+    EXPECT_EQ(1000u, t.phase_permille); /* advanced completes at 1000 */
+    /* F-B: the degenerate quick|deep run never opens at a 75% weighted
+     * plateau — the record passes' own permille is the bar, 1000 at the
+     * final stage end (the old form capped at exactly 750). The mid-walk
+     * MOVEMENT of that bar is pinned in test_telemetry's
+     * FatWalkEmitsIncrementalTicks (distinct mid-walk permilles). */
+    EXPECT_EQ(1000u, t.overall_permille);
 }
 
 TEST(PauseResume, SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick) {

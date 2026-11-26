@@ -180,7 +180,7 @@ Severity: P0 (breaks a core flow against evidence) / P1 (wrong behavior or missi
 
 ### F-C-13 — P3 · Axis: ADR-4 wording vs code (ETA) · Verdict: **DELIBERATE-DELTA candidate, doc-code drift**
 
-- ADR-4 (AUDIT-UI.md:83-88): "ETA is shown only where computable (carve, from `bytes_scanned` + throughput)". Code: linear ETA whenever `EngineFraction > 0.02` (ScanProgressViewModel.cs:80-85), `ScanSummary.BytesScanned` parsed but never used for ETA. The engine % is a truthful weighted figure (weights 40/35/25 per `cr_scan.cpp`, confirmed by sibling audit 2-b) and og showed "Remaining time" during the advanced pass (UI-MAP §5:546-548), so the *behavior* is defensible — the ADR text is stale. Fix: update ADR-4 (or gate ETA to the carve stage).
+- ADR-4 (AUDIT-UI.md:83-88): "ETA is shown only where computable (carve, from `bytes_scanned` + throughput)". Code: linear ETA whenever `EngineFraction > 0.02` (ScanProgressViewModel.cs:80-85), `ScanSummary.BytesScanned` parsed but never used for ETA. The engine % is a truthful byte-plan figure (the cumulative sweep position over the sweep plan, `cr_scan.cpp` since F-B) and og showed "Remaining time" during the advanced pass (UI-MAP §5:546-548), so the *behavior* is defensible — the ADR text is stale. Fix: update ADR-4 (or gate ETA to the carve stage).
 
 ### F-C-14 — P3 · Axis: Parser hygiene · Verdict: **MISMATCH (minor)**
 
