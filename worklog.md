@@ -5267,3 +5267,16 @@ reseed ladder now: FS touch first (the trigger), then access-path re-attach,
 then the mountvol cycle + touch, then diskpart rescan + touch, then the
 honest refusal. Every other shard on this run is green so far (refs-a/b,
 fat32-a/b) - the exFAT reseed-after-PARTOVR state is the last blocker.
+
+### E2E-F9 + the exfat-b restructure — 2026-11-26
+
+Run 45896042345: the BPB geometry fix validated (the Int64 overflow is GONE;
+CorruptMft now reaches the lock) but FSCTL_LOCK_VOLUME GLE=5 outlasted the
+internal retries - the runner's real-time scanner holds handles on the
+freshly reseeded 10k-file volume. apply-scenario's mft_corrupt branch now
+settles 30 s and retries the whole CorruptMft call (3 attempts, budget
+guard, notes recorded). The exFAT PARTDEL-after-PARTOVR dismount-limbo is
+FS-specific (FAT32's same shard order PASSES) and survived the full remount
+ladder - the exfat-b shard order now puts PARTDEL FIRST on the healthy
+fresh volume (the recreation reseed is proven to serve the following rows,
+run 45836204263) with PARTOVR last; the matrix comment cites the evidence.

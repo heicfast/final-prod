@@ -327,12 +327,33 @@ elseif ($Mode -eq 'mft_corrupt') {
     Write-VolumeCache -DriveLetter $Letter -ErrorAction SilentlyContinue | Out-Null
     $records = @()
     foreach ($e in $deletable) { if ($null -ne $e.mft_record) { $records += [long]$e.mft_record } }
-    $corrupt = Invoke-MftCorrupt -Letter $Letter -Records $records -AdjacentRecords $AdjacentRecords -AlsoBitmap
+    # E2E-F9 (run 45896042345): the freshly reseeded volume (10k new files)
+    # trips the runner's real-time scanner - FSCTL_LOCK_VOLUME GLE=5 with a
+    # handle still open outlasting LockAndDismount's internal retries. A
+    # bounded second-level settle+retry around the whole CorruptMft call
+    # rides it out; a still-locked volume after it is a real failure.
+    $corrupt = $null
+    $mftAttempts = 0
+    while (-not $corrupt -and $mftAttempts -lt 3) {
+        if ($mftAttempts -gt 0) { Start-Sleep -Seconds 30 }
+        $mftAttempts++
+        try {
+            $corrupt = Invoke-MftCorrupt -Letter $Letter -Records $records -AdjacentRecords $AdjacentRecords -AlsoBitmap
+        } catch {
+            if ($mftAttempts -lt 3 -and ($_.Exception.Message -match 'GLE=5|GLE=32|access is denied|already in use')) {
+                $state.notes += "CorruptMft attempt $mftAttempts hit a lingering open handle ($($_.Exception.Message)) - settling 30 s and retrying"
+            } else {
+                throw
+            }
+        }
+    }
+    if (-not $corrupt) { throw 'CorruptMft did not complete after the retry budget (the volume stayed locked - see the notes)' }
     $state.extra = @{
         ntfs = $corrupt
         records_requested = $records.Count
+        mft_attempts = $mftAttempts
     }
-    $state.notes += "permanent delete -> $($corrupt.records_zeroed.Count) MFT records zeroed (+$AdjacentRecords adjacent each) and the first 4 KiB of the dollar-Bitmap XOR-0xFFed via locked-volume raw IO"
+    $state.notes += "permanent delete -> $($corrupt.records_zeroed.Count) MFT records zeroed (+$AdjacentRecords adjacent each) and the first 4 KiB of the dollar-Bitmap XOR-0xFFed via locked-volume raw IO (attempts: $mftAttempts)"
 }
 else {
     throw "unknown scenario mode: $Mode"

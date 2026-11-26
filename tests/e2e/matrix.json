@@ -733,7 +733,7 @@
       }
     ]
   },
-  "shards_comment": "delete_partition is ALWAYS the last scenario on its disk (the partition removal is volume-destructive; reseed recreates the partition as defense-in-depth, but the deterministic order removes the dependency). The matrix's per-filesystem scenario order ALSO puts delete_partition last (the ALL-mode single-machine path shares the discipline), and shard selection follows the shard's declared order (run 45826003339).",
+  "shards_comment": "delete_partition runs LAST on its disk wherever the post-PARTOVR volume remounts (ntfs, fat32 - proven); the ONE exception is exfat-b: the exFAT dismount-limbo after partial_overwrite's locked-raw-IO blocks the reseed (runs 45878601317/45890019629/45896042345 - FS touch + access-path + mountvol + rescan all recorded failing), so PARTDEL runs FIRST there on the healthy fresh volume and the PROVEN partition-recreation reseed (run 45836204263: the decay rows completed on the recreated exFAT volume) serves the rows that follow; partial_overwrite is last (nothing follows it).",
   "shards": [
     {
       "id": "ntfs-basic",
@@ -791,11 +791,11 @@
         "e2e-exfat"
       ],
       "scenarios": [
+        "S-E2E-EXFAT-PARTDEL",
         "S-E2E-EXFAT-DECAY50",
         "S-E2E-EXFAT-DECAY80",
         "S-E2E-EXFAT-DECAY100",
-        "S-E2E-EXFAT-PARTOVR",
-        "S-E2E-EXFAT-PARTDEL"
+        "S-E2E-EXFAT-PARTOVR"
       ]
     },
     {
