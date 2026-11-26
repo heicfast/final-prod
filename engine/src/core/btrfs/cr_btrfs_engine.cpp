@@ -1180,8 +1180,13 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             populate(root_dirid, sv_root, 0);
         }
         ++stats.subvolumes;
-        if (progress)
-            (void)progress(4, 4, progress_user); /* final tick per subvol */
+        /* SB-E-04: NO (4, 4) tick at per-SUBVOLUME scope — one subvolume of
+         * N completing is not the pass completing; the per-subvol tick
+         * drove the consumer's done>=total -> 1000-permille rule after
+         * subvol #1 and the monotonic clamp held 100% through the
+         * remaining N-1 subvolume walks (the bulk of the scan). The
+         * phase markers (1..4) above and the final tick below are the
+         * honest signals. */
     }
 
     if (progress)

@@ -1394,8 +1394,15 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ++chain_len;
+        /* SB-E-05: self-scaling denominator (done + margin), never a
+         * hard-coded 1024 — the catalog chain length is unknown up front,
+         * and the phantom constant either capped the walk at ~29%
+         * (short chains) or fired done >= total (1000 permille, premature
+         * 100%) at the 1025th node mid-walk. The margin keeps every
+         * mid-walk permille strictly below 1000; the pass-end tick
+         * (progress(1,1) at walk end) owns the true terminal. */
         if (progress && (chain_len & 15) == 0)
-            (void)progress(chain_len, 1024, progress_user);
+            (void)progress(chain_len, chain_len + 16, progress_user);
         std::vector<u8> leaf;
         if (!read_tree_node(v, v.catalog_fork, CNID_CATALOG_FILE, v.catalog_node_size, cur, leaf)) {
             ++stats.bad_nodes;

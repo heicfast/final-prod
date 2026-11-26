@@ -156,10 +156,17 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         if (ctx.cancel && ctx.cancel->checkpoint())
             return;
         /* live progress (G-04): one dentry examined per iteration - honest
-         * cumulative counts; the orchestrator clamps permille monotonic. */
+         * cumulative counts; the orchestrator clamps permille monotonic.
+         * SB-E-01: the denominator carries a +1 margin (done < total ALWAYS
+         * mid-walk) - the quick pass cannot know the true walk size, so the
+         * honest lower bound is "at least one more dentry": a (done, done)
+         * tick here hits the consumer's done>=total -> 1000-permille rule
+         * while directories remain, and the monotonic clamp sticks the
+         * stage at 100% for the rest of the walk (the gauge told the user
+         * the scan was done when it had barely started). */
         ++ctx.dentries_done;
         if (ctx.progress && (ctx.dentries_done & 63) == 0)
-            (void)ctx.progress(ctx.dentries_done, ctx.dentries_done + (count - i - 1),
+            (void)ctx.progress(ctx.dentries_done, ctx.dentries_done + (count - i),
                                ctx.progress_user);
         const u8* raw = buf.data.data() + i * 32;
         const DirEntry* e = reinterpret_cast<const DirEntry*>(raw);
@@ -291,8 +298,12 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
 
         emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin, dir_anchor_cluster);
     }
-    if (ctx.progress && count)
-        (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
+    /* SB-E-01: NO (done, done) tick at per-directory scope — that reports
+     * the WALK as complete at the close of directory #1 while directories
+     * #2..N remain (the consumer's monotonic clamp then holds the stage
+     * permille at 1000 for the whole rest of the walk). The true terminal
+     * tick is the pass end's (1, 1) after the last directory; the
+     * mid-walk ticks above carry the honest live fraction. */
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,

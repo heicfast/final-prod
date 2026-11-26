@@ -999,8 +999,12 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
         }
         ++i; /* unknown dentry type: skip */
     }
-    if (ctx.progress && count)
-        (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
+    /* SB-E-02: NO (done, done) tick at per-directory scope — the walk is
+     * NOT complete at the close of directory #1 while directories remain,
+     * and the consumer's done>=total -> 1000-permille rule plus the
+     * monotonic clamp would stick the stage at 100% for the whole rest of
+     * the walk. The mid-walk ticks (done, done + margin) above carry the
+     * honest live fraction; the pass end owns the true terminal tick. */
 }
 
 /* M-013 (diff-to-fix): the reconstruction oracle - the og's parked-set

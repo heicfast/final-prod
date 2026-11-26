@@ -1251,8 +1251,13 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             return rc;
     }
 
-    if (progress)
-        (void)progress(v.sb.groups, v.sb.groups, progress_user);
+    /* SB-E-03: NO (groups, groups) tick before the deleted-inode sweep —
+     * that reported the pass complete while the sweep (the second half of
+     * the work) had not started, and the consumer's monotonic clamp then
+     * held the stage at 100% for the sweep's whole duration (clamping the
+     * sweep's own honest (ino, sweep) ticks up to the stuck value). The
+     * sweep's ticks below are the live signal; the stage-boundary stamp
+     * owns the true terminal. */
 
     /* 4. inode-table sweep: the deleted population (dtime set) AND the
      * orphan-active population (M-152: dtime==0 && links!=0, unreachable

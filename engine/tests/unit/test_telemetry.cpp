@@ -212,6 +212,68 @@ std::vector<u8> build_fat16_wide(size_t root_files) {
 
 } // namespace
 
+/* SB-E-01 fixture: two SIBLING subdirectories (A then B) in the root.
+ * The quick walk recurses INLINE (DFS), so the FIRST per-directory close
+ * tick (pre-fix: (done, done)) fires when sibling A's chain ends — while
+ * sibling B's whole walk (the bulk of the work) still remains. */
+std::vector<u8> build_fat16_sibling_subdirs(size_t entries_a, size_t entries_b) {
+    std::vector<u8> img = build_fat16_wide(0);
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512;
+    const size_t DATA = 74 * 512; /* the FAT16 fixed root region = 32 sectors */
+    struct Sub {
+        u32 first_cluster;
+        size_t clusters;
+        size_t entries;
+    };
+    const Sub subs[2] = {
+        {6, (entries_a * 32 + 511) / 512, entries_a},
+        {u32(6 + (entries_a * 32 + 511) / 512), (entries_b * 32 + 511) / 512, entries_b},
+    };
+    /* the chains: EOF-terminated, mirrored into FAT2 */
+    for (const Sub& sub : subs) {
+        for (size_t k = 0; k < sub.clusters; ++k) {
+            const u16 next =
+                (k + 1 == sub.clusters) ? 0xFFFF : u16(sub.first_cluster + k + 1);
+            put16(img, FAT1 + (sub.first_cluster + k) * 2, next);
+            put16(img, FAT2 + (sub.first_cluster + k) * 2, next);
+        }
+    }
+    /* the root: [A entry][B entry][0x00] — siblings in walk order */
+    for (size_t r = 0; r < 2; ++r) {
+        const Sub& sub = subs[r];
+        u8* e = img.data() + ROOT + r * 32;
+        std::memset(e, 0, 32);
+        std::memcpy(e, r == 0 ? "SUBA       " : "SUBB       ", 11);
+        e[11] = 0x10; /* ATTR_DIRECTORY */
+        put16(img, ROOT + r * 32 + 26, u16(sub.first_cluster));
+    }
+    img[ROOT + 2 * 32] = 0x00; /* DENTRY_END after the siblings */
+    /* each sub's entries across its chain, 0x00 terminator after the last */
+    for (const Sub& sub : subs) {
+        size_t placed = 0;
+        for (size_t k = 0; k < sub.clusters; ++k) {
+            u8* base = img.data() + DATA + size_t(sub.first_cluster - 2 + k) * 512;
+            for (int slot = 0; slot < 16 && placed < sub.entries; ++slot, ++placed) {
+                u8* d = base + size_t(slot) * 32;
+                std::memset(d, 0, 32);
+                char n11[32]; /* 8.3-safe, 32 to silence -Wformat-truncation */
+                snprintf(n11, sizeof(n11), "D%06zu TXT", placed);
+                for (int c = 0; c < 11; ++c)
+                    d[c] = u8(n11[c]);
+                d[11] = 0x20; /* plain file */
+                const size_t at =
+                    DATA + size_t(sub.first_cluster - 2 + k) * 512 + size_t(slot) * 32;
+                put16(img, at + 26, u16(2)); /* cluster 2 (sized file - M-130) */
+                put32v(img, at + 28, 1);
+            }
+        }
+        const size_t in_last = sub.entries - (sub.clusters - 1) * 16;
+        img[DATA + size_t(sub.first_cluster - 2 + (sub.clusters - 1)) * 512 + in_last * 32] =
+            0x00; /* DENTRY_END */
+    }
+    return img;
+}
+
 TEST(Telemetry, UniformProgressAcrossStagesMonotonic) {
     /* every engine now receives the bridge; the overall permille must be
      * monotonic non-decreasing and reach 1000 on completion. The capture
@@ -292,6 +354,67 @@ TEST(Telemetry, FatWalkEmitsIncrementalTicks) {
          * slot, i.e. after 200 entries) - at least three intermediates */
         EXPECT_GE(distinct, 3u);
         EXPECT_EQ(1000u, prev); /* completes at 1000, never the 750 cap */
+    }
+}
+
+TEST(Telemetry, FatQuickWalkHonestUntilTrueEnd) {
+    /* SB-E-01 regression pin: the pre-fix per-directory close tick
+     * (done, done) fired when the ROOT directory closed — while the
+     * subdirectory's 300 dentries (the rest of the walk's work) still
+     * remained. With covers_both (quick+deep share the structured pass),
+     * the overall permille jumped to the 750 boundary within the first
+     * seconds and STAYED there (the monotonic clamp) while the whole
+     * subdirectory chain-walk ran; every subsequent live tick was clamped
+     * up to 750, so distinct below-boundary values STOPPED appearing
+     * (pre-fix: only the root's own ~3). Post-fix there is no per-directory
+     * terminal tick: the root's AND the subdirectory's ticks all land
+     * strictly below the boundary, and only the true pass end reaches it.
+     */
+    MemDevice dev(build_fat16_sibling_subdirs(200, 300));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+
+    struct Cap {
+        std::mutex m;
+        std::vector<u32> overall;
+    } cap;
+    auto cb = [](u32 overall, void* user) {
+        auto* c = static_cast<Cap*>(user);
+        std::lock_guard<std::mutex> lock(c->m);
+        c->overall.push_back(overall);
+        return true;
+    };
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, cb, &cap, stats));
+    {
+        std::lock_guard<std::mutex> lock(cap.m);
+        ASSERT_FALSE(cap.overall.empty());
+        u32 prev = 0, distinct_below = 0, last_below = 0;
+        for (u32 p : cap.overall) {
+            EXPECT_GE(p, prev); /* monotonic across ticks AND boundaries */
+            EXPECT_LE(p, 1000u);
+            if (p < 750u && p != last_below) { /* distinct live values */
+                ++distinct_below;
+                last_below = p;
+            }
+            prev = p;
+        }
+        /* SB-E-01's discriminator: the 750 boundary (the weighted
+         * quick+deep completion value — "75% of the whole scan") may be
+         * sampled ONLY at the true pass end (the terminal stamps). The
+         * pre-fix walk hit it when sibling A's chain closed and held it
+         * through sibling B's entire walk (observed pre-fix: 10 boundary
+         * samples mid-walk; post-fix: 2, the true-end stamps only). */
+        u32 boundary_samples = 0;
+        for (u32 p : cap.overall)
+            if (p == 750u)
+                ++boundary_samples;
+        EXPECT_LE(boundary_samples, 4u);
+        EXPECT_GT(distinct_below, 0u); /* live values exist below the boundary */
+        EXPECT_EQ(750u, prev); /* the TRUE end still lands exactly at the boundary */
+
     }
 }
 
