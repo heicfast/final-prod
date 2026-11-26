@@ -206,32 +206,37 @@ public static class BenchRaw
         fs.Flush();
     }
 
-    private static long[] NtfsData(SafeFileHandle h)
+    private static long[] NtfsData(string letter)
     {
-        // E2E-F4 (runs 45826003339/45836204263/45878601317): the
-        // GET_NTFS_VOLUME_DATA buffer offsets below were never validated
-        // end-to-end (mft_corrupt never completed in any recorded bench
-        // lane) and produced geometry that overflowed Int64 inside
-        // CorruptMft. Parse the NTFS BOOT SECTOR instead - the same BPB
-        // source GetBootClusterSize reads and the engine's own parser uses:
-        // OEM "NTFS    " at 3, bytes/sector u16 @0x0B, sectors/cluster
-        // u8 @0x0D, total sectors s64 @0x28, $MFT LCN s64 @0x30,
-        // clusters/FRS s64 @0x40 (negative = 2^-value).
-        byte[] b;
-        using (FileStream bfs = new FileStream(h, FileAccess.Read, 512, false))
+        // E2E-F4 (runs 45826003339/45836204263/45878601317/45890019629): the
+        // GET_NTFS_VOLUME_DATA buffer offsets were never validated end-to-end
+        // (mft_corrupt never completed in any recorded bench lane) and produced
+        // geometry that overflowed Int64 inside CorruptMft. Parse the NTFS
+        // BOOT SECTOR instead - the same BPB source GetBootClusterSize reads
+        // and the engine's own parser uses: OEM "NTFS    " at 3, bytes/sector
+        // u16 @0x0B, sectors/cluster u8 @0x0D, total sectors s64 @0x28, $MFT
+        // LCN s64 @0x30, clusters/FRS s64 @0x40 (negative = 2^-value).
+        // Own handle (run 45890019629: wrapping the CALLER's SafeFileHandle in
+        // a FileStream disposed it - 'Cannot access a disposed object'); the
+        // open->lock->read shape mirrors GetBootClusterSize exactly.
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
         {
-            b = ReadRange(bfs, 0, 512);
+            LockAndDismount(h);
+            using (FileStream fs = new FileStream(h, FileAccess.Read, 512, false))
+            {
+                byte[] b = ReadRange(fs, 0, 512);
+                if (Encoding.ASCII.GetString(b, 3, 8) != "NTFS    ")
+                    throw new IOException("boot sector is not NTFS (OEM mismatch)");
+                int bps = BitConverter.ToUInt16(b, 0x0B);
+                int spc = b[0x0D];
+                long totalSectors = BitConverter.ToInt64(b, 0x28);
+                long mftLcn = BitConverter.ToInt64(b, 0x30);
+                long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
+                long bpc = (long)bps * (long)spc;
+                long totalClusters = spc > 0 ? totalSectors / spc : 0;
+                return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
+            }
         }
-        if (Encoding.ASCII.GetString(b, 3, 8) != "NTFS    ")
-            throw new IOException("boot sector is not NTFS (OEM mismatch)");
-        int bps = BitConverter.ToUInt16(b, 0x0B);
-        int spc = b[0x0D];
-        long totalSectors = BitConverter.ToInt64(b, 0x28);
-        long mftLcn = BitConverter.ToInt64(b, 0x30);
-        long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
-        long bpc = (long)bps * (long)spc;
-        long totalClusters = spc > 0 ? totalSectors / spc : 0;
-        return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
     }
 
     private static int MftRecordSize(long clustersPerFRS, long bytesPerCluster)
@@ -469,7 +474,7 @@ public static class BenchRaw
             // Read the geometry BEFORE locking/dismounting (evidence: run
             // 40079065019 mft_corrupt 'CorruptMft ... GET_NTFS_VOLUME_DATA
             // failed GLE=21' - mft_corrupt never ran before F4a unlocked it).
-            long[] nd = NtfsData(h);
+            long[] nd = NtfsData(letter);
             LockAndDismount(h);
             bpc = nd[0];
             recSize = MftRecordSize(nd[1], nd[2]);
@@ -551,7 +556,7 @@ public static class BenchRaw
         using (SafeFileHandle h = OpenVolumeRaw(letter))
         {
             // BENCH-F5: geometry query must precede the dismount (see CorruptMft)
-            long[] nd = NtfsData(h);
+            long[] nd = NtfsData(letter);
             LockAndDismount(h);
             return nd;
         }
