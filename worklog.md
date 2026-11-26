@@ -5131,3 +5131,15 @@ green row - divergence checks passed):
 Floors 0.35/0.85 are removed to observe (BASELINE.md policy: the
 bench-cited floors came from a different geometry; the first green full run
 promotes the evidence-based baseline). e2e-ntfs bumped to 8192 MiB (E2E-4).
+
+### FINDING E2E-5 + the release-validation first flight — 2026-11-26
+
+release-validation 45836309710: the release pull + SHA256SUMS verification +
+silent /S install + shipped-bits assertions ALL GREEN (v0.9.7: install exit
+0, registry Version read, rrecov.exe/cr_ui.dll installed == portable bits).
+The shards then failed with exit -1073741515 (STATUS_DLL_NOT_FOUND) on every
+scan: my staging copied rrecov.exe + cr_ui.dll but not the z/lz4/zstd
+runtime DLLs that ride beside the installed exe. Cancelled; the staging now
+copies every shipped DLL from the portable kit (asserted: z.dll, lz4.dll,
+zstd.dll present) and re-dispatches. The e2e-full lane is unaffected (its
+build.ps1 kit is complete).

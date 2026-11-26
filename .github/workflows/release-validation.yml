@@ -130,11 +130,18 @@ jobs:
           $stage = 'kit'
           New-Item -ItemType Directory -Force -Path "$stage\bin" | Out-Null
           # CLI lane = the INSTALLED exe; DLL bits = the portable zip (proven
-          # byte-identical above); lib for the harness link = portable's
+          # byte-identical above); lib for the harness link = portable's.
+          # RUNTIME DEPENDENCIES ride along (run 45836309710: staging only the
+          # exe+cr_ui.dll left z/lz4/zstd.dll behind and every scan died with
+          # STATUS_DLL_NOT_FOUND 0xC0000135 - the installed product's flat kit
+          # is one directory, stage it whole: every DLL beside the exe).
           Copy-Item 'C:\Program Files\HeicFast\Recovery Wizard\rrecov.exe' -Destination "$stage\bin\rrecov.exe" -Force
-          Copy-Item 'C:\release\portable\cr_ui.dll' -Destination "$stage\bin\cr_ui.dll" -Force
+          Copy-Item 'C:\release\portable\*.dll' -Destination "$stage\bin\" -Force
           Copy-Item 'C:\release\portable\cr_ui.lib' -Destination "$stage\bin\cr_ui.lib" -Force
           Copy-Item 'C:\release\portable\userdata-defaults.json' -Destination "$stage\bin\userdata-defaults.json" -Force
+          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json', 'z.dll', 'lz4.dll', 'zstd.dll')) {
+            if (-not (Test-Path "$stage\bin\$req")) { throw "staged kit missing $stage\bin\$req" }
+          }
           Copy-Item engine\include -Destination "$stage\include" -Recurse -Force
           Copy-Item engine\.github\scripts\api_harness.c -Destination "$stage\api_harness.c" -Force
           $tag = (Get-Content release-tag.txt -Raw).Trim()
