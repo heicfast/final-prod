@@ -4798,3 +4798,47 @@ before/after.
   clean-Windows RC) is scoped precisely in `docs/OPEN-ITEMS.md` and handed off —
   nothing fabricated. Linux-runnable evidence (engine suites, UI unit/RTL suites,
   mock-connector e2e, static audits) runs for real here.
+
+## Session 2026-11-26 (fix-upgrade-release) — Phase 0 pushed, rebased onto the concurrent v0.9.7 head
+
+Head at session start `126ea398`. Prompt token-redacted:
+worklog/session-fix-upgrade-release-prompt.md. Five evidence sheets by
+parallel agents A–E (full text in the sheets; only the headlines here):
+- REPO-STATE.md refreshed at 126ea398 (version lockstep 0.9.6 GREEN;
+  stale sites: engine CMake/vcpkg 0.6.1, bridge-it 0.9.4, README
+  92-exports/36-ops vs actual 99/59, forensic-repro default tag v0.9.3).
+- CI-FAILURES.md: NO push lane red at HEAD (engine-ci 45814007501,
+  bridge 45814007296 green at 126ea398; F-01 closed-loop PROVEN by
+  named-feature-fixture 45811533301 at d65a5d12; ui lanes green at
+  20efb62a). Two stale dispatch reds at pre-repair trees: benchmark-src
+  44359663812 (fc0e1e19, 12 hard gates, IO starvation) and
+  forensic-repro 44369227822 (v0.9.5, D-SCAN-01 800s freeze) — both
+  re-dispatched for current-truth during this session.
+- WARNINGS.md: engine 0 warnings on Linux at repo strictness (176/176
+  targets, -Wall -Wextra -Wpedantic -Werror); ui gates all clean
+  (typecheck/lint/format/arch-lint/knip, vitest 225/225). Findings:
+  3 rustc warnings (bridge_integration.rs:491,498 unused_assignments,
+  :580 dead_code), api_harness.c:39 C4005, 10 act() warnings
+  (consent-surfaces.test.tsx:181), vite chunk 561.21kB>500kB, and the
+  gate-set gap: no clippy lane exists anywhere.
+- DEPENDENCIES.md: 90 deps — 30 CURRENT, 24 MAJOR-behind (typescript
+  5.9.3→7.0.2, vitest 4→5, i18next 26→27, react-i18next 17→18,
+  react-router 7→8, actions checkout v4→v7, cache v4→v6,
+  upload-artifact v4→v7, download-artifact v4→v8, setup-node v4→v7,
+  pnpm/action-setup v4→v6, gh-release v2→v3, windows-2022→latest,
+  ubuntu→26.04, node 24→26, cmake→4.5.1, MSVC→VS2026), 18 MINOR,
+  13 PATCH, 5 unpinned vcpkg ports.
+- VULNERABILITIES.md: 0 critical / 0 high measured (cargo-audit 0.23.0
+  both Cargo.locks, pnpm audit, osv-scanner v2.7.1 full-repo,
+  secret-scanning 0 open). Medium: cookie 0.18.2→0.18.3
+  (RUSTSEC-2026-0594), glib 0.18.5→0.20.0 (RUSTSEC-2024-0429),
+  minimatch 10.2.6→11.0.1 dev-only; unrated: url 2.5.8→2.5.9
+  (RUSTSEC-2026-0592); 5 unmaintained; async-executor 1.14.0 yanked.
+  Dependabot+CodeQL not configured (gap).
+
+Concurrent-writer discovery: while Phase 0 ran, a sibling session pushed
+e9e38c92..6f7c7632 and cut/published tag v0.9.7 (worklog/
+VALIDATION/RELEASE/v0.9.7.md). These five sheets are rebased onto that
+head; the warning/vuln/upgrade findings above remain OPEN deferred items
+for the next session (precisely scoped in the sheets). Token: env/git
+config only, never committed.
