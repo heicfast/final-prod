@@ -206,6 +206,18 @@ jobs:
           Write-Host $recLog
           if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 2) { throw "reconstruct-deleted exited $LASTEXITCODE (2 = per-item failures - the verifier is the judge)" }
 
+          # 2b. the complete output-tree listing, captured runner-side BEFORE
+          #     the zip: the artifact glob skips dot-prefixed entries (the
+          #     run-44475017206 evidence lost .nffx-flush-probe and .nffx/
+          #     while the on-runner tree provably held them - the recovery
+          #     report listed them and I2 passed them); the listing never
+          #     skips anything, so the evidence is complete by construction
+          $listing = Get-ChildItem -LiteralPath $out -Recurse -Force | ForEach-Object {
+            $rel = $_.FullName.Substring($out.Length + 1)
+            if ($_.PSIsContainer) { "DIR  $rel" } else { "FILE $($_.Length)  $rel" }
+          }
+          $listing | Set-Content -Path (Join-Path $evidence 'output-listing.txt') -Encoding UTF8
+
           # 3. the byte-for-byte judge: I1 deleted-only, I2 exactness,
           #    I3 collision-set, I4 accountability, I5 containment
           $verifyJson = Join-Path $evidence 'verify-report.json'
@@ -219,6 +231,14 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: named-feature-engine-flow
-          path: ${{ runner.temp }}/nffx/engine-flow/**
+          # the bare ** glob skips dot-prefixed entries (proven by run
+          # 44475017206: .nffx-flush-probe and .nffx/draft-v2.txt were on
+          # the runner tree per the recovery report but absent from the zip);
+          # the dot entries are named explicitly so the artifact carries
+          # every recovered file the verifier judged
+          path: |
+            ${{ runner.temp }}/nffx/engine-flow/**
+            ${{ runner.temp }}/nffx/engine-flow/reconstructed/.nffx-flush-probe
+            ${{ runner.temp }}/nffx/engine-flow/reconstructed/.nffx/**
           if-no-files-found: warn
           retention-days: 90

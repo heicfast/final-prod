@@ -9,7 +9,11 @@ BEFORE deletion:
     I1 deleted-only      - no live row's path may exist; no live row's
                            SHA-256 may appear as any output file's hash
     I2 exactness         - every EXACT row present at expect.output_rel with
-                           exactly its size and SHA-256
+                           exactly its size and SHA-256; deleted-DIRECTORY
+                           rows are validated by the isdir check below (a
+                           directory carries no content hash - applying the
+                           file-exactness branch to a dir row always yields a
+                           false 'missing output')
     I3 collision-set     - the double-delete pair: 1..2 outputs under the
                            declared dir with the declared stem; every output
                            hash must belong to the pair; distinct outputs
@@ -107,7 +111,8 @@ def verify(manifest_path, out_root, live_ok=False):
     deleted_rows = [r for r in rows if r.get("deleted")]
     exact_rows = [r for r in deleted_rows
                   if r.get("expect", {}).get("class") == "EXACT"
-                  and r.get("expect", {}).get("output_rel")]
+                  and r.get("expect", {}).get("output_rel")
+                  and not r.get("is_dir")]  # dir rows: isdir check below (run 44475017206)
     collision_rows = [r for r in deleted_rows
                       if r.get("expect", {}).get("class") == "COLLISION-SET"]
     dir_rows = [r for r in deleted_rows if r.get("is_dir")]
@@ -218,6 +223,12 @@ def _self_test():
         {"rel": "a.txt", "size": 4, "sha256": hashlib.sha256(b"AAA\n").hexdigest(),
          "deleted": True, "is_dir": False,
          "expect": {"output_rel": "a.txt", "class": "EXACT", "mode": "EXACT"}},
+        # dir rows: the run-44475017206 regression class - class EXACT but no
+        # content hash; one with a file child, one empty (must be reconstructed)
+        {"rel": "b", "size": 0, "sha256": "", "deleted": True, "is_dir": True,
+         "expect": {"output_rel": "b", "class": "EXACT", "mode": "EXACT"}},
+        {"rel": "empty-dir", "size": 0, "sha256": "", "deleted": True, "is_dir": True,
+         "expect": {"output_rel": "empty-dir", "class": "EXACT", "mode": "EXACT"}},
         {"rel": "b/c.txt", "size": 4, "sha256": hashlib.sha256(b"BBB\n").hexdigest(),
          "deleted": True, "is_dir": False,
          "expect": {"output_rel": "b/c.txt", "class": "EXACT", "mode": "EXACT"}},
@@ -229,9 +240,11 @@ def _self_test():
             f.write(json.dumps(r) + "\n")
 
     def make_out(with_missing=False, with_live=False, with_badhash=False,
-                 with_extra=False):
+                 with_extra=False, with_dirs=True):
         out = tempfile.mkdtemp(prefix="nffx-out-", dir=tmp)
         os.makedirs(os.path.join(out, "b"), exist_ok=True)
+        if with_dirs:
+            os.makedirs(os.path.join(out, "empty-dir"), exist_ok=True)
         if not with_missing:
             with open(os.path.join(out, "a.txt"), "wb") as f:
                 f.write(b"AAA\n")
@@ -252,6 +265,7 @@ def _self_test():
     results.append(("live-leak", verify(man, make_out(with_live=True))["ok"] is False))
     results.append(("bad-hash", verify(man, make_out(with_badhash=True))["ok"] is False))
     results.append(("extra", verify(man, make_out(with_extra=True))["ok"] is False))
+    results.append(("dir-missing", verify(man, make_out(with_dirs=False))["ok"] is False))
     ok = all(v for _n, v in results)
     for name, v in results:
         print("selftest %-10s %s" % (name, "PASS" if v else "FAIL"))
