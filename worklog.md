@@ -4776,3 +4776,25 @@ Remaining harvest rows in priority order: F-19 (fragmentation
 reassembly), F-28/29 (FAT/exFAT orphan-subtree harvest), F-37 (imaging
 presets), F-18 (registry breadth) — all scoped in FOLLOW-UP.md with the
 specs in worklog/VALIDATION/specs/.
+
+## Session 2026-11-26 (b) — Small-Bug Hunting & Stability Polish
+
+**Start state**: HEAD `6676b427`, VERSION 0.9.7, main green (per last session close:
+harvest-gates session ended with PARITY + FOLLOW-UP resolved, F-01 closed-loop
+evidence captured).
+**Session goal**: find and fix the small defects that wreck the product experience —
+freezes, sector-scan stalls, wrong numbers, overflow/underflow, memory/CPU spikes,
+unwanted loops, broken buttons (close/minimize/maximize/stop-scan), stuck UI states,
+dead wiring between UI, core, and API. Every defect reproduced, every fix proven
+before/after.
+
+- **T1 done**: cloned, start state recorded (above), prompt saved token-redacted at
+  `worklog/session-small-bugs-prompt.md`, read twice. This entry.
+- **Phase 0 push note**: Agent B's sheet landed as `worklog/WIRING-AUDIT-SMALL-BUGS.md`
+  (the standing `WIRING-AUDIT.md` from a prior Agent-D audit already occupied the
+  canonical name; both preserved).
+- **Environment truth**: this session executes in a Linux sandbox. Windows-only
+  validation (runtime profiling captures, UI interaction on Windows, Windows CI,
+  clean-Windows RC) is scoped precisely in `docs/OPEN-ITEMS.md` and handed off —
+  nothing fabricated. Linux-runnable evidence (engine suites, UI unit/RTL suites,
+  mock-connector e2e, static audits) runs for real here.
