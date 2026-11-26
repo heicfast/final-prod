@@ -427,12 +427,14 @@ fn scan_progress_axes_move() {
      * structured full pass, not a slow byte sweep) — so "advanced between
      * the first and last sample" is not assertable here. The terminal
      * sample carries the completed truth instead. */
-    // (a) overall permille REACHED the quick|deep cap (750 with the
-    // default 40/35/25 weights) — the scan made real progress.
+    // (a) overall permille REACHED completion — the scan made real progress.
+    // (The floor predates the byte-plan model e9893088, which completes at
+    // 1000 rather than the retired 40/35/25 weighted cap of 750; 750 stays
+    // a valid lower bound a fortiori.)
     let last_pm = samples.last().unwrap().overall_pm;
     assert!(
         last_pm >= 750,
-        "overall permille never reached the quick|deep cap ({last_pm} < 750) — the scan made no real progress"
+        "overall permille never made real progress ({last_pm} < 750)"
     );
 
     // (b) real files + real bytes on real data.
@@ -468,8 +470,13 @@ fn scan_progress_axes_move() {
     // here for BF-30's ~8 MiB/s lane cost; its live-bytes stamp is pinned
     // engine-side in the unit suite). What this gate pins on real Windows:
     // quick and deep both RAN and COMPLETED, and the phase axes complete
-    // at 100% where the global curve caps at 750 — the exact "jumps
-    // directly to 75% advanced scanning" presentation D-P6 closes.
+    // at 100% — the exact "jumps directly to 75% advanced scanning"
+    // presentation D-P6 closes. (The byte-plan model e9893088 then retired
+    // the 40/35/25 weighted cap: with carve excluded, the cumulative
+    // sweep plan completes the scan at overall 1000 — the engine's own
+    // unit pin now says "completes at 1000, never the 750 cap". The
+    // 75%-cap equality below was the pre-byte-plan pin, never updated
+    // because this lane's post-e9893088 runs never got past the gates.)
     let last = samples.last().unwrap();
     assert!(last.quick_done != 0, "quick never completed");
     assert!(
@@ -482,8 +489,9 @@ fn scan_progress_axes_move() {
         "the advanced phase must complete at 100% (the reference's restarting gauge)"
     );
     assert_eq!(
-        last.overall_pm, 750u32,
-        "the global curve's quick|deep cap — the 75% the user reported"
+        last.overall_pm, 1000u32,
+        "the byte-plan curve completes at 1000 with carve excluded (the retired \
+         40/35/25 weights capped quick|deep at 750 — e9893088 closed that model)"
     );
 
     // (d) no all-axes freeze > 15 s while in flight (regression guard for
