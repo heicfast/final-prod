@@ -257,7 +257,13 @@ export function ScanProgressPage(): React.JSX.Element {
                     type="button"
                     aria-label={t('scan.pause')}
                     title={t('scan.pause')}
-                    onClick={() => void pause.mutate()}
+                    onClick={() =>
+                      void pause.mutate(undefined, {
+                        // SB-A-08: a refused pause is a silent no-op without
+                        // this — the button re-enables and nothing happened.
+                        onError: (err) => toast.error(err.message),
+                      })
+                    }
                     disabled={pause.isPending}
                     className="inline-flex size-5 items-center justify-center rounded-xs text-slate-700 transition-colors hover:bg-black/10 focus-visible:ring-2 focus-visible:ring-ring dark:text-foreground"
                   >
@@ -268,7 +274,12 @@ export function ScanProgressPage(): React.JSX.Element {
                     type="button"
                     aria-label={t('scan.resume')}
                     title={t('scan.resume')}
-                    onClick={() => void resume.mutate()}
+                    onClick={() =>
+                      void resume.mutate(undefined, {
+                        // SB-A-08: a refused resume must surface — same pin.
+                        onError: (err) => toast.error(err.message),
+                      })
+                    }
                     disabled={resume.isPending}
                     className="inline-flex size-5 items-center justify-center rounded-xs text-[#1677FF] transition-colors hover:bg-black/10 focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -435,6 +446,10 @@ export function ScanProgressPage(): React.JSX.Element {
                     toast(t('common.stop'));
                     void navigate(`/results/${scanId}`);
                   },
+                  // SB-A-08: the confirm dialog has already closed when this
+                  // fires — without the toast the scan keeps running and the
+                  // user believes it stopped (the broken-stop-button feel).
+                  onError: (err) => toast.error(err.message),
                 });
               }}
             >

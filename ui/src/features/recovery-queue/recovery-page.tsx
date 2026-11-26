@@ -626,7 +626,11 @@ function CancelRecoveryButton({ jobId }: { jobId: string }): React.JSX.Element {
 
   const requestCancel = (): void => {
     setConfirmOpen(false);
-    cancel.mutate();
+    // SB-A-08: the confirm dialog has already closed — a refused cancel
+    // must surface (the job keeps running; the user believes it stopped).
+    cancel.mutate(undefined, {
+      onError: (err) => toast.error(err.message),
+    });
   };
 
   return (
