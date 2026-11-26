@@ -4578,3 +4578,12 @@ $MAGIC[$null] + prettier), 20efb62a (knip ignore). In flight at
 handoff: named-feature-fixture(14) on 1a1f6877 — THE F-01 closed-loop
 gate; engine-ci(73)/bridge(68) on be7966c5; ui-ci(129)/ui-e2e(114) on
 20efb62a. Full detail: worklog/SESSION-2026-11-19-F01B-ROOT-CAUSE.md.
+
+---
+
+## Session 2026-11-26 — Cleanup, Consolidation & Documentation Sync
+
+**Start state**: HEAD `f01f630a`, VERSION 0.9.6, main green (per last session close).
+**Session goal**: hygiene + documentation sync — remove slop/dead code/duplicates with evidence, consolidate all docs/artifacts under one `docs/` roof, mark every issue fixed vs open, update docs to current reality, validate.
+
+- **T1 done**: cloned, recorded start state, prompt saved (token redacted) at `worklog/session-cleanup-consolidation-prompt.md`, read twice. This entry.
