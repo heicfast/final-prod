@@ -4874,3 +4874,21 @@ items, all evidence-based and ready to execute:
   0.9.4, README 92/36 vs 99/59, forensic-repro default tag).
 Next session: git fetch (the sibling moves fast), rebase, re-read
 worklog/DEFECT-LEDGER.md + these five sheets, then execute T4–T20.
+### The smoke lane is GREEN on a real PR (T14) — 2026-11-26
+
+PR #1 (branch e2e/smoke-validation) drove e2e-smoke end to end. Run
+45819883482 failed exactly as designed - the lane's own AST parse gate caught
+three real parse errors before any product execution (New-Baseline.ps1 $mode:
+in-string, Run-E2E.ps1 try-as-hashtable-value, Collect-Results.ps1 +
+Compare-Lanes.ps1 if-as-hashtable-value); fixed locally with pwsh 7.4.6
+ParseFile + committed (fb628bc1). Run 45821544011: GREEN in ~14 min, artifact
+e2e-smoke-results-45821544011 (1.08 MB, 79 evidence files): disk-state for 4
+VHDX disks, 4 seed manifests, per-scenario hash maps + CLI lane captures +
+verdicts. Measured (ground truth = the seed manifests, CLI quick/deepcarve):
+SM-NTFS-PERMDEL quick recall 0 (honest - quick scan), SM-EXFAT-RECYCLE quick
+recall 0, SM-FAT32-QKFMT deepcarve recall 0 (GAP-S6-4 known gap), and
+SM-PART-DELETE deepcarve recall 0.9747 (577/592) with the discovery gate
+PASS - the lost-partition path works end to end on a real partition-deleted
+disk; the APPLY probe planner REFUSED (recorded - honest capability state).
+API-lane skip recorded with its design reason in every verdict. e2e-full
+dispatched next (T15).
