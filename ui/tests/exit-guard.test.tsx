@@ -23,24 +23,43 @@ import '@/i18n';
  */
 
 const destroy = vi.fn();
-type CloseHandler = (event: { preventDefault(): void }) => void;
-const closeHandlers: CloseHandler[] = [];
+type Evt = {
+  prevented: boolean;
+  preventDefault: ReturnType<typeof vi.fn>;
+  isPreventDefault(): boolean;
+};
+const closeHandlers: ((evt: Evt) => Promise<void>)[] = [];
 
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     destroy,
-    onCloseRequested: (cb: CloseHandler) => {
-      closeHandlers.push(cb);
+    // Faithful to @tauri-apps/api 2.12.4 (window.js onCloseRequested):
+    // the wrapper awaits the handler and destroys the window itself when
+    // the handler did not preventDefault (SB-B-02 — the close is the
+    // wrapper's job; the guard only decides whether to prevent).
+    onCloseRequested: (cb: (evt: Evt) => void | Promise<void>) => {
+      closeHandlers.push(async (evt) => {
+        await cb(evt);
+        if (!evt.isPreventDefault()) destroy();
+      });
       return Promise.resolve(() => undefined);
     },
   }),
 }));
 
-function fireClose(): { preventDefault: ReturnType<typeof vi.fn> } {
-  const preventDefault = vi.fn();
+function fireClose(): Evt {
+  const evt: Evt = {
+    prevented: false,
+    preventDefault: vi.fn(() => {
+      evt.prevented = true;
+    }),
+    isPreventDefault() {
+      return evt.prevented;
+    },
+  };
   expect(closeHandlers.length).toBeGreaterThan(0);
-  for (const h of closeHandlers) h({ preventDefault });
-  return { preventDefault };
+  for (const h of closeHandlers) void h(evt);
+  return evt;
 }
 
 function wrap(ui: React.ReactElement): React.ReactElement {
@@ -85,8 +104,8 @@ describe('ExitGuard — the close-requested save guard (W-02)', () => {
     setTauriRuntime(true);
     render(wrap(<ExitGuard />));
     await waitFor(() => expect(closeHandlers.length).toBeGreaterThan(0));
-    const { preventDefault } = fireClose();
-    await waitFor(() => expect(preventDefault).toHaveBeenCalled());
+    const evt = fireClose();
+    await waitFor(() => expect(evt.preventDefault).toHaveBeenCalled());
     expect(await screen.findByRole('dialog')).toBeVisible();
     expect(screen.getByRole('button', { name: /save and exit/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /keep scanning/i })).toBeVisible();
@@ -124,9 +143,11 @@ describe('ExitGuard — the close-requested save guard (W-02)', () => {
     setTauriRuntime(true);
     render(wrap(<ExitGuard />));
     await waitFor(() => expect(closeHandlers.length).toBeGreaterThan(0));
-    const { preventDefault } = fireClose();
-    await waitFor(() => expect(destroy).toHaveBeenCalled());
-    expect(preventDefault).not.toHaveBeenCalled();
+    const evt = fireClose();
+    // The close is the wrapper's destroy (SB-B-02): the guard does not
+    // prevent a terminal scan — the window closes, no dialog.
+    await waitFor(() => expect(destroy).toHaveBeenCalledTimes(1));
+    expect(evt.preventDefault).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
     stateSpy.mockRestore();
   });
@@ -136,9 +157,12 @@ describe('ExitGuard — the close-requested save guard (W-02)', () => {
     setTauriRuntime(true);
     render(wrap(<ExitGuard />));
     await waitFor(() => expect(closeHandlers.length).toBeGreaterThan(0));
-    const { preventDefault } = fireClose();
-    expect(preventDefault).not.toHaveBeenCalled();
-    expect(destroy).not.toHaveBeenCalled();
+    const evt = fireClose();
+    // The default close proceeding IS the wrapper's destroy (SB-B-02 —
+    // without the allow-destroy capability grant this invoke is denied and
+    // the window can never close; pinned by window-capability-gate.test.ts).
+    await waitFor(() => expect(destroy).toHaveBeenCalledTimes(1));
+    expect(evt.preventDefault).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

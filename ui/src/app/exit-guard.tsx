@@ -29,6 +29,14 @@ import { toast } from 'sonner';
  * Save and exit (a real session save, then close) / Keep scanning /
  * Exit without saving. A terminal or unknown scan state closes directly.
  *
+ * The handler MUST return its promise to the onCloseRequested wrapper
+ * (SB-B-02): @tauri-apps/api 2.12.4 awaits the handler and then checks
+ * `evt.isPreventDefault()` — a fire-and-forget handler returns before the
+ * async state read resolves, so the wrapper destroys the window while the
+ * guard is still deciding (and the dialog can never win). The wrapper's
+ * own destroy() needs the `core:window:allow-destroy` capability grant —
+ * without it the X button cannot close the window at all.
+ *
  * Browser context (dev/e2e): inactive — the host owns tab close.
  */
 
@@ -72,12 +80,13 @@ export function ExitGuard(): React.JSX.Element | null {
         setConfirmOpen(true);
         return;
       }
-      void win.destroy();
+      // Terminal or unknown state: not prevented — the onCloseRequested
+      // wrapper's own destroy() (fired after this handler resolves) closes
+      // the window. Destroying here as well would race the wrapper into a
+      // rejected second invoke on a gone window.
     };
     void win
-      .onCloseRequested((event) => {
-        void onRequested(event);
-      })
+      .onCloseRequested((event) => onRequested(event))
       .then((fn) => {
         if (disposed) fn();
         else unlisten = fn;
