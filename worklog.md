@@ -4842,3 +4842,35 @@ VALIDATION/RELEASE/v0.9.7.md). These five sheets are rebased onto that
 head; the warning/vuln/upgrade findings above remain OPEN deferred items
 for the next session (precisely scoped in the sheets). Token: env/git
 config only, never committed.
+
+## Session 2026-11-26 (fix-upgrade-release) — closure
+
+T1–T3 complete: prompt saved token-redacted, five Phase 0 sheets
+pushed (faec4989, rebased onto the sibling session's v0.9.7 head
+6f7c7632), CI-FAILURES resolution update pushed (F-01 RESOLVED + the
+forensic-repro current-tree red captured; benchmark-src current-truth
+run in flight). T4–T20 DEFERRED to the next session with precise scope,
+because (a) a sibling concurrent session actively owns the fix/release
+lane (v0.9.7 already cut at 12:13Z — racing it risks double-fixes and
+push conflicts), and (b) this session's step budget ended. The open
+items, all evidence-based and ready to execute:
+- WARNINGS.md: 3 rustc warnings (bridge_integration.rs:491,498
+  unused_assignments; :580 dead_code), api_harness.c:39 C4005 (guard
+  WIN32_LEAN_AND_MEAN with #ifndef), 10 act() warnings
+  (consent-surfaces.test.tsx:181), vite chunk 561.21kB>500kB, and the
+  gate-set gap: no clippy lane anywhere (add one to ui-ci/engine-ci).
+- VULNERABILITIES.md: cargo update -p cookie@0.18.3, -p url@2.5.9 (+
+  glib/minimatch where parent ranges allow; async-executor yanked;
+  5 unmaintained need parent bumps) — then re-run cargo-audit/pnpm
+  audit/osv-scanner and configure Dependabot/CodeQL (both absent).
+- DEPENDENCIES.md: 24 MAJOR-behind (typescript 7, vitest 5, i18next 27,
+  react-router 8, actions v6/v7/v8 majors, windows-latest image, node
+  26, cmake 4.5, VS2026), 18 MINOR, 13 PATCH, 5 unpinned vcpkg ports —
+  each upgrade needs its changelog read + Windows CI validation.
+- CI-FAILURES.md: forensic-repro UI-drive gate red on the current tree
+  (exact error captured above); benchmark-src 201-min run in flight —
+  read its gates.md artifact when it lands.
+- REPO-STATE.md §8: stale sites (engine CMake/vcpkg 0.6.1, bridge-it
+  0.9.4, README 92/36 vs 99/59, forensic-repro default tag).
+Next session: git fetch (the sibling moves fast), rebase, re-read
+worklog/DEFECT-LEDGER.md + these five sheets, then execute T4–T20.

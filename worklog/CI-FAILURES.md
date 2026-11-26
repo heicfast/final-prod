@@ -463,3 +463,24 @@ Log evidence index (local scratch, outside the clone): `/home/z/my-project/ci-lo
 | Runs | Every push to main between 201100aa and 241e8991 produced zero-job "failure" records for release/benchmark-src/validation-evidence (e.g. 44348177249, 44348179096, 44348174740, 44357202970) |
 | Root cause | The session's own workflow edits: (a) `${{ runner.temp }}` used in a WORKFLOW-LEVEL `env:` (the runner context is not available there) → invalid-file, zero-job push failures; (b) a duplicated `timeout-minutes` key → the same class. The removal patch's regex failed silently (backslash-escaping), so the blocks survived two "fix" commits until cc201bff deleted them outright. |
 | Resolution | FIXED — cc201bff (concurrent lane, env blocks removed at root) + 6a6e05cd (timeout dedup, verified per-job single key across all 9 files); v0.9.5 tag re-pointed at the clean head. The lesson is recorded here so the audit trail shows it: the two "fix" commits 235d3c32/6a6e05cd claimed the removal but the first did not verify the block was actually gone — every subsequent claim in this repo now requires the grep-verified absence in the commit message. |
+
+## Resolution update (2026-11-26, fix-upgrade-release session)
+
+- **F-01 closed-loop: RESOLVED.** Root cause = the verifier itself
+  (d65a5d12: deleted-DIRECTORY rows wrongly hit the I2 file-exactness
+  branch). Proven by named-feature-fixture [45811533301](https://github.com/heicfast/final-prod/actions/runs/45811533301)
+  (d65a5d12, VERDICT: PASS, exact_rows 21→17) plus engine-ci 45814007501
+  and bridge-integration 45814007296 green at HEAD 126ea398.
+- **Current-truth conversion dispatched** (this session, ~12:05Z):
+  benchmark-src smoke @ main(126ea398); forensic-repro @ v0.9.6. A
+  sibling concurrent session then re-dispatched both lanes from its own
+  head cd439313 (12:16Z): benchmark-src [45818119464](https://github.com/heicfast/final-prod/actions/runs/45818119464)
+  still in flight (201-min class run); forensic-repro [45818123462](https://github.com/heicfast/final-prod/actions/runs/45818123462)
+  **completed FAILURE** — job "Reproduce all reported symptoms (installed
+  release)", step 12 "Launch app + probes + drive the real UI - health,
+  scan, every surface (S2 S3 S4)" exit 1.
+  Exact gate error captured from the run log:
+  > FATAL: Error: gate: D-SCAN-01 - the scan froze for 825 s (percent + found-count + sector all identical; the BF-22 stall class)
+  The UI-drive gate therefore STILL fails on the current tree — OPEN
+  defect (root cause not yet diagnosed; coordinate with the sibling
+  session's worklog/DEFECT-LEDGER.md to avoid double-fixing).
