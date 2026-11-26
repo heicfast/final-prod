@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; the window-chrome cluster (title bar controls + drag region) needs the explicit window permissions below, plus the disk-health-window cluster (D-P4: creating the separate disk-health webview window, focusing it on re-open, and the disk-health:select emitTo that retargets its selector). Keep this minimal.",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:default",

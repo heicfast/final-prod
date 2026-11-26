@@ -4933,3 +4933,48 @@ the best Windows exercise of the new progress model on real seeded data); run id
 recorded in this session's entry as they land. Honest scope: the REPRODUCTION capture
 plan's Windows captures (C2 stall-after, C7 per-second series, C8 streaming cadence) still
 ride the runners.
+
+**CI reds from the e9893088 push, both root-caused and fixed in-tree (this entry's commit):**
+- ui-ci run 45828246106 "Format check" red: `ui/src-tauri/capabilities/default.json` shipped
+  unformatted by the CONCURRENT lane (pre-existing on origin/main at 1f46de9b — not this
+  session's file); prettier --write applied here, `prettier --check .` green from ui/.
+- bridge-integration run 45828246203 "[1/5] Generated ABI files freshness gate" red: this
+  session's cr_ui.h COMMENT edits (the legacy-ignored weight-field notes) feed the
+  generated dump — regenerated with the repo's own `tools/gen_abi_layouts.py .` + the
+  pinned clang-format 18.1.8 (abi_layout_dump.c + it/tests/abi_layouts.rs + header.sha;
+  the dump's local test green). The struct-layout sha is comment-stripped (unchanged
+  layouts); the DUMP text is not — the precedent is 42e1e3ea's identical regen.
+- contracts-ci 45828246318 and ui-e2e 45828246240 GREEN on the same SHA. engine-ci
+  (45828246134) and the dispatched named-feature-fixture engine-flow lane (45828274971)
+  were still in flight at session close — the next session records their verdicts first.
+
+**F-A handoff (designed, NOT started — the step budget ended before the first coherent
+unit could land; the two just-started tree edits were reverted to keep main clean).**
+The design, from the DIAGNOSIS F-A entry points + this session's code recon:
+1. Engine: `event::Type::ScanResult = 11` with ABSOLUTE-count fields
+   (`result_node_count` = the tree's live node total, `result_removal_gen`) — never
+   deltas, so a dropped bounded-channel event self-heals on the next one; the tree gains
+   `live_nodes_`/`removal_gen_` atomics (the N-166 discipline: bump at all three
+   `nodes_.push_back` sites — add_root/add_folder/add_file — and the two
+   order-preserving-erase sites — detach_subtree/detach_child — plus reset; snapshot
+   indices ARE the arena order, verified in capture_snapshot, so the count is the
+   streaming index frontier). Emission rides the F-C 200 ms floor (piggyback
+   emit_progress_event_) + emit_boundary_events_ + the stamp flush (cancel keeps rows).
+2. ABI: `CR_EVT_SCAN_RESULT = 13` + the two event fields + a batched live row pull
+   `cr_ui_scan_node_range(s, first_index, count, out, capacity, out_filled, name_buf,
+   name_stride)` reusing `cr_ui_node_info` (stride-addressed names, the snapshot_node
+   truncation contract); a removal-gen mismatch = resync via the existing full snapshot.
+3. Bridge: the ScanResult arm pulls [cached, count) into the metas cache (append) or
+   forces the full resync, then emits `scan-result:{id}` with {nodeCount,
+   removalGeneration, appended} — TS invalidates the results queries on the event (the
+   10%-bucket invalidation stays as the poll fallback). Mock parity: the mock's tick
+   emits the event as its found curve advances. Rebase first: the concurrent lanes
+   (v0.9.7 + e2e smoke) are actively pushing.
+
+**Remaining (precise scope, F-D/F-E/F-F/F-G untouched):** F-D manifest-vs-results gate
+(ride forensic-repro S3 + drive-ui.mjs per REPRODUCTION §5 C5/C6), F-E bridge filter
+unification (cr_ui_query), F-F grading coverage (cr_grading.cpp:516-527 index==0
+non-twin only), F-G carve validation wall (NOTE: the concurrent lane's 1f46de9b already
+root-caused the D-SCAN-01 stall as per-candidate 1 MiB allocation churn — re-measure the
+wall before re-scoping), T14-T20 (CI sweep, validation evidence, docs, verification,
+BEHAVIOR-FINDINGS, handoff).
