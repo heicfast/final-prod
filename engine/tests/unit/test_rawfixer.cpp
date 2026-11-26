@@ -1177,5 +1177,117 @@ TEST(RawFixer, ExfatBackupReadFull4Kn) {
     EXPECT_EQ(0, memcmp(wd.d_.data() + 3000, img.data() + 12 * 4096 + 3000, 64))
         << "the executed restore writes the full sector";
 }
+
+/* W2/F-02: $MFT run-list reconstruction + record-0 in-place patch. The
+ * damaged shape: record 0's $DATA RUNLIST torn AND the mirror unusable -
+ * the mirror path refuses, and the F-02 fallback scans remnant FILE
+ * records, delta-groups them, and patches record 0 in place. */
+TEST(RawFixer, MftRunlistRebuildWhenMirrorUnusable) {
+    /* 8 MiB volume, cluster 4096 (spc 8), records 1 KiB. $MFT starts at
+     * LCN 4 with 64 records of REAL content (records 0..63 at mft_off,
+     * stride 1024); record 0's runlist torn to garbage; the mirror at
+     * LCN 200 also torn. The remnant scan finds records 1..63 (record 0
+     * itself is skipped as non-FILE after the tear) - delta grouping
+     * reconstructs one 16-cluster extent at LCN 4 = the truth. */
+    std::vector<u8> img(8ull * 1024 * 1024, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "NTFS    ", 8);
+    put16(img.data() + 0x0B, 512);
+    b[0x0D] = 8;                     /* spc 8 -> cluster 4096 */
+    put64(img.data() + 0x28, 16384); /* total sectors (8 MiB) */
+    put64(img.data() + 0x30, 4);     /* $MFT LCN */
+    put64(img.data() + 0x38, 200);   /* $MFTMirr LCN */
+    b[0x40] = 0xF6;                  /* 1 KiB records */
+    b[0x44] = 0x01;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+
+    const u64 mft_off = 4 * 4096;
+    /* Record 0: a valid $MFT-named FILE record with a NON-RESIDENT $DATA
+     * whose runlist is torn (zero-length first run - structurally
+     * present, undecodable). Built from build_meta_record's shape with
+     * the $DATA attribute replaced: non-resident header (0x40 bytes) +
+     * 64 bytes of run room; run bytes torn. */
+    auto rec0 = build_meta_record(u"$MFT", false, 0);
+    {
+        /* Walk to the attribute terminator and write the torn $DATA. */
+        const auto rd32l = [](const u8* p) {
+            return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
+        };
+        u32 pos = 0x38;
+        while (pos + 16 < 1024 && rd32l(rec0.data() + pos) != 0xFFFFFFFF)
+            pos += rd32l(rec0.data() + pos + 4);
+        /* non-resident unnamed $DATA: 0x40 header + 0x40 run room */
+        const u32 total = 0x80;
+        put32(rec0.data() + pos, 0x80);             /* type $DATA */
+        put32(rec0.data() + pos + 4, total);        /* length */
+        rec0[pos + 8] = 1;                          /* non-resident */
+        rec0[pos + 9] = 0;                          /* unnamed */
+        put64(rec0.data() + pos + 16, 0);           /* start_vcn 0 */
+        put64(rec0.data() + pos + 24, 15);          /* last_vcn 15 (16 clusters) */
+        put16(rec0.data() + pos + 0x20, 0x40);      /* runlist offset */
+        put64(rec0.data() + pos + 0x28, 16);        /* allocated 16 clusters */
+        put64(rec0.data() + pos + 0x30, 16 * 4096); /* real size */
+        put64(rec0.data() + pos + 0x38, 16 * 4096); /* initialized */
+        /* torn runlist: a zero-length run (decodes to nothing) */
+        rec0[pos + 0x40] = 0x01;
+        rec0[pos + 0x41] = 0x00;
+        put32(rec0.data() + pos + total, 0xFFFFFFFF); /* terminator */
+        auto* rh = reinterpret_cast<ntfs::RecordHeader*>(rec0.data());
+        rh->bytes_in_use = pos + total + 8;
+    }
+    std::memcpy(img.data() + mft_off, rec0.data(), 1024);
+    /* Records 1..63: plain FILE records at their true offsets. */
+    for (u32 i = 1; i < 64; ++i) {
+        auto r = build_meta_record(u"file", false, i);
+        std::memcpy(img.data() + mft_off + u64(i) * 1024, r.data(), 1024);
+    }
+    /* Mirror at LCN 200: torn (0xDE). */
+    std::memset(img.data() + 200 * 4096, 0xDE, 1024);
+
+    RamDevice dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("ntfs", plan.fs_family);
+    ASSERT_EQ(1u, plan.actions.size()) << "the F-02 fallback must plan exactly the patch";
+    ASSERT_EQ(ActionKind::RebuildMftRunlist, plan.actions[0].kind);
+    EXPECT_EQ(mft_off, plan.actions[0].offset);
+    EXPECT_EQ(1024u, plan.actions[0].length);
+
+    /* The patched record 0 must open the volume: the reconstructed
+     * runlist covers records 0..63 at LCN 4 (one 16-cluster extent). */
+    RamWriteDevice wd(img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    u32 err = 0;
+    auto after =
+        ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
+    ASSERT_NE(nullptr, after) << "the patched record 0 must open the volume: " << err_text(err);
+
+    /* Undo restores the torn original byte-for-byte. */
+    ASSERT_EQ(OK, undo(wd, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data() + mft_off, rec0.data(), 1024));
+}
+
+/* F-02 refusal: no remnant records in the MFT region (a formatted-over
+ * volume) - the reconstruction refuses, no action, advisory says so. */
+TEST(RawFixer, MftRunlistRebuildRefusedWhenNoRemnants) {
+    NtfsVolumeImage v(true);
+    /* Tear the mirror too. */
+    std::memset(v.img.data() + NtfsVolumeImage::MIRR_OFF, 0xDE, 1024);
+    /* Wipe the MFT region entirely (records 0..5 + beyond) - the volume
+     * has NO recoverable MFT records in the scan window. */
+    std::memset(v.img.data() + NtfsVolumeImage::MFT_OFF, 0, 128 * 1024);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.actions.empty()) << "nothing to reconstruct from";
+    bool refused_advisory = false;
+    for (const auto& s : plan.advisories)
+        if (s.find("F-02") != std::string::npos)
+            refused_advisory = true;
+    EXPECT_TRUE(refused_advisory);
+}
 } // namespace repair
 } // namespace cr

@@ -102,6 +102,15 @@ enum class ActionKind : u32 {
     DeepScanBootRestore = 6,        /* FixByScanSector: the only boot-shaped
                                      * candidate in the bounded 64 MiB window
                                      * written over the destroyed primary */
+    RebuildMftRunlist = 7,          /* W2/F-02 (ntfs-recover behavior): $MFT
+                                     * record 0's unnamed $DATA run bytes
+                                     * reconstructed from a delta-grouping
+                                     * scan of remnant FILE records and
+                                     * patched IN PLACE (USA bump; every
+                                     * other attribute and header field
+                                     * preserved byte-for-byte - never a
+                                     * from-scratch rebuild, the reference's
+                                     * proven failure) */
 };
 
 struct RepairAction {

@@ -25,6 +25,7 @@ add_library(cr_core STATIC
     refs/cr_refs_detect.cpp
     ntfs/cr_fixup.cpp
     ntfs/cr_runlist.cpp
+    ntfs/cr_mftpatch.cpp
     ntfs/cr_bootstrap.cpp
     ntfs/cr_attributes.cpp
     ntfs/cr_bitmap.cpp

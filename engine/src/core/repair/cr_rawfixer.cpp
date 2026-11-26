@@ -17,6 +17,7 @@
 #include "cr/fat/cr_fat_engine.h"
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
+#include "cr/ntfs/cr_mftpatch.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
 #include "cr/table/cr_table_wire.h"
 #include <algorithm>
@@ -227,7 +228,31 @@ void ntfs_check_mft(IStorageDevice* slice, RepairPlan& plan, const u8* boot, u64
         plan.advisories.push_back("$MFT record 0 unreadable (CheckMFT)");
         return;
     }
-    if (ntfs_record_named(rec.data(), u32(recsize), bps, std::u16string(u"$MFT")))
+    /* Clean gate (S2): a record 0 is clean only when the name matches
+     * AND its $DATA attribute is structurally sound - a RESIDENT $DATA
+     * is sound by definition (no runs to tear); a non-resident one is
+     * sound when the runlist DECODES with at least one run (a torn
+     * runlist leaves the volume unopenable even with a perfect
+     * $FILE_NAME - F-02's damage shape). */
+    const bool named_ok = ntfs_record_named(rec.data(), u32(recsize), bps, std::u16string(u"$MFT"));
+    bool data_ok = false;
+    if (named_ok) {
+        std::vector<ntfs::AttrView> attrs;
+        if (ntfs::enum_attributes(rec.data(), u32(recsize), attrs) == OK) {
+            for (const auto& a : attrs) {
+                if (a.type != ntfs::ATTR_TYPE_DATA || a.name_length != 0)
+                    continue;
+                if (!a.nonresident) {
+                    data_ok = true; /* resident: nothing to tear */
+                } else {
+                    ntfs::RunList rl;
+                    data_ok = ntfs::parse_data_runs(a, 1ull << 40, rl) == OK && !rl.runs().empty();
+                }
+                break;
+            }
+        }
+    }
+    if (named_ok && data_ok)
         return; /* clean: never touched (S2) */
 
     /* primary invalid -> the mirror-backed restore (corpus: CheckMFT is
@@ -251,6 +276,90 @@ void ntfs_check_mft(IStorageDevice* slice, RepairPlan& plan, const u8* boot, u64
     }
     plan.advisories.push_back(
         "$MFT record 0 invalid and $MFTMirr slot 0 unusable - no mirror-backed repair (S3)");
+
+    /* W2/F-02 (ntfs-recover behavior, re-implemented): record 0 torn
+     * beyond the mirror path - reconstruct the $MFT extent layout from a
+     * bounded scan of remnant FILE records (delta grouping) and patch
+     * record 0's $DATA run bytes IN PLACE. The scan is bounded: the
+     * first 16 MiB of the MFT region at record stride (the records of a
+     * damaged-but-present MFT are dense from mft_off; scanning the whole
+     * volume belongs to the lost-volume pipeline, not the repair
+     * transaction). Every gate below is a clean refusal - never a
+     * coin-flip write (S3). */
+    {
+        /* Record-0 buffer reuse for the cap: the torn primary may still
+         * carry a parseable $DATA (a torn RUNLIST with an intact
+         * attribute header) - try it; without a cap the reconstruction
+         * is uncapped with a warning advisory. */
+        std::vector<ntfs::FoundRecord> found;
+        const u64 scan_limit = std::min<u64>(total, mft_off + 16 * 1024 * 1024);
+        std::vector<u8> recbuf{std::vector<u8>(u64(recsize))};
+        for (u64 off = mft_off; off + recsize <= scan_limit; off += recsize) {
+            if (slice->read_at(off, recbuf.data(), u32(recsize)) != OK)
+                break; /* unreadable region: stop at the first hole */
+            ntfs::RecordHeader rh2;
+            std::memcpy(&rh2, recbuf.data(), sizeof(rh2));
+            if (rh2.magic != ntfs::RECORD_MAGIC_FILE)
+                continue;
+            /* USA sanity: a torn fixup means a torn record - skip it
+             * (the walker's own gate; the patch would refuse it too). */
+            if (rh2.update_sequence_size < 2)
+                continue;
+            ntfs::FoundRecord fr;
+            fr.disk_offset = off;
+            fr.record_number = rh2.record_number;
+            fr.sequence = rh2.sequence;
+            fr.base_record = rh2.base_record;
+            /* The torn record 0 itself participates: its disk offset
+             * anchors delta == mft_off (the first extent's true start).
+             * A record whose own number field is implausible (>= total
+             * records the volume could hold) is scan noise. */
+            const u64 max_plausible = total / recsize + 1;
+            if (fr.record_number >= max_plausible)
+                continue;
+            found.push_back(fr);
+        }
+
+        /* The VCN cap from the torn record 0 when its $DATA header
+         * survived; uncapped otherwise (the advisory says so). */
+        u64 cap = ~0ull;
+        const bool have_cap = ntfs::derive_vcn_cap_from_record0(rec.data(), u32(recsize),
+                                                                cluster_bytes, recsize, cap);
+        if (!have_cap)
+            plan.advisories.push_back(
+                "record-0 $DATA unreadable - runlist reconstructed uncapped (F-02)");
+
+        ntfs::MftRunlistPlan rplan;
+        rplan.max_record = cap;
+        ntfs::MftPatchStats pstats;
+        ntfs::reconstruct_mft_runlist(found, cluster_bytes, recsize, 4, rplan, pstats);
+
+        if (rplan.fragments.empty()) {
+            plan.advisories.push_back(
+                "F-02 reconstruction refused: no cluster-aligned >=4-cluster extent found in the "
+                "MFT region scan");
+            return;
+        }
+
+        /* Patch record 0 in memory; execute() snapshots the ORIGINAL
+         * bytes into the undo log before writing (S4) and re-validates
+         * after (S5). */
+        const auto enc = ntfs::encode_runlist_ntfs3g_safe(rplan.fragments, cluster_bytes / recsize);
+        const u32 prc = ntfs::patch_record0_runlist(rec.data(), u32(recsize), bps, enc);
+        if (prc != OK) {
+            plan.advisories.push_back(
+                "F-02 patch refused (runs exceed the attribute's run space / torn fixup)");
+            return;
+        }
+        RepairAction a;
+        a.kind = ActionKind::RebuildMftRunlist;
+        a.offset = mft_off;
+        a.length = u32(recsize);
+        a.after = rec; /* the patched record (fixups applied + USA bumped) */
+        a.reason = "$MFT record 0 invalid, mirror unusable; $DATA runlist reconstructed from "
+                   "remnant-record delta grouping and patched in place (F-02)";
+        plan.actions.push_back(std::move(a));
+    }
 }
 
 /* FAT copy entry-signature check (FATFixer::CheckFatTable side): entry
