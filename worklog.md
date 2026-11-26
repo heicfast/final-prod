@@ -4694,3 +4694,34 @@ F-01 named feature (closed-loop green), F-33/F-34 rescue imaging,
 F-03 parent-sequence gate, the verifier/evidence fixes, PARITY +
 FOLLOW-UP + specs. Release lane + validation chain: see the next
 entry (append-on-green, never claimed ahead of the run).
+## Session 2026-11-26 (E2E) — the end-to-end testing & validation harness: Phase 0 baseline
+
+Session prompt archived (token redacted): worklog/session-e2e-testing-prompt.md.
+Head at session start `126ea398` (v0.9.6, "feat(W2/F-03): the NTFS parent-sequence
+gate"). Mission: a real Windows e2e harness — VHD orchestration, deterministic seed
+corpora, the full deletion matrix, CLI + API paths, metrics vs the seed manifest,
+four new workflows (smoke / full / regression / release-validation), committed
+evidence, full documentation. Agent environment is Linux: every product execution
+happens on real GitHub-hosted Windows runners through the new workflows; nothing is
+simulated locally. Phase 0 (agents A–D: CLI surface, API surface, test inventory,
+release layout) dispatched before any code is written. Entries follow as units land.
+
+### Phase 0 complete (T2) — 2026-11-26
+
+Agents A–D ran read-only over this tree at baseline `126ea398` and produced four
+evidence-cited sheets: worklog/CLI-SURFACE.md (rrecov verb surface, exit-code
+taxonomy, target forms incl. detached `--image` VHDX), worklog/API-SURFACE.md
+(cr_ui ABI v4, 99 exports, the full call sequences), worklog/TEST-INVENTORY.md
+(the 10 workflows, the proven fixture/bench primitives and their exact paths,
+12 MISSING gaps), worklog/RELEASE-LAYOUT.md (RecoveryWizard-<v>-setup.exe /
+-portable.zip / SHA256SUMS, installed layout, silent /S install). Coordinator
+spot-verified the load-bearing claims directly (rrecov.cpp verb flags,
+benchmark-matrix.json, New-TestDisk.ps1 diskpart-only vdisk pipeline,
+apply-scenario.ps1's 12-mode deletion matrix, run-ours.ps1 CLI lane,
+api_harness.c lifecycle, Run-Benchmark.ps1 orchestration, regression_gate.py
+thresholds, benchmark-src.yml staging recipe). Verified key facts: the runner
+e2e lane must reuse the CI-proven primitives (generate_seed.ps1 corpus v2.0.0,
+apply-scenario.ps1, run-ours.ps1, api_harness.c, compute_metrics.py,
+regression_gate.py) rather than fork them; the new-build list is: the e2e
+matrix + orchestrator, the CLI-vs-API lane divergence check, the committed
+results collector, the quality baseline, and the four workflows.
