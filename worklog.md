@@ -5012,3 +5012,15 @@ array, not the shard's declared order - PARTDEL ran FIRST in exfat-b,
 forcing the partition-recreation reseed that surfaced E2E-2. Fixed: shard
 selection follows the shard list; the matrix's per-filesystem order now puts
 delete_partition last too (the ALL-mode path shares the discipline).
+
+### Findings E2E-4 (mft_corrupt overflow) + the run's partial evidence — 2026-11-26
+
+The 45826003339 ntfs-decay shard: DECAY80/DECAY100/PARTOVR all PASS (recall 0
+recorded - observe), MFTCOR threw 'Exception calling CorruptMft with 4
+argument(s): Arithmetic operation resulted in an overflow' inside the shared
+BenchRaw primitive on the 6144 MiB e2e-ntfs volume (manifest mft_record
+values verified sane, 42..~20000; the bench lane's mft_corrupt precedent ran
+on an 8192 MiB volume). FINDING E2E-4: recorded with the evidence; e2e-ntfs
+bumped to 8192 MiB (the proven geometry) for the re-dispatch - if it still
+overflows, the row stays red-honest and the finding escalates to the owner
+(same treatment as E2E-2: root cause in the shared FSCTL/geometry parse).

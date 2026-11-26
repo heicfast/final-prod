@@ -8,12 +8,13 @@
     "Ground truth is ALWAYS the seed manifest (engine/bench/seed/generate_seed.ps1, corpus v2.0.0: 23 real-magic formats, CJK names, long paths, ADS, hard links, sparse, fragmentation, nested trees, keep-control group) + the recorded deletion method - never a tool's own output.",
     "Gate discipline (inherited from engine/.github/scenarios/benchmark-matrix.json): a gate must never test a documented engine gap as if it were a promise. Floors are cited from recorded runs; everything else is observe-only (recorded, tracked, gated only on execution-completeness: scan exit 0, session produced, inventory + metrics computed, recover exit 0/2, API exit 0/2, and the CLI-vs-API divergence check).",
     "ReFS rows are the 'where the runner supports it' form: the runner supports ReFS (disk + format + seed all real), the product's volume scan does not - expect=unsupported_fs pins the clean-refusal contract (the prompt's every-unsupported-format-path coverage) and records the capability FINDING with run evidence.",
-    "Divergence gate: every scenario runs the CLI lane (engine/bench/ours/run-ours.ps1) and the API lane (engine/.github/scripts/api_harness.exe, the cr_ui C-ABI lifecycle); Compare-Lanes.ps1 proves both paths agree (recovered set + hash-match set + scan stats). Any divergence is a hard finding."
+    "Divergence gate: every scenario runs the CLI lane (engine/bench/ours/run-ours.ps1) and the API lane (engine/.github/scripts/api_harness.exe, the cr_ui C-ABI lifecycle); Compare-Lanes.ps1 proves both paths agree (recovered set + hash-match set + scan stats). Any divergence is a hard finding.",
+    "e2e-ntfs is 8192 MiB - the same geometry as the bench lane's CRBIG disk where mft_corrupt demonstrably worked (run 40073093997-smoke); the first run's 6144 MiB volume threw OverflowException inside BenchRaw::CorruptMft (finding E2E-4)."
   ],
   "disks": [
     {
       "id": "e2e-ntfs",
-      "size_mb": 6144,
+      "size_mb": 8192,
       "partition_style": "GPT",
       "volumes": [
         {
