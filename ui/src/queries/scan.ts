@@ -305,3 +305,15 @@ export function useScanAutosaveStamp(scanId: string | null): { rc: number; at: s
 export function readScanState(scanId: string): Promise<ScanState> {
   return connector.scan.getScanState(scanId);
 }
+
+/** The statuses the engine treats as live work — the exit guard's stop
+ * set (SB-B-01: the shared definition for the close guard and the
+ * stop-then-save flow in queries/sessions.ts). */
+export const ACTIVE_SCAN_STATUSES: ReadonlySet<string> = new Set([
+  'starting',
+  'running',
+  'paused',
+  'pausing',
+  'resuming',
+  'stopping',
+]);

@@ -232,8 +232,7 @@ std::vector<u8> build_fat16_sibling_subdirs(size_t entries_a, size_t entries_b) 
     /* the chains: EOF-terminated, mirrored into FAT2 */
     for (const Sub& sub : subs) {
         for (size_t k = 0; k < sub.clusters; ++k) {
-            const u16 next =
-                (k + 1 == sub.clusters) ? 0xFFFF : u16(sub.first_cluster + k + 1);
+            const u16 next = (k + 1 == sub.clusters) ? 0xFFFF : u16(sub.first_cluster + k + 1);
             put16(img, FAT1 + (sub.first_cluster + k) * 2, next);
             put16(img, FAT2 + (sub.first_cluster + k) * 2, next);
         }
@@ -419,8 +418,7 @@ TEST(Telemetry, FatQuickWalkHonestUntilTrueEnd) {
                 ++completion_samples;
         EXPECT_LE(completion_samples, 4u);
         EXPECT_GT(distinct_below, 0u); /* live values exist below completion */
-        EXPECT_EQ(1000u, prev); /* the TRUE end still completes */
-
+        EXPECT_EQ(1000u, prev);        /* the TRUE end still completes */
     }
 }
 
