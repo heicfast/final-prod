@@ -89,15 +89,18 @@ function Copy-Evidence {
 
 # ---- runner context + sanity gates (fail fast with diagnostics, never silently) ---------
 New-Item -ItemType Directory -Force -Path $WorkDir, $ResultsRoot, (Join-Path $ResultsRoot '00-environment') | Out-Null
+$ctxCpu = $null; $ctxCores = $null; $ctxRam = $null; $ctxElevated = $null
+try { $ctxCpu = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name) } catch { }
+try { $ctxCores = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty NumberOfLogicalProcessors) } catch { }
+try { $ctxRam = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1) } catch { }
+try { $ctxElevated = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) } catch { }
+$ctxCommit = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { try { (git -C $RepoRoot rev-parse HEAD).Trim() } catch { '' } }
 $ctx = [ordered]@{
     imageOs = $env:ImageOS; runnerName = $env:RUNNER_NAME
-    cpu = try { (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name) } catch { $null }
-    cores = try { (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty NumberOfLogicalProcessors) } catch { $null }
-    ramGb = try { [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1) } catch { $null }
-    isElevated = try { (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) } catch { $null }
+    cpu = $ctxCpu; cores = $ctxCores; ramGb = $ctxRam; isElevated = $ctxElevated
     ranAtUtc = (Get-Date).ToUniversalTime().ToString('o')
     runId = $RunId; runUrl = $RunUrl; profile = $Profile; shard = $ShardId
-    commit = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { try { (git -C $RepoRoot rev-parse HEAD).Trim() } catch { '' } }
+    commit = $ctxCommit
 }
 $ctx | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $ResultsRoot '00-environment\runner-context.json') -Encoding utf8
 
