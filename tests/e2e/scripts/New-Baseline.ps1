@@ -56,7 +56,7 @@ foreach ($sd in @(Get-ChildItem -LiteralPath $scenRoot -Directory | Sort-Object 
         $wall = $pmode.scan_wall_seconds
         if ($null -eq $wall) { continue }
         if ($pmode.scan_capped) {
-            $notes += "$($sd.Name)/$mode: scan was CAPPED (${wall}s) - wall time excluded from baseline"
+            $notes += "$($sd.Name)/${mode}: scan was CAPPED (${wall}s) - wall time excluded from baseline"
             $entry.perf.$mode = [ordered]@{ scan_wall_seconds = $null; capped = $true }
             continue
         }
