@@ -114,12 +114,25 @@ describe('ExitGuard — the close-requested save guard (W-02)', () => {
     stateSpy.mockRestore();
   });
 
-  it('Save and exit runs the REAL session save, then destroys the window', async () => {
+  it('Save and exit stops the live scan FIRST, then the REAL save, then destroys (SB-B-01)', async () => {
+    // The engine refuses session_save while the scan is busy — serialize_tree
+    // walks the live result tree off the tree mutex, so a mid-run save would
+    // race the scan thread. The honest flow (og stop→SaveScan parity, the
+    // engine's own S-057/W1c cancel-tail persistence): cancel, wait for the
+    // terminal latch, then the named save, then close.
+    let stateNow = 'running';
     const stateSpy = vi
       .spyOn(connector.scan, 'getScanState')
-      .mockResolvedValue({ status: 'running' } as Awaited<
-        ReturnType<typeof connector.scan.getScanState>
-      >);
+      .mockImplementation(
+        () =>
+          Promise.resolve({ status: stateNow }) as Promise<
+            Awaited<ReturnType<typeof connector.scan.getScanState>>
+          >,
+      );
+    const cancelSpy = vi.spyOn(connector.scan, 'cancelScan').mockImplementation(() => {
+      stateNow = 'cancelled'; // the engine's terminal latch, observed by the poll
+      return Promise.resolve(undefined);
+    });
     const saveSpy = vi
       .spyOn(connector.sessions, 'saveSession')
       .mockResolvedValue({} as Awaited<ReturnType<typeof connector.sessions.saveSession>>);
@@ -129,8 +142,44 @@ describe('ExitGuard — the close-requested save guard (W-02)', () => {
     fireClose();
     fireEvent.click(await screen.findByRole('button', { name: /save and exit/i }));
     await waitFor(() => expect(saveSpy).toHaveBeenCalledWith('scan-1', null));
-    await waitFor(() => expect(destroy).toHaveBeenCalled());
+    await waitFor(() => expect(destroy).toHaveBeenCalledTimes(1));
+    // The scan MUST have been stopped before the save was issued, and the
+    // engine state the poll observed at save time MUST be terminal.
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(cancelSpy.mock.invocationCallOrder[0]).toBeLessThan(
+      saveSpy.mock.invocationCallOrder[0],
+    );
     stateSpy.mockRestore();
+    cancelSpy.mockRestore();
+    saveSpy.mockRestore();
+  });
+
+  it('a refused stop surfaces the error and stays open — no silent no-op', async () => {
+    const stateSpy = vi
+      .spyOn(connector.scan, 'getScanState')
+      .mockResolvedValue({ status: 'running' } as Awaited<
+        ReturnType<typeof connector.scan.getScanState>
+      >);
+    const cancelSpy = vi
+      .spyOn(connector.scan, 'cancelScan')
+      .mockRejectedValue(new Error('scan device is gone'));
+    const saveSpy = vi.spyOn(connector.sessions, 'saveSession');
+    setTauriRuntime(true);
+    render(wrap(<ExitGuard />));
+    await waitFor(() => expect(closeHandlers.length).toBeGreaterThan(0));
+    fireClose();
+    fireEvent.click(await screen.findByRole('button', { name: /save and exit/i }));
+    await waitFor(() => expect(cancelSpy).toHaveBeenCalledTimes(1));
+    // Re-read after the refusal still says running → the error surfaces,
+    // the window stays open, no save, no destroy.
+    await waitFor(
+      () => expect(stateSpy.mock.calls[0]).toBeTruthy(), // poll evidence mounted
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+    stateSpy.mockRestore();
+    cancelSpy.mockRestore();
     saveSpy.mockRestore();
   });
 

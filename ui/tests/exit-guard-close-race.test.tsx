@@ -36,28 +36,21 @@ import '@/i18n';
  */
 
 const destroy = vi.fn();
-type Handler = (event: {
+type Evt = {
   preventDefault(): void;
   isPreventDefault(): boolean;
-}) => void | Promise<void>;
-const closeHandlers: ((event: { preventDefault(): void }) => void)[] = [];
+};
+const closeHandlers: ((evt: Evt) => Promise<void>)[] = [];
 
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     destroy,
-    // FAITHFUL to @tauri-apps/api 2.12.4 window.js:2030-2036 — the wrapper
-    // awaits the handler, then destroys when it was not prevented.
-    onCloseRequested: (cb: Handler) => {
-      closeHandlers.push(async (event) => {
-        const evt = {
-          prevented: false,
-          preventDefault() {
-            evt.prevented = true;
-          },
-          isPreventDefault() {
-            return evt.prevented;
-          },
-        };
+    // FAITHFUL to @tauri-apps/api 2.12.4 (window.js onCloseRequested):
+    // the wrapper awaits the handler, then destroys the window itself when
+    // the handler did not preventDefault (SB-B-02 — the close is the
+    // wrapper's job; the guard only decides whether to prevent).
+    onCloseRequested: (cb: (evt: Evt) => void | Promise<void>) => {
+      closeHandlers.push(async (evt) => {
         await cb(evt);
         if (!evt.isPreventDefault()) destroy();
       });
@@ -68,8 +61,15 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 function fireClose(): void {
   expect(closeHandlers.length).toBeGreaterThan(0);
+  const evt = {
+    prevented: false,
+    preventDefault: (): void => {
+      evt.prevented = true;
+    },
+    isPreventDefault: (): boolean => evt.prevented,
+  };
   for (const h of closeHandlers) {
-    void h({ preventDefault: () => undefined });
+    void h(evt);
   }
 }
 

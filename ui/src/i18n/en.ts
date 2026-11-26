@@ -65,6 +65,8 @@ export const en = {
     saveAndExit: 'Save and exit',
     keepScanning: 'Keep scanning',
     exitWithoutSaving: 'Exit without saving',
+    stopTimeout:
+      'The scan did not stop in time — the session was NOT saved. Try Save and exit again, or exit without saving.',
   },
   nav: {
     home: 'Home',

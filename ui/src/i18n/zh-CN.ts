@@ -66,6 +66,7 @@ export const zhCN: TranslationSchema = {
     saveAndExit: '保存并退出',
     keepScanning: '继续扫描',
     exitWithoutSaving: '不保存退出',
+    stopTimeout: '扫描未能及时停止——会话未保存。请再次尝试“保存并退出”，或选择不保存退出。',
   },
   nav: {
     home: '首页',
