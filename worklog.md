@@ -5232,3 +5232,13 @@ requested access path is already in use'). The reseed is now partition-aware:
 volume after (a) FAILS honestly instead of formatting blind. The
 apply-scenario-level access-path detach (E2E-F6) stays: it handles
 Remove-Partition's own transient after the locked-raw-IO rows.
+
+### E2E-F7 escalation: the mountvol letter-cycle — 2026-11-26
+
+Run 45878601317 exFAT PARTDEL: the offline volume kept its letter ('access
+path already in use' on Add-PartitionAccessPath) while Get-Volume's FileSystem
+stayed null - dismount limbo. The reseed's state-(a) path now escalates: the
+mountvol letter-cycle (drop the stale letter, re-mount the volume GUID on the
+same letter; diskpart rescan when no GUID path is available), with the honest
+refusal retained after it. refs-a/refs-b are GREEN on this run - the
+unsupported_fs probes and the honest-empty whole-disk gate all validate.

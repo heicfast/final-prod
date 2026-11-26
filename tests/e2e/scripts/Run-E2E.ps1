@@ -229,7 +229,33 @@ function Invoke-Reseed {
                 Add-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $partNumber `
                     -AccessPath "$letter`:\" -ErrorAction Stop
             } catch {
-                Write-Host "  re-attach: $($_.Exception.Message) (recorded - waiting for the volume to settle)"
+                Write-Host "  re-attach: $($_.Exception.Message) (recorded - escalating to the mountvol letter-cycle)"
+                # run 45878601317 exFAT PARTDEL: the letter is still assigned
+                # ('access path already in use') while the volume sits in
+                # dismount limbo (Get-Volume FileSystem null). The mountvol
+                # cycle - drop the stale letter, re-mount the volume GUID on
+                # the same letter - is the canonical remount for that state.
+                try {
+                    $gvol = Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber | Get-Volume
+                    $guidPath = if ($gvol) { [string]$gvol.Path } else { '' }
+                    if ($guidPath) {
+                        mountvol "$letter`:\" /D 2>&1 | Out-Null
+                        Start-Sleep -Seconds 1
+                        mountvol "$letter`:\" "$guidPath" 2>&1 | Out-Null
+                        Start-Sleep -Seconds 2
+                        Write-Host "  mountvol letter-cycle done for $guidPath"
+                    } else {
+                        # last escalation: force a storage rescan (remounts
+                        # dismounted volumes with valid filesystems)
+                        $rescanTmp = [System.IO.Path]::GetTempFileName()
+                        'rescan' | Set-Content -Path $rescanTmp -Encoding ascii
+                        diskpart /s $rescanTmp 2>&1 | Out-Null
+                        Remove-Item $rescanTmp -Force -ErrorAction SilentlyContinue
+                        Write-Host '  diskpart rescan done (no volume GUID path available)'
+                    }
+                } catch {
+                    Write-Host "  mountvol escalation: $($_.Exception.Message) (recorded)"
+                }
             }
             for ($w = 0; $w -lt 20; $w++) {
                 $probe = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
