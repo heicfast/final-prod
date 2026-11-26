@@ -76,3 +76,28 @@ telemetry, pause/cancel, scan-truth included).
 
 Windows CI: the pushed commit runs engine-ci (win-x64-release, /W4 /WX) on
 GitHub's Windows runner — status recorded in the session worklog.
+
+## Addendum: the concurrent byte-plan progress model landed mid-session
+
+A parallel session landed `e9893088` (the F-B/F-C byte-plan model: 40/35/25
+StageWeights retired, one cumulative byte-sweep axis, quick+deep metadata
+passes own no percent) while this fix was in flight. Both changes rebase
+cleanly onto one tree; interaction reconciled honestly:
+
+- The premature-tick mechanism in the CONSUMER is unchanged
+  (`tel_publish_`: `done >= total -> pm = 1000`, monotonic clamp) — the
+  five engine-side tick removals remain valid and necessary.
+- The overall axis is now byte-plan driven; for a quick-only scan
+  (no byte sweep → `plan_bytes == 0`) `overall_from_plan` FALLS BACK to
+  the stage permille — the walk ticks ARE the overall there, which is
+  exactly the surface the premature tick polluted. The regression test
+  drives that configuration (`cfg.run_deep = false; run_carve = false`)
+  and pins: the 1000 completion value sampled ONLY at the true end.
+
+Red/green on the MERGED tree (this session, Linux ASAN build):
+- PRE-FIX (parent commit 5fbf39fb's engine files checked out): the pin
+  FAILS — `completion_samples = 9` (the overall hit 1000 when sibling A's
+  chain closed and held it through sibling B's whole walk).
+- POST-FIX: PASSES (completion samples ≤ 4, all true-end stamps).
+- Full merged-tree engine suite: **1750 tests ran, 1708 passed,
+  42 skipped (absent fixture data), 0 failed** (171 s, ASAN preset).

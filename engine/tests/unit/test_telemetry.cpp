@@ -373,6 +373,11 @@ TEST(Telemetry, FatQuickWalkHonestUntilTrueEnd) {
     MemDevice dev(build_fat16_sibling_subdirs(200, 300));
     tree::ResultTree tree;
     ScanConfig cfg;
+    /* Quick-only: no byte sweep runs, so plan_bytes == 0 and the overall
+     * permille falls back to the quick stage permille (overall_from_plan's
+     * fallback) — the walk ticks ARE the overall under this configuration,
+     * which is exactly the surface the premature tick polluted. */
+    cfg.run_deep = false;
     cfg.run_carve = false;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
@@ -395,25 +400,26 @@ TEST(Telemetry, FatQuickWalkHonestUntilTrueEnd) {
         for (u32 p : cap.overall) {
             EXPECT_GE(p, prev); /* monotonic across ticks AND boundaries */
             EXPECT_LE(p, 1000u);
-            if (p < 750u && p != last_below) { /* distinct live values */
+            if (p < 1000u && p != last_below) { /* distinct live values */
                 ++distinct_below;
                 last_below = p;
             }
             prev = p;
         }
-        /* SB-E-01's discriminator: the 750 boundary (the weighted
-         * quick+deep completion value — "75% of the whole scan") may be
-         * sampled ONLY at the true pass end (the terminal stamps). The
-         * pre-fix walk hit it when sibling A's chain closed and held it
-         * through sibling B's entire walk (observed pre-fix: 10 boundary
-         * samples mid-walk; post-fix: 2, the true-end stamps only). */
-        u32 boundary_samples = 0;
+        /* SB-E-01's discriminator (quick-only fallback axis): the 1000
+         * completion value may be sampled ONLY at the true pass end (the
+         * stage-end/terminal stamps). The pre-fix walk hit 1000 when
+         * sibling A's chain closed (the (done,done) tick) and HELD it
+         * through sibling B's entire walk — completion claimed with the
+         * bulk of the scan remaining. Post-fix: the live ticks stay
+         * strictly below 1000 and only the true end completes. */
+        u32 completion_samples = 0;
         for (u32 p : cap.overall)
-            if (p == 750u)
-                ++boundary_samples;
-        EXPECT_LE(boundary_samples, 4u);
-        EXPECT_GT(distinct_below, 0u); /* live values exist below the boundary */
-        EXPECT_EQ(750u, prev); /* the TRUE end still lands exactly at the boundary */
+            if (p == 1000u)
+                ++completion_samples;
+        EXPECT_LE(completion_samples, 4u);
+        EXPECT_GT(distinct_below, 0u); /* live values exist below completion */
+        EXPECT_EQ(1000u, prev); /* the TRUE end still completes */
 
     }
 }
