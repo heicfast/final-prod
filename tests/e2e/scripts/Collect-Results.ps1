@@ -113,6 +113,9 @@ if ($verdictRows.Count -eq 0 -and $scenarioDirs.Count -gt 0) {
     }
 }
 
+# hashtable literals take pre-computed values only (an if/try inside the
+# literal is a parse error - the runner's AST gate owns this class)
+$matrixVersion = if ($matrix) { $matrix.version } else { $null }
 $run = [ordered]@{
     run_id = $RunId
     run_url = $RunUrl
@@ -121,7 +124,7 @@ $run = [ordered]@{
     captured_utc = (Get-Date).ToUniversalTime().ToString('o')
     suite = 'tests/e2e'
     matrix_path = $MatrixPath
-    matrix_version = if ($matrix) { $matrix.version } else { $null }
+    matrix_version = $matrixVersion
     scenarios_expected = $expectedIds.Count
     scenarios_present = $foundIds.Count
     scenarios_missing = $missing

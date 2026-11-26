@@ -141,19 +141,30 @@ if (-not $cliInv -or -not $apiInv) {
     #    checks CLI scan exits 0 + recover 0/2 + API 0/2 + transport=direct).
 }
 
+# hashtable literals take pre-computed values only (an if inside the literal
+# is a parse error - the runner's AST gate owns this class)
+$cliFilesSeen = if ($cliInv) { [int]$cliInv.files_seen } else { $null }
+$cliMatched = if ($cliInv) { [int]$cliInv.matched } else { $null }
+$cliHashMatched = if ($cliInv) { [int]$cliInv.hash_match } else { $null }
+$cliFps = if ($cliInv) { [int]$cliInv.false_positives } else { $null }
+$apiFilesSeen = if ($apiInv) { [int]$apiInv.files_seen } else { $null }
+$apiMatched = if ($apiInv) { [int]$apiInv.matched } else { $null }
+$apiHashMatched = if ($apiInv) { [int]$apiInv.hash_match } else { $null }
+$apiFps = if ($apiInv) { [int]$apiInv.false_positives } else { $null }
+
 $out = [ordered]@{
     scenario = $ScenarioId
     checked = $checked
     agree = ($findings.Count -eq 0)
     compared = [ordered]@{
-        cli_files_seen = if ($cliInv) { [int]$cliInv.files_seen } else { $null }
-        cli_matched = if ($cliInv) { [int]$cliInv.matched } else { $null }
-        cli_hash_matched = if ($cliInv) { [int]$cliInv.hash_match } else { $null }
-        cli_false_positives = if ($cliInv) { [int]$cliInv.false_positives } else { $null }
-        api_files_seen = if ($apiInv) { [int]$apiInv.files_seen } else { $null }
-        api_matched = if ($apiInv) { [int]$apiInv.matched } else { $null }
-        api_hash_matched = if ($apiInv) { [int]$apiInv.hash_match } else { $null }
-        api_false_positives = if ($apiInv) { [int]$apiInv.false_positives } else { $null }
+        cli_files_seen = $cliFilesSeen
+        cli_matched = $cliMatched
+        cli_hash_matched = $cliHashMatched
+        cli_false_positives = $cliFps
+        api_files_seen = $apiFilesSeen
+        api_matched = $apiMatched
+        api_hash_matched = $apiHashMatched
+        api_false_positives = $apiFps
         cli_scan_files = $cliFiles; api_scan_files = $apiFiles
         cli_lost_partitions = $cliLost; api_lost_partitions = $apiLost
     }
