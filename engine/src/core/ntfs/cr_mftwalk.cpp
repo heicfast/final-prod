@@ -29,6 +29,8 @@ constexpr u32 USN_RESYNC_LIMIT = 1u << 20;   /* 8-byte re-sync probes before
 struct EmittedNode {
     tree::FileNode* node = nullptr;
     u64 parent_record = 0;
+    u64 parent_ref = 0; /* F-03: the link's full $FILE_NAME parent reference
+                         * (seq<<48 | record) the sequence gate reads */
     bool parent_resolved = false;
 };
 
@@ -53,6 +55,25 @@ int namespace_rank(u8 ns) {
     default:
         return 0;
     }
+}
+
+/* F-03 (SF §2.5, worklog/SECTORFORGE-FEATURES.md): the parent-sequence
+ * gate. The $FILE_NAME's parent reference carries the parent record's
+ * sequence at name-record time; the link is accepted only while it still
+ * matches the parent record's CURRENT sequence - equal (the parent is
+ * unchanged), or +1 with the parent deleted (deletion bumps the sequence
+ * once) - and the parent is a directory. A parent record whose sequence
+ * has moved further was reused for another file: the stale link is NOT
+ * that entry's parent - it must orphan (LostDir grouping), never attach
+ * under the unrelated reused node. */
+bool parent_link_valid(const tree::FileProperties* parent_props, u64 parent_ref) {
+    if (parent_props == nullptr)
+        return false;
+    const u64 pseq = (parent_ref >> 48) & 0xFFFF;
+    const u64 pcur = (parent_props->record_ref >> 48) & 0xFFFF;
+    const bool parent_dir = (parent_props->flags & PFLAG_IS_DIR) != 0;
+    const bool parent_live = (parent_props->flags & PFLAG_IN_USE) != 0;
+    return parent_dir && (pseq == pcur || (pseq + 1 == pcur && !parent_live));
 }
 
 /* Build props for one record from its attribute views. */
@@ -1095,7 +1116,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             if (first_link_node == nullptr)
                 first_link_node = n; /* audit row 6c: ADS attaches to the
                                         canonical (first) link, not the last */
-            emitted.push_back({n, p, false});
+            emitted.push_back({n, p, link_name->parent_ref, false});
             ++stats.emitted;
         }
         /* GAP-P1-3: an un-mappable $R just emitted under its raw name -
@@ -1191,6 +1212,12 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         auto it = by_record.find(e.parent_record);
         if (it != by_record.end() && it->second != e.node)
             parent_node = it->second;
+        /* F-03: the sequence gate - a parent record whose sequence has
+         * moved past the link's recorded sequence was reused for another
+         * file; the stale link orphans below instead of attaching the
+         * entry under the unrelated reused node */
+        if (parent_node != nullptr && !parent_link_valid(parent_node->props(), e.parent_ref))
+            parent_node = nullptr;
         if (parent_node != nullptr) {
             tree.reparent(e.node, parent_node);
         } else {
@@ -1662,7 +1689,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                          * -> lost root (dump records are deleted evidence) */
                         tree::FileNode* host = root_lost;
                         auto pit = by_record.find(best2->parent_record);
-                        if (pit != by_record.end() && pit->second != nullptr)
+                        if (pit != by_record.end() && pit->second != nullptr &&
+                            parent_link_valid(pit->second->props(), best2->parent_ref))
                             host = pit->second;
                         tree::FileNode* dn = tree.add_file(host, dp);
                         /* drop the caller-held ref - the node holds its own
@@ -1676,7 +1704,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         dn->set_deleted_state(tree::DeletedState::Deleted);
                         dn->set_confidence(is_dir2 ? tree::Confidence::Unknown : conf2);
                         dn->set_origin(tree::Origin::Structured);
-                        emitted.push_back({dn, best2->parent_record, true});
+                        emitted.push_back({dn, best2->parent_record, best2->parent_ref, true});
                         ++stats.guid_dump_records;
                         ++stats.emitted;
                         p += rs; /* og uVar8: the emit path keeps the record

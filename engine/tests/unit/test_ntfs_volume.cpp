@@ -95,13 +95,13 @@ struct RecBuilder {
 
     explicit RecBuilder(u64 rs = RECORD_SIZE) : buf(size_t(rs), 0), rs_(rs) {}
 
-    void header(u64 record_no, u16 flags) {
+    void header(u64 record_no, u16 flags, u16 seq = 1) {
         const u64 nsec = rs_ / SEC; /* USA: one slot per sector + the USN */
         auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->magic = RECORD_MAGIC_FILE;
         rh->update_sequence_offset = 0x30;
         rh->update_sequence_size = u16(nsec + 1);
-        rh->sequence = 1;
+        rh->sequence = seq;
         rh->link_count = 1;
         /* the USA grows with the sector count (nsec+1 u16 slots); the first
          * attribute must start past it, 8-aligned (0x38 for 1 KiB records,
@@ -1829,6 +1829,128 @@ TEST(NtfsVolume, ParentAnchorIsMaskedFileNameParentRecord) {
     EXPECT_EQ(hard3[0]->props()->ntfs_parent_ref, 0x10ull)
         << "the FS-native parent datum must survive the session round trip";
     EXPECT_EQ(hardroot3[0]->props()->ntfs_parent_ref, 5ull);
+}
+
+TEST(NtfsVolume, ParentSequenceGateOrphansReusedParents) {
+    /* F-03 (SF §2.5, worklog/SECTORFORGE-FEATURES.md): the $FILE_NAME
+     * parent-sequence gate. A link is accepted only when its recorded
+     * parent sequence matches the parent record's CURRENT sequence -
+     * equal (parent unchanged), or +1 with the parent deleted (deletion
+     * bumps the sequence once) - and the parent is a directory. A parent
+     * record whose sequence moved further was REUSED for another file:
+     * the stale link must orphan under LostDir<record>, never attach
+     * under the unrelated reused node. The base fixture's every link is
+     * pseq == pcur (all sequences 1) - those must stay attached. */
+    Image img;
+    build_image(img);
+    /* record 24: reuser.dir - an IN-USE directory whose sequence (9) has
+     * moved past what a stale child once recorded (1): the reuse shape */
+    {
+        RecBuilder r;
+        r.header(24, u16(RECORD_IN_USE | RECORD_IS_DIRECTORY), 9);
+        r.attr_si(0x30);
+        r.attr_file_name(5, u"reuser.dir", FILE_NAME_WIN32_AND_DOS, 0x30, 4096, 4096);
+        r.attr_index_runlist(220, 4);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE); /* rec 24 */
+    }
+    /* record 25: stalechild.dat - deleted, $FILE_NAME parent 24 with
+     * pseq 1 while record 24's current sequence is 9 -> stale link ->
+     * orphan under LostDir24 */
+    {
+        RecBuilder r;
+        r.header(25, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(24, u"stalechild.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(210, 4, 2048);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 50), r.buf.data(), RECORD_SIZE); /* rec 25 */
+    }
+    /* record 26: deaddir - a DELETED directory with sequence 2 (the
+     * delete bump); record 27's link (pseq 1) is pseq+1 == pcur with the
+     * parent dead -> ACCEPTED under deaddir */
+    {
+        RecBuilder r;
+        r.header(26, RECORD_IS_DIRECTORY, 2);
+        r.attr_si(0x30);
+        r.attr_file_name(5, u"deaddir", FILE_NAME_WIN32_AND_DOS, 0x30, 4096, 4096);
+        r.attr_index_runlist(220, 4);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE); /* rec 26 */
+    }
+    {
+        RecBuilder r;
+        r.header(27, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(26, u"bumpchild.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(210, 4, 2048);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE); /* rec 27 */
+    }
+    /* record 28: fileparent.dat - deleted, parent 17 (readme.txt: an
+     * IN-USE FILE, sequence matches): a file is never a directory ->
+     * rejected -> orphan under LostDir17 */
+    {
+        RecBuilder r;
+        r.header(28, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(17, u"fileparent.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(210, 4, 2048);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 56), r.buf.data(), RECORD_SIZE); /* rec 28 */
+    }
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    /* the stale link (reused parent, sequence 9 vs pseq 1) orphans under
+     * LostDir24 - never under reuser.dir */
+    const auto stale = nodes_named(tree, "stalechild.dat");
+    ASSERT_EQ(stale.size(), 1u);
+    ASSERT_NE(stale[0]->parent(), nullptr);
+    EXPECT_EQ(stale[0]->parent()->name_utf8(), "LostDir24")
+        << "the reused record is not this entry's parent; the link is stale";
+
+    /* the delete-bumped parent (pseq+1 == pcur, parent dead) is accepted */
+    const auto bump = nodes_named(tree, "bumpchild.dat");
+    ASSERT_EQ(bump.size(), 1u);
+    ASSERT_NE(bump[0]->parent(), nullptr);
+    EXPECT_EQ(bump[0]->parent()->name_utf8(), "deaddir")
+        << "a parent deleted after the name was recorded keeps the ancestry";
+
+    /* a file record is never a directory: rejected even on sequence match */
+    const auto filep = nodes_named(tree, "fileparent.dat");
+    ASSERT_EQ(filep.size(), 1u);
+    ASSERT_NE(filep[0]->parent(), nullptr);
+    EXPECT_EQ(filep[0]->parent()->name_utf8(), "LostDir17")
+        << "a FILE record is not a directory; the link cannot attach";
+
+    /* the gate never disturbs the base fixture's pseq == pcur links */
+    const auto readme = nodes_named(tree, "readme.txt");
+    ASSERT_EQ(readme.size(), 1u);
+    ASSERT_NE(readme[0]->parent(), nullptr);
+    EXPECT_EQ(readme[0]->parent()->name_utf8(), "folder1");
+    const auto reuser = nodes_named(tree, "reuser.dir");
+    ASSERT_EQ(reuser.size(), 1u);
+    ASSERT_NE(reuser[0]->parent(), nullptr);
+    EXPECT_EQ(reuser[0]->parent()->name_utf8(), ".")
+        << "the reused record's own (fresh) link still attaches to the root";
+
+    EXPECT_EQ(stats.orphans, 2u) << "exactly the two rejected links (24-reuse, 17-file)";
 }
 
 TEST(NtfsVolume, HardLinkFanOutClonesKeepShortName) {
