@@ -5158,3 +5158,29 @@ exercised). Second fix: the unsupported_fs API probe Tee'd harness.stdout into
 the evidence dir but read it back from the work dir - the refusal text was
 never seen and every refs API probe false-failed (the CLI probes were clean:
 exit 1 + 'scan failed: bad magic (0x50030001)' + no session).
+e1ff407c (worklog(small-bugs): the CI close-out — every lane green on the session's final commit)
+
+### Session close-out (the final CI truth)
+
+Every lane that ran on this session's final commit `3862003a` is GREEN:
+ui-ci, ui-e2e, and **bridge-integration** (the lane that builds the real
+engine, links the real bridge, and runs the it/-crate integration tests —
+validating this session's Rust changes end-to-end: the SB-A-01 Arc swap +
+the three for-loop site fixes, the SB-B-04 hex event name + its Rust unit
+test, the sessions.rs exit-flow, and the byte-plan-trued progress pin).
+contracts-ci was green on every push that ran it. engine-ci was green on
+`26de8224` (the engine fixes + formatting). The residual reds seen during
+the session were each root-caused from run logs and fixed:
+- the concurrent lane's unformatted abi_layout_dump.c (pre-existing on
+  4a828a0f — red before this session's first push; formatted in 26de8224),
+- this session's own slips — test_telemetry.cpp clang-format, the
+  exit-guard's arch-lint A1 connector boundary (the flow moved into
+  queries/sessions.ts), the capability gate's Windows path separator, and
+  the Arc swap's three `for m in &metas` compile sites (caught by the
+  Windows cargo check the sandbox could not run).
+- the bridge pin that expected the retired 750 weighted cap (test debt of
+  the concurrent byte-plan change; trued to the model's 1000 completion).
+
+The repo remained a moving target (concurrent lanes landed
+3b222ad2..afff17a9 during the session); every push was rebased, never
+force-pushed, and main is green at close.
