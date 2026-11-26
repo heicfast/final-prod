@@ -1,6 +1,7 @@
 # T5 evidence — seeded named-feature fixture, captured on real Windows
 
 **Canonical green run**: [44356754104](https://github.com/heicfast/final-prod/actions/runs/44356754104) (commit `6544953e`, 2026-11-18, windows-latest, conclusion **success**).
+**The F-01 closed-loop green (engine-flow)**: [45811533301](https://github.com/heicfast/final-prod/actions/runs/45811533301) (commit `d65a5d12`, 2026-11-26, windows-latest + windows-2022, conclusion **success**) — the byte-for-byte verdict `"ok": true` is in `verify-report.json` in this directory.
 
 ## What the run proved (each claim = artifact in this directory)
 
@@ -14,6 +15,18 @@
 
 The `lane-transcript.txt` is the full PowerShell transcript of the run.
 
+## The F-01 closed loop (engine-flow) — GREEN, evidence in this directory
+
+Run [45811533301](https://github.com/heicfast/final-prod/actions/runs/45811533301) on `d65a5d12` (2026-11-26): the engine-flow job built `rrecov` (MSVC win-x64-release), scanned the detached seeded VHDX whole-disk, reconstructed with `--reconstruct-deleted` (SF semantics, SfId scheme), and handed the output to the byte-for-byte judge.
+
+| Claim | Evidence |
+|---|---|
+| **I1–I5 green** (deleted-only, exactness, collision-set, accountability, containment) | `verify-report.json`: `ok: true`, `failures: []`; stats: 26 manifest rows, 24 deleted, 17 EXACT + 2 COLLISION-SET, **19 output files** (17 EXACT + the `.nffx-flush-probe` + the `.nffx/draft-v2.txt` stash twin — both manifest-declared, both I4-accounted), 17 output dirs |
+| The recovered tree preserved the original directory structure | `output-listing.txt` (captured runner-side with `Get-ChildItem -Force` — complete incl. dot entries): `Docs\Old\sub\deep.bin`, `Photos\vacation\inner\meta.json`, `Deep\a\b\c\d\e\nested-deep.txt`, the `Collisions\draft.txt` pair member, the unicode row, and the 0 B `Sizes\empty.bin` — all at their manifest-relative paths |
+| The engine's own itemized truth | `recovery-report.json` (24 items, all `done`, no refused/error/hash-mismatch rows); `reconstruct-log.txt` (plan: 19 files + 5 dirs, 7 in-use pruned, 221 carved excluded; recovered 19 done 0 refused 0 errors) |
+| The scan produced a real session | `scan.crsf` + `scan-log.txt` (whole-disk scan of the GPT/NTFS VHDX as an image) |
+| The fixture regenerated clean this run | `apply-log.json` (19/19 actions ok, both flushes clean), `verify-selftest.txt` **6/6** (the dir-row pins included — the verifier fix's regression class), `engine-flow-run-transcript.txt` |
+
 ## Run history (failures root-caused, never masked)
 
 | Run | Commit | Result | Root cause / action |
@@ -25,6 +38,8 @@ The `lane-transcript.txt` is the full PowerShell transcript of the run.
 | [44356754104](https://github.com/heicfast/final-prod/actions/runs/44356754104) | 6544953e | **success** | The canonical evidence run captured here — flush_after clean. |
 | [44370686000](https://github.com/heicfast/final-prod/actions/runs/44370686000) | 5e57d8b2 | fixture ok / engine-flow red | The seeded VHDX ground truth built clean; the engine-flow job (scan + reconstruct + verify) failed — see the next rows. |
 | [44391734922](https://github.com/heicfast/final-prod/actions/runs/44391734922) | bed4d22c | fixture ok / engine-flow red | **The F-01 closed-loop's first full red, root-caused from artifacts to THREE defects**: (1) ENGINE — the NTFS volume root `.` directory was sanitized into a literal `_` path component, nesting every reconstructed path under `_\` (F-01b: `.`/`..` are reference names, transparent in the plan walk); (2) FIXTURE — the v2 recreate's cached `File.Copy` lost its data on the unflushable volume cache (the VHDX reads zeros at v2's extent; the stash twin survived) → the recreate is now WriteThrough; the probe's post-deletion create had eaten `Docs/report.docx`'s freed MFT record → the probe record is now allocated BEFORE any deletion; the probe and the stash are now declared manifest rows (I4 accountability exact); (3) FIXTURE — the fixture seeded at `X:\fixture` so volume-relative paths carried a `fixture/` component the verifier had to strip → the fixture now seeds at the volume root `X:\` (manifest `rel` == volume-relative path). Engine label defect also found+fixed: `(VHDX, MBR)` on a GPT disk — `classify_lba0` needs LBA1 (`EFI PART` at +0x200) but the caller read only 512 bytes; the og's 0x1000-byte read restored. |
+| [44475017206](https://github.com/heicfast/final-prod/actions/runs/44475017206) | 1a1f6877 | fixture ok / engine-flow red | **Run 14 — the red that was the VERIFIER's, root-caused from the downloaded artifacts**: the engine output was fully correct (recovery-report 24/24 done; all files byte-exact; all dirs on disk; the runner-side I2 passed the `.nffx-flush-probe` row — it is not among the failures) but FOUR false `I2 missing output` failures fired for the deleted-DIRECTORY rows (`Docs/Old`, `Docs/Old/sub`, `Photos/vacation`, `Photos/vacation/inner`): `walk_outputs()` collects files only, and dir rows carry `expect.class=EXACT`, so the file-exactness loop always reported them "missing". Fix (commit `d65a5d12`): `exact_rows` excludes `is_dir` rows — directories are validated by the dedicated isdir check ("I2 deleted directory not reconstructed", which run 14 passed with zero findings); the self-test gained the regression pins (a dir row with a file child, an empty deleted dir, a dir-missing failing case — 6/6). Same-commit evidence fix: the run-14 artifact zip had silently DROPPED the dot-prefixed recovered files (`**` glob skips them — the probe + the stash twin were on the runner tree per the recovery report but absent from the zip); the lane now captures `output-listing.txt` runner-side (`Get-ChildItem -Force`) so the evidence tree is complete by construction. |
+| [45811533301](https://github.com/heicfast/final-prod/actions/runs/45811533301) | d65a5d12 | **success — THE F-01 CLOSED LOOP GREEN** | The full loop green on real Windows: fixture job (generation, determinism proof, deletion matrix, 6/6 self-test) + engine-flow job (rrecov build, whole-disk scan, `--reconstruct-deleted`, I1–I5 `ok: true`). Evidence captured in this directory (see the table above). **Validation gate 2 proven.** |
 
 ## Fixture design v1.1 (post-44391734922)
 

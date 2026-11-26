@@ -1,123 +1,123 @@
 {
-  "fixture_root": "X:\\fixture",
+  "fixture_root": "X:\\",
   "manifest": "D:\\a\\_temp\\nffx\\evidence\\manifest.jsonl",
-  "applied_utc": "2026-11-18T17:16:32.6966287Z",
+  "applied_utc": "2026-11-26T11:32:54.9171374Z",
   "flush_before": "flushed (letter X)",
-  "flush_after": "write-through probe ok; volume-cache best-effort (letter X)",
+  "flush_after": "write-through probe ok (sha 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d); volume-cache best-effort (letter X)",
   "actions": [
     {
       "kind": "delete",
       "target": "Collisions/draft.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.5519371Z"
+      "at_utc": "2026-11-26T11:32:54.7625012Z"
     },
     {
       "kind": "recreate-from-stash",
       "target": "Collisions/draft.txt",
       "outcome": "ok sha-verified (b0c28603577996655bc2584ebd762a8b313c14e1094d1ac3d02fc7107ab00fab)",
-      "at_utc": "2026-11-18T17:16:32.5855824Z"
-    },
-    {
-      "kind": "delete-tree",
-      "target": "Photos/vacation/inner",
-      "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.5925071Z"
+      "at_utc": "2026-11-26T11:32:54.7906032Z"
     },
     {
       "kind": "delete-tree",
       "target": "Docs/Old/sub",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.5949661Z"
+      "at_utc": "2026-11-26T11:32:54.7953088Z"
+    },
+    {
+      "kind": "delete-tree",
+      "target": "Photos/vacation/inner",
+      "outcome": "ok",
+      "at_utc": "2026-11-26T11:32:54.7968092Z"
     },
     {
       "kind": "delete",
       "target": "Docs/report.docx",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.5966463Z"
+      "at_utc": "2026-11-26T11:32:54.7978952Z"
     },
     {
       "kind": "delete",
       "target": "Docs/archive-2025.zip",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.5984116Z"
+      "at_utc": "2026-11-26T11:32:54.7989369Z"
     },
     {
       "kind": "delete",
       "target": "Names/file with spaces.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6001499Z"
+      "at_utc": "2026-11-26T11:32:54.8001216Z"
     },
     {
       "kind": "delete",
       "target": "Names/üñíçødé-名前- файл.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6020496Z"
+      "at_utc": "2026-11-26T11:32:54.8011546Z"
     },
     {
       "kind": "delete",
       "target": "Sizes/empty.bin",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6037866Z"
+      "at_utc": "2026-11-26T11:32:54.8021552Z"
     },
     {
       "kind": "delete",
       "target": "Sizes/resident.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6055036Z"
+      "at_utc": "2026-11-26T11:32:54.8031229Z"
     },
     {
       "kind": "delete",
       "target": "Sizes/onerecord.bin",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6072362Z"
+      "at_utc": "2026-11-26T11:32:54.8040886Z"
     },
     {
       "kind": "delete",
       "target": "Sizes/nonresident.bin",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6092288Z"
+      "at_utc": "2026-11-26T11:32:54.8053263Z"
     },
     {
       "kind": "delete",
       "target": "Attributes/hidden-note.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6114033Z"
+      "at_utc": "2026-11-26T11:32:54.8063755Z"
     },
     {
       "kind": "delete",
       "target": "Attributes/readonly-diary.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6135084Z"
+      "at_utc": "2026-11-26T11:32:54.8074594Z"
     },
     {
       "kind": "delete",
       "target": "Deep/a/b/c/d/e/nested-deep.txt",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6157658Z"
+      "at_utc": "2026-11-26T11:32:54.8085446Z"
     },
     {
       "kind": "delete",
       "target": "Collisions/draft.txt (v2)",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6167694Z"
+      "at_utc": "2026-11-26T11:32:54.8090937Z"
     },
     {
       "kind": "delete-tree",
       "target": "Docs/Old",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6195149Z"
+      "at_utc": "2026-11-26T11:32:54.8106477Z"
     },
     {
       "kind": "delete-tree",
       "target": "Photos/vacation",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6224267Z"
+      "at_utc": "2026-11-26T11:32:54.8250279Z"
     },
     {
       "kind": "remove-stash",
       "target": ".nffx",
       "outcome": "ok",
-      "at_utc": "2026-11-18T17:16:32.6252072Z"
+      "at_utc": "2026-11-26T11:32:54.8270291Z"
     }
   ]
 }

@@ -1,0 +1,65 @@
+**********************
+PowerShell transcript start
+Start time: 20261126113249
+Username: runnervmbpeip\runneradmin
+RunAs User: runnervmbpeip\runneradmin
+Configuration Name: 
+Machine: runnervmbpeip (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -command . 'D:\a\_temp\87871f4f-e20e-4abe-bbf3-4ab22d7092ea.ps1'
+Process ID: 7268
+PSVersion: 7.6.10
+PSEdition: Core
+GitCommitId: 7.6.10
+OS: Microsoft Windows 10.0.26100
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+
+Microsoft DiskPart version 10.0.26100.1150
+
+Copyright (C) Microsoft Corporation.
+On computer: runnervmbpeip
+
+
+    0 percent completed
+  100 percent completed
+
+
+DiskPart successfully created the virtual disk file.
+
+DiskPart successfully selected the virtual disk file.
+
+  100 percent completed
+
+
+DiskPart successfully attached the virtual disk file.
+
+DiskPart successfully converted the selected disk to GPT format.
+
+DiskPart succeeded in creating the specified partition.
+
+    0 percent completed
+  100 percent completed
+
+
+DiskPart successfully formatted the volume.
+
+DiskPart successfully assigned the drive letter or mount point.
+
+
+determinism PROOF: two generations byte-identical (modulo _meta; run 2 on the runner scratch disk - the VHDX keeps exactly one generation)
+
+selftest good       PASS
+selftest missing    PASS
+selftest live-leak  PASS
+selftest bad-hash   PASS
+selftest extra      PASS
+selftest dir-missing PASS
+self-test PASSED
+**********************
+PowerShell transcript end
+End time: 20261126113257
+**********************

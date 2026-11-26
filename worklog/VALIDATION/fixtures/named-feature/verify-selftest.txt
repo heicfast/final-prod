@@ -3,4 +3,5 @@ selftest missing    PASS
 selftest live-leak  PASS
 selftest bad-hash   PASS
 selftest extra      PASS
+selftest dir-missing PASS
 self-test PASSED

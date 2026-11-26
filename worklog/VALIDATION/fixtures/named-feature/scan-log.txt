@@ -1,0 +1,316 @@
+[user-signs] no default signature database; proceeding with none
+[image] D:\a\_temp\nffx\named-feature-fixture.vhdx (VHDX, GPT, 2.00 GB)
+
+    0.0%  (0 s)  remaining: 3m00s   
+   18.7%  (0 s)  remaining: 3m00s   
+   37.5%  (0 s)  remaining: 3m00s   
+   56.2%  (0 s)  remaining: 3m00s   
+   75.0%  (0 s)  remaining: 3m00s   
+   75.1%  (0 s)  remaining: 3m00s   
+   75.2%  (0 s)  remaining: 3m00s   
+   75.3%  (0 s)  remaining: 3m00s   
+   75.4%  (0 s)  remaining: 3m00s   
+   75.5%  (1 s)  remaining: 3m00s   
+   75.6%  (1 s)  remaining: 3m00s   
+   75.7%  (1 s)  remaining: 3m00s   
+   75.8%  (1 s)  remaining: 3m00s   
+   75.9%  (2 s)  remaining: 3m00s   
+   76.0%  (2 s)  remaining: 3m00s   
+   76.1%  (2 s)  remaining: 3m00s   
+   76.2%  (2 s)  remaining: 3m00s   
+   76.3%  (3 s)  remaining: 3m00s   
+   76.4%  (3 s)  remaining: 00m01s   
+   76.5%  (3 s)  remaining: 00m01s   
+   76.6%  (3 s)  remaining: 00m01s   
+   76.7%  (4 s)  remaining: 00m01s   
+   76.8%  (4 s)  remaining: 00m01s   
+   76.9%  (4 s)  remaining: 00m01s   
+   77.0%  (4 s)  remaining: 00m01s   
+   77.1%  (5 s)  remaining: 00m01s   
+   77.2%  (5 s)  remaining: 00m01s   
+   77.3%  (5 s)  remaining: 00m01s   
+   77.4%  (6 s)  remaining: 00m01s   
+   77.5%  (6 s)  remaining: 00m01s   
+   77.6%  (6 s)  remaining: 00m01s   
+   77.7%  (6 s)  remaining: 00m01s   
+   77.8%  (7 s)  remaining: 00m02s   
+   77.9%  (7 s)  remaining: 00m02s   
+   78.0%  (7 s)  remaining: 00m02s   
+   78.1%  (7 s)  remaining: 00m02s   
+   78.2%  (8 s)  remaining: 00m02s   
+   78.3%  (8 s)  remaining: 00m02s   
+   78.4%  (8 s)  remaining: 00m02s   
+   78.5%  (8 s)  remaining: 00m02s   
+   78.6%  (9 s)  remaining: 00m02s   
+   78.7%  (9 s)  remaining: 00m02s   
+   78.8%  (9 s)  remaining: 00m02s   
+   78.9%  (9 s)  remaining: 00m02s   
+   79.0%  (10 s)  remaining: 00m02s   
+   79.1%  (10 s)  remaining: 00m02s   
+   79.2%  (10 s)  remaining: 00m02s   
+   79.3%  (11 s)  remaining: 00m02s   
+   79.4%  (11 s)  remaining: 00m02s   
+   79.5%  (11 s)  remaining: 00m02s   
+   79.6%  (11 s)  remaining: 00m03s   
+   79.7%  (12 s)  remaining: 00m03s   
+   79.8%  (12 s)  remaining: 00m03s   
+   79.9%  (12 s)  remaining: 00m03s   
+   80.0%  (12 s)  remaining: 00m03s   
+   80.1%  (13 s)  remaining: 00m03s   
+   80.2%  (13 s)  remaining: 00m03s   
+   80.3%  (13 s)  remaining: 00m03s   
+   80.4%  (13 s)  remaining: 00m03s   
+   80.5%  (14 s)  remaining: 00m03s   
+   80.6%  (14 s)  remaining: 00m03s   
+   80.7%  (14 s)  remaining: 00m03s   
+   80.8%  (14 s)  remaining: 00m03s   
+   80.9%  (15 s)  remaining: 00m03s   
+   81.0%  (15 s)  remaining: 00m03s   
+   81.1%  (15 s)  remaining: 00m03s   
+   81.2%  (15 s)  remaining: 00m03s   
+   81.3%  (16 s)  remaining: 00m03s   
+   81.4%  (16 s)  remaining: 00m03s   
+   81.5%  (16 s)  remaining: 00m03s   
+   81.6%  (16 s)  remaining: 00m03s   
+   81.7%  (17 s)  remaining: 00m03s   
+   81.8%  (17 s)  remaining: 00m03s   
+   81.9%  (17 s)  remaining: 00m03s   
+   82.0%  (17 s)  remaining: 00m03s   
+   82.1%  (18 s)  remaining: 00m03s   
+   82.2%  (18 s)  remaining: 00m03s   
+   82.3%  (18 s)  remaining: 00m04s   
+   82.4%  (19 s)  remaining: 00m04s   
+   82.5%  (19 s)  remaining: 00m04s   
+   82.6%  (19 s)  remaining: 00m04s   
+   82.7%  (19 s)  remaining: 00m04s   
+   82.8%  (20 s)  remaining: 00m04s   
+   82.9%  (20 s)  remaining: 00m04s   
+   83.0%  (20 s)  remaining: 00m04s   
+   83.1%  (20 s)  remaining: 00m04s   
+   83.2%  (21 s)  remaining: 00m04s   
+   83.3%  (21 s)  remaining: 00m04s   
+   83.4%  (903 s)  remaining: 02m59s   
+   83.5%  (905 s)  remaining: 02m58s   
+   83.6%  (905 s)  remaining: 02m57s   
+   83.7%  (906 s)  remaining: 02m56s   
+   83.8%  (907 s)  remaining: 02m55s   
+   83.9%  (908 s)  remaining: 02m54s   
+   84.0%  (908 s)  remaining: 02m53s   
+   84.1%  (909 s)  remaining: 02m51s   
+   84.2%  (910 s)  remaining: 02m50s   
+   84.3%  (910 s)  remaining: 02m49s   
+   84.4%  (911 s)  remaining: 02m48s   
+   84.5%  (912 s)  remaining: 02m47s   
+   84.6%  (913 s)  remaining: 02m46s   
+   84.7%  (913 s)  remaining: 02m45s   
+   84.8%  (914 s)  remaining: 02m43s   
+   84.9%  (915 s)  remaining: 02m42s   
+   85.0%  (916 s)  remaining: 02m41s   
+   85.1%  (917 s)  remaining: 02m40s   
+   85.2%  (917 s)  remaining: 02m39s   
+   85.3%  (918 s)  remaining: 02m38s   
+   85.4%  (919 s)  remaining: 02m37s   
+   85.5%  (920 s)  remaining: 02m36s   
+   85.6%  (920 s)  remaining: 02m34s   
+   85.7%  (921 s)  remaining: 02m33s   
+   85.8%  (922 s)  remaining: 02m32s   
+   85.9%  (922 s)  remaining: 02m31s   
+   86.0%  (923 s)  remaining: 02m30s   
+   86.1%  (924 s)  remaining: 02m29s   
+   86.2%  (925 s)  remaining: 02m28s   
+   86.3%  (925 s)  remaining: 02m26s   
+   86.4%  (926 s)  remaining: 02m25s   
+   86.5%  (927 s)  remaining: 02m24s   
+   86.6%  (928 s)  remaining: 02m23s   
+   86.7%  (928 s)  remaining: 02m22s   
+   86.8%  (929 s)  remaining: 02m21s   
+   86.9%  (930 s)  remaining: 02m20s   
+   87.0%  (931 s)  remaining: 02m19s   
+   87.1%  (931 s)  remaining: 02m17s   
+   87.2%  (932 s)  remaining: 02m16s   
+   87.3%  (933 s)  remaining: 02m15s   
+   87.4%  (933 s)  remaining: 02m14s   
+   87.5%  (934 s)  remaining: 02m13s   
+   87.6%  (935 s)  remaining: 02m12s   
+   87.7%  (936 s)  remaining: 02m11s   
+   87.8%  (936 s)  remaining: 02m10s   
+   87.9%  (937 s)  remaining: 02m09s   
+   88.0%  (938 s)  remaining: 02m07s   
+   88.1%  (939 s)  remaining: 02m06s   
+   88.2%  (939 s)  remaining: 02m05s   
+   88.3%  (940 s)  remaining: 02m04s   
+   88.4%  (941 s)  remaining: 02m03s   
+   88.5%  (941 s)  remaining: 02m02s   
+   88.6%  (942 s)  remaining: 02m01s   
+   88.7%  (943 s)  remaining: 02m00s   
+   88.8%  (944 s)  remaining: 01m59s   
+   88.9%  (944 s)  remaining: 01m57s   
+   89.0%  (945 s)  remaining: 01m56s   
+   89.1%  (946 s)  remaining: 01m55s   
+   89.2%  (947 s)  remaining: 01m54s   
+   89.3%  (947 s)  remaining: 01m53s   
+   89.4%  (948 s)  remaining: 01m52s   
+   89.5%  (949 s)  remaining: 01m51s   
+   89.6%  (950 s)  remaining: 01m50s   
+   89.7%  (950 s)  remaining: 01m49s   
+   89.8%  (951 s)  remaining: 01m48s   
+   89.9%  (952 s)  remaining: 01m46s   
+   90.0%  (952 s)  remaining: 01m45s   
+   90.1%  (953 s)  remaining: 01m44s   
+   90.2%  (954 s)  remaining: 01m43s   
+   90.3%  (955 s)  remaining: 01m42s   
+   90.4%  (955 s)  remaining: 01m41s   
+   90.5%  (956 s)  remaining: 01m40s   
+   90.6%  (957 s)  remaining: 01m39s   
+   90.7%  (958 s)  remaining: 01m38s   
+   90.8%  (958 s)  remaining: 01m37s   
+   90.9%  (959 s)  remaining: 01m36s   
+   91.0%  (960 s)  remaining: 01m34s   
+   91.1%  (961 s)  remaining: 01m33s   
+   91.2%  (961 s)  remaining: 01m32s   
+   91.3%  (962 s)  remaining: 01m31s   
+   91.4%  (963 s)  remaining: 01m30s   
+   91.5%  (964 s)  remaining: 01m29s   
+   91.6%  (964 s)  remaining: 01m28s   
+   91.7%  (965 s)  remaining: 01m27s   
+   91.8%  (966 s)  remaining: 01m26s   
+   91.9%  (966 s)  remaining: 01m25s   
+   92.0%  (967 s)  remaining: 01m24s   
+   92.1%  (968 s)  remaining: 01m23s   
+   92.2%  (969 s)  remaining: 01m21s   
+   92.3%  (969 s)  remaining: 01m20s   
+   92.4%  (970 s)  remaining: 01m19s   
+   92.5%  (971 s)  remaining: 01m18s   
+   92.6%  (972 s)  remaining: 01m17s   
+   92.7%  (972 s)  remaining: 01m16s   
+   92.8%  (973 s)  remaining: 01m15s   
+   92.9%  (974 s)  remaining: 01m14s   
+   93.0%  (975 s)  remaining: 01m13s   
+   93.1%  (975 s)  remaining: 01m12s   
+   93.2%  (976 s)  remaining: 01m11s   
+   93.3%  (977 s)  remaining: 01m10s   
+   93.4%  (978 s)  remaining: 01m09s   
+   93.5%  (978 s)  remaining: 01m08s   
+   93.6%  (979 s)  remaining: 01m06s   
+   93.7%  (980 s)  remaining: 01m05s   
+   93.8%  (981 s)  remaining: 01m04s   
+   93.9%  (981 s)  remaining: 01m03s   
+   94.0%  (982 s)  remaining: 01m02s   
+   94.1%  (983 s)  remaining: 01m01s   
+   94.2%  (983 s)  remaining: 01m00s   
+   94.3%  (984 s)  remaining: 00m59s   
+   94.4%  (985 s)  remaining: 00m58s   
+   94.5%  (986 s)  remaining: 00m57s   
+   94.6%  (986 s)  remaining: 00m56s   
+   94.7%  (987 s)  remaining: 00m55s   
+   94.8%  (988 s)  remaining: 00m54s   
+   94.9%  (989 s)  remaining: 00m53s   
+   95.0%  (989 s)  remaining: 00m52s   
+   95.1%  (990 s)  remaining: 00m51s   
+   95.2%  (991 s)  remaining: 00m49s   
+   95.3%  (992 s)  remaining: 00m48s   
+   95.4%  (992 s)  remaining: 00m47s   
+   95.5%  (993 s)  remaining: 00m46s   
+   95.6%  (994 s)  remaining: 00m45s   
+   95.7%  (995 s)  remaining: 00m44s   
+   95.8%  (995 s)  remaining: 00m43s   
+   95.9%  (996 s)  remaining: 00m42s   
+   96.0%  (997 s)  remaining: 00m41s   
+   96.1%  (998 s)  remaining: 00m40s   
+   96.2%  (998 s)  remaining: 00m39s   
+   96.3%  (999 s)  remaining: 00m38s   
+   96.4%  (1000 s)  remaining: 00m37s   
+   96.5%  (1000 s)  remaining: 00m36s   
+   96.6%  (1001 s)  remaining: 00m35s   
+   96.7%  (1002 s)  remaining: 00m34s   
+   96.8%  (1003 s)  remaining: 00m33s   
+   96.9%  (1003 s)  remaining: 00m32s   
+   97.0%  (1004 s)  remaining: 00m31s   
+   97.1%  (1005 s)  remaining: 00m30s   
+   97.2%  (1006 s)  remaining: 00m28s   
+   97.3%  (1006 s)  remaining: 00m27s   
+   97.4%  (1007 s)  remaining: 00m26s   
+   97.5%  (1008 s)  remaining: 00m25s   
+   97.6%  (1009 s)  remaining: 00m24s   
+   97.7%  (1009 s)  remaining: 00m23s   
+   97.8%  (1010 s)  remaining: 00m22s   
+   97.9%  (1011 s)  remaining: 00m21s   
+   98.0%  (1012 s)  remaining: 00m20s   
+   98.1%  (1012 s)  remaining: 00m19s   
+   98.2%  (1013 s)  remaining: 00m18s   
+   98.3%  (1014 s)  remaining: 00m17s   
+   98.4%  (1014 s)  remaining: 00m16s   
+   98.5%  (1015 s)  remaining: 00m15s   
+   98.6%  (1016 s)  remaining: 00m14s   
+   98.7%  (1017 s)  remaining: 00m13s   
+   98.8%  (1017 s)  remaining: 00m12s   
+   98.9%  (1018 s)  remaining: 00m11s   
+   99.0%  (1019 s)  remaining: 00m10s   
+   99.1%  (1020 s)  remaining: 00m09s   
+   99.2%  (1020 s)  remaining: 00m08s   
+   99.3%  (1021 s)  remaining: 00m07s   
+   99.4%  (1022 s)  remaining: 00m06s   
+   99.5%  (1023 s)  remaining: 00m05s   
+   99.6%  (1023 s)  remaining: 00m04s   
+   99.7%  (1024 s)  remaining: 00m03s   
+   99.8%  (1025 s)  remaining: 00m02s   
+   99.9%  (1025 s)  remaining: 00m01s   
+  100.0%  (1508 s)  remaining: 3m00s   
+  100.0%  done          
+scan complete: 49 file(s) (2.47 GB), 24 deleted, 189 carved, 0 lost partition(s) in 1509.0 s
+== Found
+== Deleted
+== File Path Lost
+== Reconstructed
+ Pictures (0)
+ Documents (0)
+ Archives (0)
+ Videos (0)
+ Audio (0)
+ Emails (0)
+ Others (0)
+ Basic data partition (0)
+== Basic data partition
+ . (0)
+  Docs (0)
+   readme.txt (2048)
+   report.docx (40960) [deleted]
+   archive-2025.zip (131072) [deleted]
+   Old (0) [deleted]
+    notes.txt (3072) [deleted]
+    sub (0) [deleted]
+     deep.bin (614400) [deleted]
+  Photos (0)
+   keep.jpg (92160)
+   vacation (0) [deleted]
+    day1.jpg (122880) [deleted]
+    day2.png (81920) [deleted]
+    inner (0) [deleted]
+     meta.json (1024) [deleted]
+  Collisions (0)
+   draft.txt (4096) [deleted]
+  .nffx (0) [deleted]
+   draft-v2.txt (4096) [deleted]
+  Names (0)
+   file with spaces.txt (2048) [deleted]
+   üñíçødé-名前- файл.txt (3072) [deleted]
+  Sizes (0)
+   empty.bin (0) [deleted]
+   resident.txt (512) [deleted]
+   onerecord.bin (4096) [deleted]
+   nonresident.bin (2097152) [deleted]
+  Attributes (0)
+   hidden-note.txt (1024) [deleted]
+   readonly-diary.txt (2048) [deleted]
+  Deep (0)
+   a (0)
+    b (0)
+     c (0)
+      d (0)
+       e (0)
+        nested-deep.txt (5120) [deleted]
+  .nffx-flush-probe (1) [deleted]
+ LostDir27 (0)
+ LostDir11 (0)
+session saved: D:\a\_temp\nffx\engine-flow\scan.crsf
+

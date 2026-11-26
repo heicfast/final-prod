@@ -1,0 +1,36 @@
+DIR  .nffx
+DIR  Attributes
+DIR  Collisions
+DIR  Deep
+DIR  Docs
+DIR  Names
+DIR  Photos
+DIR  Sizes
+FILE 1  .nffx-flush-probe
+FILE 4096  .nffx\draft-v2.txt
+FILE 1024  Attributes\hidden-note.txt
+FILE 2048  Attributes\readonly-diary.txt
+FILE 4096  Collisions\draft.txt
+DIR  Deep\a
+DIR  Deep\a\b
+DIR  Deep\a\b\c
+DIR  Deep\a\b\c\d
+DIR  Deep\a\b\c\d\e
+FILE 5120  Deep\a\b\c\d\e\nested-deep.txt
+DIR  Docs\Old
+FILE 131072  Docs\archive-2025.zip
+FILE 40960  Docs\report.docx
+DIR  Docs\Old\sub
+FILE 3072  Docs\Old\notes.txt
+FILE 614400  Docs\Old\sub\deep.bin
+FILE 2048  Names\file with spaces.txt
+FILE 3072  Names\üñíçødé-名前- файл.txt
+DIR  Photos\vacation
+DIR  Photos\vacation\inner
+FILE 122880  Photos\vacation\day1.jpg
+FILE 81920  Photos\vacation\day2.png
+FILE 1024  Photos\vacation\inner\meta.json
+FILE 0  Sizes\empty.bin
+FILE 2097152  Sizes\nonresident.bin
+FILE 4096  Sizes\onerecord.bin
+FILE 512  Sizes\resident.txt

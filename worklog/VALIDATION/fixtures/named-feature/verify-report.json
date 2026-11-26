@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "failures": [],
+  "stats": {
+    "manifest_rows": 26,
+    "live_rows": 2,
+    "deleted_rows": 24,
+    "exact_rows": 17,
+    "collision_rows": 2,
+    "output_files": 19,
+    "output_dirs": 17,
+    "failures": 0
+  }
+}
