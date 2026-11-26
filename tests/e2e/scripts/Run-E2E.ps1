@@ -205,15 +205,49 @@ function Invoke-Seed {
     Write-Host ("  seeded {0}: {1} ({2} files)" -f $VolEntry.label, $SeedProfile, $count)
 }
 
-# reseed with volume-restore: after delete_partition the volume is gone - the
-# partition is recreated (same geometry) before the next scenario on that disk.
+# reseed with volume-restore. Two distinct absent-volume states (run
+# 45874368709 exFAT PARTDEL - the last lesson): (a) after PARTOVR's
+# locked-volume raw IO the volume is DISMOUNTED/OFFLINE with the partition
+# INTACT (Get-Volume reports no FileSystem) - re-attaching the access path
+# restores it; blindly recreating the partition then hits 'The requested
+# access path is already in use' on the still-assigned letter; (b) after
+# delete_partition the partition is TRULY gone - recreate it (defense-in-
+# depth; the deterministic order makes PARTDEL last on every disk).
 function Invoke-Reseed {
     param($VolEntry, $MatrixVol, $DiskEntry)
     $letter = [string]$VolEntry.letter
+    $diskNumber = [int]$DiskEntry.disk_number
+    $partNumber = [int]$VolEntry.partition
     $vol = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
-    if (-not $vol -or [string]::IsNullOrEmpty([string]$vol.FileSystem)) {
+    $fsOk = ($vol -and -not [string]::IsNullOrEmpty([string]$vol.FileSystem))
+    if (-not $fsOk) {
+        $part = Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber -ErrorAction SilentlyContinue
+        if ($part) {
+            # state (a): the partition is intact, the volume is offline
+            Write-Host "  volume ${letter}: offline with the partition intact (post-locked-raw-IO state) - re-attaching the access path"
+            try {
+                Add-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $partNumber `
+                    -AccessPath "$letter`:\" -ErrorAction Stop
+            } catch {
+                Write-Host "  re-attach: $($_.Exception.Message) (recorded - waiting for the volume to settle)"
+            }
+            for ($w = 0; $w -lt 20; $w++) {
+                $probe = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
+                if ($probe -and -not [string]::IsNullOrEmpty([string]$probe.FileSystem) -and $probe.Size -gt 0) { $fsOk = $true; break }
+                Start-Sleep -Milliseconds 500
+            }
+        }
+    }
+    if (-not $fsOk) {
+        # state (b): the partition is truly gone - recreate it. CONFIRM the
+        # absence first: a still-offline-but-intact volume must FAIL honestly,
+        # never be formatted blind (ground-truth destruction risk)
+        $part2 = Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber -ErrorAction SilentlyContinue
+        if ($part2) {
+            throw "volume ${letter}: offline with the partition intact and it did not come back after the access-path re-attach - refusing to reseed (no blind format)"
+        }
         Write-Host "  volume ${letter}: absent (partition removed by an earlier scenario) - recreating partition before reseed"
-        $part = New-Partition -DiskNumber ([int]$DiskEntry.disk_number) -UseMaximumSize -DriveLetter $letter -ErrorAction Stop
+        $part = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $letter -ErrorAction Stop
         $null = Format-Volume -Partition $part -FileSystem $VolEntry.fs -NewFileSystemLabel $VolEntry.label -Force -ErrorAction Stop
         for ($w = 0; $w -lt 20; $w++) {
             $probe = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue

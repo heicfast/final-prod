@@ -5219,3 +5219,16 @@ broke fat32/refs PARTDEL with 'OpenVolumeRaw \\.\Z: failed GLE=2' (run
 delete_partition branch, after the hash map and immediately before the
 removal, best-effort + recorded. Both candidate runs were cancelled and
 re-dispatch on the fixed head.
+
+### E2E-F7: the reseed's two absent-volume states — 2026-11-26
+
+Run 45874368709 exFAT PARTDEL root-caused the whole transient family: after
+PARTOVR's locked-volume raw IO the volume sits OFFLINE with the partition
+INTACT (Get-Volume reports no FileSystem); the reseed misread that as
+'partition removed' and called New-Partition on the intact disk ('The
+requested access path is already in use'). The reseed is now partition-aware:
+(a) partition present + volume offline -> re-attach the access path and wait;
+(b) partition truly absent -> recreate it; and a still-offline-but-intact
+volume after (a) FAILS honestly instead of formatting blind. The
+apply-scenario-level access-path detach (E2E-F6) stays: it handles
+Remove-Partition's own transient after the locked-raw-IO rows.
