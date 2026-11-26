@@ -644,7 +644,7 @@ pub fn tree_page(
                         // Extension leaves: aggregate per extension.
                         let mut exts: std::collections::BTreeMap<String, (u64, u64)> =
                             std::collections::BTreeMap::new();
-                        for m in &metas {
+                        for m in metas.iter() {
                             if m.is_dir || m.category != bit || m.origin == 3 {
                                 continue;
                             }
@@ -678,7 +678,7 @@ pub fn tree_page(
                     let bit = category_bit(label);
                     let mut count = 0u64;
                     let mut size = 0u64;
-                    for m in &metas {
+                    for m in metas.iter() {
                         if m.is_dir || m.category != bit || m.origin == 3 {
                             continue;
                         }
@@ -751,7 +751,7 @@ pub fn tree_page(
                         // they hang under the synthetic raw group).
                         let (mut fc, mut fs) = (0u64, 0u64);
                         let mut top_dirs = 0u64;
-                        for m in &metas {
+                        for m in metas.iter() {
                             if m.is_dir {
                                 if m.path.is_empty() || m.path.contains('/') || m.origin == 3 {
                                     continue;
