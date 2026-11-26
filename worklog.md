@@ -4725,3 +4725,27 @@ apply-scenario.ps1, run-ours.ps1, api_harness.c, compute_metrics.py,
 regression_gate.py) rather than fork them; the new-build list is: the e2e
 matrix + orchestrator, the CLI-vs-API lane divergence check, the committed
 results collector, the quality baseline, and the four workflows.
+
+### The harness lands (T3–T13, T19) — 2026-11-26
+
+tests/e2e/ is committed: matrix.json (45 full-matrix scenarios = 4 filesystems x
+the 12-mode deletion matrix, 4 smoke rows, 9 stateless shards, gates cited from
+the recorded bench evidence), scripts/Run-E2E.ps1 (the orchestrator: New-TestDisk
+diskpart VHDX env -> generate_seed corpus v2.0.0 -> apply-scenario deletions ->
+run-ours CLI lane -> api_harness API lane -> inventory+metrics -> Compare-Lanes
+divergence -> verdicts -> Teardown always), scripts/Compare-Lanes.ps1 (the gate-5
+CLI-vs-API agreement check: identical hash-match sets, sizes, scan stats),
+scripts/Collect-Results.ps1 (merge + completeness - no silent drops),
+scripts/New-Baseline.ps1 (baseline candidate; reviewed promotion only),
+scripts/Assert-Clean.ps1 (token/placeholder hygiene gate). Reuse by invocation,
+never fork - one copy of the proven engine/bench primitives. Four workflows:
+e2e-smoke.yml (PR, 4 rows, CLI only, ~10 min), e2e-full.yml (dispatch+nightly,
+9 shard jobs + build-kit + assemble+Assert-Clean, retention 30/90),
+e2e-regression.yml (dispatch, full matrix then regression_gate.py vs
+tests/e2e/baseline.json with -2%/-2%/+25% thresholds and --require-all-baseline),
+release-validation.yml (dispatch: pull latest release, hash-verify, silent /S
+install, shipped-bits assertions, full matrix against the installed product).
+Docs: tests/e2e README/SCENARIOS/METRICS/RESULTS-SCHEMA/BASELINE + results/
+README + docs/TESTING.md e2e section. matrix.json, all 4 workflows YAML-validated;
+scripts hand-reviewed for the PS traps the lane's own AST gates re-verify on
+the runner. Validation runs (T14-T17) dispatched next.

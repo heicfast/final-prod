@@ -1,0 +1,118 @@
+name: e2e-smoke
+
+# The e2e suite's fast-feedback lane (tests/e2e/README.md § CI):
+#   - PR-triggered, the reduced smoke matrix (4 scenarios: NTFS permanent-delete,
+#     exFAT recycle-bin, FAT32 quick-format, a GPT partition-delete row with the
+#     lost-partition discovery gate), small dedicated disks, ~10 minutes.
+#   - CLI path only (the prompt contract for smoke; the reason is recorded in
+#     every verdict.json + divergence.json as 'smoke profile is CLI-only by
+#     design'). The API lane + divergence check live in e2e-full.
+#   - Runs against the CHECKED-OUT commit's own build (./build.ps1 -Target
+#     engine -SkipTests - the release recipe). ctest is NOT skipped here? It is
+#     - deliberately: engine-ci (push + PR) owns the unit/contract gates; the
+#     smoke lane measures the e2e path only. Recorded reason, not a mask.
+#   - No masking anywhere: no continue-on-error; every failure is a real
+#     failure and its evidence artifact uploads via if: always().
+#
+# Artifacts: the full results fragment (verdicts, manifests, states, lane
+# captures) retained 7 days - short-lived feedback, not the evidence of record
+# (that is e2e-full's committed tests/e2e/results/ tree).
+
+on:
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-smoke-${{ github.ref }}
+  cancel-in-progress: true # a superseded PR's smoke run is dropped, never a measurement
+
+jobs:
+  smoke:
+    name: e2e smoke matrix (CLI path, 4 scenarios)
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: vcpkg binary cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: e2e-vcpkg-bin-win2022-${{ hashFiles('engine/vcpkg.json') }}
+          restore-keys: e2e-vcpkg-bin-win2022-
+
+      - name: Engine kit (build.ps1 engine lane; the release recipe)
+        shell: pwsh
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          ./build.ps1 -Target engine -SkipTests
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::engine kit build failed'; exit 1 }
+
+      - name: '[parse gate] every tests/e2e script the lane dispatches'
+        shell: pwsh
+        run: |
+          # engine-ci's AST gate covers .github/scripts + engine/bench; this
+          # lane consumes tests/e2e/scripts - same discipline, same gate,
+          # before a runner ever executes them (the S-036 lesson).
+          $ErrorActionPreference = 'Stop'
+          $scripts = @(Get-ChildItem tests/e2e/scripts -Filter *.ps1 -Recurse | ForEach-Object FullName)
+          if ($scripts.Count -lt 1) { Write-Host '::error::no tests/e2e scripts found - tree shape changed?'; exit 1 }
+          $failed = $false
+          foreach ($s in $scripts) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($s, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count -gt 0) {
+              Write-Host "::error::PARSE ERROR in ${s}:"
+              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "e2e script AST gate clean ($($scripts.Count) scripts)"
+
+      - name: The smoke matrix (Run-E2E.ps1 -Profile smoke)
+        shell: pwsh
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          if (-not (Test-Path "$kit\rrecov.exe")) { Write-Host '::error::kit missing rrecov.exe'; exit 1 }
+          if (-not (Test-Path "$kit\cr_ui.dll")) { Write-Host '::error::kit missing cr_ui.dll'; exit 1 }
+          # Run-E2E.ps1's staged-release contract is the RELEASE-ZIP shape
+          # (<core>\bin\rrecov.exe + bin\userdata-defaults.json) - build.ps1's
+          # engine kit is FLAT - bridge it into the bin\ layout (the
+          # benchmark-src.yml proven pattern).
+          $staged = 'D:\e2e-bench\core'
+          New-Item -ItemType Directory -Force -Path "$staged\bin" | Out-Null
+          Copy-Item "$kit\*" -Destination "$staged\bin" -Force
+          $work = 'D:\e2e-bench'
+          $results = Join-Path $env:GITHUB_WORKSPACE 'e2e-results'
+          New-Item -ItemType Directory -Force -Path $work, $results | Out-Null
+          & tests\e2e\scripts\Run-E2E.ps1 `
+              -MatrixPath tests\e2e\matrix.json `
+              -RepoRoot $env:GITHUB_WORKSPACE `
+              -CoreStaged $staged `
+              -WorkRoot $work `
+              -ResultsRoot $results `
+              -Profile smoke `
+              -IncludeApi:$false `
+              -RunId "pr-${{ github.event.pull_request.number }}-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::the e2e smoke matrix failed - see the artifact gates.md'; exit 1 }
+
+      - name: Upload the smoke results artifact
+        if: always() # the diagnostic artifact contract: failure evidence uploads too
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-smoke-results-${{ github.run_id }}
+          path: e2e-results/
+          retention-days: 7
+          if-no-files-found: error

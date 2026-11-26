@@ -1,0 +1,275 @@
+name: release-validation
+
+# The shipped-artifact gate (tests/e2e/README.md § CI):
+#   - Pulls the LATEST release tag's assets (or -release_tag input) on a CLEAN
+#     windows-2022 runner: RecoveryWizard-<v>-setup.exe + -portable.zip +
+#     SHA256SUMS, hash-verified, then installs the product SILENTLY (/S).
+#   - Proves the SHIPPED bits, not the build tree:
+#       * the CLI lane drives the INSTALLED
+#         C:\Program Files\HeicFast\Recovery Wizard\rrecov.exe
+#       * the API lane drives the shipped cr_ui.dll (portable-zip bits;
+#         asserted byte-identical to the installed DLL by SHA-256)
+#       * install-facts (registry keys, file layout) are recorded as evidence
+#   - Then runs the FULL e2e matrix (the same 9 shards as e2e-full) against
+#     the installed product, with the same divergence + completeness gates.
+#   - The repo checkout provides the harness scripts + engine/include headers
+#     (api_harness.c links against the SHIPPED cr_ui.lib from the portable
+#     zip); the product bits are exclusively the release's.
+#   - No masking: no continue-on-error; every failure uploads its evidence
+#     via if: always().
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'The release tag to validate (empty = latest)'
+        required: false
+        default: ''
+      reason:
+        description: 'why this run exists (recorded in the evidence tree)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-validation
+  cancel-in-progress: false # evidence runs queue; nothing in flight is dropped
+
+jobs:
+  install-and-stage:
+    name: Pull the release, install silently, stage the shipped kit
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Resolve the release tag + download assets (hash-verified)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.event.inputs.release_tag }}'
+          if (-not $tag) {
+            $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/heicfast/final-prod/releases/latest' -Headers @{ Accept = 'application/vnd.github+json' }
+            $tag = $rel.tag_name
+            Write-Host "resolved latest release tag: $tag"
+          }
+          $ver = $tag.TrimStart('v')
+          $tag | Set-Content release-tag.txt -Encoding utf8
+          New-Item -ItemType Directory -Force -Path C:\release | Out-Null
+          $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
+          curl.exe -sSL -o C:\release\setup.exe "$base/RecoveryWizard-$ver-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw "setup.exe download failed for $tag" }
+          curl.exe -sSL -o C:\release\portable.zip "$base/RecoveryWizard-$ver-portable.zip"
+          if ($LASTEXITCODE -ne 0) { throw "portable.zip download failed for $tag" }
+          curl.exe -sSL -o C:\release\SHA256SUMS "$base/SHA256SUMS"
+          if ($LASTEXITCODE -ne 0) { throw 'SHA256SUMS download failed' }
+          $sums = Get-Content C:\release\SHA256SUMS -Raw
+          foreach ($asset in @("RecoveryWizard-$ver-setup.exe", "RecoveryWizard-$ver-portable.zip")) {
+            $expect = [regex]::Match($sums, "([0-9a-fA-F]{64})\s+\*?$([regex]::Escape($asset))").Groups[1].Value
+            if (-not $expect) { throw "checksum for $asset not found in SHA256SUMS" }
+            $local = if ($asset -like '*setup.exe') { 'C:\release\setup.exe' } else { 'C:\release\portable.zip' }
+            $actual = (Get-FileHash $local -Algorithm SHA256).Hash.ToLower()
+            if ($actual -ne $expect.ToLower()) { throw "checksum mismatch for ${asset}: expect=$expect actual=$actual" }
+            Write-Host "verified ${asset} sha256=$($actual.Substring(0,16)).."
+          }
+          [ordered]@{ tag = $tag; version = $ver; downloaded_utc = (Get-Date).ToUniversalTime().ToString('o') } |
+            ConvertTo-Json | Set-Content C:\release\release-facts.json -Encoding utf8
+
+      - name: Silent install (/S) + installed-layout assertions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $instDir = 'C:\Program Files\HeicFast\Recovery Wizard'
+          $t0 = Get-Date
+          $p = Start-Process -FilePath C:\release\setup.exe -ArgumentList '/S' -Wait -PassThru
+          "install exit code: $($p.ExitCode) (wall $([math]::Round(((Get-Date)-$t0).TotalSeconds,1))s)" | Tee-Object -Variable _ | Set-Content C:\release\install-exit.txt -Encoding utf8
+          if ($p.ExitCode -ne 0) {
+            $abort = Join-Path $env:TEMP 'HeicFastRecoveryWizard-install-abort.txt'
+            if (Test-Path $abort) { Get-Content $abort | ForEach-Object { Write-Host "ABORT: $_" } }
+            throw "setup.exe /S exited $($p.ExitCode) (2 = Abort, reason in %TEMP%\HeicFastRecoveryWizard-install-abort.txt)"
+          }
+          # settle: the install dir must appear with the shipped kit
+          $deadline = (Get-Date).AddSeconds(120)
+          while (((Get-Date) -lt $deadline) -and -not (Test-Path "$instDir\rrecov.exe")) { Start-Sleep -Seconds 2 }
+          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'recovery-wizard-ui.exe', 'userdata-defaults.json')) {
+            if (-not (Test-Path "$instDir\$req")) { throw "installed product missing $instDir\$req" }
+          }
+          $reg = Get-ItemProperty 'HKLM:\Software\HeicFast\Recovery Wizard' -ErrorAction SilentlyContinue
+          [ordered]@{
+            installDir = $instDir
+            installDirCount = @(Get-ChildItem $instDir -Recurse -File -ErrorAction SilentlyContinue).Count
+            registryVersion = if ($reg) { $reg.Version } else { $null }
+            programDataSessions = (Test-Path 'C:\ProgramData\HeicFast\Recovery Wizard\sessions')
+            rrecov_sha256 = (Get-FileHash "$instDir\rrecov.exe" -Algorithm SHA256).Hash.ToLower()
+            cr_ui_sha256 = (Get-FileHash "$instDir\cr_ui.dll" -Algorithm SHA256).Hash.ToLower()
+            verified_utc = (Get-Date).ToUniversalTime().ToString('o')
+          } | ConvertTo-Json | Set-Content C:\release\install-facts.json -Encoding utf8
+          Get-Content C:\release\install-facts.json | Write-Host
+
+      - name: Unpack the portable kit + prove installed bits == shipped bits
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive -Path C:\release\portable.zip -DestinationPath C:\release\portable -Force
+          foreach ($f in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json')) {
+            if (-not (Test-Path "C:\release\portable\$f")) { throw "portable kit missing $f" }
+          }
+          $facts = Get-Content C:\release\install-facts.json -Raw | ConvertFrom-Json
+          foreach ($f in @('rrecov.exe', 'cr_ui.dll')) {
+            $portHash = (Get-FileHash "C:\release\portable\$f" -Algorithm SHA256).Hash.ToLower()
+            $instHash = if ($f -eq 'rrecov.exe') { $facts.rrecov_sha256 } else { $facts.cr_ui_sha256 }
+            if ($portHash -ne $instHash) { throw "SHIPPED-BITS MISMATCH on ${f}: installed=$instHash portable=$portHash" }
+            Write-Host "shipped-bits verified: $f installed == portable ($($portHash.Substring(0,16))..)"
+          }
+
+      - name: Stage the shipped kit for the shards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = 'kit'
+          New-Item -ItemType Directory -Force -Path "$stage\bin" | Out-Null
+          # CLI lane = the INSTALLED exe; DLL bits = the portable zip (proven
+          # byte-identical above); lib for the harness link = portable's
+          Copy-Item 'C:\Program Files\HeicFast\Recovery Wizard\rrecov.exe' -Destination "$stage\bin\rrecov.exe" -Force
+          Copy-Item 'C:\release\portable\cr_ui.dll' -Destination "$stage\bin\cr_ui.dll" -Force
+          Copy-Item 'C:\release\portable\cr_ui.lib' -Destination "$stage\bin\cr_ui.lib" -Force
+          Copy-Item 'C:\release\portable\userdata-defaults.json' -Destination "$stage\bin\userdata-defaults.json" -Force
+          Copy-Item engine\include -Destination "$stage\include" -Recurse -Force
+          Copy-Item engine\.github\scripts\api_harness.c -Destination "$stage\api_harness.c" -Force
+          $tag = (Get-Content release-tag.txt -Raw).Trim()
+          $sha = (Get-FileHash "$stage\bin\rrecov.exe" -Algorithm SHA256).Hash.ToLower()
+          "release: $tag" | Set-Content "$stage\PRODUCT-SHA256.txt" -Encoding utf8
+          "rrecov.exe (installed) sha256: $sha" | Add-Content "$stage\PRODUCT-SHA256.txt"
+          (Get-FileHash "$stage\bin\cr_ui.dll" -Algorithm SHA256).Hash.ToLower() | Add-Content "$stage\PRODUCT-SHA256.txt"
+          Copy-Item C:\release\release-facts.json -Destination "$stage\" -Force
+          Copy-Item C:\release\install-facts.json -Destination "$stage\" -Force
+
+      - name: Upload the shipped kit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-kit-${{ github.run_id }}
+          path: kit/
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload the install evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-install-evidence-${{ github.run_id }}
+          path: C:\release\*.json
+          retention-days: 30
+          if-no-files-found: error
+
+  shards:
+    name: e2e shard ${{ matrix.shard }} (installed product)
+    needs: install-and-stage
+    runs-on: windows-2022
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ntfs-basic, ntfs-format, ntfs-decay, exfat-a, exfat-b, fat32-a, fat32-b, refs-a, refs-b]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download the shipped kit
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-kit-${{ github.run_id }}
+          path: kit
+      - name: MSVC dev environment (the api harness compile)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: Compile the API harness against the SHIPPED cr_ui.lib
+        shell: pwsh
+        run: |
+          cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
+             kit\api_harness.c /I kit\include `
+             /Fe:kit\bin\api_harness.exe /link kit\bin\cr_ui.lib
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host 'api_harness.exe built against the shipped SDK'
+      - name: The shard matrix against the installed product (Run-E2E.ps1)
+        shell: pwsh
+        run: |
+          $staged = 'D:\e2e-bench\core'
+          New-Item -ItemType Directory -Force -Path "$staged\bin" | Out-Null
+          Copy-Item kit\bin\* -Destination "$staged\bin" -Force
+          $work = 'D:\e2e-bench'
+          $results = Join-Path $env:GITHUB_WORKSPACE 'e2e-results'
+          New-Item -ItemType Directory -Force -Path $work, $results | Out-Null
+          $tag = (Get-Content kit\PRODUCT-SHA256.txt -Raw).Trim() -split "`n" | Select-Object -First 1
+          & tests\e2e\scripts\Run-E2E.ps1 `
+              -MatrixPath tests\e2e\matrix.json `
+              -RepoRoot $env:GITHUB_WORKSPACE `
+              -CoreStaged $staged `
+              -ApiHarness (Join-Path $staged 'bin\api_harness.exe') `
+              -WorkRoot $work `
+              -ResultsRoot $results `
+              -Profile full `
+              -ShardId '${{ matrix.shard }}' `
+              -ScanCapSec 1800 -RecoverCapSec 1800 `
+              -RunId "rel-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::shard ${{ matrix.shard }} failed against the installed product'; exit 1 }
+      - name: Upload the shard fragment
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-validation-fragment-${{ matrix.shard }}-${{ github.run_id }}
+          path: e2e-results/
+          retention-days: 30
+          if-no-files-found: error
+
+  assemble:
+    name: Assemble the release-validation results + completeness gate
+    needs: shards
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download every shard fragment + the kit provenance
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-validation-fragment-*-${{ github.run_id }}
+          path: fragments
+      - name: Download the shipped kit (provenance)
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-kit-${{ github.run_id }}
+          path: kit
+      - name: Merge fragments + enforce completeness
+        shell: pwsh
+        run: |
+          $fragDirs = @(Get-ChildItem fragments -Directory | ForEach-Object FullName)
+          if ($fragDirs.Count -lt 9) {
+            Write-Host "::error::only $($fragDirs.Count) fragment(s) of 9 - a shard did not upload (never a silent drop)"
+            exit 1
+          }
+          $results = 'e2e-run-results'
+          New-Item -ItemType Directory -Force -Path $results | Out-Null
+          $shaLines = (Get-Content kit\PRODUCT-SHA256.txt -Raw) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          $productSha = ($shaLines | Where-Object { $_ -match 'rrecov\.exe' }) -replace '.*sha256:\s*', ''
+          & tests\e2e\scripts\Collect-Results.ps1 `
+              -ResultsRoot $results `
+              -MergeRoots ($fragDirs -join ',') `
+              -MatrixPath tests\e2e\matrix.json `
+              -RunId "rel-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+              -Commit '${{ github.sha }}' `
+              -ProductSha256 $productSha
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::results assembly failed (missing scenarios or broken evidence)'; exit 1 }
+      - name: Hygiene gate (Assert-Clean.ps1)
+        shell: pwsh
+        run: |
+          & tests\e2e\scripts\Assert-Clean.ps1 -Root 'e2e-run-results'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Upload the release-validation results (the shipped-artifact evidence)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-validation-results-${{ github.run_id }}
+          path: e2e-run-results/
+          retention-days: 90
+          if-no-files-found: error

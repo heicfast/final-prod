@@ -1,0 +1,104 @@
+# RESULTS-SCHEMA — the JSON layout of a results tree
+
+Normative layout of `tests/e2e/results/<run-id>/` (identical to the merged
+CI artifact `e2e-full-results-<run_id>`; the shard fragments carry the same
+shape minus the merge):
+
+```
+<run-id>/
+├── run.json                        # the run anchor
+├── summary.json                    # merged shard summaries (hard failures, soft records)
+├── gates.md                         # the human gate table for the whole run
+├── <shard>.summary.json             # per-shard provenance (one per shard job)
+├── 00-environment/
+│   └── runner-context.json          # ImageOS, runner name, CPU/cores/RAM, isElevated, commit, runId/url
+├── 02-disk-setup/
+│   └── disk-state.json              # per disk: VHDX path, physical disk number, partition style,
+│                                    #   volumes [{label, fs, letter, partition, bytes}] — the disk
+│                                    #   orchestration record
+├── 03-baseline/
+│   └── seed-manifest-<vol>.jsonl   # THE ground truth (one per volume; _meta line + per-file rows)
+├── 04-scenarios/<scenario-id>/
+│   ├── scenario.json               # definition + seed manifest path/SHA-256 + gate
+│   ├── verdict.json                # the scenario verdict (below)
+│   ├── divergence.json             # the CLI-vs-API comparison (below)
+│   ├── state/
+│   │   ├── scenario-state.json     # the deletion method record (per Run-Benchmark's contract)
+│   │   ├── hashmap-pre.csv         # sector-range hash map before deletion
+│   │   └── hashmap-post*.csv       # after (volume- or disk-level)
+│   ├── cli/                         # the CLI lane captures
+│   │   ├── ours-run.json           # per-mode: command, exit, wall, capped, summary, transport
+│   │   ├── scan-<mode>.{stdout,stderr}
+│   │   ├── stage-<mode>.log        # the engine's own log
+│   │   ├── tree-<mode>.{json,csv}  # the recovered-tree listing
+│   │   ├── report-<mode>.json      # the G-09 recovery report
+│   │   ├── metrics-<mode>.json     # recall/precision/F1/FP/perf for the mode
+│   │   ├── recovered-inventory.json
+│   │   ├── preservation.json       # ADS/hardlink/sparse preservation probes
+│   │   ├── samples-<mode>.csv      # 500 ms CPU/working-set samples
+│   │   └── sample-recovered/       # tiny (<64 KiB) recovered-file byte samples
+│   └── api/                        # the API lane captures
+│       ├── api-result.json         # timings_ms, scan_stats, events, transport, recovery stats
+│       ├── report.json             # the G-09 recovery report
+│       ├── session.crsf            # the saved scan session
+│       ├── harness.stdout
+│       ├── recovered-inventory.json
+│       └── metrics-deepcarve.json  # the API-lane headline metrics
+└── 99-teardown/
+    └── teardown.log                # the always-run VHD detach + delete record
+```
+
+## run.json (the anchor)
+
+```json
+{
+  "run_id": "full-458123456",
+  "run_url": "https://github.com/heicfast/final-prod/actions/runs/458123456",
+  "commit": "<40-hex sha the product was built from>",
+  "product_sha256": "<rrecov.exe sha256>",
+  "captured_utc": "…o",
+  "suite": "tests/e2e",
+  "matrix_version": 1,
+  "scenarios_expected": 45,
+  "scenarios_present": 45,
+  "scenarios_missing": [],
+  "results_schema": "tests/e2e/RESULTS-SCHEMA.md",
+  "scenarios": [
+    { "id": "S-E2E-NTFS-PERMDEL", "mode": "permanent_delete", "gate": "floor",
+      "passed": true,
+      "cli": { "recall_hash": 0.428, "precision": 0.99, "f1": 0.60, "expected_deleted": 1016, "hash_matched": 435, "passed": true, "reasons": [] },
+      "api":  { "…": "the same shape" },
+      "error": null }
+  ]
+}
+```
+
+## verdict.json (per scenario)
+
+`{ scenario, mode, profile, gate_type, gate_note, lanes: { cli: {…}, api: {…} }, passed, error }`
+— lane blocks carry `recall_hash, precision, f1, expected_deleted,
+hash_matched, floor?, lost_partitions?, passed, reasons[]`, exactly the
+fields `gates.md` tabulates.
+
+## divergence.json (per scenario)
+
+`{ scenario, checked, agree, compared: { cli_*, api_* counters }, findings[] }`
+— `agree: true` requires: identical hash-match sets, agreeing per-rel hash
+flags, agreeing recovered sizes, agreeing scan stats (files,
+lost_partitions). Absent-lane cases set `checked: false` with the reason
+(that lane's own gate owns the failure).
+
+## Completeness rules (enforced by Collect-Results.ps1)
+
+1. Every matrix scenario must be present in a merged full run — a missing
+   scenario is a collector FAILURE (exit 1), never a warning.
+2. Every scenario directory must carry `scenario.json` + `verdict.json`.
+3. `run.json.scenarios_missing` must be empty; `gates.md` says so in prose.
+```
+
+The seed manifest row schema (`03-baseline/*.jsonl`): line 1 `_meta`, then
+per file `{ idx, rel, name, size, sha256, created, modified, accessed,
+attributes, is_dir, keep, ads[], hardlink_group, sparse, extents
+[[vcn,clusters]…], mft_record, delete_class?, apply_order?, special?,
+expect? }` — generated by engine/bench/seed/generate_seed.ps1 (corpus
+v2.0.0), unchanged by this suite.

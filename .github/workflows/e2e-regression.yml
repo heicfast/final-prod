@@ -1,0 +1,208 @@
+name: e2e-regression
+
+# The e2e regression gate (tests/e2e/BASELINE.md):
+#   - Compares the current tree's run metrics against the VERSIONED baseline
+#     (tests/e2e/baseline.json, updated ONLY by a reviewed commit - never by
+#     CI). Runs the full matrix (same shards as e2e-full, both lanes, so the
+#     comparison covers every scenario the baseline carries), then gates:
+#       recall   drops more than 2% absolute  -> FAIL
+#       precision drops more than 2% absolute -> FAIL
+#       scan wall time grows more than 25%    -> FAIL
+#     (thresholds enforced by engine/bench/metrics/regression_gate.py - the
+#     proven bench gate, reused verbatim; --require-all-baseline: a baseline
+#     scenario missing from this run is a FAILURE, never a silent drop).
+#   - If tests/e2e/baseline.json does not exist yet (the pre-first-baseline
+#     state), the gate FAILS with the explicit diagnostic 'baseline not yet
+#     promoted' - never a vacuous pass. Promote it from a completed e2e-full
+#     run via tests/e2e/scripts/New-Baseline.ps1 + a reviewed commit.
+#   - Dispatch-only (deliberately: the compute is a full matrix; the nightly
+#     sentinel is e2e-full; this lane is the explicit comparison request).
+#   - No masking: no continue-on-error, failure artifacts upload via if: always().
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'why this run exists (recorded in the gate evidence)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-regression
+  cancel-in-progress: false # gate runs are never dropped
+
+jobs:
+  build-kit:
+    name: Build the engine kit once (release recipe)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: vcpkg binary cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: e2e-vcpkg-bin-win2022-${{ hashFiles('engine/vcpkg.json') }}
+          restore-keys: e2e-vcpkg-bin-win2022-
+      - name: Build engine (build.ps1 engine lane)
+        shell: pwsh
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
+          ./build.ps1 -Target engine -SkipTests
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::engine kit build failed'; exit 1 }
+      - name: Stage the kit artifact (release-zip bin\ shape + api harness sources)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json')) {
+            if (-not (Test-Path "$kit\$req")) { Write-Host "::error::kit missing $req"; exit 1 }
+          }
+          $stage = 'kit'
+          New-Item -ItemType Directory -Force -Path "$stage\bin" | Out-Null
+          Copy-Item "$kit\*" -Destination "$stage\bin" -Force
+          Copy-Item engine\include -Destination "$stage\include" -Recurse -Force
+          Copy-Item engine\.github\scripts\api_harness.c -Destination "$stage\api_harness.c" -Force
+          $sha = (Get-FileHash "$stage\bin\rrecov.exe" -Algorithm SHA256).Hash.ToLower()
+          "rrecov.exe sha256: $sha" | Set-Content "$stage\PRODUCT-SHA256.txt" -Encoding utf8
+          (Get-FileHash "$stage\bin\cr_ui.dll" -Algorithm SHA256).Hash.ToLower() | Add-Content "$stage\PRODUCT-SHA256.txt"
+      - name: Upload the kit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-regression-kit-${{ github.run_id }}
+          path: kit/
+          retention-days: 1
+          if-no-files-found: error
+
+  shards:
+    name: e2e shard ${{ matrix.shard }}
+    needs: build-kit
+    runs-on: windows-2022
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ntfs-basic, ntfs-format, ntfs-decay, exfat-a, exfat-b, fat32-a, fat32-b, refs-a, refs-b]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download the engine kit
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: e2e-regression-kit-${{ github.run_id }}
+          path: kit
+      - name: MSVC dev environment (the api harness compile)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: Compile the API harness
+        shell: pwsh
+        run: |
+          cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
+             kit\api_harness.c /I kit\include `
+             /Fe:kit\bin\api_harness.exe /link kit\bin\cr_ui.lib
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: The shard matrix (Run-E2E.ps1 -ShardId ${{ matrix.shard }})
+        shell: pwsh
+        run: |
+          $staged = 'D:\e2e-bench\core'
+          New-Item -ItemType Directory -Force -Path "$staged\bin" | Out-Null
+          Copy-Item kit\bin\* -Destination "$staged\bin" -Force
+          $work = 'D:\e2e-bench'
+          $results = Join-Path $env:GITHUB_WORKSPACE 'e2e-results'
+          New-Item -ItemType Directory -Force -Path $work, $results | Out-Null
+          & tests\e2e\scripts\Run-E2E.ps1 `
+              -MatrixPath tests\e2e\matrix.json `
+              -RepoRoot $env:GITHUB_WORKSPACE `
+              -CoreStaged $staged `
+              -ApiHarness (Join-Path $staged 'bin\api_harness.exe') `
+              -WorkRoot $work `
+              -ResultsRoot $results `
+              -Profile full `
+              -ShardId '${{ matrix.shard }}' `
+              -ScanCapSec 1800 -RecoverCapSec 1800 `
+              -RunId "reg-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::shard ${{ matrix.shard }} failed'; exit 1 }
+      - name: Upload the shard fragment
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-regression-fragment-${{ matrix.shard }}-${{ github.run_id }}
+          path: e2e-results/
+          retention-days: 30
+          if-no-files-found: error
+
+  regression-gate:
+    name: The regression gate (baseline comparison + thresholds)
+    needs: shards
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download every shard fragment
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: e2e-regression-fragment-*-${{ github.run_id }}
+          path: fragments
+      - name: Assemble + flatten the comparison layout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseline = 'tests\e2e\baseline.json'
+          if (-not (Test-Path $baseline)) {
+            Write-Host '::error::tests/e2e/baseline.json does not exist - the baseline is not yet promoted (run e2e-full, review via tests/e2e/scripts/New-Baseline.ps1, commit). The gate refuses to run rather than pass vacuously.'
+            exit 1
+          }
+          $fragDirs = @(Get-ChildItem fragments -Directory | ForEach-Object FullName)
+          if ($fragDirs.Count -lt 9) { Write-Host "::error::only $($fragDirs.Count) fragment(s) of 9"; exit 1 }
+          # merge fragments into the run layout
+          $results = 'e2e-run-results'
+          New-Item -ItemType Directory -Force -Path $results | Out-Null
+          $merge = $fragDirs -join ','
+          & tests\e2e\scripts\Collect-Results.ps1 `
+              -ResultsRoot $results `
+              -MergeRoots $merge `
+              -MatrixPath tests\e2e\matrix.json `
+              -RunId "reg-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+              -Commit '${{ github.sha }}'
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::results assembly failed'; exit 1 }
+          # flatten 04-scenarios/<id>/cli/metrics-*.json into the
+          # regression_gate.py layout: <ours-root>/<scenario>/metrics-*.json
+          $ours = 'ours-flat'
+          foreach ($sd in @(Get-ChildItem (Join-Path $results '04-scenarios') -Directory)) {
+            $cli = Join-Path $sd.FullName 'cli'
+            if (-not (Test-Path $cli)) { continue }
+            $dst = Join-Path $ours $sd.Name
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            Copy-Item "$cli\metrics-*.json" -Destination $dst -Force -ErrorAction SilentlyContinue
+          }
+      - name: The regression gate (engine/bench/metrics/regression_gate.py, reused verbatim)
+        shell: pwsh
+        run: |
+          python engine\bench\metrics\regression_gate.py `
+              --baseline tests\e2e\baseline.json `
+              --ours-root ours-flat `
+              --out regression-gate.json `
+              --require-all-baseline
+          $gateExit = $LASTEXITCODE
+          Get-Content regression-gate.json -Raw | Write-Host
+          if ($gateExit -ne 0) {
+            Write-Host '::error::the regression gate FAILED - a metric regressed beyond threshold or a baseline scenario went missing'
+            exit 1
+          }
+          Write-Host 'REGRESSION GATE GREEN'
+      - name: Upload the gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-regression-gate-${{ github.run_id }}
+          path: |
+            regression-gate.json
+            e2e-run-results/
+          retention-days: 30
+          if-no-files-found: error

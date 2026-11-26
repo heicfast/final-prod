@@ -1,0 +1,217 @@
+name: e2e-full
+
+# The e2e suite's evidence-of-record lane (tests/e2e/README.md § CI):
+#   - workflow_dispatch + nightly. The FULL matrix: every filesystem
+#     (NTFS / exFAT / FAT32 / ReFS-where-supported) x every deletion mode
+#     (12) x every scan mode (quick / deep / deepcarve) x both paths (CLI +
+#     API) + the CLI-vs-API divergence check on every scenario.
+#   - Sharded: 9 shard jobs (tests/e2e/matrix.json "shards") run in parallel,
+#     each on its own windows-2022 runner with its own VHDX disks; an assemble
+#     job merges the fragments and enforces completeness (every scenario
+#     present - no silent drops).
+#   - One build job produces the engine kit ONCE; shards download it (the
+#     release recipe, ./build.ps1 -Target engine -SkipTests). ctest is
+#     deliberately not re-run here: engine-ci (push + PR) owns the unit gates;
+#     the recorded reason lives in this comment and tests/e2e/README.md.
+#   - No masking: no continue-on-error; a shard that cannot execute (VHD
+#     create/attach failure, ReFS unsupported) fails with its diagnostic
+#     artifact uploaded via if: always() - never a silent skip.
+#   - Artifacts: per-shard fragments (retention 30) + the merged results tree
+#     (retention 90 - the evidence of record until the reviewed commit lands
+#     under tests/e2e/results/<run-id>/).
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'why this run exists (recorded in the evidence tree)'
+        required: true
+      scan_modes:
+        description: 'comma-separated scan modes (quick,deep,deepcarve)'
+        default: 'quick,deep,deepcarve'
+  schedule:
+    - cron: '30 2 * * *' # nightly 02:30 UTC - the regression sentinel
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-full
+  cancel-in-progress: false # measurement runs are never dropped
+
+jobs:
+  build-kit:
+    name: Build the engine kit once (release recipe)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: vcpkg binary cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: e2e-vcpkg-bin-win2022-${{ hashFiles('engine/vcpkg.json') }}
+          restore-keys: e2e-vcpkg-bin-win2022-
+      - name: Build engine (build.ps1 engine lane)
+        shell: pwsh
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
+          ./build.ps1 -Target engine -SkipTests
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::engine kit build failed'; exit 1 }
+      - name: Stage the kit artifact (release-zip bin\ shape + api harness sources)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = (Resolve-Path "build\out\stage-$version\engine").Path
+          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json')) {
+            if (-not (Test-Path "$kit\$req")) { Write-Host "::error::kit missing $req"; exit 1 }
+          }
+          $stage = 'kit'
+          New-Item -ItemType Directory -Force -Path "$stage\bin" | Out-Null
+          Copy-Item "$kit\*" -Destination "$stage\bin" -Force
+          Copy-Item engine\include -Destination "$stage\include" -Recurse -Force
+          Copy-Item engine\.github\scripts\api_harness.c -Destination "$stage\api_harness.c" -Force
+          $sha = (Get-FileHash "$stage\bin\rrecov.exe" -Algorithm SHA256).Hash.ToLower()
+          "rrecov.exe sha256: $sha" | Set-Content "$stage\PRODUCT-SHA256.txt" -Encoding utf8
+          (Get-FileHash "$stage\bin\cr_ui.dll" -Algorithm SHA256).Hash.ToLower() | Add-Content "$stage\PRODUCT-SHA256.txt"
+      - name: Upload the kit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-engine-kit-${{ github.run_id }}
+          path: kit/
+          retention-days: 1
+          if-no-files-found: error
+
+  shards:
+    name: e2e shard ${{ matrix.shard }}
+    needs: build-kit
+    runs-on: windows-2022
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false # every shard's evidence is collected; a red shard never hides the others
+      matrix:
+        shard: [ntfs-basic, ntfs-format, ntfs-decay, exfat-a, exfat-b, fat32-a, fat32-b, refs-a, refs-b]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download the engine kit
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: e2e-engine-kit-${{ github.run_id }}
+          path: kit
+      - name: MSVC dev environment (the api harness compile)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: '[parse gate] every tests/e2e script the lane dispatches'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scripts = @(Get-ChildItem tests/e2e/scripts -Filter *.ps1 -Recurse | ForEach-Object FullName)
+          if ($scripts.Count -lt 1) { Write-Host '::error::no tests/e2e scripts found'; exit 1 }
+          $failed = $false
+          foreach ($s in $scripts) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($s, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count -gt 0) {
+              Write-Host "::error::PARSE ERROR in ${s}:"
+              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "e2e script AST gate clean ($($scripts.Count) scripts)"
+      - name: Compile the API harness (against the built cr_ui.lib)
+        shell: pwsh
+        run: |
+          cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
+             kit\api_harness.c /I kit\include `
+             /Fe:kit\bin\api_harness.exe /link kit\bin\cr_ui.lib
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host 'api_harness.exe built into the staged kit'
+      - name: The shard matrix (Run-E2E.ps1 -ShardId ${{ matrix.shard }})
+        shell: pwsh
+        run: |
+          $staged = 'D:\e2e-bench\core'
+          New-Item -ItemType Directory -Force -Path "$staged\bin" | Out-Null
+          Copy-Item kit\bin\* -Destination "$staged\bin" -Force
+          $work = 'D:\e2e-bench'
+          $results = Join-Path $env:GITHUB_WORKSPACE 'e2e-results'
+          New-Item -ItemType Directory -Force -Path $work, $results | Out-Null
+          $modes = '${{ inputs.scan_modes || 'quick,deep,deepcarve' }}' -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          & tests\e2e\scripts\Run-E2E.ps1 `
+              -MatrixPath tests\e2e\matrix.json `
+              -RepoRoot $env:GITHUB_WORKSPACE `
+              -CoreStaged $staged `
+              -ApiHarness (Join-Path $staged 'bin\api_harness.exe') `
+              -WorkRoot $work `
+              -ResultsRoot $results `
+              -Profile full `
+              -ShardId '${{ matrix.shard }}' `
+              -ScanModes $modes `
+              -ScanCapSec 1800 -RecoverCapSec 1800 `
+              -RunId "full-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::shard ${{ matrix.shard }} failed - see the fragment gates.md'; exit 1 }
+      - name: Upload the shard fragment
+        if: always() # failure evidence uploads too - the diagnostic-artifact contract
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-full-fragment-${{ matrix.shard }}-${{ github.run_id }}
+          path: e2e-results/
+          retention-days: 30
+          if-no-files-found: error
+
+  assemble:
+    name: Assemble the run results + completeness gate
+    needs: shards
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download every shard fragment
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: e2e-full-fragment-*-${{ github.run_id }}
+          path: fragments
+      - name: Download the product kit (provenance for the product sha256)
+        uses: actions/download-artifact@d3f86a106e0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: e2e-engine-kit-${{ github.run_id }}
+          path: kit
+      - name: Merge fragments + enforce completeness (Collect-Results.ps1)
+        shell: pwsh
+        run: |
+          $fragDirs = @(Get-ChildItem fragments -Directory | ForEach-Object FullName)
+          if ($fragDirs.Count -lt 9) {
+            Write-Host "::error::only $($fragDirs.Count) fragment(s) of 9 - a shard did not upload (never a silent drop)"
+            exit 1
+          }
+          $results = 'e2e-run-results'
+          New-Item -ItemType Directory -Force -Path $results | Out-Null
+          $merge = $fragDirs -join ','
+          $shaLines = (Get-Content kit\PRODUCT-SHA256.txt -Raw) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          $productSha = ($shaLines | Where-Object { $_ -match 'rrecov\.exe' }) -replace '.*sha256:\s*', ''
+          & tests\e2e\scripts\Collect-Results.ps1 `
+              -ResultsRoot $results `
+              -MergeRoots $merge `
+              -MatrixPath tests\e2e\matrix.json `
+              -RunId "full-${{ github.run_id }}" `
+              -RunUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+              -Commit '${{ github.sha }}' `
+              -ProductSha256 $productSha
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::results assembly failed (missing scenarios or broken evidence)'; exit 1 }
+      - name: Hygiene gate (Assert-Clean.ps1 - no token material, no placeholders)
+        shell: pwsh
+        run: |
+          & tests\e2e\scripts\Assert-Clean.ps1 -Root 'e2e-run-results'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Upload the merged run results (the evidence of record)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-full-results-${{ github.run_id }}
+          path: e2e-run-results/
+          retention-days: 90
+          if-no-files-found: error
