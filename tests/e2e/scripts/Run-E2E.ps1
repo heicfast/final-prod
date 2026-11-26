@@ -220,11 +220,22 @@ function Invoke-Reseed {
     $partNumber = [int]$VolEntry.partition
     $vol = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
     $fsOk = ($vol -and -not [string]::IsNullOrEmpty([string]$vol.FileSystem))
+    if (-not $fsOk -and (Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber -ErrorAction SilentlyContinue)) {
+        # state (a): the partition is intact, the volume sits in dismount
+        # limbo (FSCTL_DISMOUNT persists until a FILESYSTEM-level access
+        # through the letter triggers the auto-remount - raw opens never do;
+        # run 45890019629 exFAT PARTDEL: the mountvol cycle alone did not
+        # bring it back). Touch the letter FIRST - that is the trigger.
+        Write-Host "  volume ${letter}: offline with the partition intact (post-locked-raw-IO state) - touching the letter to trigger the auto-remount"
+        $null = Get-Item "$letter`:\" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        $probe = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
+        if ($probe -and -not [string]::IsNullOrEmpty([string]$probe.FileSystem)) { $fsOk = $true }
+    }
     if (-not $fsOk) {
         $part = Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber -ErrorAction SilentlyContinue
         if ($part) {
-            # state (a): the partition is intact, the volume is offline
-            Write-Host "  volume ${letter}: offline with the partition intact (post-locked-raw-IO state) - re-attaching the access path"
+            Write-Host "  volume ${letter}: still offline - re-attaching the access path"
             try {
                 Add-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber $partNumber `
                     -AccessPath "$letter`:\" -ErrorAction Stop
@@ -234,7 +245,7 @@ function Invoke-Reseed {
                 # ('access path already in use') while the volume sits in
                 # dismount limbo (Get-Volume FileSystem null). The mountvol
                 # cycle - drop the stale letter, re-mount the volume GUID on
-                # the same letter - is the canonical remount for that state.
+                # the same letter - plus the FS touch is the full remount.
                 try {
                     $gvol = Get-Partition -DiskNumber $diskNumber -PartitionNumber $partNumber | Get-Volume
                     $guidPath = if ($gvol) { [string]$gvol.Path } else { '' }
@@ -243,21 +254,22 @@ function Invoke-Reseed {
                         Start-Sleep -Seconds 1
                         mountvol "$letter`:\" "$guidPath" 2>&1 | Out-Null
                         Start-Sleep -Seconds 2
-                        Write-Host "  mountvol letter-cycle done for $guidPath"
+                        $null = Get-Item "$letter`:\" -Force -ErrorAction SilentlyContinue
+                        Write-Host "  mountvol letter-cycle + letter touch done for $guidPath"
                     } else {
-                        # last escalation: force a storage rescan (remounts
-                        # dismounted volumes with valid filesystems)
+                        # last escalation: force a storage rescan, then touch
                         $rescanTmp = [System.IO.Path]::GetTempFileName()
                         'rescan' | Set-Content -Path $rescanTmp -Encoding ascii
                         diskpart /s $rescanTmp 2>&1 | Out-Null
                         Remove-Item $rescanTmp -Force -ErrorAction SilentlyContinue
-                        Write-Host '  diskpart rescan done (no volume GUID path available)'
+                        $null = Get-Item "$letter`:\" -Force -ErrorAction SilentlyContinue
+                        Write-Host '  diskpart rescan + letter touch done (no volume GUID path available)'
                     }
                 } catch {
                     Write-Host "  mountvol escalation: $($_.Exception.Message) (recorded)"
                 }
             }
-            for ($w = 0; $w -lt 20; $w++) {
+            for ($w = 0; $w -lt 30; $w++) {
                 $probe = Get-Volume -DriveLetter $letter -ErrorAction SilentlyContinue
                 if ($probe -and -not [string]::IsNullOrEmpty([string]$probe.FileSystem) -and $probe.Size -gt 0) { $fsOk = $true; break }
                 Start-Sleep -Milliseconds 500
