@@ -205,6 +205,23 @@ elseif ($Mode -eq 'full_format') {
 }
 elseif ($Mode -eq 'delete_partition') {
     if ($DiskNumber -lt 0 -or $PartitionNumber[0] -lt 0) { throw 'delete_partition requires -DiskNumber and -PartitionNumber' }
+    # E2E-F6 (runs 45845188954 + 45866040158 exFAT, PARTDEL after the
+    # partial_overwrite row's locked-volume raw IO on the same disk):
+    # Remove-Partition can transiently fail with 'The requested access path
+    # is already in use' while the drive letter is still assigned. Detach the
+    # access path FIRST - AFTER the pre-deletion hash map above (the volume
+    # letter is still needed there) and immediately before the removal.
+    foreach ($pn in $PartitionNumber) {
+        if ($pn -lt 0) { continue }
+        try {
+            Remove-PartitionAccessPath -DiskNumber $DiskNumber -PartitionNumber $pn `
+                -AccessPath "$Letter`:\" -ErrorAction Stop
+            $state.notes += "access path $Letter`: detached from partition $pn before removal"
+        } catch {
+            $state.notes += "access path detach: $($_.Exception.Message) (recorded; Remove-Partition + the diskpart fallback own the removal)"
+        }
+    }
+    Start-Sleep -Seconds 1
     $removed = @()
     foreach ($pn in $PartitionNumber) {
         if ($pn -lt 0) { continue }

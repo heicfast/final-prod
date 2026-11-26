@@ -309,18 +309,11 @@ foreach ($sc in $selected) {
         if ($sc.mode -eq 'delete_partition') {
             $p.DiskNumber = $diskNumber
             $p.PartitionNumber = @([int]$vol.partition)
-            # pre-step (run 45845188954 exFAT PARTDEL: Remove-Partition hit
-            # 'The requested access path is already in use' when the drive
-            # letter was still assigned): detach the access path first, best
-            # effort + recorded, then apply-scenario's own fallback chain owns
-            # the removal
-            try {
-                Remove-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber ([int]$vol.partition) `
-                    -AccessPath "$letter`:\" -ErrorAction SilentlyContinue
-            } catch {
-                Note "partition access-path detach: $($_.Exception.Message) (recorded; apply-scenario's fallback chain owns the removal)"
-            }
-            Start-Sleep -Seconds 1
+            # the access-path detach before the partition removal lives
+            # INSIDE apply-scenario.ps1 (after its pre-deletion hash map -
+            # a Run-E2E-level pre-step detached the letter before the hash
+            # capture and broke it: 'OpenVolumeRaw \\.\Z: failed GLE=2',
+            # run 45866040158 fat32-b/refs-b)
         }
         & $ScenarioScript @p
         # apply-scenario signals failure by THROWING (its own EAP=Stop);

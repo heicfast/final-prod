@@ -5206,3 +5206,16 @@ every row). A new transient surfaced on exFAT PARTDEL: Remove-Partition hit
 letter; the same row passed in 45836204263 - timing-dependent). Run-E2E now
 detaches the partition access path before applying delete_partition (best
 effort, recorded), letting apply-scenario's fallback chain own the removal.
+
+### E2E-F6 root-caused and fixed at the right layer — 2026-11-26
+
+The PARTDEL-after-PARTOVR transient: 'The requested access path is already
+in use' from Remove-Partition while the drive letter is still assigned
+(PARTOVR's locked-volume raw IO precedes PARTDEL on the same disk in the
+fixed order). My first fix landed at the WRONG layer (Run-E2E pre-step) -
+it detached the letter BEFORE apply-scenario's pre-deletion hash map and
+broke fat32/refs PARTDEL with 'OpenVolumeRaw \\.\Z: failed GLE=2' (run
+45866040158). Reverted; the detach now lives INSIDE apply-scenario's
+delete_partition branch, after the hash map and immediately before the
+removal, best-effort + recorded. Both candidate runs were cancelled and
+re-dispatch on the fixed head.
