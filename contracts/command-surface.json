@@ -300,7 +300,7 @@
         "path"
       ],
       "returns": "{scanId}",
-      "notes": "W1b load progress (session-load-progress:<path>, coalesced from the calling thread); best-effort device re-attach by model+serial (slice-pinned); bridge pre-check -> session-not-found for a missing file."
+      "notes": "W1b load progress (session-load-progress:<hex-of-utf8-path>, coalesced from the calling thread; SB-B-04: the hex form of the session file path keeps the event name within the Tauri charset — a raw Windows path made the listen() reject and the spinner dead); best-effort device re-attach by model+serial (slice-pinned); bridge pre-check -> session-not-found for a missing file."
     },
     {
       "name": "session_meta",
@@ -938,7 +938,7 @@
       "payload": "{status}"
     },
     {
-      "name": "session-load-progress:<path>",
+      "name": "session-load-progress:<hex-of-utf8-path>",
       "source": "CR_EVT_SESSION_LOAD_PROGRESS (11), calling thread",
       "payload": "{path, permille, nodesDone, nodesTotal}"
     },

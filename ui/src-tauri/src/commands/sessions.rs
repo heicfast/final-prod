@@ -12,7 +12,9 @@
 //!   by type before any payload I/O), newest-first by the embedded save
 //!   time. This replaces the v2 per-file load+close probe pass.
 //! - W1b load progress: `cr_ui_session_load_with_events` with the
-//!   calling-thread sink emitting `session-load-progress:<path>`.
+//!   calling-thread sink emitting `session-load-progress:<hex-of-utf8-path>`
+//!   (SB-B-04: a raw Windows path violates the Tauri event-name charset —
+//!   bridge::events::session_load_event_name is the shared transform).
 //! - M-154 pointed resume: `cr_ui_session_resume_last` loads the auto
 //!   session the last_scan.info sidecar names (no directory scan).
 //! - The scan RESUME (the CLI's `scan --resume`): load + session_resume +
@@ -221,10 +223,11 @@ fn render_row(r: &abi::CrUiSessionRow) -> Value {
 }
 
 /// Load a session through `cr_ui_session_load_with_events` (W1b: the load
-/// emits `session-load-progress:<path>` from the calling thread; the
-/// caller-owned cancel flag is left NULL — a torn load never half-claims
-/// state, so an abort is a fresh command, not a flag). Registers a
-/// Session-kind entry and returns its scan id.
+/// emits `session-load-progress:<hex-of-utf8-path>` from the calling
+/// thread (SB-B-04: the hex form keeps the event name charset-legal for
+/// Windows paths); the caller-owned cancel flag is left NULL — a torn
+/// load never half-claims state, so an abort is a fresh command, not a
+/// flag). Registers a Session-kind entry and returns its scan id.
 fn load_session_entry(
     state: &Arc<BridgeState>,
     app: &tauri::AppHandle,

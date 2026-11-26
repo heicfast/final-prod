@@ -209,6 +209,24 @@ function connError(code: ConnectorErrorCode, message: string): ConnectorError {
   return Object.assign(new Error(message), { code, reasonKey: REASON_KEYS[code] });
 }
 
+/**
+ * SB-B-04: the session-load-progress event name is keyed by the session
+ * file path hex-encoded (UTF-8 bytes → [0-9a-f]) — the exact same
+ * transform the bridge's `session_load_event_name` (bridge/events.rs)
+ * applies at emit time. A raw Windows path in a Tauri event name (the
+ * `\`, ` ` and `.` of `C:\ProgramData\HeicFast\Recovery Wizard\...`)
+ * violates the event-name charset (alphanumeric plus `-`, `/`, `:`, `_`):
+ * the listen() rejects, the W1b load spinner never attaches. The hex
+ * form is deterministic, collision-free over the path's own bytes, and
+ * charset-legal by construction.
+ */
+function sessionLoadEventName(path: string): string {
+  const bytes = new TextEncoder().encode(path);
+  let name = 'session-load-progress:';
+  for (const b of bytes) name += b.toString(16).padStart(2, '0');
+  return name;
+}
+
 /** A hex payload's bytes arrive as a JSON array — the contract wants Uint8Array. */
 function normalizePreview(p: PreviewPayload | null): PreviewPayload | null {
   if (p === null) return null;
@@ -452,12 +470,9 @@ export function createTauriConnector(): RecoveryConnector {
         path: string,
         cb: (event: SessionLoadProgressEvent) => void,
       ): (() => void) => {
-        const pending = listen<SessionLoadProgressEvent>(
-          `session-load-progress:${path}`,
-          (e) => {
-            cb(e.payload);
-          },
-        );
+        const pending = listen<SessionLoadProgressEvent>(sessionLoadEventName(path), (e) => {
+          cb(e.payload);
+        });
         return () => {
           void pending.then((unlisten) => unlisten());
         };

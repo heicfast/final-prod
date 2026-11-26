@@ -539,6 +539,48 @@ describe('the tauri connector lane C surface (the manifest)', () => {
     expect(unknown.verdictKey).toBe('errors.unknown');
   });
 
+  it('session-load-progress keys a Windows path as a charset-legal hex name (SB-B-04)', async () => {
+    // The pre-fix name embedded the RAW path (backslashes, spaces, dots) —
+    // the Tauri event-name charset (alphanumeric plus -, /, :, _) rejects
+    // it, the listen() rejects, and the W1b load spinner never attaches on
+    // any real install. The fix hex-encodes the UTF-8 path bytes on BOTH
+    // sides (bridge/events.rs session_load_event_name + this connector's
+    // sessionLoadEventName) — deterministic, collision-free, charset-legal.
+    const windowsPath =
+      'C:\\ProgramData\\HeicFast\\Recovery Wizard\\sessions\\auto_FOO_11_26.crsf';
+    let seen = '';
+    const off = conn.sessions.onSessionLoadProgress(windowsPath, (e) => {
+      seen = JSON.stringify(e);
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    const registered = [...listeners.keys()].filter((k) =>
+      k.startsWith('session-load-progress:'),
+    );
+    expect(registered.length).toBe(1);
+    // The charset pin: alphanumeric plus the -, /, :, _ separators ONLY.
+    expect(registered[0]).toMatch(/^[a-zA-Z0-9:/_-]+$/);
+    // Deterministic hex: UTF-8 bytes, two digits each, after the prefix.
+    const hex = Array.from(new TextEncoder().encode(windowsPath))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    expect(registered[0]).toBe(`session-load-progress:${hex}`);
+    // The raw-path name must NOT be registered (the pre-fix shape).
+    expect(listeners.has(`session-load-progress:${windowsPath}`)).toBe(false);
+
+    // payloads cross to the callback verbatim (the true path rides the JSON).
+    listeners.get(registered[0])?.({
+      path: windowsPath,
+      permille: 500,
+      nodesDone: 5,
+      nodesTotal: 10,
+    });
+    expect(seen).toContain('auto_FOO_11_26.crsf');
+
+    off();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(listeners.has(registered[0])).toBe(false);
+  });
+
   it('subscribes to the image events and unsubscribes', async () => {
     const off1 = conn.imaging.onImageProgress('img-1', () => undefined);
     const off2 = conn.imaging.onImageFinished('img-1', () => undefined);

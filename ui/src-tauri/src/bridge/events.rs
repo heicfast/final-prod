@@ -87,6 +87,25 @@ pub struct SessionLoadPipe {
     pub last_permille: u32,
 }
 
+/// SB-B-04: the session-load-progress event name is keyed by the session
+/// file path hex-encoded (UTF-8 bytes → [0-9a-f]). A raw Windows path in a
+/// Tauri event name (`C:\ProgramData\HeicFast\Recovery Wizard\...`)
+/// violates the event-name charset (alphanumeric plus `-`, `/`, `:`, `_`)
+/// — the listen() call rejects and the W1b load spinner never attaches.
+/// The hex form is deterministic on both sides (Rust emit, TS listen),
+/// collision-free over the path's own bytes, and charset-legal by
+/// construction. The event PAYLOAD still carries the true path (JSON,
+/// unconstrained).
+pub fn session_load_event_name(path: &str) -> String {
+    use std::fmt::Write as _;
+    let mut name = String::with_capacity("session-load-progress:".len() + path.len() * 2);
+    let _ = write!(name, "session-load-progress:");
+    for b in path.as_bytes() {
+        let _ = write!(name, "{:02x}", b);
+    }
+    name
+}
+
 /// Fires on the CALLING thread (cr_ui.h W1b) — see the doc above.
 ///
 /// # Safety
@@ -110,7 +129,7 @@ pub unsafe extern "C" fn session_load_sink(
     let step = evt.stage_permille / 50;
     if step != pipe.last_permille || evt.stage_permille >= 1000 {
         let _ = pipe.app.emit(
-            &format!("session-load-progress:{}", pipe.path),
+            &session_load_event_name(&pipe.path),
             serde_json::json!({
                 "path": pipe.path,
                 "permille": evt.stage_permille,
@@ -768,4 +787,32 @@ pub fn emit_job_terminal(
 
 fn now_unix_ms() -> i64 {
     super::util::now_unix_ms()
+}
+
+#[cfg(test)]
+mod sb_b_04_tests {
+    use super::session_load_event_name;
+
+    /// SB-B-04: a raw Windows path in the event name violates the Tauri
+    /// event-name charset (alphanumeric plus `-`, `/`, `:`, `_`) — the load
+    /// spinner's listen() rejected on every real install. The hex form is
+    /// deterministic and charset-legal for ANY path bytes.
+    #[test]
+    fn session_load_event_name_is_charset_legal_for_windows_paths() {
+        let path = "C:\\ProgramData\\HeicFast\\Recovery Wizard\\sessions\\auto_FOO_11_26.crsf";
+        let name = session_load_event_name(path);
+        assert!(name.starts_with("session-load-progress:"));
+        // The charset pin: alphanumeric plus the `:` separator only.
+        for c in name.chars() {
+            assert!(
+                c.is_ascii_alphanumeric() || c == '-' || c == '/' || c == ':' || c == '_',
+                "illegal char {c:?} in {name}"
+            );
+        }
+        // Deterministic hex: UTF-8 bytes, two digits each, after the prefix.
+        let hex: String = path.bytes().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(name, format!("session-load-progress:{hex}"));
+        // Deterministic across calls (the TS listener derives the same name).
+        assert_eq!(session_load_event_name(path), name);
+    }
 }
