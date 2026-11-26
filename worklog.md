@@ -5242,3 +5242,17 @@ mountvol letter-cycle (drop the stale letter, re-mount the volume GUID on the
 same letter; diskpart rescan when no GUID path is available), with the honest
 refusal retained after it. refs-a/refs-b are GREEN on this run - the
 unsupported_fs probes and the honest-empty whole-disk gate all validate.
+
+### E2E-F4 root-caused: NtfsData's FSCTL offsets were wrong - boot-sector BPB parse now — 2026-11-26
+
+The 8192 MiB bump did NOT clear the CorruptMft overflow (run 45878601317
+ntfs-decay, deterministic) - the latent bug was NtfsData's
+GET_NTFS_VOLUME_DATA buffer offsets (40/48/56/16), never validated
+end-to-end: mft_corrupt never completed in any recorded bench lane (the
+BENCH-F5 comment itself records it as never-run before its own fix).
+NtfsData now parses the NTFS boot-sector BPB instead - OEM 'NTFS', bytes/
+sector @0x0B, sectors/cluster @0x0D, total sectors @0x28, $MFT LCN @0x30,
+clusters/FRS @0x40 (the same source GetBootClusterSize reads and the
+engine's own parser uses). The manifest's mft_record values were never
+affected (they come from [BenchRaw]::GetFileIndex's file-id low 48 bits -
+verified sane, 42..~20000).

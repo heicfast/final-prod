@@ -208,15 +208,30 @@ public static class BenchRaw
 
     private static long[] NtfsData(SafeFileHandle h)
     {
-        byte[] b = new byte[256];
-        uint ret;
-        if (!DeviceIoControl(h, FSCTL_GET_NTFS_VOLUME_DATA, null, 0, b, (uint)b.Length, out ret, IntPtr.Zero))
-            throw new IOException("GET_NTFS_VOLUME_DATA failed GLE=" + Marshal.GetLastWin32Error() + " (NTFS only?)");
-        return new long[] {
-            BitConverter.ToInt64(b, 40),   // bytesPerCluster
-            BitConverter.ToInt64(b, 48),   // clustersPerFRS (signed)
-            BitConverter.ToInt64(b, 56),   // mftStartLcn
-            BitConverter.ToInt64(b, 16) }; // totalClusters
+        // E2E-F4 (runs 45826003339/45836204263/45878601317): the
+        // GET_NTFS_VOLUME_DATA buffer offsets below were never validated
+        // end-to-end (mft_corrupt never completed in any recorded bench
+        // lane) and produced geometry that overflowed Int64 inside
+        // CorruptMft. Parse the NTFS BOOT SECTOR instead - the same BPB
+        // source GetBootClusterSize reads and the engine's own parser uses:
+        // OEM "NTFS    " at 3, bytes/sector u16 @0x0B, sectors/cluster
+        // u8 @0x0D, total sectors s64 @0x28, $MFT LCN s64 @0x30,
+        // clusters/FRS s64 @0x40 (negative = 2^-value).
+        byte[] b;
+        using (FileStream bfs = new FileStream(h, FileAccess.Read, 512, false))
+        {
+            b = ReadRange(bfs, 0, 512);
+        }
+        if (Encoding.ASCII.GetString(b, 3, 8) != "NTFS    ")
+            throw new IOException("boot sector is not NTFS (OEM mismatch)");
+        int bps = BitConverter.ToUInt16(b, 0x0B);
+        int spc = b[0x0D];
+        long totalSectors = BitConverter.ToInt64(b, 0x28);
+        long mftLcn = BitConverter.ToInt64(b, 0x30);
+        long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
+        long bpc = (long)bps * (long)spc;
+        long totalClusters = spc > 0 ? totalSectors / spc : 0;
+        return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
     }
 
     private static int MftRecordSize(long clustersPerFRS, long bytesPerCluster)
