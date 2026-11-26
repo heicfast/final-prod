@@ -94,7 +94,13 @@ function scanUsage(): Usage[] {
     }
     const usesWebviewWindow =
       /new WebviewWindow\(/.test(src) || /WebviewWindow\.getByLabel\(/.test(src);
-    usages.push({ rel: p.slice(uiRoot.length + 1), methods, usesWebviewWindow });
+    // Normalized to forward slashes: the gate must behave identically on
+    // Windows (path.join's `\`) and POSIX runners.
+    usages.push({
+      rel: p.slice(uiRoot.length + 1).replaceAll('\\', '/'),
+      methods,
+      usesWebviewWindow,
+    });
   }
   return usages;
 }
