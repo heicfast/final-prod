@@ -103,3 +103,39 @@ procedure, ready to run.
 - NOT possible in this sandbox: live Windows UI captures, perf-counter profiling,
   handle/memory growth measurement on real Windows, clean-Windows RC validation.
   Scoped in `docs/OPEN-ITEMS.md` with the exact procedure.
+
+---
+
+## Session close — resolution status (2026-11-26)
+
+**Fixed with before/after evidence (worklog/FIXES/<id>/):**
+- SB-B-02 (P0, close button dead + the exit-guard race) — capability grant
+  + the awaited handler + the window-capability gate test. Red 3-failed
+  pre-fix → 11/11 green post-fix; full suite green.
+- SB-B-01 (P1, Save-and-exit) — stop → bounded drain → the REAL named save,
+  in the queries layer (arch-lint A1). Red pre-fix (2 pins) → green.
+- SB-E-01..05 (P1/P2, the premature progress family) — five engine tick
+  removals + the sibling-subdirs regression pin; red/green re-proven on the
+  merged byte-plan tree (9 premature completion samples → true-end only);
+  full engine suite 1750 ran / 1708 passed / 0 failed.
+- SB-A-01 (P1, per-query deep clone) — Arc<Vec<NodeMeta>>; compile proof on
+  the Windows CI lanes (no local Rust toolchain — documented).
+- SB-A-08 (P2, silent stop) — four onError surfaces + the refusal-toast pin
+  (red pre-fix, green post-fix).
+- SB-B-04 (P2, dead load spinner) — hex-keyed event name both sides +
+  charset pins (TS red pre-fix; Rust unit test rides the CI lane).
+
+**Precisely scoped for the next session: docs/OPEN-ITEMS.md items 1–21**
+(the P1s: SB-B-03 FVEK dead control, SB-A-02 closeScan wiring,
+SB-A-03 recover-all window; the P2 tail: error-path leaks, icon-view cap,
+overlap gate, recovery counters/size/ETA, lost-candidate pairing,
+disposer catches, log spawn; the P3 tail; the systemic mock-divergence
+lane; the Windows-only runtime captures C/D).
+
+**Windows CI status at session close:** contracts-ci + ui-e2e GREEN on this
+session's pushes; engine-ci/ui-ci/bridge-integration were red from the
+concurrent lane's unformatted abi_layout_dump.c BEFORE this session's
+first push (runs 45830051257/45830051262 on 4a828a0f — pre-existing, root
+caused from the job logs) and from this session's own two formatting/arch
+slips (test_telemetry.cpp, arch-lint A1) — all three root-caused and fixed
+in 26de8224; the final poll after that push is recorded in worklog.md.

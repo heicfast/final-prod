@@ -5024,3 +5024,89 @@ on an 8192 MiB volume). FINDING E2E-4: recorded with the evidence; e2e-ntfs
 bumped to 8192 MiB (the proven geometry) for the re-dispatch - if it still
 overflows, the row stays red-honest and the finding escalates to the owner
 (same treatment as E2E-2: root cause in the shared FSCTL/geometry parse).
+e3e410cf (docs(small-bugs): the session handoff — OPEN-ITEMS with 21 precise scopes, the ledger closed, the worklog record)
+
+---
+
+## Session 2026-11-26 (b) — Small-Bug Hunting & Stability Polish — the session record
+
+**Start**: HEAD `6676b427`, VERSION 0.9.7 (rebased through the concurrent
+lanes' `3b222ad2..37166492` mid-session — the repo was actively developed in
+parallel; every push was rebased, never force-pushed).
+**Prompt**: saved token-redacted at `worklog/session-small-bugs-prompt.md`, read twice.
+
+### Phase 0 (pushed before any fix, `e9e38c92`)
+
+Agents A/B/E: `worklog/SMALL-BUGS-SOURCE.md` (64 files), `worklog/WIRING-AUDIT-SMALL-BUGS.md`
+(86 chains; renamed from the canonical WIRING-AUDIT.md to preserve the standing prior
+audit), `worklog/NUMERIC-DEFECTS.md` (~115 sites recomputed). Consolidated:
+`worklog/DEFECT-LEDGER.md` — 36 findings classified by impact and cause.
+The owner personally re-verified the P0/P1s before fixing (capabilities file,
+exit-guard, sessions.rs + cr_ui.cpp save path, serialize_tree's lock-free walk,
+queries/scan.ts mutations, the FAT tick sites).
+
+### Fixes (each with red/green proof — see worklog/FIXES/<id>/)
+
+1. **`2b1eb42b` SB-B-02 (P0) — the dead X button.** Two stacked root causes,
+   both proven against the installed @tauri-apps/api 2.12.4 source: the
+   missing `core:window:allow-destroy` grant (every close path on the
+   frameless window funnels into the ACL-gated destroy — the X could never
+   close the window, any state) + the fire-and-forget close handler racing
+   the wrapper's isPreventDefault check (mid-scan, the wrapper would destroy
+   while the save dialog was still being decided). Fixed: the grant + the
+   awaited handler; regression: faithful-wrapper race test +
+   window-capability gate (3 red pre-fix → 11/11 green).
+2. **`cf7c245a` SB-B-01 (P1) — Save-and-exit could never succeed.** The
+   bridge truthfully refuses a mid-run save (serialize_tree walks the live
+   tree off the mutex — the owner verified the engine race is real); the
+   engine's own partial-session mechanism is the stop tail (S-057/W1c, og
+   stop→SaveScan parity). The guard now stops the scan, waits for the
+   terminal latch (bounded 120 s drain, honest localized timeout), then the
+   REAL named save, then closes. `26de8224` moved the flow into
+   queries/sessions.ts after CI's arch-lint caught the connector-boundary
+   violation (A1).
+3. **`833e3386` SB-A-08 (P2) — the silent stop.** Four destructive controls
+   (stop-confirm/pause/resume/recovery-cancel) had no error surface — a
+   refused stop was a no-op after the dialog closed. onError toasts (the
+   codebase's own pattern) + the refusal-toast pin (red pre-fix).
+4. **`bd72ec05` SB-B-04 (P2) — the dead load spinner.** The raw Windows
+   path in the `session-load-progress` event name violated the Tauri
+   charset — the listen() rejected, void-swallowed, on every real install.
+   Hex-keyed event name (both sides) + charset pins.
+5. **`5fbf39fb` SB-A-01 (P1) — the per-query metadata deep clone.** O(tree)
+   row+string copies on every results page/count/detail + every progress
+   invalidation → one Arc refcount bump. Compile proof on the Windows lanes.
+6. **`720cdab3` + `ee343083` SB-E-01..05 — the premature progress family.**
+   FAT/exFAT per-directory, ext4 pre-sweep, btrfs per-subvol terminal ticks
+   + HFS+'s phantom 1024 denominator — all removed/repaired at the engine;
+   the sibling-subdirs fixture reproduces the pre-fix stuck-at-complete
+   (pre-fix: 9 premature completion samples; post-fix: true-end only).
+   Re-proven on the merged tree after the concurrent byte-plan model landed
+   mid-session (e9893088); full engine suite 1750/1708/0-fail (ASAN, Linux).
+
+### CI (real status, from the GitHub API)
+
+- contracts-ci + ui-e2e: **GREEN** on this session's pushes.
+- engine-ci/ui-ci/bridge-integration: red on the concurrent lane's OWN
+  head BEFORE this session's first push (`4a828a0f`: abi_layout_dump.c
+  unformatted — runs 45830051257/45830051262, root-caused from the job
+  logs, not this session's regression); this session's own slips (the
+  telemetry test's clang-format, the exit-guard's arch-lint A1 — both caught
+  by the same lanes) were fixed in `26de8224` together with the pre-existing
+  dump formatting. Final-status poll: recorded below.
+- No CI result was fabricated: every status above cites a run id.
+
+### Environment truth (also in the ledger and OPEN-ITEMS)
+
+This session ran in a Linux sandbox: the full engine suite (1750 tests, ASAN
+preset), the full UI suite (235 tests), contracts validate, arch-lint,
+tsc/eslint/prettier all ran FOR REAL here; the Rust bridge compiles and the
+Windows runtime captures (profiling sheets C/D, live click-throughs,
+memory-growth curves) could not — precisely scoped in docs/OPEN-ITEMS.md
+items 19–20, with the exact procedures.
+
+### Deferrals
+
+`docs/OPEN-ITEMS.md` (new): 21 precisely-scoped items — the P1s (SB-B-03
+FVEK dead wire, SB-A-02 closeScan, SB-A-03 recover-all window), the P2/P3
+tail, the systemic mock-divergence lane, and the Windows-only captures.
