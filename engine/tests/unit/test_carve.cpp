@@ -10,6 +10,7 @@
 #include "cr/table/cr_table_wire.h"
 #include "cr/cr_text.h"
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <zlib.h>
 #include <ctime>
@@ -17,6 +18,7 @@
 #include <functional>
 #include <iterator>
 #include <map>
+#include <random>
 #include <vector>
 
 using namespace cr;
@@ -5723,6 +5725,68 @@ TEST(Carve, TsSparseSyncNoiseRejected) {
         EXPECT_FALSE(c->props()->carve_format == u64(FMT_TS) ||
                      c->props()->carve_format == u64(FMT_M2TS))
             << "sparse non-strided syncs must never fire the TS family";
+}
+
+TEST(Carve, RandomPayloadSyncStormBounded) {
+    /* P1-12a (the forensic D-SCAN-01 stall fix, run 45818123462): the
+     * carve over a UNIFORMLY RANDOM payload region is the pathological
+     * candidate density — a 0x47 byte every ~256 positions, each firing
+     * validate_ts_common on BOTH TS rows (and 0xFF Ex / 0xFF F1 pairs on
+     * the audio families). The pre-fix validators constructed a fresh
+     * 1 MiB std::vector PER CALL: the forensic seed's ~66 MiB of random
+     * MP4/ZIP payload => ~258K 0x47 positions x 2 rows => ~516K x 1 MiB
+     * alloc+zero = ~500 GiB of pure memset churn — the measured 825 s
+     * frozen stretch (io-timeline readBytes flat at 13.466 GB, zero
+     * device reads for 14 minutes). The thread_local probe-block
+     * scratch allocates once per thread; this fixture shapes the same
+     * storm at test scale and asserts the wall-time budget the pre-fix
+     * class cannot approach.
+     * Sizing: 8 MiB of PRNG-random bytes => ~32K 0x47 candidates x 2
+     * validator rows; at a pre-fix ~150 us of alloc+zero per call that
+     * alone is ~10 s (plus dispatch) — the pre-fix shape cannot pass the
+     * 5 s budget; post-fix the whole sweep is single-digit ms of
+     * validator time. */
+    std::vector<u8> img(8 * 1024 * 1024);
+    std::mt19937_64 rng(0x5eed6479); /* the 0x47 seed */
+    for (auto& b : img)
+        b = u8(rng() & 0xFF);
+    /* a real TS stream must still validate inside the same scan: the
+     * fix may never cost detection. 345 packets x 188 = 64,860 B. */
+    const size_t at = img.size() - 200 * 1024;
+    const size_t len = plant_ts(img, at, 345);
+    (void)len;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    const auto t0 = std::chrono::steady_clock::now();
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count();
+    /* budget: the pre-fix storm is the 10 s class (measured 825 s at
+     * forensic scale, linearly ~10 s here); the fix runs in the tens of
+     * ms. 5 s fails the pre-fix shape by 2x and holds >100x headroom. */
+    EXPECT_LT(ms, 5000) << "the random-payload sync storm took " << ms
+                        << " ms - the per-candidate allocation stall class (P1-12a)";
+    /* the planted stream still carves - the storm never cost detection */
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    bool ts_found = false;
+    for (tree::FileNode* c : all)
+        if (c->props()->carve_format == u64(FMT_TS))
+            ts_found = true;
+    EXPECT_TRUE(ts_found) << "the real TS stream inside the random payload must still validate";
 }
 
 TEST(Carve, HtmlAsciiLowerUpperDoctypeAccepted) {

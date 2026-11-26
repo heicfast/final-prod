@@ -232,6 +232,32 @@ u32 ebml_vint_local(const u8* buf, u64 buf_len, u64 off, u64* v) {
 
 constexpr u32 kProbeBlock = 1u << 20; /* 1 MiB probe window */
 
+/* P1-12a (the forensic D-SCAN-01 stall fix): the per-thread probe-block
+ * scratch. Every block-scan helper below used to construct its own
+ * std::vector<u8>(kProbeBlock) PER CALL — a 1 MiB allocation + value-init
+ * (zero-fill) per candidate. On the 1-byte/2-byte sync magics (TS 0x47,
+ * MPEG-audio 0xFF Ex, AAC ADTS) a uniformly-random payload region
+ * produces a candidate at ~every 256th byte: the seeded 64 GiB forensic
+ * disk's ~66 MiB of random MP4/ZIP payload => ~258K 0x47 positions, each
+ * running validate_ts_common TWICE (TS + M2TS rows) => ~516K x 1 MiB
+ * alloc+memset = ~500 GiB of pure CPU churn with ZERO device reads — the
+ * measured 825 s frozen stretch (run 45818123462: io-timeline readBytes
+ * flat at 13.466 GB from 12:23:22 to 12:37:24, D-SCAN-01 red). A
+ * thread_local vector keeps the SAME thread-safety posture (validators
+ * run on one worker thread for the whole call; the buffer is never shared
+ * across threads) while the allocation happens once per thread. The lazy
+ * resize keeps bytes identical: every rd() below reads exactly the same
+ * spans it did with a fresh zeroed vector, and no helper reads
+ * scratch content before overwriting it via rd() — the only pattern that
+ * could observe stale bytes is one that skips the initial rd(), which no
+ * helper does (fill_len/fill_at discipline unchanged). */
+static std::vector<u8>& probe_block_scratch() {
+    thread_local std::vector<u8> buf;
+    if (buf.size() != kProbeBlock)
+        buf.assign(kProbeBlock, 0);
+    return buf;
+}
+
 u64 probe_limit(IStorageDevice* s, u64 hit, u64 cap) {
     return std::min(hit + cap, s->size());
 }
@@ -263,7 +289,7 @@ static void pdf_name_prefix(IStorageDevice* s, u64 hit, u64 end, CarveResult& r)
     static const size_t kStrCap = 25;
     static const u64 kScanCap = 256ull << 10;
     const u64 limit = end - hit > kScanCap ? hit + kScanCap : end;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     std::string title, creator, producer, date;
     u64 block = hit;
     while (block < limit &&
@@ -437,7 +463,7 @@ static CarveResult carve_pdf_done(IStorageDevice* s, CarveResult r, u64 hit, u64
 u64 scan_first_eocd(IStorageDevice* s, u64 start, u64 limit) {
     if (limit <= start + 22)
         return 0;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 block = start;
     while (block < limit) {
         const u64 remain = limit - block;
@@ -485,7 +511,7 @@ static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
     const u64 scan_end = std::min<u64>(limit, anchor + (1ull << 20));
     if (scan_end <= anchor + 22)
         return 0;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 block = anchor;
     while (block < scan_end) {
         const u64 remain = scan_end - block;
@@ -803,7 +829,7 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
              * per file against the 96 MiB cap. */
             u64 p = pos + 2 + u64(len);
             const u64 elim = probe_limit(s, hit, cap);
-            std::vector<u8> buf(kProbeBlock);
+            std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
             bool found = false;
             while (p + 2 <= elim) {
                 const u64 remain = elim - p;
@@ -1249,7 +1275,7 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
      * truncates early - far cheaper than absorbing whole later files).
      * P1-12: 1 MiB block reads throughout. */
     const u64 limit = probe_limit(s, hit, cap);
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 best = 0;         /* offset just past the last %%EOF before the boundary */
     u64 block = hit + 16; /* skip the own header (+version digits) */
     while (block < limit) {
@@ -2659,9 +2685,9 @@ CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     const u64 limit = probe_limit(s, hit, cap);
     if (audio_at + 4 > limit)
         return r;
-    std::vector<u8> buf(kProbeBlock);
-    u64 fill_at = 0;  /* absolute offset of buf[0] */
-    u32 fill_len = 0; /* valid bytes from fill_at */
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
+    u64 fill_at = 0;                              /* absolute offset of buf[0] */
+    u32 fill_len = 0;                             /* valid bytes from fill_at */
     auto ensure4 = [&](u64 q) -> const u8* {
         if (q < fill_at || q + 4 > fill_at + fill_len) {
             const u64 remain = limit - q;
@@ -3203,7 +3229,7 @@ CarveResult validate_mp3_raw(IStorageDevice* s, u64 hit, u64 cap) {
      * finding's fix plan). */
     CarveResult r;
     const u64 limit = probe_limit(s, hit, cap);
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 fill_at = 0;
     u32 fill_len = 0;
     auto ensure4 = [&](u64 q) -> const u8* {
@@ -3264,7 +3290,7 @@ CarveResult validate_aac_adts(IStorageDevice* s, u64 hit, u64 cap) {
     if (profile == 3 || sr_idx == 15 || chan > 7)
         return r;
     const u64 limit = probe_limit(s, hit, cap);
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 fill_at = 0;
     u32 fill_len = 0;
     auto ensure7 = [&](u64 q) -> const u8* {
@@ -3321,8 +3347,8 @@ CarveResult validate_rtf(IStorageDevice* s, u64 hit, u64 cap) {
     if (std::memcmp(h, "{\\rtf", 5) != 0)
         return r;
     const u64 limit = probe_limit(s, hit, cap);
-    u64 depth = 1; /* the opening group */
-    std::vector<u8> buf(kProbeBlock);
+    u64 depth = 1;                                /* the opening group */
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 p = hit + 5;
     u64 close_at = 0;
     while (p < limit) {
@@ -3560,7 +3586,7 @@ CarveResult validate_mpeges(IStorageDevice* s, u64 hit, u64 cap) {
             u32 len = 0;
             /* walk the slice bytes to the next start-code prefix */
             u64 p = q + 4;
-            std::vector<u8> buf(kProbeBlock);
+            std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
             while (p + 4 <= limit) {
                 const u64 remain = limit - p;
                 const u32 take = u32(std::min<u64>(remain, kProbeBlock - 3));
@@ -3647,7 +3673,7 @@ static CarveResult validate_ts_common(IStorageDevice* s, u64 hit, u64 cap, u32 s
     u64 verified_end = hit; /* end of the last fully verified packet */
     u64 pos = hit;          /* next unverified packet boundary (absolute) */
     bool null_packets = false;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     bool first_block = true;
     while (pos + stride <= limit) {
         const u64 remain = limit - pos;
@@ -3752,7 +3778,7 @@ static u64 scan_tag_two_case(IStorageDevice* s, u64 start, u64 limit, const char
     for (size_t i = 0; i < n; ++i)
         up[i] = (needle[i] >= 'a' && needle[i] <= 'z') ? char(needle[i] - 'a' + 'A') : needle[i];
     up[n] = 0;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 block = start;
     while (block < limit) {
         const u64 remain = limit - block;
@@ -3966,7 +3992,7 @@ CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap) {
      * exact multiple of the step, so every block starts step-aligned
      * and no step position straddles) */
     constexpr u64 kStep = 0x200;
-    std::vector<u8> buf(kProbeBlock);
+    std::vector<u8>& buf = probe_block_scratch(); /* P1-12a */
     u64 pos = hit;
     u64 marker_end = 0;
     while (pos + 4 <= limit) {
