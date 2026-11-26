@@ -327,8 +327,21 @@ foreach ($sc in $selected) {
             $refusalDir = Join-Path $scEv 'cli'
             New-Item -ItemType Directory -Force -Path $refusalDir | Out-Null
             $sessionPath = Join-Path $scCli 'session-quick.crsf'
-            $scanArgs = @('scan', '--volume', "$letter`:", '--threads', "$Threads", '--quick-only',
-                          '--out', $sessionPath, '--log', (Join-Path $scCli 'stage-quick.log'), '--json')
+            $isPartDel = ([string]$sc.mode -eq 'delete_partition')
+            if ($isPartDel) {
+                # after delete_partition the VOLUME is gone (run 45845188954:
+                # --volume on the removed letter refused in the BitLocker
+                # state probe, not the FS probe). The honest unsupported-FS
+                # shape on a partition-deleted disk is the WHOLE-DISK scan
+                # completing (exit 0 + session) and finding ZERO lost
+                # partitions - the ReFS lost-partition discovery gap (the
+                # run 45826003339 refs-b evidence: completed, lost=0).
+                $scanArgs = @('scan', '--disk', "$diskNumber", '--deep', '--threads', "$Threads",
+                              '--out', $sessionPath, '--log', (Join-Path $scCli 'stage-whole.log'), '--json')
+            } else {
+                $scanArgs = @('scan', '--volume', "$letter`:", '--threads', "$Threads", '--quick-only',
+                              '--out', $sessionPath, '--log', (Join-Path $scCli 'stage-quick.log'), '--json')
+            }
             $t0 = Get-Date
             $pinfo = Start-Process -FilePath $RrecovExe -ArgumentList $scanArgs `
                 -RedirectStandardOutput (Join-Path $refusalDir 'scan-quick.stdout') `
@@ -340,7 +353,17 @@ foreach ($sc in $selected) {
             if (Test-Path -LiteralPath (Join-Path $refusalDir 'scan-quick.stdout')) {
                 $cliOut = (Get-Content -LiteralPath (Join-Path $refusalDir 'scan-quick.stdout') -Raw)
             }
-            $cliRefused = ($cliExit -eq 1) -and ($cliOut -match 'bad magic|0x50030001') -and (-not (Test-Path -LiteralPath $sessionPath))
+            if ($isPartDel) {
+                # honest-empty gate: completed + session + zero lost partitions
+                $jline = ($cliOut -split "`n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
+                $lost = -1
+                if ($jline) { try { $lost = [int64](($jline | ConvertFrom-Json).lost_partitions) } catch { } }
+                $cliRefused = ($cliExit -eq 0) -and (Test-Path -LiteralPath $sessionPath) -and ($lost -eq 0)
+                $cliExpected = 'completed whole-disk scan, session produced, lost_partitions == 0 (the ReFS discovery gap)'
+            } else {
+                $cliRefused = ($cliExit -eq 1) -and ($cliOut -match 'bad magic|0x50030001') -and (-not (Test-Path -LiteralPath $sessionPath))
+                $cliExpected = 'clean refusal (exit 1 + bad magic surfaced + no session)'
+            }
             $apiExitRef = $null
             $apiRefused = $false
             if ($IncludeApi) {
@@ -350,23 +373,39 @@ foreach ($sc in $selected) {
                 # 45836204263: Tee'd to the evidence dir but read back from
                 # the work dir - the refusal text was never seen and every
                 # API probe false-failed; one source of truth from here on)
-                $apiOutLines = & $ApiHarness @('--scan', '--target', 'volume', '--letter', $letter,
+                $apiTargets = @('--scan', '--target', 'volume', '--letter', $letter,
                     '--dest', (Join-Path $scApi 'recovered'), '--out', $scApi, '--label', $id,
-                    '--threads', "$Threads") 2>&1
+                    '--threads', "$Threads")
+                if ($isPartDel) {
+                    $apiTargets = @('--scan', '--target', 'disk', '--disk', "$diskNumber", '--whole-disk',
+                        '--dest', (Join-Path $scApi 'recovered'), '--out', $scApi, '--label', $id,
+                        '--threads', "$Threads")
+                }
+                $apiOutLines = & $ApiHarness @apiTargets 2>&1
                 $apiOutLines | Set-Content -LiteralPath (Join-Path $apiRefDir 'harness.stdout') -Encoding utf8
                 $apiExitRef = $LASTEXITCODE
                 $apiOut = ($apiOutLines -join "`n")
-                $apiRefused = ($apiExitRef -ne 0) -and ($apiOut -match 'bad magic|0x50030001|50030001')
+                if ($isPartDel) {
+                    # honest-empty: harness completes (0 or 2) and reports zero lost partitions
+                    $apiLost = $null
+                    $apiResultPathLocal = Join-Path $scApi 'api-result.json'
+                    if (Test-Path -LiteralPath $apiResultPathLocal) {
+                        try { $apiLost = [int64](Get-Content -LiteralPath $apiResultPathLocal -Raw | ConvertFrom-Json).scan_stats.lost_partitions } catch { }
+                    }
+                    $apiRefused = ($apiExitRef -eq 0 -or $apiExitRef -eq 2) -and ($null -ne $apiLost) -and ($apiLost -eq 0)
+                } else {
+                    $apiRefused = ($apiExitRef -ne 0) -and ($apiOut -match 'bad magic|0x50030001|50030001')
+                }
             }
             $resCli = [ordered]@{
-                expected = 'clean refusal (exit 1 + bad magic surfaced + no session)'
+                expected = $cliExpected
                 exit_code = $cliExit; wall_seconds = $cliWall
                 passed = $cliRefused; reasons = @()
             }
             if (-not $cliRefused) {
                 $resCli.reasons += "CLI refusal shape wrong: exit=$cliExit session=$(Test-Path -LiteralPath $sessionPath) badmagic=$($cliOut -match 'bad magic|0x50030001')"
             }
-            $resApi = [ordered]@{ expected = 'nonzero + error surfaced'; exit_code = $apiExitRef; passed = $true; reasons = @() }
+            $resApi = [ordered]@{ expected = 'the same shape as the CLI lane'; exit_code = $apiExitRef; passed = $true; reasons = @() }
             if ($IncludeApi) {
                 $resApi.passed = $apiRefused
                 if (-not $apiRefused) { $resApi.reasons += "API refusal shape wrong: exit=$apiExitRef" }

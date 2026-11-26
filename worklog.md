@@ -5184,3 +5184,15 @@ the session were each root-caused from run logs and fixed:
 The repo remained a moving target (concurrent lanes landed
 3b222ad2..afff17a9 during the session); every push was rebased, never
 force-pushed, and main is green at close.
+
+### The unsupported_fs partition-deleted variant — 2026-11-26
+
+Run 45845188954 refs-b: PARTOVR's clean-refusal probe now PASSES (the
+stdout-path fix works); PARTDEL failed its probe because after the partition
+removal the volume is GONE - '--volume W:' refused in the BitLocker state
+probe ('boot sector unreadable - cannot determine BitLocker state'), a
+different honest shape. The partition-deleted ReFS row now gates on the
+honest-empty whole-disk scan: exit 0 + session + lost_partitions == 0 on
+'--disk N --deep', the API disk-target harness reporting the same zero
+(the 45826003339 refs-b precedent: completed, lost=0 - the ReFS
+lost-partition discovery gap recorded as the finding).

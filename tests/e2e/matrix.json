@@ -617,7 +617,7 @@
       "scan_modes": "deepcarve",
       "gate": {
         "type": "unsupported_fs",
-        "note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+        "note": "FINDING (runs 45826003339/45845188954): after the partition removal the volume is gone, and the whole-disk lost-partition scan completes HONESTLY with ZERO candidates on the ReFS-shaped unallocated space (run 45826003339 refs-b: completed, lost=0) - the ReFS lost-partition discovery gap. The row's gate is that honest-empty shape: exit 0 + session produced + lost_partitions == 0 on the CLI whole-disk scan, and the API disk-target harness reporting the same zero."
       },
       "expect": "unsupported_fs"
     }
