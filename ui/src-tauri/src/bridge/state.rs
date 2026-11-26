@@ -239,7 +239,7 @@ pub struct SnapshotCache {
     pub handle: SendPtr<abi::CrUiSnapshot>,
     pub partial: bool,
     pub node_count: u32,
-    pub metas: Option<Vec<NodeMeta>>,
+    pub metas: Option<Arc<Vec<NodeMeta>>>,
     pub last_refresh_ms: i64,
     /// Terminal scans never re-snapshot (the tree is stable).
     pub frozen: bool,
@@ -783,7 +783,7 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
             metas[parent as usize].tree_size += ts;
         }
     }
-    snap.metas = Some(metas);
+    snap.metas = Some(Arc::new(metas));
     Ok(())
 }
 
@@ -822,11 +822,19 @@ pub fn extension_of(name: &str) -> String {
     }
 }
 
-/// Clone the metadata cache (payload assembly needs owned rows sometimes).
+/// The metadata cache snapshot (payload assembly reads owned rows).
+/// SB-A-01: the cache is returned as an `Arc` — one refcount bump under
+/// the snapshot lock instead of the pre-fix full `Vec<NodeMeta>` deep
+/// clone (two heap `String`s per row) on EVERY results page / tree page /
+/// node-detail / count query and every progress-bucket invalidation:
+/// O(total tree rows) of copies per 200-row page fetch, exactly when the
+/// user is scrolling results or watching a live scan. The cache is
+/// generation-stable under the snapshot mutex (a new generation replaces
+/// the Arc wholesale), so sharing it is sound.
 pub fn metas_snapshot(
     state: &BridgeState,
     scan_id: &str,
-) -> BridgeResult<(Arc<ScanEntry>, Vec<NodeMeta>, bool)> {
+) -> BridgeResult<(Arc<ScanEntry>, Arc<Vec<NodeMeta>>, bool)> {
     refresh_snapshot(state, scan_id)?;
     let entry = state.scan_entry_arc(scan_id)?;
     ensure_metas(&entry)?;
