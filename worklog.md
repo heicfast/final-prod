@@ -4587,3 +4587,110 @@ gate; engine-ci(73)/bridge(68) on be7966c5; ui-ci(129)/ui-e2e(114) on
 **Session goal**: hygiene + documentation sync — remove slop/dead code/duplicates with evidence, consolidate all docs/artifacts under one `docs/` roof, mark every issue fixed vs open, update docs to current reality, validate.
 
 - **T1 done**: cloned, recorded start state, prompt saved (token redacted) at `worklog/session-cleanup-consolidation-prompt.md`, read twice. This entry.
+
+---
+
+## Session 2026-11-26 (cross-repo-harvest resume) — the F-01 closed loop driven GREEN, F-03 landed, the gates closed out
+
+Prompt: the cross-repo-harvest session re-dispatched verbatim (saved
+token-redacted by its first lane at `worklog/session-cross-repo-harvest-prompt.md`,
+read twice this session). Clone: all seven repos at the SAME pinned
+SHAs the sheets recorded on 2026-11-19 (references unchanged);
+product HEAD at session start `8c86a484` (the prior lane's handoff
+worklog entry; the 52-commit harvest lineage `201100aa..8c86a484`
+mapped first — this session RESUMES the interrupted harvest, it does
+not redo Phase 0: the seven context sheets, FEATURE-MATRIX, LICENSING
+all stand).
+
+**The in-flight-at-handoff verdicts (7 days later, from the API):**
+ui-ci(129)/ui-e2e(114) on `20efb62a` ended GREEN; engine-ci(73)/
+bridge(68) on `be7966c5` ended GREEN; named-feature-fixture(14) =
+run `44475017206` on `1a1f6877` ended RED — the F-01 closed-loop
+gate itself. Root-caused from the downloaded artifacts (the evidence
+upload step runs on failure too — by design): the ENGINE output was
+fully correct (recovery-report 24/24 done; every file byte-exact;
+every directory on disk; the runner-side I2 had PASSED the
+`.nffx-flush-probe` row — it is not among the failures), but the
+VERIFIER failed four deleted-DIRECTORY rows ("I2 missing output:
+Docs/Old, Docs/Old/sub, Photos/vacation, Photos/vacation/inner"):
+`walk_outputs()` collects files only, and dir rows carry
+`expect.class=EXACT`, so the file-exactness loop always reported them
+missing. Second finding in the same artifacts: the evidence zip had
+silently dropped the dot-prefixed recovered files (the upload `**`
+glob skips them — the probe + the stash twin were on the runner tree
+per the recovery report but absent from the zip).
+
+**`d65a5d12`** — the verifier fix + the evidence-completeness fix:
+`exact_rows` excludes `is_dir` rows (directories stay validated by
+the dedicated isdir check, which run 14 passed with zero findings);
+the self-test gains the regression pins (dir row with a file child,
+an empty deleted dir, a dir-missing failing case — 6/6); the lane
+captures `output-listing.txt` runner-side (`Get-ChildItem -Force` —
+nothing skipped) and names the dot entries in the artifact path.
+Re-dispatched the lane on `d65a5d12`:
+
+**Run `45811533301` — THE F-01 CLOSED LOOP GREEN** (fixture job +
+engine-flow job both success, 2026-11-26): the full chain on a real
+Windows runner — rrecov build (MSVC), whole-disk scan of the seeded
+2 GB GPT/NTFS VHDX, `--reconstruct-deleted` reconstruction, and the
+byte-for-byte judge: `verify-report.json` = `ok: true, failures: []`
+(I1 deleted-only, I2 exactness, I3 collision-set, I4 accountability,
+I5 containment; 19 output files incl. the probe + stash twin, 17
+dirs). Evidence captured to
+`worklog/VALIDATION/fixtures/named-feature/` (verify-report,
+output-listing — complete incl. dot entries, recovery-report 24/24,
+reconstruct/scan logs, apply-log, self-test 6/6, transcript; README
+run-history rows for 44475017206 and 45811533301). **Validation gate
+2 (the named feature, byte-for-byte on real Windows): PROVEN.**
+
+**`126ea398`** — F-03 (P1) landed, the matrix row the prior lane had
+left "UNVERIFIED → verify + close": the NTFS parent-sequence gate
+(SF §2.5): the $FILE_NAME parent link is accepted only while its
+recorded parent sequence matches the parent record's CURRENT
+sequence (equal, or +1 with the parent deleted — deletion bumps it
+once) AND the parent is a directory; a reused parent record's stale
+link orphans under the existing LostDir grouping (the F-01 plan maps
+it to `_orphaned/`), never attaching under the unrelated reused
+node. Both attachment sites gated (phase B + the GUID-dump host);
+the USN/INDX remnant paths already resolve by full reference
+(find_by_record exact-match) and are untouched. Test:
+`NtfsVolume.ParentSequenceGateOrphansReusedParents` (reuse→LostDir24,
+delete-bump→deaddir accepted, file-parent→LostDir17, base-fixture
+pseq==pcur links untouched); all existing fixtures are pseq==pcur —
+regression-neutral by construction. Local gate: linux-release build
+clean (-Werror), full suite **1822/1822**, format/lint/secrets/
+subject stages clean. Windows: engine-ci `45814007501` GREEN,
+bridge-integration `45814007296` GREEN on `126ea398`.
+
+**The remaining-row verdicts (verified in code, not assumed):**
+F-35 = IMPLEMENTED (subsumed by F-34's mapfile resume + the D-IMG-1
+cancel); F-12 = core IMPLEMENTED as backup-BS open-path fallbacks
+(NTFS volume-end M-043/M-145/S-063, FAT32 sector-6 R5.1, exFAT +12)
+— DELIBERATELY-DIVERGENT on TD's per-MiB lattice (deep-scan material
+under F-13); F-04 = absent (zero-USN passes fixup today — scoped);
+F-28/F-19/F-18-breadth/F-37 = not implemented — scoped. Deliverables:
+`worklog/PARITY.md` (every matrix row resolved to IMPLEMENTED /
+DELIBERATELY-DIVERGENT / NOT-APPLICABLE / FOLLOW-UP, with commit +
+test + run citations), `worklog/FOLLOW-UP.md` (every unimplemented
+row with entry points, tests to add, validation to prove), and
+`engine/docs/CAPABILITY-MATRIX.md` truthed with the harvest rows
+(F-03, F-01, F-33/F-34).
+
+**Concurrent-lane interleave (recorded):** the cleanup-consolidation
+session opened mid-flight (`f01f630a` implementation specs for the
+remaining waves under `worklog/VALIDATION/specs/` — F-02, F-12/13/14/
+19/21, F-18/20/22/23/28/29 — the exact rows FOLLOW-UP scopes;
+`eeab73de` its session entry). This session's docs push was rebased
+onto their head, never force-pushed. **Recorded deviation on
+`6676b427`:** the rebase's stash staging accidentally folded the
+five v0.9.7 version-site bumps (VERSION, ui/package.json,
+tauri.conf.json, Cargo.toml, Cargo.lock app entry) INTO the docs
+commit — mixed concerns in one commit, discovered post-push
+(force-push forbidden; stands as recorded here). The tag below
+carries the coherent tree.
+
+**v0.9.7 release candidate (gate 7):** tagged on the harvest set —
+F-01 named feature (closed-loop green), F-33/F-34 rescue imaging,
+F-03 parent-sequence gate, the verifier/evidence fixes, PARITY +
+FOLLOW-UP + specs. Release lane + validation chain: see the next
+entry (append-on-green, never claimed ahead of the run).
