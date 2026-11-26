@@ -309,6 +309,18 @@ foreach ($sc in $selected) {
         if ($sc.mode -eq 'delete_partition') {
             $p.DiskNumber = $diskNumber
             $p.PartitionNumber = @([int]$vol.partition)
+            # pre-step (run 45845188954 exFAT PARTDEL: Remove-Partition hit
+            # 'The requested access path is already in use' when the drive
+            # letter was still assigned): detach the access path first, best
+            # effort + recorded, then apply-scenario's own fallback chain owns
+            # the removal
+            try {
+                Remove-PartitionAccessPath -DiskNumber $diskNumber -PartitionNumber ([int]$vol.partition) `
+                    -AccessPath "$letter`:\" -ErrorAction SilentlyContinue
+            } catch {
+                Note "partition access-path detach: $($_.Exception.Message) (recorded; apply-scenario's fallback chain owns the removal)"
+            }
+            Start-Sleep -Seconds 1
         }
         & $ScenarioScript @p
         # apply-scenario signals failure by THROWING (its own EAP=Stop);

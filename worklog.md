@@ -5196,3 +5196,13 @@ honest-empty whole-disk scan: exit 0 + session + lost_partitions == 0 on
 '--disk N --deep', the API disk-target harness reporting the same zero
 (the 45826003339 refs-b precedent: completed, lost=0 - the ReFS
 lost-partition discovery gap recorded as the finding).
+
+### The exFAT fix validated + the PARTDEL access-path pre-step — 2026-11-26
+
+Run 45845188954's exfat-b: with the corrected exFAT shift offsets the decay
+rows completed (recall 0 - the exFAT quality gap - with divergence agree on
+every row). A new transient surfaced on exFAT PARTDEL: Remove-Partition hit
+'The requested access path is already in use' (the still-assigned drive
+letter; the same row passed in 45836204263 - timing-dependent). Run-E2E now
+detaches the partition access path before applying delete_partition (best
+effort, recorded), letting apply-scenario's fallback chain own the removal.
