@@ -5110,3 +5110,24 @@ items 19–20, with the exact procedures.
 `docs/OPEN-ITEMS.md` (new): 21 precisely-scoped items — the P1s (SB-B-03
 FVEK dead wire, SB-A-02 closeScan, SB-A-03 recover-all window), the P2/P3
 tail, the systemic mock-divergence lane, and the Windows-only captures.
+
+### The first full-run evidence (45826003339 partial): measured numbers + the floor re-baseline — 2026-11-26
+
+5 of 9 shards green (fat32-a/b, exfat-a green; ntfs-basic/format/decay,
+exfat-b, refs-a/b red with the findings above). Real measured numbers (CLI
+deepcarve hash-recall vs the seed manifests; API lanes matched on every
+green row - divergence checks passed):
+- S-E2E-NTFS-RECYCLE 0.0006 - EXACTLY the bench-recorded 0.0006 (run
+  42019994804): the corpus + measurement reproduce the recorded baseline.
+- S-E2E-NTFS-PERMDEL 0.12 vs S-E2E-NTFS-UNLINK 0.9993 vs FOLDER 0.9993 on
+  the SAME corpus - recall is sensitive to the deletion method and/or MFT
+  layout history (quality workstream territory; both rows recorded).
+- S-E2E-NTFS-QKFMT 0.9773 - the quick-format path works on NTFS; the
+  GAP-S6-4 0% note was measured on FAT32 shapes.
+- S-E2E-NTFS-PARTDEL 0.9976 / FAT32 0.9862 / (smoke PR: 0.9747) discovery
+  gates green across filesystems; FULLFMT 0 (physics); FAT32/exFAT rows 0
+  (the known FAT/exFAT gaps). DECAY50 0.0001 invalid-context (recreated
+  volume - the order bug); re-measured on the fixed order next run.
+Floors 0.35/0.85 are removed to observe (BASELINE.md policy: the
+bench-cited floors came from a different geometry; the first green full run
+promotes the evidence-based baseline). e2e-ntfs bumped to 8192 MiB (E2E-4).

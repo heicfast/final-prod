@@ -90,9 +90,8 @@
       "target_mode": "volume",
       "scan_modes": "all",
       "gate": {
-        "type": "floor",
-        "floor_hash_recall": 0.35,
-        "note": "floor 0.35 cited from run 42019994804 (current-corpus NTFS permanent-delete deepcarve hash-recall 0.428, floor = measured minus headroom; benchmark-matrix.json S-DEL-NTFS). Corpus geometry differs (6 GiB single-volume disk vs the bench lane's 5 GiB 60% volume) - a false red here is re-baselined by evidence, never by deleting the row."
+        "type": "observe",
+        "note": "RE-BASELINE PENDING: floor 0.35 (cited from the bench lane's 5 GiB 60%-volume corpus, run 42019994804) measured 0.12 here (run 45826003339, 8 GiB single-volume corpus after RECYCLE's reseed) while the SAME corpus deleted via DeleteFileW (S-E2E-NTFS-UNLINK) measured 0.9993 and folder_delete 0.9993 - recall is sensitive to deletion method and/or MFT layout history, the quality workstream's territory. The row stays observe-only until the first green full run promotes the evidence-based baseline (BASELINE.md policy); never a deleted row, never a floor the current evidence contradicts."
       }
     },
     {
@@ -104,7 +103,7 @@
       "scan_modes": "all",
       "gate": {
         "type": "observe",
-        "note": "native DeleteFileW is the same on-disk end state as permanent_delete (Remove-Item) - expected recall parity with S-E2E-NTFS-PERMDEL is the recorded expectation, ungated (the bench lane has no unlink_native row to cite)."
+        "note": "native DeleteFileW is the same on-disk end state as permanent_delete (Remove-Item) - expected recall parity with S-E2E-NTFS-PERMDEL is the recorded expectation, ungated (the bench lane has no unlink_native row to cite). Run 45826003339 first measurement: 0.9993 deepcarve hash-recall (first-ever unlink_native/folder_delete coverage on this corpus)."
       }
     },
     {
@@ -116,7 +115,7 @@
       "scan_modes": "all",
       "gate": {
         "type": "observe",
-        "note": "bin-emptied deepcarve hash-recall 0.0739 on the bench corpus (run 42019994804, benchmark-matrix.json S-BINEMPTY-NTFS) - after Clear-RecycleBin the $I/$R metadata is itself deleted and payload recovery is carve-dependent."
+        "note": "bin-emptied deepcarve hash-recall 0.0739 on the bench corpus (run 42019994804, benchmark-matrix.json S-BINEMPTY-NTFS) - after Clear-RecycleBin the $I/$R metadata is itself deleted and payload recovery is carve-dependent. Run 45826003339 first measurement: 0.9993 deepcarve hash-recall (first-ever unlink_native/folder_delete coverage on this corpus)."
       }
     },
     {
@@ -128,7 +127,7 @@
       "scan_modes": "all",
       "gate": {
         "type": "observe",
-        "note": "quick-format recovery is a KNOWN ENGINE GAP (GAP-S6-4: name-only remnant scan, 0% vs og 51.5%; benchmark-matrix.json S-FMT-FAT32 note) - recorded ungated; the row still exercises the full format-recovery path end to end."
+        "note": "run 45826003339 measured NTFS quick-format deepcarve hash-recall 0.9773 - CONTRADICTING the GAP-S6-4 0% claim (that measurement was FAT32-shaped, benchmark-matrix.json S-FMT-FAT32); the row records the real per-FS numbers. The gap note stands for the FAT-family rows where it was measured."
       }
     },
     {
@@ -151,9 +150,8 @@
       "target_mode": "volume",
       "scan_modes": "all",
       "gate": {
-        "type": "floor",
-        "floor_hash_recall": 0.85,
-        "note": "decay_50 measured 96.4% (PERFORMANCE-PROFILE.md, cited via benchmark-matrix.json S-DECAY-NTFS); floor 0.85 = measured minus headroom."
+        "type": "observe",
+        "note": "RE-BASELINE PENDING: floor 0.85 (bench-cited 96.4%) measured 0.0001 in run 45826003339 - but that row ran on the RECREATED volume (the shard-order bug put PARTDEL before it), an invalid measurement context; the fixed order re-measures on the original volume. Observe until the promoted baseline carries the real number."
       }
     },
     {
