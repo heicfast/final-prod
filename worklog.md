@@ -4749,3 +4749,30 @@ Docs: tests/e2e README/SCENARIOS/METRICS/RESULTS-SCHEMA/BASELINE + results/
 README + docs/TESTING.md e2e section. matrix.json, all 4 workflows YAML-validated;
 scripts hand-reviewed for the PS traps the lane's own AST gates re-verify on
 the runner. Validation runs (T14-T17) dispatched next.
+
+## Cross-repo harvest — W2/F-02 landed (2026-11-26, session continuation at 0dc07535)
+
+The largest FOLLOW-UP row, closed end to end. The pure core
+(`engine/src/core/ntfs/cr_mftpatch.{h,cpp}`) re-implements ntfs-recover's
+repair path from the documented behavior (0BSD @5072bbc7; spec at
+`worklog/VALIDATION/specs/F-02-mft-runlist-patch.md` — no code copied):
+delta grouping (`delta = disk_off − rec#×rec_size` per extent), cluster
+floor/ceil alignment, <4-cluster drop, sequence dedup, the VCN cap from
+record 0's own end_vcn (preserves $ATTRIBUTE_LIST/$BITMAP), merge
+(extend/trim/skip), sign-extension-safe run encoding (ntfs-3g spares the
+sign bit — the 45669 EIO case), and the record-0 in-place patch
+(un-fixup → patch → USA bump wrapping 0xFFFE→0x0001; refuse when runs
+exceed the run space; never a from-scratch rebuild). The RawFixer seam
+gains `ActionKind::RebuildMftRunlist` — it fires ONLY after the
+$MFTMirr path refused (S3 preserved); the clean gate now requires the
+$DATA to decode (a torn runlist under a valid $FILE_NAME is NOT clean —
+the damage shape this row exists for). Tests: 22 new (20 unit + 2
+end-to-end: torn runlist + torn mirror → analyze plans exactly the
+patch → execute → NtfsVolume::open succeeds → undo restores
+byte-for-byte; wiped MFT region → clean refusal + advisory). Local:
+1843/1843 green (linux-release, -Werror), clang-format 18.1.8 clean.
+PARITY.md F-02 → IMPLEMENTED (0dc07535); FOLLOW-UP.md F-02 → LANDED.
+Remaining harvest rows in priority order: F-19 (fragmentation
+reassembly), F-28/29 (FAT/exFAT orphan-subtree harvest), F-37 (imaging
+presets), F-18 (registry breadth) — all scoped in FOLLOW-UP.md with the
+specs in worklog/VALIDATION/specs/.

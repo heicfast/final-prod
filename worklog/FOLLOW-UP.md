@@ -20,7 +20,7 @@
 
 ## P1 rows
 
-### F-02 — $MFT run-list reconstruction + in-place patch (NTFS deep repair)
+### F-02 — $MFT run-list reconstruction + in-place patch (NTFS deep repair) — LANDED at 0dc07535 (22 tests; PARITY updated; this scope is complete)
 
 Reference: NR §5a-5d (`worklog/NTFS-RECOVER-FEATURES.md`; ntfs-recover
 `repairer.rs:467 patch_record_data_runs`, delta-grouping `delta = disk_off −

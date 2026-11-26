@@ -26,7 +26,7 @@
 
 | Row | Resolution | Evidence |
 |---|---|---|
-| F-02 $MFT run-list reconstruction + in-place patch | **FOLLOW-UP** | RawFixer restores record 0 from $MFTMirr slot 0 only; scope in FOLLOW-UP.md (delta-grouping, record-0 $DATA patch, USA re-fixup, consent transaction) |
+| F-02 $MFT run-list reconstruction + in-place patch | **IMPLEMENTED** (0dc07535) | engine/src/core/ntfs/cr_mftpatch.{h,cpp} + cr_rawfixer.cpp ActionKind::RebuildMftRunlist (fires only after the mirror path refused, S3); 22 tests (test_mftpatch 20 + test_rawfixer 2 end-to-end: torn-runlist+torn-mirror -> plan -> execute -> NtfsVolume::open OK -> undo byte-for-byte); local 1843/1843; spec worklog/VALIDATION/specs/F-02-mft-runlist-patch.md |
 | F-03 parent-sequence validation | **IMPLEMENTED** | `126ea398` — cr_mftwalk.cpp parent_link_valid gate at both attachment sites (phase B + GUID-dump host); NtfsVolume.ParentSequenceGateOrphansReusedParents (reuse→LostDir, delete-bump accepted, file-parent rejected, pseq==pcur untouched); suite 1822/1822 |
 | F-04 USN fixup all-zero rejection | **FOLLOW-UP** | cr_fixup.cpp accepts usn==0 with zero tails today; FOLLOW-UP notes the og-parity salvage tension and the exact gate |
 | F-05 $ATTRIBUTE_LIST extension ownership | **FOLLOW-UP** | M-008 BFS chase exists; ownership-match rule (base_ref seq AND attrlist seq) not applied |
