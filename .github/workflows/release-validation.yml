@@ -139,7 +139,7 @@ jobs:
           Copy-Item 'C:\release\portable\*.dll' -Destination "$stage\bin\" -Force
           Copy-Item 'C:\release\portable\cr_ui.lib' -Destination "$stage\bin\cr_ui.lib" -Force
           Copy-Item 'C:\release\portable\userdata-defaults.json' -Destination "$stage\bin\userdata-defaults.json" -Force
-          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json', 'z.dll', 'lz4.dll', 'zstd.dll')) {
+          foreach ($req in @('rrecov.exe', 'cr_ui.dll', 'cr_ui.lib', 'userdata-defaults.json', 'libz.dll', 'lz4.dll', 'zstd.dll')) {
             if (-not (Test-Path "$stage\bin\$req")) { throw "staged kit missing $stage\bin\$req" }
           }
           Copy-Item engine\include -Destination "$stage\include" -Recurse -Force
