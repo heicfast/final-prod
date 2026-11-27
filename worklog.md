@@ -5293,3 +5293,15 @@ before the WRITES stays where it belongs (CorruptMft). The C# brace
 structure fixed with it. 8 of 9 shards green on this run (exfat-b, refs-a,
 refs-b, fat32-a/b, exfat-a, ntfs-basic all PASS - only ntfs-decay's MFTCOR
 and the still-running ntfs-format remain).
+
+### E2E-F11: clusters/FRS is a signed BYTE — 2026-11-26/27
+
+Run 45911065278: E2E-F10 cleared the GLE=5 and CorruptMft reached the reads;
+the new failure 'short read 0/193462272 @11346640896' was the last BPB bug:
+clusters_per_record is i8 (cr_ntfs_wire.h:44: '>0 clusters; <0 2^(-v) bytes',
+typically -10) - my Int64 read at +0x40 dragged in the following BPB bytes
+and produced a garbage 193 MiB 'record size'. One-byte fix (sbyte cast); the
+geometry chain (bpc from 0x0B*0x0D, mftLcn@0x30, recSize=2^(-(-10))) now
+matches the engine's own wire header exactly. 8 of 9 shards were green on
+this run (ALL of fat32/exfat/refs + ntfs-format + ntfs-basic... only
+ntfs-decay's MFTCOR red).

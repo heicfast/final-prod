@@ -233,7 +233,12 @@ public static class BenchRaw
             int spc = b[0x0D];
             long totalSectors = BitConverter.ToInt64(b, 0x28);
             long mftLcn = BitConverter.ToInt64(b, 0x30);
-            long clustersPerFrs = BitConverter.ToInt64(b, 0x40);
+            // E2E-F11 (run 45911065278): clusters/FRS is a SIGNED BYTE at
+            // +0x40 (i8 clusters_per_record, cr_ntfs_wire.h:44 - ">0:
+            // clusters; <0: 2^(-v) bytes", typically -10 = 1024-byte records)
+            // - reading it as Int64 dragged the following BPB bytes in and
+            // produced a garbage 193 MiB "record size".
+            sbyte clustersPerFrs = (sbyte)b[0x40];
             long bpc = (long)bps * (long)spc;
             long totalClusters = spc > 0 ? totalSectors / spc : 0;
             return new long[] { bpc, clustersPerFrs, mftLcn, totalClusters };
