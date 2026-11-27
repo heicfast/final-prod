@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-FOLDER",
+  "mode": "folder_delete",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "FAT32 bin-emptied row - observe-only."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "a5e7eeaca7147e25d5bd9c98f53478369d49a5bbd7a07f5c5f3c0e7468895427",
+  "scenario_state": true
+}

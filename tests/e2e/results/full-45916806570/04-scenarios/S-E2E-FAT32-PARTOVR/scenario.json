@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-PARTOVR",
+  "mode": "partial_overwrite",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "58c79fdea7d851c2ae713eccf24391478f4625ac40421a2d79795494e4b98f0d",
+  "scenario_state": true
+}

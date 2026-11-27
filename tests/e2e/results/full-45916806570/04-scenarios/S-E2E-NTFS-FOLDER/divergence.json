@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-NTFS-FOLDER",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 10333,
+    "cli_matched": 10241,
+    "cli_hash_matched": 10237,
+    "cli_false_positives": 92,
+    "api_files_seen": 10333,
+    "api_matched": 10241,
+    "api_hash_matched": 10237,
+    "api_false_positives": 92,
+    "cli_scan_files": 10387,
+    "api_scan_files": 10387,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

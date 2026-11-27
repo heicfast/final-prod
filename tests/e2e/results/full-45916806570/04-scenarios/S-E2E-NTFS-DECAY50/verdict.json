@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY50",
+  "mode": "decay_50",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "RE-BASELINE PENDING: floor 0.85 (bench-cited 96.4%) measured 0.0001 in run 45826003339 - but that row ran on the RECREATED volume (the shard-order bug put PARTDEL before it), an invalid measurement context; the fixed order re-measures on the original volume. Observe until the promoted baseline carries the real number.",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.907,
+      "precision": 0.8995,
+      "f1": 0.9033,
+      "expected_deleted": 10216,
+      "hash_matched": 9266,
+      "passed": true,
+      "reasons": []
+    },
+    "api": {
+      "recall_hash": 0.907,
+      "precision": 0.8995,
+      "f1": 0.9033,
+      "expected_deleted": 10216,
+      "hash_matched": 9266,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

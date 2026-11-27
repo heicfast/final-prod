@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-UNLINK",
+  "mode": "unlink_native",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "native DeleteFileW is the same on-disk end state as permanent_delete (Remove-Item) - expected recall parity with S-E2E-NTFS-PERMDEL is the recorded expectation, ungated (the bench lane has no unlink_native row to cite). Run 45826003339 first measurement: 0.9993 deepcarve hash-recall (first-ever unlink_native/folder_delete coverage on this corpus).",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.9993,
+      "precision": 0.9907,
+      "f1": 0.995,
+      "expected_deleted": 10216,
+      "hash_matched": 10209,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.9993,
+      "precision": 0.9907,
+      "f1": 0.995,
+      "expected_deleted": 10216,
+      "hash_matched": 10209,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

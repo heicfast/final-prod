@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY80",
+  "mode": "decay_80",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "the NTFS decay_80 cliff is an allocation-hint sector-reuse effect, not an engine defect (GAP-S6-5) - judged against the physical-ceiling probe apply-scenario emits; recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "3002f6750cb7a9fafa02f5bdbf55c0ad58745284dd54e1b23038f38404c73d5d",
+  "scenario_state": true
+}

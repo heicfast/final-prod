@@ -1,0 +1,35 @@
+{
+  "mode": "decay_80",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T00:50:02.3281277Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "permanent delete -> fillers written to 80% -> fillers deleted (sector reuse decay); post-decay hash map + physical ceiling (10216 files) captured"
+  ],
+  "extra": {
+    "ceiling_files_no_extents": 0,
+    "disk_full_hit": false,
+    "fill_pct": 80,
+    "cluster_bytes": 4096,
+    "target_remaining_bytes": 1714420941,
+    "filler_bytes": 6811304755,
+    "filler_files": 203,
+    "ceiling_files_probed": 10216
+  },
+  "elapsed_delete_seconds": 84.01,
+  "ended_utc": "2026-11-27T00:51:47.3194141Z",
+  "pre_map": {
+    "blocks": 8175,
+    "compared": 8175,
+    "changed": 0
+  },
+  "post_map": {
+    "blocks": 8175,
+    "compared": 8175,
+    "changed": 5544
+  }
+}

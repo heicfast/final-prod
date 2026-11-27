@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-PARTDEL",
+  "mode": "delete_partition",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "disk",
+  "scan_modes": "deepcarve",
+  "gate": {
+    "type": "discovery",
+    "note": "GATE = the lost partition is DISCOVERED (lost_partitions >= 1) AND recover completes exit 0/2 - the benchmark-matrix.json S-PART-DELETE contract. File recall is discovery-limited (43.0% measured, run 40073093997-smoke) and recorded ungated. Post-actions: the lost-partition APPLY probe (dry-run + real apply + partition-reappears assertion)."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "84dd6e9bb22c82b6cb194b25c5817d3b8762757924d8d6c1e10974f750b41f0b",
+  "scenario_state": true
+}

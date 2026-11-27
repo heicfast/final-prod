@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-RECYCLE",
+  "mode": "recycle_bin",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "recycle-bin deepcarve hash-recall 0.0006 on the 10,216-file bench corpus (run 42019994804, benchmark-matrix.json S-RECYCLE-NTFS) - the $R-name/pairing quality gap is the quality workstream's territory; the e2e row records the measured number against the same corpus.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0006,
+      "precision": 0.1636,
+      "f1": 0.0012,
+      "expected_deleted": 10216,
+      "hash_matched": 6,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0006,
+      "precision": 0.1636,
+      "f1": 0.0012,
+      "expected_deleted": 10216,
+      "hash_matched": 6,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY100",
+  "mode": "decay_100",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "100% reuse decay: maximum sector-reuse pressure; physical-ceiling judged (GAP-S6-5), recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "dc916eb03623a914c018471fce36e9762f439442867e04f123f697c5c5d7a1e4",
+  "scenario_state": true
+}

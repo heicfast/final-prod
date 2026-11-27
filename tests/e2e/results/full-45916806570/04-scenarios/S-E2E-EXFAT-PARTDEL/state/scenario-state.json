@@ -1,0 +1,29 @@
+{
+  "mode": "delete_partition",
+  "letter": "Y:",
+  "filesystem": "exFAT",
+  "started_utc": "2026-11-27T00:49:48.4200109Z",
+  "deletable_count": 10197,
+  "keep_count": 12,
+  "deletable_bytes": 1328778751.0,
+  "delete_failures": [],
+  "notes": [
+    "access path Y: detached from partition 2 before removal",
+    "GPT entries removed on disk 2: partitions 2 (Remove-Partition; data sectors untouched); disk left unallocated",
+    "post-state captured at DISK level (volume no longer exists)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 1.28,
+  "ended_utc": "2026-11-27T00:50:00.2918369Z",
+  "pre_map": {
+    "blocks": 4079,
+    "compared": 4079,
+    "changed": 0
+  },
+  "post_map": {
+    "blocks": 4096,
+    "not_comparable": true,
+    "compared": 4079,
+    "changed": 1568
+  }
+}

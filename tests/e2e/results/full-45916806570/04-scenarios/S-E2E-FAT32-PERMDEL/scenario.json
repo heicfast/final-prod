@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-PERMDEL",
+  "mode": "permanent_delete",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "FAT32 deleted-entry recovery is a KNOWN ENGINE GAP (GAP-S6-1/S6-2, measured 0-0.3% recall; benchmark-matrix.json S-DEL-FAT32 note) - recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "228e130f6b11c59d2d570333d7aba2955b6305097996ce0d2d9fd3c73e0fd500",
+  "scenario_state": true
+}

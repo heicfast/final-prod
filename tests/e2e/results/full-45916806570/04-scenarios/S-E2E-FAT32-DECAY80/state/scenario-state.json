@@ -1,0 +1,35 @@
+{
+  "mode": "decay_80",
+  "letter": "Z:",
+  "filesystem": "FAT32",
+  "started_utc": "2026-11-27T00:52:05.5724367Z",
+  "deletable_count": 571,
+  "keep_count": 8,
+  "deletable_bytes": 560664766.0,
+  "delete_failures": [],
+  "notes": [
+    "permanent delete -> fillers written to 80% -> fillers deleted (sector reuse decay); post-decay hash map + physical ceiling (571 files) captured"
+  ],
+  "extra": {
+    "target_remaining_bytes": 427596186,
+    "ceiling_files_no_extents": 0,
+    "ceiling_files_probed": 571,
+    "cluster_bytes": 4096,
+    "filler_files": 45,
+    "filler_bytes": 1499596390,
+    "disk_full_hit": false,
+    "fill_pct": 80
+  },
+  "elapsed_delete_seconds": 20.51,
+  "ended_utc": "2026-11-27T00:52:30.2754669Z",
+  "pre_map": {
+    "blocks": 2039,
+    "compared": 2039,
+    "changed": 0
+  },
+  "post_map": {
+    "blocks": 2039,
+    "compared": 2039,
+    "changed": 747
+  }
+}

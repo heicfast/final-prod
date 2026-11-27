@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-PARTDEL",
+  "mode": "delete_partition",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "disk",
+  "scan_modes": "deepcarve",
+  "gate": {
+    "type": "discovery",
+    "note": "GATE = lost partition discovered + recover completes; file recall recorded ungated (same contract as S-PART-DELETE)."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "b9500b47145637998e837ca88bb24ec0a625c4ca4e5f8ee9043908d991268504",
+  "scenario_state": true
+}

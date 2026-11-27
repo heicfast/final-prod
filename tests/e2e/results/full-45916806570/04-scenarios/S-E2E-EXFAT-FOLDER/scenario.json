@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-FOLDER",
+  "mode": "folder_delete",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "exFAT bin-emptied row - no recorded bench baseline; observe-only."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "7f5827ff223b5b0d5b5f7a53c7a508223e57f83e69b2d05483481298ccd4ad01",
+  "scenario_state": true
+}

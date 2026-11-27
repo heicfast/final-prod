@@ -1,0 +1,59 @@
+{
+  "mode": "recycle_bin",
+  "letter": "Z:",
+  "filesystem": "FAT32",
+  "started_utc": "2026-11-27T00:48:02.4125943Z",
+  "deletable_count": 571,
+  "keep_count": 8,
+  "deletable_bytes": 560664766.0,
+  "delete_failures": [
+    {
+      "rel": "seed/unicode/日本語のフォルダ/照片_风景001.jpg",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/動画_クリップ002.mp4",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/文档_报告003.docx",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/音乐_歌曲004.bin",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/数据_备份005.zip",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/архив_данные006.txt",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/日本語_ファイル007.pdf",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    },
+    {
+      "rel": "seed/unicode/日本語のフォルダ/한국어_문서008.xlsx",
+      "error": "Exception calling \"DeleteFile\" with \"3\" argument(s): \"No mapping for the Unicode character exists in the target multi-byte code page. : 'Z:\\seed\\unicode\\日本語のフォルダ'.\""
+    }
+  ],
+  "notes": [
+    "shell delete via VB SendToRecycleBin; bin NOT emptied; readonly-cleared-before-delete: 0"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 3.46,
+  "ended_utc": "2026-11-27T00:48:10.0554985Z",
+  "pre_map": {
+    "blocks": 2039,
+    "changed": 0,
+    "compared": 2039
+  },
+  "post_map": {
+    "blocks": 2039,
+    "changed": 20,
+    "compared": 2039
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "mode": "folder_delete",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T01:33:10.9589450Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "whole seed tree shell-deleted to the bin (VB DeleteDirectory), then Clear-RecycleBin -Force; keep root untouched"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 4.81,
+  "ended_utc": "2026-11-27T01:33:36.7470552Z",
+  "pre_map": {
+    "compared": 8175,
+    "changed": 0,
+    "blocks": 8175
+  },
+  "post_map": {
+    "compared": 8175,
+    "changed": 44,
+    "blocks": 8175
+  }
+}

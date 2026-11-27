@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-FAT32-QKFMT",
+  "mode": "quick_format",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "quick-format recall is a KNOWN ENGINE GAP (GAP-S6-4) - the scenario still exercises the full format-recovery path end to end (benchmark-matrix.json S-FMT-FAT32 note).",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

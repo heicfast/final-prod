@@ -1,0 +1,168 @@
+{
+  "suite": "tests/e2e",
+  "profile": "full",
+  "shard": "fat32-a",
+  "captured_utc": "2026-11-27T01:05:03.6082387Z",
+  "runId": "full-45916806570",
+  "runUrl": "https://github.com/heicfast/final-prod/actions/runs/45916806570",
+  "scan_modes": [
+    "quick",
+    "deep",
+    "deepcarve"
+  ],
+  "include_api": true,
+  "scenarios": [
+    {
+      "id": "S-E2E-FAT32-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-FAT32-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-FAT32-UNLINK",
+      "mode": "unlink_native",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-FAT32-FOLDER",
+      "mode": "folder_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-FAT32-QKFMT",
+      "mode": "quick_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-FAT32-FULLFMT",
+      "mode": "full_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    }
+  ],
+  "soft_records": [],
+  "hard_failures": []
+}

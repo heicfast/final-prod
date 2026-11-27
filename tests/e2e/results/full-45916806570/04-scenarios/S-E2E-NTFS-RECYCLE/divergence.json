@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-NTFS-RECYCLE",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 110,
+    "cli_matched": 18,
+    "cli_hash_matched": 18,
+    "cli_false_positives": 92,
+    "api_files_seen": 110,
+    "api_matched": 18,
+    "api_hash_matched": 18,
+    "api_false_positives": 92,
+    "cli_scan_files": 9423,
+    "api_scan_files": 9423,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

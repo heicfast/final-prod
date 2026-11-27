@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-EXFAT-QKFMT",
+  "mode": "quick_format",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "exFAT quick-format row - the FAT-family format-recovery gap class (GAP-S6-4); recorded ungated.",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10209,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10209,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

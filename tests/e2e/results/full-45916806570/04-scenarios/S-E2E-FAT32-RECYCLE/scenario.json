@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-RECYCLE",
+  "mode": "recycle_bin",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "FAT32 recycle-bin row - observe-only."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "e281a3783698e5402ec102b7cd839dccd622c277c9e216e58be7bb3e047f4aee",
+  "scenario_state": true
+}

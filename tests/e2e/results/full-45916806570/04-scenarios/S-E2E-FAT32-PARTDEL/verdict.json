@@ -1,0 +1,31 @@
+{
+  "scenario": "S-E2E-FAT32-PARTDEL",
+  "mode": "delete_partition",
+  "profile": "full",
+  "gate_type": "discovery",
+  "gate_note": "GATE = lost partition discovered + recover completes; the MBR variant of the partition-delete matrix (the FAT32 disk is MBR).",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 2
+    },
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 2
+    }
+  },
+  "passed": true,
+  "error": null
+}

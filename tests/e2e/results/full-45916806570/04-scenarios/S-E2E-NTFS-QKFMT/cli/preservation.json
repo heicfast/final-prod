@@ -1,0 +1,84 @@
+{
+  "ads": [
+    {
+      "expected_stream": "zone_identifier",
+      "preserved": false,
+      "rel": "seed/ads/ads00.txt"
+    },
+    {
+      "expected_stream": "ads1",
+      "preserved": false,
+      "rel": "seed/ads/ads01.txt"
+    },
+    {
+      "expected_stream": "ads1",
+      "preserved": false,
+      "rel": "seed/ads/ads02.txt"
+    },
+    {
+      "expected_stream": "zone_identifier",
+      "preserved": false,
+      "rel": "seed/ads/ads03.txt"
+    },
+    {
+      "expected_stream": "ads1",
+      "preserved": false,
+      "rel": "seed/ads/ads04.txt"
+    },
+    {
+      "expected_stream": "ads1",
+      "preserved": false,
+      "rel": "seed/ads/ads05.txt"
+    },
+    {
+      "expected_stream": "zone_identifier",
+      "preserved": false,
+      "rel": "seed/ads/ads06.txt"
+    },
+    {
+      "expected_stream": "ads1",
+      "preserved": false,
+      "rel": "seed/ads/ads07.txt"
+    }
+  ],
+  "hardlink": [
+    {
+      "both_recovered": false,
+      "links_on_first": 0,
+      "group": "100"
+    },
+    {
+      "both_recovered": false,
+      "links_on_first": 0,
+      "group": "101"
+    },
+    {
+      "both_recovered": false,
+      "links_on_first": 0,
+      "group": "102"
+    },
+    {
+      "both_recovered": false,
+      "links_on_first": 0,
+      "group": "103"
+    }
+  ],
+  "sparse": [
+    {
+      "size_ok": true,
+      "rel": "seed/sparse/sp00.bin",
+      "preserved_as_sparse": false
+    },
+    {
+      "size_ok": true,
+      "rel": "seed/sparse/sp01.bin",
+      "preserved_as_sparse": false
+    },
+    {
+      "size_ok": true,
+      "rel": "seed/sparse/sp02.bin",
+      "preserved_as_sparse": false
+    }
+  ],
+  "timestamps": []
+}

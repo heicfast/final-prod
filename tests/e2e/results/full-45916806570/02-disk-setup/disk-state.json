@@ -1,0 +1,23 @@
+{
+  "work_root": "D:\\e2e-bench",
+  "created_utc": "2026-11-27T00:46:32.9178667Z",
+  "method": "diskpart create vdisk type=fixed",
+  "disks": [
+    {
+      "id": "e2e-refs",
+      "vhd": "D:\\e2e-bench\\disks\\e2e-refs.vhdx",
+      "disk_number": 2,
+      "partition_style": "GPT",
+      "size_mb": 4096,
+      "volumes": [
+        {
+          "label": "REFSVOL",
+          "fs": "ReFS",
+          "letter": "W",
+          "partition": 2,
+          "bytes": 4227858432
+        }
+      ]
+    }
+  ]
+}

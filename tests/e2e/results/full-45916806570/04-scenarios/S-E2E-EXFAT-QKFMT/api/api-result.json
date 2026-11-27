@@ -1,0 +1,19 @@
+{
+  "harness": "cr_ui-api-lane",
+  "label": "S-E2E-EXFAT-QKFMT",
+  "target": "volume", "whole_disk": false, "stage_mask": 7, "threads": 4,
+  "transport": "direct",
+  "geometry": {"total_bytes": 4277141504, "logical_sector": 512, "physical_sector": 4096, "sector_count": 8353792},
+  "session_info": {"fs_family": 3, "stage_done_mask": 7, "configured_mask": 7, "scanned_bytes": 4277141504, "elapsed_ms": 123526, "boot_hash": 3783437303},
+  "cancelled": false,
+  "cancel_to_stop_ms": null,
+  "timings_ms": {"open": 1.1, "scan_run": 123526.9, "save_session": 0.8, "query": 0.0, "recovery": 5.4, "total": 123551.0},
+  "scan_stats": {"files_found": 0, "deleted_found": 0, "carved_found": 0, "lost_partitions": 0, "bytes_scanned": 4277141504, "bytes_unreadable": 0, "elapsed_ms": 123526, "error_ranges": 0, "probe_unreadable": 0},
+  "telemetry": {"overall_permille": 0, "bytes_scanned": 4277141504, "elapsed_ms": 123526},
+  "assistant": {"total_file_count": 0, "matched": 0, "total": 0, "small_result": 1, "graded_count": 0},
+  "events": {"stage": 3, "progress": 549, "files_found": 4, "error_range": 0, "checkpoint": 0, "lost_candidate": 0, "repair": 0, "heartbeat": 0, "save_progress": 12, "fs_check": 0, "other": 0},
+  "query": {"total_all": 0, "total_deleted": 0, "sample_first_path": "", "sample_first_node_id": 0},
+  "preview": {"ok": false, "probe_ms": 0.0, "size": 0, "read_placed": 0, "kind": ""},
+  "recovery": {"process_rc": 0, "queued_roots": 4, "queued": 7, "done": 7, "dirs": 0, "refused": 0, "errors": 0, "hash_mismatch": 0, "resumed": 0, "salvaged": 0, "nothing_to_recover": 0},
+  "report": {"rc": 0, "path": "D:\\e2e-bench\\work\\scenarios\\S-E2E-EXFAT-QKFMT\\api\\report.json"}
+}

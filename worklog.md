@@ -5305,3 +5305,25 @@ geometry chain (bpc from 0x0B*0x0D, mftLcn@0x30, recSize=2^(-(-10))) now
 matches the engine's own wire header exactly. 8 of 9 shards were green on
 this run (ALL of fat32/exfat/refs + ntfs-format + ntfs-basic... only
 ntfs-decay's MFTCOR red).
+
+### THE EVIDENCE-OF-RECORD RUN: full-45916806570 — 45/45 GREEN — 2026-11-27
+
+Run 45916806570 (9 shards, head 20eaec0c's matrix + the pre-assemble
+state): EVERY scenario green, every lane (CLI + API) agreeing, every hard
+gate PASS. Measured (deepcarve hash-recall vs the seed manifests): NTFS
+PERMDEL/UNLINK/FOLDER 0.9993 (10209/10216), QKFMT 0.9773, DECAY50 0.907,
+PARTDEL 0.9976 discovery, RECYCLE 0.0006 (bench-exact), MFTCOR/PARTOVR/
+DECAY80/100/FULLFMT 0 (by construction), exFAT PARTDEL 0.9982 (the rest 0 -
+the recorded gap), FAT32 delete-rows 0 (the known gap), ReFS rows all
+clean-refusal PASS with the product finding recorded (README claims
+first-class). The run's 9 fragments downloaded + merged via
+Collect-Results.ps1 (45/45, no silent drops) + Assert-Clean clean; the
+pruned evidence tree committed under tests/e2e/results/full-45916806570/
+(manifests + states + hash maps + metrics + divergence + verdicts; the
+byte-level detail rides the CI artifacts); analysis at
+tests/e2e/analysis/full-45916806570.md; the baseline PROMOTED from this
+run's metrics in the same reviewed commit (34 scenario rows,
+engine/bench/metrics/regression_gate.py's thresholds own it from here).
+The assemble-gate's completeness check was profile-scoped (E2E-12) after it
+false-failed this run's merge on the smoke lane's rows; the nightly at 02:30
+UTC re-validates the assemble end to end.

@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY80",
+  "mode": "decay_80",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "the NTFS decay_80 cliff is an allocation-hint sector-reuse effect, not an engine defect (GAP-S6-5) - judged against the physical-ceiling probe apply-scenario emits; recorded ungated.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0012,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0012,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

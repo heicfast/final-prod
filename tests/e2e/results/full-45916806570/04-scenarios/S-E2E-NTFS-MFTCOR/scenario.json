@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-MFTCOR",
+  "mode": "mft_corrupt",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "MFT records zeroed + $Bitmap XORed - structured NTFS recovery is destroyed by construction; the carve-only salvage path is what this row exercises (benchmark-matrix.json S-MFT-NTFS note)."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "c58537bb41e2c4fdb51bd2ab3df1a775450729b682d88f00a26e4cb014d1eb1f",
+  "scenario_state": true
+}

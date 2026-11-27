@@ -1,0 +1,26 @@
+{
+  "mode": "full_format",
+  "letter": "Y:",
+  "filesystem": "exFAT",
+  "started_utc": "2026-11-27T01:29:04.4754011Z",
+  "deletable_count": 10197,
+  "keep_count": 12,
+  "deletable_bytes": 1328778751.0,
+  "delete_failures": [],
+  "notes": [
+    "Format-Volume -Full (zero-fills the data area)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 12.71,
+  "ended_utc": "2026-11-27T01:29:27.7799751Z",
+  "pre_map": {
+    "changed": 0,
+    "compared": 4079,
+    "blocks": 4079
+  },
+  "post_map": {
+    "changed": 1551,
+    "compared": 4079,
+    "blocks": 4079
+  }
+}

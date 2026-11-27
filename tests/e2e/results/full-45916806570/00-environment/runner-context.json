@@ -1,0 +1,14 @@
+{
+  "imageOs": "win22",
+  "runnerName": "GitHub Actions 1000008796",
+  "cpu": "AMD EPYC 7763 64-Core Processor                ",
+  "cores": 4,
+  "ramGb": 16.0,
+  "isElevated": true,
+  "ranAtUtc": "2026-11-27T00:46:32.6844332Z",
+  "runId": "full-45916806570",
+  "runUrl": "https://github.com/heicfast/final-prod/actions/runs/45916806570",
+  "profile": "full",
+  "shard": "refs-b",
+  "commit": "cf5287bcb16b02c70969cbe85e7f38e977516956"
+}

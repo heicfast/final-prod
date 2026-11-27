@@ -1,0 +1,29 @@
+{
+  "mode": "delete_partition",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T01:23:42.8801805Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "access path X: detached from partition 2 before removal",
+    "GPT entries removed on disk 2: partitions 2 (Remove-Partition; data sectors untouched); disk left unallocated",
+    "post-state captured at DISK level (volume no longer exists)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 1.24,
+  "ended_utc": "2026-11-27T01:23:59.9920359Z",
+  "pre_map": {
+    "compared": 8175,
+    "changed": 0,
+    "blocks": 8175
+  },
+  "post_map": {
+    "compared": 8175,
+    "not_comparable": true,
+    "changed": 3091,
+    "blocks": 8192
+  }
+}

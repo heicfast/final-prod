@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-EXFAT-PARTDEL",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 10211,
+    "cli_matched": 10203,
+    "cli_hash_matched": 10203,
+    "cli_false_positives": 8,
+    "api_files_seen": 10211,
+    "api_matched": 10203,
+    "api_hash_matched": 10203,
+    "api_false_positives": 8,
+    "cli_scan_files": 10209,
+    "api_scan_files": 10209,
+    "cli_lost_partitions": 1,
+    "api_lost_partitions": 1
+  },
+  "findings": []
+}

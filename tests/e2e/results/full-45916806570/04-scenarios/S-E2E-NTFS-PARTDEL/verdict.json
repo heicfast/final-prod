@@ -1,0 +1,31 @@
+{
+  "scenario": "S-E2E-NTFS-PARTDEL",
+  "mode": "delete_partition",
+  "profile": "full",
+  "gate_type": "discovery",
+  "gate_note": "GATE = the lost partition is DISCOVERED (lost_partitions >= 1) AND recover completes exit 0/2 - the benchmark-matrix.json S-PART-DELETE contract. File recall is discovery-limited (43.0% measured, run 40073093997-smoke) and recorded ungated. Post-actions: the lost-partition APPLY probe (dry-run + real apply + partition-reappears assertion).",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.9976,
+      "precision": 0.9985,
+      "f1": 0.998,
+      "expected_deleted": 10228,
+      "hash_matched": 10203,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 1
+    },
+    "api": {
+      "recall_hash": 0.9976,
+      "precision": 0.9985,
+      "f1": 0.998,
+      "expected_deleted": 10228,
+      "hash_matched": 10203,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 1
+    }
+  },
+  "passed": true,
+  "error": null
+}

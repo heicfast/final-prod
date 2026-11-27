@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-QKFMT",
+  "mode": "quick_format",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "quick-format recall is a KNOWN ENGINE GAP (GAP-S6-4) - the scenario still exercises the full format-recovery path end to end (benchmark-matrix.json S-FMT-FAT32 note)."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "49929efab8e97613b551a21b9e3c9c8a6d782126d2af44f5cb41df97820260d2",
+  "scenario_state": true
+}

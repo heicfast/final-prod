@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-NTFS-QKFMT",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 10113,
+    "cli_matched": 10028,
+    "cli_hash_matched": 10024,
+    "cli_false_positives": 85,
+    "api_files_seen": 10113,
+    "api_matched": 10028,
+    "api_hash_matched": 10024,
+    "api_false_positives": 85,
+    "cli_scan_files": 19761,
+    "api_scan_files": 19761,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

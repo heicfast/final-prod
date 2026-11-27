@@ -1,0 +1,26 @@
+{
+  "mode": "quick_format",
+  "letter": "Z:",
+  "filesystem": "FAT32",
+  "started_utc": "2026-11-27T00:59:49.0301204Z",
+  "deletable_count": 571,
+  "keep_count": 8,
+  "deletable_bytes": 560664766.0,
+  "delete_failures": [],
+  "notes": [
+    "Format-Volume quick format (metadata reinit, no zero-fill)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 2.63,
+  "ended_utc": "2026-11-27T00:59:55.7932699Z",
+  "pre_map": {
+    "blocks": 2039,
+    "changed": 0,
+    "compared": 2039
+  },
+  "post_map": {
+    "blocks": 2039,
+    "changed": 6,
+    "compared": 2039
+  }
+}

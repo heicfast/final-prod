@@ -1,0 +1,26 @@
+{
+  "mode": "unlink_native",
+  "letter": "Y:",
+  "filesystem": "exFAT",
+  "started_utc": "2026-11-27T01:07:54.4617579Z",
+  "deletable_count": 10197,
+  "keep_count": 12,
+  "deletable_bytes": 1328778751.0,
+  "delete_failures": [],
+  "notes": [
+    "native DeleteFileW P/Invoke (no bin); readonly-cleared-before-unlink: 18"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 2.41,
+  "ended_utc": "2026-11-27T01:08:07.4633402Z",
+  "pre_map": {
+    "changed": 0,
+    "compared": 4079,
+    "blocks": 4079
+  },
+  "post_map": {
+    "changed": 43,
+    "compared": 4079,
+    "blocks": 4079
+  }
+}

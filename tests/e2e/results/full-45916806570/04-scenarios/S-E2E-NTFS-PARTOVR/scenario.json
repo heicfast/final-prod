@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-PARTOVR",
+  "mode": "partial_overwrite",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "the first 8 sectors of every deleted file's first extent are 0xAA-overwritten - those files CANNOT hash-match by construction (benchmark-matrix.json S-OVR-NTFS note); honesty about physics, not a gap."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "7988ccfec8258dc7bfff5d11618ff32417c72de586ca7dbc81e6aedf136f0061",
+  "scenario_state": true
+}

@@ -1,0 +1,25 @@
+{
+  "scenario": "S-E2E-REFS-UNLINK",
+  "mode": "unlink_native",
+  "profile": "full",
+  "gate_type": "unsupported_fs",
+  "gate_note": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate.",
+  "lanes": {
+    "cli": {
+      "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+      "exit_code": 1,
+      "wall_seconds": 0.06,
+      "passed": true,
+      "reasons": []
+    },
+    "api": {
+      "expected": "the same shape as the CLI lane",
+      "exit_code": 1,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null,
+  "finding": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+}

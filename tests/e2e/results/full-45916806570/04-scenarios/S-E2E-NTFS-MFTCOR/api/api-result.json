@@ -1,0 +1,19 @@
+{
+  "harness": "cr_ui-api-lane",
+  "label": "S-E2E-NTFS-MFTCOR",
+  "target": "volume", "whole_disk": false, "stage_mask": 7, "threads": 4,
+  "transport": "direct",
+  "geometry": {"total_bytes": 8572108800, "logical_sector": 512, "physical_sector": 4096, "sector_count": 16742400},
+  "session_info": {"fs_family": 1, "stage_done_mask": 7, "configured_mask": 7, "scanned_bytes": 8572108800, "elapsed_ms": 163809, "boot_hash": 3177485492},
+  "cancelled": false,
+  "cancel_to_stop_ms": null,
+  "timings_ms": {"open": 0.9, "scan_run": 163810.6, "save_session": 12.7, "query": 0.2, "recovery": 100.4, "total": 163956.3},
+  "scan_stats": {"files_found": 176, "deleted_found": 0, "carved_found": 2917, "lost_partitions": 0, "bytes_scanned": 8572108800, "bytes_unreadable": 0, "elapsed_ms": 163809, "error_ranges": 0, "probe_unreadable": 0},
+  "telemetry": {"overall_permille": 0, "bytes_scanned": 17145266176, "elapsed_ms": 163809},
+  "assistant": {"total_file_count": 3093, "matched": 42, "total": 3093, "small_result": 0, "graded_count": 3093},
+  "events": {"stage": 3, "progress": 722, "files_found": 4, "error_range": 0, "checkpoint": 0, "lost_candidate": 0, "repair": 0, "heartbeat": 0, "save_progress": 1001, "fs_check": 0, "other": 0},
+  "query": {"total_all": 3091, "total_deleted": 3091, "sample_first_path": "File Path Lost/.", "sample_first_node_id": 3},
+  "preview": {"ok": true, "probe_ms": 0.1, "size": 0, "read_placed": 0, "kind": ""},
+  "recovery": {"process_rc": 0, "queued_roots": 4, "queued": 182, "done": 105, "dirs": 74, "refused": 0, "errors": 0, "hash_mismatch": 0, "resumed": 0, "salvaged": 0, "nothing_to_recover": 3},
+  "report": {"rc": 0, "path": "D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\api\\report.json"}
+}

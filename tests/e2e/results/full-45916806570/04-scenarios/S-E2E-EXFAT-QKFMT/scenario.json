@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-QKFMT",
+  "mode": "quick_format",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "exFAT quick-format row - the FAT-family format-recovery gap class (GAP-S6-4); recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "b0a2f23582d282c1d16eb12fa265c67984c7fb1d1b912afeb65352055fefaf58",
+  "scenario_state": true
+}

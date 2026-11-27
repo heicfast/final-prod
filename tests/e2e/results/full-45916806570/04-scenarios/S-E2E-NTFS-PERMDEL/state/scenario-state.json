@@ -1,0 +1,26 @@
+{
+  "mode": "permanent_delete",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T01:04:44.4613321Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "Remove-Item -Force (bypasses the recycle bin)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 5.24,
+  "ended_utc": "2026-11-27T01:05:10.6773128Z",
+  "pre_map": {
+    "compared": 8175,
+    "changed": 0,
+    "blocks": 8175
+  },
+  "post_map": {
+    "compared": 8175,
+    "changed": 59,
+    "blocks": 8175
+  }
+}

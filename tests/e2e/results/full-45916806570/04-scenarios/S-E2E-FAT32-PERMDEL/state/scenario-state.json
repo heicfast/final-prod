@@ -1,0 +1,26 @@
+{
+  "mode": "permanent_delete",
+  "letter": "Z:",
+  "filesystem": "FAT32",
+  "started_utc": "2026-11-27T00:51:17.0537905Z",
+  "deletable_count": 571,
+  "keep_count": 8,
+  "deletable_bytes": 560664766.0,
+  "delete_failures": [],
+  "notes": [
+    "Remove-Item -Force (bypasses the recycle bin)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 0.21,
+  "ended_utc": "2026-11-27T00:51:21.3776152Z",
+  "pre_map": {
+    "blocks": 2039,
+    "changed": 0,
+    "compared": 2039
+  },
+  "post_map": {
+    "blocks": 2039,
+    "changed": 17,
+    "compared": 2039
+  }
+}

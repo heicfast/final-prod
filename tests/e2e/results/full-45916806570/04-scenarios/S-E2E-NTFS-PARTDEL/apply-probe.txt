@@ -1,0 +1,1 @@
+DRY-RUN exit 0:session candidates: |   1: LBA 32768, 16742392 sectors, score 1000, GPT/basic, table ok  <-- selected | REFUSED: GPT layout (protective MBR) - GPT apply is not supported yet | no writes performed (dry-run is the default; nothing is ever written without --apply)

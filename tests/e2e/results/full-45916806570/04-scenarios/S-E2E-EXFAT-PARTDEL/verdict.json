@@ -1,0 +1,31 @@
+{
+  "scenario": "S-E2E-EXFAT-PARTDEL",
+  "mode": "delete_partition",
+  "profile": "full",
+  "gate_type": "discovery",
+  "gate_note": "GATE = lost partition discovered + recover completes; file recall recorded ungated (same contract as S-PART-DELETE).",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.9982,
+      "precision": 0.9992,
+      "f1": 0.9987,
+      "expected_deleted": 10209,
+      "hash_matched": 10191,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 1
+    },
+    "cli": {
+      "recall_hash": 0.9982,
+      "precision": 0.9992,
+      "f1": 0.9987,
+      "expected_deleted": 10209,
+      "hash_matched": 10191,
+      "passed": true,
+      "reasons": [],
+      "lost_partitions": 1
+    }
+  },
+  "passed": true,
+  "error": null
+}

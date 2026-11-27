@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY50",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 10332,
+    "cli_matched": 10113,
+    "cli_hash_matched": 9294,
+    "cli_false_positives": 219,
+    "api_files_seen": 10332,
+    "api_matched": 10113,
+    "api_hash_matched": 9294,
+    "api_false_positives": 219,
+    "cli_scan_files": 10402,
+    "api_scan_files": 10402,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

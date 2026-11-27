@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-DECAY50",
+  "mode": "decay_50",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "RE-BASELINE PENDING: floor 0.85 (bench-cited 96.4%) measured 0.0001 in run 45826003339 - but that row ran on the RECREATED volume (the shard-order bug put PARTDEL before it), an invalid measurement context; the fixed order re-measures on the original volume. Observe until the promoted baseline carries the real number."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "b88cfaa9325caa869ab1ea91b7f2780b8eb58a26045807cdc0574e31d11f7efc",
+  "scenario_state": true
+}

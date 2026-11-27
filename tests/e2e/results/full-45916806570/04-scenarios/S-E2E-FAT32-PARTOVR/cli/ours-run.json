@@ -1,0 +1,114 @@
+{
+  "tool": "ours",
+  "scenario": "partial_overwrite",
+  "core_sha": "",
+  "driver": "transport=direct",
+  "rrecov": "D:\\e2e-bench\\core\\bin\\rrecov.exe",
+  "rrecov_sha256": "42b1b44b27cf715365aace1ca40a1eb537b22a295a856d648e619e926dbd338a",
+  "scan_modes": [
+    {
+      "mode": "quick",
+      "exit_code": 0,
+      "wall_seconds": 1.11,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume Z: --threads 4 --quick-only --out D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\session-quick.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\stage-quick.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 0,
+        "deleted": 0,
+        "carved": 0,
+        "lost_partitions": 0,
+        "bytes_scanned": 0,
+        "bytes_unreadable": 0,
+        "bytes_found": 0,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 14
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "exit_code": 0,
+        "report": true,
+        "wall_seconds": 0.01,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\recovered-quick",
+        "capped": false
+      },
+      "direct_transport_assertion": {
+        "hits": 1,
+        "expected": true
+      }
+    },
+    {
+      "mode": "deep",
+      "exit_code": 0,
+      "wall_seconds": 0.48,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume Z: --threads 4 --no-carve --out D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\session-deep.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\stage-deep.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 0,
+        "deleted": 0,
+        "carved": 0,
+        "lost_partitions": 0,
+        "bytes_scanned": 0,
+        "bytes_unreadable": 0,
+        "bytes_found": 0,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 14
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "exit_code": 0,
+        "report": true,
+        "wall_seconds": 0.01,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\recovered-deep",
+        "capped": false
+      },
+      "direct_transport_assertion": {
+        "hits": 1,
+        "expected": true
+      }
+    },
+    {
+      "mode": "deepcarve",
+      "exit_code": 0,
+      "wall_seconds": 38.8,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume Z: --threads 4 --out D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\session-deepcarve.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\stage-deepcarve.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 0,
+        "deleted": 0,
+        "carved": 252,
+        "lost_partitions": 0,
+        "bytes_scanned": 2146369536,
+        "bytes_unreadable": 0,
+        "bytes_found": 278109541143,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 38737
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "exit_code": 0,
+        "report": true,
+        "wall_seconds": 0.01,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTOVR\\cli\\recovered-deepcarve",
+        "capped": false
+      },
+      "direct_transport_assertion": {
+        "hits": 1,
+        "expected": true
+      }
+    }
+  ],
+  "started_utc": "2026-11-27T00:59:14.0924805Z",
+  "ended_utc": "2026-11-27T00:59:56.5735611Z"
+}

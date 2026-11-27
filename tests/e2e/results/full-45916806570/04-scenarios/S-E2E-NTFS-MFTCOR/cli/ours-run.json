@@ -1,0 +1,114 @@
+{
+  "tool": "ours",
+  "scenario": "mft_corrupt",
+  "core_sha": "",
+  "driver": "transport=direct",
+  "rrecov": "D:\\e2e-bench\\core\\bin\\rrecov.exe",
+  "rrecov_sha256": "42b1b44b27cf715365aace1ca40a1eb537b22a295a856d648e619e926dbd338a",
+  "scan_modes": [
+    {
+      "mode": "quick",
+      "exit_code": 0,
+      "wall_seconds": 0.05,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume X: --threads 4 --quick-only --out D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\session-quick.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\stage-quick.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 0,
+        "deleted": 0,
+        "carved": 0,
+        "lost_partitions": 0,
+        "bytes_scanned": 0,
+        "bytes_unreadable": 0,
+        "bytes_found": 0,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 2
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "report": true,
+        "capped": false,
+        "exit_code": 0,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\recovered-quick",
+        "wall_seconds": 0.01
+      },
+      "direct_transport_assertion": {
+        "expected": true,
+        "hits": 1
+      }
+    },
+    {
+      "mode": "deep",
+      "exit_code": 0,
+      "wall_seconds": 20.82,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume X: --threads 4 --no-carve --out D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\session-deep.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\stage-deep.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 176,
+        "deleted": 0,
+        "carved": 0,
+        "lost_partitions": 0,
+        "bytes_scanned": 0,
+        "bytes_unreadable": 0,
+        "bytes_found": 12246789,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 20788
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "report": true,
+        "capped": false,
+        "exit_code": 0,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\recovered-deep",
+        "wall_seconds": 0.1
+      },
+      "direct_transport_assertion": {
+        "expected": true,
+        "hits": 1
+      }
+    },
+    {
+      "mode": "deepcarve",
+      "exit_code": 0,
+      "wall_seconds": 161.54,
+      "capped": false,
+      "command": "D:\\e2e-bench\\core\\bin\\rrecov.exe scan --volume X: --threads 4 --out D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\session-deepcarve.crsf --log D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\stage-deepcarve.log --json",
+      "session_exists": true,
+      "summary": {
+        "files": 176,
+        "deleted": 0,
+        "carved": 5398,
+        "lost_partitions": 0,
+        "bytes_scanned": 8572108800,
+        "bytes_unreadable": 0,
+        "bytes_found": 12942199005902,
+        "error_ranges": 0,
+        "probe_unreadable": false,
+        "elapsed_ms": 161482
+      },
+      "transport_lines": [
+        "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+      ],
+      "recover": {
+        "report": true,
+        "capped": false,
+        "exit_code": 0,
+        "dest": "D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-MFTCOR\\cli\\recovered-deepcarve",
+        "wall_seconds": 0.12
+      },
+      "direct_transport_assertion": {
+        "expected": true,
+        "hits": 1
+      }
+    }
+  ],
+  "started_utc": "2026-11-27T01:32:32.8447193Z",
+  "ended_utc": "2026-11-27T01:35:39.0815724Z"
+}

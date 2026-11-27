@@ -21,4 +21,9 @@ The runs present here are indexed below as they land:
 
 | run-id | workflow run | commit | product | analysis | verdict |
 |---|---|---|---|---|---|
-| _(to be filled by the first committed run)_ | | | | | |
+| full-45916806570 | https://github.com/heicfast/final-prod/actions/runs/45916806570 | 20eaec0c (release recipe) | build-tree kit | ../analysis/full-45916806570.md | **45/45 PASS, all hard gates green** — NTFS PERMDEL/UNLINK/FOLDER 0.9993, QKFMT 0.9773, DECAY50 0.907, PARTDEL 0.9976; exFAT PARTDEL 0.9982 (discovery); ReFS clean-refusal probes PASS (the recorded finding: README claims first-class); CLI-vs-API agree on every measured scenario |
+
+The `full-45916806570` tree is the pruned evidence core (manifests, deletion
+records + sector-range hash maps, per-mode metrics, divergence records,
+verdicts, gate tables); the byte-level detail (G-09 reports, recovered
+inventories, trees, sessions) rides the run's CI artifacts.

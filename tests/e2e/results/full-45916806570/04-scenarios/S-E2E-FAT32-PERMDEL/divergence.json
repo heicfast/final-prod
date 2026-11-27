@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-FAT32-PERMDEL",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 8,
+    "cli_matched": 0,
+    "cli_hash_matched": 0,
+    "cli_false_positives": 8,
+    "api_files_seen": 8,
+    "api_matched": 0,
+    "api_hash_matched": 0,
+    "api_false_positives": 8,
+    "cli_scan_files": 0,
+    "api_scan_files": 0,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

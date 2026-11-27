@@ -1,0 +1,512 @@
+{
+  "_comment": "Versioned regression baseline for the tests/e2e suite. Updated ONLY by human-reviewed commits (tests/e2e/BASELINE.md). Format: scenarios.<scenario>.{recall,precision,perf.<mode>.scan_wall_seconds} as produced by engine/bench/metrics/compute_metrics.py via the e2e CLI lane. Thresholds enforced by engine/bench/metrics/regression_gate.py: recall -2%, precision -2%, scan wall +25%.",
+  "schema": 1,
+  "source_run_id": "full-45916806570",
+  "scenarios": {
+    "S-E2E-EXFAT-DECAY100": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.04
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 70.35
+        },
+        "quick": {
+          "scan_wall_seconds": 0.04
+        }
+      }
+    },
+    "S-E2E-EXFAT-DECAY50": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 82.76
+        },
+        "quick": {
+          "scan_wall_seconds": 0.03
+        }
+      }
+    },
+    "S-E2E-EXFAT-DECAY80": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.03
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 70.87
+        },
+        "quick": {
+          "scan_wall_seconds": 0.04
+        }
+      }
+    },
+    "S-E2E-EXFAT-FOLDER": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.03
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 100.14
+        },
+        "quick": {
+          "scan_wall_seconds": 0.03
+        }
+      }
+    },
+    "S-E2E-EXFAT-FULLFMT": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.03
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 116.81
+        },
+        "quick": {
+          "scan_wall_seconds": 0.03
+        }
+      }
+    },
+    "S-E2E-EXFAT-PARTDEL": {
+      "recall": 0.9982,
+      "precision": 0.9992,
+      "perf": {
+        "deepcarve": {
+          "scan_wall_seconds": 131.47
+        }
+      }
+    },
+    "S-E2E-EXFAT-PARTOVR": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.06
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 70.52
+        },
+        "quick": {
+          "scan_wall_seconds": 0.04
+        }
+      }
+    },
+    "S-E2E-EXFAT-PERMDEL": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.03
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 100.01
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-EXFAT-QKFMT": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.03
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 116.78
+        },
+        "quick": {
+          "scan_wall_seconds": 0.04
+        }
+      }
+    },
+    "S-E2E-EXFAT-RECYCLE": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.04
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 100.29
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-EXFAT-UNLINK": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 100.26
+        },
+        "quick": {
+          "scan_wall_seconds": 0.04
+        }
+      }
+    },
+    "S-E2E-FAT32-DECAY100": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 37.26
+        },
+        "quick": {
+          "scan_wall_seconds": 0.06
+        }
+      }
+    },
+    "S-E2E-FAT32-DECAY50": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.07
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 49.9
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-FAT32-DECAY80": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.17
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 41.99
+        },
+        "quick": {
+          "scan_wall_seconds": 0.06
+        }
+      }
+    },
+    "S-E2E-FAT32-FOLDER": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.15
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 41.52
+        },
+        "quick": {
+          "scan_wall_seconds": 0.06
+        }
+      }
+    },
+    "S-E2E-FAT32-FULLFMT": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 60.33
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-FAT32-PARTDEL": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deepcarve": {
+          "scan_wall_seconds": 42.04
+        }
+      }
+    },
+    "S-E2E-FAT32-PARTOVR": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.48
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 38.8
+        },
+        "quick": {
+          "scan_wall_seconds": 1.11
+        }
+      }
+    },
+    "S-E2E-FAT32-PERMDEL": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 38.39
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-FAT32-QKFMT": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 39.04
+        },
+        "quick": {
+          "scan_wall_seconds": 0.16
+        }
+      }
+    },
+    "S-E2E-FAT32-RECYCLE": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 47.55
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-FAT32-UNLINK": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 0.05
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 41.76
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-NTFS-DECAY100": {
+      "recall": 0.0,
+      "precision": 0.0012,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 23.16
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 164.89
+        },
+        "quick": {
+          "scan_wall_seconds": 0.08
+        }
+      }
+    },
+    "S-E2E-NTFS-DECAY50": {
+      "recall": 0.907,
+      "precision": 0.8995,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 16.36
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 127.87
+        },
+        "quick": {
+          "scan_wall_seconds": 0.08
+        }
+      }
+    },
+    "S-E2E-NTFS-DECAY80": {
+      "recall": 0.0,
+      "precision": 0.0012,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 23.25
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 191.5
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-NTFS-FOLDER": {
+      "recall": 0.9993,
+      "precision": 0.9907,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 24.86
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 249.8
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-NTFS-FULLFMT": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 15.09
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 251.06
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-NTFS-MFTCOR": {
+      "recall": 0.0,
+      "precision": 0.1143,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 20.82
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 161.54
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    },
+    "S-E2E-NTFS-PARTDEL": {
+      "recall": 0.9976,
+      "precision": 0.9985,
+      "perf": {
+        "deepcarve": {
+          "scan_wall_seconds": 187.33
+        }
+      }
+    },
+    "S-E2E-NTFS-PARTOVR": {
+      "recall": 0.0,
+      "precision": 0.0012,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 23.23
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 163.35
+        },
+        "quick": {
+          "scan_wall_seconds": 0.06
+        }
+      }
+    },
+    "S-E2E-NTFS-PERMDEL": {
+      "recall": 0.9993,
+      "precision": 0.9907,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 24.89
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 248.62
+        },
+        "quick": {
+          "scan_wall_seconds": 0.06
+        }
+      }
+    },
+    "S-E2E-NTFS-QKFMT": {
+      "recall": 0.9773,
+      "precision": 0.9912,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 16.41
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 256.69
+        },
+        "quick": {
+          "scan_wall_seconds": 0.09
+        }
+      }
+    },
+    "S-E2E-NTFS-RECYCLE": {
+      "recall": 0.0006,
+      "precision": 0.1636,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 20.91
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 251.16
+        },
+        "quick": {
+          "scan_wall_seconds": 0.07
+        }
+      }
+    },
+    "S-E2E-NTFS-UNLINK": {
+      "recall": 0.9993,
+      "precision": 0.9907,
+      "perf": {
+        "deep": {
+          "scan_wall_seconds": 24.91
+        },
+        "deepcarve": {
+          "scan_wall_seconds": 250.09
+        },
+        "quick": {
+          "scan_wall_seconds": 0.05
+        }
+      }
+    }
+  },
+  "exclusions": [
+    "S-E2E-REFS-DECAY100: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-DECAY50: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-DECAY80: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-FOLDER: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-FULLFMT: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-PARTDEL: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-PARTOVR: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-PERMDEL: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-QKFMT: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-RECYCLE: no metrics-deepcarve.json (lane failed) - EXCLUDED",
+    "S-E2E-REFS-UNLINK: no metrics-deepcarve.json (lane failed) - EXCLUDED"
+  ]
+}

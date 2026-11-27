@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-MFTCOR",
+  "mode": "mft_corrupt",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "MFT records zeroed + $Bitmap XORed - structured NTFS recovery is destroyed by construction; the carve-only salvage path is what this row exercises (benchmark-matrix.json S-MFT-NTFS note).",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.1143,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.1143,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

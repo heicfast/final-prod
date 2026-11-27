@@ -1,0 +1,19 @@
+{
+  "harness": "cr_ui-api-lane",
+  "label": "S-E2E-FAT32-PARTDEL",
+  "target": "disk", "whole_disk": true, "stage_mask": 7, "threads": 4,
+  "transport": "direct",
+  "geometry": {"total_bytes": 2147483648, "logical_sector": 512, "physical_sector": 4096, "sector_count": 4194304},
+  "session_info": {"fs_family": 0, "stage_done_mask": 7, "configured_mask": 7, "scanned_bytes": 2147483648, "elapsed_ms": 42482, "boot_hash": 620791999},
+  "cancelled": false,
+  "cancel_to_stop_ms": null,
+  "timings_ms": {"open": 0.5, "scan_run": 42577.4, "save_session": 1.4, "query": 0.1, "recovery": 4.5, "total": 43091.1},
+  "scan_stats": {"files_found": 0, "deleted_found": 0, "carved_found": 79, "lost_partitions": 2, "bytes_scanned": 2147483648, "bytes_unreadable": 0, "elapsed_ms": 42482, "error_ranges": 0, "probe_unreadable": 0},
+  "telemetry": {"overall_permille": 0, "bytes_scanned": 4294967296, "elapsed_ms": 42482},
+  "assistant": {"total_file_count": 79, "matched": 0, "total": 79, "small_result": 1, "graded_count": 79},
+  "events": {"stage": 3, "progress": 195, "files_found": 4, "error_range": 0, "checkpoint": 0, "lost_candidate": 2, "repair": 0, "heartbeat": 0, "save_progress": 110, "fs_check": 0, "other": 0},
+  "query": {"total_all": 79, "total_deleted": 79, "sample_first_path": "Reconstructed/Raw @ 0/SVG_000001.SVG", "sample_first_node_id": 13},
+  "preview": {"ok": true, "probe_ms": 0.3, "size": 1888, "read_placed": 1888, "kind": "unsupported"},
+  "recovery": {"process_rc": 0, "queued_roots": 6, "queued": 8, "done": 8, "dirs": 0, "refused": 0, "errors": 0, "hash_mismatch": 0, "resumed": 0, "salvaged": 0, "nothing_to_recover": 0},
+  "report": {"rc": 0, "path": "D:\\e2e-bench\\work\\scenarios\\S-E2E-FAT32-PARTDEL\\api\\report.json"}
+}

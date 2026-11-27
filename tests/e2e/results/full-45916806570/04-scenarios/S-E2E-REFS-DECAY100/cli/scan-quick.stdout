@@ -1,0 +1,4 @@
+[user-signs] 190 default user signature(s) loaded
+[transport] direct raw I/O (\\.\PhysicalDrive2)
+[volume] W: disk 2 @16777216 +4277141504
+  100.0%  (0 s)  remaining: 3m00s   scan failed: bad magic (0x50030001)

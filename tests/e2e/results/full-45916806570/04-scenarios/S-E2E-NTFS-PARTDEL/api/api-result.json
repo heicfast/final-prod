@@ -1,0 +1,19 @@
+{
+  "harness": "cr_ui-api-lane",
+  "label": "S-E2E-NTFS-PARTDEL",
+  "target": "disk", "whole_disk": true, "stage_mask": 7, "threads": 4,
+  "transport": "direct",
+  "geometry": {"total_bytes": 8589934592, "logical_sector": 512, "physical_sector": 4096, "sector_count": 16777216},
+  "session_info": {"fs_family": 0, "stage_done_mask": 7, "configured_mask": 7, "scanned_bytes": 8589934592, "elapsed_ms": 190917, "boot_hash": 3953007149},
+  "cancelled": false,
+  "cancel_to_stop_ms": null,
+  "timings_ms": {"open": 0.5, "scan_run": 190919.8, "save_session": 100.4, "query": 2.0, "recovery": 14288.2, "total": 205494.3},
+  "scan_stats": {"files_found": 10318, "deleted_found": 2, "carved_found": 19846, "lost_partitions": 1, "bytes_scanned": 8589934592, "bytes_unreadable": 0, "elapsed_ms": 190917, "error_ranges": 0, "probe_unreadable": 0},
+  "telemetry": {"overall_permille": 0, "bytes_scanned": 17179869184, "elapsed_ms": 190917},
+  "assistant": {"total_file_count": 30172, "matched": 10245, "total": 30172, "small_result": 0, "graded_count": 30172},
+  "events": {"stage": 3, "progress": 802, "files_found": 4, "error_range": 0, "checkpoint": 0, "lost_candidate": 1, "repair": 0, "heartbeat": 0, "save_progress": 1001, "fs_check": 0, "other": 0},
+  "query": {"total_all": 30171, "total_deleted": 19848, "sample_first_path": "Reconstructed/Raw @ 0/CUR_000001.CUR", "sample_first_node_id": 13},
+  "preview": {"ok": true, "probe_ms": 0.8, "size": 1024, "read_placed": 1024, "kind": "unsupported"},
+  "recovery": {"process_rc": 0, "queued_roots": 5, "queued": 10319, "done": 10230, "dirs": 77, "refused": 0, "errors": 12, "hash_mismatch": 0, "resumed": 0, "salvaged": 0, "nothing_to_recover": 0},
+  "report": {"rc": 0, "path": "D:\\e2e-bench\\work\\scenarios\\S-E2E-NTFS-PARTDEL\\api\\report.json"}
+}

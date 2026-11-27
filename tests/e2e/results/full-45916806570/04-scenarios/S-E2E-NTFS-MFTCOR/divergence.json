@@ -1,0 +1,20 @@
+{
+  "scenario": "S-E2E-NTFS-MFTCOR",
+  "checked": true,
+  "agree": true,
+  "compared": {
+    "cli_files_seen": 105,
+    "cli_matched": 13,
+    "cli_hash_matched": 12,
+    "cli_false_positives": 92,
+    "api_files_seen": 105,
+    "api_matched": 13,
+    "api_hash_matched": 12,
+    "api_false_positives": 92,
+    "cli_scan_files": 176,
+    "api_scan_files": 176,
+    "cli_lost_partitions": 0,
+    "api_lost_partitions": 0
+  },
+  "findings": []
+}

@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-NTFS-PERMDEL",
+  "mode": "permanent_delete",
+  "filesystem": "NTFS",
+  "disk": "e2e-ntfs",
+  "volume": "NTFSVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "RE-BASELINE PENDING: floor 0.35 (cited from the bench lane's 5 GiB 60%-volume corpus, run 42019994804) measured 0.12 here (run 45826003339, 8 GiB single-volume corpus after RECYCLE's reseed) while the SAME corpus deleted via DeleteFileW (S-E2E-NTFS-UNLINK) measured 0.9993 and folder_delete 0.9993 - recall is sensitive to deletion method and/or MFT layout history, the quality workstream's territory. The row stays observe-only until the first green full run promotes the evidence-based baseline (BASELINE.md policy); never a deleted row, never a floor the current evidence contradicts."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-NTFSVOL.jsonl",
+  "seed_manifest_sha256": "a1373e2e7ef58541c8ae5b7c6ec49a4243bb8e4cd559877ae10637d731c60d4b",
+  "scenario_state": true
+}

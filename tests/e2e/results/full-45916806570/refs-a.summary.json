@@ -1,0 +1,138 @@
+{
+  "suite": "tests/e2e",
+  "profile": "full",
+  "shard": "refs-a",
+  "captured_utc": "2026-11-27T01:12:16.9824941Z",
+  "runId": "full-45916806570",
+  "runUrl": "https://github.com/heicfast/final-prod/actions/runs/45916806570",
+  "scan_modes": [
+    "quick",
+    "deep",
+    "deepcarve"
+  ],
+  "include_api": true,
+  "scenarios": [
+    {
+      "id": "S-E2E-REFS-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.09,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-REFS-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.18,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-REFS-UNLINK",
+      "mode": "unlink_native",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-REFS-FOLDER",
+      "mode": "folder_delete",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-REFS-QKFMT",
+      "mode": "quick_format",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.07,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-REFS-FULLFMT",
+      "mode": "full_format",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    }
+  ],
+  "soft_records": [],
+  "hard_failures": []
+}

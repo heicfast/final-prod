@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-EXFAT-UNLINK",
+  "mode": "unlink_native",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "DeleteFileW parity row - expected parity with S-E2E-EXFAT-PERMDEL, recorded ungated.",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

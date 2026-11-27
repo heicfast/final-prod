@@ -1,0 +1,12 @@
+{
+  "scenario": "S-E2E-REFS-FOLDER",
+  "mode": "folder_delete",
+  "filesystem": "ReFS",
+  "expect": "unsupported_fs",
+  "disk": "e2e-refs",
+  "volume": "REFSVOL",
+  "deletion_applied": true,
+  "seed_manifest": "03-baseline\\seed-manifest-REFSVOL.jsonl",
+  "seed_manifest_sha256": "a85a60fc848b7373e9df3aa839f2b9504568af00414bce953e36f82d33a74758",
+  "finding": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+}

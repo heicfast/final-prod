@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-DECAY50",
+  "mode": "decay_50",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "exFAT sector-reuse decay row - no recorded baseline; observe-only."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "b4c5ea4cd683ad596fc8d431536ed47a9f0ddb6e6c0e394ad7de4266f696234f",
+  "scenario_state": true
+}

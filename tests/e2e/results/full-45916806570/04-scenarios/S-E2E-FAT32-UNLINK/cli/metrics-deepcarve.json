@@ -1,0 +1,161 @@
+{
+ "tool": "ours",
+ "scenario": "unlink_native",
+ "fs": "FAT32",
+ "ground_truth_files": 571,
+ "recovered_hash_ok": 0,
+ "recall": 0.0,
+ "recall_attempted_set": 0.0,
+ "precision": 0.0,
+ "f1": 0.0,
+ "f1_attempted_set": 0.0,
+ "found_rows": 9,
+ "found_matched_ground_truth": 0,
+ "found_deleted_matched": 0,
+ "reported_recovered_files": 8,
+ "false_positives": 8,
+ "fp_class": {
+  "tool-internal": 0,
+  "unmatched-carveable-plausible": 0,
+  "noise": 8
+ },
+ "path_preservation": null,
+ "timestamp_preservation": null,
+ "timestamp_preservation_n": [
+  0,
+  0
+ ],
+ "keep_control": {
+  "total": 8,
+  "recovered_hash_ok": 0,
+  "ok": false
+ },
+ "per_class": {
+  "tiny": {
+   "total": 12,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "small": {
+   "total": 20,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "medium": {
+   "total": 8,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "large": {
+   "total": 3,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "cap-test": {
+   "total": 1,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "many-small": {
+   "total": 500,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "nested": {
+   "total": 6,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "cjk": {
+   "total": 8,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "fragmented": {
+   "total": 2,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "high-fragmented": {
+   "total": 3,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "doomed": {
+   "total": 8,
+   "recovered": 0,
+   "recall": 0.0
+  }
+ },
+ "size_weighted": {
+  "total_bytes": 560664766,
+  "recovered_bytes": 0,
+  "recall_bytes": 0.0
+ },
+ "physical_ceiling": null,
+ "og_cap": null,
+ "perf": {
+  "quick": {
+   "scan_wall_seconds": 0.05,
+   "scan_capped": false,
+   "scan_exit": 0,
+   "bytes_scanned": 0,
+   "files_found": 0,
+   "deleted_found": 0,
+   "carved_found": 0,
+   "lost_partitions": 0,
+   "peak_working_set_bytes": 0,
+   "cpu_seconds": 0.0,
+   "recover_wall_seconds": 0.01,
+   "recover_exit": 0,
+   "recover_peak_working_set_bytes": 0,
+   "transport": [
+    "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+   ]
+  },
+  "deep": {
+   "scan_wall_seconds": 0.05,
+   "scan_capped": false,
+   "scan_exit": 0,
+   "bytes_scanned": 0,
+   "files_found": 0,
+   "deleted_found": 0,
+   "carved_found": 0,
+   "lost_partitions": 0,
+   "peak_working_set_bytes": 0,
+   "cpu_seconds": 0.0,
+   "recover_wall_seconds": 0.01,
+   "recover_exit": 0,
+   "recover_peak_working_set_bytes": 0,
+   "transport": [
+    "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+   ]
+  },
+  "deepcarve": {
+   "scan_wall_seconds": 41.76,
+   "scan_capped": false,
+   "scan_exit": 0,
+   "bytes_scanned": 2146369536,
+   "files_found": 0,
+   "deleted_found": 0,
+   "carved_found": 208,
+   "lost_partitions": 0,
+   "peak_working_set_bytes": 66482176,
+   "cpu_seconds": 165.422,
+   "recover_wall_seconds": 0.01,
+   "recover_exit": 0,
+   "recover_peak_working_set_bytes": 0,
+   "transport": [
+    "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+   ]
+  }
+ },
+ "preservation": {
+  "ads": [],
+  "hardlink": [],
+  "sparse": [],
+  "timestamps": []
+ },
+ "notes": [],
+ "mode": "deepcarve"
+}

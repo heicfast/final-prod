@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-PERMDEL",
+  "mode": "permanent_delete",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "current-corpus exFAT delete deepcarve hash-recall 0.0 (run 42019994804, benchmark-matrix.json S-DEL-EXFAT) - the exFAT deepcarve quality gap is the quality workstream's; recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "337682947d0f36ab9d088c002763d844dc9f388dbe689db9fb0a90d1341a31b9",
+  "scenario_state": true
+}

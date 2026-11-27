@@ -1,0 +1,136 @@
+{
+ "tool": "ours",
+ "scenario": "delete_partition",
+ "fs": "exFAT",
+ "ground_truth_files": 10209,
+ "recovered_hash_ok": 10191,
+ "recall": 0.9982,
+ "recall_attempted_set": 0.9982,
+ "precision": 0.9992,
+ "f1": 0.9987,
+ "f1_attempted_set": 0.9987,
+ "found_rows": 10297,
+ "found_matched_ground_truth": 10209,
+ "found_deleted_matched": 10197,
+ "reported_recovered_files": 10211,
+ "false_positives": 8,
+ "fp_class": {
+  "tool-internal": 0,
+  "unmatched-carveable-plausible": 0,
+  "noise": 8
+ },
+ "path_preservation": 1.0,
+ "timestamp_preservation": 0.9982,
+ "timestamp_preservation_n": [
+  10185,
+  10203
+ ],
+ "keep_control": null,
+ "per_class": {
+  "tiny": {
+   "total": 40,
+   "recovered": 40,
+   "recall": 1.0
+  },
+  "small": {
+   "total": 60,
+   "recovered": 60,
+   "recall": 1.0
+  },
+  "medium": {
+   "total": 30,
+   "recovered": 30,
+   "recall": 1.0
+  },
+  "large-single": {
+   "total": 1,
+   "recovered": 1,
+   "recall": 1.0
+  },
+  "large": {
+   "total": 3,
+   "recovered": 3,
+   "recall": 1.0
+  },
+  "cap-test": {
+   "total": 1,
+   "recovered": 1,
+   "recall": 1.0
+  },
+  "many-small": {
+   "total": 10000,
+   "recovered": 10000,
+   "recall": 1.0
+  },
+  "nested": {
+   "total": 12,
+   "recovered": 12,
+   "recall": 1.0
+  },
+  "long-path": {
+   "total": 6,
+   "recovered": 0,
+   "recall": 0.0
+  },
+  "cjk": {
+   "total": 8,
+   "recovered": 8,
+   "recall": 1.0
+  },
+  "fragmented": {
+   "total": 6,
+   "recovered": 6,
+   "recall": 1.0
+  },
+  "high-fragmented": {
+   "total": 6,
+   "recovered": 6,
+   "recall": 1.0
+  },
+  "doomed": {
+   "total": 24,
+   "recovered": 24,
+   "recall": 1.0
+  },
+  "keep": {
+   "total": 12,
+   "recovered": 0,
+   "recall": 0.0
+  }
+ },
+ "size_weighted": {
+  "total_bytes": 1330703629,
+  "recovered_bytes": 1328454731,
+  "recall_bytes": 0.9983
+ },
+ "physical_ceiling": null,
+ "og_cap": null,
+ "perf": {
+  "deepcarve": {
+   "scan_wall_seconds": 131.47,
+   "scan_capped": false,
+   "scan_exit": 0,
+   "bytes_scanned": 4294967296,
+   "files_found": 10209,
+   "deleted_found": 0,
+   "carved_found": 270,
+   "lost_partitions": 1,
+   "peak_working_set_bytes": 74080256,
+   "cpu_seconds": 481.641,
+   "recover_wall_seconds": 18.94,
+   "recover_exit": 2,
+   "recover_peak_working_set_bytes": 34258944,
+   "transport": [
+    "[transport] direct raw I/O (\\\\.\\PhysicalDrive2)"
+   ]
+  }
+ },
+ "preservation": {
+  "ads": [],
+  "hardlink": [],
+  "sparse": [],
+  "timestamps": []
+ },
+ "notes": [],
+ "mode": "deepcarve"
+}

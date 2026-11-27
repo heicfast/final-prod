@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-RECYCLE",
+  "mode": "recycle_bin",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "exFAT recycle-bin row - no recorded bench baseline; observe-only with full capture."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "3a274f3a5b8d9ee257603d2d07e659386c967d10972b94f2d939a296b36a75f8",
+  "scenario_state": true
+}

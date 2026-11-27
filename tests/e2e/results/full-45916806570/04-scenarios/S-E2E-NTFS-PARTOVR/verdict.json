@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-PARTOVR",
+  "mode": "partial_overwrite",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "the first 8 sectors of every deleted file's first extent are 0xAA-overwritten - those files CANNOT hash-match by construction (benchmark-matrix.json S-OVR-NTFS note); honesty about physics, not a gap.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0012,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0012,
+      "f1": 0.0,
+      "expected_deleted": 10216,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

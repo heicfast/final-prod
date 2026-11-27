@@ -1,0 +1,26 @@
+{
+  "mode": "folder_delete",
+  "letter": "Y:",
+  "filesystem": "exFAT",
+  "started_utc": "2026-11-27T01:14:43.9133162Z",
+  "deletable_count": 10197,
+  "keep_count": 12,
+  "deletable_bytes": 1328778751.0,
+  "delete_failures": [],
+  "notes": [
+    "whole seed tree shell-deleted to the bin (VB DeleteDirectory), then Clear-RecycleBin -Force; keep root untouched"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 14.31,
+  "ended_utc": "2026-11-27T01:15:08.8207564Z",
+  "pre_map": {
+    "changed": 0,
+    "compared": 4079,
+    "blocks": 4079
+  },
+  "post_map": {
+    "changed": 1,
+    "compared": 4079,
+    "blocks": 4079
+  }
+}

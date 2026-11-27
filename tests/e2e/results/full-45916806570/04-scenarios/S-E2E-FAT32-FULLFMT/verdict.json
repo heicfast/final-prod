@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-FAT32-FULLFMT",
+  "mode": "full_format",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "zero-filled volume - honest-survival row.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 579,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

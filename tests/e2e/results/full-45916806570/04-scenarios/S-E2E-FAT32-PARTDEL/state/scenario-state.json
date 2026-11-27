@@ -1,0 +1,29 @@
+{
+  "mode": "delete_partition",
+  "letter": "Z:",
+  "filesystem": "FAT32",
+  "started_utc": "2026-11-27T01:01:51.5307398Z",
+  "deletable_count": 571,
+  "keep_count": 8,
+  "deletable_bytes": 560664766.0,
+  "delete_failures": [],
+  "notes": [
+    "access path Z: detached from partition 1 before removal",
+    "GPT entries removed on disk 2: partitions 1 (Remove-Partition; data sectors untouched); disk left unallocated",
+    "post-state captured at DISK level (volume no longer exists)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 1.22,
+  "ended_utc": "2026-11-27T01:01:56.9895988Z",
+  "pre_map": {
+    "blocks": 2039,
+    "compared": 2039,
+    "changed": 0
+  },
+  "post_map": {
+    "blocks": 2048,
+    "compared": 2039,
+    "changed": 1497,
+    "not_comparable": true
+  }
+}

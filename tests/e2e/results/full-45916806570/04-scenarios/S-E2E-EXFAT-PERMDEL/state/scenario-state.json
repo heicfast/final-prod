@@ -1,0 +1,26 @@
+{
+  "mode": "permanent_delete",
+  "letter": "Y:",
+  "filesystem": "exFAT",
+  "started_utc": "2026-11-27T01:00:57.1768605Z",
+  "deletable_count": 10197,
+  "keep_count": 12,
+  "deletable_bytes": 1328778751.0,
+  "delete_failures": [],
+  "notes": [
+    "Remove-Item -Force (bypasses the recycle bin)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 9.78,
+  "ended_utc": "2026-11-27T01:01:17.5977634Z",
+  "pre_map": {
+    "changed": 0,
+    "compared": 4079,
+    "blocks": 4079
+  },
+  "post_map": {
+    "changed": 43,
+    "compared": 4079,
+    "blocks": 4079
+  }
+}

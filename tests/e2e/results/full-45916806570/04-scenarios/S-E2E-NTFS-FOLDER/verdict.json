@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-NTFS-FOLDER",
+  "mode": "folder_delete",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "bin-emptied deepcarve hash-recall 0.0739 on the bench corpus (run 42019994804, benchmark-matrix.json S-BINEMPTY-NTFS) - after Clear-RecycleBin the $I/$R metadata is itself deleted and payload recovery is carve-dependent. Run 45826003339 first measurement: 0.9993 deepcarve hash-recall (first-ever unlink_native/folder_delete coverage on this corpus).",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.9993,
+      "precision": 0.9907,
+      "f1": 0.995,
+      "expected_deleted": 10216,
+      "hash_matched": 10209,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.9993,
+      "precision": 0.9907,
+      "f1": 0.995,
+      "expected_deleted": 10216,
+      "hash_matched": 10209,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

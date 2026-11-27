@@ -1,0 +1,118 @@
+{
+  "suite": "tests/e2e",
+  "profile": "full",
+  "shard": "ntfs-basic",
+  "captured_utc": "2026-11-27T01:44:24.9489716Z",
+  "runId": "full-45916806570",
+  "runUrl": "https://github.com/heicfast/final-prod/actions/runs/45916806570",
+  "scan_modes": [
+    "quick",
+    "deep",
+    "deepcarve"
+  ],
+  "include_api": true,
+  "scenarios": [
+    {
+      "id": "S-E2E-NTFS-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0006,
+        "precision": 0.1636,
+        "f1": 0.0012,
+        "expected_deleted": 10216,
+        "hash_matched": 6,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0006,
+        "precision": 0.1636,
+        "f1": 0.0012,
+        "expected_deleted": 10216,
+        "hash_matched": 6,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-NTFS-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-NTFS-UNLINK",
+      "mode": "unlink_native",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "id": "S-E2E-NTFS-FOLDER",
+      "mode": "folder_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    }
+  ],
+  "soft_records": [],
+  "hard_failures": []
+}

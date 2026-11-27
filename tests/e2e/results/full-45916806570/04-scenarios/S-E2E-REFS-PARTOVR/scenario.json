@@ -1,0 +1,12 @@
+{
+  "scenario": "S-E2E-REFS-PARTOVR",
+  "mode": "partial_overwrite",
+  "filesystem": "ReFS",
+  "expect": "unsupported_fs",
+  "disk": "e2e-refs",
+  "volume": "REFSVOL",
+  "deletion_applied": true,
+  "seed_manifest": "03-baseline\\seed-manifest-REFSVOL.jsonl",
+  "seed_manifest_sha256": "b465818e45e863cc6f5ec2136acede1149fea8597f1ba29e1528dc28a6d43806",
+  "finding": "FINDING (runs 45826003339 refs-a/refs-b, first recorded exercise): the runner formats ReFS and seeds it fine, but the product's volume scan refuses it deterministically - 'scan failed: bad magic (0x50030001)' on every row - while engine/README.md claims ReFS first-class. The row now pins the unsupported-format path: the scan must refuse CLEANLY (exit 1, error surfaced, no session, no crash); the capability gap is the quality workstream's to close, after which the row flips back to a recovery gate."
+}

@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-PARTOVR",
+  "mode": "partial_overwrite",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "ee6242da356373bc71dedd7f0230a07b148c3a21eeeeeb2a54a6a97f14636a64",
+  "scenario_state": true
+}

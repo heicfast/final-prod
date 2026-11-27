@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-EXFAT-FOLDER",
+  "mode": "folder_delete",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "exFAT bin-emptied row - no recorded bench baseline; observe-only.",
+  "lanes": {
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

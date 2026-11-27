@@ -1,0 +1,12 @@
+{
+  "scenario": "S-E2E-REFS-PARTDEL",
+  "mode": "delete_partition",
+  "filesystem": "ReFS",
+  "expect": "unsupported_fs",
+  "disk": "e2e-refs",
+  "volume": "REFSVOL",
+  "deletion_applied": true,
+  "seed_manifest": "03-baseline\\seed-manifest-REFSVOL.jsonl",
+  "seed_manifest_sha256": "205540f19779e093e904f59c02c8afd4966fcf142c817434f096f2c3c92aa5e8",
+  "finding": "FINDING (runs 45826003339/45845188954): after the partition removal the volume is gone, and the whole-disk lost-partition scan completes HONESTLY with ZERO candidates on the ReFS-shaped unallocated space (run 45826003339 refs-b: completed, lost=0) - the ReFS lost-partition discovery gap. The row's gate is that honest-empty shape: exit 0 + session produced + lost_partitions == 0 on the CLI whole-disk scan, and the API disk-target harness reporting the same zero."
+}

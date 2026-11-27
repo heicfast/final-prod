@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-PARTDEL",
+  "mode": "delete_partition",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "disk",
+  "scan_modes": "deepcarve",
+  "gate": {
+    "type": "discovery",
+    "note": "GATE = lost partition discovered + recover completes; the MBR variant of the partition-delete matrix (the FAT32 disk is MBR)."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "a1072e9b92c30304205b8b6640180131b04afce907f28cbcf95ad41db19398fa",
+  "scenario_state": true
+}

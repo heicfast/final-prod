@@ -1,0 +1,26 @@
+{
+  "mode": "full_format",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T01:01:14.1407305Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "Format-Volume -Full (zero-fills the data area)"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 30.3,
+  "ended_utc": "2026-11-27T01:02:00.1114237Z",
+  "pre_map": {
+    "compared": 8175,
+    "changed": 0,
+    "blocks": 8175
+  },
+  "post_map": {
+    "compared": 8175,
+    "changed": 1362,
+    "blocks": 8175
+  }
+}

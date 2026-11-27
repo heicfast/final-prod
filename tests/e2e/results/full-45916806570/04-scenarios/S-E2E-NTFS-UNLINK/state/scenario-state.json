@@ -1,0 +1,26 @@
+{
+  "mode": "unlink_native",
+  "letter": "X:",
+  "filesystem": "NTFS",
+  "started_utc": "2026-11-27T01:18:57.6396378Z",
+  "deletable_count": 10216,
+  "keep_count": 12,
+  "deletable_bytes": 1411415529.0,
+  "delete_failures": [],
+  "notes": [
+    "native DeleteFileW P/Invoke (no bin); readonly-cleared-before-unlink: 18"
+  ],
+  "extra": null,
+  "elapsed_delete_seconds": 3.07,
+  "ended_utc": "2026-11-27T01:19:21.7078182Z",
+  "pre_map": {
+    "compared": 8175,
+    "changed": 0,
+    "blocks": 8175
+  },
+  "post_map": {
+    "compared": 8175,
+    "changed": 52,
+    "blocks": 8175
+  }
+}

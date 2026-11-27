@@ -1,0 +1,25 @@
+{
+  "scenario": "S-E2E-REFS-PARTDEL",
+  "mode": "delete_partition",
+  "profile": "full",
+  "gate_type": "unsupported_fs",
+  "gate_note": "FINDING (runs 45826003339/45845188954): after the partition removal the volume is gone, and the whole-disk lost-partition scan completes HONESTLY with ZERO candidates on the ReFS-shaped unallocated space (run 45826003339 refs-b: completed, lost=0) - the ReFS lost-partition discovery gap. The row's gate is that honest-empty shape: exit 0 + session produced + lost_partitions == 0 on the CLI whole-disk scan, and the API disk-target harness reporting the same zero.",
+  "lanes": {
+    "api": {
+      "expected": "the same shape as the CLI lane",
+      "exit_code": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "expected": "completed whole-disk scan, session produced, lost_partitions == 0 (the ReFS discovery gap)",
+      "exit_code": 0,
+      "wall_seconds": 367.05,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null,
+  "finding": "FINDING (runs 45826003339/45845188954): after the partition removal the volume is gone, and the whole-disk lost-partition scan completes HONESTLY with ZERO candidates on the ReFS-shaped unallocated space (run 45826003339 refs-b: completed, lost=0) - the ReFS lost-partition discovery gap. The row's gate is that honest-empty shape: exit 0 + session produced + lost_partitions == 0 on the CLI whole-disk scan, and the API disk-target harness reporting the same zero."
+}

@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-FAT32-UNLINK",
+  "mode": "unlink_native",
+  "filesystem": "FAT32",
+  "disk": "e2e-fat32",
+  "volume": "FAT32VOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "DeleteFileW parity row - recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-FAT32VOL.jsonl",
+  "seed_manifest_sha256": "7ec4f0bae5991580244a4c8610d22a5a158da233618d8d38b4628fd364c9222f",
+  "scenario_state": true
+}

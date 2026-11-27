@@ -1,0 +1,5 @@
+{
+  "scenario": "S-E2E-REFS-DECAY100",
+  "checked": false,
+  "reason": "unsupported-format probe: nothing is recovered by construction; the refusal shape is the gate"
+}

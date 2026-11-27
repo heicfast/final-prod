@@ -1,0 +1,16 @@
+{
+  "scenario": "S-E2E-EXFAT-UNLINK",
+  "mode": "unlink_native",
+  "filesystem": "exFAT",
+  "disk": "e2e-exfat",
+  "volume": "EXFATVOL",
+  "target_mode": "volume",
+  "scan_modes": "all",
+  "gate": {
+    "type": "observe",
+    "note": "DeleteFileW parity row - expected parity with S-E2E-EXFAT-PERMDEL, recorded ungated."
+  },
+  "seed_manifest": "03-baseline\\seed-manifest-EXFATVOL.jsonl",
+  "seed_manifest_sha256": "a83f66e665cff0c61972739c5f7ed95e7853827ff5e970a70be6ecba0e6736f4",
+  "scenario_state": true
+}

@@ -1,0 +1,9 @@
+[user-signs] 190 default user signature(s) loaded
+[transport] direct raw I/O (\\.\PhysicalDrive2)
+[volume] X: disk 2 @16777216 +8572108800
+  100.0%  (0 s)  remaining: 3m00s     100.0%  done          
+{"files":0,"deleted":0,"carved":0,"lost_partitions":0,"bytes_scanned":0,"bytes_unreadable":0,"bytes_found":0,"error_ranges":0,"probe_unreadable":false,"elapsed_ms":2}
+== Found
+== Deleted
+== File Path Lost
+session saved: D:\e2e-bench\work\scenarios\S-E2E-NTFS-PARTOVR\cli\session-quick.crsf

@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-EXFAT-PARTOVR",
+  "mode": "partial_overwrite",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "first-8-sectors 0xAA overwrite - hash-matching impossible by construction for the overwritten files.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 10197,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

@@ -1,0 +1,29 @@
+{
+  "scenario": "S-E2E-FAT32-PERMDEL",
+  "mode": "permanent_delete",
+  "profile": "full",
+  "gate_type": "observe",
+  "gate_note": "FAT32 deleted-entry recovery is a KNOWN ENGINE GAP (GAP-S6-1/S6-2, measured 0-0.3% recall; benchmark-matrix.json S-DEL-FAT32 note) - recorded ungated.",
+  "lanes": {
+    "api": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 571,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    },
+    "cli": {
+      "recall_hash": 0.0,
+      "precision": 0.0,
+      "f1": 0.0,
+      "expected_deleted": 571,
+      "hash_matched": 0,
+      "passed": true,
+      "reasons": []
+    }
+  },
+  "passed": true,
+  "error": null
+}

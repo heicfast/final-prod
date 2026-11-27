@@ -1,0 +1,1132 @@
+{
+  "captured_utc": "2026-11-27T01:48:54.8380349Z",
+  "hard_failures": [],
+  "soft_records": [
+    "apply probe: planner REFUSED (recorded - an honest refusal is a valid capability state)",
+    "apply probe: real apply exit 0, partitions 0 -> 0 (recorded)",
+    "apply probe: planner REFUSED (recorded - an honest refusal is a valid capability state)"
+  ],
+  "scenarios": [
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-UNLINK",
+      "mode": "unlink_native",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-FOLDER",
+      "mode": "folder_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-QKFMT",
+      "mode": "quick_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10209,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10209,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-a",
+      "id": "S-E2E-EXFAT-FULLFMT",
+      "mode": "full_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10209,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10209,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-b",
+      "id": "S-E2E-EXFAT-PARTDEL",
+      "mode": "delete_partition",
+      "gate": "discovery",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9982,
+        "precision": 0.9992,
+        "f1": 0.9987,
+        "expected_deleted": 10209,
+        "hash_matched": 10191,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 1
+      },
+      "api": {
+        "recall_hash": 0.9982,
+        "precision": 0.9992,
+        "f1": 0.9987,
+        "expected_deleted": 10209,
+        "hash_matched": 10191,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 1
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-b",
+      "id": "S-E2E-EXFAT-DECAY50",
+      "mode": "decay_50",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-b",
+      "id": "S-E2E-EXFAT-DECAY80",
+      "mode": "decay_80",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-b",
+      "id": "S-E2E-EXFAT-DECAY100",
+      "mode": "decay_100",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "exfat-b",
+      "id": "S-E2E-EXFAT-PARTOVR",
+      "mode": "partial_overwrite",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10197,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-UNLINK",
+      "mode": "unlink_native",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-FOLDER",
+      "mode": "folder_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-QKFMT",
+      "mode": "quick_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-a",
+      "id": "S-E2E-FAT32-FULLFMT",
+      "mode": "full_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-b",
+      "id": "S-E2E-FAT32-DECAY50",
+      "mode": "decay_50",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-b",
+      "id": "S-E2E-FAT32-DECAY80",
+      "mode": "decay_80",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-b",
+      "id": "S-E2E-FAT32-DECAY100",
+      "mode": "decay_100",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-b",
+      "id": "S-E2E-FAT32-PARTOVR",
+      "mode": "partial_overwrite",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 571,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "fat32-b",
+      "id": "S-E2E-FAT32-PARTDEL",
+      "mode": "delete_partition",
+      "gate": "discovery",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 2
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 579,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 2
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-basic",
+      "id": "S-E2E-NTFS-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0006,
+        "precision": 0.1636,
+        "f1": 0.0012,
+        "expected_deleted": 10216,
+        "hash_matched": 6,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0006,
+        "precision": 0.1636,
+        "f1": 0.0012,
+        "expected_deleted": 10216,
+        "hash_matched": 6,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-basic",
+      "id": "S-E2E-NTFS-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-basic",
+      "id": "S-E2E-NTFS-UNLINK",
+      "mode": "unlink_native",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-basic",
+      "id": "S-E2E-NTFS-FOLDER",
+      "mode": "folder_delete",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9993,
+        "precision": 0.9907,
+        "f1": 0.995,
+        "expected_deleted": 10216,
+        "hash_matched": 10209,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-decay",
+      "id": "S-E2E-NTFS-DECAY80",
+      "mode": "decay_80",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-decay",
+      "id": "S-E2E-NTFS-DECAY100",
+      "mode": "decay_100",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-decay",
+      "id": "S-E2E-NTFS-PARTOVR",
+      "mode": "partial_overwrite",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0012,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-decay",
+      "id": "S-E2E-NTFS-MFTCOR",
+      "mode": "mft_corrupt",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.1143,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.1143,
+        "f1": 0.0,
+        "expected_deleted": 10216,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-format",
+      "id": "S-E2E-NTFS-QKFMT",
+      "mode": "quick_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9773,
+        "precision": 0.9912,
+        "f1": 0.9842,
+        "expected_deleted": 10228,
+        "hash_matched": 9996,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.9773,
+        "precision": 0.9912,
+        "f1": 0.9842,
+        "expected_deleted": 10228,
+        "hash_matched": 9996,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-format",
+      "id": "S-E2E-NTFS-FULLFMT",
+      "mode": "full_format",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10228,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "expected_deleted": 10228,
+        "hash_matched": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-format",
+      "id": "S-E2E-NTFS-DECAY50",
+      "mode": "decay_50",
+      "gate": "observe",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.907,
+        "precision": 0.8995,
+        "f1": 0.9033,
+        "expected_deleted": 10216,
+        "hash_matched": 9266,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "recall_hash": 0.907,
+        "precision": 0.8995,
+        "f1": 0.9033,
+        "expected_deleted": 10216,
+        "hash_matched": 9266,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "ntfs-format",
+      "id": "S-E2E-NTFS-PARTDEL",
+      "mode": "delete_partition",
+      "gate": "discovery",
+      "passed": true,
+      "cli": {
+        "recall_hash": 0.9976,
+        "precision": 0.9985,
+        "f1": 0.998,
+        "expected_deleted": 10228,
+        "hash_matched": 10203,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 1
+      },
+      "api": {
+        "recall_hash": 0.9976,
+        "precision": 0.9985,
+        "f1": 0.998,
+        "expected_deleted": 10228,
+        "hash_matched": 10203,
+        "passed": true,
+        "reasons": [],
+        "lost_partitions": 1
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-RECYCLE",
+      "mode": "recycle_bin",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.09,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-PERMDEL",
+      "mode": "permanent_delete",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.18,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-UNLINK",
+      "mode": "unlink_native",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-FOLDER",
+      "mode": "folder_delete",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-QKFMT",
+      "mode": "quick_format",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.07,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-a",
+      "id": "S-E2E-REFS-FULLFMT",
+      "mode": "full_format",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-b",
+      "id": "S-E2E-REFS-DECAY50",
+      "mode": "decay_50",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.09,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-b",
+      "id": "S-E2E-REFS-DECAY80",
+      "mode": "decay_80",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.07,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-b",
+      "id": "S-E2E-REFS-DECAY100",
+      "mode": "decay_100",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-b",
+      "id": "S-E2E-REFS-PARTOVR",
+      "mode": "partial_overwrite",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "clean refusal (exit 1 + bad magic surfaced + no session)",
+        "exit_code": 1,
+        "wall_seconds": 0.06,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 1,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    },
+    {
+      "shard": "refs-b",
+      "id": "S-E2E-REFS-PARTDEL",
+      "mode": "delete_partition",
+      "gate": "unsupported_fs",
+      "passed": true,
+      "cli": {
+        "expected": "completed whole-disk scan, session produced, lost_partitions == 0 (the ReFS discovery gap)",
+        "exit_code": 0,
+        "wall_seconds": 367.05,
+        "passed": true,
+        "reasons": []
+      },
+      "api": {
+        "expected": "the same shape as the CLI lane",
+        "exit_code": 0,
+        "passed": true,
+        "reasons": []
+      },
+      "error": null
+    }
+  ]
+}
