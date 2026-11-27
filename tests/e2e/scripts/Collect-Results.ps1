@@ -20,6 +20,7 @@
 
 param(
     [Parameter(Mandatory = $true)] [string] $ResultsRoot,
+    [ValidateSet('full', 'smoke')] [string] $Profile = 'full',
     [string] $MergeRoots = '',
     [string] $MatrixPath = '',
     [string] $RunId = '',
@@ -69,10 +70,17 @@ $matrix = $null
 if ($MatrixPath -and (Test-Path -LiteralPath $MatrixPath)) {
     $matrix = Get-Content -LiteralPath $MatrixPath -Raw | ConvertFrom-Json
 }
+# run 45916806570's assemble lesson: the expectation set is PROFILE-SCOPED -
+# a full run carries the 45 full-matrix rows, a smoke run the 4 smoke rows;
+# mixing both lists into every run's expectation false-failed the all-green
+# full run as 'missing 4 scenarios' (the smoke rows are a different lane)
 $expectedIds = @()
 if ($matrix) {
-    $expectedIds += @($matrix.scenarios | ForEach-Object { $_.id })
-    if ($matrix.smoke) { $expectedIds += @($matrix.smoke.scenarios | ForEach-Object { $_.id }) }
+    if ($Profile -eq 'smoke') {
+        $expectedIds += @($matrix.smoke.scenarios | ForEach-Object { $_.id })
+    } else {
+        $expectedIds += @($matrix.scenarios | ForEach-Object { $_.id })
+    }
 }
 
 $scenarioDirs = @(Get-ChildItem -LiteralPath (Join-Path $ResultsRoot '04-scenarios') -Directory -ErrorAction SilentlyContinue)
