@@ -46,13 +46,31 @@ jobs:
 
       - name: Resolve the release tag + download assets (hash-verified)
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # run 45916831921: the anonymous
+            # api.github.com call rate-limited from the runner's shared IP class
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = '${{ github.event.inputs.release_tag }}'
           if (-not $tag) {
-            $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/heicfast/final-prod/releases/latest' -Headers @{ Accept = 'application/vnd.github+json' }
-            $tag = $rel.tag_name
-            Write-Host "resolved latest release tag: $tag"
+            try {
+              $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/heicfast/final-prod/releases/latest' `
+                  -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; Accept = 'application/vnd.github+json' }
+              $tag = $rel.tag_name
+              Write-Host "resolved latest release tag: $tag"
+            } catch {
+              # fallback: the highest vX.Y.Z tag from the remote (the release
+              # workflow only cuts vX.Y.Z tags - release.yml's gate ties them
+              # to VERSION); the SHA256SUMS verification below still proves
+              # the downloaded asset is the release's
+              Write-Host "API resolution failed ($($_.Exception.Message)) - resolving the tag from git ls-remote"
+              $tags = @(git ls-remote --tags https://github.com/heicfast/final-prod.git | ForEach-Object {
+                  if ($_ -match 'refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+)$') { $Matches[1] }
+              })
+              $tag = ($tags | Sort-Object { [version]($_ -replace '^v','') })[-1]
+              if (-not $tag) { throw 'no vX.Y.Z tags found on the remote' }
+              Write-Host "resolved latest release tag via ls-remote: $tag"
+            }
           }
           $ver = $tag.TrimStart('v')
           $tag | Set-Content release-tag.txt -Encoding utf8
